@@ -40,6 +40,10 @@ Currently, DaoFlow is in closed alpha stage. Please subscribe to the release not
 
 Apache 2.0
 
+## Investor
+
+If your company is interested in investing in DaoFlow, please reach out to [Mike Chong (WildCat_io)](https://twitter.com/wildcat_io).
+
 ## Appendix 1: Why bare metal VMs are great for startups/indie developers?
 
 ![https://landing-assets.daoflow.dev/v0-landing-assets/peter-levels-selfhost-2.webp](https://landing-assets.daoflow.dev/v0-landing-assets/peter-levels-selfhost-2.webp)
