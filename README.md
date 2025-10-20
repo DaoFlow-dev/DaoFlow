@@ -40,7 +40,7 @@ Apache 2.0
 
 ## Appendix 1: Why bare metal VMs are great for startups/indie developers?
 
-![https://landing-assets.daoflow.dev/v0-landing-assets/peter-levels-selfhost.webp](https://landing-assets.daoflow.dev/v0-landing-assets/peter-levels-selfhost.webp)
+![https://landing-assets.daoflow.dev/v0-landing-assets/peter-levels-selfhost-2.webp](https://landing-assets.daoflow.dev/v0-landing-assets/peter-levels-selfhost-2.webp)
 
 <https://x.com/levelsio/status/1980212926444446143>
 
