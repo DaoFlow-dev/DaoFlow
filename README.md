@@ -31,8 +31,9 @@ Currently, DaoFlow is in closed alpha stage. Please subscribe to the release not
 
 ## Draft: Architecture
 
-- TanStack Start for the backend and frontend
+- Next.js for the backend and frontend
 - Docker (Compose) for quick deployment
+- First-party CLI for Vercel / Wrangler like deployments of Next.js apps
 - Bun for the package management
 
 ## License
