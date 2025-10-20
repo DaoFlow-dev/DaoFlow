@@ -1,5 +1,7 @@
 # What is DaoFlow?
 
+> Instead of AWS Wrapper, we're building bare metal VM wrappers for you.
+
 DaoFlow is an open-source platform-as-a-service solution for you and your companies to grow your business with minimal setup on bare metal VMs like Hetzner/OVH/DigitalOcean, or even AWS/Azure/Google Cloud/etc.
 
 
@@ -32,6 +34,13 @@ Apache 2.0
 
 ## Appendix 1: Why bare metal VMs are great for startups/indie developers?
 
+![https://landing-assets.daoflow.dev/v0-landing-assets/peter-levels-selfhost.webp](https://landing-assets.daoflow.dev/v0-landing-assets/peter-levels-selfhost.webp)
+
+<https://x.com/levelsio/status/1980212926444446143>
 
 
 ## Appendix 2: Why exit cloud computing?
+
+![https://landing-assets.daoflow.dev/v0-landing-assets/dhh-aws-wrapper.webp](https://landing-assets.daoflow.dev/v0-landing-assets/dhh-aws-wrapper.webp)
+
+<https://x.com/dhh/status/1980245233339408596>
