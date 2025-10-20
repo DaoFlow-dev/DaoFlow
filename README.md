@@ -1,6 +1,6 @@
 # What is DaoFlow?
 
-> Instead of AWS Wrapper, we're building bare metal VM wrappers for you.
+> Instead of AWS Wrapper, we're building bare metal / VM wrappers for you.
 > We want to be the next Wordpress but for bare metal VMs to host your own applications.
 
 DaoFlow is an open-source platform-as-a-service solution for you and your companies to grow your business with minimal setup on bare metal VMs like Hetzner/OVH/DigitalOcean, or even AWS/Azure/Google Cloud/etc.
