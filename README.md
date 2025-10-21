@@ -15,8 +15,14 @@ DaoFlow is an open-source platform-as-a-service solution for you and your compan
 - Vercel-like deployment experience with nearly zero configuration with CLI tools for common stacks including Next.js and Hono.
 - Docker/Container first approach to deployment with Docker Compose and optionally Docker Swarm.
 - Support for multiple cloud providers (AWS, Azure, Google Cloud, DigitalOcean, Hetzner, etc.).
-- Suepr quick setup and deployment, targeting less than 5 minutes.
+- Super quick setup and deployment, targeting less than 5 minutes.
+- First-class support for CloudFlare CDN and tunnels.
 - Markplace for mature stacks like Sentry, Langfuse, .etc.
+
+## Annoncement Video
+
+[![Watch the video](https://landing-assets.daoflow.dev/v0-landing-assets/video-cover-shots.webp)](https://www.youtube.com/watch?v=pR8PWmwXCYk)
+
 
 ## Status
 
