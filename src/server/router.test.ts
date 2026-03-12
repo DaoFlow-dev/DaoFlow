@@ -1,6 +1,32 @@
 import { TRPCError } from "@trpc/server";
 import { describe, expect, it } from "vitest";
+import type { Context } from "./context";
 import { appRouter } from "./router";
+
+function makeSession(role: string): NonNullable<Context["session"]> {
+  return {
+    user: {
+      id: `user_${role}`,
+      email: `${role}@daoflow.local`,
+      name: role[0]?.toUpperCase() ? `${role[0].toUpperCase()}${role.slice(1)}` : role,
+      emailVerified: true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      image: null,
+      role
+    },
+    session: {
+      id: `session_${role}`,
+      userId: `user_${role}`,
+      expiresAt: new Date(),
+      token: `token_${role}`,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      ipAddress: null,
+      userAgent: null
+    }
+  } as unknown as NonNullable<Context["session"]>;
+}
 
 describe("appRouter", () => {
   it("returns a healthy status payload", async () => {
@@ -28,30 +54,32 @@ describe("appRouter", () => {
   it("returns viewer data for an authenticated session", async () => {
     const caller = appRouter.createCaller({
       requestId: "test-viewer-ok",
-      session: {
-        user: {
-          id: "user_123",
-          email: "operator@daoflow.local",
-          name: "DaoFlow Operator",
-          emailVerified: true,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          image: null
-        },
-        session: {
-          id: "session_123",
-          userId: "user_123",
-          expiresAt: new Date(),
-          token: "token_123",
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          ipAddress: null,
-          userAgent: null
-        }
-      }
+      session: makeSession("owner")
     });
 
     const response = await caller.viewer();
-    expect(response.user.email).toBe("operator@daoflow.local");
+    expect(response.user.email).toBe("owner@daoflow.local");
+    expect(response.authz.role).toBe("owner");
+    expect(response.authz.capabilities).toContain("roles.manage");
+  });
+
+  it("blocks admin procedures for non-admin roles", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-admin-viewer",
+      session: makeSession("viewer")
+    });
+
+    await expect(caller.adminControlPlane()).rejects.toBeInstanceOf(TRPCError);
+  });
+
+  it("returns admin control-plane data for elevated roles", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-admin-owner",
+      session: makeSession("owner")
+    });
+
+    const response = await caller.adminControlPlane();
+    expect(response.operator.role).toBe("owner");
+    expect(response.governance.defaultSignupRole).toBe("viewer");
   });
 });

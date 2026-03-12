@@ -119,7 +119,7 @@ body {
 .auth-section {
   margin-top: 1rem;
   display: grid;
-  grid-template-columns: 1.15fr 1fr;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 1rem;
 }
 
@@ -213,6 +213,7 @@ body {
 }
 
 .auth-state__summary,
+.auth-state__role,
 .viewer-empty,
 .auth-feedback {
   line-height: 1.6;

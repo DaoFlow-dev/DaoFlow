@@ -35,25 +35,45 @@ describe("createApp", () => {
 
   it("mounts Better Auth with durable schema bootstrap", async () => {
     const app = createApp();
-    const email = `operator+${Date.now()}@daoflow.local`;
-    const response = await request(app)
+    const ownerEmail = `owner+${Date.now()}@daoflow.local`;
+    const ownerResponse = await request(app)
       .post("/api/auth/sign-up/email")
       .set("Origin", "http://localhost:5173")
       .send({
-        email,
+        email: ownerEmail,
         name: "DaoFlow Operator",
         password: "secret1234"
       });
-    const body = response.body as {
+    const ownerBody = ownerResponse.body as {
       user: {
         email: string;
+        role: string;
+      };
+    };
+    const viewerEmail = `viewer+${Date.now()}@daoflow.local`;
+    const viewerResponse = await request(app)
+      .post("/api/auth/sign-up/email")
+      .set("Origin", "http://localhost:5173")
+      .send({
+        email: viewerEmail,
+        name: "DaoFlow Viewer",
+        password: "secret1234"
+      });
+    const viewerBody = viewerResponse.body as {
+      user: {
+        email: string;
+        role: string;
       };
     };
 
-    expect(response.status).toBe(200);
-    expect(body.user.email).toBe(email);
-    expect(response.headers["set-cookie"]).toEqual(
+    expect(ownerResponse.status).toBe(200);
+    expect(ownerBody.user.email).toBe(ownerEmail);
+    expect(ownerBody.user.role).toBe("owner");
+    expect(ownerResponse.headers["set-cookie"]).toEqual(
       expect.arrayContaining([expect.stringContaining("better-auth.session_token")])
     );
+    expect(viewerResponse.status).toBe(200);
+    expect(viewerBody.user.email).toBe(viewerEmail);
+    expect(viewerBody.user.role).toBe("viewer");
   });
 });

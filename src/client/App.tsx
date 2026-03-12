@@ -13,6 +13,9 @@ export default function App() {
   const viewer = trpc.viewer.useQuery(undefined, {
     enabled: Boolean(session.data)
   });
+  const adminControlPlane = trpc.adminControlPlane.useQuery(undefined, {
+    enabled: Boolean(session.data)
+  });
   const [authMode, setAuthMode] = useState<"sign-in" | "sign-up">("sign-up");
   const [name, setName] = useState("DaoFlow Operator");
   const [email, setEmail] = useState("operator@daoflow.local");
@@ -36,6 +39,7 @@ export default function App() {
 
     await session.refetch();
     await viewer.refetch();
+    await adminControlPlane.refetch();
     setAuthFeedback("Account created and session established.");
   }
 
@@ -55,6 +59,7 @@ export default function App() {
 
     await session.refetch();
     await viewer.refetch();
+    await adminControlPlane.refetch();
     setAuthFeedback("Signed in successfully.");
   }
 
@@ -68,6 +73,11 @@ export default function App() {
     viewer.error && isTRPCClientError(viewer.error)
       ? viewer.error.message
       : null;
+  const adminMessage =
+    adminControlPlane.error && isTRPCClientError(adminControlPlane.error)
+      ? adminControlPlane.error.message
+      : null;
+  const currentRole = viewer.data?.authz.role ?? "guest";
 
   return (
     <main className="shell">
@@ -110,6 +120,17 @@ export default function App() {
             <span className="metric__value">
               {overview.data?.currentSlice ?? "loading"}
             </span>
+          </div>
+          <div className="metric">
+            <span className="metric__label">Role</span>
+            <span className="metric__value" data-testid="role-state">
+              {currentRole}
+            </span>
+            <p className="metric__detail">
+              {viewer.data
+                ? `${viewer.data.authz.capabilities.length} granted capability lanes`
+                : "Role-aware policies unlock after sign-in."}
+            </p>
           </div>
         </div>
       </section>
@@ -180,6 +201,9 @@ export default function App() {
               <p className="auth-state__summary" data-testid="auth-summary">
                 Signed in as <strong>{session.data.user.email}</strong>.
               </p>
+              <p className="auth-state__role" data-testid="auth-role">
+                Assigned role: <strong>{currentRole}</strong>
+              </p>
               <button
                 className="action-button action-button--muted"
                 onClick={() => {
@@ -205,6 +229,20 @@ export default function App() {
           ) : (
             <p className="viewer-empty">
               {viewerMessage ?? "Sign in to fetch the protected viewer procedure."}
+            </p>
+          )}
+        </div>
+
+        <div className="auth-panel auth-panel--viewer">
+          <p className="roadmap__kicker">Role-gated procedure</p>
+          <h2>Admin control plane</h2>
+          {session.data && adminControlPlane.data ? (
+            <pre className="viewer-output" data-testid="admin-output">
+              {JSON.stringify(adminControlPlane.data, null, 2)}
+            </pre>
+          ) : (
+            <p className="viewer-empty">
+              {adminMessage ?? "Elevated roles can inspect governance guardrails here."}
             </p>
           )}
         </div>

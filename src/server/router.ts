@@ -1,5 +1,13 @@
 import { initTRPC, TRPCError } from "@trpc/server";
 import { z } from "zod";
+import {
+  appRoles,
+  canAssumeAnyRole,
+  defaultSignupRole,
+  normalizeAppRole,
+  roleCapabilities,
+  type AppRole
+} from "../shared/authz";
 import type { Context } from "./context";
 
 const t = initTRPC.context<Context>().create();
@@ -18,6 +26,25 @@ const protectedProcedure = t.procedure.use(({ ctx, next }) => {
     }
   });
 });
+const roleProcedure = (allowedRoles: readonly AppRole[]) =>
+  protectedProcedure.use(({ ctx, next }) => {
+    const role = normalizeAppRole((ctx.session.user as Record<string, unknown>).role);
+
+    if (!canAssumeAnyRole(role, allowedRoles)) {
+      throw new TRPCError({
+        code: "FORBIDDEN",
+        message: "Your role is not allowed to access this procedure."
+      });
+    }
+
+    return next({
+      ctx: {
+        ...ctx,
+        role
+      }
+    });
+  });
+const adminProcedure = roleProcedure(["owner", "admin"]);
 
 const productPrinciples = [
   "Safety before autonomy",
@@ -88,20 +115,45 @@ export const appRouter = t.router({
 
       return items.filter((item) => item.lane === input.lane);
     }),
-  viewer: protectedProcedure.query(({ ctx }) => ({
-    user: {
-      id: ctx.session.user.id,
+  viewer: protectedProcedure.query(({ ctx }) => {
+    const role = normalizeAppRole((ctx.session.user as Record<string, unknown>).role);
+
+    return {
+      user: {
+        id: ctx.session.user.id,
+        email: ctx.session.user.email,
+        name: ctx.session.user.name ?? null
+      },
+      session: {
+        id: ctx.session.session.id,
+        expiresAt: ctx.session.session.expiresAt
+      },
+      authz: {
+        stack: "Better Auth + tRPC protected procedure",
+        intent: "human session auth for the control plane",
+        role,
+        capabilities: roleCapabilities[role]
+      }
+    };
+  }),
+  adminControlPlane: adminProcedure.query(({ ctx }) => ({
+    operator: {
+      userId: ctx.session.user.id,
       email: ctx.session.user.email,
-      name: ctx.session.user.name ?? null
+      role: ctx.role
     },
-    session: {
-      id: ctx.session.session.id,
-      expiresAt: ctx.session.session.expiresAt
+    governance: {
+      roles: appRoles,
+      bootstrapRole: "owner" as const,
+      defaultSignupRole,
+      elevatedRoles: ["owner", "admin"] as const
     },
-    authz: {
-      stack: "Better Auth + tRPC protected procedure",
-      intent: "human session auth for the control plane"
-    }
+    capabilities: roleCapabilities[ctx.role],
+    guardrails: [
+      "External agents stay read-heavy by default.",
+      "Destructive actions require narrower capability lanes.",
+      "Terminal-style access is not part of the default control plane."
+    ]
   }))
 });
 

@@ -3,10 +3,12 @@ import { createRequire } from "node:module";
 import path from "node:path";
 import { betterAuth } from "better-auth";
 import { getMigrations } from "better-auth/db/migration";
+import { bootstrapOwnerRole, defaultSignupRole, normalizeAppRole } from "../shared/authz";
 import { DEFAULT_CLIENT_PORT, DEFAULT_SERVER_PORT } from "../shared/config";
 
 const require = createRequire(import.meta.url);
 const { DatabaseSync } = require("node:sqlite") as typeof import("node:sqlite");
+const authDatabase = createAuthDatabase();
 
 function resolveAuthBaseURL() {
   return process.env.BETTER_AUTH_URL ?? `http://localhost:${DEFAULT_SERVER_PORT}`;
@@ -34,6 +36,18 @@ function createAuthDatabase() {
   return new DatabaseSync(databasePath);
 }
 
+function countUsers() {
+  try {
+    const row = authDatabase.prepare('SELECT COUNT(*) AS total FROM "user"').get() as
+      | { total?: number }
+      | undefined;
+
+    return row?.total ?? 0;
+  } catch {
+    return 0;
+  }
+}
+
 function resolveAuthSecret() {
   if (process.env.BETTER_AUTH_SECRET) {
     return process.env.BETTER_AUTH_SECRET;
@@ -56,9 +70,38 @@ export const auth = betterAuth({
     `http://localhost:${DEFAULT_SERVER_PORT}`,
     `http://127.0.0.1:${DEFAULT_SERVER_PORT}`
   ],
-  database: createAuthDatabase(),
+  database: authDatabase,
   emailAndPassword: {
-    enabled: true
+    enabled: true,
+    customSyntheticUser: ({ coreFields, additionalFields, id }) => ({
+      ...coreFields,
+      ...additionalFields,
+      role: normalizeAppRole(additionalFields.role),
+      id
+    })
+  },
+  user: {
+    additionalFields: {
+      role: {
+        type: "string",
+        required: false,
+        returned: true,
+        input: false
+      }
+    }
+  },
+  databaseHooks: {
+    user: {
+      create: {
+        before: (user) =>
+          Promise.resolve({
+            data: {
+              ...user,
+              role: countUsers() === 0 ? bootstrapOwnerRole : defaultSignupRole
+            }
+          })
+      }
+    }
   }
 });
 
