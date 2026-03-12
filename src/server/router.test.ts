@@ -90,6 +90,59 @@ describe("appRouter", () => {
     expect(productionControlPlane?.volumeMounts).toContain("/app/data");
   });
 
+  it("returns compose drift planning surfaces for signed-in viewers", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-compose-drift-viewer",
+      session: makeSession("viewer")
+    });
+
+    const drift = await caller.composeDriftReport({});
+    const productionControlPlane = drift.reports.find(
+      (report) => report.composeServiceId === "compose_daoflow_prod_control_plane"
+    );
+    const stagingControlPlane = drift.reports.find(
+      (report) => report.composeServiceId === "compose_daoflow_staging_control_plane"
+    );
+
+    expect(drift.summary).toEqual({
+      totalServices: 5,
+      alignedServices: 2,
+      driftedServices: 2,
+      blockedServices: 1,
+      reviewRequired: 3
+    });
+    expect(productionControlPlane).toMatchObject({
+      environmentName: "production-us-west",
+      projectName: "DaoFlow",
+      targetServerName: "foundation-vps-1",
+      serviceName: "control-plane",
+      status: "drifted",
+      desiredImageReference: "ghcr.io/daoflow/control-plane:0.1.0",
+      actualImageReference: "ghcr.io/daoflow/control-plane:0.1.0-rc1",
+      desiredReplicaCount: 2,
+      actualReplicaCount: 1,
+      actualContainerState: "degraded"
+    });
+    expect(productionControlPlane?.diffs).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          field: "Image"
+        }),
+        expect.objectContaining({
+          field: "Replicas"
+        }),
+        expect.objectContaining({
+          field: "Runtime state"
+        })
+      ])
+    );
+    expect(stagingControlPlane).toMatchObject({
+      status: "blocked",
+      actualReplicaCount: 0,
+      actualContainerState: "crash-loop"
+    });
+  });
+
   it("returns execution queue and operations timeline for signed-in viewers", async () => {
     const caller = appRouter.createCaller({
       requestId: "test-execution-viewer",

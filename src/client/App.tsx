@@ -117,6 +117,18 @@ function getPersistentVolumeTone(coverage: string, restoreReadiness: string): St
   return "healthy";
 }
 
+function getComposeDriftTone(status: string): StatusTone {
+  if (status === "aligned") {
+    return "healthy";
+  }
+
+  if (status === "blocked") {
+    return "failed";
+  }
+
+  return "running";
+}
+
 function formatBytes(bytes: number) {
   if (bytes < 1024) {
     return `${bytes} B`;
@@ -142,6 +154,9 @@ export default function App() {
   const overview = trpc.platformOverview.useQuery();
   const roadmap = trpc.roadmap.useQuery({});
   const composeReleaseCatalog = trpc.composeReleaseCatalog.useQuery({}, {
+    enabled: Boolean(session.data)
+  });
+  const composeDriftReport = trpc.composeDriftReport.useQuery({}, {
     enabled: Boolean(session.data)
   });
   const queueComposeRelease = trpc.queueComposeRelease.useMutation();
@@ -560,6 +575,10 @@ export default function App() {
   const composeReleaseCatalogMessage =
     composeReleaseCatalog.error && isTRPCClientError(composeReleaseCatalog.error)
       ? composeReleaseCatalog.error.message
+      : null;
+  const composeDriftMessage =
+    composeDriftReport.error && isTRPCClientError(composeDriftReport.error)
+      ? composeDriftReport.error.message
       : null;
   const serverReadinessMessage =
     serverReadiness.error && isTRPCClientError(serverReadiness.error)
@@ -1449,6 +1468,109 @@ export default function App() {
           <p className="viewer-empty">
             {composeReleaseCatalogMessage ??
               "Sign in to inspect Compose release targets and queue rollouts from catalogued topology."}
+          </p>
+        )}
+      </section>
+
+      <section className="compose-drift">
+        <div className="roadmap__header">
+          <p className="roadmap__kicker">Planning API</p>
+          <h2>Compose drift inspector</h2>
+        </div>
+
+        {session.data && composeDriftReport.data ? (
+          <>
+            <div className="compose-drift-summary" data-testid="compose-drift-summary">
+              <div className="token-summary__item">
+                <span className="metric__label">Services</span>
+                <strong>{composeDriftReport.data.summary.totalServices}</strong>
+              </div>
+              <div className="token-summary__item">
+                <span className="metric__label">Aligned</span>
+                <strong>{composeDriftReport.data.summary.alignedServices}</strong>
+              </div>
+              <div className="token-summary__item">
+                <span className="metric__label">Review required</span>
+                <strong>{composeDriftReport.data.summary.reviewRequired}</strong>
+              </div>
+              <div className="token-summary__item">
+                <span className="metric__label">Blocked</span>
+                <strong>{composeDriftReport.data.summary.blockedServices}</strong>
+              </div>
+            </div>
+
+            <div className="compose-drift-list">
+              {composeDriftReport.data.reports.map((report) => (
+                <article
+                  className="token-card"
+                  data-testid={`compose-drift-card-${report.composeServiceId}`}
+                  key={report.composeServiceId}
+                >
+                  <div className="token-card__top">
+                    <div>
+                      <p className="roadmap-item__lane">
+                        {report.environmentName} · {report.projectName}
+                      </p>
+                      <h3>{report.serviceName}</h3>
+                    </div>
+                    <span
+                      className={`deployment-status deployment-status--${getComposeDriftTone(report.status)}`}
+                    >
+                      {report.status}
+                    </span>
+                  </div>
+                  <p className="deployment-card__meta">
+                    {report.targetServerName} · {report.composeFilePath}
+                  </p>
+                  <p className="deployment-card__meta">{report.summary}</p>
+                  <p className="deployment-card__meta">
+                    Desired image: {report.desiredImageReference} · Actual image:{" "}
+                    {report.actualImageReference}
+                  </p>
+                  <p className="deployment-card__meta">
+                    Desired replicas: {report.desiredReplicaCount} · Actual replicas:{" "}
+                    {report.actualReplicaCount} · Runtime: {report.actualContainerState}
+                  </p>
+                  {report.diffs.length > 0 ? (
+                    <div className="token-card__chips">
+                      {report.diffs.map((diff) => (
+                        <span className="token-chip" key={diff.id}>
+                          {diff.field}: {diff.desiredValue}
+                          {" -> "}
+                          {diff.actualValue}
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
+                  <div className="rollback-plan__columns">
+                    <div>
+                      <h4>Impact</h4>
+                      <p className="deployment-card__meta">{report.impactSummary}</p>
+                      {report.diffs.length > 0 ? (
+                        <ul className="deployment-card__steps">
+                          {report.diffs.map((diff) => (
+                            <li key={`${diff.id}-impact`}>{diff.impact}</li>
+                          ))}
+                        </ul>
+                      ) : null}
+                    </div>
+                    <div>
+                      <h4>Safe next actions</h4>
+                      <ul className="deployment-card__steps">
+                        {report.recommendedActions.map((action) => (
+                          <li key={action}>{action}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </>
+        ) : (
+          <p className="viewer-empty">
+            {composeDriftMessage ??
+              "Sign in to compare desired Compose specs against the last observed runtime state."}
           </p>
         )}
       </section>

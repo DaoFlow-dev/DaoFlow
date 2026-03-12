@@ -39,7 +39,7 @@ test("loads the DaoFlow foundation dashboard", async ({ page }) => {
   await expect(
     page.getByTestId("server-readiness-card-srv_foundation_1")
   ).toContainText("Connectivity checks are healthy.");
-  await expect(page.getByText("Compose release catalog")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Compose release catalog", level: 2 })).toBeVisible();
   await expect(page.getByTestId("compose-release-summary")).toContainText("5");
   await expect(
     page.getByTestId("compose-service-card-compose_daoflow_prod_control_plane")
@@ -47,6 +47,14 @@ test("loads the DaoFlow foundation dashboard", async ({ page }) => {
   await expect(
     page.getByTestId("compose-service-card-compose_daoflow_prod_control_plane")
   ).toContainText("Dependencies: postgres, redis");
+  await expect(page.getByText("Compose drift inspector")).toBeVisible();
+  await expect(page.getByTestId("compose-drift-summary")).toContainText("3");
+  await expect(
+    page.getByTestId("compose-drift-card-compose_daoflow_prod_control_plane")
+  ).toContainText("ghcr.io/daoflow/control-plane:0.1.0-rc1");
+  await expect(
+    page.getByTestId("compose-drift-card-compose_daoflow_staging_control_plane")
+  ).toContainText("crash-loop");
   await expect(page.getByText("Encrypted environment configuration")).toBeVisible();
   await expect(page.getByTestId("environment-variable-summary")).toContainText("3");
   await expect(

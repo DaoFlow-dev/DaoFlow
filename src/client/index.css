@@ -249,6 +249,10 @@ body {
   margin-top: 1rem;
 }
 
+.compose-drift {
+  margin-top: 1rem;
+}
+
 .rollback-plans {
   margin-top: 1rem;
 }
@@ -548,6 +552,13 @@ body {
   gap: 1rem;
 }
 
+.compose-drift-summary {
+  margin-bottom: 1rem;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1rem;
+}
+
 .queue-list {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -624,6 +635,12 @@ body {
 }
 
 .compose-release-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.compose-drift-list {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 1rem;
@@ -853,6 +870,7 @@ body {
   .audit-summary,
   .log-summary,
   .compose-release-summary,
+  .compose-drift-summary,
   .environment-variable-summary,
   .server-readiness-summary,
   .persistent-volume-summary,
@@ -870,6 +888,7 @@ body {
   .rollback-plan-list,
   .rollback-plan__columns,
   .compose-release-list,
+  .compose-drift-list,
   .audit-list,
   .log-list,
   .environment-variable-list,

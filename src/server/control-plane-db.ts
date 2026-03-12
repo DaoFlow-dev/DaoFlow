@@ -25,6 +25,7 @@ export type DeploymentEventLevel = "info" | "warning" | "error";
 export type BackupTargetType = "volume" | "database";
 export type BackupRunStatus = "queued" | "running" | "succeeded" | "failed";
 export type BackupRestoreStatus = "queued" | "running" | "succeeded" | "failed";
+export type ComposeDriftStatus = "aligned" | "drifted" | "blocked";
 export type AuditActorType = "human" | "system";
 export type PersistentVolumeBackupCoverage = "protected" | "stale" | "missing";
 export type PersistentVolumeRestoreReadiness = "verified" | "stale" | "untested";
@@ -457,6 +458,45 @@ export interface ComposeReleaseCatalog {
   services: ComposeServiceRecord[];
 }
 
+export interface ComposeDriftDiffRecord {
+  id: string;
+  field: string;
+  desiredValue: string;
+  actualValue: string;
+  impact: string;
+}
+
+export interface ComposeDriftRecord {
+  composeServiceId: string;
+  environmentName: string;
+  projectName: string;
+  targetServerName: string;
+  serviceName: string;
+  composeFilePath: string;
+  status: ComposeDriftStatus;
+  summary: string;
+  impactSummary: string;
+  desiredImageReference: string;
+  actualImageReference: string;
+  desiredReplicaCount: number;
+  actualReplicaCount: number;
+  actualContainerState: string;
+  lastCheckedAt: string;
+  recommendedActions: string[];
+  diffs: ComposeDriftDiffRecord[];
+}
+
+export interface ComposeDriftSnapshot {
+  summary: {
+    totalServices: number;
+    alignedServices: number;
+    driftedServices: number;
+    blockedServices: number;
+    reviewRequired: number;
+  };
+  reports: ComposeDriftRecord[];
+}
+
 export interface QueueComposeReleaseInput {
   composeServiceId: string;
   commitSha: string;
@@ -680,6 +720,22 @@ interface SeedComposeService {
   volumeMounts: readonly string[];
   healthcheckPath: string | null;
   releaseTrack: "stable" | "canary";
+}
+
+interface SeedComposeDriftReport {
+  id: string;
+  composeServiceId: string;
+  status: ComposeDriftStatus;
+  actualImageReference: string;
+  actualReplicaCount: number;
+  actualExposedPorts: readonly string[];
+  actualVolumeMounts: readonly string[];
+  actualHealthcheckPath: string | null;
+  actualContainerState: string;
+  summary: string;
+  impactSummary: string;
+  recommendedActions: readonly string[];
+  lastCheckedAt: string;
 }
 
 function resolveControlPlaneDatabasePath() {
@@ -981,6 +1037,92 @@ function seedControlPlaneData() {
       releaseTrack: "canary"
     }
   ] as const satisfies readonly SeedComposeService[];
+  const seedComposeDriftReports = [
+    {
+      id: "cdrift_daoflow_prod_control_plane",
+      composeServiceId: "compose_daoflow_prod_control_plane",
+      status: "drifted",
+      actualImageReference: "ghcr.io/daoflow/control-plane:0.1.0-rc1",
+      actualReplicaCount: 1,
+      actualExposedPorts: ["3000:3000"],
+      actualVolumeMounts: ["/app/data"],
+      actualHealthcheckPath: "/healthz",
+      actualContainerState: "degraded",
+      summary: "Production control-plane is serving a release-candidate image and one replica is missing.",
+      impactSummary: "Traffic is still flowing, but runtime state no longer matches the catalogued stable rollout.",
+      recommendedActions: [
+        "Compare the running spec with the last healthy deployment before queuing another release.",
+        "Only scale the missing replica after the release-candidate image passes readiness in isolation."
+      ],
+      lastCheckedAt: new Date(now.getTime() - 3 * 60 * 1000).toISOString()
+    },
+    {
+      id: "cdrift_daoflow_prod_worker",
+      composeServiceId: "compose_daoflow_prod_worker",
+      status: "aligned",
+      actualImageReference: "ghcr.io/daoflow/worker:0.1.0",
+      actualReplicaCount: 1,
+      actualExposedPorts: [],
+      actualVolumeMounts: ["/var/run/docker.sock"],
+      actualHealthcheckPath: null,
+      actualContainerState: "healthy",
+      summary: "Worker runtime matches the desired Compose spec.",
+      impactSummary: "No actionable drift is present for the execution worker.",
+      recommendedActions: ["Continue monitoring for Docker socket access and queue latency anomalies."],
+      lastCheckedAt: new Date(now.getTime() - 2 * 60 * 1000).toISOString()
+    },
+    {
+      id: "cdrift_daoflow_prod_postgres",
+      composeServiceId: "compose_daoflow_prod_postgres",
+      status: "aligned",
+      actualImageReference: "postgres:16-alpine",
+      actualReplicaCount: 1,
+      actualExposedPorts: ["5432:5432"],
+      actualVolumeMounts: ["/var/lib/postgresql/data"],
+      actualHealthcheckPath: null,
+      actualContainerState: "healthy",
+      summary: "Stateful database runtime matches the desired production spec.",
+      impactSummary: "Persistent storage and published port wiring are aligned with the catalog.",
+      recommendedActions: ["Keep pairing this service with successful backup and restore drills."],
+      lastCheckedAt: new Date(now.getTime() - 90 * 1000).toISOString()
+    },
+    {
+      id: "cdrift_daoflow_staging_control_plane",
+      composeServiceId: "compose_daoflow_staging_control_plane",
+      status: "blocked",
+      actualImageReference: "ghcr.io/daoflow/control-plane:0.0.9",
+      actualReplicaCount: 0,
+      actualExposedPorts: ["3001:3000"],
+      actualVolumeMounts: ["/app/data"],
+      actualHealthcheckPath: null,
+      actualContainerState: "crash-loop",
+      summary: "Staging never converged to the desired canary spec after the last rollout attempt.",
+      impactSummary: "No healthy staging control-plane task is currently serving the desired release.",
+      recommendedActions: [
+        "Inspect the last failed deployment logs before attempting another canary rollout.",
+        "Restore the healthcheck contract before re-enabling automated staging promotions."
+      ],
+      lastCheckedAt: new Date(now.getTime() - 9 * 60 * 1000).toISOString()
+    },
+    {
+      id: "cdrift_agent_bridge_lab_runtime",
+      composeServiceId: "compose_agent_bridge_lab_runtime",
+      status: "drifted",
+      actualImageReference: "ghcr.io/daoflow/agent-runtime:0.4.8",
+      actualReplicaCount: 1,
+      actualExposedPorts: ["8080:8080"],
+      actualVolumeMounts: [],
+      actualHealthcheckPath: "/ready",
+      actualContainerState: "running-with-warnings",
+      summary: "Lab agent runtime is running an older image and lost its persistent session mount.",
+      impactSummary: "Agent sessions may look healthy briefly but are not durable across restarts.",
+      recommendedActions: [
+        "Reattach the missing session volume before promoting any agent workflow changes.",
+        "Plan a controlled image update because the runtime is behind the tracked catalog version."
+      ],
+      lastCheckedAt: new Date(now.getTime() - 7 * 60 * 1000).toISOString()
+    }
+  ] as const satisfies readonly SeedComposeDriftReport[];
   const seedExecutionJobs = [
     {
       id: "job_foundation_20260312_1",
@@ -1576,6 +1718,24 @@ function seedControlPlaneData() {
     )
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
+  const insertComposeDriftReport = controlPlaneDb.prepare(`
+    INSERT OR IGNORE INTO compose_drift_reports (
+      id,
+      compose_service_id,
+      status,
+      actual_image_reference,
+      actual_replica_count,
+      actual_exposed_ports_text,
+      actual_volume_mounts_text,
+      actual_healthcheck_path,
+      actual_container_state,
+      summary,
+      impact_summary,
+      recommended_actions_text,
+      last_checked_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
 
   for (const [index, project] of seedProjects.entries()) {
     insertProject.run(
@@ -1796,6 +1956,24 @@ function seedControlPlaneData() {
       now.toISOString()
     );
   }
+
+  for (const report of seedComposeDriftReports) {
+    insertComposeDriftReport.run(
+      report.id,
+      report.composeServiceId,
+      report.status,
+      report.actualImageReference,
+      report.actualReplicaCount,
+      report.actualExposedPorts.join("\n"),
+      report.actualVolumeMounts.join("\n"),
+      report.actualHealthcheckPath,
+      report.actualContainerState,
+      report.summary,
+      report.impactSummary,
+      report.recommendedActions.join("\n"),
+      report.lastCheckedAt
+    );
+  }
 }
 
 const controlPlaneReady = Promise.resolve().then(() => {
@@ -1989,6 +2167,22 @@ const controlPlaneReady = Promise.resolve().then(() => {
       created_at TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS compose_drift_reports (
+      id TEXT PRIMARY KEY,
+      compose_service_id TEXT NOT NULL UNIQUE REFERENCES compose_services(id) ON DELETE CASCADE,
+      status TEXT NOT NULL,
+      actual_image_reference TEXT NOT NULL,
+      actual_replica_count INTEGER NOT NULL DEFAULT 0,
+      actual_exposed_ports_text TEXT NOT NULL DEFAULT '',
+      actual_volume_mounts_text TEXT NOT NULL DEFAULT '',
+      actual_healthcheck_path TEXT,
+      actual_container_state TEXT NOT NULL,
+      summary TEXT NOT NULL,
+      impact_summary TEXT NOT NULL,
+      recommended_actions_text TEXT NOT NULL DEFAULT '',
+      last_checked_at TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS audit_entries (
       id TEXT PRIMARY KEY,
       actor_type TEXT NOT NULL,
@@ -2052,6 +2246,8 @@ const controlPlaneReady = Promise.resolve().then(() => {
       ON server_readiness_checks (server_id, checked_at DESC);
     CREATE INDEX IF NOT EXISTS idx_compose_services_environment_id
       ON compose_services (environment_id);
+    CREATE INDEX IF NOT EXISTS idx_compose_drift_reports_status_checked_at
+      ON compose_drift_reports (status, last_checked_at DESC);
     CREATE INDEX IF NOT EXISTS idx_audit_entries_created_at
       ON audit_entries (created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_audit_entries_action_created_at
@@ -2360,6 +2556,31 @@ interface ComposeServiceRow {
   healthcheck_path: string | null;
   release_track: "stable" | "canary";
   environment_status: DeploymentStatus;
+}
+
+interface ComposeDriftReportRow {
+  compose_service_id: string;
+  environment_name: string;
+  project_name: string;
+  target_server_name: string;
+  service_name: string;
+  compose_file_path: string;
+  status: ComposeDriftStatus;
+  summary: string;
+  impact_summary: string;
+  image_reference: string;
+  actual_image_reference: string;
+  replica_count: number;
+  actual_replica_count: number;
+  exposed_ports_text: string;
+  actual_exposed_ports_text: string;
+  volume_mounts_text: string;
+  actual_volume_mounts_text: string;
+  healthcheck_path: string | null;
+  actual_healthcheck_path: string | null;
+  actual_container_state: string;
+  recommended_actions_text: string;
+  last_checked_at: string;
 }
 
 function getDeploymentRows(options?: { status?: DeploymentStatus; limit?: number }) {
@@ -4700,6 +4921,29 @@ function splitMultilineField(value: string) {
     .filter((entry) => entry.length > 0);
 }
 
+function normalizeListComparison(values: readonly string[]) {
+  return [...values].sort((left, right) => left.localeCompare(right)).join("\n");
+}
+
+function formatDriftValue(
+  value: string | number | readonly string[] | null,
+  emptyLabel = "none"
+): string {
+  if (value === null) {
+    return "process-level";
+  }
+
+  if (typeof value === "number") {
+    return String(value);
+  }
+
+  if (Array.isArray(value)) {
+    return value.length > 0 ? value.join(", ") : emptyLabel;
+  }
+
+  return String(value);
+}
+
 function mapServerReadinessRow(row: ServerReadinessRow): ServerReadinessRecord {
   return {
     serverId: row.server_id,
@@ -4821,6 +5065,101 @@ function mapComposeServiceRow(row: ComposeServiceRow): ComposeServiceRecord {
   };
 }
 
+function buildComposeDriftDiffs(row: ComposeDriftReportRow): ComposeDriftDiffRecord[] {
+  const diffs: ComposeDriftDiffRecord[] = [];
+  const desiredPorts = splitMultilineField(row.exposed_ports_text);
+  const actualPorts = splitMultilineField(row.actual_exposed_ports_text);
+  const desiredVolumes = splitMultilineField(row.volume_mounts_text);
+  const actualVolumes = splitMultilineField(row.actual_volume_mounts_text);
+
+  if (row.image_reference !== row.actual_image_reference) {
+    diffs.push({
+      id: `${row.compose_service_id}:image`,
+      field: "Image",
+      desiredValue: row.image_reference,
+      actualValue: row.actual_image_reference,
+      impact: "Running containers do not match the image pinned in the Compose release catalog."
+    });
+  }
+
+  if (row.replica_count !== row.actual_replica_count) {
+    diffs.push({
+      id: `${row.compose_service_id}:replicas`,
+      field: "Replicas",
+      desiredValue: formatDriftValue(row.replica_count),
+      actualValue: formatDriftValue(row.actual_replica_count),
+      impact: "Capacity and rollout safety differ from the expected replica budget."
+    });
+  }
+
+  if (normalizeListComparison(desiredPorts) !== normalizeListComparison(actualPorts)) {
+    diffs.push({
+      id: `${row.compose_service_id}:ports`,
+      field: "Published ports",
+      desiredValue: formatDriftValue(desiredPorts, "internal only"),
+      actualValue: formatDriftValue(actualPorts, "internal only"),
+      impact: "Ingress exposure differs from the stored Compose spec."
+    });
+  }
+
+  if (normalizeListComparison(desiredVolumes) !== normalizeListComparison(actualVolumes)) {
+    diffs.push({
+      id: `${row.compose_service_id}:volumes`,
+      field: "Volumes",
+      desiredValue: formatDriftValue(desiredVolumes),
+      actualValue: formatDriftValue(actualVolumes),
+      impact: "Persistent storage attachments do not match the desired service definition."
+    });
+  }
+
+  if ((row.healthcheck_path ?? "") !== (row.actual_healthcheck_path ?? "")) {
+    diffs.push({
+      id: `${row.compose_service_id}:healthcheck`,
+      field: "Healthcheck",
+      desiredValue: formatDriftValue(row.healthcheck_path),
+      actualValue: formatDriftValue(row.actual_healthcheck_path),
+      impact: "Workers and agents will evaluate runtime readiness differently from the catalogued spec."
+    });
+  }
+
+  if (row.actual_container_state !== "healthy") {
+    diffs.push({
+      id: `${row.compose_service_id}:runtime`,
+      field: "Runtime state",
+      desiredValue: "healthy",
+      actualValue: row.actual_container_state,
+      impact:
+        row.status === "blocked"
+          ? "No healthy tasks are currently converged on the desired service state."
+          : "Runtime health is degraded even though the stored Compose definition is still available."
+    });
+  }
+
+  return diffs;
+}
+
+function mapComposeDriftReportRow(row: ComposeDriftReportRow): ComposeDriftRecord {
+  return {
+    composeServiceId: row.compose_service_id,
+    environmentName: row.environment_name,
+    projectName: row.project_name,
+    targetServerName: row.target_server_name,
+    serviceName: row.service_name,
+    composeFilePath: row.compose_file_path,
+    status: row.status,
+    summary: row.summary,
+    impactSummary: row.impact_summary,
+    desiredImageReference: row.image_reference,
+    actualImageReference: row.actual_image_reference,
+    desiredReplicaCount: row.replica_count,
+    actualReplicaCount: row.actual_replica_count,
+    actualContainerState: row.actual_container_state,
+    lastCheckedAt: row.last_checked_at,
+    recommendedActions: splitMultilineField(row.recommended_actions_text),
+    diffs: buildComposeDriftDiffs(row)
+  };
+}
+
 function getComposeServiceRows(limit = 24) {
   return controlPlaneDb.prepare(`
     SELECT
@@ -4879,6 +5218,48 @@ function getComposeServiceRow(composeServiceId: string) {
   `).get(composeServiceId) as ComposeServiceRow | undefined;
 }
 
+function getComposeDriftReportRows(limit = 24) {
+  return controlPlaneDb.prepare(`
+    SELECT
+      compose_drift_reports.compose_service_id,
+      environments.name AS environment_name,
+      projects.name AS project_name,
+      servers.name AS target_server_name,
+      compose_services.service_name,
+      environments.compose_file_path,
+      compose_drift_reports.status,
+      compose_drift_reports.summary,
+      compose_drift_reports.impact_summary,
+      compose_services.image_reference,
+      compose_drift_reports.actual_image_reference,
+      compose_services.replica_count,
+      compose_drift_reports.actual_replica_count,
+      compose_services.exposed_ports_text,
+      compose_drift_reports.actual_exposed_ports_text,
+      compose_services.volume_mounts_text,
+      compose_drift_reports.actual_volume_mounts_text,
+      compose_services.healthcheck_path,
+      compose_drift_reports.actual_healthcheck_path,
+      compose_drift_reports.actual_container_state,
+      compose_drift_reports.recommended_actions_text,
+      compose_drift_reports.last_checked_at
+    FROM compose_drift_reports
+    INNER JOIN compose_services ON compose_services.id = compose_drift_reports.compose_service_id
+    INNER JOIN environments ON environments.id = compose_services.environment_id
+    INNER JOIN projects ON projects.id = environments.project_id
+    INNER JOIN servers ON servers.id = environments.target_server_id
+    ORDER BY
+      CASE compose_drift_reports.status
+        WHEN 'blocked' THEN 0
+        WHEN 'drifted' THEN 1
+        ELSE 2
+      END ASC,
+      compose_drift_reports.last_checked_at DESC,
+      compose_services.service_name ASC
+    LIMIT ?
+  `).all(limit) as unknown as ComposeDriftReportRow[];
+}
+
 export function listComposeReleaseCatalog(limit = 24): ComposeReleaseCatalog {
   const rows = getComposeServiceRows(limit);
   const services = rows.map(mapComposeServiceRow);
@@ -4893,6 +5274,21 @@ export function listComposeReleaseCatalog(limit = 24): ComposeReleaseCatalog {
       uniqueNetworks: new Set(services.map((service) => service.networkName)).size
     },
     services
+  };
+}
+
+export function listComposeDriftReport(limit = 24): ComposeDriftSnapshot {
+  const reports = getComposeDriftReportRows(limit).map((row) => mapComposeDriftReportRow(row));
+
+  return {
+    summary: {
+      totalServices: reports.length,
+      alignedServices: reports.filter((report) => report.status === "aligned").length,
+      driftedServices: reports.filter((report) => report.status === "drifted").length,
+      blockedServices: reports.filter((report) => report.status === "blocked").length,
+      reviewRequired: reports.filter((report) => report.status !== "aligned").length
+    },
+    reports
   };
 }
 

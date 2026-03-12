@@ -11,6 +11,7 @@ import {
 import {
   completeExecutionJob,
   listComposeReleaseCatalog,
+  listComposeDriftReport,
   createDeploymentRecord,
   listBackupRestoreQueue,
   queueComposeRelease,
@@ -97,7 +98,7 @@ export const appRouter = t.router({
   })),
   platformOverview: t.procedure.query(() => ({
     name: "DaoFlow",
-    currentSlice: "backup-restore-flows",
+    currentSlice: "compose-drift-planning",
     thesis:
       "A Docker-first deployment control plane for bare metal and VPS environments.",
     architecture: {
@@ -165,6 +166,16 @@ export const appRouter = t.router({
     .query(async ({ input }) => {
       await ensureControlPlaneReady();
       return listComposeReleaseCatalog(input.limit ?? 24);
+    }),
+  composeDriftReport: protectedProcedure
+    .input(
+      z.object({
+        limit: z.number().int().min(1).max(40).optional()
+      })
+    )
+    .query(async ({ input }) => {
+      await ensureControlPlaneReady();
+      return listComposeDriftReport(input.limit ?? 24);
     }),
   deploymentDetails: protectedProcedure
     .input(
