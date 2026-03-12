@@ -26,6 +26,7 @@ export type BackupTargetType = "volume" | "database";
 export type BackupRunStatus = "queued" | "running" | "succeeded" | "failed";
 export type AuditActorType = "human" | "system";
 export type AuditResourceType = "deployment" | "execution-job" | "backup-run" | "backup-policy";
+export type DeploymentLogStream = "stdout" | "stderr";
 export type DeploymentEventKind =
   | "deployment.queued"
   | "execution.job.created"
@@ -178,6 +179,27 @@ export interface AuditTrailSnapshot {
     humanEntries: number;
   };
   entries: AuditEntryRecord[];
+}
+
+export interface DeploymentLogLineRecord {
+  id: string;
+  deploymentId: string;
+  projectName: string;
+  environmentName: string;
+  serviceName: string;
+  stream: DeploymentLogStream;
+  lineNumber: number;
+  message: string;
+  createdAt: string;
+}
+
+export interface DeploymentLogSnapshot {
+  summary: {
+    totalLines: number;
+    stderrLines: number;
+    deploymentCount: number;
+  };
+  lines: DeploymentLogLineRecord[];
 }
 
 export interface ExecutionJobMutationResult {
@@ -365,6 +387,15 @@ interface SeedAuditEntry {
   resourceId: string;
   resourceLabel: string;
   detail: string;
+  createdAt: string;
+}
+
+interface SeedDeploymentLogLine {
+  id: string;
+  deploymentId: string;
+  stream: DeploymentLogStream;
+  lineNumber: number;
+  message: string;
   createdAt: string;
 }
 
@@ -579,6 +610,56 @@ function seedControlPlaneData() {
       createdAt: new Date(now.getTime() - 24 * 60 * 60 * 1000 + 5 * 60 * 1000).toISOString()
     }
   ] as const satisfies readonly SeedAuditEntry[];
+  const seedDeploymentLogLines = [
+    {
+      id: "log_foundation_healthy_1",
+      deploymentId,
+      stream: "stdout",
+      lineNumber: 1,
+      message: "Resolved compose overlays for production-us-west.",
+      createdAt: new Date(now.getTime() - 6 * 60 * 1000).toISOString()
+    },
+    {
+      id: "log_foundation_healthy_2",
+      deploymentId,
+      stream: "stdout",
+      lineNumber: 2,
+      message: "Pulled ghcr.io/daoflow/control-plane:0.1.0 from registry cache.",
+      createdAt: new Date(now.getTime() - 5 * 60 * 1000).toISOString()
+    },
+    {
+      id: "log_foundation_healthy_3",
+      deploymentId,
+      stream: "stdout",
+      lineNumber: 3,
+      message: "Health probe stayed green for 90 seconds.",
+      createdAt: new Date(now.getTime() - 90 * 1000).toISOString()
+    },
+    {
+      id: "log_foundation_failed_1",
+      deploymentId: previousDeploymentId,
+      stream: "stdout",
+      lineNumber: 1,
+      message: "Pulled ghcr.io/daoflow/control-plane:0.1.0-rc1.",
+      createdAt: new Date(now.getTime() - 69 * 60 * 1000).toISOString()
+    },
+    {
+      id: "log_foundation_failed_2",
+      deploymentId: previousDeploymentId,
+      stream: "stderr",
+      lineNumber: 2,
+      message: "Container exited with code 1 during readiness probe.",
+      createdAt: new Date(now.getTime() - 67 * 60 * 1000).toISOString()
+    },
+    {
+      id: "log_foundation_failed_3",
+      deploymentId: previousDeploymentId,
+      stream: "stderr",
+      lineNumber: 3,
+      message: "Readiness endpoint /healthz returned 503 for 2 consecutive checks.",
+      createdAt: new Date(now.getTime() - 66 * 60 * 1000).toISOString()
+    }
+  ] as const satisfies readonly SeedDeploymentLogLine[];
   const seedEvents = [
     {
       id: "evt_foundation_queued",
@@ -919,6 +1000,17 @@ function seedControlPlaneData() {
     )
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
+  const insertDeploymentLogLine = controlPlaneDb.prepare(`
+    INSERT OR IGNORE INTO deployment_log_lines (
+      id,
+      deployment_id,
+      stream,
+      line_number,
+      message,
+      created_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?)
+  `);
   const insertProject = controlPlaneDb.prepare(`
     INSERT OR IGNORE INTO projects (
       id,
@@ -1017,6 +1109,17 @@ function seedControlPlaneData() {
       entry.resourceLabel,
       entry.detail,
       entry.createdAt
+    );
+  }
+
+  for (const line of seedDeploymentLogLines) {
+    insertDeploymentLogLine.run(
+      line.id,
+      line.deploymentId,
+      line.stream,
+      line.lineNumber,
+      line.message,
+      line.createdAt
     );
   }
 
@@ -1216,6 +1319,15 @@ const controlPlaneReady = Promise.resolve().then(() => {
       created_at TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS deployment_log_lines (
+      id TEXT PRIMARY KEY,
+      deployment_id TEXT NOT NULL REFERENCES deployments(id) ON DELETE CASCADE,
+      stream TEXT NOT NULL,
+      line_number INTEGER NOT NULL,
+      message TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+
     CREATE INDEX IF NOT EXISTS idx_execution_jobs_deployment_id
       ON execution_jobs (deployment_id);
     CREATE INDEX IF NOT EXISTS idx_execution_jobs_status_created_at
@@ -1234,6 +1346,10 @@ const controlPlaneReady = Promise.resolve().then(() => {
       ON audit_entries (created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_audit_entries_action_created_at
       ON audit_entries (action, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_deployment_log_lines_created_at
+      ON deployment_log_lines (created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_deployment_log_lines_deployment_line_number
+      ON deployment_log_lines (deployment_id, line_number ASC);
     CREATE INDEX IF NOT EXISTS idx_environments_project_id
       ON environments (project_id);
     CREATE INDEX IF NOT EXISTS idx_environments_target_server_id
@@ -1394,6 +1510,18 @@ interface AuditEntryRow {
   resource_id: string;
   resource_label: string;
   detail: string;
+  created_at: string;
+}
+
+interface DeploymentLogLineRow {
+  id: string;
+  deployment_id: string;
+  project_name: string;
+  environment_name: string;
+  service_name: string;
+  stream: DeploymentLogStream;
+  line_number: number;
+  message: string;
   created_at: string;
 }
 
@@ -1778,6 +1906,12 @@ export function createDeploymentRecord(input: CreateDeploymentRecordInput) {
       detail: `Queued a ${input.sourceType} deployment on ${server.name}.`,
       createdAt
     });
+    appendDeploymentLogLine(
+      deploymentId,
+      "stdout",
+      `Control plane queued ${input.serviceName} for ${input.environmentName} on ${server.name}.`,
+      createdAt
+    );
 
     controlPlaneDb.exec("COMMIT");
   } catch (error) {
@@ -2000,6 +2134,42 @@ function appendAuditEntry(entry: Omit<AuditEntryRecord, "id">) {
   );
 }
 
+function getNextDeploymentLogLineNumber(deploymentId: string) {
+  const row = controlPlaneDb.prepare(`
+    SELECT MAX(line_number) AS max_line_number
+    FROM deployment_log_lines
+    WHERE deployment_id = ?
+  `).get(deploymentId) as { max_line_number?: number | null } | undefined;
+
+  return (row?.max_line_number ?? 0) + 1;
+}
+
+function appendDeploymentLogLine(
+  deploymentId: string,
+  stream: DeploymentLogStream,
+  message: string,
+  createdAt: string
+) {
+  controlPlaneDb.prepare(`
+    INSERT INTO deployment_log_lines (
+      id,
+      deployment_id,
+      stream,
+      line_number,
+      message,
+      created_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(
+    `log_${randomUUID()}`,
+    deploymentId,
+    stream,
+    getNextDeploymentLogLineNumber(deploymentId),
+    message,
+    createdAt
+  );
+}
+
 export function listExecutionQueue(status?: ExecutionJobStatus, limit = 20): ExecutionQueueSnapshot {
   const jobs = getExecutionJobRows({ status, limit }).map((row) => mapExecutionJobRow(row));
   const summary = getExecutionJobSummary(status);
@@ -2102,6 +2272,12 @@ export function dispatchExecutionJob(
       detail: `Dispatched the ${jobRow.queue_name} worker handoff to ${jobRow.target_server_name}.`,
       createdAt: now
     });
+    appendDeploymentLogLine(
+      jobRow.deployment_id,
+      "stdout",
+      `Worker claimed the queued job on ${jobRow.target_server_name}.`,
+      now
+    );
 
     controlPlaneDb.exec("COMMIT");
   } catch (error) {
@@ -2211,6 +2387,12 @@ export function completeExecutionJob(
       detail: `Marked the rollout healthy after worker success on ${jobRow.target_server_name}.`,
       createdAt: now
     });
+    appendDeploymentLogLine(
+      jobRow.deployment_id,
+      "stdout",
+      `${jobRow.service_name} reported healthy on ${jobRow.target_server_name}.`,
+      now
+    );
 
     controlPlaneDb.exec("COMMIT");
   } catch (error) {
@@ -2324,6 +2506,12 @@ export function failExecutionJob(
       detail: reason ?? `Marked the rollout failed after a worker-side error on ${jobRow.target_server_name}.`,
       createdAt: now
     });
+    appendDeploymentLogLine(
+      jobRow.deployment_id,
+      "stderr",
+      reason ?? `${jobRow.service_name} failed on ${jobRow.target_server_name}.`,
+      now
+    );
 
     controlPlaneDb.exec("COMMIT");
   } catch (error) {
@@ -2676,6 +2864,96 @@ export function listAuditTrail(limit = 20): AuditTrailSnapshot {
       humanEntries: summary?.human_entries ?? 0
     },
     entries
+  };
+}
+
+function getDeploymentLogLineRows(deploymentId?: string, limit = 20) {
+  const query = deploymentId
+    ? controlPlaneDb.prepare(`
+        SELECT
+          deployment_log_lines.id,
+          deployment_log_lines.deployment_id,
+          deployments.project_name,
+          deployments.environment_name,
+          deployments.service_name,
+          deployment_log_lines.stream,
+          deployment_log_lines.line_number,
+          deployment_log_lines.message,
+          deployment_log_lines.created_at
+        FROM deployment_log_lines
+        INNER JOIN deployments ON deployments.id = deployment_log_lines.deployment_id
+        WHERE deployment_log_lines.deployment_id = ?
+        ORDER BY deployment_log_lines.created_at DESC, deployment_log_lines.line_number DESC
+        LIMIT ?
+      `)
+    : controlPlaneDb.prepare(`
+        SELECT
+          deployment_log_lines.id,
+          deployment_log_lines.deployment_id,
+          deployments.project_name,
+          deployments.environment_name,
+          deployments.service_name,
+          deployment_log_lines.stream,
+          deployment_log_lines.line_number,
+          deployment_log_lines.message,
+          deployment_log_lines.created_at
+        FROM deployment_log_lines
+        INNER JOIN deployments ON deployments.id = deployment_log_lines.deployment_id
+        ORDER BY deployment_log_lines.created_at DESC, deployment_log_lines.line_number DESC
+        LIMIT ?
+      `);
+
+  return (deploymentId ? query.all(deploymentId, limit) : query.all(limit)) as unknown as DeploymentLogLineRow[];
+}
+
+function getDeploymentLogSummary(deploymentId?: string) {
+  const query = deploymentId
+    ? controlPlaneDb.prepare(`
+        SELECT
+          COUNT(*) AS total_lines,
+          SUM(CASE WHEN stream = 'stderr' THEN 1 ELSE 0 END) AS stderr_lines,
+          COUNT(DISTINCT deployment_id) AS deployment_count
+        FROM deployment_log_lines
+        WHERE deployment_id = ?
+      `)
+    : controlPlaneDb.prepare(`
+        SELECT
+          COUNT(*) AS total_lines,
+          SUM(CASE WHEN stream = 'stderr' THEN 1 ELSE 0 END) AS stderr_lines,
+          COUNT(DISTINCT deployment_id) AS deployment_count
+        FROM deployment_log_lines
+      `);
+
+  return (deploymentId ? query.get(deploymentId) : query.get()) as
+    | {
+        total_lines?: number;
+        stderr_lines?: number;
+        deployment_count?: number;
+      }
+    | undefined;
+}
+
+export function listDeploymentLogs(deploymentId?: string, limit = 20): DeploymentLogSnapshot {
+  const summary = getDeploymentLogSummary(deploymentId);
+  const lines = getDeploymentLogLineRows(deploymentId, limit).map((row) => ({
+    id: row.id,
+    deploymentId: row.deployment_id,
+    projectName: row.project_name,
+    environmentName: row.environment_name,
+    serviceName: row.service_name,
+    stream: row.stream,
+    lineNumber: row.line_number,
+    message: row.message,
+    createdAt: row.created_at
+  }));
+
+  return {
+    summary: {
+      totalLines: summary?.total_lines ?? 0,
+      stderrLines: summary?.stderr_lines ?? 0,
+      deploymentCount: summary?.deployment_count ?? 0
+    },
+    lines
   };
 }
 

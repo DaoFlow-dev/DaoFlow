@@ -170,6 +170,23 @@ describe("appRouter", () => {
     expect(auditTrail.entries.some((entry) => entry.action === "deployment.create")).toBe(true);
   });
 
+  it("returns append-only deployment logs for signed-in viewers", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-logs-viewer",
+      session: makeSession("viewer")
+    });
+
+    const logs = await caller.deploymentLogs({
+      deploymentId: "dep_foundation_20260311_1"
+    });
+
+    expect(logs.summary.totalLines).toBeGreaterThan(0);
+    expect(logs.summary.stderrLines).toBeGreaterThan(0);
+    expect(logs.summary.deploymentCount).toBe(1);
+    expect(logs.lines.some((line) => line.stream === "stderr")).toBe(true);
+    expect(logs.lines.some((line) => line.message.includes("readiness probe"))).toBe(true);
+  });
+
   it("returns backup policies and runs for signed-in viewers", async () => {
     const caller = appRouter.createCaller({
       requestId: "test-backups-viewer",
@@ -415,6 +432,60 @@ describe("appRouter", () => {
       actorRole: "owner",
       resourceType: "backup-policy"
     });
+  });
+
+  it("appends deployment logs during execution lifecycle transitions", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-logs-mutations",
+      session: makeSession("operator")
+    });
+
+    const deployment = await caller.createDeploymentRecord({
+      projectName: "DaoFlow",
+      environmentName: "staging",
+      serviceName: "log-worker",
+      sourceType: "dockerfile",
+      targetServerId: "srv_foundation_1",
+      commitSha: "abcdef1",
+      imageTag: "ghcr.io/daoflow/log-worker:0.4.0",
+      steps: [
+        {
+          label: "Render runtime spec",
+          detail: "Prepare deployment logs for a staged rollout."
+        }
+      ]
+    });
+
+    const queue = await caller.executionQueue({
+      status: "pending"
+    });
+    const job = queue.jobs.find((entry) => entry.deploymentId === deployment.id);
+
+    expect(job).toBeDefined();
+    if (!job) {
+      throw new Error("Expected a queued execution job for the log-worker deployment.");
+    }
+
+    await caller.dispatchExecutionJob({
+      jobId: job.id
+    });
+    await caller.completeExecutionJob({
+      jobId: job.id
+    });
+
+    const logs = await caller.deploymentLogs({
+      deploymentId: deployment.id,
+      limit: 10
+    });
+
+    expect(logs.summary.totalLines).toBeGreaterThanOrEqual(3);
+    expect(logs.lines.some((line) => line.message.includes("Control plane queued log-worker"))).toBe(
+      true
+    );
+    expect(logs.lines.some((line) => line.message.includes("Worker claimed the queued job"))).toBe(
+      true
+    );
+    expect(logs.lines.some((line) => line.message.includes("reported healthy"))).toBe(true);
   });
 
   it("advances execution jobs through dispatch and completion", async () => {

@@ -47,6 +47,11 @@ test("loads the DaoFlow foundation dashboard", async ({ page }) => {
   await expect(
     page.getByTestId("audit-entry-audit_foundation_execution_complete")
   ).toContainText("execution.complete");
+  await expect(page.getByText("Append-only deployment logs")).toBeVisible();
+  await expect(page.getByTestId("log-summary")).toContainText("6");
+  await expect(
+    page.getByTestId("deployment-log-line-log_foundation_failed_2")
+  ).toContainText("Container exited with code 1 during readiness probe.");
   await expect(page.getByText("Worker handoff queue")).toBeVisible();
   await expect(
     page.getByTestId("deployment-card-dep_foundation_20260312_1")
@@ -70,6 +75,11 @@ test("loads the DaoFlow foundation dashboard", async ({ page }) => {
       hasText: "deployment.create"
     }).filter({ hasText: "edge-worker-ui@staging" })
   ).toContainText(email);
+  await expect(
+    page.locator('[data-testid^="deployment-log-line-"]').filter({
+      hasText: "Control plane queued edge-worker-ui"
+    })
+  ).toContainText("staging");
   await expect(page.getByTestId("queue-summary")).toContainText("1");
   await expect(
     page.locator('[data-testid^="execution-job-"]').filter({ hasText: "edge-worker-ui" })
@@ -100,6 +110,11 @@ test("loads the DaoFlow foundation dashboard", async ({ page }) => {
       hasText: "execution.complete"
     }).filter({ hasText: "edge-worker-ui@staging" })
   ).toContainText(email);
+  await expect(
+    page.locator('[data-testid^="deployment-log-line-"]').filter({
+      hasText: "edge-worker-ui reported healthy"
+    })
+  ).toContainText("staging");
   await expect(
     page.locator('[data-testid^="timeline-event-"]').filter({
       hasText: "Deployment reached a healthy state."

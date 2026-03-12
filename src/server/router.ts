@@ -17,6 +17,7 @@ import {
   listAuditTrail,
   listBackupOverview,
   listApiTokenInventory,
+  listDeploymentLogs,
   listDeploymentInsights,
   listInfrastructureInventory,
   getDeploymentRecord,
@@ -86,7 +87,7 @@ export const appRouter = t.router({
   })),
   platformOverview: t.procedure.query(() => ({
     name: "DaoFlow",
-    currentSlice: "audit-trail",
+    currentSlice: "deployment-logs",
     thesis:
       "A Docker-first deployment control plane for bare metal and VPS environments.",
     architecture: {
@@ -237,6 +238,17 @@ export const appRouter = t.router({
     .query(async ({ input }) => {
       await ensureControlPlaneReady();
       return listAuditTrail(input.limit ?? 12);
+    }),
+  deploymentLogs: protectedProcedure
+    .input(
+      z.object({
+        deploymentId: z.string().min(1).optional(),
+        limit: z.number().int().min(1).max(100).optional()
+      })
+    )
+    .query(async ({ input }) => {
+      await ensureControlPlaneReady();
+      return listDeploymentLogs(input.deploymentId, input.limit ?? 18);
     }),
   backupOverview: protectedProcedure
     .input(

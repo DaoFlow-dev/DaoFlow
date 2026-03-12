@@ -249,6 +249,10 @@ body {
   margin-top: 1rem;
 }
 
+.deployment-logs {
+  margin-top: 1rem;
+}
+
 .infrastructure-inventory {
   margin-top: 1rem;
 }
@@ -362,6 +366,13 @@ body {
   gap: 1rem;
 }
 
+.log-summary {
+  margin-bottom: 1rem;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+
 .queue-list {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -398,6 +409,21 @@ body {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 1rem;
+}
+
+.log-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.log-line__message {
+  font-family:
+    "SFMono-Regular",
+    "Menlo",
+    "Monaco",
+    monospace;
+  font-size: 0.9rem;
 }
 
 .deployment-card {
@@ -603,6 +629,7 @@ body {
   .deployment-composer,
   .backup-summary,
   .audit-summary,
+  .log-summary,
   .backup-policy-list,
   .backup-run-list,
   .deployment-list,
@@ -614,6 +641,7 @@ body {
   .token-summary,
   .insight-list,
   .audit-list,
+  .log-list,
   .timeline-list,
   .roadmap__items {
     grid-template-columns: 1fr;
