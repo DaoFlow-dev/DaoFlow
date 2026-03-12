@@ -245,6 +245,10 @@ body {
   margin-top: 1rem;
 }
 
+.rollback-plans {
+  margin-top: 1rem;
+}
+
 .audit-trail {
   margin-top: 1rem;
 }
@@ -459,6 +463,19 @@ body {
 }
 
 .insight-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.rollback-plan-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.rollback-plan__columns {
+  margin-top: 1rem;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 1rem;
@@ -707,6 +724,8 @@ body {
   .token-list,
   .token-summary,
   .insight-list,
+  .rollback-plan-list,
+  .rollback-plan__columns,
   .audit-list,
   .log-list,
   .environment-variable-list,

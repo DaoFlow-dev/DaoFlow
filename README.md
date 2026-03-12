@@ -18,6 +18,7 @@ DaoFlow is an open-source platform for running applications on VPS and bare-meta
 - immutable control-plane audit entries for deployment, execution, and backup actions
 - append-only deployment log lines with read-only API access and worker lifecycle updates
 - encrypted environment variable inventory with redacted secret reads and scoped branch patterns
+- rollback planning surfaces with healthy baseline targeting, preflight checks, and recovery steps
 
 ## Current Stack
 

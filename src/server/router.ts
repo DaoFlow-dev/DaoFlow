@@ -19,6 +19,7 @@ import {
   listApiTokenInventory,
   listDeploymentLogs,
   listDeploymentInsights,
+  listDeploymentRollbackPlans,
   listEnvironmentVariableInventory,
   listInfrastructureInventory,
   getDeploymentRecord,
@@ -89,7 +90,7 @@ export const appRouter = t.router({
   })),
   platformOverview: t.procedure.query(() => ({
     name: "DaoFlow",
-    currentSlice: "environment-config",
+    currentSlice: "rollback-planning",
     thesis:
       "A Docker-first deployment control plane for bare metal and VPS environments.",
     architecture: {
@@ -230,6 +231,16 @@ export const appRouter = t.router({
     .query(async ({ input }) => {
       await ensureControlPlaneReady();
       return listDeploymentInsights(input.limit ?? 6);
+    }),
+  deploymentRollbackPlans: protectedProcedure
+    .input(
+      z.object({
+        limit: z.number().int().min(1).max(12).optional()
+      })
+    )
+    .query(async ({ input }) => {
+      await ensureControlPlaneReady();
+      return listDeploymentRollbackPlans(input.limit ?? 6);
     }),
   auditTrail: protectedProcedure
     .input(

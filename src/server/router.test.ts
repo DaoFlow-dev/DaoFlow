@@ -156,6 +156,38 @@ describe("appRouter", () => {
     });
   });
 
+  it("returns rollback planning for failed and healthy deployments", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-rollback-viewer",
+      session: makeSession("viewer")
+    });
+
+    const plans = await caller.deploymentRollbackPlans({});
+    const failedPlan = plans.find((plan) => plan.deploymentId === "dep_foundation_20260311_1");
+    const healthyPlan = plans.find((plan) => plan.deploymentId === "dep_foundation_20260312_1");
+
+    expect(plans.length).toBeGreaterThan(0);
+    expect(failedPlan).toMatchObject({
+      currentStatus: "failed",
+      isAvailable: true,
+      targetDeploymentId: "dep_foundation_20260312_1",
+      targetCommitSha: "03e40ca"
+    });
+    expect(failedPlan?.checks).toContain(
+      "Confirm the rollback target still matches the desired environment variables and persistent volumes."
+    );
+    expect(failedPlan?.steps).toContain(
+      "Replay environment variables and volume attachments from the rollback target snapshot."
+    );
+    expect(healthyPlan).toMatchObject({
+      currentStatus: "healthy",
+      isAvailable: false,
+      targetDeploymentId: null,
+      targetCommitSha: null,
+      reason: "Current deployment is already healthy; rollback is not recommended."
+    });
+  });
+
   it("returns immutable audit entries for signed-in viewers", async () => {
     const caller = appRouter.createCaller({
       requestId: "test-audit-viewer",

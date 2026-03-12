@@ -50,6 +50,19 @@ test("loads the DaoFlow foundation dashboard", async ({ page }) => {
   await expect(
     page.getByTestId("deployment-insight-dep_foundation_20260311_1")
   ).toContainText("Healthy baseline: 03e40ca");
+  await expect(page.getByRole("heading", { name: "Rollback planning", level: 2 })).toBeVisible();
+  await expect(
+    page.getByTestId("rollback-plan-dep_foundation_20260311_1")
+  ).toContainText("Rollback target: 03e40ca");
+  await expect(
+    page.getByTestId("rollback-plan-dep_foundation_20260311_1")
+  ).toContainText("Verify the target server is still reachable before issuing rollback commands.");
+  await expect(
+    page.getByTestId("rollback-plan-dep_foundation_20260311_1")
+  ).toContainText("Replay environment variables and volume attachments from the rollback target snapshot.");
+  await expect(
+    page.getByTestId("rollback-plan-dep_foundation_20260312_1")
+  ).toContainText("Current deployment is already healthy; rollback is not recommended.");
   await expect(page.getByText("Immutable control-plane audit trail")).toBeVisible();
   await expect(page.getByTestId("audit-summary")).toContainText("3");
   await expect(

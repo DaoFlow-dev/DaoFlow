@@ -175,6 +175,21 @@ export interface DeploymentInsightRecord {
     | null;
 }
 
+export interface DeploymentRollbackPlanRecord {
+  deploymentId: string;
+  projectName: string;
+  environmentName: string;
+  serviceName: string;
+  currentStatus: DeploymentStatus;
+  isAvailable: boolean;
+  reason: string;
+  targetDeploymentId: string | null;
+  targetCommitSha: string | null;
+  targetImageTag: string | null;
+  checks: string[];
+  steps: string[];
+}
+
 export interface AuditEntryRecord {
   id: string;
   actorType: AuditActorType;
@@ -3002,6 +3017,62 @@ function buildDeploymentInsight(deployment: DeploymentRecord): DeploymentInsight
 
 export function listDeploymentInsights(limit = 6) {
   return listDeploymentRecords(undefined, limit).map((deployment) => buildDeploymentInsight(deployment));
+}
+
+function buildRollbackChecks(deployment: DeploymentRecord, hasBaseline: boolean) {
+  const checks = [
+    "Verify the target server is still reachable before issuing rollback commands.",
+    "Confirm the rollback target still matches the desired environment variables and persistent volumes."
+  ];
+
+  if (deployment.status === "running") {
+    checks.unshift("Wait for the active rollout to settle or cancel it before switching versions.");
+  }
+
+  if (!hasBaseline && deployment.status !== "healthy") {
+    checks.unshift("No healthy baseline is available yet for this deployment.");
+  }
+
+  return checks;
+}
+
+function buildRollbackPlan(deployment: DeploymentRecord): DeploymentRollbackPlanRecord {
+  const healthyBaseline = getReferenceHealthyDeployment(deployment);
+  const isCurrentHealthy = deployment.status === "healthy";
+  const isAvailable = Boolean(healthyBaseline) && !isCurrentHealthy;
+
+  return {
+    deploymentId: deployment.id,
+    projectName: deployment.projectName,
+    environmentName: deployment.environmentName,
+    serviceName: deployment.serviceName,
+    currentStatus: deployment.status,
+    isAvailable,
+    reason: isCurrentHealthy
+      ? "Current deployment is already healthy; rollback is not recommended."
+      : healthyBaseline
+        ? `Latest healthy baseline ${healthyBaseline.commitSha} is available for rollback planning.`
+        : "No earlier healthy deployment was found for this service and environment.",
+    targetDeploymentId: isAvailable ? (healthyBaseline?.id ?? null) : null,
+    targetCommitSha: isAvailable ? (healthyBaseline?.commitSha ?? null) : null,
+    targetImageTag: isAvailable ? (healthyBaseline?.imageTag ?? null) : null,
+    checks: buildRollbackChecks(deployment, Boolean(healthyBaseline)),
+    steps: healthyBaseline
+      ? [
+          `Freeze writes for ${deployment.serviceName} in ${deployment.environmentName}.`,
+          `Reapply image ${healthyBaseline.imageTag} from deployment ${healthyBaseline.id}.`,
+          "Replay environment variables and volume attachments from the rollback target snapshot.",
+          "Run health checks and only switch traffic after the rollback target is healthy."
+        ]
+      : [
+          "Capture logs, events, and environment metadata from the failed rollout.",
+          "Create a new healthy baseline manually before enabling automated rollback."
+        ]
+  };
+}
+
+export function listDeploymentRollbackPlans(limit = 6) {
+  return listDeploymentRecords(undefined, limit).map((deployment) => buildRollbackPlan(deployment));
 }
 
 function getAuditEntryRows(limit = 20) {
