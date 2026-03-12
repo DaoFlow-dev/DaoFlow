@@ -10,6 +10,7 @@ export default defineConfig({
   webServer: {
     command: "pnpm build && pnpm start",
     env: {
+      BETTER_AUTH_DB_PATH: ":memory:",
       BETTER_AUTH_SECRET: "daoflow-e2e-secret-with-enough-entropy-2026",
       BETTER_AUTH_URL: "http://127.0.0.1:3000"
     },

@@ -53,9 +53,10 @@ This starts:
 
 Auth configuration:
 
+- `BETTER_AUTH_DB_PATH` defaults to `./data/auth.sqlite` outside tests and can be pointed at a mounted volume in Docker or production.
 - `BETTER_AUTH_SECRET` is optional in local development and required for production deployments.
 - `BETTER_AUTH_URL` should match the externally reachable control-plane origin in production.
-- The current auth persistence uses an in-memory adapter for the foundation slice, so sessions and accounts reset on server restart until a durable database-backed adapter lands.
+- Better Auth now boots its own SQLite schema automatically on first start, so the auth layer is durable without a manual migration step.
 
 ## Quality Gates
 
@@ -116,6 +117,7 @@ Run it:
 ```bash
 docker run --rm \
   -p 3000:3000 \
+  -v "$(pwd)/data:/app/data" \
   -e BETTER_AUTH_SECRET=replace-with-a-long-random-secret \
   -e BETTER_AUTH_URL=http://localhost:3000 \
   daoflow:local

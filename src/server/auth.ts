@@ -1,16 +1,37 @@
+import { mkdirSync } from "node:fs";
+import { createRequire } from "node:module";
+import path from "node:path";
 import { betterAuth } from "better-auth";
-import { memoryAdapter } from "better-auth/adapters/memory";
+import { getMigrations } from "better-auth/db/migration";
 import { DEFAULT_CLIENT_PORT, DEFAULT_SERVER_PORT } from "../shared/config";
 
-const authMemoryDb = {
-  user: [],
-  session: [],
-  account: [],
-  verification: []
-};
+const require = createRequire(import.meta.url);
+const { DatabaseSync } = require("node:sqlite") as typeof import("node:sqlite");
 
 function resolveAuthBaseURL() {
   return process.env.BETTER_AUTH_URL ?? `http://localhost:${DEFAULT_SERVER_PORT}`;
+}
+
+function resolveAuthDatabasePath() {
+  if (process.env.BETTER_AUTH_DB_PATH) {
+    return process.env.BETTER_AUTH_DB_PATH;
+  }
+
+  if (process.env.NODE_ENV === "test") {
+    return ":memory:";
+  }
+
+  return path.resolve(process.cwd(), "data", "auth.sqlite");
+}
+
+function createAuthDatabase() {
+  const databasePath = resolveAuthDatabasePath();
+
+  if (databasePath !== ":memory:") {
+    mkdirSync(path.dirname(databasePath), { recursive: true });
+  }
+
+  return new DatabaseSync(databasePath);
 }
 
 function resolveAuthSecret() {
@@ -35,10 +56,19 @@ export const auth = betterAuth({
     `http://localhost:${DEFAULT_SERVER_PORT}`,
     `http://127.0.0.1:${DEFAULT_SERVER_PORT}`
   ],
-  database: memoryAdapter(authMemoryDb),
+  database: createAuthDatabase(),
   emailAndPassword: {
     enabled: true
   }
 });
+
+const authReady = (async () => {
+  const { runMigrations } = await getMigrations(auth.options);
+  await runMigrations();
+})();
+
+export async function ensureAuthReady() {
+  await authReady;
+}
 
 export type AuthSession = Awaited<ReturnType<typeof auth.api.getSession>>;

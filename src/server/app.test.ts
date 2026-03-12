@@ -32,4 +32,28 @@ describe("createApp", () => {
     expect(response.status).toBe(200);
     expect(body.result.data.status).toBe("healthy");
   });
+
+  it("mounts Better Auth with durable schema bootstrap", async () => {
+    const app = createApp();
+    const email = `operator+${Date.now()}@daoflow.local`;
+    const response = await request(app)
+      .post("/api/auth/sign-up/email")
+      .set("Origin", "http://localhost:5173")
+      .send({
+        email,
+        name: "DaoFlow Operator",
+        password: "secret1234"
+      });
+    const body = response.body as {
+      user: {
+        email: string;
+      };
+    };
+
+    expect(response.status).toBe(200);
+    expect(body.user.email).toBe(email);
+    expect(response.headers["set-cookie"]).toEqual(
+      expect.arrayContaining([expect.stringContaining("better-auth.session_token")])
+    );
+  });
 });

@@ -6,6 +6,7 @@ import morgan from "morgan";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { DEFAULT_CLIENT_PORT } from "../shared/config";
 import { auth } from "./auth";
+import { ensureAuthReady } from "./auth";
 import { createContext } from "./context";
 import { resolveRequestId } from "./request-id";
 import { appRouter } from "./router";
@@ -42,7 +43,16 @@ export function createApp() {
     })
   );
 
-  app.all("/api/auth/*splat", toNodeHandler(auth));
+  const authHandler = toNodeHandler(auth);
+
+  app.all("/api/auth/*splat", async (req, res, next) => {
+    try {
+      await ensureAuthReady();
+      await authHandler(req, res);
+    } catch (error) {
+      next(error);
+    }
+  });
 
   app.use(express.json());
 

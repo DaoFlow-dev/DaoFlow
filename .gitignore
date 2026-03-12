@@ -1,6 +1,7 @@
 # Local competitor research scratch space
 tmp/competitor-research/
 coverage/
+data/
 dist/
 node_modules/
 .pnpm-store/

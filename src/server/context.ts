@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 import { fromNodeHeaders } from "better-auth/node";
 import { auth } from "./auth";
+import { ensureAuthReady } from "./auth";
 import type { AuthSession } from "./auth";
 
 export interface Context {
@@ -9,6 +10,8 @@ export interface Context {
 }
 
 export async function createContext(opts: { req: Request; res: Response }): Promise<Context> {
+  await ensureAuthReady();
+
   const session = await auth.api.getSession({
     headers: fromNodeHeaders(opts.req.headers)
   });
