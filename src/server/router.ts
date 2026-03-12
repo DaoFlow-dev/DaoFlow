@@ -10,7 +10,9 @@ import {
 } from "../shared/authz";
 import {
   completeExecutionJob,
+  listComposeReleaseCatalog,
   createDeploymentRecord,
+  queueComposeRelease,
   registerServer,
   dispatchExecutionJob,
   ensureControlPlaneReady,
@@ -93,7 +95,7 @@ export const appRouter = t.router({
   })),
   platformOverview: t.procedure.query(() => ({
     name: "DaoFlow",
-    currentSlice: "server-readiness",
+    currentSlice: "compose-release-targets",
     thesis:
       "A Docker-first deployment control plane for bare metal and VPS environments.",
     architecture: {
@@ -152,6 +154,16 @@ export const appRouter = t.router({
       await ensureControlPlaneReady();
       return listDeploymentRecords(input.status, input.limit ?? 20);
     }),
+  composeReleaseCatalog: protectedProcedure
+    .input(
+      z.object({
+        limit: z.number().int().min(1).max(40).optional()
+      })
+    )
+    .query(async ({ input }) => {
+      await ensureControlPlaneReady();
+      return listComposeReleaseCatalog(input.limit ?? 24);
+    }),
   deploymentDetails: protectedProcedure
     .input(
       z.object({
@@ -166,6 +178,32 @@ export const appRouter = t.router({
         throw new TRPCError({
           code: "NOT_FOUND",
           message: "Deployment record not found."
+        });
+      }
+
+      return deployment;
+    }),
+  queueComposeRelease: deployProcedure
+    .input(
+      z.object({
+        composeServiceId: z.string().min(1),
+        commitSha: z.string().regex(/^[a-f0-9]{7,40}$/i),
+        imageTag: z.string().min(1).max(160).optional()
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      await ensureControlPlaneReady();
+      const deployment = queueComposeRelease({
+        ...input,
+        requestedByUserId: ctx.session.user.id,
+        requestedByEmail: ctx.session.user.email,
+        requestedByRole: ctx.role
+      });
+
+      if (!deployment) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Compose release target not found."
         });
       }
 

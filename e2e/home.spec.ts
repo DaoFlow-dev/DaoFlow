@@ -39,6 +39,14 @@ test("loads the DaoFlow foundation dashboard", async ({ page }) => {
   await expect(
     page.getByTestId("server-readiness-card-srv_foundation_1")
   ).toContainText("Connectivity checks are healthy.");
+  await expect(page.getByText("Compose release catalog")).toBeVisible();
+  await expect(page.getByTestId("compose-release-summary")).toContainText("5");
+  await expect(
+    page.getByTestId("compose-service-card-compose_daoflow_prod_control_plane")
+  ).toContainText("/srv/daoflow/production/compose.yaml");
+  await expect(
+    page.getByTestId("compose-service-card-compose_daoflow_prod_control_plane")
+  ).toContainText("Dependencies: postgres, redis");
   await expect(page.getByText("Encrypted environment configuration")).toBeVisible();
   await expect(page.getByTestId("environment-variable-summary")).toContainText("3");
   await expect(
@@ -112,9 +120,22 @@ test("loads the DaoFlow foundation dashboard", async ({ page }) => {
   await expect(
     page.locator('[data-testid^="server-card-"]').filter({ hasText: uniqueServerName })
   ).toContainText("pending verification");
-  await page.getByLabel("Service name").fill("edge-worker-ui");
-  await page.getByLabel("Commit SHA").fill("abcdef1");
-  await page.getByLabel("Image tag").fill("ghcr.io/daoflow/edge-worker-ui:0.2.1");
+  const composeReleaseForm = page.getByTestId("compose-release-form");
+  await composeReleaseForm.getByLabel("Commit SHA").fill("fedcba1");
+  await composeReleaseForm.getByLabel("Image override").fill("ghcr.io/daoflow/control-plane:0.1.1");
+  await composeReleaseForm.getByRole("button", { name: "Queue compose release" }).click();
+  await expect(page.getByTestId("compose-release-feedback")).toContainText(
+    "Queued compose release for control-plane"
+  );
+  await expect(
+    page.locator('[data-testid^="deployment-card-"]').filter({ hasText: "Source: compose" }).filter({
+      hasText: "Commit: fedcba1"
+    })
+  ).toContainText("ghcr.io/daoflow/control-plane:0.1.1");
+  const manualDeploymentForm = page.getByTestId("manual-deployment-form");
+  await manualDeploymentForm.getByLabel("Service name").fill("edge-worker-ui");
+  await manualDeploymentForm.getByLabel("Commit SHA").fill("abcdef1");
+  await manualDeploymentForm.getByLabel("Image tag").fill("ghcr.io/daoflow/edge-worker-ui:0.2.1");
   await page.getByLabel("Key").fill("SERVICE_TOKEN");
   await page.getByLabel("Value", { exact: true }).fill("top-secret-token");
   await page.getByLabel("Branch pattern").fill("feature/*");

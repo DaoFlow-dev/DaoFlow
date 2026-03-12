@@ -141,6 +141,10 @@ export default function App() {
   const health = trpc.health.useQuery();
   const overview = trpc.platformOverview.useQuery();
   const roadmap = trpc.roadmap.useQuery({});
+  const composeReleaseCatalog = trpc.composeReleaseCatalog.useQuery({}, {
+    enabled: Boolean(session.data)
+  });
+  const queueComposeRelease = trpc.queueComposeRelease.useMutation();
   const createDeploymentRecord = trpc.createDeploymentRecord.useMutation();
   const triggerBackupRun = trpc.triggerBackupRun.useMutation();
   const dispatchExecutionJob = trpc.dispatchExecutionJob.useMutation();
@@ -202,6 +206,11 @@ export default function App() {
   const [serviceName, setServiceName] = useState("edge-worker");
   const [commitSha, setCommitSha] = useState("abcdef1");
   const [imageTag, setImageTag] = useState("ghcr.io/daoflow/edge-worker:0.2.0");
+  const [composeReleaseTargetId, setComposeReleaseTargetId] = useState(
+    "compose_daoflow_prod_control_plane"
+  );
+  const [composeReleaseCommitSha, setComposeReleaseCommitSha] = useState("abcdef1");
+  const [composeReleaseImageTag, setComposeReleaseImageTag] = useState("");
   const [serverName, setServerName] = useState("edge-vps-2");
   const [serverHost, setServerHost] = useState("10.0.2.15");
   const [serverRegion, setServerRegion] = useState("us-central-1");
@@ -221,6 +230,7 @@ export default function App() {
   const [environmentVariableIsSecret, setEnvironmentVariableIsSecret] = useState(false);
   const [authFeedback, setAuthFeedback] = useState<string | null>(null);
   const [deploymentFeedback, setDeploymentFeedback] = useState<string | null>(null);
+  const [composeReleaseFeedback, setComposeReleaseFeedback] = useState<string | null>(null);
   const [executionFeedback, setExecutionFeedback] = useState<string | null>(null);
   const [backupFeedback, setBackupFeedback] = useState<string | null>(null);
   const [serverFeedback, setServerFeedback] = useState<string | null>(null);
@@ -284,6 +294,7 @@ export default function App() {
     await session.refetch();
     setAuthFeedback("Signed out.");
     setDeploymentFeedback(null);
+    setComposeReleaseFeedback(null);
     setExecutionFeedback(null);
     setBackupFeedback(null);
     setServerFeedback(null);
@@ -291,6 +302,7 @@ export default function App() {
   }
 
   async function refreshOperationalViews() {
+    await composeReleaseCatalog.refetch();
     await infrastructureInventory.refetch();
     await serverReadiness.refetch();
     await persistentVolumes.refetch();
@@ -303,6 +315,30 @@ export default function App() {
     await backupOverview.refetch();
     await executionQueue.refetch();
     await operationsTimeline.refetch();
+  }
+
+  async function handleQueueComposeRelease(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setComposeReleaseFeedback(null);
+
+    try {
+      const deployment = await queueComposeRelease.mutateAsync({
+        composeServiceId: composeReleaseTargetId,
+        commitSha: composeReleaseCommitSha,
+        imageTag: composeReleaseImageTag || undefined
+      });
+
+      await refreshOperationalViews();
+      setComposeReleaseFeedback(
+        `Queued compose release for ${deployment.serviceName} as ${deployment.id}.`
+      );
+    } catch (error) {
+      setComposeReleaseFeedback(
+        isTRPCClientError(error)
+          ? error.message
+          : "Unable to queue the compose release right now."
+      );
+    }
   }
 
   async function handleCreateDeployment(event: FormEvent<HTMLFormElement>) {
@@ -492,6 +528,10 @@ export default function App() {
     infrastructureInventory.error && isTRPCClientError(infrastructureInventory.error)
       ? infrastructureInventory.error.message
       : null;
+  const composeReleaseCatalogMessage =
+    composeReleaseCatalog.error && isTRPCClientError(composeReleaseCatalog.error)
+      ? composeReleaseCatalog.error.message
+      : null;
   const serverReadinessMessage =
     serverReadiness.error && isTRPCClientError(serverReadiness.error)
       ? serverReadiness.error.message
@@ -538,6 +578,7 @@ export default function App() {
     completeExecutionJob.isPending ||
     failExecutionJob.isPending;
   const backupMutationPending = triggerBackupRun.isPending;
+  const composeReleaseMutationPending = queueComposeRelease.isPending;
   const serverMutationPending = registerServer.isPending;
   const environmentVariableMutationPending = upsertEnvironmentVariable.isPending;
 
@@ -1251,6 +1292,137 @@ export default function App() {
         )}
       </section>
 
+      <section className="compose-release-catalog">
+        <div className="roadmap__header">
+          <p className="roadmap__kicker">Compose-first targets</p>
+          <h2>Compose release catalog</h2>
+        </div>
+
+        {session.data && canQueueDeployments && composeReleaseCatalog.data ? (
+          <form
+            className="compose-release-composer"
+            data-testid="compose-release-form"
+            onSubmit={(event) => void handleQueueComposeRelease(event)}
+          >
+            <div>
+              <p className="roadmap-item__lane">Typed release queue</p>
+              <h3>Queue a compose release</h3>
+              <p className="deployment-card__meta">
+                Pick a seeded Compose target and queue a rollout with topology-aware steps.
+              </p>
+            </div>
+            <label>
+              Release target
+              <select
+                value={composeReleaseTargetId}
+                onChange={(event) => setComposeReleaseTargetId(event.target.value)}
+              >
+                {composeReleaseCatalog.data.services.map((service) => (
+                  <option key={service.id} value={service.id}>
+                    {service.projectName} / {service.environmentName} / {service.serviceName}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Commit SHA
+              <input
+                value={composeReleaseCommitSha}
+                onChange={(event) => setComposeReleaseCommitSha(event.target.value)}
+              />
+            </label>
+            <label>
+              Image override
+              <input
+                value={composeReleaseImageTag}
+                onChange={(event) => setComposeReleaseImageTag(event.target.value)}
+                placeholder="optional override"
+              />
+            </label>
+            <button className="action-button" disabled={composeReleaseMutationPending} type="submit">
+              {composeReleaseMutationPending ? "Queueing..." : "Queue compose release"}
+            </button>
+            {composeReleaseFeedback ? (
+              <p className="auth-feedback" data-testid="compose-release-feedback">
+                {composeReleaseFeedback}
+              </p>
+            ) : null}
+          </form>
+        ) : session.data ? (
+          <p className="viewer-empty">
+            Deploy-capable roles can queue Compose releases here.
+          </p>
+        ) : null}
+
+        {session.data && composeReleaseCatalog.data ? (
+          <>
+            <div className="compose-release-summary" data-testid="compose-release-summary">
+              <div className="token-summary__item">
+                <span className="metric__label">Services</span>
+                <strong>{composeReleaseCatalog.data.summary.totalServices}</strong>
+              </div>
+              <div className="token-summary__item">
+                <span className="metric__label">Stateful</span>
+                <strong>{composeReleaseCatalog.data.summary.statefulServices}</strong>
+              </div>
+              <div className="token-summary__item">
+                <span className="metric__label">Healthy envs</span>
+                <strong>{composeReleaseCatalog.data.summary.healthyEnvironments}</strong>
+              </div>
+              <div className="token-summary__item">
+                <span className="metric__label">Networks</span>
+                <strong>{composeReleaseCatalog.data.summary.uniqueNetworks}</strong>
+              </div>
+            </div>
+
+            <div className="compose-release-list">
+              {composeReleaseCatalog.data.services.map((service) => (
+                <article
+                  className="token-card"
+                  data-testid={`compose-service-card-${service.id}`}
+                  key={service.id}
+                >
+                  <div className="token-card__top">
+                    <div>
+                      <p className="roadmap-item__lane">
+                        {service.environmentName} · {service.projectName}
+                      </p>
+                      <h3>{service.serviceName}</h3>
+                    </div>
+                    <span
+                      className={`deployment-status deployment-status--${service.releaseTrack === "stable" ? "healthy" : "running"}`}
+                    >
+                      {service.releaseTrack}
+                    </span>
+                  </div>
+                  <p className="deployment-card__meta">
+                    {service.targetServerName} · {service.composeFilePath}
+                  </p>
+                  <p className="deployment-card__meta">
+                    Image: {service.imageReference} · Replicas: {service.replicaCount}
+                  </p>
+                  <p className="deployment-card__meta">
+                    Ports: {service.exposedPorts.length > 0 ? service.exposedPorts.join(", ") : "internal only"}
+                  </p>
+                  <p className="deployment-card__meta">
+                    Dependencies: {service.dependencies.length > 0 ? service.dependencies.join(", ") : "none"} ·
+                    Network: {service.networkName}
+                  </p>
+                  <p className="deployment-card__meta">
+                    Volumes: {service.volumeMounts.join(", ")} · Healthcheck: {service.healthcheckPath ?? "process-level"}
+                  </p>
+                </article>
+              ))}
+            </div>
+          </>
+        ) : (
+          <p className="viewer-empty">
+            {composeReleaseCatalogMessage ??
+              "Sign in to inspect Compose release targets and queue rollouts from catalogued topology."}
+          </p>
+        )}
+      </section>
+
       <section className="deployments">
         <div className="roadmap__header">
           <p className="roadmap__kicker">Deployment write-path foundation</p>
@@ -1258,7 +1430,11 @@ export default function App() {
         </div>
 
         {session.data && canQueueDeployments ? (
-          <form className="deployment-composer" onSubmit={(event) => void handleCreateDeployment(event)}>
+          <form
+            className="deployment-composer"
+            data-testid="manual-deployment-form"
+            onSubmit={(event) => void handleCreateDeployment(event)}
+          >
             <div>
               <p className="roadmap-item__lane">Safe operator action</p>
               <h3>Queue a deployment record</h3>

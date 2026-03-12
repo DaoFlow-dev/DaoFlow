@@ -57,6 +57,39 @@ describe("appRouter", () => {
     expect(response[0]?.steps.length).toBeGreaterThan(0);
   });
 
+  it("returns compose release catalog for signed-in viewers", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-compose-catalog-viewer",
+      session: makeSession("viewer")
+    });
+
+    const catalog = await caller.composeReleaseCatalog({});
+    const productionControlPlane = catalog.services.find(
+      (service) => service.id === "compose_daoflow_prod_control_plane"
+    );
+
+    expect(catalog.summary).toEqual({
+      totalServices: 5,
+      statefulServices: 5,
+      healthyEnvironments: 1,
+      uniqueNetworks: 3
+    });
+    expect(productionControlPlane).toMatchObject({
+      environmentName: "production-us-west",
+      projectName: "DaoFlow",
+      targetServerName: "foundation-vps-1",
+      serviceName: "control-plane",
+      composeFilePath: "/srv/daoflow/production/compose.yaml",
+      networkName: "daoflow-prod",
+      imageReference: "ghcr.io/daoflow/control-plane:0.1.0",
+      replicaCount: 2,
+      releaseTrack: "stable",
+      healthcheckPath: "/healthz"
+    });
+    expect(productionControlPlane?.dependencies).toEqual(["postgres", "redis"]);
+    expect(productionControlPlane?.volumeMounts).toContain("/app/data");
+  });
+
   it("returns execution queue and operations timeline for signed-in viewers", async () => {
     const caller = appRouter.createCaller({
       requestId: "test-execution-viewer",
@@ -372,6 +405,20 @@ describe("appRouter", () => {
     ).rejects.toBeInstanceOf(TRPCError);
   });
 
+  it("blocks compose release queueing for viewer roles", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-compose-release-viewer-block",
+      session: makeSession("viewer")
+    });
+
+    await expect(
+      caller.queueComposeRelease({
+        composeServiceId: "compose_daoflow_prod_control_plane",
+        commitSha: "abcdef1"
+      })
+    ).rejects.toBeInstanceOf(TRPCError);
+  });
+
   it("blocks backup trigger mutations for viewer roles", async () => {
     const caller = appRouter.createCaller({
       requestId: "test-backups-viewer-block",
@@ -580,6 +627,55 @@ describe("appRouter", () => {
     });
     expect(timeline.some((event) => event.kind === "deployment.queued")).toBe(true);
     expect(timeline.some((event) => event.kind === "execution.job.created")).toBe(true);
+  });
+
+  it("queues compose release targets with topology-aware steps", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-compose-release-queue",
+      session: makeSession("developer")
+    });
+
+    const deployment = await caller.queueComposeRelease({
+      composeServiceId: "compose_daoflow_prod_control_plane",
+      commitSha: "abcdef1"
+    });
+
+    expect(deployment).toMatchObject({
+      projectName: "DaoFlow",
+      environmentName: "production-us-west",
+      serviceName: "control-plane",
+      sourceType: "compose",
+      commitSha: "abcdef1",
+      imageTag: "ghcr.io/daoflow/control-plane:0.1.0",
+      requestedByEmail: "developer@daoflow.local",
+      status: "queued"
+    });
+    expect(deployment.steps).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          label: "Render compose target"
+        }),
+        expect.objectContaining({
+          label: "Coordinate dependencies"
+        }),
+        expect.objectContaining({
+          label: "Protect stateful mounts"
+        })
+      ])
+    );
+
+    const queue = await caller.executionQueue({
+      status: "pending"
+    });
+    expect(queue.jobs.some((job) => job.deploymentId === deployment.id)).toBe(true);
+
+    const details = await caller.deploymentDetails({
+      deploymentId: deployment.id
+    });
+    expect(details.steps.some((step) => step.detail.includes("/srv/daoflow/production/compose.yaml"))).toBe(
+      true
+    );
+    expect(details.steps.some((step) => step.detail.includes("postgres, redis"))).toBe(true);
   });
 
   it("records audit entries for deployment, execution, and backup mutations", async () => {

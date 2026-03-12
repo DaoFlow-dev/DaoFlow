@@ -398,6 +398,44 @@ export interface RegisterServerInput {
   requestedByRole: AppRole;
 }
 
+export interface ComposeServiceRecord {
+  id: string;
+  environmentId: string;
+  environmentName: string;
+  projectName: string;
+  targetServerId: string;
+  targetServerName: string;
+  serviceName: string;
+  composeFilePath: string;
+  networkName: string;
+  imageReference: string;
+  replicaCount: number;
+  exposedPorts: string[];
+  dependencies: string[];
+  volumeMounts: string[];
+  healthcheckPath: string | null;
+  releaseTrack: "stable" | "canary";
+}
+
+export interface ComposeReleaseCatalog {
+  summary: {
+    totalServices: number;
+    statefulServices: number;
+    healthyEnvironments: number;
+    uniqueNetworks: number;
+  };
+  services: ComposeServiceRecord[];
+}
+
+export interface QueueComposeReleaseInput {
+  composeServiceId: string;
+  commitSha: string;
+  imageTag?: string | null;
+  requestedByUserId: string;
+  requestedByEmail: string;
+  requestedByRole: AppRole;
+}
+
 export interface PersistentVolumeRecord {
   id: string;
   environmentId: string;
@@ -587,6 +625,19 @@ interface SeedServerReadinessCheck {
   checkedAt: string;
   issues: readonly string[];
   recommendedActions: readonly string[];
+}
+
+interface SeedComposeService {
+  id: string;
+  environmentId: string;
+  serviceName: string;
+  imageReference: string;
+  replicaCount: number;
+  exposedPorts: readonly string[];
+  dependencies: readonly string[];
+  volumeMounts: readonly string[];
+  healthcheckPath: string | null;
+  releaseTrack: "stable" | "canary";
 }
 
 function resolveControlPlaneDatabasePath() {
@@ -813,6 +864,68 @@ function seedControlPlaneData() {
       ]
     }
   ] as const satisfies readonly SeedServerReadinessCheck[];
+  const seedComposeServices = [
+    {
+      id: "compose_daoflow_prod_control_plane",
+      environmentId: "env_daoflow_production",
+      serviceName: "control-plane",
+      imageReference: "ghcr.io/daoflow/control-plane:0.1.0",
+      replicaCount: 2,
+      exposedPorts: ["3000:3000"],
+      dependencies: ["postgres", "redis"],
+      volumeMounts: ["/app/data"],
+      healthcheckPath: "/healthz",
+      releaseTrack: "stable"
+    },
+    {
+      id: "compose_daoflow_prod_worker",
+      environmentId: "env_daoflow_production",
+      serviceName: "worker",
+      imageReference: "ghcr.io/daoflow/worker:0.1.0",
+      replicaCount: 1,
+      exposedPorts: [],
+      dependencies: ["control-plane", "postgres"],
+      volumeMounts: ["/var/run/docker.sock"],
+      healthcheckPath: null,
+      releaseTrack: "stable"
+    },
+    {
+      id: "compose_daoflow_prod_postgres",
+      environmentId: "env_daoflow_production",
+      serviceName: "postgres",
+      imageReference: "postgres:16-alpine",
+      replicaCount: 1,
+      exposedPorts: ["5432:5432"],
+      dependencies: [],
+      volumeMounts: ["/var/lib/postgresql/data"],
+      healthcheckPath: null,
+      releaseTrack: "stable"
+    },
+    {
+      id: "compose_daoflow_staging_control_plane",
+      environmentId: "env_daoflow_staging",
+      serviceName: "control-plane",
+      imageReference: "ghcr.io/daoflow/control-plane:staging",
+      replicaCount: 1,
+      exposedPorts: ["3001:3000"],
+      dependencies: ["postgres"],
+      volumeMounts: ["/app/data"],
+      healthcheckPath: "/healthz",
+      releaseTrack: "canary"
+    },
+    {
+      id: "compose_agent_bridge_lab_runtime",
+      environmentId: "env_agent_bridge_lab",
+      serviceName: "agent-runtime",
+      imageReference: "ghcr.io/daoflow/agent-runtime:0.5.0",
+      replicaCount: 1,
+      exposedPorts: ["8080:8080"],
+      dependencies: ["session-store"],
+      volumeMounts: ["/var/lib/agent-bridge/sessions"],
+      healthcheckPath: "/ready",
+      releaseTrack: "canary"
+    }
+  ] as const satisfies readonly SeedComposeService[];
   const seedExecutionJobs = [
     {
       id: "job_foundation_20260312_1",
@@ -1378,6 +1491,22 @@ function seedControlPlaneData() {
     )
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
+  const insertComposeService = controlPlaneDb.prepare(`
+    INSERT OR IGNORE INTO compose_services (
+      id,
+      environment_id,
+      service_name,
+      image_reference,
+      replica_count,
+      exposed_ports_text,
+      dependencies_text,
+      volume_mounts_text,
+      healthcheck_path,
+      release_track,
+      created_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
 
   for (const [index, project] of seedProjects.entries()) {
     insertProject.run(
@@ -1568,6 +1697,22 @@ function seedControlPlaneData() {
       check.checkedAt
     );
   }
+
+  for (const service of seedComposeServices) {
+    insertComposeService.run(
+      service.id,
+      service.environmentId,
+      service.serviceName,
+      service.imageReference,
+      service.replicaCount,
+      service.exposedPorts.join("\n"),
+      service.dependencies.join("\n"),
+      service.volumeMounts.join("\n"),
+      service.healthcheckPath,
+      service.releaseTrack,
+      now.toISOString()
+    );
+  }
 }
 
 const controlPlaneReady = Promise.resolve().then(() => {
@@ -1735,6 +1880,20 @@ const controlPlaneReady = Promise.resolve().then(() => {
       checked_at TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS compose_services (
+      id TEXT PRIMARY KEY,
+      environment_id TEXT NOT NULL REFERENCES environments(id) ON DELETE CASCADE,
+      service_name TEXT NOT NULL,
+      image_reference TEXT NOT NULL,
+      replica_count INTEGER NOT NULL DEFAULT 1,
+      exposed_ports_text TEXT NOT NULL DEFAULT '',
+      dependencies_text TEXT NOT NULL DEFAULT '',
+      volume_mounts_text TEXT NOT NULL DEFAULT '',
+      healthcheck_path TEXT,
+      release_track TEXT NOT NULL DEFAULT 'stable',
+      created_at TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS audit_entries (
       id TEXT PRIMARY KEY,
       actor_type TEXT NOT NULL,
@@ -1792,6 +1951,8 @@ const controlPlaneReady = Promise.resolve().then(() => {
       ON persistent_volumes (backup_policy_id);
     CREATE INDEX IF NOT EXISTS idx_server_readiness_checks_server_checked_at
       ON server_readiness_checks (server_id, checked_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_compose_services_environment_id
+      ON compose_services (environment_id);
     CREATE INDEX IF NOT EXISTS idx_audit_entries_created_at
       ON audit_entries (created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_audit_entries_action_created_at
@@ -2064,6 +2225,26 @@ interface ServerReadinessRow {
   checked_at: string;
 }
 
+interface ComposeServiceRow {
+  id: string;
+  environment_id: string;
+  environment_name: string;
+  project_name: string;
+  target_server_id: string;
+  target_server_name: string;
+  service_name: string;
+  compose_file_path: string;
+  network_name: string;
+  image_reference: string;
+  replica_count: number;
+  exposed_ports_text: string;
+  dependencies_text: string;
+  volume_mounts_text: string;
+  healthcheck_path: string | null;
+  release_track: "stable" | "canary";
+  environment_status: DeploymentStatus;
+}
+
 function getDeploymentRows(options?: { status?: DeploymentStatus; limit?: number }) {
   const status = options?.status;
   const limit = options?.limit ?? 50;
@@ -2246,6 +2427,42 @@ function getServerSummary(serverId: string) {
     | undefined;
 }
 
+function buildComposeReleaseSteps(service: ComposeServiceRecord) {
+  const steps: { label: string; detail: string }[] = [
+    {
+      label: "Render compose target",
+      detail: `Resolve ${service.composeFilePath} for ${service.environmentName} on network ${service.networkName}.`
+    },
+    {
+      label: "Pull service image",
+      detail: `Pull ${service.imageReference} for ${service.serviceName} with ${service.replicaCount} replica target(s).`
+    }
+  ];
+
+  if (service.dependencies.length > 0) {
+    steps.push({
+      label: "Coordinate dependencies",
+      detail: `Gate rollout on ${service.dependencies.join(", ")} before swapping ${service.serviceName}.`
+    });
+  }
+
+  if (service.volumeMounts.length > 0) {
+    steps.push({
+      label: "Protect stateful mounts",
+      detail: `Verify mounts ${service.volumeMounts.join(", ")} before restarting ${service.serviceName}.`
+    });
+  }
+
+  steps.push({
+    label: "Health and traffic checks",
+    detail: service.healthcheckPath
+      ? `Wait for ${service.healthcheckPath} to report healthy before declaring success.`
+      : `Confirm service process health before declaring ${service.serviceName} healthy.`
+  });
+
+  return steps;
+}
+
 export function createDeploymentRecord(input: CreateDeploymentRecordInput) {
   const server = getServerSummary(input.targetServerId);
 
@@ -2424,6 +2641,30 @@ export function createDeploymentRecord(input: CreateDeploymentRecordInput) {
   }
 
   return getDeploymentRecord(deploymentId);
+}
+
+export function queueComposeRelease(input: QueueComposeReleaseInput) {
+  const composeService = getComposeServiceRow(input.composeServiceId);
+
+  if (!composeService) {
+    return null;
+  }
+
+  const service = mapComposeServiceRow(composeService);
+
+  return createDeploymentRecord({
+    projectName: service.projectName,
+    environmentName: service.environmentName,
+    serviceName: service.serviceName,
+    sourceType: "compose",
+    targetServerId: service.targetServerId,
+    commitSha: input.commitSha,
+    imageTag: input.imageTag ?? service.imageReference,
+    requestedByUserId: input.requestedByUserId,
+    requestedByEmail: input.requestedByEmail,
+    requestedByRole: input.requestedByRole,
+    steps: buildComposeReleaseSteps(service)
+  });
 }
 
 function getExecutionJobRows(options?: {
@@ -4213,6 +4454,102 @@ export function listServerReadiness(limit = 12): ServerReadinessSnapshot {
       averageLatencyMs
     },
     checks
+  };
+}
+
+function mapComposeServiceRow(row: ComposeServiceRow): ComposeServiceRecord {
+  return {
+    id: row.id,
+    environmentId: row.environment_id,
+    environmentName: row.environment_name,
+    projectName: row.project_name,
+    targetServerId: row.target_server_id,
+    targetServerName: row.target_server_name,
+    serviceName: row.service_name,
+    composeFilePath: row.compose_file_path,
+    networkName: row.network_name,
+    imageReference: row.image_reference,
+    replicaCount: row.replica_count,
+    exposedPorts: splitMultilineField(row.exposed_ports_text),
+    dependencies: splitMultilineField(row.dependencies_text),
+    volumeMounts: splitMultilineField(row.volume_mounts_text),
+    healthcheckPath: row.healthcheck_path,
+    releaseTrack: row.release_track
+  };
+}
+
+function getComposeServiceRows(limit = 24) {
+  return controlPlaneDb.prepare(`
+    SELECT
+      compose_services.id,
+      compose_services.environment_id,
+      environments.name AS environment_name,
+      projects.name AS project_name,
+      environments.target_server_id,
+      servers.name AS target_server_name,
+      compose_services.service_name,
+      environments.compose_file_path,
+      environments.network_name,
+      compose_services.image_reference,
+      compose_services.replica_count,
+      compose_services.exposed_ports_text,
+      compose_services.dependencies_text,
+      compose_services.volume_mounts_text,
+      compose_services.healthcheck_path,
+      compose_services.release_track,
+      environments.status AS environment_status
+    FROM compose_services
+    INNER JOIN environments ON environments.id = compose_services.environment_id
+    INNER JOIN projects ON projects.id = environments.project_id
+    INNER JOIN servers ON servers.id = environments.target_server_id
+    ORDER BY projects.name ASC, environments.name ASC, compose_services.service_name ASC
+    LIMIT ?
+  `).all(limit) as unknown as ComposeServiceRow[];
+}
+
+function getComposeServiceRow(composeServiceId: string) {
+  return controlPlaneDb.prepare(`
+    SELECT
+      compose_services.id,
+      compose_services.environment_id,
+      environments.name AS environment_name,
+      projects.name AS project_name,
+      environments.target_server_id,
+      servers.name AS target_server_name,
+      compose_services.service_name,
+      environments.compose_file_path,
+      environments.network_name,
+      compose_services.image_reference,
+      compose_services.replica_count,
+      compose_services.exposed_ports_text,
+      compose_services.dependencies_text,
+      compose_services.volume_mounts_text,
+      compose_services.healthcheck_path,
+      compose_services.release_track,
+      environments.status AS environment_status
+    FROM compose_services
+    INNER JOIN environments ON environments.id = compose_services.environment_id
+    INNER JOIN projects ON projects.id = environments.project_id
+    INNER JOIN servers ON servers.id = environments.target_server_id
+    WHERE compose_services.id = ?
+    LIMIT 1
+  `).get(composeServiceId) as ComposeServiceRow | undefined;
+}
+
+export function listComposeReleaseCatalog(limit = 24): ComposeReleaseCatalog {
+  const rows = getComposeServiceRows(limit);
+  const services = rows.map(mapComposeServiceRow);
+
+  return {
+    summary: {
+      totalServices: services.length,
+      statefulServices: services.filter((service) => service.volumeMounts.length > 0).length,
+      healthyEnvironments: new Set(
+        rows.filter((row) => row.environment_status === "healthy").map((row) => row.environment_id)
+      ).size,
+      uniqueNetworks: new Set(services.map((service) => service.networkName)).size
+    },
+    services
   };
 }
 
