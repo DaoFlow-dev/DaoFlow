@@ -34,6 +34,11 @@ test("loads the DaoFlow foundation dashboard", async ({ page }) => {
   await expect(
     page.getByTestId("environment-card-env_daoflow_production")
   ).toContainText("/srv/daoflow/production/compose.yaml");
+  await expect(page.getByText("Server readiness and onboarding")).toBeVisible();
+  await expect(page.getByTestId("server-readiness-summary")).toContainText("24 ms");
+  await expect(
+    page.getByTestId("server-readiness-card-srv_foundation_1")
+  ).toContainText("Connectivity checks are healthy.");
   await expect(page.getByText("Encrypted environment configuration")).toBeVisible();
   await expect(page.getByTestId("environment-variable-summary")).toContainText("3");
   await expect(
@@ -91,6 +96,22 @@ test("loads the DaoFlow foundation dashboard", async ({ page }) => {
   await expect(
     page.getByTestId("deployment-card-dep_foundation_20260312_1")
   ).toContainText("Requested by owner@daoflow.local");
+  const uniqueServerName = `edge-vps-${Date.now()}`;
+  const uniqueServerHost = `10.0.2.${(Date.now() % 200) + 10}`;
+  await page.getByLabel("Server name").fill(uniqueServerName);
+  await page.getByLabel("Server host").fill(uniqueServerHost);
+  await page.getByLabel("Server region").fill("us-central-1");
+  await page.getByLabel("SSH port").fill("2222");
+  await page.getByRole("button", { name: "Register server" }).click();
+  await expect(page.getByTestId("server-onboarding-feedback")).toContainText(
+    `Registered ${uniqueServerName}`
+  );
+  await expect(
+    page.locator('[data-testid^="server-readiness-card-"]').filter({ hasText: uniqueServerName })
+  ).toContainText("SSH handshake has not succeeded yet for this host.");
+  await expect(
+    page.locator('[data-testid^="server-card-"]').filter({ hasText: uniqueServerName })
+  ).toContainText("pending verification");
   await page.getByLabel("Service name").fill("edge-worker-ui");
   await page.getByLabel("Commit SHA").fill("abcdef1");
   await page.getByLabel("Image tag").fill("ghcr.io/daoflow/edge-worker-ui:0.2.1");

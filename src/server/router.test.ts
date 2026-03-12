@@ -118,6 +118,36 @@ describe("appRouter", () => {
     });
   });
 
+  it("returns server readiness checks for signed-in viewers", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-server-readiness-viewer",
+      session: makeSession("viewer")
+    });
+
+    const readiness = await caller.serverReadiness({});
+
+    expect(readiness.summary).toEqual({
+      totalServers: 1,
+      readyServers: 1,
+      attentionServers: 0,
+      blockedServers: 0,
+      averageLatencyMs: 24
+    });
+    expect(readiness.checks[0]).toMatchObject({
+      serverId: "srv_foundation_1",
+      serverName: "foundation-vps-1",
+      serverHost: "10.0.0.14",
+      targetKind: "docker-engine",
+      serverStatus: "healthy",
+      readinessStatus: "ready",
+      sshPort: 22,
+      sshReachable: true,
+      dockerReachable: true,
+      composeReachable: true,
+      latencyMs: 24
+    });
+  });
+
   it("returns persistent volume inventory for signed-in viewers", async () => {
     const caller = appRouter.createCaller({
       requestId: "test-volume-viewer",
@@ -372,6 +402,23 @@ describe("appRouter", () => {
     ).rejects.toBeInstanceOf(TRPCError);
   });
 
+  it("blocks server registration for viewer roles", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-server-register-viewer-block",
+      session: makeSession("viewer")
+    });
+
+    await expect(
+      caller.registerServer({
+        name: "edge-vps-2",
+        host: "10.0.2.15",
+        region: "us-central-1",
+        sshPort: 22,
+        kind: "docker-engine"
+      })
+    ).rejects.toBeInstanceOf(TRPCError);
+  });
+
   it("returns admin control-plane data for elevated roles", async () => {
     const caller = appRouter.createCaller({
       requestId: "test-admin-owner",
@@ -408,6 +455,62 @@ describe("appRouter", () => {
     expect(readOnlyToken?.lanes).toEqual(["read"]);
     expect(readOnlyToken?.effectiveCapabilities).not.toContain("deploy.execute");
     expect(plannerToken?.lanes).toContain("planning");
+  });
+
+  it("registers a new server and exposes blocked readiness for first contact", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-server-register-owner",
+      session: makeSession("owner")
+    });
+
+    const server = await caller.registerServer({
+      name: "edge-vps-2",
+      host: "10.0.2.15",
+      region: "us-central-1",
+      sshPort: 2222,
+      kind: "docker-engine"
+    });
+
+    expect(server).toMatchObject({
+      serverName: "edge-vps-2",
+      serverHost: "10.0.2.15",
+      targetKind: "docker-engine",
+      serverStatus: "degraded",
+      readinessStatus: "blocked",
+      sshPort: 2222,
+      sshReachable: false,
+      dockerReachable: false,
+      composeReachable: false,
+      latencyMs: null
+    });
+    expect(server?.issues).toContain("SSH handshake has not succeeded yet for this host.");
+
+    const readiness = await caller.serverReadiness({});
+    expect(readiness.summary.totalServers).toBeGreaterThanOrEqual(2);
+    expect(readiness.summary.blockedServers).toBeGreaterThanOrEqual(1);
+    expect(readiness.checks.some((check) => check.serverId === server?.serverId)).toBe(true);
+
+    const inventory = await caller.infrastructureInventory();
+    const registeredServer = inventory.servers.find((entry) => entry.id === server?.serverId);
+    expect(registeredServer).toMatchObject({
+      name: "edge-vps-2",
+      host: "10.0.2.15",
+      region: "us-central-1",
+      sshPort: 2222,
+      engineVersion: "pending verification",
+      status: "degraded",
+      environmentCount: 0
+    });
+
+    const auditTrail = await caller.auditTrail({ limit: 50 });
+    expect(
+      auditTrail.entries.some(
+        (entry) =>
+          entry.action === "server.register" &&
+          entry.resourceType === "server" &&
+          entry.resourceId === server?.serverId
+      )
+    ).toBe(true);
   });
 
   it("returns deployment details for a known deployment record", async () => {

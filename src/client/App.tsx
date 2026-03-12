@@ -93,6 +93,18 @@ function getLogTone(stream: string): StatusTone {
   return stream === "stderr" ? "failed" : "queued";
 }
 
+function getServerReadinessTone(status: string): StatusTone {
+  if (status === "ready") {
+    return "healthy";
+  }
+
+  if (status === "attention") {
+    return "running";
+  }
+
+  return "failed";
+}
+
 function getPersistentVolumeTone(coverage: string, restoreReadiness: string): StatusTone {
   if (coverage === "missing") {
     return "failed";
@@ -149,6 +161,9 @@ export default function App() {
   const infrastructureInventory = trpc.infrastructureInventory.useQuery(undefined, {
     enabled: Boolean(session.data)
   });
+  const serverReadiness = trpc.serverReadiness.useQuery({}, {
+    enabled: Boolean(session.data)
+  });
   const persistentVolumes = trpc.persistentVolumes.useQuery({}, {
     enabled: Boolean(session.data)
   });
@@ -168,6 +183,7 @@ export default function App() {
     enabled: Boolean(session.data)
   });
   const upsertEnvironmentVariable = trpc.upsertEnvironmentVariable.useMutation();
+  const registerServer = trpc.registerServer.useMutation();
   const viewer = trpc.viewer.useQuery(undefined, {
     enabled: Boolean(session.data)
   });
@@ -186,6 +202,13 @@ export default function App() {
   const [serviceName, setServiceName] = useState("edge-worker");
   const [commitSha, setCommitSha] = useState("abcdef1");
   const [imageTag, setImageTag] = useState("ghcr.io/daoflow/edge-worker:0.2.0");
+  const [serverName, setServerName] = useState("edge-vps-2");
+  const [serverHost, setServerHost] = useState("10.0.2.15");
+  const [serverRegion, setServerRegion] = useState("us-central-1");
+  const [serverSshPort, setServerSshPort] = useState("22");
+  const [serverKind, setServerKind] = useState<"docker-engine" | "docker-swarm-manager">(
+    "docker-engine"
+  );
   const [environmentVariableEnvironmentId, setEnvironmentVariableEnvironmentId] = useState(
     "env_daoflow_staging"
   );
@@ -200,6 +223,7 @@ export default function App() {
   const [deploymentFeedback, setDeploymentFeedback] = useState<string | null>(null);
   const [executionFeedback, setExecutionFeedback] = useState<string | null>(null);
   const [backupFeedback, setBackupFeedback] = useState<string | null>(null);
+  const [serverFeedback, setServerFeedback] = useState<string | null>(null);
   const [environmentVariableFeedback, setEnvironmentVariableFeedback] = useState<string | null>(
     null
   );
@@ -262,10 +286,14 @@ export default function App() {
     setDeploymentFeedback(null);
     setExecutionFeedback(null);
     setBackupFeedback(null);
+    setServerFeedback(null);
     setEnvironmentVariableFeedback(null);
   }
 
   async function refreshOperationalViews() {
+    await infrastructureInventory.refetch();
+    await serverReadiness.refetch();
+    await persistentVolumes.refetch();
     await recentDeployments.refetch();
     await deploymentInsights.refetch();
     await deploymentRollbackPlans.refetch();
@@ -309,6 +337,30 @@ export default function App() {
         isTRPCClientError(error)
           ? error.message
           : "Unable to queue the deployment record right now."
+      );
+    }
+  }
+
+  async function handleRegisterServer(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setServerFeedback(null);
+
+    try {
+      const server = await registerServer.mutateAsync({
+        name: serverName,
+        host: serverHost,
+        region: serverRegion,
+        sshPort: Number.parseInt(serverSshPort, 10),
+        kind: serverKind
+      });
+
+      await refreshOperationalViews();
+      setServerFeedback(`Registered ${server.serverName} and queued first connectivity checks.`);
+    } catch (error) {
+      setServerFeedback(
+        isTRPCClientError(error)
+          ? error.message
+          : "Unable to register the server right now."
       );
     }
   }
@@ -440,6 +492,10 @@ export default function App() {
     infrastructureInventory.error && isTRPCClientError(infrastructureInventory.error)
       ? infrastructureInventory.error.message
       : null;
+  const serverReadinessMessage =
+    serverReadiness.error && isTRPCClientError(serverReadiness.error)
+      ? serverReadiness.error.message
+      : null;
   const persistentVolumesMessage =
     persistentVolumes.error && isTRPCClientError(persistentVolumes.error)
       ? persistentVolumes.error.message
@@ -476,11 +532,13 @@ export default function App() {
   const canOperateExecutionJobs =
     currentRole === "owner" || currentRole === "admin" || currentRole === "operator";
   const canManageEnvironmentVariables = canQueueDeployments;
+  const canManageServers = currentRole === "owner" || currentRole === "admin";
   const executionMutationPending =
     dispatchExecutionJob.isPending ||
     completeExecutionJob.isPending ||
     failExecutionJob.isPending;
   const backupMutationPending = triggerBackupRun.isPending;
+  const serverMutationPending = registerServer.isPending;
   const environmentVariableMutationPending = upsertEnvironmentVariable.isPending;
 
   return (
@@ -807,6 +865,161 @@ export default function App() {
         ) : (
           <p className="viewer-empty">
             {infrastructureMessage ?? "Sign in to inspect managed servers, projects, and environments."}
+          </p>
+        )}
+      </section>
+
+      <section className="server-readiness">
+        <div className="roadmap__header">
+          <p className="roadmap__kicker">Onboarding slice</p>
+          <h2>Server readiness and onboarding</h2>
+        </div>
+
+        {session.data && canManageServers ? (
+          <form className="server-onboarding" onSubmit={(event) => void handleRegisterServer(event)}>
+            <div>
+              <p className="roadmap-item__lane">Admin-only action</p>
+              <h3>Register a target host</h3>
+              <p className="deployment-card__meta">
+                New servers start blocked until SSH, Docker Engine, and Compose probes pass.
+              </p>
+            </div>
+            <label>
+              Server name
+              <input value={serverName} onChange={(event) => setServerName(event.target.value)} />
+            </label>
+            <label>
+              Server host
+              <input value={serverHost} onChange={(event) => setServerHost(event.target.value)} />
+            </label>
+            <label>
+              Server region
+              <input
+                value={serverRegion}
+                onChange={(event) => setServerRegion(event.target.value)}
+              />
+            </label>
+            <label>
+              SSH port
+              <input
+                inputMode="numeric"
+                value={serverSshPort}
+                onChange={(event) => setServerSshPort(event.target.value)}
+              />
+            </label>
+            <label>
+              Target kind
+              <select
+                value={serverKind}
+                onChange={(event) =>
+                  setServerKind(event.target.value as "docker-engine" | "docker-swarm-manager")
+                }
+              >
+                <option value="docker-engine">docker-engine</option>
+                <option value="docker-swarm-manager">docker-swarm-manager</option>
+              </select>
+            </label>
+            <button className="action-button" disabled={serverMutationPending} type="submit">
+              {serverMutationPending ? "Registering..." : "Register server"}
+            </button>
+            {serverFeedback ? (
+              <p className="auth-feedback" data-testid="server-onboarding-feedback">
+                {serverFeedback}
+              </p>
+            ) : null}
+          </form>
+        ) : session.data ? (
+          <p className="viewer-empty">
+            Elevated roles can register new target hosts here. Signed-in viewers can still inspect
+            readiness checks below.
+          </p>
+        ) : null}
+
+        {session.data && serverReadiness.data ? (
+          <>
+            <div className="server-readiness-summary" data-testid="server-readiness-summary">
+              <div className="token-summary__item">
+                <span className="metric__label">Servers</span>
+                <strong>{serverReadiness.data.summary.totalServers}</strong>
+              </div>
+              <div className="token-summary__item">
+                <span className="metric__label">Ready</span>
+                <strong>{serverReadiness.data.summary.readyServers}</strong>
+              </div>
+              <div className="token-summary__item">
+                <span className="metric__label">Blocked</span>
+                <strong>{serverReadiness.data.summary.blockedServers}</strong>
+              </div>
+              <div className="token-summary__item">
+                <span className="metric__label">Avg latency</span>
+                <strong>
+                  {serverReadiness.data.summary.averageLatencyMs === null
+                    ? "n/a"
+                    : `${serverReadiness.data.summary.averageLatencyMs} ms`}
+                </strong>
+              </div>
+            </div>
+
+            <div className="server-readiness-list">
+              {serverReadiness.data.checks.map((check) => (
+                <article
+                  className="timeline-event"
+                  data-testid={`server-readiness-card-${check.serverId}`}
+                  key={check.serverId}
+                >
+                  <div className="timeline-event__top">
+                    <div>
+                      <p className="roadmap-item__lane">
+                        {check.targetKind} · SSH {check.sshPort}
+                      </p>
+                      <h3>{check.serverName}</h3>
+                    </div>
+                    <span
+                      className={`deployment-status deployment-status--${getServerReadinessTone(check.readinessStatus)}`}
+                    >
+                      {check.readinessStatus}
+                    </span>
+                  </div>
+                  <p className="deployment-card__meta">
+                    {check.serverHost} · inventory status {check.serverStatus}
+                  </p>
+                  <p className="deployment-card__meta">
+                    SSH {check.sshReachable ? "reachable" : "blocked"} · Docker{" "}
+                    {check.dockerReachable ? "reachable" : "blocked"} · Compose{" "}
+                    {check.composeReachable ? "reachable" : "blocked"}
+                  </p>
+                  <p className="deployment-card__meta">
+                    Checked at {check.checkedAt} · Latency{" "}
+                    {check.latencyMs === null ? "not measured" : `${check.latencyMs} ms`}
+                  </p>
+                  <div className="rollback-plan__columns">
+                    <div>
+                      <p className="roadmap-item__lane">Issues</p>
+                      <ul className="deployment-card__steps">
+                        {check.issues.length > 0 ? (
+                          check.issues.map((issue) => <li key={issue}>{issue}</li>)
+                        ) : (
+                          <li>Connectivity checks are healthy.</li>
+                        )}
+                      </ul>
+                    </div>
+                    <div>
+                      <p className="roadmap-item__lane">Recommended actions</p>
+                      <ul className="deployment-card__steps">
+                        {check.recommendedActions.map((action) => (
+                          <li key={action}>{action}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </>
+        ) : (
+          <p className="viewer-empty">
+            {serverReadinessMessage ??
+              "Sign in to inspect server onboarding readiness and connectivity issues."}
           </p>
         )}
       </section>

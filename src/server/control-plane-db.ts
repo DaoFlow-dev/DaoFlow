@@ -27,12 +27,14 @@ export type BackupRunStatus = "queued" | "running" | "succeeded" | "failed";
 export type AuditActorType = "human" | "system";
 export type PersistentVolumeBackupCoverage = "protected" | "stale" | "missing";
 export type PersistentVolumeRestoreReadiness = "verified" | "stale" | "untested";
+export type ServerReadinessStatus = "ready" | "attention" | "blocked";
 export type AuditResourceType =
   | "deployment"
   | "execution-job"
   | "backup-run"
   | "backup-policy"
-  | "environment-variable";
+  | "environment-variable"
+  | "server";
 export type DeploymentLogStream = "stdout" | "stderr";
 export type EnvironmentVariableCategory = "runtime" | "build";
 export type EnvironmentVariableSource = "manual" | "imported";
@@ -357,6 +359,45 @@ export interface InfrastructureInventory {
   environments: EnvironmentInventoryRecord[];
 }
 
+export interface ServerReadinessRecord {
+  serverId: string;
+  serverName: string;
+  serverHost: string;
+  targetKind: string;
+  serverStatus: ServerInventoryRecord["status"];
+  readinessStatus: ServerReadinessStatus;
+  sshPort: number;
+  sshReachable: boolean;
+  dockerReachable: boolean;
+  composeReachable: boolean;
+  latencyMs: number | null;
+  checkedAt: string;
+  issues: string[];
+  recommendedActions: string[];
+}
+
+export interface ServerReadinessSnapshot {
+  summary: {
+    totalServers: number;
+    readyServers: number;
+    attentionServers: number;
+    blockedServers: number;
+    averageLatencyMs: number | null;
+  };
+  checks: ServerReadinessRecord[];
+}
+
+export interface RegisterServerInput {
+  name: string;
+  host: string;
+  region: string;
+  sshPort: number;
+  kind: string;
+  requestedByUserId: string;
+  requestedByEmail: string;
+  requestedByRole: AppRole;
+}
+
 export interface PersistentVolumeRecord {
   id: string;
   environmentId: string;
@@ -533,6 +574,19 @@ interface SeedPersistentVolume {
   backupPolicyId: string | null;
   lastBackupAt: string | null;
   lastRestoreTestAt: string | null;
+}
+
+interface SeedServerReadinessCheck {
+  id: string;
+  serverId: string;
+  readinessStatus: ServerReadinessStatus;
+  sshReachable: boolean;
+  dockerReachable: boolean;
+  composeReachable: boolean;
+  latencyMs: number | null;
+  checkedAt: string;
+  issues: readonly string[];
+  recommendedActions: readonly string[];
 }
 
 function resolveControlPlaneDatabasePath() {
@@ -743,6 +797,22 @@ function seedControlPlaneData() {
       lastRestoreTestAt: null
     }
   ] as const satisfies readonly SeedPersistentVolume[];
+  const seedServerReadinessChecks = [
+    {
+      id: "srvcheck_foundation_ready",
+      serverId,
+      readinessStatus: "ready",
+      sshReachable: true,
+      dockerReachable: true,
+      composeReachable: true,
+      latencyMs: 24,
+      checkedAt: new Date(now.getTime() - 40 * 1000).toISOString(),
+      issues: [],
+      recommendedActions: [
+        "Keep Docker Engine patched and rerun readiness probes after host maintenance."
+      ]
+    }
+  ] as const satisfies readonly SeedServerReadinessCheck[];
   const seedExecutionJobs = [
     {
       id: "job_foundation_20260312_1",
@@ -1293,6 +1363,21 @@ function seedControlPlaneData() {
     )
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
+  const insertServerReadinessCheck = controlPlaneDb.prepare(`
+    INSERT OR IGNORE INTO server_readiness_checks (
+      id,
+      server_id,
+      readiness_status,
+      ssh_reachable,
+      docker_reachable,
+      compose_reachable,
+      latency_ms,
+      issues_text,
+      recommended_actions_text,
+      checked_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
 
   for (const [index, project] of seedProjects.entries()) {
     insertProject.run(
@@ -1468,6 +1553,21 @@ function seedControlPlaneData() {
       now.toISOString()
     );
   }
+
+  for (const check of seedServerReadinessChecks) {
+    insertServerReadinessCheck.run(
+      check.id,
+      check.serverId,
+      check.readinessStatus,
+      check.sshReachable ? 1 : 0,
+      check.dockerReachable ? 1 : 0,
+      check.composeReachable ? 1 : 0,
+      check.latencyMs,
+      check.issues.join("\n"),
+      check.recommendedActions.join("\n"),
+      check.checkedAt
+    );
+  }
 }
 
 const controlPlaneReady = Promise.resolve().then(() => {
@@ -1622,6 +1722,19 @@ const controlPlaneReady = Promise.resolve().then(() => {
       created_at TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS server_readiness_checks (
+      id TEXT PRIMARY KEY,
+      server_id TEXT NOT NULL REFERENCES servers(id) ON DELETE CASCADE,
+      readiness_status TEXT NOT NULL,
+      ssh_reachable INTEGER NOT NULL DEFAULT 0,
+      docker_reachable INTEGER NOT NULL DEFAULT 0,
+      compose_reachable INTEGER NOT NULL DEFAULT 0,
+      latency_ms INTEGER,
+      issues_text TEXT NOT NULL DEFAULT '',
+      recommended_actions_text TEXT NOT NULL DEFAULT '',
+      checked_at TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS audit_entries (
       id TEXT PRIMARY KEY,
       actor_type TEXT NOT NULL,
@@ -1677,6 +1790,8 @@ const controlPlaneReady = Promise.resolve().then(() => {
       ON persistent_volumes (environment_id);
     CREATE INDEX IF NOT EXISTS idx_persistent_volumes_backup_policy_id
       ON persistent_volumes (backup_policy_id);
+    CREATE INDEX IF NOT EXISTS idx_server_readiness_checks_server_checked_at
+      ON server_readiness_checks (server_id, checked_at DESC);
     CREATE INDEX IF NOT EXISTS idx_audit_entries_created_at
       ON audit_entries (created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_audit_entries_action_created_at
@@ -1930,6 +2045,23 @@ interface PersistentVolumeRow {
   storage_provider: string | null;
   last_backup_at: string | null;
   last_restore_test_at: string | null;
+}
+
+interface ServerReadinessRow {
+  server_id: string;
+  server_name: string;
+  server_host: string;
+  target_kind: string;
+  server_status: ServerInventoryRecord["status"];
+  ssh_port: number;
+  readiness_status: ServerReadinessStatus;
+  ssh_reachable: number;
+  docker_reachable: number;
+  compose_reachable: number;
+  latency_ms: number | null;
+  issues_text: string;
+  recommended_actions_text: string;
+  checked_at: string;
 }
 
 function getDeploymentRows(options?: { status?: DeploymentStatus; limit?: number }) {
@@ -3974,6 +4106,248 @@ export function listInfrastructureInventory(): InfrastructureInventory {
       serviceCount: row.service_count,
       status: row.status
     }))
+  };
+}
+
+function splitMultilineField(value: string) {
+  return value
+    .split("\n")
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+}
+
+function mapServerReadinessRow(row: ServerReadinessRow): ServerReadinessRecord {
+  return {
+    serverId: row.server_id,
+    serverName: row.server_name,
+    serverHost: row.server_host,
+    targetKind: row.target_kind,
+    serverStatus: row.server_status,
+    readinessStatus: row.readiness_status,
+    sshPort: row.ssh_port,
+    sshReachable: row.ssh_reachable === 1,
+    dockerReachable: row.docker_reachable === 1,
+    composeReachable: row.compose_reachable === 1,
+    latencyMs: row.latency_ms,
+    checkedAt: row.checked_at,
+    issues: splitMultilineField(row.issues_text),
+    recommendedActions: splitMultilineField(row.recommended_actions_text)
+  };
+}
+
+function getLatestServerReadinessRows(limit = 12) {
+  return controlPlaneDb.prepare(`
+    SELECT
+      servers.id AS server_id,
+      servers.name AS server_name,
+      servers.host AS server_host,
+      servers.kind AS target_kind,
+      servers.status AS server_status,
+      servers.ssh_port,
+      readiness.readiness_status,
+      readiness.ssh_reachable,
+      readiness.docker_reachable,
+      readiness.compose_reachable,
+      readiness.latency_ms,
+      readiness.issues_text,
+      readiness.recommended_actions_text,
+      readiness.checked_at
+    FROM servers
+    INNER JOIN (
+      SELECT latest.*
+      FROM server_readiness_checks latest
+      INNER JOIN (
+        SELECT server_id, MAX(checked_at) AS checked_at
+        FROM server_readiness_checks
+        GROUP BY server_id
+      ) lookup
+        ON lookup.server_id = latest.server_id
+       AND lookup.checked_at = latest.checked_at
+    ) readiness ON readiness.server_id = servers.id
+    ORDER BY readiness.checked_at DESC, servers.name ASC
+    LIMIT ?
+  `).all(limit) as unknown as ServerReadinessRow[];
+}
+
+function getServerReadinessRow(serverId: string) {
+  return controlPlaneDb.prepare(`
+    SELECT
+      servers.id AS server_id,
+      servers.name AS server_name,
+      servers.host AS server_host,
+      servers.kind AS target_kind,
+      servers.status AS server_status,
+      servers.ssh_port,
+      readiness.readiness_status,
+      readiness.ssh_reachable,
+      readiness.docker_reachable,
+      readiness.compose_reachable,
+      readiness.latency_ms,
+      readiness.issues_text,
+      readiness.recommended_actions_text,
+      readiness.checked_at
+    FROM servers
+    INNER JOIN server_readiness_checks readiness ON readiness.server_id = servers.id
+    WHERE servers.id = ?
+    ORDER BY readiness.checked_at DESC
+    LIMIT 1
+  `).get(serverId) as ServerReadinessRow | undefined;
+}
+
+export function listServerReadiness(limit = 12): ServerReadinessSnapshot {
+  const checks = getLatestServerReadinessRows(limit).map(mapServerReadinessRow);
+  const latencyValues = checks
+    .map((check) => check.latencyMs)
+    .filter((latency): latency is number => typeof latency === "number");
+  const averageLatencyMs =
+    latencyValues.length > 0
+      ? Math.round(latencyValues.reduce((total, latency) => total + latency, 0) / latencyValues.length)
+      : null;
+
+  return {
+    summary: {
+      totalServers: checks.length,
+      readyServers: checks.filter((check) => check.readinessStatus === "ready").length,
+      attentionServers: checks.filter((check) => check.readinessStatus === "attention").length,
+      blockedServers: checks.filter((check) => check.readinessStatus === "blocked").length,
+      averageLatencyMs
+    },
+    checks
+  };
+}
+
+function getExistingServerConflict(name: string, host: string) {
+  return controlPlaneDb.prepare(`
+    SELECT id, name, host
+    FROM servers
+    WHERE name = ? OR host = ?
+    LIMIT 1
+  `).get(name, host) as
+    | {
+        id: string;
+        name: string;
+        host: string;
+      }
+    | undefined;
+}
+
+function sanitizeServerSegment(value: string) {
+  const sanitized = value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 24);
+
+  return sanitized.length > 0 ? sanitized : "server";
+}
+
+export function registerServer(input: RegisterServerInput) {
+  const existing = getExistingServerConflict(input.name, input.host);
+
+  if (existing) {
+    return {
+      status: "conflict" as const,
+      conflictField: existing.name === input.name ? "name" : "host"
+    };
+  }
+
+  const createdAt = new Date().toISOString();
+  const serverId = `srv_${sanitizeServerSegment(input.name)}_${randomUUID().slice(0, 8)}`;
+  const readinessId = `srvcheck_${randomUUID().slice(0, 8)}`;
+
+  controlPlaneDb.exec("BEGIN");
+
+  try {
+    controlPlaneDb.prepare(`
+      INSERT INTO servers (
+        id,
+        name,
+        host,
+        kind,
+        region,
+        ssh_port,
+        engine_version,
+        status,
+        last_heartbeat_at,
+        created_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      serverId,
+      input.name,
+      input.host,
+      input.kind,
+      input.region,
+      input.sshPort,
+      "pending verification",
+      "degraded",
+      null,
+      createdAt
+    );
+
+    controlPlaneDb.prepare(`
+      INSERT INTO server_readiness_checks (
+        id,
+        server_id,
+        readiness_status,
+        ssh_reachable,
+        docker_reachable,
+        compose_reachable,
+        latency_ms,
+        issues_text,
+        recommended_actions_text,
+        checked_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      readinessId,
+      serverId,
+      "blocked",
+      0,
+      0,
+      0,
+      null,
+      [
+        "SSH handshake has not succeeded yet for this host.",
+        "Docker Engine version has not been verified.",
+        "Docker Compose plugin availability has not been verified."
+      ].join("\n"),
+      [
+        `Install Docker Engine and the Compose plugin on ${input.name}.`,
+        "Exchange SSH credentials with the execution-plane worker network.",
+        `Allow inbound SSH on port ${input.sshPort} from the control-plane worker path.`
+      ].join("\n"),
+      createdAt
+    );
+
+    appendAuditEntry({
+      actorType: "human",
+      actorId: input.requestedByUserId,
+      actorLabel: input.requestedByEmail,
+      actorRole: input.requestedByRole,
+      action: "server.register",
+      resourceType: "server",
+      resourceId: serverId,
+      resourceLabel: `${input.name} (${input.host})`,
+      detail: `Registered a new ${input.kind} target in ${input.region} and queued first connectivity checks.`,
+      createdAt
+    });
+
+    controlPlaneDb.exec("COMMIT");
+  } catch (error) {
+    controlPlaneDb.exec("ROLLBACK");
+    throw error;
+  }
+
+  const server = getServerReadinessRow(serverId);
+
+  if (!server) {
+    throw new Error("Server registration completed but readiness state could not be loaded.");
+  }
+
+  return {
+    status: "created" as const,
+    server: mapServerReadinessRow(server)
   };
 }
 

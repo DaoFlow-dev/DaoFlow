@@ -11,6 +11,7 @@ import {
 import {
   completeExecutionJob,
   createDeploymentRecord,
+  registerServer,
   dispatchExecutionJob,
   ensureControlPlaneReady,
   failExecutionJob,
@@ -23,6 +24,7 @@ import {
   listEnvironmentVariableInventory,
   listInfrastructureInventory,
   listPersistentVolumeInventory,
+  listServerReadiness,
   getDeploymentRecord,
   listDeploymentRecords,
   listExecutionQueue,
@@ -91,7 +93,7 @@ export const appRouter = t.router({
   })),
   platformOverview: t.procedure.query(() => ({
     name: "DaoFlow",
-    currentSlice: "volume-registry",
+    currentSlice: "server-readiness",
     thesis:
       "A Docker-first deployment control plane for bare metal and VPS environments.",
     architecture: {
@@ -223,6 +225,44 @@ export const appRouter = t.router({
     await ensureControlPlaneReady();
     return listInfrastructureInventory();
   }),
+  serverReadiness: protectedProcedure
+    .input(
+      z.object({
+        limit: z.number().int().min(1).max(24).optional()
+      })
+    )
+    .query(async ({ input }) => {
+      await ensureControlPlaneReady();
+      return listServerReadiness(input.limit ?? 12);
+    }),
+  registerServer: adminProcedure
+    .input(
+      z.object({
+        name: z.string().min(1).max(80),
+        host: z.string().min(1).max(120),
+        region: z.string().min(1).max(60),
+        sshPort: z.number().int().min(1).max(65535),
+        kind: z.enum(["docker-engine", "docker-swarm-manager"])
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      await ensureControlPlaneReady();
+      const result = registerServer({
+        ...input,
+        requestedByUserId: ctx.session.user.id,
+        requestedByEmail: ctx.session.user.email,
+        requestedByRole: ctx.role
+      });
+
+      if (result.status === "conflict") {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: `A server with this ${result.conflictField} already exists.`
+        });
+      }
+
+      return result.server;
+    }),
   persistentVolumes: protectedProcedure
     .input(
       z.object({
