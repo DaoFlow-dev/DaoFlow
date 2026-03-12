@@ -7,6 +7,22 @@ import { StatusCard } from "./components/status-card";
 
 type StatusTone = "healthy" | "failed" | "running" | "queued";
 
+function getInventoryTone(status: string): StatusTone {
+  if (status === "healthy") {
+    return "healthy";
+  }
+
+  if (status === "failed" || status === "offline") {
+    return "failed";
+  }
+
+  if (status === "running" || status === "degraded") {
+    return "running";
+  }
+
+  return "queued";
+}
+
 function getExecutionJobTone(status: string): StatusTone {
   if (status === "completed") {
     return "healthy";
@@ -77,6 +93,9 @@ export default function App() {
     enabled: Boolean(session.data)
   });
   const operationsTimeline = trpc.operationsTimeline.useQuery({}, {
+    enabled: Boolean(session.data)
+  });
+  const infrastructureInventory = trpc.infrastructureInventory.useQuery(undefined, {
     enabled: Boolean(session.data)
   });
   const viewer = trpc.viewer.useQuery(undefined, {
@@ -302,6 +321,10 @@ export default function App() {
     operationsTimeline.error && isTRPCClientError(operationsTimeline.error)
       ? operationsTimeline.error.message
       : null;
+  const infrastructureMessage =
+    infrastructureInventory.error && isTRPCClientError(infrastructureInventory.error)
+      ? infrastructureInventory.error.message
+      : null;
   const tokenMessage =
     agentTokenInventory.error && isTRPCClientError(agentTokenInventory.error)
       ? agentTokenInventory.error.message
@@ -505,6 +528,146 @@ export default function App() {
           title="Product principles"
           items={overview.data?.guardrails.productPrinciples ?? []}
         />
+      </section>
+
+      <section className="infrastructure-inventory">
+        <div className="roadmap__header">
+          <p className="roadmap__kicker">Inventory slice</p>
+          <h2>Servers, projects, and environments</h2>
+        </div>
+
+        {session.data && infrastructureInventory.data ? (
+          <>
+            <div className="inventory-summary" data-testid="inventory-summary">
+              <div className="token-summary__item">
+                <span className="metric__label">Servers</span>
+                <strong>{infrastructureInventory.data.summary.totalServers}</strong>
+              </div>
+              <div className="token-summary__item">
+                <span className="metric__label">Projects</span>
+                <strong>{infrastructureInventory.data.summary.totalProjects}</strong>
+              </div>
+              <div className="token-summary__item">
+                <span className="metric__label">Environments</span>
+                <strong>{infrastructureInventory.data.summary.totalEnvironments}</strong>
+              </div>
+              <div className="token-summary__item">
+                <span className="metric__label">Healthy servers</span>
+                <strong>{infrastructureInventory.data.summary.healthyServers}</strong>
+              </div>
+            </div>
+
+            <div className="inventory-columns">
+              <div className="inventory-column">
+                <div className="inventory-column__header">
+                  <p className="roadmap-item__lane">Managed targets</p>
+                  <h3>Servers</h3>
+                </div>
+                <div className="inventory-list">
+                  {infrastructureInventory.data.servers.map((server) => (
+                    <article
+                      className="token-card"
+                      data-testid={`server-card-${server.id}`}
+                      key={server.id}
+                    >
+                      <div className="token-card__top">
+                        <div>
+                          <p className="roadmap-item__lane">{server.kind}</p>
+                          <h3>{server.name}</h3>
+                        </div>
+                        <span
+                          className={`deployment-status deployment-status--${getInventoryTone(server.status)}`}
+                        >
+                          {server.status}
+                        </span>
+                      </div>
+                      <p className="deployment-card__meta">
+                        {server.host} · {server.region} · SSH {server.sshPort}
+                      </p>
+                      <p className="deployment-card__meta">
+                        {server.engineVersion} · {server.environmentCount} attached environments
+                      </p>
+                      <p className="deployment-card__meta">
+                        Last heartbeat: {server.lastHeartbeatAt ?? "No heartbeat recorded"}
+                      </p>
+                    </article>
+                  ))}
+                </div>
+              </div>
+
+              <div className="inventory-column">
+                <div className="inventory-column__header">
+                  <p className="roadmap-item__lane">Deployment surfaces</p>
+                  <h3>Projects</h3>
+                </div>
+                <div className="inventory-list">
+                  {infrastructureInventory.data.projects.map((project) => (
+                    <article
+                      className="token-card"
+                      data-testid={`project-card-${project.id}`}
+                      key={project.id}
+                    >
+                      <div className="token-card__top">
+                        <div>
+                          <p className="roadmap-item__lane">{project.defaultBranch}</p>
+                          <h3>{project.name}</h3>
+                        </div>
+                        <span
+                          className={`deployment-status deployment-status--${getInventoryTone(project.latestDeploymentStatus)}`}
+                        >
+                          {project.latestDeploymentStatus}
+                        </span>
+                      </div>
+                      <p className="deployment-card__meta">{project.repositoryUrl}</p>
+                      <p className="deployment-card__meta">
+                        {project.serviceCount} services · {project.environmentCount} environments
+                      </p>
+                    </article>
+                  ))}
+                </div>
+              </div>
+
+              <div className="inventory-column">
+                <div className="inventory-column__header">
+                  <p className="roadmap-item__lane">Compose topology</p>
+                  <h3>Environments</h3>
+                </div>
+                <div className="inventory-list">
+                  {infrastructureInventory.data.environments.map((environment) => (
+                    <article
+                      className="timeline-event"
+                      data-testid={`environment-card-${environment.id}`}
+                      key={environment.id}
+                    >
+                      <div className="timeline-event__top">
+                        <div>
+                          <p className="roadmap-item__lane">{environment.projectName}</p>
+                          <h3>{environment.name}</h3>
+                        </div>
+                        <span
+                          className={`deployment-status deployment-status--${getInventoryTone(environment.status)}`}
+                        >
+                          {environment.status}
+                        </span>
+                      </div>
+                      <p className="deployment-card__meta">
+                        {environment.targetServerName} · Network {environment.networkName}
+                      </p>
+                      <p className="deployment-card__meta">{environment.composeFilePath}</p>
+                      <p className="deployment-card__meta">
+                        {environment.serviceCount} Compose services
+                      </p>
+                    </article>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </>
+        ) : (
+          <p className="viewer-empty">
+            {infrastructureMessage ?? "Sign in to inspect managed servers, projects, and environments."}
+          </p>
+        )}
       </section>
 
       <section className="deployments">

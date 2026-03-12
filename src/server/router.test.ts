@@ -72,6 +72,52 @@ describe("appRouter", () => {
     expect(timeline[0]?.serviceName).toBeTruthy();
   });
 
+  it("returns infrastructure inventory for signed-in viewers", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-inventory-viewer",
+      session: makeSession("viewer")
+    });
+
+    const inventory = await caller.infrastructureInventory();
+    const daoflowProject = inventory.projects.find((project) => project.name === "DaoFlow");
+    const productionEnvironment = inventory.environments.find(
+      (environment) => environment.id === "env_daoflow_production"
+    );
+
+    expect(inventory.summary).toEqual({
+      totalServers: 1,
+      totalProjects: 2,
+      totalEnvironments: 3,
+      healthyServers: 1
+    });
+    expect(inventory.servers[0]).toMatchObject({
+      id: "srv_foundation_1",
+      name: "foundation-vps-1",
+      region: "us-west-2",
+      sshPort: 22,
+      engineVersion: "Docker Engine 28.0",
+      status: "healthy",
+      environmentCount: 3
+    });
+    expect(daoflowProject).toMatchObject({
+      repositoryUrl: "https://github.com/daoflow/daoflow",
+      defaultBranch: "main",
+      serviceCount: 3,
+      environmentCount: 2,
+      latestDeploymentStatus: "healthy"
+    });
+    expect(productionEnvironment).toMatchObject({
+      projectId: "proj_daoflow_control_plane",
+      projectName: "DaoFlow",
+      name: "production-us-west",
+      targetServerName: "foundation-vps-1",
+      networkName: "daoflow-prod",
+      composeFilePath: "/srv/daoflow/production/compose.yaml",
+      serviceCount: 3,
+      status: "healthy"
+    });
+  });
+
   it("returns backup policies and runs for signed-in viewers", async () => {
     const caller = appRouter.createCaller({
       requestId: "test-backups-viewer",

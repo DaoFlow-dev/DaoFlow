@@ -24,6 +24,16 @@ test("loads the DaoFlow foundation dashboard", async ({ page }) => {
   await expect(page.getByTestId("viewer-output")).toContainText(email);
   await expect(page.getByTestId("viewer-output")).toContainText('"role": "owner"');
   await expect(page.getByTestId("admin-output")).toContainText('"defaultSignupRole": "viewer"');
+  await expect(page.getByText("Servers, projects, and environments")).toBeVisible();
+  await expect(page.getByTestId("inventory-summary")).toContainText("3");
+  await expect(page.getByTestId("server-card-srv_foundation_1")).toContainText("foundation-vps-1");
+  await expect(page.getByTestId("server-card-srv_foundation_1")).toContainText("Docker Engine 28.0");
+  await expect(
+    page.getByTestId("project-card-proj_daoflow_control_plane")
+  ).toContainText("https://github.com/daoflow/daoflow");
+  await expect(
+    page.getByTestId("environment-card-env_daoflow_production")
+  ).toContainText("/srv/daoflow/production/compose.yaml");
   await expect(page.getByText("Queued and historical deployments")).toBeVisible();
   await expect(page.getByText("Worker handoff queue")).toBeVisible();
   await expect(

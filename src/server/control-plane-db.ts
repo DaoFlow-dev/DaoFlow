@@ -172,6 +172,53 @@ export interface BackupOverview {
   runs: BackupRunRecord[];
 }
 
+export interface ServerInventoryRecord {
+  id: string;
+  name: string;
+  host: string;
+  kind: string;
+  region: string;
+  sshPort: number;
+  engineVersion: string;
+  status: "healthy" | "degraded" | "offline";
+  lastHeartbeatAt: string | null;
+  environmentCount: number;
+}
+
+export interface ProjectInventoryRecord {
+  id: string;
+  name: string;
+  repositoryUrl: string;
+  defaultBranch: string;
+  serviceCount: number;
+  environmentCount: number;
+  latestDeploymentStatus: DeploymentStatus;
+}
+
+export interface EnvironmentInventoryRecord {
+  id: string;
+  projectId: string;
+  projectName: string;
+  name: string;
+  targetServerName: string;
+  networkName: string;
+  composeFilePath: string;
+  serviceCount: number;
+  status: DeploymentStatus;
+}
+
+export interface InfrastructureInventory {
+  summary: {
+    totalServers: number;
+    totalProjects: number;
+    totalEnvironments: number;
+    healthyServers: number;
+  };
+  servers: ServerInventoryRecord[];
+  projects: ProjectInventoryRecord[];
+  environments: EnvironmentInventoryRecord[];
+}
+
 export interface ApiTokenRecord {
   id: string;
   principalId: string;
@@ -252,6 +299,25 @@ interface SeedBackupRun {
   finishedAt: string | null;
 }
 
+interface SeedProject {
+  id: string;
+  name: string;
+  repositoryUrl: string;
+  defaultBranch: string;
+  serviceCount: number;
+}
+
+interface SeedEnvironment {
+  id: string;
+  projectId: string;
+  name: string;
+  targetServerId: string;
+  networkName: string;
+  composeFilePath: string;
+  serviceCount: number;
+  status: DeploymentStatus;
+}
+
 function resolveControlPlaneDatabasePath() {
   if (process.env.CONTROL_PLANE_DB_PATH) {
     return process.env.CONTROL_PLANE_DB_PATH;
@@ -281,6 +347,54 @@ function seedControlPlaneData() {
   const serverId = "srv_foundation_1";
   const deploymentId = "dep_foundation_20260312_1";
   const previousDeploymentId = "dep_foundation_20260311_1";
+  const seedProjects = [
+    {
+      id: "proj_daoflow_control_plane",
+      name: "DaoFlow",
+      repositoryUrl: "https://github.com/daoflow/daoflow",
+      defaultBranch: "main",
+      serviceCount: 3
+    },
+    {
+      id: "proj_agent_bridge",
+      name: "Agent Bridge",
+      repositoryUrl: "https://github.com/daoflow/agent-bridge",
+      defaultBranch: "main",
+      serviceCount: 2
+    }
+  ] as const satisfies readonly SeedProject[];
+  const seedEnvironments = [
+    {
+      id: "env_daoflow_production",
+      projectId: "proj_daoflow_control_plane",
+      name: "production-us-west",
+      targetServerId: serverId,
+      networkName: "daoflow-prod",
+      composeFilePath: "/srv/daoflow/production/compose.yaml",
+      serviceCount: 3,
+      status: "healthy"
+    },
+    {
+      id: "env_daoflow_staging",
+      projectId: "proj_daoflow_control_plane",
+      name: "staging",
+      targetServerId: serverId,
+      networkName: "daoflow-staging",
+      composeFilePath: "/srv/daoflow/staging/compose.yaml",
+      serviceCount: 2,
+      status: "queued"
+    },
+    {
+      id: "env_agent_bridge_lab",
+      projectId: "proj_agent_bridge",
+      name: "lab",
+      targetServerId: serverId,
+      networkName: "agent-bridge-lab",
+      composeFilePath: "/srv/agent-bridge/lab/compose.yaml",
+      serviceCount: 2,
+      status: "failed"
+    }
+  ] as const satisfies readonly SeedEnvironment[];
   const seedBackupPolicies = [
     {
       id: "bpol_foundation_volume_daily",
@@ -496,6 +610,15 @@ function seedControlPlaneData() {
     INSERT OR IGNORE INTO servers (id, name, host, kind, created_at)
     VALUES ('${serverId}', 'foundation-vps-1', '10.0.0.14', 'docker-engine', '${now.toISOString()}');
 
+    UPDATE servers
+    SET
+      region = 'us-west-2',
+      ssh_port = 22,
+      engine_version = 'Docker Engine 28.0',
+      status = 'healthy',
+      last_heartbeat_at = '${new Date(now.getTime() - 45 * 1000).toISOString()}'
+    WHERE id = '${serverId}';
+
     INSERT OR IGNORE INTO deployments (
       id,
       project_name,
@@ -656,6 +779,42 @@ function seedControlPlaneData() {
     )
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
+  const insertEnvironment = controlPlaneDb.prepare(`
+    INSERT OR IGNORE INTO environments (
+      id,
+      project_id,
+      name,
+      target_server_id,
+      network_name,
+      compose_file_path,
+      service_count,
+      status,
+      created_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+  const insertProject = controlPlaneDb.prepare(`
+    INSERT OR IGNORE INTO projects (
+      id,
+      name,
+      repository_url,
+      default_branch,
+      service_count,
+      created_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?)
+  `);
+
+  for (const [index, project] of seedProjects.entries()) {
+    insertProject.run(
+      project.id,
+      project.name,
+      project.repositoryUrl,
+      project.defaultBranch,
+      project.serviceCount,
+      new Date(now.getTime() - (40 - index * 16) * 24 * 60 * 60 * 1000).toISOString()
+    );
+  }
 
   for (const step of steps) {
     insertStep.run(
@@ -716,6 +875,20 @@ function seedControlPlaneData() {
       event.actorType,
       event.actorLabel,
       event.createdAt
+    );
+  }
+
+  for (const environment of seedEnvironments) {
+    insertEnvironment.run(
+      environment.id,
+      environment.projectId,
+      environment.name,
+      environment.targetServerId,
+      environment.networkName,
+      environment.composeFilePath,
+      environment.serviceCount,
+      environment.status,
+      now.toISOString()
     );
   }
 
@@ -781,6 +954,32 @@ const controlPlaneReady = Promise.resolve().then(() => {
       name TEXT NOT NULL,
       host TEXT NOT NULL,
       kind TEXT NOT NULL,
+      region TEXT NOT NULL DEFAULT 'unknown',
+      ssh_port INTEGER NOT NULL DEFAULT 22,
+      engine_version TEXT NOT NULL DEFAULT 'unknown',
+      status TEXT NOT NULL DEFAULT 'healthy',
+      last_heartbeat_at TEXT,
+      created_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS projects (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      repository_url TEXT NOT NULL,
+      default_branch TEXT NOT NULL,
+      service_count INTEGER NOT NULL,
+      created_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS environments (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      target_server_id TEXT NOT NULL REFERENCES servers(id),
+      network_name TEXT NOT NULL,
+      compose_file_path TEXT NOT NULL,
+      service_count INTEGER NOT NULL,
+      status TEXT NOT NULL,
       created_at TEXT NOT NULL
     );
 
@@ -875,9 +1074,18 @@ const controlPlaneReady = Promise.resolve().then(() => {
       ON backup_runs (policy_id, started_at DESC);
     CREATE INDEX IF NOT EXISTS idx_backup_runs_status_started_at
       ON backup_runs (status, started_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_environments_project_id
+      ON environments (project_id);
+    CREATE INDEX IF NOT EXISTS idx_environments_target_server_id
+      ON environments (target_server_id);
   `);
 
   for (const migration of [
+    "ALTER TABLE servers ADD COLUMN region TEXT NOT NULL DEFAULT 'unknown'",
+    "ALTER TABLE servers ADD COLUMN ssh_port INTEGER NOT NULL DEFAULT 22",
+    "ALTER TABLE servers ADD COLUMN engine_version TEXT NOT NULL DEFAULT 'unknown'",
+    "ALTER TABLE servers ADD COLUMN status TEXT NOT NULL DEFAULT 'healthy'",
+    "ALTER TABLE servers ADD COLUMN last_heartbeat_at TEXT",
     "ALTER TABLE deployments ADD COLUMN requested_by_user_id TEXT NOT NULL DEFAULT 'system'",
     "ALTER TABLE deployments ADD COLUMN requested_by_email TEXT NOT NULL DEFAULT 'system@daoflow.local'"
   ]) {
@@ -1013,6 +1221,41 @@ interface BackupRunRow {
   bytes_written: number | null;
   started_at: string;
   finished_at: string | null;
+}
+
+interface ServerInventoryRow {
+  id: string;
+  name: string;
+  host: string;
+  kind: string;
+  region: string;
+  ssh_port: number;
+  engine_version: string;
+  status: "healthy" | "degraded" | "offline";
+  last_heartbeat_at: string | null;
+  environment_count: number;
+}
+
+interface ProjectInventoryRow {
+  id: string;
+  name: string;
+  repository_url: string;
+  default_branch: string;
+  service_count: number;
+  environment_count: number;
+  latest_deployment_status: DeploymentStatus | null;
+}
+
+interface EnvironmentInventoryRow {
+  id: string;
+  project_id: string;
+  project_name: string;
+  name: string;
+  target_server_name: string;
+  network_name: string;
+  compose_file_path: string;
+  service_count: number;
+  status: DeploymentStatus;
 }
 
 function getDeploymentRows(options?: { status?: DeploymentStatus; limit?: number }) {
@@ -2093,6 +2336,117 @@ export function triggerBackupRun(policyId: string, requestedBy: string) {
     startedAt: run.started_at,
     finishedAt: run.finished_at
   } satisfies BackupRunRecord;
+}
+
+export function listInfrastructureInventory(): InfrastructureInventory {
+  const servers = controlPlaneDb.prepare(`
+    SELECT
+      servers.id,
+      servers.name,
+      servers.host,
+      servers.kind,
+      servers.region,
+      servers.ssh_port,
+      servers.engine_version,
+      servers.status,
+      servers.last_heartbeat_at,
+      COUNT(environments.id) AS environment_count
+    FROM servers
+    LEFT JOIN environments ON environments.target_server_id = servers.id
+    GROUP BY
+      servers.id,
+      servers.name,
+      servers.host,
+      servers.kind,
+      servers.region,
+      servers.ssh_port,
+      servers.engine_version,
+      servers.status,
+      servers.last_heartbeat_at
+    ORDER BY servers.name ASC
+  `).all() as unknown as ServerInventoryRow[];
+  const projects = controlPlaneDb.prepare(`
+    SELECT
+      projects.id,
+      projects.name,
+      projects.repository_url,
+      projects.default_branch,
+      projects.service_count,
+      COUNT(environments.id) AS environment_count,
+      (
+        SELECT deployments.status
+        FROM deployments
+        WHERE deployments.project_name = projects.name
+        ORDER BY deployments.created_at DESC
+        LIMIT 1
+      ) AS latest_deployment_status
+    FROM projects
+    LEFT JOIN environments ON environments.project_id = projects.id
+    GROUP BY
+      projects.id,
+      projects.name,
+      projects.repository_url,
+      projects.default_branch,
+      projects.service_count
+    ORDER BY projects.name ASC
+  `).all() as unknown as ProjectInventoryRow[];
+  const environments = controlPlaneDb.prepare(`
+    SELECT
+      environments.id,
+      environments.project_id,
+      projects.name AS project_name,
+      environments.name,
+      servers.name AS target_server_name,
+      environments.network_name,
+      environments.compose_file_path,
+      environments.service_count,
+      environments.status
+    FROM environments
+    INNER JOIN projects ON projects.id = environments.project_id
+    INNER JOIN servers ON servers.id = environments.target_server_id
+    ORDER BY projects.name ASC, environments.name ASC
+  `).all() as unknown as EnvironmentInventoryRow[];
+
+  return {
+    summary: {
+      totalServers: servers.length,
+      totalProjects: projects.length,
+      totalEnvironments: environments.length,
+      healthyServers: servers.filter((server) => server.status === "healthy").length
+    },
+    servers: servers.map((row) => ({
+      id: row.id,
+      name: row.name,
+      host: row.host,
+      kind: row.kind,
+      region: row.region,
+      sshPort: row.ssh_port,
+      engineVersion: row.engine_version,
+      status: row.status,
+      lastHeartbeatAt: row.last_heartbeat_at,
+      environmentCount: row.environment_count
+    })),
+    projects: projects.map((row) => ({
+      id: row.id,
+      name: row.name,
+      repositoryUrl: row.repository_url,
+      defaultBranch: row.default_branch,
+      serviceCount: row.service_count,
+      environmentCount: row.environment_count,
+      latestDeploymentStatus: row.latest_deployment_status ?? "queued"
+    })),
+    environments: environments.map((row) => ({
+      id: row.id,
+      projectId: row.project_id,
+      projectName: row.project_name,
+      name: row.name,
+      targetServerName: row.target_server_name,
+      networkName: row.network_name,
+      composeFilePath: row.compose_file_path,
+      serviceCount: row.service_count,
+      status: row.status
+    }))
+  };
 }
 
 function getApiTokenRows() {

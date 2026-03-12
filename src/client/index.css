@@ -241,6 +241,10 @@ body {
   margin-top: 1rem;
 }
 
+.infrastructure-inventory {
+  margin-top: 1rem;
+}
+
 .token-inventory {
   margin-top: 1rem;
 }
@@ -297,6 +301,35 @@ body {
 .token-list {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.inventory-summary {
+  margin-bottom: 1rem;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.inventory-columns {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.inventory-column {
+  display: grid;
+  gap: 1rem;
+  align-content: start;
+}
+
+.inventory-column__header h3 {
+  margin: 0.35rem 0 0;
+  font-size: 1.45rem;
+}
+
+.inventory-list {
+  display: grid;
   gap: 1rem;
 }
 
@@ -545,6 +578,8 @@ body {
   .backup-policy-list,
   .backup-run-list,
   .deployment-list,
+  .inventory-summary,
+  .inventory-columns,
   .queue-summary,
   .queue-list,
   .token-list,
