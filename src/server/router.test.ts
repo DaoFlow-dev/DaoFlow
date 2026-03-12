@@ -187,6 +187,37 @@ describe("appRouter", () => {
     expect(logs.lines.some((line) => line.message.includes("readiness probe"))).toBe(true);
   });
 
+  it("returns redacted environment variable inventory for signed-in viewers", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-env-viewer",
+      session: makeSession("viewer")
+    });
+
+    const inventory = await caller.environmentVariables({});
+    const secretVariable = inventory.variables.find((variable) => variable.key === "POSTGRES_PASSWORD");
+    const previewVariable = inventory.variables.find(
+      (variable) => variable.key === "NEXT_PUBLIC_PREVIEW_MODE"
+    );
+
+    expect(inventory.summary).toEqual({
+      totalVariables: 3,
+      secretVariables: 1,
+      runtimeVariables: 2,
+      buildVariables: 1
+    });
+    expect(secretVariable).toMatchObject({
+      environmentName: "production-us-west",
+      displayValue: "[secret]",
+      isSecret: true,
+      category: "runtime"
+    });
+    expect(previewVariable).toMatchObject({
+      displayValue: "true",
+      branchPattern: "preview/*",
+      category: "build"
+    });
+  });
+
   it("returns backup policies and runs for signed-in viewers", async () => {
     const caller = appRouter.createCaller({
       requestId: "test-backups-viewer",
@@ -249,6 +280,23 @@ describe("appRouter", () => {
     await expect(
       caller.triggerBackupRun({
         policyId: "bpol_foundation_volume_daily"
+      })
+    ).rejects.toBeInstanceOf(TRPCError);
+  });
+
+  it("blocks environment variable mutations for viewer roles", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-env-viewer-block",
+      session: makeSession("viewer")
+    });
+
+    await expect(
+      caller.upsertEnvironmentVariable({
+        environmentId: "env_daoflow_staging",
+        key: "VIEWER_BLOCKED",
+        value: "true",
+        isSecret: false,
+        category: "runtime"
       })
     ).rejects.toBeInstanceOf(TRPCError);
   });
@@ -431,6 +479,55 @@ describe("appRouter", () => {
       actorLabel: "owner@daoflow.local",
       actorRole: "owner",
       resourceType: "backup-policy"
+    });
+  });
+
+  it("upserts environment variables with redacted reads and audit history", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-env-upsert",
+      session: makeSession("developer")
+    });
+    const beforeAudit = await caller.auditTrail({
+      limit: 50
+    });
+
+    const variable = await caller.upsertEnvironmentVariable({
+      environmentId: "env_daoflow_staging",
+      key: "INTERNAL_API_TOKEN",
+      value: "super-secret-token",
+      isSecret: true,
+      category: "runtime",
+      branchPattern: "feature/*"
+    });
+
+    expect(variable).toMatchObject({
+      key: "INTERNAL_API_TOKEN",
+      displayValue: "[secret]",
+      isSecret: true,
+      category: "runtime",
+      branchPattern: "feature/*",
+      updatedByEmail: "developer@daoflow.local"
+    });
+
+    const inventory = await caller.environmentVariables({
+      environmentId: "env_daoflow_staging"
+    });
+    const inserted = inventory.variables.find((entry) => entry.id === variable.id);
+    expect(inserted?.displayValue).toBe("[secret]");
+
+    const afterAudit = await caller.auditTrail({
+      limit: 50
+    });
+    const auditEntry = afterAudit.entries.find(
+      (entry) => entry.action === "environment-variable.upsert" && entry.resourceId === variable.id
+    );
+
+    expect(afterAudit.summary.totalEntries).toBeGreaterThan(beforeAudit.summary.totalEntries);
+    expect(auditEntry).toMatchObject({
+      actorLabel: "developer@daoflow.local",
+      actorRole: "developer",
+      resourceLabel: "INTERNAL_API_TOKEN@staging",
+      resourceType: "environment-variable"
     });
   });
 

@@ -19,12 +19,14 @@ import {
   listApiTokenInventory,
   listDeploymentLogs,
   listDeploymentInsights,
+  listEnvironmentVariableInventory,
   listInfrastructureInventory,
   getDeploymentRecord,
   listDeploymentRecords,
   listExecutionQueue,
   listOperationsTimeline,
-  triggerBackupRun
+  triggerBackupRun,
+  upsertEnvironmentVariable
 } from "./control-plane-db";
 import type { Context } from "./context";
 
@@ -87,7 +89,7 @@ export const appRouter = t.router({
   })),
   platformOverview: t.procedure.query(() => ({
     name: "DaoFlow",
-    currentSlice: "deployment-logs",
+    currentSlice: "environment-config",
     thesis:
       "A Docker-first deployment control plane for bare metal and VPS environments.",
     architecture: {
@@ -238,6 +240,46 @@ export const appRouter = t.router({
     .query(async ({ input }) => {
       await ensureControlPlaneReady();
       return listAuditTrail(input.limit ?? 12);
+    }),
+  environmentVariables: protectedProcedure
+    .input(
+      z.object({
+        environmentId: z.string().min(1).optional(),
+        limit: z.number().int().min(1).max(100).optional()
+      })
+    )
+    .query(async ({ input }) => {
+      await ensureControlPlaneReady();
+      return listEnvironmentVariableInventory(input.environmentId, input.limit ?? 50);
+    }),
+  upsertEnvironmentVariable: deployProcedure
+    .input(
+      z.object({
+        environmentId: z.string().min(1),
+        key: z.string().regex(/^[A-Z_][A-Z0-9_]*$/).max(80),
+        value: z.string().min(1).max(4000),
+        isSecret: z.boolean(),
+        category: z.enum(["runtime", "build"]),
+        branchPattern: z.string().max(120).optional()
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      await ensureControlPlaneReady();
+      const variable = upsertEnvironmentVariable({
+        ...input,
+        updatedByUserId: ctx.session.user.id,
+        updatedByEmail: ctx.session.user.email,
+        updatedByRole: ctx.role
+      });
+
+      if (!variable) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Environment record not found."
+        });
+      }
+
+      return variable;
     }),
   deploymentLogs: protectedProcedure
     .input(

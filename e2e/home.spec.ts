@@ -34,6 +34,14 @@ test("loads the DaoFlow foundation dashboard", async ({ page }) => {
   await expect(
     page.getByTestId("environment-card-env_daoflow_production")
   ).toContainText("/srv/daoflow/production/compose.yaml");
+  await expect(page.getByText("Encrypted environment configuration")).toBeVisible();
+  await expect(page.getByTestId("environment-variable-summary")).toContainText("3");
+  await expect(
+    page.getByTestId("environment-variable-card-envvar_prod_database_password")
+  ).toContainText("Value: [secret]");
+  await expect(
+    page.getByTestId("environment-variable-card-envvar_staging_preview_flag")
+  ).toContainText("Branch pattern: preview/*");
   await expect(page.getByText("Queued and historical deployments")).toBeVisible();
   await expect(page.getByText("Agent-ready deployment diagnostics")).toBeVisible();
   await expect(
@@ -65,6 +73,19 @@ test("loads the DaoFlow foundation dashboard", async ({ page }) => {
   await page.getByLabel("Service name").fill("edge-worker-ui");
   await page.getByLabel("Commit SHA").fill("abcdef1");
   await page.getByLabel("Image tag").fill("ghcr.io/daoflow/edge-worker-ui:0.2.1");
+  await page.getByLabel("Key").fill("SERVICE_TOKEN");
+  await page.getByLabel("Value", { exact: true }).fill("top-secret-token");
+  await page.getByLabel("Branch pattern").fill("feature/*");
+  await page.getByLabel("Secret value").check();
+  await page.getByRole("button", { name: "Save variable" }).click();
+  await expect(page.getByTestId("environment-variable-feedback")).toContainText(
+    "Saved SERVICE_TOKEN for staging"
+  );
+  await expect(
+    page.locator('[data-testid^="environment-variable-card-"]').filter({
+      hasText: "SERVICE_TOKEN"
+    })
+  ).toContainText("Value: [secret]");
   await page.getByRole("button", { name: "Queue deployment record" }).click();
   await expect(page.getByTestId("deployment-feedback")).toContainText("Queued edge-worker-ui");
   await expect(

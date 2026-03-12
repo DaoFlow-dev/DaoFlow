@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createCipheriv, createDecipheriv, createHash, randomBytes, randomUUID } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
@@ -25,8 +25,15 @@ export type DeploymentEventLevel = "info" | "warning" | "error";
 export type BackupTargetType = "volume" | "database";
 export type BackupRunStatus = "queued" | "running" | "succeeded" | "failed";
 export type AuditActorType = "human" | "system";
-export type AuditResourceType = "deployment" | "execution-job" | "backup-run" | "backup-policy";
+export type AuditResourceType =
+  | "deployment"
+  | "execution-job"
+  | "backup-run"
+  | "backup-policy"
+  | "environment-variable";
 export type DeploymentLogStream = "stdout" | "stderr";
+export type EnvironmentVariableCategory = "runtime" | "build";
+export type EnvironmentVariableSource = "manual" | "imported";
 export type DeploymentEventKind =
   | "deployment.queued"
   | "execution.job.created"
@@ -85,6 +92,18 @@ export interface CreateDeploymentRecordInput {
     label: string;
     detail: string;
   }[];
+}
+
+export interface UpsertEnvironmentVariableInput {
+  environmentId: string;
+  key: string;
+  value: string;
+  isSecret: boolean;
+  category: EnvironmentVariableCategory;
+  branchPattern?: string | null;
+  updatedByUserId: string;
+  updatedByEmail: string;
+  updatedByRole: AppRole;
 }
 
 export interface ExecutionJobRecord {
@@ -200,6 +219,31 @@ export interface DeploymentLogSnapshot {
     deploymentCount: number;
   };
   lines: DeploymentLogLineRecord[];
+}
+
+export interface EnvironmentVariableRecord {
+  id: string;
+  environmentId: string;
+  environmentName: string;
+  projectName: string;
+  key: string;
+  displayValue: string;
+  isSecret: boolean;
+  category: EnvironmentVariableCategory;
+  branchPattern: string | null;
+  source: EnvironmentVariableSource;
+  updatedByEmail: string;
+  updatedAt: string;
+}
+
+export interface EnvironmentVariableInventory {
+  summary: {
+    totalVariables: number;
+    secretVariables: number;
+    runtimeVariables: number;
+    buildVariables: number;
+  };
+  variables: EnvironmentVariableRecord[];
 }
 
 export interface ExecutionJobMutationResult {
@@ -399,6 +443,20 @@ interface SeedDeploymentLogLine {
   createdAt: string;
 }
 
+interface SeedEnvironmentVariable {
+  id: string;
+  environmentId: string;
+  key: string;
+  value: string;
+  isSecret: boolean;
+  category: EnvironmentVariableCategory;
+  branchPattern: string | null;
+  source: EnvironmentVariableSource;
+  updatedByUserId: string;
+  updatedByEmail: string;
+  updatedAt: string;
+}
+
 interface SeedProject {
   id: string;
   name: string;
@@ -441,6 +499,46 @@ function createControlPlaneDatabase() {
 }
 
 const controlPlaneDb = createControlPlaneDatabase();
+const environmentCryptoKey = createHash("sha256")
+  .update(process.env.CONTROL_PLANE_ENCRYPTION_KEY ?? process.env.BETTER_AUTH_SECRET ?? "daoflow-local-control-plane")
+  .digest();
+
+export function encryptEnvironmentValue(value: string) {
+  const iv = randomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", environmentCryptoKey, iv);
+  const encrypted = Buffer.concat([cipher.update(value, "utf8"), cipher.final()]);
+  const tag = cipher.getAuthTag();
+
+  return `${iv.toString("base64")}:${tag.toString("base64")}:${encrypted.toString("base64")}`;
+}
+
+export function decryptEnvironmentValue(payload: string) {
+  const [ivBase64, tagBase64, encryptedBase64] = payload.split(":");
+
+  if (!ivBase64 || !tagBase64 || !encryptedBase64) {
+    throw new Error("Invalid encrypted environment payload.");
+  }
+
+  const decipher = createDecipheriv(
+    "aes-256-gcm",
+    environmentCryptoKey,
+    Buffer.from(ivBase64, "base64")
+  );
+  decipher.setAuthTag(Buffer.from(tagBase64, "base64"));
+
+  return Buffer.concat([
+    decipher.update(Buffer.from(encryptedBase64, "base64")),
+    decipher.final()
+  ]).toString("utf8");
+}
+
+function getEnvironmentDisplayValue(encryptedValue: string, isSecret: boolean) {
+  if (isSecret) {
+    return "[secret]";
+  }
+
+  return decryptEnvironmentValue(encryptedValue);
+}
 
 function seedControlPlaneData() {
   const now = new Date("2026-03-12T08:00:00.000Z");
@@ -660,6 +758,47 @@ function seedControlPlaneData() {
       createdAt: new Date(now.getTime() - 66 * 60 * 1000).toISOString()
     }
   ] as const satisfies readonly SeedDeploymentLogLine[];
+  const seedEnvironmentVariables = [
+    {
+      id: "envvar_prod_public_origin",
+      environmentId: "env_daoflow_production",
+      key: "APP_BASE_URL",
+      value: "https://daoflow.example.com",
+      isSecret: false,
+      category: "runtime",
+      branchPattern: null,
+      source: "manual",
+      updatedByUserId: "user_foundation_owner",
+      updatedByEmail: "owner@daoflow.local",
+      updatedAt: new Date(now.getTime() - 9 * 24 * 60 * 60 * 1000).toISOString()
+    },
+    {
+      id: "envvar_prod_database_password",
+      environmentId: "env_daoflow_production",
+      key: "POSTGRES_PASSWORD",
+      value: "prod-super-secret-password",
+      isSecret: true,
+      category: "runtime",
+      branchPattern: null,
+      source: "manual",
+      updatedByUserId: "user_foundation_owner",
+      updatedByEmail: "owner@daoflow.local",
+      updatedAt: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString()
+    },
+    {
+      id: "envvar_staging_preview_flag",
+      environmentId: "env_daoflow_staging",
+      key: "NEXT_PUBLIC_PREVIEW_MODE",
+      value: "true",
+      isSecret: false,
+      category: "build",
+      branchPattern: "preview/*",
+      source: "imported",
+      updatedByUserId: "user_foundation_owner",
+      updatedByEmail: "owner@daoflow.local",
+      updatedAt: new Date(now.getTime() - 4 * 24 * 60 * 60 * 1000).toISOString()
+    }
+  ] as const satisfies readonly SeedEnvironmentVariable[];
   const seedEvents = [
     {
       id: "evt_foundation_queued",
@@ -1011,6 +1150,22 @@ function seedControlPlaneData() {
     )
     VALUES (?, ?, ?, ?, ?, ?)
   `);
+  const insertEnvironmentVariable = controlPlaneDb.prepare(`
+    INSERT OR IGNORE INTO environment_variables (
+      id,
+      environment_id,
+      key,
+      encrypted_value,
+      is_secret,
+      category,
+      branch_pattern,
+      source,
+      updated_by_user_id,
+      updated_by_email,
+      updated_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
   const insertProject = controlPlaneDb.prepare(`
     INSERT OR IGNORE INTO projects (
       id,
@@ -1134,6 +1289,22 @@ function seedControlPlaneData() {
       environment.serviceCount,
       environment.status,
       now.toISOString()
+    );
+  }
+
+  for (const variable of seedEnvironmentVariables) {
+    insertEnvironmentVariable.run(
+      variable.id,
+      variable.environmentId,
+      variable.key,
+      encryptEnvironmentValue(variable.value),
+      variable.isSecret ? 1 : 0,
+      variable.category,
+      variable.branchPattern ?? "",
+      variable.source,
+      variable.updatedByUserId,
+      variable.updatedByEmail,
+      variable.updatedAt
     );
   }
 
@@ -1328,6 +1499,20 @@ const controlPlaneReady = Promise.resolve().then(() => {
       created_at TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS environment_variables (
+      id TEXT PRIMARY KEY,
+      environment_id TEXT NOT NULL REFERENCES environments(id) ON DELETE CASCADE,
+      key TEXT NOT NULL,
+      encrypted_value TEXT NOT NULL,
+      is_secret INTEGER NOT NULL DEFAULT 1,
+      category TEXT NOT NULL,
+      branch_pattern TEXT NOT NULL DEFAULT '',
+      source TEXT NOT NULL,
+      updated_by_user_id TEXT NOT NULL DEFAULT 'system',
+      updated_by_email TEXT NOT NULL DEFAULT 'system@daoflow.local',
+      updated_at TEXT NOT NULL
+    );
+
     CREATE INDEX IF NOT EXISTS idx_execution_jobs_deployment_id
       ON execution_jobs (deployment_id);
     CREATE INDEX IF NOT EXISTS idx_execution_jobs_status_created_at
@@ -1350,6 +1535,10 @@ const controlPlaneReady = Promise.resolve().then(() => {
       ON deployment_log_lines (created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_deployment_log_lines_deployment_line_number
       ON deployment_log_lines (deployment_id, line_number ASC);
+    CREATE INDEX IF NOT EXISTS idx_environment_variables_environment_updated_at
+      ON environment_variables (environment_id, updated_at DESC);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_environment_variables_unique_scope
+      ON environment_variables (environment_id, key, category, branch_pattern);
     CREATE INDEX IF NOT EXISTS idx_environments_project_id
       ON environments (project_id);
     CREATE INDEX IF NOT EXISTS idx_environments_target_server_id
@@ -1523,6 +1712,22 @@ interface DeploymentLogLineRow {
   line_number: number;
   message: string;
   created_at: string;
+}
+
+interface EnvironmentVariableRow {
+  id: string;
+  environment_id: string;
+  environment_name: string;
+  project_name: string;
+  key: string;
+  encrypted_value: string;
+  is_secret: number;
+  category: EnvironmentVariableCategory;
+  branch_pattern: string;
+  source: EnvironmentVariableSource;
+  updated_by_user_id: string;
+  updated_by_email: string;
+  updated_at: string;
 }
 
 interface ServerInventoryRow {
@@ -2955,6 +3160,264 @@ export function listDeploymentLogs(deploymentId?: string, limit = 20): Deploymen
     },
     lines
   };
+}
+
+function getEnvironmentVariableRows(environmentId?: string, limit = 50) {
+  const query = environmentId
+    ? controlPlaneDb.prepare(`
+        SELECT
+          environment_variables.id,
+          environment_variables.environment_id,
+          environments.name AS environment_name,
+          projects.name AS project_name,
+          environment_variables.key,
+          environment_variables.encrypted_value,
+          environment_variables.is_secret,
+          environment_variables.category,
+          environment_variables.branch_pattern,
+          environment_variables.source,
+          environment_variables.updated_by_user_id,
+          environment_variables.updated_by_email,
+          environment_variables.updated_at
+        FROM environment_variables
+        INNER JOIN environments ON environments.id = environment_variables.environment_id
+        INNER JOIN projects ON projects.id = environments.project_id
+        WHERE environment_variables.environment_id = ?
+        ORDER BY environment_variables.updated_at DESC, environment_variables.key ASC
+        LIMIT ?
+      `)
+    : controlPlaneDb.prepare(`
+        SELECT
+          environment_variables.id,
+          environment_variables.environment_id,
+          environments.name AS environment_name,
+          projects.name AS project_name,
+          environment_variables.key,
+          environment_variables.encrypted_value,
+          environment_variables.is_secret,
+          environment_variables.category,
+          environment_variables.branch_pattern,
+          environment_variables.source,
+          environment_variables.updated_by_user_id,
+          environment_variables.updated_by_email,
+          environment_variables.updated_at
+        FROM environment_variables
+        INNER JOIN environments ON environments.id = environment_variables.environment_id
+        INNER JOIN projects ON projects.id = environments.project_id
+        ORDER BY environment_variables.updated_at DESC, environments.name ASC, environment_variables.key ASC
+        LIMIT ?
+      `);
+
+  return (environmentId ? query.all(environmentId, limit) : query.all(limit)) as unknown as EnvironmentVariableRow[];
+}
+
+function getEnvironmentVariableSummary(environmentId?: string) {
+  const query = environmentId
+    ? controlPlaneDb.prepare(`
+        SELECT
+          COUNT(*) AS total_variables,
+          SUM(CASE WHEN is_secret = 1 THEN 1 ELSE 0 END) AS secret_variables,
+          SUM(CASE WHEN category = 'runtime' THEN 1 ELSE 0 END) AS runtime_variables,
+          SUM(CASE WHEN category = 'build' THEN 1 ELSE 0 END) AS build_variables
+        FROM environment_variables
+        WHERE environment_id = ?
+      `)
+    : controlPlaneDb.prepare(`
+        SELECT
+          COUNT(*) AS total_variables,
+          SUM(CASE WHEN is_secret = 1 THEN 1 ELSE 0 END) AS secret_variables,
+          SUM(CASE WHEN category = 'runtime' THEN 1 ELSE 0 END) AS runtime_variables,
+          SUM(CASE WHEN category = 'build' THEN 1 ELSE 0 END) AS build_variables
+        FROM environment_variables
+      `);
+
+  return (environmentId ? query.get(environmentId) : query.get()) as
+    | {
+        total_variables?: number;
+        secret_variables?: number;
+        runtime_variables?: number;
+        build_variables?: number;
+      }
+    | undefined;
+}
+
+function mapEnvironmentVariableRow(row: EnvironmentVariableRow): EnvironmentVariableRecord {
+  return {
+    id: row.id,
+    environmentId: row.environment_id,
+    environmentName: row.environment_name,
+    projectName: row.project_name,
+    key: row.key,
+    displayValue: getEnvironmentDisplayValue(row.encrypted_value, row.is_secret === 1),
+    isSecret: row.is_secret === 1,
+    category: row.category,
+    branchPattern: row.branch_pattern.length > 0 ? row.branch_pattern : null,
+    source: row.source,
+    updatedByEmail: row.updated_by_email,
+    updatedAt: row.updated_at
+  };
+}
+
+export function listEnvironmentVariableInventory(
+  environmentId?: string,
+  limit = 50
+): EnvironmentVariableInventory {
+  const summary = getEnvironmentVariableSummary(environmentId);
+  const variables = getEnvironmentVariableRows(environmentId, limit).map((row) =>
+    mapEnvironmentVariableRow(row)
+  );
+
+  return {
+    summary: {
+      totalVariables: summary?.total_variables ?? 0,
+      secretVariables: summary?.secret_variables ?? 0,
+      runtimeVariables: summary?.runtime_variables ?? 0,
+      buildVariables: summary?.build_variables ?? 0
+    },
+    variables
+  };
+}
+
+export function upsertEnvironmentVariable(input: UpsertEnvironmentVariableInput) {
+  const environmentRow = controlPlaneDb.prepare(`
+    SELECT
+      environments.id,
+      environments.name,
+      projects.name AS project_name
+    FROM environments
+    INNER JOIN projects ON projects.id = environments.project_id
+    WHERE environments.id = ?
+    LIMIT 1
+  `).get(input.environmentId) as
+    | {
+        id: string;
+        name: string;
+        project_name: string;
+      }
+    | undefined;
+
+  if (!environmentRow) {
+    return null;
+  }
+
+  const now = new Date().toISOString();
+  const branchPattern = input.branchPattern?.trim() ? input.branchPattern.trim() : "";
+  const existing = controlPlaneDb.prepare(`
+    SELECT
+      environment_variables.id,
+      environment_variables.environment_id,
+      environments.name AS environment_name,
+      projects.name AS project_name,
+      environment_variables.key,
+      environment_variables.encrypted_value,
+      environment_variables.is_secret,
+      environment_variables.category,
+      environment_variables.branch_pattern,
+      environment_variables.source,
+      environment_variables.updated_by_user_id,
+      environment_variables.updated_by_email,
+      environment_variables.updated_at
+    FROM environment_variables
+    INNER JOIN environments ON environments.id = environment_variables.environment_id
+    INNER JOIN projects ON projects.id = environments.project_id
+    WHERE environment_variables.environment_id = ?
+      AND environment_variables.key = ?
+      AND environment_variables.category = ?
+      AND environment_variables.branch_pattern = ?
+    LIMIT 1
+  `).get(
+    input.environmentId,
+    input.key,
+    input.category,
+    branchPattern
+  ) as EnvironmentVariableRow | undefined;
+
+  const variableId = existing?.id ?? `envvar_${randomUUID()}`;
+  const source = existing?.source ?? "manual";
+
+  controlPlaneDb.exec("BEGIN");
+
+  try {
+    controlPlaneDb.prepare(`
+      INSERT INTO environment_variables (
+        id,
+        environment_id,
+        key,
+        encrypted_value,
+        is_secret,
+        category,
+        branch_pattern,
+        source,
+        updated_by_user_id,
+        updated_by_email,
+        updated_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(environment_id, key, category, branch_pattern) DO UPDATE SET
+        encrypted_value = excluded.encrypted_value,
+        is_secret = excluded.is_secret,
+        source = excluded.source,
+        updated_by_user_id = excluded.updated_by_user_id,
+        updated_by_email = excluded.updated_by_email,
+        updated_at = excluded.updated_at
+    `).run(
+      variableId,
+      input.environmentId,
+      input.key,
+      encryptEnvironmentValue(input.value),
+      input.isSecret ? 1 : 0,
+      input.category,
+      branchPattern,
+      source,
+      input.updatedByUserId,
+      input.updatedByEmail,
+      now
+    );
+
+    appendAuditEntry({
+      actorType: "human",
+      actorId: input.updatedByUserId,
+      actorLabel: input.updatedByEmail,
+      actorRole: input.updatedByRole,
+      action: "environment-variable.upsert",
+      resourceType: "environment-variable",
+      resourceId: variableId,
+      resourceLabel: `${input.key}@${environmentRow.name}`,
+      detail:
+        `Updated ${input.category} variable for ${environmentRow.project_name}/${environmentRow.name}` +
+        (branchPattern ? ` with branch pattern ${branchPattern}.` : "."),
+      createdAt: now
+    });
+
+    controlPlaneDb.exec("COMMIT");
+  } catch (error) {
+    controlPlaneDb.exec("ROLLBACK");
+    throw error;
+  }
+
+  const row = controlPlaneDb.prepare(`
+    SELECT
+      environment_variables.id,
+      environment_variables.environment_id,
+      environments.name AS environment_name,
+      projects.name AS project_name,
+      environment_variables.key,
+      environment_variables.encrypted_value,
+      environment_variables.is_secret,
+      environment_variables.category,
+      environment_variables.branch_pattern,
+      environment_variables.source,
+      environment_variables.updated_by_user_id,
+      environment_variables.updated_by_email,
+      environment_variables.updated_at
+    FROM environment_variables
+    INNER JOIN environments ON environments.id = environment_variables.environment_id
+    INNER JOIN projects ON projects.id = environments.project_id
+    WHERE environment_variables.id = ?
+    LIMIT 1
+  `).get(variableId) as EnvironmentVariableRow | undefined;
+
+  return row ? mapEnvironmentVariableRow(row) : null;
 }
 
 function getBackupPolicyRows() {

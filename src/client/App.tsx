@@ -127,6 +127,10 @@ export default function App() {
   const deploymentLogs = trpc.deploymentLogs.useQuery({}, {
     enabled: Boolean(session.data)
   });
+  const environmentVariables = trpc.environmentVariables.useQuery({}, {
+    enabled: Boolean(session.data)
+  });
+  const upsertEnvironmentVariable = trpc.upsertEnvironmentVariable.useMutation();
   const viewer = trpc.viewer.useQuery(undefined, {
     enabled: Boolean(session.data)
   });
@@ -145,10 +149,23 @@ export default function App() {
   const [serviceName, setServiceName] = useState("edge-worker");
   const [commitSha, setCommitSha] = useState("abcdef1");
   const [imageTag, setImageTag] = useState("ghcr.io/daoflow/edge-worker:0.2.0");
+  const [environmentVariableEnvironmentId, setEnvironmentVariableEnvironmentId] = useState(
+    "env_daoflow_staging"
+  );
+  const [environmentVariableKey, setEnvironmentVariableKey] = useState("NEXT_PUBLIC_SUPPORT_EMAIL");
+  const [environmentVariableValue, setEnvironmentVariableValue] = useState("ops@daoflow.local");
+  const [environmentVariableCategory, setEnvironmentVariableCategory] = useState<
+    "runtime" | "build"
+  >("runtime");
+  const [environmentVariableBranchPattern, setEnvironmentVariableBranchPattern] = useState("");
+  const [environmentVariableIsSecret, setEnvironmentVariableIsSecret] = useState(false);
   const [authFeedback, setAuthFeedback] = useState<string | null>(null);
   const [deploymentFeedback, setDeploymentFeedback] = useState<string | null>(null);
   const [executionFeedback, setExecutionFeedback] = useState<string | null>(null);
   const [backupFeedback, setBackupFeedback] = useState<string | null>(null);
+  const [environmentVariableFeedback, setEnvironmentVariableFeedback] = useState<string | null>(
+    null
+  );
 
   async function handleSignUp(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -208,6 +225,7 @@ export default function App() {
     setDeploymentFeedback(null);
     setExecutionFeedback(null);
     setBackupFeedback(null);
+    setEnvironmentVariableFeedback(null);
   }
 
   async function refreshOperationalViews() {
@@ -215,6 +233,7 @@ export default function App() {
     await deploymentInsights.refetch();
     await auditTrail.refetch();
     await deploymentLogs.refetch();
+    await environmentVariables.refetch();
     await backupOverview.refetch();
     await executionQueue.refetch();
     await operationsTimeline.refetch();
@@ -329,6 +348,32 @@ export default function App() {
     }
   }
 
+  async function handleUpsertEnvironmentVariable(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setEnvironmentVariableFeedback(null);
+
+    try {
+      const variable = await upsertEnvironmentVariable.mutateAsync({
+        environmentId: environmentVariableEnvironmentId,
+        key: environmentVariableKey,
+        value: environmentVariableValue,
+        isSecret: environmentVariableIsSecret,
+        category: environmentVariableCategory,
+        branchPattern: environmentVariableBranchPattern || undefined
+      });
+      await refreshOperationalViews();
+      setEnvironmentVariableFeedback(
+        `Saved ${variable.key} for ${variable.environmentName} (${variable.category}).`
+      );
+    } catch (error) {
+      setEnvironmentVariableFeedback(
+        isTRPCClientError(error)
+          ? error.message
+          : "Unable to save the environment variable right now."
+      );
+    }
+  }
+
   const viewerMessage =
     viewer.error && isTRPCClientError(viewer.error)
       ? viewer.error.message
@@ -369,6 +414,10 @@ export default function App() {
     deploymentLogs.error && isTRPCClientError(deploymentLogs.error)
       ? deploymentLogs.error.message
       : null;
+  const environmentVariablesMessage =
+    environmentVariables.error && isTRPCClientError(environmentVariables.error)
+      ? environmentVariables.error.message
+      : null;
   const tokenMessage =
     agentTokenInventory.error && isTRPCClientError(agentTokenInventory.error)
       ? agentTokenInventory.error.message
@@ -380,11 +429,13 @@ export default function App() {
     currentRole === "developer";
   const canOperateExecutionJobs =
     currentRole === "owner" || currentRole === "admin" || currentRole === "operator";
+  const canManageEnvironmentVariables = canQueueDeployments;
   const executionMutationPending =
     dispatchExecutionJob.isPending ||
     completeExecutionJob.isPending ||
     failExecutionJob.isPending;
   const backupMutationPending = triggerBackupRun.isPending;
+  const environmentVariableMutationPending = upsertEnvironmentVariable.isPending;
 
   return (
     <main className="shell">
@@ -710,6 +761,160 @@ export default function App() {
         ) : (
           <p className="viewer-empty">
             {infrastructureMessage ?? "Sign in to inspect managed servers, projects, and environments."}
+          </p>
+        )}
+      </section>
+
+      <section className="environment-variables">
+        <div className="roadmap__header">
+          <p className="roadmap__kicker">Environment management</p>
+          <h2>Encrypted environment configuration</h2>
+        </div>
+
+        {session.data && canManageEnvironmentVariables && infrastructureInventory.data ? (
+          <form className="environment-variable-composer" onSubmit={(event) => void handleUpsertEnvironmentVariable(event)}>
+            <div>
+              <p className="roadmap-item__lane">Redacted read model</p>
+              <h3>Save scoped variable</h3>
+              <p className="deployment-card__meta">
+                Secret values stay write-only in the UI and are redacted on every read path.
+              </p>
+            </div>
+            <label>
+              Environment
+              <select
+                value={environmentVariableEnvironmentId}
+                onChange={(event) => setEnvironmentVariableEnvironmentId(event.target.value)}
+              >
+                {infrastructureInventory.data.environments.map((environment) => (
+                  <option key={environment.id} value={environment.id}>
+                    {environment.projectName} / {environment.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Key
+              <input
+                value={environmentVariableKey}
+                onChange={(event) => setEnvironmentVariableKey(event.target.value.toUpperCase())}
+              />
+            </label>
+            <label>
+              Value
+              <input
+                value={environmentVariableValue}
+                onChange={(event) => setEnvironmentVariableValue(event.target.value)}
+              />
+            </label>
+            <label>
+              Category
+              <select
+                value={environmentVariableCategory}
+                onChange={(event) =>
+                  setEnvironmentVariableCategory(event.target.value as "runtime" | "build")
+                }
+              >
+                <option value="runtime">runtime</option>
+                <option value="build">build</option>
+              </select>
+            </label>
+            <label>
+              Branch pattern
+              <input
+                value={environmentVariableBranchPattern}
+                onChange={(event) => setEnvironmentVariableBranchPattern(event.target.value)}
+                placeholder="optional, e.g. preview/*"
+              />
+            </label>
+            <label className="checkbox-label">
+              <input
+                checked={environmentVariableIsSecret}
+                onChange={(event) => setEnvironmentVariableIsSecret(event.target.checked)}
+                type="checkbox"
+              />
+              Secret value
+            </label>
+            <button
+              className="action-button"
+              disabled={environmentVariableMutationPending}
+              type="submit"
+            >
+              {environmentVariableMutationPending ? "Saving..." : "Save variable"}
+            </button>
+            {environmentVariableFeedback ? (
+              <p className="auth-feedback" data-testid="environment-variable-feedback">
+                {environmentVariableFeedback}
+              </p>
+            ) : null}
+          </form>
+        ) : session.data ? (
+          <p className="viewer-empty">
+            Deploy-capable roles can update encrypted environment variables here.
+          </p>
+        ) : null}
+
+        {session.data && environmentVariables.data ? (
+          <>
+            <div className="environment-variable-summary" data-testid="environment-variable-summary">
+              <div className="token-summary__item">
+                <span className="metric__label">Variables</span>
+                <strong>{environmentVariables.data.summary.totalVariables}</strong>
+              </div>
+              <div className="token-summary__item">
+                <span className="metric__label">Secrets</span>
+                <strong>{environmentVariables.data.summary.secretVariables}</strong>
+              </div>
+              <div className="token-summary__item">
+                <span className="metric__label">Runtime</span>
+                <strong>{environmentVariables.data.summary.runtimeVariables}</strong>
+              </div>
+              <div className="token-summary__item">
+                <span className="metric__label">Build</span>
+                <strong>{environmentVariables.data.summary.buildVariables}</strong>
+              </div>
+            </div>
+
+            <div className="environment-variable-list">
+              {environmentVariables.data.variables.map((variable) => (
+                <article
+                  className="token-card"
+                  data-testid={`environment-variable-card-${variable.id}`}
+                  key={variable.id}
+                >
+                  <div className="token-card__top">
+                    <div>
+                      <p className="roadmap-item__lane">
+                        {variable.projectName} / {variable.environmentName}
+                      </p>
+                      <h3>{variable.key}</h3>
+                    </div>
+                    <span
+                      className={`deployment-status deployment-status--${variable.isSecret ? "failed" : "queued"}`}
+                    >
+                      {variable.isSecret ? "secret" : variable.category}
+                    </span>
+                  </div>
+                  <p className="deployment-card__meta">
+                    Value: {variable.displayValue}
+                  </p>
+                  <p className="deployment-card__meta">
+                    Category: {variable.category} · Source: {variable.source}
+                  </p>
+                  <p className="deployment-card__meta">
+                    Branch pattern: {variable.branchPattern ?? "all branches"}
+                  </p>
+                  <p className="deployment-card__meta">
+                    Updated by {variable.updatedByEmail}
+                  </p>
+                </article>
+              ))}
+            </div>
+          </>
+        ) : (
+          <p className="viewer-empty">
+            {environmentVariablesMessage ??
+              "Sign in to inspect encrypted environment variable metadata."}
           </p>
         )}
       </section>
