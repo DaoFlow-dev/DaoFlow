@@ -98,6 +98,9 @@ export default function App() {
   const infrastructureInventory = trpc.infrastructureInventory.useQuery(undefined, {
     enabled: Boolean(session.data)
   });
+  const deploymentInsights = trpc.deploymentInsights.useQuery({}, {
+    enabled: Boolean(session.data)
+  });
   const viewer = trpc.viewer.useQuery(undefined, {
     enabled: Boolean(session.data)
   });
@@ -183,6 +186,7 @@ export default function App() {
 
   async function refreshOperationalViews() {
     await recentDeployments.refetch();
+    await deploymentInsights.refetch();
     await backupOverview.refetch();
     await executionQueue.refetch();
     await operationsTimeline.refetch();
@@ -324,6 +328,10 @@ export default function App() {
   const infrastructureMessage =
     infrastructureInventory.error && isTRPCClientError(infrastructureInventory.error)
       ? infrastructureInventory.error.message
+      : null;
+  const insightsMessage =
+    deploymentInsights.error && isTRPCClientError(deploymentInsights.error)
+      ? deploymentInsights.error.message
       : null;
   const tokenMessage =
     agentTokenInventory.error && isTRPCClientError(agentTokenInventory.error)
@@ -759,6 +767,65 @@ export default function App() {
         ) : (
           <p className="viewer-empty">
             {deploymentMessage ?? "Sign in to inspect deployment records and structured steps."}
+          </p>
+        )}
+      </section>
+
+      <section className="deployment-insights">
+        <div className="roadmap__header">
+          <p className="roadmap__kicker">Agentic observability</p>
+          <h2>Agent-ready deployment diagnostics</h2>
+        </div>
+
+        {session.data && deploymentInsights.data ? (
+          <div className="insight-list">
+            {deploymentInsights.data.map((insight) => (
+              <article
+                className="timeline-event"
+                data-testid={`deployment-insight-${insight.deploymentId}`}
+                key={insight.deploymentId}
+              >
+                <div className="timeline-event__top">
+                  <div>
+                    <p className="roadmap-item__lane">
+                      {insight.environmentName} · {insight.projectName}
+                    </p>
+                    <h3>{insight.serviceName}</h3>
+                  </div>
+                  <span
+                    className={`deployment-status deployment-status--${getInventoryTone(insight.status)}`}
+                  >
+                    {insight.status}
+                  </span>
+                </div>
+                <p className="deployment-card__meta">{insight.summary}</p>
+                <p className="deployment-card__meta">
+                  Suspected root cause: {insight.suspectedRootCause}
+                </p>
+                {insight.healthyBaseline ? (
+                  <p className="deployment-card__meta">
+                    Healthy baseline: {insight.healthyBaseline.commitSha} ·{" "}
+                    {insight.healthyBaseline.imageTag}
+                  </p>
+                ) : null}
+                <div className="token-card__chips">
+                  {insight.evidence.map((item) => (
+                    <span className="token-chip" key={item.id}>
+                      {item.kind}:{item.title}
+                    </span>
+                  ))}
+                </div>
+                <ul className="deployment-card__steps">
+                  {insight.safeActions.map((action) => (
+                    <li key={action}>{action}</li>
+                  ))}
+                </ul>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <p className="viewer-empty">
+            {insightsMessage ?? "Sign in to inspect evidence-backed deployment diagnostics."}
           </p>
         )}
       </section>

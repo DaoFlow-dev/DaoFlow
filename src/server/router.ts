@@ -16,6 +16,7 @@ import {
   failExecutionJob,
   listBackupOverview,
   listApiTokenInventory,
+  listDeploymentInsights,
   listInfrastructureInventory,
   getDeploymentRecord,
   listDeploymentRecords,
@@ -84,7 +85,7 @@ export const appRouter = t.router({
   })),
   platformOverview: t.procedure.query(() => ({
     name: "DaoFlow",
-    currentSlice: "infrastructure-inventory",
+    currentSlice: "agent-ready-diagnostics",
     thesis:
       "A Docker-first deployment control plane for bare metal and VPS environments.",
     architecture: {
@@ -215,6 +216,16 @@ export const appRouter = t.router({
     await ensureControlPlaneReady();
     return listInfrastructureInventory();
   }),
+  deploymentInsights: protectedProcedure
+    .input(
+      z.object({
+        limit: z.number().int().min(1).max(12).optional()
+      })
+    )
+    .query(async ({ input }) => {
+      await ensureControlPlaneReady();
+      return listDeploymentInsights(input.limit ?? 6);
+    }),
   backupOverview: protectedProcedure
     .input(
       z.object({

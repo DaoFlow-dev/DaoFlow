@@ -241,6 +241,10 @@ body {
   margin-top: 1rem;
 }
 
+.deployment-insights {
+  margin-top: 1rem;
+}
+
 .infrastructure-inventory {
   margin-top: 1rem;
 }
@@ -368,6 +372,12 @@ body {
 }
 
 .timeline-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.insight-list {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 1rem;
@@ -584,6 +594,7 @@ body {
   .queue-list,
   .token-list,
   .token-summary,
+  .insight-list,
   .timeline-list,
   .roadmap__items {
     grid-template-columns: 1fr;

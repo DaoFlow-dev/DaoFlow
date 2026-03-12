@@ -118,6 +118,44 @@ describe("appRouter", () => {
     });
   });
 
+  it("returns evidence-backed deployment insights for signed-in viewers", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-insights-viewer",
+      session: makeSession("viewer")
+    });
+
+    const insights = await caller.deploymentInsights({});
+    const failedInsight = insights.find(
+      (insight) => insight.deploymentId === "dep_foundation_20260311_1"
+    );
+
+    expect(insights.length).toBeGreaterThan(0);
+    expect(failedInsight).toMatchObject({
+      status: "failed",
+      summary: "Health check failed and left the deployment unhealthy.",
+      suspectedRootCause: "New container restarted twice and failed readiness checks."
+    });
+    expect(failedInsight?.safeActions[0]).toContain("healthy baseline");
+    expect(failedInsight?.evidence).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "step",
+          id: "step_previous_health",
+          title: "Health check"
+        }),
+        expect.objectContaining({
+          kind: "event",
+          id: "evt_foundation_previous_failed",
+          title: "Deployment failed readiness checks."
+        })
+      ])
+    );
+    expect(failedInsight?.healthyBaseline).toMatchObject({
+      deploymentId: "dep_foundation_20260312_1",
+      commitSha: "03e40ca"
+    });
+  });
+
   it("returns backup policies and runs for signed-in viewers", async () => {
     const caller = appRouter.createCaller({
       requestId: "test-backups-viewer",

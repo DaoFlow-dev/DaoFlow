@@ -35,6 +35,13 @@ test("loads the DaoFlow foundation dashboard", async ({ page }) => {
     page.getByTestId("environment-card-env_daoflow_production")
   ).toContainText("/srv/daoflow/production/compose.yaml");
   await expect(page.getByText("Queued and historical deployments")).toBeVisible();
+  await expect(page.getByText("Agent-ready deployment diagnostics")).toBeVisible();
+  await expect(
+    page.getByTestId("deployment-insight-dep_foundation_20260311_1")
+  ).toContainText("Health check failed and left the deployment unhealthy.");
+  await expect(
+    page.getByTestId("deployment-insight-dep_foundation_20260311_1")
+  ).toContainText("Healthy baseline: 03e40ca");
   await expect(page.getByText("Worker handoff queue")).toBeVisible();
   await expect(
     page.getByTestId("deployment-card-dep_foundation_20260312_1")

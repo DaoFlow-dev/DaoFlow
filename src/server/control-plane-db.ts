@@ -125,6 +125,33 @@ export interface OperationsTimelineEvent {
   createdAt: string;
 }
 
+export interface DeploymentInsightEvidence {
+  kind: "step" | "event";
+  id: string;
+  title: string;
+  detail: string;
+}
+
+export interface DeploymentInsightRecord {
+  deploymentId: string;
+  projectName: string;
+  environmentName: string;
+  serviceName: string;
+  status: DeploymentStatus;
+  summary: string;
+  suspectedRootCause: string;
+  safeActions: string[];
+  evidence: DeploymentInsightEvidence[];
+  healthyBaseline:
+    | {
+        deploymentId: string;
+        commitSha: string;
+        imageTag: string;
+        finishedAt: string | null;
+      }
+    | null;
+}
+
 export interface ExecutionJobMutationResult {
   status: "ok" | "not-found" | "invalid-state";
   currentStatus?: ExecutionJobStatus;
@@ -2140,6 +2167,216 @@ export function listOperationsTimeline(deploymentId?: string, limit = 20) {
     actorLabel: row.actor_label,
     createdAt: row.created_at
   })) satisfies OperationsTimelineEvent[];
+}
+
+function getReferenceHealthyDeployment(deployment: DeploymentRecord) {
+  const row = controlPlaneDb.prepare(`
+    SELECT
+      deployments.id,
+      deployments.project_name,
+      deployments.environment_name,
+      deployments.service_name,
+      deployments.source_type,
+      deployments.status,
+      deployments.commit_sha,
+      deployments.image_tag,
+      deployments.requested_by_user_id,
+      deployments.requested_by_email,
+      deployments.created_at,
+      deployments.started_at,
+      deployments.finished_at,
+      servers.name AS target_server_name,
+      servers.host AS target_server_host
+    FROM deployments
+    INNER JOIN servers ON servers.id = deployments.target_server_id
+    WHERE deployments.project_name = ?
+      AND deployments.environment_name = ?
+      AND deployments.service_name = ?
+      AND deployments.status = 'healthy'
+      AND deployments.id != ?
+    ORDER BY deployments.created_at DESC
+    LIMIT 1
+  `).get(
+    deployment.projectName,
+    deployment.environmentName,
+    deployment.serviceName,
+    deployment.id
+  ) as DeploymentRow | undefined;
+
+  if (!row) {
+    return null;
+  }
+
+  return mapDeploymentRows([row])[0] ?? null;
+}
+
+function buildSafeActions(status: DeploymentStatus, hasHealthyBaseline: boolean) {
+  if (status === "failed") {
+    return [
+      hasHealthyBaseline
+        ? "Compare the failed release inputs against the nearest healthy baseline before retrying."
+        : "Freeze the current failure inputs before attempting another rollout.",
+      "Inspect the cited failing step and event evidence before sending any new command.",
+      "Prepare a rollback or redeploy plan, but keep execution gated behind an operator action."
+    ];
+  }
+
+  if (status === "running") {
+    return [
+      "Wait for the active step to finish before issuing more changes.",
+      "Monitor worker and health-check events instead of retrying preemptively."
+    ];
+  }
+
+  if (status === "queued") {
+    return [
+      "Validate the target environment inputs before the worker claims the job.",
+      "Confirm the requested commit SHA and image tag match the intended release."
+    ];
+  }
+
+  return [
+    "Use this release as a rollback baseline for the next deployment.",
+    "Keep backups and environment metadata current before the next change window."
+  ];
+}
+
+function buildDeploymentInsight(deployment: DeploymentRecord): DeploymentInsightRecord {
+  const timeline = listOperationsTimeline(deployment.id, 12);
+  const failedStep = [...deployment.steps].reverse().find((step) => step.status === "failed");
+  const runningStep = [...deployment.steps].reverse().find((step) => step.status === "running");
+  const pendingStep = deployment.steps.find((step) => step.status === "pending");
+  const failedEvent = timeline.find((event) => event.level === "error");
+  const latestEvent = timeline[0] ?? null;
+  const primaryStep = failedStep ?? runningStep ?? pendingStep ?? deployment.steps.at(-1) ?? null;
+  const healthyBaseline = getReferenceHealthyDeployment(deployment);
+  const evidence: DeploymentInsightEvidence[] = [];
+
+  if (primaryStep) {
+    evidence.push({
+      kind: "step",
+      id: primaryStep.id,
+      title: primaryStep.label,
+      detail: primaryStep.detail
+    });
+  }
+
+  if (failedEvent) {
+    evidence.push({
+      kind: "event",
+      id: failedEvent.id,
+      title: failedEvent.summary,
+      detail: failedEvent.detail
+    });
+  } else if (latestEvent) {
+    evidence.push({
+      kind: "event",
+      id: latestEvent.id,
+      title: latestEvent.summary,
+      detail: latestEvent.detail
+    });
+  }
+
+  if (deployment.status === "failed") {
+    return {
+      deploymentId: deployment.id,
+      projectName: deployment.projectName,
+      environmentName: deployment.environmentName,
+      serviceName: deployment.serviceName,
+      status: deployment.status,
+      summary: primaryStep
+        ? `${primaryStep.label} failed and left the deployment unhealthy.`
+        : "Deployment failed without a captured step transition.",
+      suspectedRootCause: primaryStep?.detail ?? failedEvent?.detail ?? "Execution worker reported failure.",
+      safeActions: buildSafeActions(deployment.status, Boolean(healthyBaseline)),
+      evidence,
+      healthyBaseline: healthyBaseline
+        ? {
+            deploymentId: healthyBaseline.id,
+            commitSha: healthyBaseline.commitSha,
+            imageTag: healthyBaseline.imageTag,
+            finishedAt: healthyBaseline.finishedAt
+          }
+        : null
+    };
+  }
+
+  if (deployment.status === "running") {
+    return {
+      deploymentId: deployment.id,
+      projectName: deployment.projectName,
+      environmentName: deployment.environmentName,
+      serviceName: deployment.serviceName,
+      status: deployment.status,
+      summary: primaryStep
+        ? `${primaryStep.label} is currently executing.`
+        : "Deployment is in progress with no active step recorded.",
+      suspectedRootCause:
+        primaryStep?.detail ??
+        failedEvent?.detail ??
+        "Execution has started and is waiting for the next worker update.",
+      safeActions: buildSafeActions(deployment.status, Boolean(healthyBaseline)),
+      evidence,
+      healthyBaseline: healthyBaseline
+        ? {
+            deploymentId: healthyBaseline.id,
+            commitSha: healthyBaseline.commitSha,
+            imageTag: healthyBaseline.imageTag,
+            finishedAt: healthyBaseline.finishedAt
+          }
+        : null
+    };
+  }
+
+  if (deployment.status === "queued") {
+    return {
+      deploymentId: deployment.id,
+      projectName: deployment.projectName,
+      environmentName: deployment.environmentName,
+      serviceName: deployment.serviceName,
+      status: deployment.status,
+      summary: "Deployment is queued and waiting for worker dispatch.",
+      suspectedRootCause:
+        primaryStep?.detail ??
+        latestEvent?.detail ??
+        "The control plane is waiting for an execution worker to claim the job.",
+      safeActions: buildSafeActions(deployment.status, Boolean(healthyBaseline)),
+      evidence,
+      healthyBaseline: healthyBaseline
+        ? {
+            deploymentId: healthyBaseline.id,
+            commitSha: healthyBaseline.commitSha,
+            imageTag: healthyBaseline.imageTag,
+            finishedAt: healthyBaseline.finishedAt
+          }
+        : null
+    };
+  }
+
+  return {
+    deploymentId: deployment.id,
+    projectName: deployment.projectName,
+    environmentName: deployment.environmentName,
+    serviceName: deployment.serviceName,
+    status: deployment.status,
+    summary: "Deployment is healthy and can serve as a rollback baseline.",
+    suspectedRootCause:
+      latestEvent?.detail ?? "The most recent worker and step events indicate a healthy rollout.",
+    safeActions: buildSafeActions(deployment.status, Boolean(healthyBaseline)),
+    evidence,
+    healthyBaseline: healthyBaseline
+      ? {
+          deploymentId: healthyBaseline.id,
+          commitSha: healthyBaseline.commitSha,
+          imageTag: healthyBaseline.imageTag,
+          finishedAt: healthyBaseline.finishedAt
+        }
+      : null
+  };
+}
+
+export function listDeploymentInsights(limit = 6) {
+  return listDeploymentRecords(undefined, limit).map((deployment) => buildDeploymentInsight(deployment));
 }
 
 function getBackupPolicyRows() {
