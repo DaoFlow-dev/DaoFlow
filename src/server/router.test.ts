@@ -99,6 +99,19 @@ describe("appRouter", () => {
     await expect(caller.adminControlPlane()).rejects.toBeInstanceOf(TRPCError);
   });
 
+  it("blocks execution lifecycle mutations for viewer roles", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-execution-viewer-block",
+      session: makeSession("viewer")
+    });
+
+    await expect(
+      caller.dispatchExecutionJob({
+        jobId: "job_foundation_20260312_1"
+      })
+    ).rejects.toBeInstanceOf(TRPCError);
+  });
+
   it("returns admin control-plane data for elevated roles", async () => {
     const caller = appRouter.createCaller({
       requestId: "test-admin-owner",
@@ -204,6 +217,117 @@ describe("appRouter", () => {
     });
     expect(timeline.some((event) => event.kind === "deployment.queued")).toBe(true);
     expect(timeline.some((event) => event.kind === "execution.job.created")).toBe(true);
+  });
+
+  it("advances execution jobs through dispatch and completion", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-job-complete",
+      session: makeSession("operator")
+    });
+
+    const deployment = await caller.createDeploymentRecord({
+      projectName: "DaoFlow",
+      environmentName: "staging",
+      serviceName: "queue-worker",
+      sourceType: "dockerfile",
+      targetServerId: "srv_foundation_1",
+      commitSha: "abcdef1",
+      imageTag: "ghcr.io/daoflow/queue-worker:0.2.0",
+      steps: [
+        {
+          label: "Render runtime spec",
+          detail: "Prepare the runtime inputs."
+        },
+        {
+          label: "Queue execution handoff",
+          detail: "Wait for the worker."
+        }
+      ]
+    });
+    const pendingQueue = await caller.executionQueue({
+      status: "pending"
+    });
+    const job = pendingQueue.jobs.find((entry) => entry.deploymentId === deployment.id);
+
+    expect(job).toBeDefined();
+    if (!job) {
+      throw new Error("Expected a pending execution job.");
+    }
+
+    const dispatchedJob = await caller.dispatchExecutionJob({
+      jobId: job.id
+    });
+    expect(dispatchedJob?.status).toBe("dispatched");
+
+    const completedJob = await caller.completeExecutionJob({
+      jobId: job.id
+    });
+    expect(completedJob?.status).toBe("completed");
+
+    const updatedDeployment = await caller.deploymentDetails({
+      deploymentId: deployment.id
+    });
+    expect(updatedDeployment.status).toBe("healthy");
+    expect(updatedDeployment.steps.every((step) => step.status === "completed")).toBe(true);
+
+    const timeline = await caller.operationsTimeline({
+      deploymentId: deployment.id
+    });
+    expect(timeline.some((event) => event.kind === "execution.job.dispatched")).toBe(true);
+    expect(timeline.some((event) => event.kind === "deployment.succeeded")).toBe(true);
+  });
+
+  it("fails dispatched execution jobs and blocks invalid transitions", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-job-fail",
+      session: makeSession("operator")
+    });
+
+    const deployment = await caller.createDeploymentRecord({
+      projectName: "DaoFlow",
+      environmentName: "staging",
+      serviceName: "broken-worker",
+      sourceType: "dockerfile",
+      targetServerId: "srv_foundation_1",
+      commitSha: "abcdef1",
+      imageTag: "ghcr.io/daoflow/broken-worker:0.2.0",
+      steps: [
+        {
+          label: "Render runtime spec",
+          detail: "Prepare the runtime inputs."
+        }
+      ]
+    });
+    const pendingQueue = await caller.executionQueue({
+      status: "pending"
+    });
+    const job = pendingQueue.jobs.find((entry) => entry.deploymentId === deployment.id);
+
+    expect(job).toBeDefined();
+    if (!job) {
+      throw new Error("Expected a pending execution job.");
+    }
+
+    await caller.dispatchExecutionJob({
+      jobId: job.id
+    });
+    const failedJob = await caller.failExecutionJob({
+      jobId: job.id,
+      reason: "Simulated rollout failure."
+    });
+    expect(failedJob?.status).toBe("failed");
+
+    const updatedDeployment = await caller.deploymentDetails({
+      deploymentId: deployment.id
+    });
+    expect(updatedDeployment.status).toBe("failed");
+    expect(updatedDeployment.steps.some((step) => step.status === "failed")).toBe(true);
+
+    await expect(
+      caller.completeExecutionJob({
+        jobId: job.id
+      })
+    ).rejects.toBeInstanceOf(TRPCError);
   });
 
   it("blocks queued deployment creation for viewer roles", async () => {

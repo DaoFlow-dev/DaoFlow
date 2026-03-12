@@ -24,12 +24,20 @@ function getExecutionJobTone(status: string): StatusTone {
 }
 
 function getTimelineLifecycle(kind: string) {
-  if (kind === "deployment.failed" || kind === "execution.job.failed") {
+  if (kind === "deployment.failed" || kind === "execution.job.failed" || kind === "step.failed") {
     return "failed" as const;
   }
 
-  if (kind === "deployment.succeeded" || kind === "execution.job.completed") {
+  if (
+    kind === "deployment.succeeded" ||
+    kind === "execution.job.completed" ||
+    kind === "step.completed"
+  ) {
     return "completed" as const;
+  }
+
+  if (kind === "execution.job.dispatched" || kind === "step.running") {
+    return "running" as const;
   }
 
   return "queued" as const;
@@ -55,6 +63,9 @@ export default function App() {
   const overview = trpc.platformOverview.useQuery();
   const roadmap = trpc.roadmap.useQuery({});
   const createDeploymentRecord = trpc.createDeploymentRecord.useMutation();
+  const dispatchExecutionJob = trpc.dispatchExecutionJob.useMutation();
+  const completeExecutionJob = trpc.completeExecutionJob.useMutation();
+  const failExecutionJob = trpc.failExecutionJob.useMutation();
   const recentDeployments = trpc.recentDeployments.useQuery({}, {
     enabled: Boolean(session.data)
   });
@@ -84,6 +95,7 @@ export default function App() {
   const [imageTag, setImageTag] = useState("ghcr.io/daoflow/edge-worker:0.2.0");
   const [authFeedback, setAuthFeedback] = useState<string | null>(null);
   const [deploymentFeedback, setDeploymentFeedback] = useState<string | null>(null);
+  const [executionFeedback, setExecutionFeedback] = useState<string | null>(null);
 
   async function handleSignUp(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -141,6 +153,13 @@ export default function App() {
     await session.refetch();
     setAuthFeedback("Signed out.");
     setDeploymentFeedback(null);
+    setExecutionFeedback(null);
+  }
+
+  async function refreshOperationalViews() {
+    await recentDeployments.refetch();
+    await executionQueue.refetch();
+    await operationsTimeline.refetch();
   }
 
   async function handleCreateDeployment(event: FormEvent<HTMLFormElement>) {
@@ -168,15 +187,68 @@ export default function App() {
         ]
       });
 
-      await recentDeployments.refetch();
-      await executionQueue.refetch();
-      await operationsTimeline.refetch();
+      await refreshOperationalViews();
       setDeploymentFeedback(`Queued ${deployment.serviceName} as ${deployment.id}.`);
     } catch (error) {
       setDeploymentFeedback(
         isTRPCClientError(error)
           ? error.message
           : "Unable to queue the deployment record right now."
+      );
+    }
+  }
+
+  async function handleDispatchJob(jobId: string, service: string) {
+    setExecutionFeedback(null);
+
+    try {
+      await dispatchExecutionJob.mutateAsync({
+        jobId
+      });
+      await refreshOperationalViews();
+      setExecutionFeedback(`Dispatched ${service} to the execution worker.`);
+    } catch (error) {
+      setExecutionFeedback(
+        isTRPCClientError(error)
+          ? error.message
+          : "Unable to dispatch the execution job right now."
+      );
+    }
+  }
+
+  async function handleCompleteJob(jobId: string, service: string) {
+    setExecutionFeedback(null);
+
+    try {
+      await completeExecutionJob.mutateAsync({
+        jobId
+      });
+      await refreshOperationalViews();
+      setExecutionFeedback(`Marked ${service} healthy.`);
+    } catch (error) {
+      setExecutionFeedback(
+        isTRPCClientError(error)
+          ? error.message
+          : "Unable to complete the execution job right now."
+      );
+    }
+  }
+
+  async function handleFailJob(jobId: string, service: string) {
+    setExecutionFeedback(null);
+
+    try {
+      await failExecutionJob.mutateAsync({
+        jobId,
+        reason: `${service} failed the simulated worker rollout.`
+      });
+      await refreshOperationalViews();
+      setExecutionFeedback(`Marked ${service} failed.`);
+    } catch (error) {
+      setExecutionFeedback(
+        isTRPCClientError(error)
+          ? error.message
+          : "Unable to fail the execution job right now."
       );
     }
   }
@@ -210,6 +282,12 @@ export default function App() {
     currentRole === "admin" ||
     currentRole === "operator" ||
     currentRole === "developer";
+  const canOperateExecutionJobs =
+    currentRole === "owner" || currentRole === "admin" || currentRole === "operator";
+  const executionMutationPending =
+    dispatchExecutionJob.isPending ||
+    completeExecutionJob.isPending ||
+    failExecutionJob.isPending;
 
   return (
     <main className="shell">
@@ -519,6 +597,12 @@ export default function App() {
               </div>
             </div>
 
+            {executionFeedback ? (
+              <p className="auth-feedback" data-testid="execution-feedback">
+                {executionFeedback}
+              </p>
+            ) : null}
+
             <div className="queue-list">
               {executionQueue.data.jobs.map((job) => (
                 <article
@@ -543,6 +627,46 @@ export default function App() {
                   <p className="deployment-card__meta">
                     {job.projectName} on {job.targetServerName} ({job.targetServerHost})
                   </p>
+                  {canOperateExecutionJobs ? (
+                    <div className="job-actions">
+                      {job.status === "pending" ? (
+                        <button
+                          className="action-button"
+                          disabled={executionMutationPending}
+                          onClick={() => {
+                            void handleDispatchJob(job.id, job.serviceName);
+                          }}
+                          type="button"
+                        >
+                          Dispatch
+                        </button>
+                      ) : null}
+                      {job.status === "dispatched" ? (
+                        <>
+                          <button
+                            className="action-button"
+                            disabled={executionMutationPending}
+                            onClick={() => {
+                              void handleCompleteJob(job.id, job.serviceName);
+                            }}
+                            type="button"
+                          >
+                            Mark healthy
+                          </button>
+                          <button
+                            className="action-button action-button--muted"
+                            disabled={executionMutationPending}
+                            onClick={() => {
+                              void handleFailJob(job.id, job.serviceName);
+                            }}
+                            type="button"
+                          >
+                            Mark failed
+                          </button>
+                        </>
+                      ) : null}
+                    </div>
+                  ) : null}
                 </article>
               ))}
             </div>
@@ -569,7 +693,7 @@ export default function App() {
                     </p>
                     <h3>{event.summary}</h3>
                   </div>
-                    <span
+                  <span
                     className={`deployment-status deployment-status--${getTimelineTone(event.kind)}`}
                   >
                     {getTimelineLifecycle(event.kind)}

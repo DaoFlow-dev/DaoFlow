@@ -47,9 +47,30 @@ test("loads the DaoFlow foundation dashboard", async ({ page }) => {
   await expect(
     page.locator('[data-testid^="execution-job-"]').filter({ hasText: "edge-worker-ui" })
   ).toContainText("Queue: docker-ssh");
+  await page
+    .locator('[data-testid^="execution-job-"]')
+    .filter({ hasText: "edge-worker-ui" })
+    .getByRole("button", { name: "Dispatch" })
+    .click();
+  await expect(page.getByTestId("execution-feedback")).toContainText("Dispatched edge-worker-ui");
+  await expect(
+    page.locator('[data-testid^="execution-job-"]').filter({ hasText: "edge-worker-ui" })
+  ).toContainText("dispatched");
+  await page
+    .locator('[data-testid^="execution-job-"]')
+    .filter({ hasText: "edge-worker-ui" })
+    .getByRole("button", { name: "Mark healthy" })
+    .click();
+  await expect(page.getByTestId("execution-feedback")).toContainText("Marked edge-worker-ui healthy");
+  await expect(
+    page.locator('[data-testid^="execution-job-"]').filter({ hasText: "edge-worker-ui" })
+  ).toContainText("completed");
+  await expect(
+    page.locator('[data-testid^="deployment-card-"]').filter({ hasText: "edge-worker-ui" })
+  ).toContainText("healthy");
   await expect(
     page.locator('[data-testid^="timeline-event-"]').filter({
-      hasText: "Deployment record queued for execution."
+      hasText: "Deployment reached a healthy state."
     })
   ).toContainText("edge-worker-ui");
   await expect(page.getByText("Scoped automation identities")).toBeVisible();

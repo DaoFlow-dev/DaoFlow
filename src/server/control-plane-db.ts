@@ -25,9 +25,13 @@ export type DeploymentEventLevel = "info" | "warning" | "error";
 export type DeploymentEventKind =
   | "deployment.queued"
   | "execution.job.created"
+  | "execution.job.dispatched"
   | "execution.job.completed"
   | "execution.job.failed"
   | "step.pending"
+  | "step.running"
+  | "step.completed"
+  | "step.failed"
   | "deployment.succeeded"
   | "deployment.failed";
 
@@ -117,6 +121,12 @@ export interface OperationsTimelineEvent {
   actorType: "human" | "system";
   actorLabel: string;
   createdAt: string;
+}
+
+export interface ExecutionJobMutationResult {
+  status: "ok" | "not-found" | "invalid-state";
+  currentStatus?: ExecutionJobStatus;
+  job?: ExecutionJobRecord;
 }
 
 export interface ApiTokenRecord {
@@ -761,6 +771,16 @@ interface DeploymentEventRow {
   created_at: string;
 }
 
+interface DeploymentStepStateRow {
+  id: string;
+  position: number;
+  label: string;
+  detail: string;
+  status: DeploymentStepStatus;
+  started_at: string;
+  finished_at: string | null;
+}
+
 function getDeploymentRows(options?: { status?: DeploymentStatus; limit?: number }) {
   const status = options?.status;
   const limit = options?.limit ?? 50;
@@ -1192,8 +1212,32 @@ function getExecutionJobSummary(status?: ExecutionJobStatus) {
     | undefined;
 }
 
-export function listExecutionQueue(status?: ExecutionJobStatus, limit = 20): ExecutionQueueSnapshot {
-  const jobs = getExecutionJobRows({ status, limit }).map((row) => ({
+function getExecutionJobRow(jobId: string) {
+  return controlPlaneDb.prepare(`
+    SELECT
+      execution_jobs.id,
+      execution_jobs.deployment_id,
+      execution_jobs.status,
+      execution_jobs.queue_name,
+      execution_jobs.worker_hint,
+      execution_jobs.attempt_count,
+      execution_jobs.created_at,
+      execution_jobs.available_at,
+      deployments.project_name,
+      deployments.environment_name,
+      deployments.service_name,
+      servers.name AS target_server_name,
+      servers.host AS target_server_host
+    FROM execution_jobs
+    INNER JOIN deployments ON deployments.id = execution_jobs.deployment_id
+    INNER JOIN servers ON servers.id = execution_jobs.target_server_id
+    WHERE execution_jobs.id = ?
+    LIMIT 1
+  `).get(jobId) as ExecutionJobRow | undefined;
+}
+
+function mapExecutionJobRow(row: ExecutionJobRow): ExecutionJobRecord {
+  return {
     id: row.id,
     deploymentId: row.deployment_id,
     projectName: row.project_name,
@@ -1207,7 +1251,63 @@ export function listExecutionQueue(status?: ExecutionJobStatus, limit = 20): Exe
     attemptCount: row.attempt_count,
     createdAt: row.created_at,
     availableAt: row.available_at
-  }));
+  };
+}
+
+function getStepStateRows(deploymentId: string) {
+  return controlPlaneDb.prepare(`
+    SELECT
+      id,
+      position,
+      label,
+      detail,
+      status,
+      started_at,
+      finished_at
+    FROM deployment_steps
+    WHERE deployment_id = ?
+    ORDER BY position ASC
+  `).all(deploymentId) as unknown as DeploymentStepStateRow[];
+}
+
+function appendDeploymentEvent(
+  deploymentId: string,
+  kind: DeploymentEventKind,
+  level: DeploymentEventLevel,
+  summary: string,
+  detail: string,
+  actorType: "human" | "system",
+  actorLabel: string,
+  createdAt: string
+) {
+  controlPlaneDb.prepare(`
+    INSERT INTO deployment_events (
+      id,
+      deployment_id,
+      kind,
+      level,
+      summary,
+      detail,
+      actor_type,
+      actor_label,
+      created_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    `evt_${randomUUID().slice(0, 8)}`,
+    deploymentId,
+    kind,
+    level,
+    summary,
+    detail,
+    actorType,
+    actorLabel,
+    createdAt
+  );
+}
+
+export function listExecutionQueue(status?: ExecutionJobStatus, limit = 20): ExecutionQueueSnapshot {
+  const jobs = getExecutionJobRows({ status, limit }).map((row) => mapExecutionJobRow(row));
   const summary = getExecutionJobSummary(status);
 
   return {
@@ -1220,6 +1320,289 @@ export function listExecutionQueue(status?: ExecutionJobStatus, limit = 20): Exe
     },
     jobs
   };
+}
+
+export function dispatchExecutionJob(
+  jobId: string,
+  actorLabel: string
+): ExecutionJobMutationResult {
+  const jobRow = getExecutionJobRow(jobId);
+
+  if (!jobRow) {
+    return { status: "not-found" };
+  }
+
+  if (jobRow.status !== "pending") {
+    return {
+      status: "invalid-state",
+      currentStatus: jobRow.status
+    };
+  }
+
+  const now = new Date().toISOString();
+  const stepRows = getStepStateRows(jobRow.deployment_id);
+  const nextStep = stepRows.find((step) => step.status === "pending");
+
+  controlPlaneDb.exec("BEGIN");
+
+  try {
+    controlPlaneDb.prepare(`
+      UPDATE execution_jobs
+      SET
+        status = 'dispatched',
+        attempt_count = attempt_count + 1,
+        available_at = ?
+      WHERE id = ?
+    `).run(now, jobId);
+
+    controlPlaneDb.prepare(`
+      UPDATE deployments
+      SET
+        status = 'running',
+        started_at = ?
+      WHERE id = ?
+    `).run(now, jobRow.deployment_id);
+
+    if (nextStep) {
+      controlPlaneDb.prepare(`
+        UPDATE deployment_steps
+        SET
+          status = 'running',
+          started_at = ?
+        WHERE id = ?
+      `).run(now, nextStep.id);
+
+      appendDeploymentEvent(
+        jobRow.deployment_id,
+        "step.running",
+        "info",
+        `${nextStep.label} is now running.`,
+        nextStep.detail,
+        "system",
+        "docker-ssh-worker",
+        now
+      );
+    }
+
+    appendDeploymentEvent(
+      jobRow.deployment_id,
+      "execution.job.dispatched",
+      "info",
+      "Worker claimed the queued job.",
+      `Execution started for ${jobRow.service_name} on ${jobRow.target_server_name}.`,
+      "human",
+      actorLabel,
+      now
+    );
+
+    controlPlaneDb.exec("COMMIT");
+  } catch (error) {
+    controlPlaneDb.exec("ROLLBACK");
+    throw error;
+  }
+
+  const updatedJobRow = getExecutionJobRow(jobId);
+
+  return updatedJobRow
+    ? {
+        status: "ok",
+        job: mapExecutionJobRow(updatedJobRow)
+      }
+    : { status: "not-found" };
+}
+
+export function completeExecutionJob(
+  jobId: string,
+  actorLabel: string
+): ExecutionJobMutationResult {
+  const jobRow = getExecutionJobRow(jobId);
+
+  if (!jobRow) {
+    return { status: "not-found" };
+  }
+
+  if (jobRow.status !== "dispatched") {
+    return {
+      status: "invalid-state",
+      currentStatus: jobRow.status
+    };
+  }
+
+  const now = new Date().toISOString();
+  const stepRows = getStepStateRows(jobRow.deployment_id);
+
+  controlPlaneDb.exec("BEGIN");
+
+  try {
+    controlPlaneDb.prepare(`
+      UPDATE execution_jobs
+      SET status = 'completed'
+      WHERE id = ?
+    `).run(jobId);
+
+    controlPlaneDb.prepare(`
+      UPDATE deployments
+      SET
+        status = 'healthy',
+        finished_at = ?
+      WHERE id = ?
+    `).run(now, jobRow.deployment_id);
+
+    for (const step of stepRows.filter((row) => row.status !== "completed")) {
+      controlPlaneDb.prepare(`
+        UPDATE deployment_steps
+        SET
+          status = 'completed',
+          finished_at = ?
+        WHERE id = ?
+      `).run(now, step.id);
+
+      appendDeploymentEvent(
+        jobRow.deployment_id,
+        "step.completed",
+        "info",
+        `${step.label} completed.`,
+        step.detail,
+        "system",
+        "docker-ssh-worker",
+        now
+      );
+    }
+
+    appendDeploymentEvent(
+      jobRow.deployment_id,
+      "execution.job.completed",
+      "info",
+      "Worker completed the execution job.",
+      `The execution worker reported success for ${jobRow.service_name}.`,
+      "human",
+      actorLabel,
+      now
+    );
+    appendDeploymentEvent(
+      jobRow.deployment_id,
+      "deployment.succeeded",
+      "info",
+      "Deployment reached a healthy state.",
+      `${jobRow.service_name} finished successfully in ${jobRow.environment_name}.`,
+      "system",
+      "docker-ssh-worker",
+      now
+    );
+
+    controlPlaneDb.exec("COMMIT");
+  } catch (error) {
+    controlPlaneDb.exec("ROLLBACK");
+    throw error;
+  }
+
+  const updatedJobRow = getExecutionJobRow(jobId);
+
+  return updatedJobRow
+    ? {
+        status: "ok",
+        job: mapExecutionJobRow(updatedJobRow)
+      }
+    : { status: "not-found" };
+}
+
+export function failExecutionJob(
+  jobId: string,
+  actorLabel: string,
+  reason?: string
+): ExecutionJobMutationResult {
+  const jobRow = getExecutionJobRow(jobId);
+
+  if (!jobRow) {
+    return { status: "not-found" };
+  }
+
+  if (jobRow.status !== "dispatched") {
+    return {
+      status: "invalid-state",
+      currentStatus: jobRow.status
+    };
+  }
+
+  const now = new Date().toISOString();
+  const stepRows = getStepStateRows(jobRow.deployment_id);
+  const failedStep =
+    stepRows.find((step) => step.status === "running") ??
+    stepRows.find((step) => step.status === "pending");
+
+  controlPlaneDb.exec("BEGIN");
+
+  try {
+    controlPlaneDb.prepare(`
+      UPDATE execution_jobs
+      SET status = 'failed'
+      WHERE id = ?
+    `).run(jobId);
+
+    controlPlaneDb.prepare(`
+      UPDATE deployments
+      SET
+        status = 'failed',
+        finished_at = ?
+      WHERE id = ?
+    `).run(now, jobRow.deployment_id);
+
+    if (failedStep) {
+      controlPlaneDb.prepare(`
+        UPDATE deployment_steps
+        SET
+          status = 'failed',
+          finished_at = ?
+        WHERE id = ?
+      `).run(now, failedStep.id);
+
+      appendDeploymentEvent(
+        jobRow.deployment_id,
+        "step.failed",
+        "error",
+        `${failedStep.label} failed.`,
+        reason ?? failedStep.detail,
+        "system",
+        "docker-ssh-worker",
+        now
+      );
+    }
+
+    appendDeploymentEvent(
+      jobRow.deployment_id,
+      "execution.job.failed",
+      "error",
+      "Worker reported a failed execution job.",
+      reason ?? `The execution worker failed ${jobRow.service_name}.`,
+      "human",
+      actorLabel,
+      now
+    );
+    appendDeploymentEvent(
+      jobRow.deployment_id,
+      "deployment.failed",
+      "error",
+      "Deployment entered a failed state.",
+      reason ?? `${jobRow.service_name} failed during execution.`,
+      "system",
+      "docker-ssh-worker",
+      now
+    );
+
+    controlPlaneDb.exec("COMMIT");
+  } catch (error) {
+    controlPlaneDb.exec("ROLLBACK");
+    throw error;
+  }
+
+  const updatedJobRow = getExecutionJobRow(jobId);
+
+  return updatedJobRow
+    ? {
+        status: "ok",
+        job: mapExecutionJobRow(updatedJobRow)
+      }
+    : { status: "not-found" };
 }
 
 export function listOperationsTimeline(deploymentId?: string, limit = 20) {

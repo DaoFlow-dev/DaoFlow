@@ -9,8 +9,11 @@ import {
   type AppRole
 } from "../shared/authz";
 import {
+  completeExecutionJob,
   createDeploymentRecord,
+  dispatchExecutionJob,
   ensureControlPlaneReady,
+  failExecutionJob,
   listApiTokenInventory,
   getDeploymentRecord,
   listDeploymentRecords,
@@ -52,9 +55,10 @@ const roleProcedure = (allowedRoles: readonly AppRole[]) =>
         role
       }
     });
-  });
+});
 const adminProcedure = roleProcedure(["owner", "admin"]);
 const deployProcedure = roleProcedure(["owner", "admin", "operator", "developer"]);
+const executionProcedure = roleProcedure(["owner", "admin", "operator"]);
 
 const productPrinciples = [
   "Safety before autonomy",
@@ -77,7 +81,7 @@ export const appRouter = t.router({
   })),
   platformOverview: t.procedure.query(() => ({
     name: "DaoFlow",
-    currentSlice: "execution-handoff",
+    currentSlice: "execution-lifecycle",
     thesis:
       "A Docker-first deployment control plane for bare metal and VPS environments.",
     architecture: {
@@ -203,6 +207,85 @@ export const appRouter = t.router({
     .query(async ({ input }) => {
       await ensureControlPlaneReady();
       return listExecutionQueue(input.status, input.limit ?? 12);
+    }),
+  dispatchExecutionJob: executionProcedure
+    .input(
+      z.object({
+        jobId: z.string().min(1)
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      await ensureControlPlaneReady();
+      const result = dispatchExecutionJob(input.jobId, ctx.session.user.email);
+
+      if (result.status === "not-found") {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Execution job not found."
+        });
+      }
+
+      if (result.status === "invalid-state") {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: `Execution job is already ${result.currentStatus}.`
+        });
+      }
+
+      return result.job;
+    }),
+  completeExecutionJob: executionProcedure
+    .input(
+      z.object({
+        jobId: z.string().min(1)
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      await ensureControlPlaneReady();
+      const result = completeExecutionJob(input.jobId, ctx.session.user.email);
+
+      if (result.status === "not-found") {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Execution job not found."
+        });
+      }
+
+      if (result.status === "invalid-state") {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: `Execution job is already ${result.currentStatus}.`
+        });
+      }
+
+      return result.job;
+    }),
+  failExecutionJob: executionProcedure
+    .input(
+      z.object({
+        jobId: z.string().min(1),
+        reason: z.string().min(1).max(280).optional()
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      await ensureControlPlaneReady();
+      const result = failExecutionJob(input.jobId, ctx.session.user.email, input.reason);
+
+      if (result.status === "not-found") {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Execution job not found."
+        });
+      }
+
+      if (result.status === "invalid-state") {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: `Execution job is already ${result.currentStatus}.`
+        });
+      }
+
+      return result.job;
     }),
   operationsTimeline: protectedProcedure
     .input(
