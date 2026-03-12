@@ -245,6 +245,10 @@ body {
   margin-top: 1rem;
 }
 
+.execution-handoff {
+  margin-top: 1rem;
+}
+
 .deployment-composer {
   margin-bottom: 1rem;
   display: grid;
@@ -292,6 +296,25 @@ body {
   gap: 1rem;
 }
 
+.queue-summary {
+  margin-bottom: 1rem;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.queue-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.timeline-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
 .deployment-card {
   border: 1px solid rgba(31, 36, 31, 0.1);
   border-radius: 24px;
@@ -306,6 +329,16 @@ body {
   border-radius: 24px;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(241, 236, 226, 0.92)),
+    rgba(255, 252, 246, 0.82);
+  box-shadow: 0 18px 60px rgba(73, 64, 46, 0.08);
+  padding: 1.5rem;
+}
+
+.timeline-event {
+  border: 1px solid rgba(31, 36, 31, 0.1);
+  border-radius: 24px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(245, 238, 225, 0.9)),
     rgba(255, 252, 246, 0.82);
   box-shadow: 0 18px 60px rgba(73, 64, 46, 0.08);
   padding: 1.5rem;
@@ -329,6 +362,13 @@ body {
 }
 
 .token-card__top {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.timeline-event__top {
   display: flex;
   justify-content: space-between;
   gap: 1rem;
@@ -415,6 +455,11 @@ body {
   color: #6f5418;
 }
 
+.deployment-status--queued {
+  background: rgba(145, 170, 205, 0.22);
+  color: #24456b;
+}
+
 .status-card {
   padding: 1.5rem;
 }
@@ -472,8 +517,11 @@ body {
   .grid,
   .deployment-composer,
   .deployment-list,
+  .queue-summary,
+  .queue-list,
   .token-list,
   .token-summary,
+  .timeline-list,
   .roadmap__items {
     grid-template-columns: 1fr;
   }

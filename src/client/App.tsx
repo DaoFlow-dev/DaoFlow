@@ -5,6 +5,50 @@ import { signIn, signOut, signUp, useSession } from "./lib/auth-client";
 import { trpc } from "./lib/trpc";
 import { StatusCard } from "./components/status-card";
 
+type StatusTone = "healthy" | "failed" | "running" | "queued";
+
+function getExecutionJobTone(status: string): StatusTone {
+  if (status === "completed") {
+    return "healthy";
+  }
+
+  if (status === "failed") {
+    return "failed";
+  }
+
+  if (status === "pending") {
+    return "queued";
+  }
+
+  return "running";
+}
+
+function getTimelineLifecycle(kind: string) {
+  if (kind === "deployment.failed" || kind === "execution.job.failed") {
+    return "failed" as const;
+  }
+
+  if (kind === "deployment.succeeded" || kind === "execution.job.completed") {
+    return "completed" as const;
+  }
+
+  return "queued" as const;
+}
+
+function getTimelineTone(kind: string): StatusTone {
+  const lifecycle = getTimelineLifecycle(kind);
+
+  if (lifecycle === "failed") {
+    return "failed";
+  }
+
+  if (lifecycle === "completed") {
+    return "healthy";
+  }
+
+  return "queued";
+}
+
 export default function App() {
   const session = useSession();
   const health = trpc.health.useQuery();
@@ -12,6 +56,12 @@ export default function App() {
   const roadmap = trpc.roadmap.useQuery({});
   const createDeploymentRecord = trpc.createDeploymentRecord.useMutation();
   const recentDeployments = trpc.recentDeployments.useQuery({}, {
+    enabled: Boolean(session.data)
+  });
+  const executionQueue = trpc.executionQueue.useQuery({}, {
+    enabled: Boolean(session.data)
+  });
+  const operationsTimeline = trpc.operationsTimeline.useQuery({}, {
     enabled: Boolean(session.data)
   });
   const viewer = trpc.viewer.useQuery(undefined, {
@@ -119,6 +169,8 @@ export default function App() {
       });
 
       await recentDeployments.refetch();
+      await executionQueue.refetch();
+      await operationsTimeline.refetch();
       setDeploymentFeedback(`Queued ${deployment.serviceName} as ${deployment.id}.`);
     } catch (error) {
       setDeploymentFeedback(
@@ -140,6 +192,14 @@ export default function App() {
   const deploymentMessage =
     recentDeployments.error && isTRPCClientError(recentDeployments.error)
       ? recentDeployments.error.message
+      : null;
+  const executionQueueMessage =
+    executionQueue.error && isTRPCClientError(executionQueue.error)
+      ? executionQueue.error.message
+      : null;
+  const timelineMessage =
+    operationsTimeline.error && isTRPCClientError(operationsTimeline.error)
+      ? operationsTimeline.error.message
       : null;
   const tokenMessage =
     agentTokenInventory.error && isTRPCClientError(agentTokenInventory.error)
@@ -428,6 +488,103 @@ export default function App() {
         ) : (
           <p className="viewer-empty">
             {deploymentMessage ?? "Sign in to inspect deployment records and structured steps."}
+          </p>
+        )}
+      </section>
+
+      <section className="execution-handoff">
+        <div className="roadmap__header">
+          <p className="roadmap__kicker">Execution-plane foundation</p>
+          <h2>Worker handoff queue</h2>
+        </div>
+
+        {session.data && executionQueue.data ? (
+          <>
+            <div className="queue-summary" data-testid="queue-summary">
+              <div className="token-summary__item">
+                <span className="metric__label">Total jobs</span>
+                <strong>{executionQueue.data.summary.totalJobs}</strong>
+              </div>
+              <div className="token-summary__item">
+                <span className="metric__label">Pending</span>
+                <strong>{executionQueue.data.summary.pendingJobs}</strong>
+              </div>
+              <div className="token-summary__item">
+                <span className="metric__label">Completed</span>
+                <strong>{executionQueue.data.summary.completedJobs}</strong>
+              </div>
+              <div className="token-summary__item">
+                <span className="metric__label">Failed</span>
+                <strong>{executionQueue.data.summary.failedJobs}</strong>
+              </div>
+            </div>
+
+            <div className="queue-list">
+              {executionQueue.data.jobs.map((job) => (
+                <article
+                  className="token-card"
+                  data-testid={`execution-job-${job.id}`}
+                  key={job.id}
+                >
+                  <div className="token-card__top">
+                    <div>
+                      <p className="roadmap-item__lane">{job.environmentName}</p>
+                      <h3>{job.serviceName}</h3>
+                    </div>
+                    <span
+                      className={`deployment-status deployment-status--${getExecutionJobTone(job.status)}`}
+                    >
+                      {job.status}
+                    </span>
+                  </div>
+                  <p className="deployment-card__meta">
+                    Queue: {job.queueName} · Worker hint: {job.workerHint}
+                  </p>
+                  <p className="deployment-card__meta">
+                    {job.projectName} on {job.targetServerName} ({job.targetServerHost})
+                  </p>
+                </article>
+              ))}
+            </div>
+          </>
+        ) : (
+          <p className="viewer-empty">
+            {executionQueueMessage ?? "Sign in to inspect queued worker handoff jobs."}
+          </p>
+        )}
+
+        <div className="roadmap__header">
+          <p className="roadmap__kicker">Immutable event feed</p>
+          <h2>Operations timeline</h2>
+        </div>
+
+        {session.data && operationsTimeline.data ? (
+          <div className="timeline-list">
+            {operationsTimeline.data.map((event) => (
+              <article className="timeline-event" data-testid={`timeline-event-${event.id}`} key={event.id}>
+                <div className="timeline-event__top">
+                  <div>
+                    <p className="roadmap-item__lane">
+                      {event.environmentName} · {event.kind}
+                    </p>
+                    <h3>{event.summary}</h3>
+                  </div>
+                    <span
+                    className={`deployment-status deployment-status--${getTimelineTone(event.kind)}`}
+                  >
+                    {getTimelineLifecycle(event.kind)}
+                  </span>
+                </div>
+                <p className="deployment-card__meta">
+                  {event.serviceName} · {event.actorLabel}
+                </p>
+                <p className="deployment-card__meta">{event.detail}</p>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <p className="viewer-empty">
+            {timelineMessage ?? "Sign in to inspect immutable deployment events."}
           </p>
         )}
       </section>

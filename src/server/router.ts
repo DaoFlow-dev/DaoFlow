@@ -13,7 +13,9 @@ import {
   ensureControlPlaneReady,
   listApiTokenInventory,
   getDeploymentRecord,
-  listDeploymentRecords
+  listDeploymentRecords,
+  listExecutionQueue,
+  listOperationsTimeline
 } from "./control-plane-db";
 import type { Context } from "./context";
 
@@ -75,7 +77,7 @@ export const appRouter = t.router({
   })),
   platformOverview: t.procedure.query(() => ({
     name: "DaoFlow",
-    currentSlice: "deployment-write-path",
+    currentSlice: "execution-handoff",
     thesis:
       "A Docker-first deployment control plane for bare metal and VPS environments.",
     architecture: {
@@ -190,6 +192,28 @@ export const appRouter = t.router({
       }
 
       return deployment;
+    }),
+  executionQueue: protectedProcedure
+    .input(
+      z.object({
+        status: z.enum(["pending", "dispatched", "completed", "failed"]).optional(),
+        limit: z.number().int().min(1).max(50).optional()
+      })
+    )
+    .query(async ({ input }) => {
+      await ensureControlPlaneReady();
+      return listExecutionQueue(input.status, input.limit ?? 12);
+    }),
+  operationsTimeline: protectedProcedure
+    .input(
+      z.object({
+        deploymentId: z.string().min(1).optional(),
+        limit: z.number().int().min(1).max(50).optional()
+      })
+    )
+    .query(async ({ input }) => {
+      await ensureControlPlaneReady();
+      return listOperationsTimeline(input.deploymentId, input.limit ?? 12);
     }),
   agentTokenInventory: adminProcedure.query(async () => {
     await ensureControlPlaneReady();

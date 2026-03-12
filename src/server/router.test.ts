@@ -57,6 +57,21 @@ describe("appRouter", () => {
     expect(response[0]?.steps.length).toBeGreaterThan(0);
   });
 
+  it("returns execution queue and operations timeline for signed-in viewers", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-execution-viewer",
+      session: makeSession("viewer")
+    });
+
+    const queue = await caller.executionQueue({});
+    const timeline = await caller.operationsTimeline({});
+
+    expect(queue.jobs.length).toBeGreaterThan(0);
+    expect(queue.summary.completedJobs + queue.summary.failedJobs).toBeGreaterThan(0);
+    expect(timeline.length).toBeGreaterThan(0);
+    expect(timeline[0]?.serviceName).toBeTruthy();
+  });
+
   it("rejects protected procedures without a session", async () => {
     const caller = appRouter.createCaller({ requestId: "test-viewer", session: null });
 
@@ -176,6 +191,19 @@ describe("appRouter", () => {
 
     const deployments = await caller.recentDeployments({});
     expect(deployments[0]?.id).toBe(response.id);
+
+    const queue = await caller.executionQueue({
+      status: "pending"
+    });
+    const queuedJob = queue.jobs.find((job) => job.deploymentId === response.id);
+    expect(queuedJob?.status).toBe("pending");
+    expect(queuedJob?.queueName).toBe("docker-ssh");
+
+    const timeline = await caller.operationsTimeline({
+      deploymentId: response.id
+    });
+    expect(timeline.some((event) => event.kind === "deployment.queued")).toBe(true);
+    expect(timeline.some((event) => event.kind === "execution.job.created")).toBe(true);
   });
 
   it("blocks queued deployment creation for viewer roles", async () => {

@@ -25,6 +25,7 @@ test("loads the DaoFlow foundation dashboard", async ({ page }) => {
   await expect(page.getByTestId("viewer-output")).toContainText('"role": "owner"');
   await expect(page.getByTestId("admin-output")).toContainText('"defaultSignupRole": "viewer"');
   await expect(page.getByText("Queued and historical deployments")).toBeVisible();
+  await expect(page.getByText("Worker handoff queue")).toBeVisible();
   await expect(
     page.getByTestId("deployment-card-dep_foundation_20260312_1")
   ).toContainText("production-us-west");
@@ -39,8 +40,18 @@ test("loads the DaoFlow foundation dashboard", async ({ page }) => {
   await page.getByLabel("Image tag").fill("ghcr.io/daoflow/edge-worker-ui:0.2.1");
   await page.getByRole("button", { name: "Queue deployment record" }).click();
   await expect(page.getByTestId("deployment-feedback")).toContainText("Queued edge-worker-ui");
-  await expect(page.getByRole("heading", { name: "edge-worker-ui", level: 3 })).toBeVisible();
-  await expect(page.getByText(`Requested by ${email}`)).toBeVisible();
+  await expect(
+    page.locator('[data-testid^="deployment-card-"]').filter({ hasText: "edge-worker-ui" })
+  ).toContainText(`Requested by ${email}`);
+  await expect(page.getByTestId("queue-summary")).toContainText("1");
+  await expect(
+    page.locator('[data-testid^="execution-job-"]').filter({ hasText: "edge-worker-ui" })
+  ).toContainText("Queue: docker-ssh");
+  await expect(
+    page.locator('[data-testid^="timeline-event-"]').filter({
+      hasText: "Deployment record queued for execution."
+    })
+  ).toContainText("edge-worker-ui");
   await expect(page.getByText("Scoped automation identities")).toBeVisible();
   await expect(page.getByTestId("token-summary")).toContainText("3");
   await expect(

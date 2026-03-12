@@ -20,6 +20,16 @@ export type DeploymentSourceType = "compose" | "dockerfile" | "image";
 export type DeploymentStepStatus = "pending" | "completed" | "failed" | "running";
 export type PrincipalKind = "human" | "service-account" | "agent";
 export type ApiTokenStatus = "active" | "paused" | "expired";
+export type ExecutionJobStatus = "pending" | "dispatched" | "completed" | "failed";
+export type DeploymentEventLevel = "info" | "warning" | "error";
+export type DeploymentEventKind =
+  | "deployment.queued"
+  | "execution.job.created"
+  | "execution.job.completed"
+  | "execution.job.failed"
+  | "step.pending"
+  | "deployment.succeeded"
+  | "deployment.failed";
 
 export interface DeploymentStepRecord {
   id: string;
@@ -67,6 +77,48 @@ export interface CreateDeploymentRecordInput {
   }[];
 }
 
+export interface ExecutionJobRecord {
+  id: string;
+  deploymentId: string;
+  projectName: string;
+  environmentName: string;
+  serviceName: string;
+  targetServerName: string;
+  targetServerHost: string;
+  status: ExecutionJobStatus;
+  queueName: string;
+  workerHint: string;
+  attemptCount: number;
+  createdAt: string;
+  availableAt: string;
+}
+
+export interface ExecutionQueueSnapshot {
+  summary: {
+    totalJobs: number;
+    pendingJobs: number;
+    dispatchedJobs: number;
+    completedJobs: number;
+    failedJobs: number;
+  };
+  jobs: ExecutionJobRecord[];
+}
+
+export interface OperationsTimelineEvent {
+  id: string;
+  deploymentId: string;
+  projectName: string;
+  environmentName: string;
+  serviceName: string;
+  kind: DeploymentEventKind;
+  level: DeploymentEventLevel;
+  summary: string;
+  detail: string;
+  actorType: "human" | "system";
+  actorLabel: string;
+  createdAt: string;
+}
+
 export interface ApiTokenRecord {
   id: string;
   principalId: string;
@@ -98,6 +150,30 @@ export interface ApiTokenInventory {
   tokens: ApiTokenRecord[];
 }
 
+interface SeedExecutionJob {
+  id: string;
+  deploymentId: string;
+  targetServerId: string;
+  status: ExecutionJobStatus;
+  queueName: string;
+  workerHint: string;
+  attemptCount: number;
+  createdAt: string;
+  availableAt: string;
+}
+
+interface SeedDeploymentEvent {
+  id: string;
+  deploymentId: string;
+  kind: DeploymentEventKind;
+  level: DeploymentEventLevel;
+  summary: string;
+  detail: string;
+  actorType: "human" | "system";
+  actorLabel: string;
+  createdAt: string;
+}
+
 function resolveControlPlaneDatabasePath() {
   if (process.env.CONTROL_PLANE_DB_PATH) {
     return process.env.CONTROL_PLANE_DB_PATH;
@@ -127,6 +203,76 @@ function seedControlPlaneData() {
   const serverId = "srv_foundation_1";
   const deploymentId = "dep_foundation_20260312_1";
   const previousDeploymentId = "dep_foundation_20260311_1";
+  const seedExecutionJobs = [
+    {
+      id: "job_foundation_20260312_1",
+      deploymentId,
+      targetServerId: serverId,
+      status: "completed",
+      queueName: "docker-ssh",
+      workerHint: "ssh://foundation-vps-1/docker-engine",
+      attemptCount: 1,
+      createdAt: new Date(now.getTime() - 7 * 60 * 1000).toISOString(),
+      availableAt: new Date(now.getTime() - 7 * 60 * 1000).toISOString()
+    },
+    {
+      id: "job_foundation_20260311_1",
+      deploymentId: previousDeploymentId,
+      targetServerId: serverId,
+      status: "failed",
+      queueName: "docker-ssh",
+      workerHint: "ssh://foundation-vps-1/docker-engine",
+      attemptCount: 1,
+      createdAt: new Date(now.getTime() - 70 * 60 * 1000).toISOString(),
+      availableAt: new Date(now.getTime() - 70 * 60 * 1000).toISOString()
+    }
+  ] as const satisfies readonly SeedExecutionJob[];
+  const seedEvents = [
+    {
+      id: "evt_foundation_queued",
+      deploymentId,
+      kind: "execution.job.created",
+      level: "info",
+      summary: "Prepared SSH-backed execution handoff.",
+      detail: "The deployment was packaged for the docker-ssh worker queue.",
+      actorType: "system",
+      actorLabel: "control-plane",
+      createdAt: new Date(now.getTime() - 7 * 60 * 1000).toISOString()
+    },
+    {
+      id: "evt_foundation_succeeded",
+      deploymentId,
+      kind: "deployment.succeeded",
+      level: "info",
+      summary: "Deployment finished healthy.",
+      detail: "The control-plane rollout completed and passed health checks.",
+      actorType: "system",
+      actorLabel: "docker-ssh-worker",
+      createdAt: new Date(now.getTime() - 90 * 1000).toISOString()
+    },
+    {
+      id: "evt_foundation_previous_job",
+      deploymentId: previousDeploymentId,
+      kind: "execution.job.created",
+      level: "info",
+      summary: "Prepared retryable worker job.",
+      detail: "The failed release candidate was handed off to the docker-ssh queue.",
+      actorType: "system",
+      actorLabel: "control-plane",
+      createdAt: new Date(now.getTime() - 70 * 60 * 1000).toISOString()
+    },
+    {
+      id: "evt_foundation_previous_failed",
+      deploymentId: previousDeploymentId,
+      kind: "deployment.failed",
+      level: "error",
+      summary: "Deployment failed readiness checks.",
+      detail: "The new container restarted twice and did not become healthy.",
+      actorType: "system",
+      actorLabel: "docker-ssh-worker",
+      createdAt: new Date(now.getTime() - 66 * 60 * 1000).toISOString()
+    }
+  ] as const satisfies readonly SeedDeploymentEvent[];
   const apiTokens = [
     {
       id: "token_observer_readonly",
@@ -325,6 +471,34 @@ function seedControlPlaneData() {
     )
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `);
+  const insertExecutionJob = controlPlaneDb.prepare(`
+    INSERT OR IGNORE INTO execution_jobs (
+      id,
+      deployment_id,
+      target_server_id,
+      status,
+      queue_name,
+      worker_hint,
+      attempt_count,
+      created_at,
+      available_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+  const insertEvent = controlPlaneDb.prepare(`
+    INSERT OR IGNORE INTO deployment_events (
+      id,
+      deployment_id,
+      kind,
+      level,
+      summary,
+      detail,
+      actor_type,
+      actor_label,
+      created_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
 
   for (const step of steps) {
     insertStep.run(
@@ -359,6 +533,34 @@ function seedControlPlaneData() {
     new Date(now.getTime() - 68 * 60 * 1000).toISOString(),
     new Date(now.getTime() - 66 * 60 * 1000).toISOString()
   );
+
+  for (const job of seedExecutionJobs) {
+    insertExecutionJob.run(
+      job.id,
+      job.deploymentId,
+      job.targetServerId,
+      job.status,
+      job.queueName,
+      job.workerHint,
+      job.attemptCount,
+      job.createdAt,
+      job.availableAt
+    );
+  }
+
+  for (const event of seedEvents) {
+    insertEvent.run(
+      event.id,
+      event.deploymentId,
+      event.kind,
+      event.level,
+      event.summary,
+      event.detail,
+      event.actorType,
+      event.actorLabel,
+      event.createdAt
+    );
+  }
 }
 
 const controlPlaneReady = Promise.resolve().then(() => {
@@ -423,6 +625,41 @@ const controlPlaneReady = Promise.resolve().then(() => {
       started_at TEXT NOT NULL,
       finished_at TEXT
     );
+
+    CREATE TABLE IF NOT EXISTS execution_jobs (
+      id TEXT PRIMARY KEY,
+      deployment_id TEXT NOT NULL REFERENCES deployments(id) ON DELETE CASCADE,
+      target_server_id TEXT NOT NULL REFERENCES servers(id),
+      status TEXT NOT NULL,
+      queue_name TEXT NOT NULL,
+      worker_hint TEXT NOT NULL,
+      attempt_count INTEGER NOT NULL,
+      created_at TEXT NOT NULL,
+      available_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS deployment_events (
+      id TEXT PRIMARY KEY,
+      deployment_id TEXT NOT NULL REFERENCES deployments(id) ON DELETE CASCADE,
+      kind TEXT NOT NULL,
+      level TEXT NOT NULL,
+      summary TEXT NOT NULL,
+      detail TEXT NOT NULL,
+      actor_type TEXT NOT NULL,
+      actor_label TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_execution_jobs_deployment_id
+      ON execution_jobs (deployment_id);
+    CREATE INDEX IF NOT EXISTS idx_execution_jobs_status_created_at
+      ON execution_jobs (status, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_execution_jobs_target_server_id
+      ON execution_jobs (target_server_id);
+    CREATE INDEX IF NOT EXISTS idx_deployment_events_created_at
+      ON deployment_events (created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_deployment_events_deployment_created_at
+      ON deployment_events (deployment_id, created_at DESC);
   `);
 
   for (const migration of [
@@ -491,6 +728,37 @@ interface ApiTokenRow {
 interface ApiTokenScopeRow {
   token_id: string;
   scope: string;
+}
+
+interface ExecutionJobRow {
+  id: string;
+  deployment_id: string;
+  project_name: string;
+  environment_name: string;
+  service_name: string;
+  target_server_name: string;
+  target_server_host: string;
+  status: ExecutionJobStatus;
+  queue_name: string;
+  worker_hint: string;
+  attempt_count: number;
+  created_at: string;
+  available_at: string;
+}
+
+interface DeploymentEventRow {
+  id: string;
+  deployment_id: string;
+  project_name: string;
+  environment_name: string;
+  service_name: string;
+  kind: DeploymentEventKind;
+  level: DeploymentEventLevel;
+  summary: string;
+  detail: string;
+  actor_type: "human" | "system";
+  actor_label: string;
+  created_at: string;
 }
 
 function getDeploymentRows(options?: { status?: DeploymentStatus; limit?: number }) {
@@ -716,6 +984,37 @@ export function createDeploymentRecord(input: CreateDeploymentRecordInput) {
     )
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `);
+  const insertExecutionJob = controlPlaneDb.prepare(`
+    INSERT INTO execution_jobs (
+      id,
+      deployment_id,
+      target_server_id,
+      status,
+      queue_name,
+      worker_hint,
+      attempt_count,
+      created_at,
+      available_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+  const insertEvent = controlPlaneDb.prepare(`
+    INSERT INTO deployment_events (
+      id,
+      deployment_id,
+      kind,
+      level,
+      summary,
+      detail,
+      actor_type,
+      actor_label,
+      created_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+  const jobId = `job_${randomUUID().slice(0, 8)}`;
+  const queueName = "docker-ssh";
+  const workerHint = `ssh://${server.name}/docker-engine`;
 
   controlPlaneDb.exec("BEGIN");
 
@@ -748,7 +1047,54 @@ export function createDeploymentRecord(input: CreateDeploymentRecordInput) {
         createdAt,
         null
       );
+
+      insertEvent.run(
+        `evt_${randomUUID().slice(0, 8)}`,
+        deploymentId,
+        "step.pending",
+        "info",
+        `Step ${index + 1} is pending execution.`,
+        step.detail,
+        "system",
+        "control-plane",
+        createdAt
+      );
     });
+
+    insertExecutionJob.run(
+      jobId,
+      deploymentId,
+      input.targetServerId,
+      "pending",
+      queueName,
+      workerHint,
+      0,
+      createdAt,
+      createdAt
+    );
+
+    insertEvent.run(
+      `evt_${randomUUID().slice(0, 8)}`,
+      deploymentId,
+      "deployment.queued",
+      "info",
+      "Deployment record queued for execution.",
+      `Queued ${input.serviceName} for ${input.environmentName}.`,
+      "human",
+      input.requestedByEmail,
+      createdAt
+    );
+    insertEvent.run(
+      `evt_${randomUUID().slice(0, 8)}`,
+      deploymentId,
+      "execution.job.created",
+      "info",
+      "Worker handoff is ready.",
+      `Prepared a ${queueName} job for ${server.name}.`,
+      "system",
+      "control-plane",
+      createdAt
+    );
 
     controlPlaneDb.exec("COMMIT");
   } catch (error) {
@@ -757,6 +1103,183 @@ export function createDeploymentRecord(input: CreateDeploymentRecordInput) {
   }
 
   return getDeploymentRecord(deploymentId);
+}
+
+function getExecutionJobRows(options?: {
+  status?: ExecutionJobStatus;
+  limit?: number;
+}) {
+  const status = options?.status;
+  const limit = options?.limit ?? 20;
+  const query = status
+    ? controlPlaneDb.prepare(`
+        SELECT
+          execution_jobs.id,
+          execution_jobs.deployment_id,
+          execution_jobs.status,
+          execution_jobs.queue_name,
+          execution_jobs.worker_hint,
+          execution_jobs.attempt_count,
+          execution_jobs.created_at,
+          execution_jobs.available_at,
+          deployments.project_name,
+          deployments.environment_name,
+          deployments.service_name,
+          servers.name AS target_server_name,
+          servers.host AS target_server_host
+        FROM execution_jobs
+        INNER JOIN deployments ON deployments.id = execution_jobs.deployment_id
+        INNER JOIN servers ON servers.id = execution_jobs.target_server_id
+        WHERE execution_jobs.status = ?
+        ORDER BY execution_jobs.created_at DESC
+        LIMIT ?
+      `)
+    : controlPlaneDb.prepare(`
+        SELECT
+          execution_jobs.id,
+          execution_jobs.deployment_id,
+          execution_jobs.status,
+          execution_jobs.queue_name,
+          execution_jobs.worker_hint,
+          execution_jobs.attempt_count,
+          execution_jobs.created_at,
+          execution_jobs.available_at,
+          deployments.project_name,
+          deployments.environment_name,
+          deployments.service_name,
+          servers.name AS target_server_name,
+          servers.host AS target_server_host
+        FROM execution_jobs
+        INNER JOIN deployments ON deployments.id = execution_jobs.deployment_id
+        INNER JOIN servers ON servers.id = execution_jobs.target_server_id
+        ORDER BY execution_jobs.created_at DESC
+        LIMIT ?
+      `);
+
+  return (status ? query.all(status, limit) : query.all(limit)) as unknown as ExecutionJobRow[];
+}
+
+function getExecutionJobSummary(status?: ExecutionJobStatus) {
+  const query = status
+    ? controlPlaneDb.prepare(`
+        SELECT
+          COUNT(*) AS total_jobs,
+          SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) AS pending_jobs,
+          SUM(CASE WHEN status = 'dispatched' THEN 1 ELSE 0 END) AS dispatched_jobs,
+          SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) AS completed_jobs,
+          SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) AS failed_jobs
+        FROM execution_jobs
+        WHERE status = ?
+      `)
+    : controlPlaneDb.prepare(`
+        SELECT
+          COUNT(*) AS total_jobs,
+          SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) AS pending_jobs,
+          SUM(CASE WHEN status = 'dispatched' THEN 1 ELSE 0 END) AS dispatched_jobs,
+          SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) AS completed_jobs,
+          SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) AS failed_jobs
+        FROM execution_jobs
+      `);
+
+  return (status ? query.get(status) : query.get()) as
+    | {
+        total_jobs?: number;
+        pending_jobs?: number;
+        dispatched_jobs?: number;
+        completed_jobs?: number;
+        failed_jobs?: number;
+      }
+    | undefined;
+}
+
+export function listExecutionQueue(status?: ExecutionJobStatus, limit = 20): ExecutionQueueSnapshot {
+  const jobs = getExecutionJobRows({ status, limit }).map((row) => ({
+    id: row.id,
+    deploymentId: row.deployment_id,
+    projectName: row.project_name,
+    environmentName: row.environment_name,
+    serviceName: row.service_name,
+    targetServerName: row.target_server_name,
+    targetServerHost: row.target_server_host,
+    status: row.status,
+    queueName: row.queue_name,
+    workerHint: row.worker_hint,
+    attemptCount: row.attempt_count,
+    createdAt: row.created_at,
+    availableAt: row.available_at
+  }));
+  const summary = getExecutionJobSummary(status);
+
+  return {
+    summary: {
+      totalJobs: summary?.total_jobs ?? 0,
+      pendingJobs: summary?.pending_jobs ?? 0,
+      dispatchedJobs: summary?.dispatched_jobs ?? 0,
+      completedJobs: summary?.completed_jobs ?? 0,
+      failedJobs: summary?.failed_jobs ?? 0
+    },
+    jobs
+  };
+}
+
+export function listOperationsTimeline(deploymentId?: string, limit = 20) {
+  const query = deploymentId
+    ? controlPlaneDb.prepare(`
+        SELECT
+          deployment_events.id,
+          deployment_events.deployment_id,
+          deployment_events.kind,
+          deployment_events.level,
+          deployment_events.summary,
+          deployment_events.detail,
+          deployment_events.actor_type,
+          deployment_events.actor_label,
+          deployment_events.created_at,
+          deployments.project_name,
+          deployments.environment_name,
+          deployments.service_name
+        FROM deployment_events
+        INNER JOIN deployments ON deployments.id = deployment_events.deployment_id
+        WHERE deployment_events.deployment_id = ?
+        ORDER BY deployment_events.created_at DESC
+        LIMIT ?
+      `)
+    : controlPlaneDb.prepare(`
+        SELECT
+          deployment_events.id,
+          deployment_events.deployment_id,
+          deployment_events.kind,
+          deployment_events.level,
+          deployment_events.summary,
+          deployment_events.detail,
+          deployment_events.actor_type,
+          deployment_events.actor_label,
+          deployment_events.created_at,
+          deployments.project_name,
+          deployments.environment_name,
+          deployments.service_name
+        FROM deployment_events
+        INNER JOIN deployments ON deployments.id = deployment_events.deployment_id
+        ORDER BY deployment_events.created_at DESC
+        LIMIT ?
+      `);
+
+  const rows = (deploymentId ? query.all(deploymentId, limit) : query.all(limit)) as unknown as DeploymentEventRow[];
+
+  return rows.map((row) => ({
+    id: row.id,
+    deploymentId: row.deployment_id,
+    projectName: row.project_name,
+    environmentName: row.environment_name,
+    serviceName: row.service_name,
+    kind: row.kind,
+    level: row.level,
+    summary: row.summary,
+    detail: row.detail,
+    actorType: row.actor_type,
+    actorLabel: row.actor_label,
+    createdAt: row.created_at
+  })) satisfies OperationsTimelineEvent[];
 }
 
 function getApiTokenRows() {
