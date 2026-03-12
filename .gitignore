@@ -1,2 +1,11 @@
 # Local competitor research scratch space
 tmp/competitor-research/
+coverage/
+dist/
+node_modules/
+.pnpm-store/
+playwright-report/
+test-results/
+.env
+.env.*
+!.env.example

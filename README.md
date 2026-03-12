@@ -1,58 +1,126 @@
-# What is DaoFlow?
+# DaoFlow
 
-> Instead of AWS Wrapper, we're building bare metal / VM wrappers for you.
-> We want to be the next Wordpress but for bare metal VMs to host your own applications.
+> Bare-metal and VM deployment control plane for Docker-first teams.
 
-DaoFlow is an open-source platform-as-a-service solution for you and your companies to grow your business with minimal setup on bare metal VMs like Hetzner/OVH/DigitalOcean, or even AWS/Azure/Google Cloud/etc.
+DaoFlow is an open-source platform for running applications on VPS and bare-metal infrastructure with:
 
+- Docker and Docker Compose deployments
+- typed control-plane APIs
+- agent-safe automation boundaries
+- persistent volume and backup awareness
+- deployment, event, and log visibility
 
-## What problem does it solve?
+## Current Stack
 
-- For startups/indie developers: Saving time / cost / money on infrastructure and cloud computing services (see appendix 1).
-- For enterprises: Scaling up your business with minimal setup on bare metal VMs with much lower cost than cloud computing (see appendix 2).
+This repository now starts with a small but real full-stack foundation:
 
-## Goals / Roadmap
+- React + Vite for the web UI
+- Express + tRPC for the Node.js control plane
+- Vitest for unit tests
+- Playwright for end-to-end tests
+- Docker multi-stage build for production packaging
+- GitHub Actions for CI
 
-- Vercel-like deployment experience with nearly zero configuration with CLI tools for common stacks including Next.js and Hono.
-- Docker/Container first approach to deployment with Docker Compose and optionally Docker Swarm.
-- Support for multiple cloud providers (AWS, Azure, Google Cloud, DigitalOcean, Hetzner, etc.).
-- Super quick setup and deployment, targeting less than 5 minutes.
-- First-class support for CloudFlare CDN and tunnels.
-- Markplace for mature stacks like Sentry, Langfuse, .etc.
+## Development
 
-## Annoncement Video
+Requirements:
 
-[![Watch the video](https://landing-assets.daoflow.dev/v0-landing-assets/video-cover-shots.webp)](https://www.youtube.com/watch?v=pR8PWmwXCYk)
+- Node.js 22+
+- pnpm 10+
 
+Install dependencies:
 
-## Status
+```bash
+pnpm install
+```
 
-Currently, DaoFlow is in closed alpha stage. Please subscribe to the release notifications of this GitHub repository to be notified when the project is ready for beta testing.
+Optional local environment file:
 
-## Draft: Architecture
+```bash
+cp .env.example .env
+```
 
-- Next.js for the backend and frontend
-- Docker (Compose) for quick deployment
-- First-party CLI for Vercel / Wrangler like deployments of Next.js apps
-- Bun for the package management
+Run the app in development:
 
-## License
+```bash
+pnpm dev
+```
 
-Apache 2.0
+This starts:
 
-## Investor
+- the API server on `http://localhost:3000`
+- the Vite web UI on `http://localhost:5173`
 
-If your company is interested in investing in DaoFlow, please reach out to [Mike Chong (WildCat_io)](https://twitter.com/wildcat_io).
+Auth configuration:
 
-## Appendix 1: Why bare metal VMs are great for startups/indie developers?
+- `BETTER_AUTH_SECRET` is optional in local development and required for production deployments.
+- `BETTER_AUTH_URL` should match the externally reachable control-plane origin in production.
+- The current auth persistence uses an in-memory adapter for the foundation slice, so sessions and accounts reset on server restart until a durable database-backed adapter lands.
 
-![https://landing-assets.daoflow.dev/v0-landing-assets/peter-levels-selfhost-2.webp](https://landing-assets.daoflow.dev/v0-landing-assets/peter-levels-selfhost-2.webp)
+## Quality Gates
 
-<https://x.com/levelsio/status/1980212926444446143>
+Run linting:
 
+```bash
+pnpm lint
+```
 
-## Appendix 2: Why exit cloud computing?
+Run type-checking:
 
-![https://landing-assets.daoflow.dev/v0-landing-assets/dhh-aws-wrapper.webp](https://landing-assets.daoflow.dev/v0-landing-assets/dhh-aws-wrapper.webp)
+```bash
+pnpm typecheck
+```
 
-<https://x.com/dhh/status/1980245233339408596>
+Run unit tests:
+
+```bash
+pnpm test:unit
+```
+
+Run end-to-end tests:
+
+```bash
+pnpm test:e2e
+```
+
+Run the full local verification flow:
+
+```bash
+pnpm verify
+```
+
+## Production Build
+
+Build the client and server:
+
+```bash
+pnpm build
+```
+
+Start the production server:
+
+```bash
+pnpm start
+```
+
+## Docker
+
+Build the image:
+
+```bash
+docker build -t daoflow:local .
+```
+
+Run it:
+
+```bash
+docker run --rm \
+  -p 3000:3000 \
+  -e BETTER_AUTH_SECRET=replace-with-a-long-random-secret \
+  -e BETTER_AUTH_URL=http://localhost:3000 \
+  daoflow:local
+```
+
+## Product Direction
+
+The product charter for contributors and coding agents lives in [AGENTS.md](./AGENTS.md).

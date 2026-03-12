@@ -1,0 +1,309 @@
+:root {
+  color-scheme: light;
+  font-family:
+    "Avenir Next",
+    "Segoe UI Variable",
+    "Segoe UI",
+    sans-serif;
+  background:
+    radial-gradient(circle at top left, #f4d7b8 0, transparent 38%),
+    radial-gradient(circle at bottom right, #d7e7d2 0, transparent 34%),
+    linear-gradient(180deg, #f7f3ea 0%, #efe8db 100%);
+  color: #1f241f;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+.shell {
+  width: min(1160px, calc(100% - 2rem));
+  margin: 0 auto;
+  padding: 3rem 0 4rem;
+}
+
+.hero {
+  display: grid;
+  grid-template-columns: 1.7fr 1fr;
+  gap: 1.25rem;
+  align-items: stretch;
+}
+
+.hero__copy,
+.hero__rail,
+.auth-panel,
+.status-card,
+.roadmap-item {
+  border: 1px solid rgba(31, 36, 31, 0.1);
+  border-radius: 24px;
+  background: rgba(255, 252, 246, 0.82);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 18px 60px rgba(73, 64, 46, 0.08);
+}
+
+.hero__copy {
+  padding: 2rem;
+}
+
+.hero__kicker,
+.roadmap__kicker,
+.status-card__eyebrow,
+.roadmap-item__lane,
+.metric__label {
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 0.75rem;
+  color: #6a624f;
+}
+
+.hero h1,
+.roadmap h2,
+.status-card h2,
+.roadmap-item h3 {
+  font-family:
+    "Iowan Old Style",
+    "Palatino Linotype",
+    "Book Antiqua",
+    serif;
+}
+
+.hero h1 {
+  margin: 0.5rem 0 0;
+  font-size: clamp(3rem, 8vw, 5.4rem);
+  line-height: 0.94;
+}
+
+.hero__lede {
+  margin: 1rem 0 0;
+  max-width: 42rem;
+  font-size: 1.08rem;
+  line-height: 1.7;
+  color: #3d433e;
+}
+
+.hero__rail {
+  padding: 1.5rem;
+  display: grid;
+  gap: 1rem;
+}
+
+.metric {
+  padding: 1rem;
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.74), rgba(239, 233, 219, 0.94));
+}
+
+.metric__value {
+  display: block;
+  margin-top: 0.4rem;
+  font-size: 1.8rem;
+  font-weight: 700;
+}
+
+.metric__detail {
+  margin: 0.5rem 0 0;
+  color: #5a635d;
+  line-height: 1.5;
+}
+
+.auth-section {
+  margin-top: 1rem;
+  display: grid;
+  grid-template-columns: 1.15fr 1fr;
+  gap: 1rem;
+}
+
+.auth-panel {
+  padding: 1.5rem;
+  border: 1px solid rgba(31, 36, 31, 0.1);
+  border-radius: 24px;
+  background: rgba(255, 252, 246, 0.82);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 18px 60px rgba(73, 64, 46, 0.08);
+}
+
+.auth-panel__header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.auth-panel__header h2 {
+  margin: 0.35rem 0 0;
+  font-size: 1.7rem;
+}
+
+.auth-panel__switches {
+  display: inline-flex;
+  gap: 0.35rem;
+  padding: 0.2rem;
+  border-radius: 999px;
+  background: rgba(217, 227, 211, 0.65);
+}
+
+.tab,
+.action-button {
+  appearance: none;
+  border: 0;
+  cursor: pointer;
+}
+
+.tab {
+  padding: 0.6rem 1rem;
+  border-radius: 999px;
+  background: transparent;
+  color: #405045;
+  font-weight: 600;
+}
+
+.tab--active {
+  background: #1f241f;
+  color: #f7f3ea;
+}
+
+.auth-form {
+  margin-top: 1rem;
+  display: grid;
+  gap: 0.9rem;
+}
+
+.auth-form label {
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.92rem;
+  color: #415046;
+}
+
+.auth-form input {
+  width: 100%;
+  border: 1px solid rgba(31, 36, 31, 0.14);
+  border-radius: 14px;
+  padding: 0.85rem 0.95rem;
+  background: rgba(255, 255, 255, 0.8);
+  color: inherit;
+  font: inherit;
+}
+
+.action-button {
+  margin-top: 0.25rem;
+  padding: 0.9rem 1.1rem;
+  border-radius: 14px;
+  background: #1f241f;
+  color: #f7f3ea;
+  font-weight: 700;
+}
+
+.action-button--muted {
+  background: #5b6a5f;
+}
+
+.auth-state {
+  margin-top: 1rem;
+}
+
+.auth-state__summary,
+.viewer-empty,
+.auth-feedback {
+  line-height: 1.6;
+  color: #415046;
+}
+
+.viewer-output {
+  margin: 1rem 0 0;
+  padding: 1rem;
+  border-radius: 18px;
+  overflow: auto;
+  background: #1f241f;
+  color: #eef2ea;
+  font-size: 0.85rem;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.status-card {
+  padding: 1.5rem;
+}
+
+.status-card h2 {
+  margin: 0.5rem 0 0.75rem;
+  font-size: 1.6rem;
+}
+
+.status-card ul {
+  margin: 0;
+  padding-left: 1.1rem;
+  display: grid;
+  gap: 0.65rem;
+  line-height: 1.5;
+}
+
+.roadmap {
+  margin-top: 1rem;
+}
+
+.roadmap__header {
+  padding: 0.5rem 0 1rem;
+}
+
+.roadmap__header h2 {
+  margin: 0.35rem 0 0;
+  font-size: 2rem;
+}
+
+.roadmap__items {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.roadmap-item {
+  padding: 1.5rem;
+}
+
+.roadmap-item h3 {
+  margin: 0.55rem 0 0.5rem;
+  font-size: 1.35rem;
+}
+
+.roadmap-item p:last-child {
+  margin: 0;
+  line-height: 1.6;
+  color: #3d433e;
+}
+
+@media (max-width: 900px) {
+  .hero,
+  .auth-section,
+  .grid,
+  .roadmap__items {
+    grid-template-columns: 1fr;
+  }
+
+  .shell {
+    width: min(100% - 1rem, 1160px);
+    padding-top: 1rem;
+  }
+
+  .hero__copy,
+  .hero__rail,
+  .status-card,
+  .roadmap-item {
+    border-radius: 20px;
+  }
+}
