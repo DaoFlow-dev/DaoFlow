@@ -156,6 +156,20 @@ describe("appRouter", () => {
     });
   });
 
+  it("returns immutable audit entries for signed-in viewers", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-audit-viewer",
+      session: makeSession("viewer")
+    });
+
+    const auditTrail = await caller.auditTrail({});
+
+    expect(auditTrail.summary.totalEntries).toBeGreaterThan(0);
+    expect(auditTrail.summary.deploymentActions).toBeGreaterThan(0);
+    expect(auditTrail.entries[0]?.action).toBeTruthy();
+    expect(auditTrail.entries.some((entry) => entry.action === "deployment.create")).toBe(true);
+  });
+
   it("returns backup policies and runs for signed-in viewers", async () => {
     const caller = appRouter.createCaller({
       requestId: "test-backups-viewer",
@@ -327,6 +341,80 @@ describe("appRouter", () => {
     });
     expect(timeline.some((event) => event.kind === "deployment.queued")).toBe(true);
     expect(timeline.some((event) => event.kind === "execution.job.created")).toBe(true);
+  });
+
+  it("records audit entries for deployment, execution, and backup mutations", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-audit-mutations",
+      session: makeSession("owner")
+    });
+    const before = await caller.auditTrail({
+      limit: 50
+    });
+
+    const deployment = await caller.createDeploymentRecord({
+      projectName: "DaoFlow",
+      environmentName: "staging",
+      serviceName: "audit-worker",
+      sourceType: "dockerfile",
+      targetServerId: "srv_foundation_1",
+      commitSha: "abcdef1",
+      imageTag: "ghcr.io/daoflow/audit-worker:0.3.0",
+      steps: [
+        {
+          label: "Render runtime spec",
+          detail: "Freeze the release inputs for audit-worker."
+        }
+      ]
+    });
+
+    const queue = await caller.executionQueue({
+      status: "pending"
+    });
+    const job = queue.jobs.find((entry) => entry.deploymentId === deployment.id);
+
+    expect(job).toBeDefined();
+    if (!job) {
+      throw new Error("Expected a queued execution job for the created deployment.");
+    }
+
+    await caller.dispatchExecutionJob({
+      jobId: job.id
+    });
+    await caller.completeExecutionJob({
+      jobId: job.id
+    });
+    await caller.triggerBackupRun({
+      policyId: "bpol_foundation_volume_daily"
+    });
+
+    const after = await caller.auditTrail({
+      limit: 50
+    });
+    const createdAudit = after.entries.find(
+      (entry) => entry.action === "deployment.create" && entry.resourceId === deployment.id
+    );
+    const dispatchedAudit = after.entries.find(
+      (entry) => entry.action === "execution.dispatch" && entry.resourceId === job.id
+    );
+    const completedAudit = after.entries.find(
+      (entry) => entry.action === "execution.complete" && entry.resourceId === job.id
+    );
+    const backupAudit = after.entries.find((entry) => entry.action === "backup.trigger");
+
+    expect(after.summary.totalEntries).toBeGreaterThan(before.summary.totalEntries);
+    expect(createdAudit).toMatchObject({
+      actorLabel: "owner@daoflow.local",
+      actorRole: "owner",
+      resourceLabel: "audit-worker@staging"
+    });
+    expect(dispatchedAudit?.detail).toContain("Dispatched the docker-ssh worker handoff");
+    expect(completedAudit?.detail).toContain("Marked the rollout healthy");
+    expect(backupAudit).toMatchObject({
+      actorLabel: "owner@daoflow.local",
+      actorRole: "owner",
+      resourceType: "backup-policy"
+    });
   });
 
   it("advances execution jobs through dispatch and completion", async () => {

@@ -73,6 +73,22 @@ function getTimelineTone(kind: string): StatusTone {
   return "queued";
 }
 
+function getAuditTone(action: string): StatusTone {
+  if (action === "execution.complete") {
+    return "healthy";
+  }
+
+  if (action === "execution.fail") {
+    return "failed";
+  }
+
+  if (action === "execution.dispatch") {
+    return "running";
+  }
+
+  return "queued";
+}
+
 export default function App() {
   const session = useSession();
   const health = trpc.health.useQuery();
@@ -99,6 +115,9 @@ export default function App() {
     enabled: Boolean(session.data)
   });
   const deploymentInsights = trpc.deploymentInsights.useQuery({}, {
+    enabled: Boolean(session.data)
+  });
+  const auditTrail = trpc.auditTrail.useQuery({}, {
     enabled: Boolean(session.data)
   });
   const viewer = trpc.viewer.useQuery(undefined, {
@@ -187,6 +206,7 @@ export default function App() {
   async function refreshOperationalViews() {
     await recentDeployments.refetch();
     await deploymentInsights.refetch();
+    await auditTrail.refetch();
     await backupOverview.refetch();
     await executionQueue.refetch();
     await operationsTimeline.refetch();
@@ -290,7 +310,7 @@ export default function App() {
       await triggerBackupRun.mutateAsync({
         policyId
       });
-      await backupOverview.refetch();
+      await refreshOperationalViews();
       setBackupFeedback(`Queued backup run for ${service}.`);
     } catch (error) {
       setBackupFeedback(
@@ -332,6 +352,10 @@ export default function App() {
   const insightsMessage =
     deploymentInsights.error && isTRPCClientError(deploymentInsights.error)
       ? deploymentInsights.error.message
+      : null;
+  const auditMessage =
+    auditTrail.error && isTRPCClientError(auditTrail.error)
+      ? auditTrail.error.message
       : null;
   const tokenMessage =
     agentTokenInventory.error && isTRPCClientError(agentTokenInventory.error)
@@ -969,6 +993,67 @@ export default function App() {
         ) : (
           <p className="viewer-empty">
             {timelineMessage ?? "Sign in to inspect immutable deployment events."}
+          </p>
+        )}
+      </section>
+
+      <section className="audit-trail">
+        <div className="roadmap__header">
+          <p className="roadmap__kicker">Auditability before convenience</p>
+          <h2>Immutable control-plane audit trail</h2>
+        </div>
+
+        {session.data && auditTrail.data ? (
+          <>
+            <div className="audit-summary" data-testid="audit-summary">
+              <div className="token-summary__item">
+                <span className="metric__label">Entries</span>
+                <strong>{auditTrail.data.summary.totalEntries}</strong>
+              </div>
+              <div className="token-summary__item">
+                <span className="metric__label">Deploy</span>
+                <strong>{auditTrail.data.summary.deploymentActions}</strong>
+              </div>
+              <div className="token-summary__item">
+                <span className="metric__label">Execution</span>
+                <strong>{auditTrail.data.summary.executionActions}</strong>
+              </div>
+              <div className="token-summary__item">
+                <span className="metric__label">Backup</span>
+                <strong>{auditTrail.data.summary.backupActions}</strong>
+              </div>
+            </div>
+
+            <div className="audit-list">
+              {auditTrail.data.entries.map((entry) => (
+                <article
+                  className="timeline-event"
+                  data-testid={`audit-entry-${entry.id}`}
+                  key={entry.id}
+                >
+                  <div className="timeline-event__top">
+                    <div>
+                      <p className="roadmap-item__lane">
+                        {entry.actorLabel}
+                        {entry.actorRole ? ` · ${entry.actorRole}` : ` · ${entry.actorType}`}
+                      </p>
+                      <h3>{entry.action}</h3>
+                    </div>
+                    <span
+                      className={`deployment-status deployment-status--${getAuditTone(entry.action)}`}
+                    >
+                      {entry.resourceType}
+                    </span>
+                  </div>
+                  <p className="deployment-card__meta">{entry.resourceLabel}</p>
+                  <p className="deployment-card__meta">{entry.detail}</p>
+                </article>
+              ))}
+            </div>
+          </>
+        ) : (
+          <p className="viewer-empty">
+            {auditMessage ?? "Sign in to inspect immutable control-plane audit entries."}
           </p>
         )}
       </section>

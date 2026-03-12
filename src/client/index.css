@@ -245,6 +245,10 @@ body {
   margin-top: 1rem;
 }
 
+.audit-trail {
+  margin-top: 1rem;
+}
+
 .infrastructure-inventory {
   margin-top: 1rem;
 }
@@ -351,6 +355,13 @@ body {
   gap: 1rem;
 }
 
+.audit-summary {
+  margin-bottom: 1rem;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1rem;
+}
+
 .queue-list {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -378,6 +389,12 @@ body {
 }
 
 .insight-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.audit-list {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 1rem;
@@ -585,6 +602,7 @@ body {
   .grid,
   .deployment-composer,
   .backup-summary,
+  .audit-summary,
   .backup-policy-list,
   .backup-run-list,
   .deployment-list,
@@ -595,6 +613,7 @@ body {
   .token-list,
   .token-summary,
   .insight-list,
+  .audit-list,
   .timeline-list,
   .roadmap__items {
     grid-template-columns: 1fr;

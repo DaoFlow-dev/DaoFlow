@@ -14,6 +14,7 @@ import {
   dispatchExecutionJob,
   ensureControlPlaneReady,
   failExecutionJob,
+  listAuditTrail,
   listBackupOverview,
   listApiTokenInventory,
   listDeploymentInsights,
@@ -85,7 +86,7 @@ export const appRouter = t.router({
   })),
   platformOverview: t.procedure.query(() => ({
     name: "DaoFlow",
-    currentSlice: "agent-ready-diagnostics",
+    currentSlice: "audit-trail",
     thesis:
       "A Docker-first deployment control plane for bare metal and VPS environments.",
     architecture: {
@@ -189,7 +190,8 @@ export const appRouter = t.router({
       const deployment = createDeploymentRecord({
         ...input,
         requestedByUserId: ctx.session.user.id,
-        requestedByEmail: ctx.session.user.email
+        requestedByEmail: ctx.session.user.email,
+        requestedByRole: ctx.role
       });
 
       if (!deployment) {
@@ -226,6 +228,16 @@ export const appRouter = t.router({
       await ensureControlPlaneReady();
       return listDeploymentInsights(input.limit ?? 6);
     }),
+  auditTrail: protectedProcedure
+    .input(
+      z.object({
+        limit: z.number().int().min(1).max(50).optional()
+      })
+    )
+    .query(async ({ input }) => {
+      await ensureControlPlaneReady();
+      return listAuditTrail(input.limit ?? 12);
+    }),
   backupOverview: protectedProcedure
     .input(
       z.object({
@@ -244,7 +256,12 @@ export const appRouter = t.router({
     )
     .mutation(async ({ ctx, input }) => {
       await ensureControlPlaneReady();
-      const run = triggerBackupRun(input.policyId, ctx.session.user.email);
+      const run = triggerBackupRun(
+        input.policyId,
+        ctx.session.user.id,
+        ctx.session.user.email,
+        ctx.role
+      );
 
       if (!run) {
         throw new TRPCError({
@@ -263,7 +280,12 @@ export const appRouter = t.router({
     )
     .mutation(async ({ ctx, input }) => {
       await ensureControlPlaneReady();
-      const result = dispatchExecutionJob(input.jobId, ctx.session.user.email);
+      const result = dispatchExecutionJob(
+        input.jobId,
+        ctx.session.user.id,
+        ctx.session.user.email,
+        ctx.role
+      );
 
       if (result.status === "not-found") {
         throw new TRPCError({
@@ -289,7 +311,12 @@ export const appRouter = t.router({
     )
     .mutation(async ({ ctx, input }) => {
       await ensureControlPlaneReady();
-      const result = completeExecutionJob(input.jobId, ctx.session.user.email);
+      const result = completeExecutionJob(
+        input.jobId,
+        ctx.session.user.id,
+        ctx.session.user.email,
+        ctx.role
+      );
 
       if (result.status === "not-found") {
         throw new TRPCError({
@@ -316,7 +343,13 @@ export const appRouter = t.router({
     )
     .mutation(async ({ ctx, input }) => {
       await ensureControlPlaneReady();
-      const result = failExecutionJob(input.jobId, ctx.session.user.email, input.reason);
+      const result = failExecutionJob(
+        input.jobId,
+        ctx.session.user.id,
+        ctx.session.user.email,
+        ctx.role,
+        input.reason
+      );
 
       if (result.status === "not-found") {
         throw new TRPCError({

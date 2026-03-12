@@ -42,6 +42,11 @@ test("loads the DaoFlow foundation dashboard", async ({ page }) => {
   await expect(
     page.getByTestId("deployment-insight-dep_foundation_20260311_1")
   ).toContainText("Healthy baseline: 03e40ca");
+  await expect(page.getByText("Immutable control-plane audit trail")).toBeVisible();
+  await expect(page.getByTestId("audit-summary")).toContainText("3");
+  await expect(
+    page.getByTestId("audit-entry-audit_foundation_execution_complete")
+  ).toContainText("execution.complete");
   await expect(page.getByText("Worker handoff queue")).toBeVisible();
   await expect(
     page.getByTestId("deployment-card-dep_foundation_20260312_1")
@@ -60,6 +65,11 @@ test("loads the DaoFlow foundation dashboard", async ({ page }) => {
   await expect(
     page.locator('[data-testid^="deployment-card-"]').filter({ hasText: "edge-worker-ui" })
   ).toContainText(`Requested by ${email}`);
+  await expect(
+    page.locator('[data-testid^="audit-entry-"]').filter({
+      hasText: "deployment.create"
+    }).filter({ hasText: "edge-worker-ui@staging" })
+  ).toContainText(email);
   await expect(page.getByTestId("queue-summary")).toContainText("1");
   await expect(
     page.locator('[data-testid^="execution-job-"]').filter({ hasText: "edge-worker-ui" })
@@ -86,6 +96,11 @@ test("loads the DaoFlow foundation dashboard", async ({ page }) => {
     page.locator('[data-testid^="deployment-card-"]').filter({ hasText: "edge-worker-ui" })
   ).toContainText("healthy");
   await expect(
+    page.locator('[data-testid^="audit-entry-"]').filter({
+      hasText: "execution.complete"
+    }).filter({ hasText: "edge-worker-ui@staging" })
+  ).toContainText(email);
+  await expect(
     page.locator('[data-testid^="timeline-event-"]').filter({
       hasText: "Deployment reached a healthy state."
     })
@@ -102,6 +117,11 @@ test("loads the DaoFlow foundation dashboard", async ({ page }) => {
   await expect(
     page.locator('[data-testid^="backup-run-"]').filter({ hasText: "postgres-volume" }).first()
   ).toContainText("queued");
+  await expect(
+    page.locator('[data-testid^="audit-entry-"]').filter({
+      hasText: "backup.trigger"
+    }).filter({ hasText: "postgres-volume@production-us-west" })
+  ).toContainText(email);
   await expect(page.getByTestId("token-summary")).toContainText("3");
   await expect(
     page.getByTestId("token-card-token_observer_readonly")

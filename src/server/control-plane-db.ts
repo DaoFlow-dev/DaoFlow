@@ -24,6 +24,8 @@ export type ExecutionJobStatus = "pending" | "dispatched" | "completed" | "faile
 export type DeploymentEventLevel = "info" | "warning" | "error";
 export type BackupTargetType = "volume" | "database";
 export type BackupRunStatus = "queued" | "running" | "succeeded" | "failed";
+export type AuditActorType = "human" | "system";
+export type AuditResourceType = "deployment" | "execution-job" | "backup-run" | "backup-policy";
 export type DeploymentEventKind =
   | "deployment.queued"
   | "execution.job.created"
@@ -77,6 +79,7 @@ export interface CreateDeploymentRecordInput {
   imageTag: string;
   requestedByUserId: string;
   requestedByEmail: string;
+  requestedByRole: AppRole;
   steps: readonly {
     label: string;
     detail: string;
@@ -150,6 +153,31 @@ export interface DeploymentInsightRecord {
         finishedAt: string | null;
       }
     | null;
+}
+
+export interface AuditEntryRecord {
+  id: string;
+  actorType: AuditActorType;
+  actorId: string | null;
+  actorLabel: string;
+  actorRole: AppRole | null;
+  action: string;
+  resourceType: AuditResourceType;
+  resourceId: string;
+  resourceLabel: string;
+  detail: string;
+  createdAt: string;
+}
+
+export interface AuditTrailSnapshot {
+  summary: {
+    totalEntries: number;
+    deploymentActions: number;
+    executionActions: number;
+    backupActions: number;
+    humanEntries: number;
+  };
+  entries: AuditEntryRecord[];
 }
 
 export interface ExecutionJobMutationResult {
@@ -326,6 +354,20 @@ interface SeedBackupRun {
   finishedAt: string | null;
 }
 
+interface SeedAuditEntry {
+  id: string;
+  actorType: AuditActorType;
+  actorId: string | null;
+  actorLabel: string;
+  actorRole: AppRole | null;
+  action: string;
+  resourceType: AuditResourceType;
+  resourceId: string;
+  resourceLabel: string;
+  detail: string;
+  createdAt: string;
+}
+
 interface SeedProject {
   id: string;
   name: string;
@@ -496,6 +538,47 @@ function seedControlPlaneData() {
       availableAt: new Date(now.getTime() - 70 * 60 * 1000).toISOString()
     }
   ] as const satisfies readonly SeedExecutionJob[];
+  const seedAuditEntries = [
+    {
+      id: "audit_foundation_deployment_create",
+      actorType: "human",
+      actorId: "user_foundation_owner",
+      actorLabel: "owner@daoflow.local",
+      actorRole: "owner",
+      action: "deployment.create",
+      resourceType: "deployment",
+      resourceId: deploymentId,
+      resourceLabel: "control-plane@production-us-west",
+      detail: "Queued the seeded control-plane rollout for production-us-west.",
+      createdAt: new Date(now.getTime() - 7 * 60 * 1000).toISOString()
+    },
+    {
+      id: "audit_foundation_execution_complete",
+      actorType: "human",
+      actorId: "user_foundation_owner",
+      actorLabel: "owner@daoflow.local",
+      actorRole: "owner",
+      action: "execution.complete",
+      resourceType: "execution-job",
+      resourceId: "job_foundation_20260312_1",
+      resourceLabel: "control-plane@production-us-west",
+      detail: "Marked the seeded production rollout healthy after worker completion.",
+      createdAt: new Date(now.getTime() - 90 * 1000).toISOString()
+    },
+    {
+      id: "audit_foundation_backup_schedule",
+      actorType: "system",
+      actorId: null,
+      actorLabel: "scheduler",
+      actorRole: null,
+      action: "backup.schedule",
+      resourceType: "backup-run",
+      resourceId: "brun_foundation_volume_success",
+      resourceLabel: "postgres-volume@production-us-west",
+      detail: "Recorded the scheduled volume backup snapshot for the production database volume.",
+      createdAt: new Date(now.getTime() - 24 * 60 * 60 * 1000 + 5 * 60 * 1000).toISOString()
+    }
+  ] as const satisfies readonly SeedAuditEntry[];
   const seedEvents = [
     {
       id: "evt_foundation_queued",
@@ -820,6 +903,22 @@ function seedControlPlaneData() {
     )
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
+  const insertAuditEntry = controlPlaneDb.prepare(`
+    INSERT OR IGNORE INTO audit_entries (
+      id,
+      actor_type,
+      actor_id,
+      actor_label,
+      actor_role,
+      action,
+      resource_type,
+      resource_id,
+      resource_label,
+      detail,
+      created_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
   const insertProject = controlPlaneDb.prepare(`
     INSERT OR IGNORE INTO projects (
       id,
@@ -902,6 +1001,22 @@ function seedControlPlaneData() {
       event.actorType,
       event.actorLabel,
       event.createdAt
+    );
+  }
+
+  for (const entry of seedAuditEntries) {
+    insertAuditEntry.run(
+      entry.id,
+      entry.actorType,
+      entry.actorId,
+      entry.actorLabel,
+      entry.actorRole,
+      entry.action,
+      entry.resourceType,
+      entry.resourceId,
+      entry.resourceLabel,
+      entry.detail,
+      entry.createdAt
     );
   }
 
@@ -1087,6 +1202,20 @@ const controlPlaneReady = Promise.resolve().then(() => {
       finished_at TEXT
     );
 
+    CREATE TABLE IF NOT EXISTS audit_entries (
+      id TEXT PRIMARY KEY,
+      actor_type TEXT NOT NULL,
+      actor_id TEXT,
+      actor_label TEXT NOT NULL,
+      actor_role TEXT,
+      action TEXT NOT NULL,
+      resource_type TEXT NOT NULL,
+      resource_id TEXT NOT NULL,
+      resource_label TEXT NOT NULL,
+      detail TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+
     CREATE INDEX IF NOT EXISTS idx_execution_jobs_deployment_id
       ON execution_jobs (deployment_id);
     CREATE INDEX IF NOT EXISTS idx_execution_jobs_status_created_at
@@ -1101,6 +1230,10 @@ const controlPlaneReady = Promise.resolve().then(() => {
       ON backup_runs (policy_id, started_at DESC);
     CREATE INDEX IF NOT EXISTS idx_backup_runs_status_started_at
       ON backup_runs (status, started_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_audit_entries_created_at
+      ON audit_entries (created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_audit_entries_action_created_at
+      ON audit_entries (action, created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_environments_project_id
       ON environments (project_id);
     CREATE INDEX IF NOT EXISTS idx_environments_target_server_id
@@ -1248,6 +1381,20 @@ interface BackupRunRow {
   bytes_written: number | null;
   started_at: string;
   finished_at: string | null;
+}
+
+interface AuditEntryRow {
+  id: string;
+  actor_type: AuditActorType;
+  actor_id: string | null;
+  actor_label: string;
+  actor_role: AppRole | null;
+  action: string;
+  resource_type: AuditResourceType;
+  resource_id: string;
+  resource_label: string;
+  detail: string;
+  created_at: string;
 }
 
 interface ServerInventoryRow {
@@ -1619,6 +1766,18 @@ export function createDeploymentRecord(input: CreateDeploymentRecordInput) {
       "control-plane",
       createdAt
     );
+    appendAuditEntry({
+      actorType: "human",
+      actorId: input.requestedByUserId,
+      actorLabel: input.requestedByEmail,
+      actorRole: input.requestedByRole,
+      action: "deployment.create",
+      resourceType: "deployment",
+      resourceId: deploymentId,
+      resourceLabel: `${input.serviceName}@${input.environmentName}`,
+      detail: `Queued a ${input.sourceType} deployment on ${server.name}.`,
+      createdAt
+    });
 
     controlPlaneDb.exec("COMMIT");
   } catch (error) {
@@ -1810,6 +1969,37 @@ function appendDeploymentEvent(
   );
 }
 
+function appendAuditEntry(entry: Omit<AuditEntryRecord, "id">) {
+  controlPlaneDb.prepare(`
+    INSERT INTO audit_entries (
+      id,
+      actor_type,
+      actor_id,
+      actor_label,
+      actor_role,
+      action,
+      resource_type,
+      resource_id,
+      resource_label,
+      detail,
+      created_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    `audit_${randomUUID()}`,
+    entry.actorType,
+    entry.actorId,
+    entry.actorLabel,
+    entry.actorRole,
+    entry.action,
+    entry.resourceType,
+    entry.resourceId,
+    entry.resourceLabel,
+    entry.detail,
+    entry.createdAt
+  );
+}
+
 export function listExecutionQueue(status?: ExecutionJobStatus, limit = 20): ExecutionQueueSnapshot {
   const jobs = getExecutionJobRows({ status, limit }).map((row) => mapExecutionJobRow(row));
   const summary = getExecutionJobSummary(status);
@@ -1828,7 +2018,9 @@ export function listExecutionQueue(status?: ExecutionJobStatus, limit = 20): Exe
 
 export function dispatchExecutionJob(
   jobId: string,
-  actorLabel: string
+  actorId: string,
+  actorLabel: string,
+  actorRole: AppRole
 ): ExecutionJobMutationResult {
   const jobRow = getExecutionJobRow(jobId);
 
@@ -1898,6 +2090,18 @@ export function dispatchExecutionJob(
       actorLabel,
       now
     );
+    appendAuditEntry({
+      actorType: "human",
+      actorId,
+      actorLabel,
+      actorRole,
+      action: "execution.dispatch",
+      resourceType: "execution-job",
+      resourceId: jobId,
+      resourceLabel: `${jobRow.service_name}@${jobRow.environment_name}`,
+      detail: `Dispatched the ${jobRow.queue_name} worker handoff to ${jobRow.target_server_name}.`,
+      createdAt: now
+    });
 
     controlPlaneDb.exec("COMMIT");
   } catch (error) {
@@ -1917,7 +2121,9 @@ export function dispatchExecutionJob(
 
 export function completeExecutionJob(
   jobId: string,
-  actorLabel: string
+  actorId: string,
+  actorLabel: string,
+  actorRole: AppRole
 ): ExecutionJobMutationResult {
   const jobRow = getExecutionJobRow(jobId);
 
@@ -1993,6 +2199,18 @@ export function completeExecutionJob(
       "docker-ssh-worker",
       now
     );
+    appendAuditEntry({
+      actorType: "human",
+      actorId,
+      actorLabel,
+      actorRole,
+      action: "execution.complete",
+      resourceType: "execution-job",
+      resourceId: jobId,
+      resourceLabel: `${jobRow.service_name}@${jobRow.environment_name}`,
+      detail: `Marked the rollout healthy after worker success on ${jobRow.target_server_name}.`,
+      createdAt: now
+    });
 
     controlPlaneDb.exec("COMMIT");
   } catch (error) {
@@ -2012,7 +2230,9 @@ export function completeExecutionJob(
 
 export function failExecutionJob(
   jobId: string,
+  actorId: string,
   actorLabel: string,
+  actorRole: AppRole,
   reason?: string
 ): ExecutionJobMutationResult {
   const jobRow = getExecutionJobRow(jobId);
@@ -2092,6 +2312,18 @@ export function failExecutionJob(
       "docker-ssh-worker",
       now
     );
+    appendAuditEntry({
+      actorType: "human",
+      actorId,
+      actorLabel,
+      actorRole,
+      action: "execution.fail",
+      resourceType: "execution-job",
+      resourceId: jobId,
+      resourceLabel: `${jobRow.service_name}@${jobRow.environment_name}`,
+      detail: reason ?? `Marked the rollout failed after a worker-side error on ${jobRow.target_server_name}.`,
+      createdAt: now
+    });
 
     controlPlaneDb.exec("COMMIT");
   } catch (error) {
@@ -2379,6 +2611,74 @@ export function listDeploymentInsights(limit = 6) {
   return listDeploymentRecords(undefined, limit).map((deployment) => buildDeploymentInsight(deployment));
 }
 
+function getAuditEntryRows(limit = 20) {
+  return controlPlaneDb.prepare(`
+    SELECT
+      id,
+      actor_type,
+      actor_id,
+      actor_label,
+      actor_role,
+      action,
+      resource_type,
+      resource_id,
+      resource_label,
+      detail,
+      created_at
+    FROM audit_entries
+    ORDER BY created_at DESC
+    LIMIT ?
+  `).all(limit) as unknown as AuditEntryRow[];
+}
+
+function getAuditSummary() {
+  return controlPlaneDb.prepare(`
+    SELECT
+      COUNT(*) AS total_entries,
+      SUM(CASE WHEN action LIKE 'deployment.%' THEN 1 ELSE 0 END) AS deployment_actions,
+      SUM(CASE WHEN action LIKE 'execution.%' THEN 1 ELSE 0 END) AS execution_actions,
+      SUM(CASE WHEN action LIKE 'backup.%' THEN 1 ELSE 0 END) AS backup_actions,
+      SUM(CASE WHEN actor_type = 'human' THEN 1 ELSE 0 END) AS human_entries
+    FROM audit_entries
+  `).get() as
+    | {
+        total_entries?: number;
+        deployment_actions?: number;
+        execution_actions?: number;
+        backup_actions?: number;
+        human_entries?: number;
+      }
+    | undefined;
+}
+
+export function listAuditTrail(limit = 20): AuditTrailSnapshot {
+  const summary = getAuditSummary();
+  const entries = getAuditEntryRows(limit).map((row) => ({
+    id: row.id,
+    actorType: row.actor_type,
+    actorId: row.actor_id,
+    actorLabel: row.actor_label,
+    actorRole: row.actor_role,
+    action: row.action,
+    resourceType: row.resource_type,
+    resourceId: row.resource_id,
+    resourceLabel: row.resource_label,
+    detail: row.detail,
+    createdAt: row.created_at
+  }));
+
+  return {
+    summary: {
+      totalEntries: summary?.total_entries ?? 0,
+      deploymentActions: summary?.deployment_actions ?? 0,
+      executionActions: summary?.execution_actions ?? 0,
+      backupActions: summary?.backup_actions ?? 0,
+      humanEntries: summary?.human_entries ?? 0
+    },
+    entries
+  };
+}
+
 function getBackupPolicyRows() {
   return controlPlaneDb.prepare(`
     SELECT
@@ -2483,7 +2783,12 @@ export function listBackupOverview(limit = 12): BackupOverview {
   };
 }
 
-export function triggerBackupRun(policyId: string, requestedBy: string) {
+export function triggerBackupRun(
+  policyId: string,
+  requestedByUserId: string,
+  requestedBy: string,
+  requestedByRole: AppRole
+) {
   const policy = controlPlaneDb.prepare(`
     SELECT
       id,
@@ -2508,30 +2813,52 @@ export function triggerBackupRun(policyId: string, requestedBy: string) {
   const runId = `brun_${randomUUID().slice(0, 8)}`;
   const startedAt = new Date().toISOString();
 
-  controlPlaneDb.prepare(`
-    INSERT INTO backup_runs (
-      id,
-      policy_id,
-      status,
-      trigger_kind,
-      requested_by,
-      artifact_path,
-      bytes_written,
-      started_at,
-      finished_at
-    )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(
-    runId,
-    policyId,
-    "queued",
-    "manual",
-    requestedBy,
-    null,
-    null,
-    startedAt,
-    null
-  );
+  controlPlaneDb.exec("BEGIN");
+
+  try {
+    controlPlaneDb.prepare(`
+      INSERT INTO backup_runs (
+        id,
+        policy_id,
+        status,
+        trigger_kind,
+        requested_by,
+        artifact_path,
+        bytes_written,
+        started_at,
+        finished_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      runId,
+      policyId,
+      "queued",
+      "manual",
+      requestedBy,
+      null,
+      null,
+      startedAt,
+      null
+    );
+
+    appendAuditEntry({
+      actorType: "human",
+      actorId: requestedByUserId,
+      actorLabel: requestedBy,
+      actorRole: requestedByRole,
+      action: "backup.trigger",
+      resourceType: "backup-policy",
+      resourceId: policyId,
+      resourceLabel: `${policy.service_name}@${policy.environment_name}`,
+      detail: `Queued a manual ${policy.target_type} backup for ${policy.service_name}.`,
+      createdAt: startedAt
+    });
+
+    controlPlaneDb.exec("COMMIT");
+  } catch (error) {
+    controlPlaneDb.exec("ROLLBACK");
+    throw error;
+  }
 
   const run = controlPlaneDb.prepare(`
     SELECT
