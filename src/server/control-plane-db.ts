@@ -22,6 +22,8 @@ export type PrincipalKind = "human" | "service-account" | "agent";
 export type ApiTokenStatus = "active" | "paused" | "expired";
 export type ExecutionJobStatus = "pending" | "dispatched" | "completed" | "failed";
 export type DeploymentEventLevel = "info" | "warning" | "error";
+export type BackupTargetType = "volume" | "database";
+export type BackupRunStatus = "queued" | "running" | "succeeded" | "failed";
 export type DeploymentEventKind =
   | "deployment.queued"
   | "execution.job.created"
@@ -129,6 +131,47 @@ export interface ExecutionJobMutationResult {
   job?: ExecutionJobRecord;
 }
 
+export interface BackupPolicyRecord {
+  id: string;
+  projectName: string;
+  environmentName: string;
+  serviceName: string;
+  targetType: BackupTargetType;
+  storageProvider: string;
+  scheduleLabel: string;
+  retentionCount: number;
+  nextRunAt: string;
+  lastRunAt: string | null;
+}
+
+export interface BackupRunRecord {
+  id: string;
+  policyId: string;
+  projectName: string;
+  environmentName: string;
+  serviceName: string;
+  targetType: BackupTargetType;
+  status: BackupRunStatus;
+  triggerKind: "scheduled" | "manual";
+  requestedBy: string;
+  artifactPath: string | null;
+  bytesWritten: number | null;
+  startedAt: string;
+  finishedAt: string | null;
+}
+
+export interface BackupOverview {
+  summary: {
+    totalPolicies: number;
+    queuedRuns: number;
+    runningRuns: number;
+    succeededRuns: number;
+    failedRuns: number;
+  };
+  policies: BackupPolicyRecord[];
+  runs: BackupRunRecord[];
+}
+
 export interface ApiTokenRecord {
   id: string;
   principalId: string;
@@ -184,6 +227,31 @@ interface SeedDeploymentEvent {
   createdAt: string;
 }
 
+interface SeedBackupPolicy {
+  id: string;
+  projectName: string;
+  environmentName: string;
+  serviceName: string;
+  targetType: BackupTargetType;
+  storageProvider: string;
+  scheduleLabel: string;
+  retentionCount: number;
+  nextRunAt: string;
+  lastRunAt: string | null;
+}
+
+interface SeedBackupRun {
+  id: string;
+  policyId: string;
+  status: BackupRunStatus;
+  triggerKind: "scheduled" | "manual";
+  requestedBy: string;
+  artifactPath: string | null;
+  bytesWritten: number | null;
+  startedAt: string;
+  finishedAt: string | null;
+}
+
 function resolveControlPlaneDatabasePath() {
   if (process.env.CONTROL_PLANE_DB_PATH) {
     return process.env.CONTROL_PLANE_DB_PATH;
@@ -213,6 +281,56 @@ function seedControlPlaneData() {
   const serverId = "srv_foundation_1";
   const deploymentId = "dep_foundation_20260312_1";
   const previousDeploymentId = "dep_foundation_20260311_1";
+  const seedBackupPolicies = [
+    {
+      id: "bpol_foundation_volume_daily",
+      projectName: "DaoFlow",
+      environmentName: "production-us-west",
+      serviceName: "postgres-volume",
+      targetType: "volume",
+      storageProvider: "s3-compatible",
+      scheduleLabel: "Daily at 02:00 UTC",
+      retentionCount: 14,
+      nextRunAt: new Date(now.getTime() + 18 * 60 * 60 * 1000).toISOString(),
+      lastRunAt: new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString()
+    },
+    {
+      id: "bpol_foundation_db_hourly",
+      projectName: "DaoFlow",
+      environmentName: "staging",
+      serviceName: "control-plane-db",
+      targetType: "database",
+      storageProvider: "s3-compatible",
+      scheduleLabel: "Hourly",
+      retentionCount: 48,
+      nextRunAt: new Date(now.getTime() + 45 * 60 * 1000).toISOString(),
+      lastRunAt: new Date(now.getTime() - 60 * 60 * 1000).toISOString()
+    }
+  ] as const satisfies readonly SeedBackupPolicy[];
+  const seedBackupRuns = [
+    {
+      id: "brun_foundation_volume_success",
+      policyId: "bpol_foundation_volume_daily",
+      status: "succeeded",
+      triggerKind: "scheduled",
+      requestedBy: "scheduler",
+      artifactPath: "s3://daoflow-backups/prod/postgres-volume-2026-03-11.tar.zst",
+      bytesWritten: 73400320,
+      startedAt: new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString(),
+      finishedAt: new Date(now.getTime() - 24 * 60 * 60 * 1000 + 5 * 60 * 1000).toISOString()
+    },
+    {
+      id: "brun_foundation_db_failed",
+      policyId: "bpol_foundation_db_hourly",
+      status: "failed",
+      triggerKind: "scheduled",
+      requestedBy: "scheduler",
+      artifactPath: null,
+      bytesWritten: null,
+      startedAt: new Date(now.getTime() - 60 * 60 * 1000).toISOString(),
+      finishedAt: new Date(now.getTime() - 53 * 60 * 1000).toISOString()
+    }
+  ] as const satisfies readonly SeedBackupRun[];
   const seedExecutionJobs = [
     {
       id: "job_foundation_20260312_1",
@@ -509,6 +627,35 @@ function seedControlPlaneData() {
     )
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
+  const insertBackupPolicy = controlPlaneDb.prepare(`
+    INSERT OR IGNORE INTO backup_policies (
+      id,
+      project_name,
+      environment_name,
+      service_name,
+      target_type,
+      storage_provider,
+      schedule_label,
+      retention_count,
+      next_run_at,
+      last_run_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+  const insertBackupRun = controlPlaneDb.prepare(`
+    INSERT OR IGNORE INTO backup_runs (
+      id,
+      policy_id,
+      status,
+      trigger_kind,
+      requested_by,
+      artifact_path,
+      bytes_written,
+      started_at,
+      finished_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
 
   for (const step of steps) {
     insertStep.run(
@@ -569,6 +716,35 @@ function seedControlPlaneData() {
       event.actorType,
       event.actorLabel,
       event.createdAt
+    );
+  }
+
+  for (const policy of seedBackupPolicies) {
+    insertBackupPolicy.run(
+      policy.id,
+      policy.projectName,
+      policy.environmentName,
+      policy.serviceName,
+      policy.targetType,
+      policy.storageProvider,
+      policy.scheduleLabel,
+      policy.retentionCount,
+      policy.nextRunAt,
+      policy.lastRunAt
+    );
+  }
+
+  for (const run of seedBackupRuns) {
+    insertBackupRun.run(
+      run.id,
+      run.policyId,
+      run.status,
+      run.triggerKind,
+      run.requestedBy,
+      run.artifactPath,
+      run.bytesWritten,
+      run.startedAt,
+      run.finishedAt
     );
   }
 }
@@ -660,6 +836,31 @@ const controlPlaneReady = Promise.resolve().then(() => {
       created_at TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS backup_policies (
+      id TEXT PRIMARY KEY,
+      project_name TEXT NOT NULL,
+      environment_name TEXT NOT NULL,
+      service_name TEXT NOT NULL,
+      target_type TEXT NOT NULL,
+      storage_provider TEXT NOT NULL,
+      schedule_label TEXT NOT NULL,
+      retention_count INTEGER NOT NULL,
+      next_run_at TEXT NOT NULL,
+      last_run_at TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS backup_runs (
+      id TEXT PRIMARY KEY,
+      policy_id TEXT NOT NULL REFERENCES backup_policies(id) ON DELETE CASCADE,
+      status TEXT NOT NULL,
+      trigger_kind TEXT NOT NULL,
+      requested_by TEXT NOT NULL,
+      artifact_path TEXT,
+      bytes_written INTEGER,
+      started_at TEXT NOT NULL,
+      finished_at TEXT
+    );
+
     CREATE INDEX IF NOT EXISTS idx_execution_jobs_deployment_id
       ON execution_jobs (deployment_id);
     CREATE INDEX IF NOT EXISTS idx_execution_jobs_status_created_at
@@ -670,6 +871,10 @@ const controlPlaneReady = Promise.resolve().then(() => {
       ON deployment_events (created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_deployment_events_deployment_created_at
       ON deployment_events (deployment_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_backup_runs_policy_started_at
+      ON backup_runs (policy_id, started_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_backup_runs_status_started_at
+      ON backup_runs (status, started_at DESC);
   `);
 
   for (const migration of [
@@ -777,6 +982,35 @@ interface DeploymentStepStateRow {
   label: string;
   detail: string;
   status: DeploymentStepStatus;
+  started_at: string;
+  finished_at: string | null;
+}
+
+interface BackupPolicyRow {
+  id: string;
+  project_name: string;
+  environment_name: string;
+  service_name: string;
+  target_type: BackupTargetType;
+  storage_provider: string;
+  schedule_label: string;
+  retention_count: number;
+  next_run_at: string;
+  last_run_at: string | null;
+}
+
+interface BackupRunRow {
+  id: string;
+  policy_id: string;
+  project_name: string;
+  environment_name: string;
+  service_name: string;
+  target_type: BackupTargetType;
+  status: BackupRunStatus;
+  trigger_kind: "scheduled" | "manual";
+  requested_by: string;
+  artifact_path: string | null;
+  bytes_written: number | null;
   started_at: string;
   finished_at: string | null;
 }
@@ -1663,6 +1897,202 @@ export function listOperationsTimeline(deploymentId?: string, limit = 20) {
     actorLabel: row.actor_label,
     createdAt: row.created_at
   })) satisfies OperationsTimelineEvent[];
+}
+
+function getBackupPolicyRows() {
+  return controlPlaneDb.prepare(`
+    SELECT
+      id,
+      project_name,
+      environment_name,
+      service_name,
+      target_type,
+      storage_provider,
+      schedule_label,
+      retention_count,
+      next_run_at,
+      last_run_at
+    FROM backup_policies
+    ORDER BY environment_name ASC, service_name ASC
+  `).all() as unknown as BackupPolicyRow[];
+}
+
+function getBackupRunRows(limit = 20) {
+  return controlPlaneDb.prepare(`
+    SELECT
+      backup_runs.id,
+      backup_runs.policy_id,
+      backup_runs.status,
+      backup_runs.trigger_kind,
+      backup_runs.requested_by,
+      backup_runs.artifact_path,
+      backup_runs.bytes_written,
+      backup_runs.started_at,
+      backup_runs.finished_at,
+      backup_policies.project_name,
+      backup_policies.environment_name,
+      backup_policies.service_name,
+      backup_policies.target_type
+    FROM backup_runs
+    INNER JOIN backup_policies ON backup_policies.id = backup_runs.policy_id
+    ORDER BY backup_runs.started_at DESC
+    LIMIT ?
+  `).all(limit) as unknown as BackupRunRow[];
+}
+
+function getBackupRunSummary() {
+  return controlPlaneDb.prepare(`
+    SELECT
+      COUNT(*) AS total_runs,
+      SUM(CASE WHEN status = 'queued' THEN 1 ELSE 0 END) AS queued_runs,
+      SUM(CASE WHEN status = 'running' THEN 1 ELSE 0 END) AS running_runs,
+      SUM(CASE WHEN status = 'succeeded' THEN 1 ELSE 0 END) AS succeeded_runs,
+      SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) AS failed_runs
+    FROM backup_runs
+  `).get() as
+    | {
+        total_runs?: number;
+        queued_runs?: number;
+        running_runs?: number;
+        succeeded_runs?: number;
+        failed_runs?: number;
+      }
+    | undefined;
+}
+
+export function listBackupOverview(limit = 12): BackupOverview {
+  const policies = getBackupPolicyRows().map((row) => ({
+    id: row.id,
+    projectName: row.project_name,
+    environmentName: row.environment_name,
+    serviceName: row.service_name,
+    targetType: row.target_type,
+    storageProvider: row.storage_provider,
+    scheduleLabel: row.schedule_label,
+    retentionCount: row.retention_count,
+    nextRunAt: row.next_run_at,
+    lastRunAt: row.last_run_at
+  }));
+  const runs = getBackupRunRows(limit).map((row) => ({
+    id: row.id,
+    policyId: row.policy_id,
+    projectName: row.project_name,
+    environmentName: row.environment_name,
+    serviceName: row.service_name,
+    targetType: row.target_type,
+    status: row.status,
+    triggerKind: row.trigger_kind,
+    requestedBy: row.requested_by,
+    artifactPath: row.artifact_path,
+    bytesWritten: row.bytes_written,
+    startedAt: row.started_at,
+    finishedAt: row.finished_at
+  }));
+  const summary = getBackupRunSummary();
+
+  return {
+    summary: {
+      totalPolicies: policies.length,
+      queuedRuns: summary?.queued_runs ?? 0,
+      runningRuns: summary?.running_runs ?? 0,
+      succeededRuns: summary?.succeeded_runs ?? 0,
+      failedRuns: summary?.failed_runs ?? 0
+    },
+    policies,
+    runs
+  };
+}
+
+export function triggerBackupRun(policyId: string, requestedBy: string) {
+  const policy = controlPlaneDb.prepare(`
+    SELECT
+      id,
+      project_name,
+      environment_name,
+      service_name,
+      target_type,
+      storage_provider,
+      schedule_label,
+      retention_count,
+      next_run_at,
+      last_run_at
+    FROM backup_policies
+    WHERE id = ?
+    LIMIT 1
+  `).get(policyId) as BackupPolicyRow | undefined;
+
+  if (!policy) {
+    return null;
+  }
+
+  const runId = `brun_${randomUUID().slice(0, 8)}`;
+  const startedAt = new Date().toISOString();
+
+  controlPlaneDb.prepare(`
+    INSERT INTO backup_runs (
+      id,
+      policy_id,
+      status,
+      trigger_kind,
+      requested_by,
+      artifact_path,
+      bytes_written,
+      started_at,
+      finished_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    runId,
+    policyId,
+    "queued",
+    "manual",
+    requestedBy,
+    null,
+    null,
+    startedAt,
+    null
+  );
+
+  const run = controlPlaneDb.prepare(`
+    SELECT
+      backup_runs.id,
+      backup_runs.policy_id,
+      backup_runs.status,
+      backup_runs.trigger_kind,
+      backup_runs.requested_by,
+      backup_runs.artifact_path,
+      backup_runs.bytes_written,
+      backup_runs.started_at,
+      backup_runs.finished_at,
+      backup_policies.project_name,
+      backup_policies.environment_name,
+      backup_policies.service_name,
+      backup_policies.target_type
+    FROM backup_runs
+    INNER JOIN backup_policies ON backup_policies.id = backup_runs.policy_id
+    WHERE backup_runs.id = ?
+    LIMIT 1
+  `).get(runId) as BackupRunRow | undefined;
+
+  if (!run) {
+    return null;
+  }
+
+  return {
+    id: run.id,
+    policyId: run.policy_id,
+    projectName: run.project_name,
+    environmentName: run.environment_name,
+    serviceName: run.service_name,
+    targetType: run.target_type,
+    status: run.status,
+    triggerKind: run.trigger_kind,
+    requestedBy: run.requested_by,
+    artifactPath: run.artifact_path,
+    bytesWritten: run.bytes_written,
+    startedAt: run.started_at,
+    finishedAt: run.finished_at
+  } satisfies BackupRunRecord;
 }
 
 function getApiTokenRows() {

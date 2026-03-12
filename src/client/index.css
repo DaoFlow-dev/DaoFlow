@@ -249,6 +249,10 @@ body {
   margin-top: 1rem;
 }
 
+.backup-catalog {
+  margin-top: 1rem;
+}
+
 .deployment-composer {
   margin-bottom: 1rem;
   display: grid;
@@ -303,7 +307,21 @@ body {
   gap: 1rem;
 }
 
+.backup-summary {
+  margin-bottom: 1rem;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1rem;
+}
+
 .queue-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.backup-policy-list,
+.backup-run-list {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 1rem;
@@ -523,6 +541,9 @@ body {
   .auth-section,
   .grid,
   .deployment-composer,
+  .backup-summary,
+  .backup-policy-list,
+  .backup-run-list,
   .deployment-list,
   .queue-summary,
   .queue-list,

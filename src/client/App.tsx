@@ -63,10 +63,14 @@ export default function App() {
   const overview = trpc.platformOverview.useQuery();
   const roadmap = trpc.roadmap.useQuery({});
   const createDeploymentRecord = trpc.createDeploymentRecord.useMutation();
+  const triggerBackupRun = trpc.triggerBackupRun.useMutation();
   const dispatchExecutionJob = trpc.dispatchExecutionJob.useMutation();
   const completeExecutionJob = trpc.completeExecutionJob.useMutation();
   const failExecutionJob = trpc.failExecutionJob.useMutation();
   const recentDeployments = trpc.recentDeployments.useQuery({}, {
+    enabled: Boolean(session.data)
+  });
+  const backupOverview = trpc.backupOverview.useQuery({}, {
     enabled: Boolean(session.data)
   });
   const executionQueue = trpc.executionQueue.useQuery({}, {
@@ -96,6 +100,7 @@ export default function App() {
   const [authFeedback, setAuthFeedback] = useState<string | null>(null);
   const [deploymentFeedback, setDeploymentFeedback] = useState<string | null>(null);
   const [executionFeedback, setExecutionFeedback] = useState<string | null>(null);
+  const [backupFeedback, setBackupFeedback] = useState<string | null>(null);
 
   async function handleSignUp(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -154,10 +159,12 @@ export default function App() {
     setAuthFeedback("Signed out.");
     setDeploymentFeedback(null);
     setExecutionFeedback(null);
+    setBackupFeedback(null);
   }
 
   async function refreshOperationalViews() {
     await recentDeployments.refetch();
+    await backupOverview.refetch();
     await executionQueue.refetch();
     await operationsTimeline.refetch();
   }
@@ -253,6 +260,24 @@ export default function App() {
     }
   }
 
+  async function handleTriggerBackupRun(policyId: string, service: string) {
+    setBackupFeedback(null);
+
+    try {
+      await triggerBackupRun.mutateAsync({
+        policyId
+      });
+      await backupOverview.refetch();
+      setBackupFeedback(`Queued backup run for ${service}.`);
+    } catch (error) {
+      setBackupFeedback(
+        isTRPCClientError(error)
+          ? error.message
+          : "Unable to queue the backup run right now."
+      );
+    }
+  }
+
   const viewerMessage =
     viewer.error && isTRPCClientError(viewer.error)
       ? viewer.error.message
@@ -264,6 +289,10 @@ export default function App() {
   const deploymentMessage =
     recentDeployments.error && isTRPCClientError(recentDeployments.error)
       ? recentDeployments.error.message
+      : null;
+  const backupMessage =
+    backupOverview.error && isTRPCClientError(backupOverview.error)
+      ? backupOverview.error.message
       : null;
   const executionQueueMessage =
     executionQueue.error && isTRPCClientError(executionQueue.error)
@@ -288,6 +317,7 @@ export default function App() {
     dispatchExecutionJob.isPending ||
     completeExecutionJob.isPending ||
     failExecutionJob.isPending;
+  const backupMutationPending = triggerBackupRun.isPending;
 
   return (
     <main className="shell">
@@ -709,6 +739,112 @@ export default function App() {
         ) : (
           <p className="viewer-empty">
             {timelineMessage ?? "Sign in to inspect immutable deployment events."}
+          </p>
+        )}
+      </section>
+
+      <section className="backup-catalog">
+        <div className="roadmap__header">
+          <p className="roadmap__kicker">Backup awareness</p>
+          <h2>Backup policies and runs</h2>
+        </div>
+
+        {session.data && backupOverview.data ? (
+          <>
+            <div className="backup-summary" data-testid="backup-summary">
+              <div className="token-summary__item">
+                <span className="metric__label">Policies</span>
+                <strong>{backupOverview.data.summary.totalPolicies}</strong>
+              </div>
+              <div className="token-summary__item">
+                <span className="metric__label">Queued</span>
+                <strong>{backupOverview.data.summary.queuedRuns}</strong>
+              </div>
+              <div className="token-summary__item">
+                <span className="metric__label">Succeeded</span>
+                <strong>{backupOverview.data.summary.succeededRuns}</strong>
+              </div>
+              <div className="token-summary__item">
+                <span className="metric__label">Failed</span>
+                <strong>{backupOverview.data.summary.failedRuns}</strong>
+              </div>
+            </div>
+
+            {backupFeedback ? (
+              <p className="auth-feedback" data-testid="backup-feedback">
+                {backupFeedback}
+              </p>
+            ) : null}
+
+            <div className="backup-policy-list">
+              {backupOverview.data.policies.map((policy) => (
+                <article
+                  className="token-card"
+                  data-testid={`backup-policy-${policy.id}`}
+                  key={policy.id}
+                >
+                  <div className="token-card__top">
+                    <div>
+                      <p className="roadmap-item__lane">{policy.environmentName}</p>
+                      <h3>{policy.serviceName}</h3>
+                    </div>
+                    <span className="deployment-status deployment-status--queued">
+                      {policy.targetType}
+                    </span>
+                  </div>
+                  <p className="deployment-card__meta">
+                    {policy.storageProvider} · {policy.scheduleLabel}
+                  </p>
+                  <p className="deployment-card__meta">
+                    Retention: {policy.retentionCount} snapshots
+                  </p>
+                  {canOperateExecutionJobs ? (
+                    <div className="job-actions">
+                      <button
+                        className="action-button"
+                        disabled={backupMutationPending}
+                        onClick={() => {
+                          void handleTriggerBackupRun(policy.id, policy.serviceName);
+                        }}
+                        type="button"
+                      >
+                        Queue backup
+                      </button>
+                    </div>
+                  ) : null}
+                </article>
+              ))}
+            </div>
+
+            <div className="backup-run-list">
+              {backupOverview.data.runs.map((run) => (
+                <article className="timeline-event" data-testid={`backup-run-${run.id}`} key={run.id}>
+                  <div className="timeline-event__top">
+                    <div>
+                      <p className="roadmap-item__lane">
+                        {run.environmentName} · {run.triggerKind}
+                      </p>
+                      <h3>{run.serviceName}</h3>
+                    </div>
+                    <span
+                      className={`deployment-status deployment-status--${run.status === "succeeded" ? "healthy" : run.status === "failed" ? "failed" : run.status === "running" ? "running" : "queued"}`}
+                    >
+                      {run.status}
+                    </span>
+                  </div>
+                  <p className="deployment-card__meta">
+                    {run.targetType} backup · Requested by {run.requestedBy}
+                  </p>
+                  <p className="deployment-card__meta">
+                    {run.artifactPath ?? "Artifact path will be assigned by the future backup worker."}
+                  </p>
+                </article>
+              ))}
+            </div>
+          </>
+        ) : (
+          <p className="viewer-empty">
+            {backupMessage ?? "Sign in to inspect backup policies and recent runs."}
           </p>
         )}
       </section>

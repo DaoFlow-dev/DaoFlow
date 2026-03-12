@@ -14,11 +14,13 @@ import {
   dispatchExecutionJob,
   ensureControlPlaneReady,
   failExecutionJob,
+  listBackupOverview,
   listApiTokenInventory,
   getDeploymentRecord,
   listDeploymentRecords,
   listExecutionQueue,
-  listOperationsTimeline
+  listOperationsTimeline,
+  triggerBackupRun
 } from "./control-plane-db";
 import type { Context } from "./context";
 
@@ -81,7 +83,7 @@ export const appRouter = t.router({
   })),
   platformOverview: t.procedure.query(() => ({
     name: "DaoFlow",
-    currentSlice: "execution-lifecycle",
+    currentSlice: "backup-awareness",
     thesis:
       "A Docker-first deployment control plane for bare metal and VPS environments.",
     architecture: {
@@ -207,6 +209,35 @@ export const appRouter = t.router({
     .query(async ({ input }) => {
       await ensureControlPlaneReady();
       return listExecutionQueue(input.status, input.limit ?? 12);
+    }),
+  backupOverview: protectedProcedure
+    .input(
+      z.object({
+        limit: z.number().int().min(1).max(50).optional()
+      })
+    )
+    .query(async ({ input }) => {
+      await ensureControlPlaneReady();
+      return listBackupOverview(input.limit ?? 12);
+    }),
+  triggerBackupRun: executionProcedure
+    .input(
+      z.object({
+        policyId: z.string().min(1)
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      await ensureControlPlaneReady();
+      const run = triggerBackupRun(input.policyId, ctx.session.user.email);
+
+      if (!run) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Backup policy not found."
+        });
+      }
+
+      return run;
     }),
   dispatchExecutionJob: executionProcedure
     .input(

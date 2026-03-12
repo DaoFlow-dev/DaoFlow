@@ -72,6 +72,19 @@ describe("appRouter", () => {
     expect(timeline[0]?.serviceName).toBeTruthy();
   });
 
+  it("returns backup policies and runs for signed-in viewers", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-backups-viewer",
+      session: makeSession("viewer")
+    });
+
+    const overview = await caller.backupOverview({});
+
+    expect(overview.policies.length).toBeGreaterThan(0);
+    expect(overview.runs.length).toBeGreaterThan(0);
+    expect(overview.summary.totalPolicies).toBeGreaterThan(0);
+  });
+
   it("rejects protected procedures without a session", async () => {
     const caller = appRouter.createCaller({ requestId: "test-viewer", session: null });
 
@@ -108,6 +121,19 @@ describe("appRouter", () => {
     await expect(
       caller.dispatchExecutionJob({
         jobId: "job_foundation_20260312_1"
+      })
+    ).rejects.toBeInstanceOf(TRPCError);
+  });
+
+  it("blocks backup trigger mutations for viewer roles", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-backups-viewer-block",
+      session: makeSession("viewer")
+    });
+
+    await expect(
+      caller.triggerBackupRun({
+        policyId: "bpol_foundation_volume_daily"
       })
     ).rejects.toBeInstanceOf(TRPCError);
   });
@@ -328,6 +354,24 @@ describe("appRouter", () => {
         jobId: job.id
       })
     ).rejects.toBeInstanceOf(TRPCError);
+  });
+
+  it("queues manual backup runs for operator roles", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-trigger-backup",
+      session: makeSession("operator")
+    });
+
+    const run = await caller.triggerBackupRun({
+      policyId: "bpol_foundation_volume_daily"
+    });
+
+    expect(run.status).toBe("queued");
+    expect(run.requestedBy).toBe("operator@daoflow.local");
+
+    const overview = await caller.backupOverview({});
+    expect(overview.runs[0]?.id).toBe(run.id);
+    expect(overview.summary.queuedRuns).toBeGreaterThanOrEqual(1);
   });
 
   it("blocks queued deployment creation for viewer roles", async () => {

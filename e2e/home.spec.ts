@@ -74,6 +74,17 @@ test("loads the DaoFlow foundation dashboard", async ({ page }) => {
     })
   ).toContainText("edge-worker-ui");
   await expect(page.getByText("Scoped automation identities")).toBeVisible();
+  await expect(page.getByText("Backup policies and runs")).toBeVisible();
+  await expect(page.getByTestId("backup-summary")).toContainText("2");
+  await page
+    .locator('[data-testid^="backup-policy-"]')
+    .filter({ hasText: "postgres-volume" })
+    .getByRole("button", { name: "Queue backup" })
+    .click();
+  await expect(page.getByTestId("backup-feedback")).toContainText("Queued backup run for postgres-volume");
+  await expect(
+    page.locator('[data-testid^="backup-run-"]').filter({ hasText: "postgres-volume" }).first()
+  ).toContainText("queued");
   await expect(page.getByTestId("token-summary")).toContainText("3");
   await expect(
     page.getByTestId("token-card-token_observer_readonly")
