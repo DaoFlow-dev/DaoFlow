@@ -220,6 +220,8 @@ test("loads the DaoFlow foundation dashboard", async ({ page }) => {
   await expect(
     page.getByTestId("backup-restore-brestore_foundation_volume_verify")
   ).toContainText("/var/lib/postgresql/data");
+  await expect(page.getByText("Approval queue")).toBeVisible();
+  await expect(page.getByTestId("approval-summary")).toContainText("1");
   await page
     .locator('[data-testid^="backup-policy-"]')
     .filter({ hasText: "postgres-volume" })
@@ -241,6 +243,26 @@ test("loads the DaoFlow foundation dashboard", async ({ page }) => {
   await expect(
     page.locator('[data-testid^="backup-restore-"]').filter({ hasText: "queued" }).first()
   ).toContainText("foundation-vps-1:/var/lib/postgresql/data");
+  await page
+    .locator('[data-testid^="backup-run-"]')
+    .filter({ hasText: "postgres-volume" })
+    .filter({ hasText: "succeeded" })
+    .getByRole("button", { name: "Request approval" })
+    .click();
+  await expect(page.getByTestId("approval-feedback")).toContainText(
+    "Requested approval for backup-restore on postgres-volume"
+  );
+  const requestedApproval = page
+    .locator('[data-testid^="approval-request-"]')
+    .filter({ hasText: email })
+    .filter({ hasText: "backup-restore" })
+    .first();
+  await expect(requestedApproval).toContainText("pending");
+  await requestedApproval.getByRole("button", { name: "Approve" }).click();
+  await expect(page.getByTestId("approval-feedback")).toContainText(
+    "Approved backup-restore for postgres-volume@production-us-west"
+  );
+  await expect(requestedApproval).toContainText("approved");
   await expect(
     page.locator('[data-testid^="audit-entry-"]').filter({
       hasText: "backup.trigger"
@@ -248,9 +270,14 @@ test("loads the DaoFlow foundation dashboard", async ({ page }) => {
   ).toContainText(email);
   await expect(
     page.locator('[data-testid^="audit-entry-"]').filter({
-      hasText: "backup.restore.queue"
+      hasText: "approval.approve"
     }).filter({ hasText: "postgres-volume@production-us-west" })
   ).toContainText(email);
+  await expect(
+    page.locator('[data-testid^="audit-entry-"]').filter({
+      hasText: "backup.restore.queue"
+    }).filter({ hasText: "postgres-volume@production-us-west" }).filter({ hasText: email })
+  ).toHaveCount(2);
   await expect(page.getByTestId("token-summary")).toContainText("3");
   await expect(
     page.getByTestId("token-card-token_observer_readonly")

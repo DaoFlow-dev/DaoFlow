@@ -9,9 +9,13 @@ import {
   type AppRole
 } from "../shared/authz";
 import {
+  approveApprovalRequest,
+  createApprovalRequest,
+  rejectApprovalRequest,
   completeExecutionJob,
   listComposeReleaseCatalog,
   listComposeDriftReport,
+  listApprovalQueue,
   createDeploymentRecord,
   listBackupRestoreQueue,
   queueComposeRelease,
@@ -76,6 +80,7 @@ const roleProcedure = (allowedRoles: readonly AppRole[]) =>
 const adminProcedure = roleProcedure(["owner", "admin"]);
 const deployProcedure = roleProcedure(["owner", "admin", "operator", "developer"]);
 const executionProcedure = roleProcedure(["owner", "admin", "operator"]);
+const planningProcedure = roleProcedure(["owner", "admin", "operator", "developer", "agent"]);
 
 const productPrinciples = [
   "Safety before autonomy",
@@ -98,7 +103,7 @@ export const appRouter = t.router({
   })),
   platformOverview: t.procedure.query(() => ({
     name: "DaoFlow",
-    currentSlice: "compose-drift-planning",
+    currentSlice: "approval-gates",
     thesis:
       "A Docker-first deployment control plane for bare metal and VPS environments.",
     architecture: {
@@ -177,6 +182,16 @@ export const appRouter = t.router({
       await ensureControlPlaneReady();
       return listComposeDriftReport(input.limit ?? 24);
     }),
+  approvalQueue: protectedProcedure
+    .input(
+      z.object({
+        limit: z.number().int().min(1).max(40).optional()
+      })
+    )
+    .query(async ({ input }) => {
+      await ensureControlPlaneReady();
+      return listApprovalQueue(input.limit ?? 24);
+    }),
   deploymentDetails: protectedProcedure
     .input(
       z.object({
@@ -195,6 +210,44 @@ export const appRouter = t.router({
       }
 
       return deployment;
+    }),
+  requestApproval: planningProcedure
+    .input(
+      z.discriminatedUnion("actionType", [
+        z.object({
+          actionType: z.literal("compose-release"),
+          composeServiceId: z.string().min(1),
+          commitSha: z.string().regex(/^[a-f0-9]{7,40}$/i),
+          imageTag: z.string().min(1).max(160).optional(),
+          reason: z.string().min(12).max(280)
+        }),
+        z.object({
+          actionType: z.literal("backup-restore"),
+          backupRunId: z.string().min(1),
+          reason: z.string().min(12).max(280)
+        })
+      ])
+    )
+    .mutation(async ({ ctx, input }) => {
+      await ensureControlPlaneReady();
+      const request = createApprovalRequest({
+        ...input,
+        requestedByUserId: ctx.session.user.id,
+        requestedByEmail: ctx.session.user.email,
+        requestedByRole: ctx.role
+      });
+
+      if (!request) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message:
+            input.actionType === "compose-release"
+              ? "Compose release target not found."
+              : "Only successful backup runs with an artifact can be submitted for approval."
+        });
+      }
+
+      return request;
     }),
   queueComposeRelease: deployProcedure
     .input(
@@ -473,6 +526,75 @@ export const appRouter = t.router({
 
       return restore;
     }),
+  approveApprovalRequest: executionProcedure
+    .input(
+      z.object({
+        requestId: z.string().min(1)
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      await ensureControlPlaneReady();
+      const result = approveApprovalRequest(
+        input.requestId,
+        ctx.session.user.id,
+        ctx.session.user.email,
+        ctx.role
+      );
+
+      if (result.status === "not-found") {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Approval request not found."
+        });
+      }
+
+      if (result.status === "invalid-state") {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: `Approval request is already ${result.currentStatus}.`
+        });
+      }
+
+      if (result.status === "validation-failed") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: result.errorMessage ?? "Approval request failed validation."
+        });
+      }
+
+      return result.request;
+    }),
+  rejectApprovalRequest: executionProcedure
+    .input(
+      z.object({
+        requestId: z.string().min(1)
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      await ensureControlPlaneReady();
+      const result = rejectApprovalRequest(
+        input.requestId,
+        ctx.session.user.id,
+        ctx.session.user.email,
+        ctx.role
+      );
+
+      if (result.status === "not-found") {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Approval request not found."
+        });
+      }
+
+      if (result.status === "invalid-state") {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: `Approval request is already ${result.currentStatus}.`
+        });
+      }
+
+      return result.request;
+    }),
   dispatchExecutionJob: executionProcedure
     .input(
       z.object({
@@ -620,6 +742,7 @@ export const appRouter = t.router({
     guardrails: [
       "External agents stay read-heavy by default.",
       "Destructive actions require narrower capability lanes.",
+      "High-risk commands should move through explicit approval gates.",
       "Terminal-style access is not part of the default control plane."
     ]
   }))

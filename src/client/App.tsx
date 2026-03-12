@@ -74,11 +74,11 @@ function getTimelineTone(kind: string): StatusTone {
 }
 
 function getAuditTone(action: string): StatusTone {
-  if (action === "execution.complete") {
+  if (action === "execution.complete" || action === "approval.approve") {
     return "healthy";
   }
 
-  if (action === "execution.fail") {
+  if (action === "execution.fail" || action === "approval.reject") {
     return "failed";
   }
 
@@ -129,6 +129,18 @@ function getComposeDriftTone(status: string): StatusTone {
   return "running";
 }
 
+function getApprovalTone(status: string, riskLevel: string): StatusTone {
+  if (status === "approved") {
+    return "healthy";
+  }
+
+  if (status === "rejected") {
+    return "failed";
+  }
+
+  return riskLevel === "critical" ? "failed" : "running";
+}
+
 function formatBytes(bytes: number) {
   if (bytes < 1024) {
     return `${bytes} B`;
@@ -159,6 +171,12 @@ export default function App() {
   const composeDriftReport = trpc.composeDriftReport.useQuery({}, {
     enabled: Boolean(session.data)
   });
+  const approvalQueue = trpc.approvalQueue.useQuery({}, {
+    enabled: Boolean(session.data)
+  });
+  const requestApproval = trpc.requestApproval.useMutation();
+  const approveApprovalRequest = trpc.approveApprovalRequest.useMutation();
+  const rejectApprovalRequest = trpc.rejectApprovalRequest.useMutation();
   const queueComposeRelease = trpc.queueComposeRelease.useMutation();
   const createDeploymentRecord = trpc.createDeploymentRecord.useMutation();
   const triggerBackupRun = trpc.triggerBackupRun.useMutation();
@@ -253,6 +271,7 @@ export default function App() {
   const [executionFeedback, setExecutionFeedback] = useState<string | null>(null);
   const [backupFeedback, setBackupFeedback] = useState<string | null>(null);
   const [backupRestoreFeedback, setBackupRestoreFeedback] = useState<string | null>(null);
+  const [approvalFeedback, setApprovalFeedback] = useState<string | null>(null);
   const [serverFeedback, setServerFeedback] = useState<string | null>(null);
   const [environmentVariableFeedback, setEnvironmentVariableFeedback] = useState<string | null>(
     null
@@ -318,11 +337,13 @@ export default function App() {
     setExecutionFeedback(null);
     setBackupFeedback(null);
     setBackupRestoreFeedback(null);
+    setApprovalFeedback(null);
     setServerFeedback(null);
     setEnvironmentVariableFeedback(null);
   }
 
   async function refreshOperationalViews() {
+    await approvalQueue.refetch();
     await composeReleaseCatalog.refetch();
     await infrastructureInventory.refetch();
     await serverReadiness.refetch();
@@ -359,6 +380,28 @@ export default function App() {
         isTRPCClientError(error)
           ? error.message
           : "Unable to queue the compose release right now."
+      );
+    }
+  }
+
+  async function handleRequestComposeReleaseApproval() {
+    setApprovalFeedback(null);
+
+    try {
+      const request = await requestApproval.mutateAsync({
+        actionType: "compose-release",
+        composeServiceId: composeReleaseTargetId,
+        commitSha: composeReleaseCommitSha,
+        imageTag: composeReleaseImageTag || undefined,
+        reason: "Require an explicit second reviewer before executing this Compose release."
+      });
+      await refreshOperationalViews();
+      setApprovalFeedback(`Requested approval for ${request.actionType} on ${request.resourceLabel}.`);
+    } catch (error) {
+      setApprovalFeedback(
+        isTRPCClientError(error)
+          ? error.message
+          : "Unable to request approval for this Compose release right now."
       );
     }
   }
@@ -514,6 +557,66 @@ export default function App() {
     }
   }
 
+  async function handleRequestBackupRestoreApproval(backupRunId: string, service: string) {
+    setApprovalFeedback(null);
+
+    try {
+      const request = await requestApproval.mutateAsync({
+        actionType: "backup-restore",
+        backupRunId,
+        reason: "Require an operator checkpoint before replaying this restore drill."
+      });
+      await refreshOperationalViews();
+      setApprovalFeedback(`Requested approval for ${request.actionType} on ${service}.`);
+    } catch (error) {
+      setApprovalFeedback(
+        isTRPCClientError(error)
+          ? error.message
+          : "Unable to request approval for this restore drill right now."
+      );
+    }
+  }
+
+  async function handleApproveApproval(requestId: string, resourceLabel: string) {
+    setApprovalFeedback(null);
+
+    try {
+      const request = await approveApprovalRequest.mutateAsync({
+        requestId
+      });
+      await refreshOperationalViews();
+      setApprovalFeedback(
+        `Approved ${request?.actionType ?? "guarded action"} for ${resourceLabel}.`
+      );
+    } catch (error) {
+      setApprovalFeedback(
+        isTRPCClientError(error)
+          ? error.message
+          : "Unable to approve this guarded action right now."
+      );
+    }
+  }
+
+  async function handleRejectApproval(requestId: string, resourceLabel: string) {
+    setApprovalFeedback(null);
+
+    try {
+      const request = await rejectApprovalRequest.mutateAsync({
+        requestId
+      });
+      await refreshOperationalViews();
+      setApprovalFeedback(
+        `Rejected ${request?.actionType ?? "guarded action"} for ${resourceLabel}.`
+      );
+    } catch (error) {
+      setApprovalFeedback(
+        isTRPCClientError(error)
+          ? error.message
+          : "Unable to reject this guarded action right now."
+      );
+    }
+  }
+
   async function handleUpsertEnvironmentVariable(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setEnvironmentVariableFeedback(null);
@@ -580,6 +683,10 @@ export default function App() {
     composeDriftReport.error && isTRPCClientError(composeDriftReport.error)
       ? composeDriftReport.error.message
       : null;
+  const approvalMessage =
+    approvalQueue.error && isTRPCClientError(approvalQueue.error)
+      ? approvalQueue.error.message
+      : null;
   const serverReadinessMessage =
     serverReadiness.error && isTRPCClientError(serverReadiness.error)
       ? serverReadiness.error.message
@@ -619,6 +726,12 @@ export default function App() {
     currentRole === "developer";
   const canOperateExecutionJobs =
     currentRole === "owner" || currentRole === "admin" || currentRole === "operator";
+  const canRequestApprovals =
+    currentRole === "owner" ||
+    currentRole === "admin" ||
+    currentRole === "operator" ||
+    currentRole === "developer" ||
+    currentRole === "agent";
   const canManageEnvironmentVariables = canQueueDeployments;
   const canManageServers = currentRole === "owner" || currentRole === "admin";
   const executionMutationPending =
@@ -627,6 +740,8 @@ export default function App() {
     failExecutionJob.isPending;
   const backupMutationPending = triggerBackupRun.isPending;
   const backupRestoreMutationPending = queueBackupRestore.isPending;
+  const approvalMutationPending =
+    requestApproval.isPending || approveApprovalRequest.isPending || rejectApprovalRequest.isPending;
   const composeReleaseMutationPending = queueComposeRelease.isPending;
   const serverMutationPending = registerServer.isPending;
   const environmentVariableMutationPending = upsertEnvironmentVariable.isPending;
@@ -1391,6 +1506,18 @@ export default function App() {
             <button className="action-button" disabled={composeReleaseMutationPending} type="submit">
               {composeReleaseMutationPending ? "Queueing..." : "Queue compose release"}
             </button>
+            {canRequestApprovals ? (
+              <button
+                className="action-button action-button--muted"
+                disabled={approvalMutationPending}
+                onClick={() => {
+                  void handleRequestComposeReleaseApproval();
+                }}
+                type="button"
+              >
+                {approvalMutationPending ? "Requesting..." : "Request approval"}
+              </button>
+            ) : null}
             {composeReleaseFeedback ? (
               <p className="auth-feedback" data-testid="compose-release-feedback">
                 {composeReleaseFeedback}
@@ -2156,18 +2283,34 @@ export default function App() {
                   <p className="deployment-card__meta">
                     {run.artifactPath ?? "Artifact path will be assigned by the future backup worker."}
                   </p>
-                  {canOperateExecutionJobs && run.status === "succeeded" && run.artifactPath ? (
+                  {(canOperateExecutionJobs || canRequestApprovals) &&
+                  run.status === "succeeded" &&
+                  run.artifactPath ? (
                     <div className="job-actions">
-                      <button
-                        className="action-button action-button--muted"
-                        disabled={backupRestoreMutationPending}
-                        onClick={() => {
-                          void handleQueueBackupRestore(run.id, run.serviceName);
-                        }}
-                        type="button"
-                      >
-                        Queue restore
-                      </button>
+                      {canOperateExecutionJobs ? (
+                        <button
+                          className="action-button action-button--muted"
+                          disabled={backupRestoreMutationPending}
+                          onClick={() => {
+                            void handleQueueBackupRestore(run.id, run.serviceName);
+                          }}
+                          type="button"
+                        >
+                          Queue restore
+                        </button>
+                      ) : null}
+                      {canRequestApprovals ? (
+                        <button
+                          className="action-button"
+                          disabled={approvalMutationPending}
+                          onClick={() => {
+                            void handleRequestBackupRestoreApproval(run.id, run.serviceName);
+                          }}
+                          type="button"
+                        >
+                          {approvalMutationPending ? "Requesting..." : "Request approval"}
+                        </button>
+                      ) : null}
                     </div>
                   ) : null}
                 </article>
@@ -2238,6 +2381,112 @@ export default function App() {
         ) : (
           <p className="viewer-empty">
             {backupMessage ?? "Sign in to inspect backup policies and recent runs."}
+          </p>
+        )}
+      </section>
+
+      <section className="approval-queue">
+        <div className="roadmap__header">
+          <p className="roadmap__kicker">Agent-safe command gates</p>
+          <h2>Approval queue</h2>
+        </div>
+
+        {approvalFeedback ? (
+          <p className="auth-feedback" data-testid="approval-feedback">
+            {approvalFeedback}
+          </p>
+        ) : null}
+
+        {session.data && approvalQueue.data ? (
+          <>
+            <div className="approval-summary" data-testid="approval-summary">
+              <div className="token-summary__item">
+                <span className="metric__label">Requests</span>
+                <strong>{approvalQueue.data.summary.totalRequests}</strong>
+              </div>
+              <div className="token-summary__item">
+                <span className="metric__label">Pending</span>
+                <strong>{approvalQueue.data.summary.pendingRequests}</strong>
+              </div>
+              <div className="token-summary__item">
+                <span className="metric__label">Approved</span>
+                <strong>{approvalQueue.data.summary.approvedRequests}</strong>
+              </div>
+              <div className="token-summary__item">
+                <span className="metric__label">Critical</span>
+                <strong>{approvalQueue.data.summary.criticalRequests}</strong>
+              </div>
+            </div>
+
+            <div className="approval-list">
+              {approvalQueue.data.requests.map((request) => (
+                <article
+                  className="token-card"
+                  data-testid={`approval-request-${request.id}`}
+                  key={request.id}
+                >
+                  <div className="token-card__top">
+                    <div>
+                      <p className="roadmap-item__lane">
+                        {request.requestedBy} · {request.requestedByRole}
+                      </p>
+                      <h3>{request.actionType}</h3>
+                    </div>
+                    <span
+                      className={`deployment-status deployment-status--${getApprovalTone(request.status, request.riskLevel)}`}
+                    >
+                      {request.status}
+                    </span>
+                  </div>
+                  <p className="deployment-card__meta">
+                    {request.resourceLabel} · Risk: {request.riskLevel}
+                  </p>
+                  <p className="deployment-card__meta">{request.reason}</p>
+                  <p className="deployment-card__meta">{request.commandSummary}</p>
+                  <p className="deployment-card__meta">
+                    Requested: {request.requestedAt} · Expires: {request.expiresAt}
+                  </p>
+                  {request.decidedBy ? (
+                    <p className="deployment-card__meta">
+                      Decision: {request.decidedBy} · {request.decidedAt}
+                    </p>
+                  ) : null}
+                  <ul className="deployment-card__steps">
+                    {request.recommendedChecks.map((check) => (
+                      <li key={check}>{check}</li>
+                    ))}
+                  </ul>
+                  {canOperateExecutionJobs && request.status === "pending" ? (
+                    <div className="job-actions">
+                      <button
+                        className="action-button"
+                        disabled={approvalMutationPending}
+                        onClick={() => {
+                          void handleApproveApproval(request.id, request.resourceLabel);
+                        }}
+                        type="button"
+                      >
+                        {approvalMutationPending ? "Applying..." : "Approve"}
+                      </button>
+                      <button
+                        className="action-button action-button--muted"
+                        disabled={approvalMutationPending}
+                        onClick={() => {
+                          void handleRejectApproval(request.id, request.resourceLabel);
+                        }}
+                        type="button"
+                      >
+                        {approvalMutationPending ? "Applying..." : "Reject"}
+                      </button>
+                    </div>
+                  ) : null}
+                </article>
+              ))}
+            </div>
+          </>
+        ) : (
+          <p className="viewer-empty">
+            {approvalMessage ?? "Sign in to inspect high-risk actions waiting for human approval."}
           </p>
         )}
       </section>

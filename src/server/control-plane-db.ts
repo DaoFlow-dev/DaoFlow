@@ -26,6 +26,9 @@ export type BackupTargetType = "volume" | "database";
 export type BackupRunStatus = "queued" | "running" | "succeeded" | "failed";
 export type BackupRestoreStatus = "queued" | "running" | "succeeded" | "failed";
 export type ComposeDriftStatus = "aligned" | "drifted" | "blocked";
+export type ApprovalRequestStatus = "pending" | "approved" | "rejected";
+export type ApprovalActionType = "compose-release" | "backup-restore";
+export type ApprovalRiskLevel = "elevated" | "critical";
 export type AuditActorType = "human" | "system";
 export type PersistentVolumeBackupCoverage = "protected" | "stale" | "missing";
 export type PersistentVolumeRestoreReadiness = "verified" | "stale" | "untested";
@@ -36,7 +39,8 @@ export type AuditResourceType =
   | "backup-run"
   | "backup-policy"
   | "environment-variable"
-  | "server";
+  | "server"
+  | "approval-request";
 export type DeploymentLogStream = "stdout" | "stderr";
 export type EnvironmentVariableCategory = "runtime" | "build";
 export type EnvironmentVariableSource = "manual" | "imported";
@@ -343,6 +347,39 @@ export interface BackupRestoreQueue {
   requests: BackupRestoreRequestRecord[];
 }
 
+export interface ApprovalRequestRecord {
+  id: string;
+  actionType: ApprovalActionType;
+  resourceId: string;
+  resourceLabel: string;
+  status: ApprovalRequestStatus;
+  riskLevel: ApprovalRiskLevel;
+  requestedBy: string;
+  requestedByRole: AppRole;
+  reason: string;
+  commandSummary: string;
+  requiredApprovals: number;
+  receivedApprovals: number;
+  recommendedChecks: string[];
+  requestedAt: string;
+  expiresAt: string;
+  decidedAt: string | null;
+  decidedBy: string | null;
+  executionResourceType: "deployment" | "backup-restore" | null;
+  executionResourceId: string | null;
+}
+
+export interface ApprovalQueueSnapshot {
+  summary: {
+    totalRequests: number;
+    pendingRequests: number;
+    approvedRequests: number;
+    rejectedRequests: number;
+    criticalRequests: number;
+  };
+  requests: ApprovalRequestRecord[];
+}
+
 export interface ServerInventoryRecord {
   id: string;
   name: string;
@@ -504,6 +541,33 @@ export interface QueueComposeReleaseInput {
   requestedByUserId: string;
   requestedByEmail: string;
   requestedByRole: AppRole;
+}
+
+export type CreateApprovalRequestInput =
+  | {
+      actionType: "compose-release";
+      composeServiceId: string;
+      commitSha: string;
+      imageTag?: string | null;
+      reason: string;
+      requestedByUserId: string;
+      requestedByEmail: string;
+      requestedByRole: AppRole;
+    }
+  | {
+      actionType: "backup-restore";
+      backupRunId: string;
+      reason: string;
+      requestedByUserId: string;
+      requestedByEmail: string;
+      requestedByRole: AppRole;
+    };
+
+export interface ApprovalRequestMutationResult {
+  status: "ok" | "not-found" | "invalid-state" | "validation-failed";
+  currentStatus?: ApprovalRequestStatus;
+  errorMessage?: string;
+  request?: ApprovalRequestRecord;
 }
 
 export interface PersistentVolumeRecord {
@@ -737,6 +801,41 @@ interface SeedComposeDriftReport {
   recommendedActions: readonly string[];
   lastCheckedAt: string;
 }
+
+interface SeedApprovalRequest {
+  id: string;
+  actionType: ApprovalActionType;
+  resourceId: string;
+  resourceLabel: string;
+  status: ApprovalRequestStatus;
+  riskLevel: ApprovalRiskLevel;
+  requestedBy: string;
+  requestedByRole: AppRole;
+  reason: string;
+  commandSummary: string;
+  requiredApprovals: number;
+  receivedApprovals: number;
+  recommendedChecks: readonly string[];
+  requestedAt: string;
+  expiresAt: string;
+  decidedAt: string | null;
+  decidedBy: string | null;
+  executionResourceType: "deployment" | "backup-restore" | null;
+  executionResourceId: string | null;
+  commandPayload: ApprovalCommandPayload;
+}
+
+type ApprovalCommandPayload =
+  | {
+      actionType: "compose-release";
+      composeServiceId: string;
+      commitSha: string;
+      imageTag: string | null;
+    }
+  | {
+      actionType: "backup-restore";
+      backupRunId: string;
+    };
 
 function resolveControlPlaneDatabasePath() {
   if (process.env.CONTROL_PLANE_DB_PATH) {
@@ -1123,6 +1222,68 @@ function seedControlPlaneData() {
       lastCheckedAt: new Date(now.getTime() - 7 * 60 * 1000).toISOString()
     }
   ] as const satisfies readonly SeedComposeDriftReport[];
+  const seedApprovalRequests = [
+    {
+      id: "approval_restore_prod_guard",
+      actionType: "backup-restore",
+      resourceId: "brun_foundation_volume_success",
+      resourceLabel: "postgres-volume@production-us-west",
+      status: "pending",
+      riskLevel: "critical",
+      requestedBy: "planner-agent@daoflow.local",
+      requestedByRole: "agent",
+      reason: "Need operator confirmation before replaying a production volume snapshot.",
+      commandSummary:
+        "Restore s3://daoflow-backups/prod/postgres-volume-2026-03-11.tar.zst to foundation-vps-1:/var/lib/postgresql/data.",
+      requiredApprovals: 1,
+      receivedApprovals: 0,
+      recommendedChecks: [
+        "Confirm the target volume is isolated from live writes before replaying snapshot data.",
+        "Verify the latest successful backup artifact still matches the registered volume mount path."
+      ],
+      requestedAt: new Date(now.getTime() - 55 * 60 * 1000).toISOString(),
+      expiresAt: new Date(now.getTime() + 7 * 60 * 60 * 1000).toISOString(),
+      decidedAt: null,
+      decidedBy: null,
+      executionResourceType: null,
+      executionResourceId: null,
+      commandPayload: {
+        actionType: "backup-restore",
+        backupRunId: "brun_foundation_volume_success"
+      }
+    },
+    {
+      id: "approval_release_staging_canary",
+      actionType: "compose-release",
+      resourceId: "compose_daoflow_staging_control_plane",
+      resourceLabel: "control-plane@staging",
+      status: "approved",
+      riskLevel: "elevated",
+      requestedBy: "developer@daoflow.local",
+      requestedByRole: "developer",
+      reason: "Need operator approval before promoting the next staging canary rollout.",
+      commandSummary:
+        "Release ghcr.io/daoflow/control-plane:staging-canary.2 for control-plane on foundation-vps-1 using commit fedcba1.",
+      requiredApprovals: 1,
+      receivedApprovals: 1,
+      recommendedChecks: [
+        "Confirm postgres is healthy before promoting the staging control-plane canary.",
+        "Verify the /healthz contract before restoring automated promotions."
+      ],
+      requestedAt: new Date(now.getTime() - 4 * 60 * 60 * 1000).toISOString(),
+      expiresAt: new Date(now.getTime() + 4 * 60 * 60 * 1000).toISOString(),
+      decidedAt: new Date(now.getTime() - 3 * 60 * 60 * 1000 + 12 * 60 * 1000).toISOString(),
+      decidedBy: "operator@daoflow.local",
+      executionResourceType: "deployment",
+      executionResourceId: "dep_foundation_20260312_1",
+      commandPayload: {
+        actionType: "compose-release",
+        composeServiceId: "compose_daoflow_staging_control_plane",
+        commitSha: "fedcba1",
+        imageTag: "ghcr.io/daoflow/control-plane:staging-canary.2"
+      }
+    }
+  ] as const satisfies readonly SeedApprovalRequest[];
   const seedExecutionJobs = [
     {
       id: "job_foundation_20260312_1",
@@ -1736,6 +1897,31 @@ function seedControlPlaneData() {
     )
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
+  const insertApprovalRequest = controlPlaneDb.prepare(`
+    INSERT OR IGNORE INTO approval_requests (
+      id,
+      action_type,
+      resource_id,
+      resource_label,
+      status,
+      risk_level,
+      requested_by,
+      requested_by_role,
+      reason,
+      command_summary,
+      required_approvals,
+      received_approvals,
+      recommended_checks_text,
+      requested_at,
+      expires_at,
+      decided_at,
+      decided_by,
+      execution_resource_type,
+      execution_resource_id,
+      command_payload_text
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
 
   for (const [index, project] of seedProjects.entries()) {
     insertProject.run(
@@ -1974,6 +2160,31 @@ function seedControlPlaneData() {
       report.lastCheckedAt
     );
   }
+
+  for (const request of seedApprovalRequests) {
+    insertApprovalRequest.run(
+      request.id,
+      request.actionType,
+      request.resourceId,
+      request.resourceLabel,
+      request.status,
+      request.riskLevel,
+      request.requestedBy,
+      request.requestedByRole,
+      request.reason,
+      request.commandSummary,
+      request.requiredApprovals,
+      request.receivedApprovals,
+      request.recommendedChecks.join("\n"),
+      request.requestedAt,
+      request.expiresAt,
+      request.decidedAt,
+      request.decidedBy,
+      request.executionResourceType,
+      request.executionResourceId,
+      JSON.stringify(request.commandPayload)
+    );
+  }
 }
 
 const controlPlaneReady = Promise.resolve().then(() => {
@@ -2183,6 +2394,29 @@ const controlPlaneReady = Promise.resolve().then(() => {
       last_checked_at TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS approval_requests (
+      id TEXT PRIMARY KEY,
+      action_type TEXT NOT NULL,
+      resource_id TEXT NOT NULL,
+      resource_label TEXT NOT NULL,
+      status TEXT NOT NULL,
+      risk_level TEXT NOT NULL,
+      requested_by TEXT NOT NULL,
+      requested_by_role TEXT NOT NULL,
+      reason TEXT NOT NULL,
+      command_summary TEXT NOT NULL,
+      required_approvals INTEGER NOT NULL DEFAULT 1,
+      received_approvals INTEGER NOT NULL DEFAULT 0,
+      recommended_checks_text TEXT NOT NULL DEFAULT '',
+      requested_at TEXT NOT NULL,
+      expires_at TEXT NOT NULL,
+      decided_at TEXT,
+      decided_by TEXT,
+      execution_resource_type TEXT,
+      execution_resource_id TEXT,
+      command_payload_text TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS audit_entries (
       id TEXT PRIMARY KEY,
       actor_type TEXT NOT NULL,
@@ -2248,6 +2482,10 @@ const controlPlaneReady = Promise.resolve().then(() => {
       ON compose_services (environment_id);
     CREATE INDEX IF NOT EXISTS idx_compose_drift_reports_status_checked_at
       ON compose_drift_reports (status, last_checked_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_approval_requests_status_requested_at
+      ON approval_requests (status, requested_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_approval_requests_action_status
+      ON approval_requests (action_type, status, requested_at DESC);
     CREATE INDEX IF NOT EXISTS idx_audit_entries_created_at
       ON audit_entries (created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_audit_entries_action_created_at
@@ -2425,6 +2663,29 @@ interface BackupRestoreRequestRow {
   validation_summary: string;
   requested_at: string;
   finished_at: string | null;
+}
+
+interface ApprovalRequestRow {
+  id: string;
+  action_type: ApprovalActionType;
+  resource_id: string;
+  resource_label: string;
+  status: ApprovalRequestStatus;
+  risk_level: ApprovalRiskLevel;
+  requested_by: string;
+  requested_by_role: AppRole;
+  reason: string;
+  command_summary: string;
+  required_approvals: number;
+  received_approvals: number;
+  recommended_checks_text: string;
+  requested_at: string;
+  expires_at: string;
+  decided_at: string | null;
+  decided_by: string | null;
+  execution_resource_type: "deployment" | "backup-restore" | null;
+  execution_resource_id: string | null;
+  command_payload_text: string;
 }
 
 interface AuditEntryRow {
@@ -4537,6 +4798,154 @@ export function listBackupRestoreQueue(limit = 12): BackupRestoreQueue {
   };
 }
 
+function parseApprovalCommandPayload(payloadText: string): ApprovalCommandPayload {
+  const payload = JSON.parse(payloadText) as Partial<ApprovalCommandPayload> & {
+    actionType?: ApprovalActionType;
+  };
+
+  if (payload.actionType === "compose-release" && typeof payload.composeServiceId === "string") {
+    return {
+      actionType: "compose-release",
+      composeServiceId: payload.composeServiceId,
+      commitSha: typeof payload.commitSha === "string" ? payload.commitSha : "",
+      imageTag: typeof payload.imageTag === "string" ? payload.imageTag : null
+    };
+  }
+
+  if (payload.actionType === "backup-restore" && typeof payload.backupRunId === "string") {
+    return {
+      actionType: "backup-restore",
+      backupRunId: payload.backupRunId
+    };
+  }
+
+  throw new Error("Invalid approval command payload.");
+}
+
+function mapApprovalRequestRow(row: ApprovalRequestRow): ApprovalRequestRecord {
+  return {
+    id: row.id,
+    actionType: row.action_type,
+    resourceId: row.resource_id,
+    resourceLabel: row.resource_label,
+    status: row.status,
+    riskLevel: row.risk_level,
+    requestedBy: row.requested_by,
+    requestedByRole: row.requested_by_role,
+    reason: row.reason,
+    commandSummary: row.command_summary,
+    requiredApprovals: row.required_approvals,
+    receivedApprovals: row.received_approvals,
+    recommendedChecks: splitMultilineField(row.recommended_checks_text),
+    requestedAt: row.requested_at,
+    expiresAt: row.expires_at,
+    decidedAt: row.decided_at,
+    decidedBy: row.decided_by,
+    executionResourceType: row.execution_resource_type,
+    executionResourceId: row.execution_resource_id
+  };
+}
+
+function getApprovalRequestRows(limit = 12) {
+  return controlPlaneDb.prepare(`
+    SELECT
+      id,
+      action_type,
+      resource_id,
+      resource_label,
+      status,
+      risk_level,
+      requested_by,
+      requested_by_role,
+      reason,
+      command_summary,
+      required_approvals,
+      received_approvals,
+      recommended_checks_text,
+      requested_at,
+      expires_at,
+      decided_at,
+      decided_by,
+      execution_resource_type,
+      execution_resource_id,
+      command_payload_text
+    FROM approval_requests
+    ORDER BY
+      CASE status
+        WHEN 'pending' THEN 0
+        WHEN 'approved' THEN 1
+        ELSE 2
+      END ASC,
+      requested_at DESC
+    LIMIT ?
+  `).all(limit) as unknown as ApprovalRequestRow[];
+}
+
+function getApprovalRequestRow(requestId: string) {
+  return controlPlaneDb.prepare(`
+    SELECT
+      id,
+      action_type,
+      resource_id,
+      resource_label,
+      status,
+      risk_level,
+      requested_by,
+      requested_by_role,
+      reason,
+      command_summary,
+      required_approvals,
+      received_approvals,
+      recommended_checks_text,
+      requested_at,
+      expires_at,
+      decided_at,
+      decided_by,
+      execution_resource_type,
+      execution_resource_id,
+      command_payload_text
+    FROM approval_requests
+    WHERE id = ?
+    LIMIT 1
+  `).get(requestId) as ApprovalRequestRow | undefined;
+}
+
+function getApprovalRequestSummary() {
+  return controlPlaneDb.prepare(`
+    SELECT
+      COUNT(*) AS total_requests,
+      SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) AS pending_requests,
+      SUM(CASE WHEN status = 'approved' THEN 1 ELSE 0 END) AS approved_requests,
+      SUM(CASE WHEN status = 'rejected' THEN 1 ELSE 0 END) AS rejected_requests,
+      SUM(CASE WHEN risk_level = 'critical' THEN 1 ELSE 0 END) AS critical_requests
+    FROM approval_requests
+  `).get() as
+    | {
+        total_requests?: number;
+        pending_requests?: number;
+        approved_requests?: number;
+        rejected_requests?: number;
+        critical_requests?: number;
+      }
+    | undefined;
+}
+
+export function listApprovalQueue(limit = 12): ApprovalQueueSnapshot {
+  const summary = getApprovalRequestSummary();
+  const requests = getApprovalRequestRows(limit).map((row) => mapApprovalRequestRow(row));
+
+  return {
+    summary: {
+      totalRequests: summary?.total_requests ?? 0,
+      pendingRequests: summary?.pending_requests ?? 0,
+      approvedRequests: summary?.approved_requests ?? 0,
+      rejectedRequests: summary?.rejected_requests ?? 0,
+      criticalRequests: summary?.critical_requests ?? 0
+    },
+    requests
+  };
+}
+
 function inferRestorePath(policyId: string, targetType: BackupTargetType, serviceName: string) {
   if (targetType === "volume") {
     const persistentVolume = controlPlaneDb.prepare(`
@@ -4680,13 +5089,8 @@ export function triggerBackupRun(
   } satisfies BackupRunRecord;
 }
 
-export function queueBackupRestore(
-  backupRunId: string,
-  requestedByUserId: string,
-  requestedBy: string,
-  requestedByRole: AppRole
-) {
-  const run = controlPlaneDb.prepare(`
+function getBackupRestoreSourceRow(backupRunId: string) {
+  return controlPlaneDb.prepare(`
     SELECT
       backup_runs.id,
       backup_runs.policy_id,
@@ -4718,6 +5122,177 @@ export function queueBackupRestore(
         destination_server_name: string;
       })
     | undefined;
+}
+
+function buildComposeReleaseApprovalDraft(
+  composeServiceId: string,
+  commitSha: string,
+  imageTag: string | null
+) {
+  const composeService = getComposeServiceRow(composeServiceId);
+
+  if (!composeService) {
+    return null;
+  }
+
+  const service = mapComposeServiceRow(composeService);
+  const riskLevel: ApprovalRiskLevel =
+    service.environmentName.includes("production") || service.volumeMounts.length > 0
+      ? "critical"
+      : "elevated";
+  const resolvedImageTag = imageTag ?? service.imageReference;
+
+  return {
+    actionType: "compose-release" as const,
+    resourceId: service.id,
+    resourceLabel: `${service.serviceName}@${service.environmentName}`,
+    riskLevel,
+    commandSummary: `Release ${resolvedImageTag} for ${service.serviceName} on ${service.targetServerName} using commit ${commitSha}.`,
+    recommendedChecks: [
+      `Confirm ${service.dependencies.length > 0 ? service.dependencies.join(", ") : "dependent services"} are healthy before rollout.`,
+      `Validate ${service.healthcheckPath ?? "process-level"} readiness before shifting traffic to the new Compose revision.`
+    ],
+    commandPayload: {
+      actionType: "compose-release" as const,
+      composeServiceId: service.id,
+      commitSha,
+      imageTag: resolvedImageTag
+    }
+  };
+}
+
+function buildBackupRestoreApprovalDraft(backupRunId: string) {
+  const run = getBackupRestoreSourceRow(backupRunId);
+
+  if (!run || run.status !== "succeeded" || !run.artifact_path) {
+    return null;
+  }
+
+  const restorePath = inferRestorePath(run.policy_id, run.target_type, run.service_name);
+  const riskLevel: ApprovalRiskLevel =
+    run.environment_name.includes("production") ? "critical" : "elevated";
+
+  return {
+    actionType: "backup-restore" as const,
+    resourceId: run.id,
+    resourceLabel: `${run.service_name}@${run.environment_name}`,
+    riskLevel,
+    commandSummary: `Restore ${run.artifact_path} to ${run.destination_server_name}:${restorePath}.`,
+    recommendedChecks: [
+      "Confirm the target service is isolated from live writes before replaying restore data.",
+      `Verify ${restorePath} still matches the registered persistent volume or database restore target.`
+    ],
+    commandPayload: {
+      actionType: "backup-restore" as const,
+      backupRunId: run.id
+    }
+  };
+}
+
+export function createApprovalRequest(input: CreateApprovalRequestInput) {
+  const draft =
+    input.actionType === "compose-release"
+      ? buildComposeReleaseApprovalDraft(
+          input.composeServiceId,
+          input.commitSha,
+          input.imageTag ?? null
+        )
+      : buildBackupRestoreApprovalDraft(input.backupRunId);
+
+  if (!draft) {
+    return null;
+  }
+
+  const requestId = `approval_${randomUUID().slice(0, 8)}`;
+  const requestedAt = new Date().toISOString();
+  const expiresAt = new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString();
+  const payloadText = JSON.stringify(draft.commandPayload);
+
+  controlPlaneDb.exec("BEGIN");
+
+  try {
+    controlPlaneDb.prepare(`
+      INSERT INTO approval_requests (
+        id,
+        action_type,
+        resource_id,
+        resource_label,
+        status,
+        risk_level,
+        requested_by,
+        requested_by_role,
+        reason,
+        command_summary,
+        required_approvals,
+        received_approvals,
+        recommended_checks_text,
+        requested_at,
+        expires_at,
+        decided_at,
+        decided_by,
+        execution_resource_type,
+        execution_resource_id,
+        command_payload_text
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      requestId,
+      draft.actionType,
+      draft.resourceId,
+      draft.resourceLabel,
+      "pending",
+      draft.riskLevel,
+      input.requestedByEmail,
+      input.requestedByRole,
+      input.reason,
+      draft.commandSummary,
+      1,
+      0,
+      draft.recommendedChecks.join("\n"),
+      requestedAt,
+      expiresAt,
+      null,
+      null,
+      null,
+      null,
+      payloadText
+    );
+
+    appendAuditEntry({
+      actorType: "human",
+      actorId: input.requestedByUserId,
+      actorLabel: input.requestedByEmail,
+      actorRole: input.requestedByRole,
+      action: "approval.request",
+      resourceType: "approval-request",
+      resourceId: requestId,
+      resourceLabel: draft.resourceLabel,
+      detail: `Requested approval for ${draft.actionType} with ${draft.riskLevel} risk.`,
+      createdAt: requestedAt
+    });
+
+    controlPlaneDb.exec("COMMIT");
+  } catch (error) {
+    controlPlaneDb.exec("ROLLBACK");
+    throw error;
+  }
+
+  const request = getApprovalRequestRow(requestId);
+
+  if (!request) {
+    throw new Error("Approval request was created but could not be loaded.");
+  }
+
+  return mapApprovalRequestRow(request);
+}
+
+export function queueBackupRestore(
+  backupRunId: string,
+  requestedByUserId: string,
+  requestedBy: string,
+  requestedByRole: AppRole
+) {
+  const run = getBackupRestoreSourceRow(backupRunId);
 
   if (!run || run.status !== "succeeded" || !run.artifact_path) {
     return null;
@@ -4801,6 +5376,179 @@ export function queueBackupRestore(
     requestedAt: restore.requested_at,
     finishedAt: restore.finished_at
   } satisfies BackupRestoreRequestRecord;
+}
+
+export function approveApprovalRequest(
+  requestId: string,
+  decidedByUserId: string,
+  decidedByEmail: string,
+  decidedByRole: AppRole
+): ApprovalRequestMutationResult {
+  const requestRow = getApprovalRequestRow(requestId);
+
+  if (!requestRow) {
+    return { status: "not-found" };
+  }
+
+  if (requestRow.status !== "pending") {
+    return {
+      status: "invalid-state",
+      currentStatus: requestRow.status
+    };
+  }
+
+  const payload = parseApprovalCommandPayload(requestRow.command_payload_text);
+  let executionResourceType: "deployment" | "backup-restore" | null = null;
+  let executionResourceId: string | null = null;
+
+  if (payload.actionType === "compose-release") {
+    const deployment = queueComposeRelease({
+      composeServiceId: payload.composeServiceId,
+      commitSha: payload.commitSha,
+      imageTag: payload.imageTag,
+      requestedByUserId: decidedByUserId,
+      requestedByEmail: decidedByEmail,
+      requestedByRole: decidedByRole
+    });
+
+    if (!deployment) {
+      return {
+        status: "validation-failed",
+        errorMessage: "Compose release target not found."
+      };
+    }
+
+    executionResourceType = "deployment";
+    executionResourceId = deployment.id;
+  } else {
+    const restore = queueBackupRestore(
+      payload.backupRunId,
+      decidedByUserId,
+      decidedByEmail,
+      decidedByRole
+    );
+
+    if (!restore) {
+      return {
+        status: "validation-failed",
+        errorMessage: "Only successful backup runs with an artifact can be restored."
+      };
+    }
+
+    executionResourceType = "backup-restore";
+    executionResourceId = restore.id;
+  }
+
+  const decidedAt = new Date().toISOString();
+
+  controlPlaneDb.exec("BEGIN");
+
+  try {
+    controlPlaneDb.prepare(`
+      UPDATE approval_requests
+      SET
+        status = 'approved',
+        received_approvals = required_approvals,
+        decided_at = ?,
+        decided_by = ?,
+        execution_resource_type = ?,
+        execution_resource_id = ?
+      WHERE id = ?
+    `).run(decidedAt, decidedByEmail, executionResourceType, executionResourceId, requestId);
+
+    appendAuditEntry({
+      actorType: "human",
+      actorId: decidedByUserId,
+      actorLabel: decidedByEmail,
+      actorRole: decidedByRole,
+      action: "approval.approve",
+      resourceType: "approval-request",
+      resourceId: requestId,
+      resourceLabel: requestRow.resource_label,
+      detail: `Approved ${requestRow.action_type} and released the guarded command.`,
+      createdAt: decidedAt
+    });
+
+    controlPlaneDb.exec("COMMIT");
+  } catch (error) {
+    controlPlaneDb.exec("ROLLBACK");
+    throw error;
+  }
+
+  const updatedRequest = getApprovalRequestRow(requestId);
+
+  if (!updatedRequest) {
+    throw new Error("Approval request was approved but could not be reloaded.");
+  }
+
+  return {
+    status: "ok",
+    request: mapApprovalRequestRow(updatedRequest)
+  };
+}
+
+export function rejectApprovalRequest(
+  requestId: string,
+  decidedByUserId: string,
+  decidedByEmail: string,
+  decidedByRole: AppRole
+): ApprovalRequestMutationResult {
+  const requestRow = getApprovalRequestRow(requestId);
+
+  if (!requestRow) {
+    return { status: "not-found" };
+  }
+
+  if (requestRow.status !== "pending") {
+    return {
+      status: "invalid-state",
+      currentStatus: requestRow.status
+    };
+  }
+
+  const decidedAt = new Date().toISOString();
+
+  controlPlaneDb.exec("BEGIN");
+
+  try {
+    controlPlaneDb.prepare(`
+      UPDATE approval_requests
+      SET
+        status = 'rejected',
+        decided_at = ?,
+        decided_by = ?
+      WHERE id = ?
+    `).run(decidedAt, decidedByEmail, requestId);
+
+    appendAuditEntry({
+      actorType: "human",
+      actorId: decidedByUserId,
+      actorLabel: decidedByEmail,
+      actorRole: decidedByRole,
+      action: "approval.reject",
+      resourceType: "approval-request",
+      resourceId: requestId,
+      resourceLabel: requestRow.resource_label,
+      detail: `Rejected ${requestRow.action_type} before execution.`,
+      createdAt: decidedAt
+    });
+
+    controlPlaneDb.exec("COMMIT");
+  } catch (error) {
+    controlPlaneDb.exec("ROLLBACK");
+    throw error;
+  }
+
+  const updatedRequest = getApprovalRequestRow(requestId);
+
+  if (!updatedRequest) {
+    throw new Error("Approval request was rejected but could not be reloaded.");
+  }
+
+  return {
+    status: "ok",
+    request: mapApprovalRequestRow(updatedRequest)
+  };
 }
 
 export function listInfrastructureInventory(): InfrastructureInventory {

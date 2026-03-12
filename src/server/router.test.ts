@@ -143,6 +143,32 @@ describe("appRouter", () => {
     });
   });
 
+  it("returns approval queue state for signed-in viewers", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-approval-queue-viewer",
+      session: makeSession("viewer")
+    });
+
+    const queue = await caller.approvalQueue({});
+    const pendingRestore = queue.requests.find((request) => request.id === "approval_restore_prod_guard");
+
+    expect(queue.summary).toEqual({
+      totalRequests: 2,
+      pendingRequests: 1,
+      approvedRequests: 1,
+      rejectedRequests: 0,
+      criticalRequests: 1
+    });
+    expect(pendingRestore).toMatchObject({
+      actionType: "backup-restore",
+      resourceLabel: "postgres-volume@production-us-west",
+      status: "pending",
+      riskLevel: "critical",
+      requestedBy: "planner-agent@daoflow.local",
+      requestedByRole: "agent"
+    });
+  });
+
   it("returns execution queue and operations timeline for signed-in viewers", async () => {
     const caller = appRouter.createCaller({
       requestId: "test-execution-viewer",
@@ -527,6 +553,22 @@ describe("appRouter", () => {
     ).rejects.toBeInstanceOf(TRPCError);
   });
 
+  it("blocks approval requests for viewer roles", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-request-approval-viewer-block",
+      session: makeSession("viewer")
+    });
+
+    await expect(
+      caller.requestApproval({
+        actionType: "compose-release",
+        composeServiceId: "compose_daoflow_staging_control_plane",
+        commitSha: "fedcba1",
+        reason: "Need a second reviewer before promoting the next staging release."
+      })
+    ).rejects.toBeInstanceOf(TRPCError);
+  });
+
   it("blocks environment variable mutations for viewer roles", async () => {
     const caller = appRouter.createCaller({
       requestId: "test-env-viewer-block",
@@ -771,6 +813,34 @@ describe("appRouter", () => {
       true
     );
     expect(details.steps.some((step) => step.detail.includes("postgres, redis"))).toBe(true);
+  });
+
+  it("creates guarded approval requests for compose releases", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-compose-release-approval-request",
+      session: makeSession("developer")
+    });
+
+    const request = await caller.requestApproval({
+      actionType: "compose-release",
+      composeServiceId: "compose_daoflow_staging_control_plane",
+      commitSha: "fedcba1",
+      imageTag: "ghcr.io/daoflow/control-plane:staging-canary.3",
+      reason: "Need operator approval before promoting the next staging canary release."
+    });
+
+    expect(request).toMatchObject({
+      actionType: "compose-release",
+      resourceLabel: "control-plane@staging",
+      status: "pending",
+      riskLevel: "critical",
+      requestedBy: "developer@daoflow.local",
+      requestedByRole: "developer"
+    });
+
+    const queue = await caller.approvalQueue({});
+    expect(queue.summary.pendingRequests).toBeGreaterThanOrEqual(2);
+    expect(queue.requests.some((entry) => entry.id === request.id)).toBe(true);
   });
 
   it("records audit entries for deployment, execution, and backup mutations", async () => {
@@ -1127,6 +1197,49 @@ describe("appRouter", () => {
       code: "BAD_REQUEST",
       message: "Only successful backup runs with an artifact can be restored."
     });
+  });
+
+  it("approves guarded restore requests and executes the recovery drill", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-approve-restore-request",
+      session: makeSession("operator")
+    });
+
+    const request = await caller.requestApproval({
+      actionType: "backup-restore",
+      backupRunId: "brun_foundation_volume_success",
+      reason: "Need operator confirmation before replaying the latest production restore drill."
+    });
+
+    const approved = await caller.approveApprovalRequest({
+      requestId: request.id
+    });
+
+    expect(approved).toMatchObject({
+      id: request.id,
+      status: "approved",
+      decidedBy: "operator@daoflow.local",
+      executionResourceType: "backup-restore"
+    });
+
+    const restores = await caller.backupRestoreQueue({});
+    expect(
+      restores.requests.some(
+        (entry) =>
+          entry.requestedBy === "operator@daoflow.local" &&
+          entry.backupRunId === "brun_foundation_volume_success"
+      )
+    ).toBe(true);
+
+    const auditTrail = await caller.auditTrail({ limit: 50 });
+    expect(
+      auditTrail.entries.some(
+        (entry) =>
+          entry.action === "approval.approve" &&
+          entry.resourceType === "approval-request" &&
+          entry.resourceId === request.id
+      )
+    ).toBe(true);
   });
 
   it("blocks queued deployment creation for viewer roles", async () => {

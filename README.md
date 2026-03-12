@@ -12,6 +12,7 @@ DaoFlow is an open-source platform for running applications on VPS and bare-meta
 - server onboarding with first-contact readiness checks for SSH, Docker Engine, and Compose
 - typed Compose release targets with topology-aware rollout steps
 - Compose drift inspection that compares desired specs with the last observed runtime state
+- approval queue for high-risk Compose releases and restore drills before execution
 - backup restore queue with operator-triggered recovery drills from successful artifacts
 - deployment, event, and log visibility
 - queued deployment records with immutable step history
