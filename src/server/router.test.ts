@@ -95,6 +95,33 @@ describe("appRouter", () => {
     expect(response.governance.defaultSignupRole).toBe("viewer");
   });
 
+  it("blocks api token inventory for non-admin roles", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-token-viewer",
+      session: makeSession("viewer")
+    });
+
+    await expect(caller.agentTokenInventory()).rejects.toBeInstanceOf(TRPCError);
+  });
+
+  it("returns scoped api token inventory for elevated roles", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-token-owner",
+      session: makeSession("owner")
+    });
+
+    const response = await caller.agentTokenInventory();
+    const readOnlyToken = response.tokens.find((token) => token.label === "readonly-observer");
+    const plannerToken = response.tokens.find((token) => token.label === "planner-agent");
+
+    expect(response.summary.totalTokens).toBeGreaterThanOrEqual(3);
+    expect(response.summary.readOnlyTokens).toBeGreaterThanOrEqual(1);
+    expect(readOnlyToken?.isReadOnly).toBe(true);
+    expect(readOnlyToken?.lanes).toEqual(["read"]);
+    expect(readOnlyToken?.effectiveCapabilities).not.toContain("deploy.execute");
+    expect(plannerToken?.lanes).toContain("planning");
+  });
+
   it("returns deployment details for a known deployment record", async () => {
     const caller = appRouter.createCaller({
       requestId: "test-deployment-details",

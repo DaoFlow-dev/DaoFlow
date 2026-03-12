@@ -31,6 +31,17 @@ test("loads the DaoFlow foundation dashboard", async ({ page }) => {
   await expect(
     page.getByTestId("deployment-card-dep_foundation_20260312_1")
   ).toContainText("Resolve compose spec");
+  await expect(page.getByText("Scoped automation identities")).toBeVisible();
+  await expect(page.getByTestId("token-summary")).toContainText("3");
+  await expect(
+    page.getByTestId("token-card-token_observer_readonly")
+  ).toContainText("readonly-observer");
+  await expect(
+    page.getByTestId("token-card-token_observer_readonly")
+  ).toContainText("read.projects");
+  await expect(page.getByTestId("token-card-token_planner_agent")).toContainText(
+    "agents.plan"
+  );
   await expect(page.getByText("Better Auth + tRPC protected procedure")).toBeVisible();
 
   await page.getByRole("button", { name: "Sign out" }).click();

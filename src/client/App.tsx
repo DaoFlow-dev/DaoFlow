@@ -19,6 +19,11 @@ export default function App() {
   const adminControlPlane = trpc.adminControlPlane.useQuery(undefined, {
     enabled: Boolean(session.data)
   });
+  const currentRole = viewer.data?.authz.role ?? "guest";
+  const canViewAgentTokenInventory = currentRole === "owner" || currentRole === "admin";
+  const agentTokenInventory = trpc.agentTokenInventory.useQuery(undefined, {
+    enabled: canViewAgentTokenInventory
+  });
   const [authMode, setAuthMode] = useState<"sign-in" | "sign-up">("sign-up");
   const [name, setName] = useState("DaoFlow Operator");
   const [email, setEmail] = useState("operator@daoflow.local");
@@ -41,8 +46,13 @@ export default function App() {
     }
 
     await session.refetch();
-    await viewer.refetch();
+    const viewerResponse = await viewer.refetch();
     await adminControlPlane.refetch();
+    const nextRole = viewerResponse.data?.authz.role;
+
+    if (nextRole === "owner" || nextRole === "admin") {
+      await agentTokenInventory.refetch();
+    }
     setAuthFeedback("Account created and session established.");
   }
 
@@ -61,8 +71,13 @@ export default function App() {
     }
 
     await session.refetch();
-    await viewer.refetch();
+    const viewerResponse = await viewer.refetch();
     await adminControlPlane.refetch();
+    const nextRole = viewerResponse.data?.authz.role;
+
+    if (nextRole === "owner" || nextRole === "admin") {
+      await agentTokenInventory.refetch();
+    }
     setAuthFeedback("Signed in successfully.");
   }
 
@@ -84,7 +99,10 @@ export default function App() {
     recentDeployments.error && isTRPCClientError(recentDeployments.error)
       ? recentDeployments.error.message
       : null;
-  const currentRole = viewer.data?.authz.role ?? "guest";
+  const tokenMessage =
+    agentTokenInventory.error && isTRPCClientError(agentTokenInventory.error)
+      ? agentTokenInventory.error.message
+      : null;
 
   return (
     <main className="shell">
@@ -320,6 +338,81 @@ export default function App() {
         ) : (
           <p className="viewer-empty">
             {deploymentMessage ?? "Sign in to inspect deployment records and structured steps."}
+          </p>
+        )}
+      </section>
+
+      <section className="token-inventory">
+        <div className="roadmap__header">
+          <p className="roadmap__kicker">Agent-safe API tokens</p>
+          <h2>Scoped automation identities</h2>
+        </div>
+
+        {session.data && agentTokenInventory.data ? (
+          <>
+            <div className="token-summary" data-testid="token-summary">
+              <div className="token-summary__item">
+                <span className="metric__label">Total tokens</span>
+                <strong>{agentTokenInventory.data.summary.totalTokens}</strong>
+              </div>
+              <div className="token-summary__item">
+                <span className="metric__label">Read-only</span>
+                <strong>{agentTokenInventory.data.summary.readOnlyTokens}</strong>
+              </div>
+              <div className="token-summary__item">
+                <span className="metric__label">Planning</span>
+                <strong>{agentTokenInventory.data.summary.planningTokens}</strong>
+              </div>
+              <div className="token-summary__item">
+                <span className="metric__label">Command</span>
+                <strong>{agentTokenInventory.data.summary.commandTokens}</strong>
+              </div>
+            </div>
+
+            <div className="token-list">
+              {agentTokenInventory.data.tokens.map((token) => (
+                <article
+                  className="token-card"
+                  data-testid={`token-card-${token.id}`}
+                  key={token.id}
+                >
+                  <div className="token-card__top">
+                    <div>
+                      <p className="roadmap-item__lane">
+                        {token.principalKind} · {token.principalRole}
+                      </p>
+                      <h3>{token.label}</h3>
+                    </div>
+                    <span
+                      className={`deployment-status deployment-status--${token.status === "active" ? "healthy" : token.status === "paused" ? "running" : "failed"}`}
+                    >
+                      {token.status}
+                    </span>
+                  </div>
+                  <p className="deployment-card__meta">
+                    {token.principalName} · Prefix {token.tokenPrefix}
+                  </p>
+                  <p className="deployment-card__meta">
+                    Lanes: {token.lanes.join(", ")} · Effective capabilities:{" "}
+                    {token.effectiveCapabilities.length}
+                  </p>
+                  <div className="token-card__chips">
+                    {token.scopes.map((scope) => (
+                      <span className="token-chip" key={scope}>
+                        {scope}
+                      </span>
+                    ))}
+                  </div>
+                  <p className="deployment-card__meta">
+                    Withheld from role by token narrowing: {token.withheldCapabilities.length}
+                  </p>
+                </article>
+              ))}
+            </div>
+          </>
+        ) : (
+          <p className="viewer-empty">
+            {tokenMessage ?? "Elevated roles can inspect scoped automation identities here."}
           </p>
         )}
       </section>

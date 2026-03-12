@@ -1,6 +1,15 @@
 import { mkdirSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
+import {
+  getApiTokenScopeLanes,
+  getEffectiveTokenCapabilities,
+  normalizeApiTokenScopes,
+  roleCapabilities,
+  type ApiTokenScope,
+  type ApiTokenScopeLane,
+  type AppRole
+} from "../shared/authz";
 
 const require = createRequire(import.meta.url);
 const { DatabaseSync } = require("node:sqlite") as typeof import("node:sqlite");
@@ -8,6 +17,8 @@ const { DatabaseSync } = require("node:sqlite") as typeof import("node:sqlite");
 export type DeploymentStatus = "healthy" | "failed" | "running";
 export type DeploymentSourceType = "compose" | "dockerfile" | "image";
 export type DeploymentStepStatus = "completed" | "failed" | "running";
+export type PrincipalKind = "human" | "service-account" | "agent";
+export type ApiTokenStatus = "active" | "paused" | "expired";
 
 export interface DeploymentStepRecord {
   id: string;
@@ -37,6 +48,37 @@ export interface DeploymentRecord {
   steps: DeploymentStepRecord[];
 }
 
+export interface ApiTokenRecord {
+  id: string;
+  principalId: string;
+  principalName: string;
+  principalKind: PrincipalKind;
+  principalRole: AppRole;
+  label: string;
+  tokenPrefix: string;
+  status: ApiTokenStatus;
+  createdAt: string;
+  expiresAt: string | null;
+  lastUsedAt: string | null;
+  scopes: ApiTokenScope[];
+  lanes: ApiTokenScopeLane[];
+  effectiveCapabilities: string[];
+  withheldCapabilities: string[];
+  isReadOnly: boolean;
+}
+
+export interface ApiTokenInventory {
+  summary: {
+    totalTokens: number;
+    agentTokens: number;
+    readOnlyTokens: number;
+    planningTokens: number;
+    commandTokens: number;
+    inactiveTokens: number;
+  };
+  tokens: ApiTokenRecord[];
+}
+
 function resolveControlPlaneDatabasePath() {
   if (process.env.CONTROL_PLANE_DB_PATH) {
     return process.env.CONTROL_PLANE_DB_PATH;
@@ -62,18 +104,61 @@ function createControlPlaneDatabase() {
 const controlPlaneDb = createControlPlaneDatabase();
 
 function seedControlPlaneData() {
-  const deploymentCountRow = controlPlaneDb
-    .prepare('SELECT COUNT(*) AS total FROM deployments')
-    .get() as { total?: number } | undefined;
-
-  if ((deploymentCountRow?.total ?? 0) > 0) {
-    return;
-  }
-
   const now = new Date("2026-03-12T08:00:00.000Z");
   const serverId = "srv_foundation_1";
   const deploymentId = "dep_foundation_20260312_1";
   const previousDeploymentId = "dep_foundation_20260311_1";
+  const apiTokens = [
+    {
+      id: "token_observer_readonly",
+      principalId: "principal_observer_agent_1",
+      label: "readonly-observer",
+      tokenPrefix: "df_read_4f39",
+      status: "active",
+      createdAt: new Date(now.getTime() - 12 * 24 * 60 * 60 * 1000).toISOString(),
+      expiresAt: null,
+      lastUsedAt: new Date(now.getTime() - 6 * 60 * 1000).toISOString(),
+      scopes: ["read.projects", "read.deployments", "read.logs"]
+    },
+    {
+      id: "token_planner_agent",
+      principalId: "principal_planner_agent_1",
+      label: "planner-agent",
+      tokenPrefix: "df_plan_7ab2",
+      status: "active",
+      createdAt: new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+      expiresAt: new Date(now.getTime() + 25 * 24 * 60 * 60 * 1000).toISOString(),
+      lastUsedAt: new Date(now.getTime() - 75 * 60 * 1000).toISOString(),
+      scopes: ["read.projects", "read.deployments", "read.logs", "agents.plan"]
+    },
+    {
+      id: "token_release_service",
+      principalId: "principal_release_service_1",
+      label: "release-service",
+      tokenPrefix: "df_cmd_2cd8",
+      status: "paused",
+      createdAt: new Date(now.getTime() - 16 * 24 * 60 * 60 * 1000).toISOString(),
+      expiresAt: null,
+      lastUsedAt: new Date(now.getTime() - 19 * 60 * 60 * 1000).toISOString(),
+      scopes: [
+        "read.projects",
+        "read.deployments",
+        "read.logs",
+        "agents.plan",
+        "deploy.execute"
+      ]
+    }
+  ] as const satisfies readonly {
+    id: string;
+    principalId: string;
+    label: string;
+    tokenPrefix: string;
+    status: ApiTokenStatus;
+    createdAt: string;
+    expiresAt: string | null;
+    lastUsedAt: string | null;
+    scopes: readonly ApiTokenScope[];
+  }[];
   const steps = [
     {
       id: "step_clone",
@@ -108,6 +193,13 @@ function seedControlPlaneData() {
   ] as const;
 
   controlPlaneDb.exec(`
+    INSERT OR IGNORE INTO principals (id, name, kind, role, created_at)
+    VALUES
+      ('principal_owner_1', 'DaoFlow Owner', 'human', 'owner', '${new Date(now.getTime() - 32 * 24 * 60 * 60 * 1000).toISOString()}'),
+      ('principal_release_service_1', 'Release Service', 'service-account', 'operator', '${new Date(now.getTime() - 18 * 24 * 60 * 60 * 1000).toISOString()}'),
+      ('principal_observer_agent_1', 'Incident Observer', 'agent', 'agent', '${new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000).toISOString()}'),
+      ('principal_planner_agent_1', 'Planner Agent', 'agent', 'agent', '${new Date(now.getTime() - 8 * 24 * 60 * 60 * 1000).toISOString()}');
+
     INSERT OR IGNORE INTO servers (id, name, host, kind, created_at)
     VALUES ('${serverId}', 'foundation-vps-1', '10.0.0.14', 'docker-engine', '${now.toISOString()}');
 
@@ -155,6 +247,45 @@ function seedControlPlaneData() {
         '${new Date(now.getTime() - 66 * 60 * 1000).toISOString()}'
       );
   `);
+
+  const insertApiToken = controlPlaneDb.prepare(`
+    INSERT OR IGNORE INTO api_tokens (
+      id,
+      principal_id,
+      label,
+      token_prefix,
+      status,
+      created_at,
+      expires_at,
+      last_used_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  const insertApiTokenScope = controlPlaneDb.prepare(`
+    INSERT OR IGNORE INTO api_token_scopes (
+      token_id,
+      scope
+    )
+    VALUES (?, ?)
+  `);
+
+  for (const token of apiTokens) {
+    insertApiToken.run(
+      token.id,
+      token.principalId,
+      token.label,
+      token.tokenPrefix,
+      token.status,
+      token.createdAt,
+      token.expiresAt,
+      token.lastUsedAt
+    );
+
+    for (const scope of token.scopes) {
+      insertApiTokenScope.run(token.id, scope);
+    }
+  }
 
   const insertStep = controlPlaneDb.prepare(`
     INSERT OR IGNORE INTO deployment_steps (
@@ -207,6 +338,31 @@ function seedControlPlaneData() {
 
 const controlPlaneReady = Promise.resolve().then(() => {
   controlPlaneDb.exec(`
+    CREATE TABLE IF NOT EXISTS principals (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      role TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS api_tokens (
+      id TEXT PRIMARY KEY,
+      principal_id TEXT NOT NULL REFERENCES principals(id) ON DELETE CASCADE,
+      label TEXT NOT NULL,
+      token_prefix TEXT NOT NULL,
+      status TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      expires_at TEXT,
+      last_used_at TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS api_token_scopes (
+      token_id TEXT NOT NULL REFERENCES api_tokens(id) ON DELETE CASCADE,
+      scope TEXT NOT NULL,
+      PRIMARY KEY (token_id, scope)
+    );
+
     CREATE TABLE IF NOT EXISTS servers (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
@@ -274,6 +430,25 @@ interface DeploymentStepRow {
   detail: string;
   started_at: string;
   finished_at: string | null;
+}
+
+interface ApiTokenRow {
+  id: string;
+  principal_id: string;
+  principal_name: string;
+  principal_kind: PrincipalKind;
+  principal_role: AppRole;
+  label: string;
+  token_prefix: string;
+  status: ApiTokenStatus;
+  created_at: string;
+  expires_at: string | null;
+  last_used_at: string | null;
+}
+
+interface ApiTokenScopeRow {
+  token_id: string;
+  scope: string;
 }
 
 function getDeploymentRows(options?: { status?: DeploymentStatus; limit?: number }) {
@@ -420,4 +595,98 @@ export function getDeploymentRecord(deploymentId: string) {
   }
 
   return mapDeploymentRows([deploymentRow])[0] ?? null;
+}
+
+function getApiTokenRows() {
+  return controlPlaneDb.prepare(`
+    SELECT
+      api_tokens.id,
+      api_tokens.principal_id,
+      api_tokens.label,
+      api_tokens.token_prefix,
+      api_tokens.status,
+      api_tokens.created_at,
+      api_tokens.expires_at,
+      api_tokens.last_used_at,
+      principals.name AS principal_name,
+      principals.kind AS principal_kind,
+      principals.role AS principal_role
+    FROM api_tokens
+    INNER JOIN principals ON principals.id = api_tokens.principal_id
+    ORDER BY api_tokens.created_at DESC, api_tokens.label ASC
+  `).all() as unknown as ApiTokenRow[];
+}
+
+function listScopesForTokens(tokenIds: readonly string[]) {
+  const scopesByTokenId = new Map<string, ApiTokenScope[]>();
+
+  if (tokenIds.length === 0) {
+    return scopesByTokenId;
+  }
+
+  const placeholders = tokenIds.map(() => "?").join(", ");
+  const scopeRows = controlPlaneDb.prepare(`
+    SELECT
+      token_id,
+      scope
+    FROM api_token_scopes
+    WHERE token_id IN (${placeholders})
+    ORDER BY token_id ASC, scope ASC
+  `).all(...tokenIds) as unknown as ApiTokenScopeRow[];
+
+  for (const scopeRow of scopeRows) {
+    const scopes = scopesByTokenId.get(scopeRow.token_id) ?? [];
+    const normalizedScope = normalizeApiTokenScopes([scopeRow.scope])[0];
+
+    if (normalizedScope) {
+      scopes.push(normalizedScope);
+      scopesByTokenId.set(scopeRow.token_id, scopes);
+    }
+  }
+
+  return scopesByTokenId;
+}
+
+export function listApiTokenInventory(): ApiTokenInventory {
+  const rows = getApiTokenRows();
+  const scopesByTokenId = listScopesForTokens(rows.map((row) => row.id));
+  const tokens = rows.map((row) => {
+    const scopes = scopesByTokenId.get(row.id) ?? [];
+    const effectiveCapabilities = getEffectiveTokenCapabilities(row.principal_role, scopes);
+    const withheldCapabilities = roleCapabilities[row.principal_role].filter(
+      (capability) => !effectiveCapabilities.includes(capability)
+    );
+    const lanes = getApiTokenScopeLanes(scopes);
+
+    return {
+      id: row.id,
+      principalId: row.principal_id,
+      principalName: row.principal_name,
+      principalKind: row.principal_kind,
+      principalRole: row.principal_role,
+      label: row.label,
+      tokenPrefix: row.token_prefix,
+      status: row.status,
+      createdAt: row.created_at,
+      expiresAt: row.expires_at,
+      lastUsedAt: row.last_used_at,
+      scopes,
+      lanes,
+      effectiveCapabilities,
+      withheldCapabilities,
+      isReadOnly: lanes.length > 0 && lanes.every((lane) => lane === "read")
+    } satisfies ApiTokenRecord;
+  });
+
+  return {
+    summary: {
+      totalTokens: tokens.length,
+      agentTokens: tokens.filter((token) => token.principalKind === "agent").length,
+      readOnlyTokens: tokens.filter((token) => token.isReadOnly).length,
+      planningTokens: tokens.filter((token) => token.lanes.includes("planning")).length,
+      commandTokens: tokens.filter((token) => token.lanes.includes("command")).length,
+      inactiveTokens: tokens.filter((token) => token.status !== "active").length
+    },
+    tokens
+  };
 }

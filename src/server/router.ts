@@ -10,6 +10,7 @@ import {
 } from "../shared/authz";
 import {
   ensureControlPlaneReady,
+  listApiTokenInventory,
   getDeploymentRecord,
   listDeploymentRecords
 } from "./control-plane-db";
@@ -72,7 +73,7 @@ export const appRouter = t.router({
   })),
   platformOverview: t.procedure.query(() => ({
     name: "DaoFlow",
-    currentSlice: "typed-deployments",
+    currentSlice: "agent-safe-tokens",
     thesis:
       "A Docker-first deployment control plane for bare metal and VPS environments.",
     architecture: {
@@ -150,6 +151,10 @@ export const appRouter = t.router({
 
       return deployment;
     }),
+  agentTokenInventory: adminProcedure.query(async () => {
+    await ensureControlPlaneReady();
+    return listApiTokenInventory();
+  }),
   viewer: protectedProcedure.query(({ ctx }) => {
     const role = normalizeAppRole((ctx.session.user as Record<string, unknown>).role);
 
