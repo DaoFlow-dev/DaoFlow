@@ -45,6 +45,18 @@ describe("appRouter", () => {
     expect(response[0]?.lane).toBe("agent-safety");
   });
 
+  it("returns seeded deployment records for signed-in users", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-deployments",
+      session: makeSession("viewer")
+    });
+    const response = await caller.recentDeployments({});
+
+    expect(response.length).toBeGreaterThan(0);
+    expect(response[0]?.projectName).toBe("DaoFlow");
+    expect(response[0]?.steps.length).toBeGreaterThan(0);
+  });
+
   it("rejects protected procedures without a session", async () => {
     const caller = appRouter.createCaller({ requestId: "test-viewer", session: null });
 
@@ -81,5 +93,26 @@ describe("appRouter", () => {
     const response = await caller.adminControlPlane();
     expect(response.operator.role).toBe("owner");
     expect(response.governance.defaultSignupRole).toBe("viewer");
+  });
+
+  it("returns deployment details for a known deployment record", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-deployment-details",
+      session: makeSession("viewer")
+    });
+    const deployments = await caller.recentDeployments({});
+    const firstDeployment = deployments[0];
+
+    expect(firstDeployment).toBeDefined();
+    if (!firstDeployment) {
+      throw new Error("Expected a seeded deployment record.");
+    }
+
+    const response = await caller.deploymentDetails({
+      deploymentId: firstDeployment.id
+    });
+
+    expect(response.id).toBe(firstDeployment.id);
+    expect(response.steps.length).toBeGreaterThan(0);
   });
 });

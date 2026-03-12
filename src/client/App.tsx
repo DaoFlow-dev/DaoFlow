@@ -10,6 +10,9 @@ export default function App() {
   const health = trpc.health.useQuery();
   const overview = trpc.platformOverview.useQuery();
   const roadmap = trpc.roadmap.useQuery({});
+  const recentDeployments = trpc.recentDeployments.useQuery({}, {
+    enabled: Boolean(session.data)
+  });
   const viewer = trpc.viewer.useQuery(undefined, {
     enabled: Boolean(session.data)
   });
@@ -76,6 +79,10 @@ export default function App() {
   const adminMessage =
     adminControlPlane.error && isTRPCClientError(adminControlPlane.error)
       ? adminControlPlane.error.message
+      : null;
+  const deploymentMessage =
+    recentDeployments.error && isTRPCClientError(recentDeployments.error)
+      ? recentDeployments.error.message
       : null;
   const currentRole = viewer.data?.authz.role ?? "guest";
 
@@ -265,6 +272,56 @@ export default function App() {
           title="Product principles"
           items={overview.data?.guardrails.productPrinciples ?? []}
         />
+      </section>
+
+      <section className="deployments">
+        <div className="roadmap__header">
+          <p className="roadmap__kicker">Typed deployment records</p>
+          <h2>Recent deployments</h2>
+        </div>
+
+        {session.data && recentDeployments.data ? (
+          <div className="deployment-list">
+            {recentDeployments.data.map((deployment) => (
+              <article
+                className="deployment-card"
+                data-testid={`deployment-card-${deployment.id}`}
+                key={deployment.id}
+              >
+                <div className="deployment-card__top">
+                  <div>
+                    <p className="roadmap-item__lane">{deployment.environmentName}</p>
+                    <h3>{deployment.serviceName}</h3>
+                  </div>
+                  <span
+                    className={`deployment-status deployment-status--${deployment.status}`}
+                    data-testid={`deployment-status-${deployment.id}`}
+                  >
+                    {deployment.status}
+                  </span>
+                </div>
+                <p className="deployment-card__meta">
+                  {deployment.projectName} on {deployment.targetServerName} ({deployment.targetServerHost})
+                </p>
+                <p className="deployment-card__meta">
+                  Source: {deployment.sourceType} · Commit: {deployment.commitSha} · Image:{" "}
+                  {deployment.imageTag}
+                </p>
+                <ul className="deployment-card__steps">
+                  {deployment.steps.map((step) => (
+                    <li key={step.id}>
+                      <strong>{step.label}</strong>: {step.detail}
+                    </li>
+                  ))}
+                </ul>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <p className="viewer-empty">
+            {deploymentMessage ?? "Sign in to inspect deployment records and structured steps."}
+          </p>
+        )}
       </section>
 
       <section className="roadmap">

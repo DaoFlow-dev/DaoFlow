@@ -12,7 +12,8 @@ export default defineConfig({
     env: {
       BETTER_AUTH_DB_PATH: ":memory:",
       BETTER_AUTH_SECRET: "daoflow-e2e-secret-with-enough-entropy-2026",
-      BETTER_AUTH_URL: "http://127.0.0.1:3000"
+      BETTER_AUTH_URL: "http://127.0.0.1:3000",
+      CONTROL_PLANE_DB_PATH: ":memory:"
     },
     port: 3000,
     reuseExistingServer: !process.env.CI,

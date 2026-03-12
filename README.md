@@ -56,6 +56,7 @@ Auth configuration:
 - `BETTER_AUTH_DB_PATH` defaults to `./data/auth.sqlite` outside tests and can be pointed at a mounted volume in Docker or production.
 - `BETTER_AUTH_SECRET` is optional in local development and required for production deployments.
 - `BETTER_AUTH_URL` should match the externally reachable control-plane origin in production.
+- `CONTROL_PLANE_DB_PATH` defaults to `./data/control-plane.sqlite` and stores deployment records, steps, and later control-plane state.
 - Better Auth now boots its own SQLite schema automatically on first start, so the auth layer is durable without a manual migration step.
 - The first account created in a fresh auth database is bootstrapped as `owner`; later self-serve sign-ups default to `viewer`.
 

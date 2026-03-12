@@ -8,6 +8,11 @@ import {
   roleCapabilities,
   type AppRole
 } from "../shared/authz";
+import {
+  ensureControlPlaneReady,
+  getDeploymentRecord,
+  listDeploymentRecords
+} from "./control-plane-db";
 import type { Context } from "./context";
 
 const t = initTRPC.context<Context>().create();
@@ -67,7 +72,7 @@ export const appRouter = t.router({
   })),
   platformOverview: t.procedure.query(() => ({
     name: "DaoFlow",
-    currentSlice: "foundation",
+    currentSlice: "typed-deployments",
     thesis:
       "A Docker-first deployment control plane for bare metal and VPS environments.",
     architecture: {
@@ -114,6 +119,36 @@ export const appRouter = t.router({
       }
 
       return items.filter((item) => item.lane === input.lane);
+    }),
+  recentDeployments: protectedProcedure
+    .input(
+      z.object({
+        status: z.enum(["healthy", "failed", "running"]).optional(),
+        limit: z.number().int().min(1).max(50).optional()
+      })
+    )
+    .query(async ({ input }) => {
+      await ensureControlPlaneReady();
+      return listDeploymentRecords(input.status, input.limit ?? 20);
+    }),
+  deploymentDetails: protectedProcedure
+    .input(
+      z.object({
+        deploymentId: z.string().min(1)
+      })
+    )
+    .query(async ({ input }) => {
+      await ensureControlPlaneReady();
+      const deployment = getDeploymentRecord(input.deploymentId);
+
+      if (!deployment) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Deployment record not found."
+        });
+      }
+
+      return deployment;
     }),
   viewer: protectedProcedure.query(({ ctx }) => {
     const role = normalizeAppRole((ctx.session.user as Record<string, unknown>).role);

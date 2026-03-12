@@ -237,6 +237,78 @@ body {
   margin-top: 1rem;
 }
 
+.deployments {
+  margin-top: 1rem;
+}
+
+.deployment-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.deployment-card {
+  border: 1px solid rgba(31, 36, 31, 0.1);
+  border-radius: 24px;
+  background: rgba(255, 252, 246, 0.82);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 18px 60px rgba(73, 64, 46, 0.08);
+  padding: 1.5rem;
+}
+
+.deployment-card h3 {
+  margin: 0.45rem 0 0;
+  font-size: 1.4rem;
+}
+
+.deployment-card__top {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.deployment-card__meta {
+  margin: 0.75rem 0 0;
+  line-height: 1.6;
+  color: #415046;
+}
+
+.deployment-card__steps {
+  margin: 1rem 0 0;
+  padding-left: 1.15rem;
+  display: grid;
+  gap: 0.6rem;
+  line-height: 1.5;
+}
+
+.deployment-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.45rem 0.8rem;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.deployment-status--healthy {
+  background: rgba(151, 192, 135, 0.24);
+  color: #335438;
+}
+
+.deployment-status--failed {
+  background: rgba(214, 134, 120, 0.2);
+  color: #7a2d23;
+}
+
+.deployment-status--running {
+  background: rgba(204, 179, 104, 0.22);
+  color: #6f5418;
+}
+
 .status-card {
   padding: 1.5rem;
 }
@@ -292,6 +364,7 @@ body {
   .hero,
   .auth-section,
   .grid,
+  .deployment-list,
   .roadmap__items {
     grid-template-columns: 1fr;
   }

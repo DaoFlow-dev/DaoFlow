@@ -24,6 +24,13 @@ test("loads the DaoFlow foundation dashboard", async ({ page }) => {
   await expect(page.getByTestId("viewer-output")).toContainText(email);
   await expect(page.getByTestId("viewer-output")).toContainText('"role": "owner"');
   await expect(page.getByTestId("admin-output")).toContainText('"defaultSignupRole": "viewer"');
+  await expect(page.getByText("Recent deployments")).toBeVisible();
+  await expect(
+    page.getByTestId("deployment-card-dep_foundation_20260312_1")
+  ).toContainText("production-us-west");
+  await expect(
+    page.getByTestId("deployment-card-dep_foundation_20260312_1")
+  ).toContainText("Resolve compose spec");
   await expect(page.getByText("Better Auth + tRPC protected procedure")).toBeVisible();
 
   await page.getByRole("button", { name: "Sign out" }).click();
