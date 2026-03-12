@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
@@ -14,9 +15,9 @@ import {
 const require = createRequire(import.meta.url);
 const { DatabaseSync } = require("node:sqlite") as typeof import("node:sqlite");
 
-export type DeploymentStatus = "healthy" | "failed" | "running";
+export type DeploymentStatus = "healthy" | "failed" | "running" | "queued";
 export type DeploymentSourceType = "compose" | "dockerfile" | "image";
-export type DeploymentStepStatus = "completed" | "failed" | "running";
+export type DeploymentStepStatus = "pending" | "completed" | "failed" | "running";
 export type PrincipalKind = "human" | "service-account" | "agent";
 export type ApiTokenStatus = "active" | "paused" | "expired";
 
@@ -42,10 +43,28 @@ export interface DeploymentRecord {
   targetServerHost: string;
   commitSha: string;
   imageTag: string;
+  requestedByUserId: string;
+  requestedByEmail: string;
   createdAt: string;
   startedAt: string;
   finishedAt: string | null;
   steps: DeploymentStepRecord[];
+}
+
+export interface CreateDeploymentRecordInput {
+  projectName: string;
+  environmentName: string;
+  serviceName: string;
+  sourceType: DeploymentSourceType;
+  targetServerId: string;
+  commitSha: string;
+  imageTag: string;
+  requestedByUserId: string;
+  requestedByEmail: string;
+  steps: readonly {
+    label: string;
+    detail: string;
+  }[];
 }
 
 export interface ApiTokenRecord {
@@ -213,6 +232,8 @@ function seedControlPlaneData() {
       target_server_id,
       commit_sha,
       image_tag,
+      requested_by_user_id,
+      requested_by_email,
       created_at,
       started_at,
       finished_at
@@ -228,6 +249,8 @@ function seedControlPlaneData() {
         '${serverId}',
         '03e40ca',
         'ghcr.io/daoflow/control-plane:0.1.0',
+        'user_foundation_owner',
+        'owner@daoflow.local',
         '${new Date(now.getTime() - 7 * 60 * 1000).toISOString()}',
         '${new Date(now.getTime() - 6 * 60 * 1000).toISOString()}',
         '${new Date(now.getTime() - 90 * 1000).toISOString()}'
@@ -242,6 +265,8 @@ function seedControlPlaneData() {
         '${serverId}',
         'ca6e8b0',
         'ghcr.io/daoflow/control-plane:0.1.0-rc1',
+        'user_foundation_owner',
+        'owner@daoflow.local',
         '${new Date(now.getTime() - 70 * 60 * 1000).toISOString()}',
         '${new Date(now.getTime() - 69 * 60 * 1000).toISOString()}',
         '${new Date(now.getTime() - 66 * 60 * 1000).toISOString()}'
@@ -381,6 +406,8 @@ const controlPlaneReady = Promise.resolve().then(() => {
       target_server_id TEXT NOT NULL REFERENCES servers(id),
       commit_sha TEXT NOT NULL,
       image_tag TEXT NOT NULL,
+      requested_by_user_id TEXT NOT NULL DEFAULT 'system',
+      requested_by_email TEXT NOT NULL DEFAULT 'system@daoflow.local',
       created_at TEXT NOT NULL,
       started_at TEXT NOT NULL,
       finished_at TEXT
@@ -397,6 +424,19 @@ const controlPlaneReady = Promise.resolve().then(() => {
       finished_at TEXT
     );
   `);
+
+  for (const migration of [
+    "ALTER TABLE deployments ADD COLUMN requested_by_user_id TEXT NOT NULL DEFAULT 'system'",
+    "ALTER TABLE deployments ADD COLUMN requested_by_email TEXT NOT NULL DEFAULT 'system@daoflow.local'"
+  ]) {
+    try {
+      controlPlaneDb.exec(migration);
+    } catch (error) {
+      if (!(error instanceof Error) || !error.message.includes("duplicate column name")) {
+        throw error;
+      }
+    }
+  }
 
   seedControlPlaneData();
 });
@@ -416,6 +456,8 @@ interface DeploymentRow {
   target_server_host: string;
   commit_sha: string;
   image_tag: string;
+  requested_by_user_id: string;
+  requested_by_email: string;
   created_at: string;
   started_at: string;
   finished_at: string | null;
@@ -465,6 +507,8 @@ function getDeploymentRows(options?: { status?: DeploymentStatus; limit?: number
           deployments.status,
           deployments.commit_sha,
           deployments.image_tag,
+          deployments.requested_by_user_id,
+          deployments.requested_by_email,
           deployments.created_at,
           deployments.started_at,
           deployments.finished_at,
@@ -486,6 +530,8 @@ function getDeploymentRows(options?: { status?: DeploymentStatus; limit?: number
           deployments.status,
           deployments.commit_sha,
           deployments.image_tag,
+          deployments.requested_by_user_id,
+          deployments.requested_by_email,
           deployments.created_at,
           deployments.started_at,
           deployments.finished_at,
@@ -557,6 +603,8 @@ function mapDeploymentRows(rows: readonly DeploymentRow[]) {
     targetServerHost: row.target_server_host,
     commitSha: row.commit_sha,
     imageTag: row.image_tag,
+    requestedByUserId: row.requested_by_user_id,
+    requestedByEmail: row.requested_by_email,
     createdAt: row.created_at,
     startedAt: row.started_at,
     finishedAt: row.finished_at,
@@ -579,6 +627,8 @@ export function getDeploymentRecord(deploymentId: string) {
       deployments.status,
       deployments.commit_sha,
       deployments.image_tag,
+      deployments.requested_by_user_id,
+      deployments.requested_by_email,
       deployments.created_at,
       deployments.started_at,
       deployments.finished_at,
@@ -595,6 +645,118 @@ export function getDeploymentRecord(deploymentId: string) {
   }
 
   return mapDeploymentRows([deploymentRow])[0] ?? null;
+}
+
+function sanitizeDeploymentSegment(value: string) {
+  const sanitized = value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 24);
+
+  return sanitized.length > 0 ? sanitized : "service";
+}
+
+function getServerSummary(serverId: string) {
+  return controlPlaneDb.prepare(`
+    SELECT
+      id,
+      name,
+      host
+    FROM servers
+    WHERE id = ?
+    LIMIT 1
+  `).get(serverId) as
+    | {
+        id: string;
+        name: string;
+        host: string;
+      }
+    | undefined;
+}
+
+export function createDeploymentRecord(input: CreateDeploymentRecordInput) {
+  const server = getServerSummary(input.targetServerId);
+
+  if (!server) {
+    return null;
+  }
+
+  const createdAt = new Date().toISOString();
+  const deploymentId = `dep_${sanitizeDeploymentSegment(input.serviceName)}_${randomUUID().slice(0, 8)}`;
+  const insertDeployment = controlPlaneDb.prepare(`
+    INSERT INTO deployments (
+      id,
+      project_name,
+      environment_name,
+      service_name,
+      source_type,
+      status,
+      target_server_id,
+      commit_sha,
+      image_tag,
+      requested_by_user_id,
+      requested_by_email,
+      created_at,
+      started_at,
+      finished_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+  const insertStep = controlPlaneDb.prepare(`
+    INSERT INTO deployment_steps (
+      id,
+      deployment_id,
+      position,
+      label,
+      status,
+      detail,
+      started_at,
+      finished_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  controlPlaneDb.exec("BEGIN");
+
+  try {
+    insertDeployment.run(
+      deploymentId,
+      input.projectName,
+      input.environmentName,
+      input.serviceName,
+      input.sourceType,
+      "queued",
+      input.targetServerId,
+      input.commitSha,
+      input.imageTag,
+      input.requestedByUserId,
+      input.requestedByEmail,
+      createdAt,
+      createdAt,
+      null
+    );
+
+    input.steps.forEach((step, index) => {
+      insertStep.run(
+        `step_${randomUUID()}`,
+        deploymentId,
+        index + 1,
+        step.label,
+        "pending",
+        step.detail,
+        createdAt,
+        null
+      );
+    });
+
+    controlPlaneDb.exec("COMMIT");
+  } catch (error) {
+    controlPlaneDb.exec("ROLLBACK");
+    throw error;
+  }
+
+  return getDeploymentRecord(deploymentId);
 }
 
 function getApiTokenRows() {

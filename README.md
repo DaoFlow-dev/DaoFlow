@@ -9,6 +9,7 @@ DaoFlow is an open-source platform for running applications on VPS and bare-meta
 - agent-safe automation boundaries
 - persistent volume and backup awareness
 - deployment, event, and log visibility
+- queued deployment records with immutable step history
 
 ## Current Stack
 

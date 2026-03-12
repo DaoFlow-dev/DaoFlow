@@ -142,4 +142,64 @@ describe("appRouter", () => {
     expect(response.id).toBe(firstDeployment.id);
     expect(response.steps.length).toBeGreaterThan(0);
   });
+
+  it("creates queued deployment records for deploy-capable roles", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-create-deployment",
+      session: makeSession("developer")
+    });
+
+    const response = await caller.createDeploymentRecord({
+      projectName: "DaoFlow",
+      environmentName: "staging",
+      serviceName: "edge-worker",
+      sourceType: "dockerfile",
+      targetServerId: "srv_foundation_1",
+      commitSha: "abcdef1",
+      imageTag: "ghcr.io/daoflow/edge-worker:0.2.0",
+      steps: [
+        {
+          label: "Render runtime spec",
+          detail: "Freeze the Dockerfile build inputs for staging."
+        },
+        {
+          label: "Queue execution handoff",
+          detail: "Wait for a worker to pick up the queued deployment."
+        }
+      ]
+    });
+
+    expect(response.status).toBe("queued");
+    expect(response.requestedByEmail).toBe("developer@daoflow.local");
+    expect(response.steps).toHaveLength(2);
+    expect(response.steps[0]?.status).toBe("pending");
+
+    const deployments = await caller.recentDeployments({});
+    expect(deployments[0]?.id).toBe(response.id);
+  });
+
+  it("blocks queued deployment creation for viewer roles", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-create-deployment-viewer",
+      session: makeSession("viewer")
+    });
+
+    await expect(
+      caller.createDeploymentRecord({
+        projectName: "DaoFlow",
+        environmentName: "staging",
+        serviceName: "edge-worker",
+        sourceType: "dockerfile",
+        targetServerId: "srv_foundation_1",
+        commitSha: "abcdef1",
+        imageTag: "ghcr.io/daoflow/edge-worker:0.2.0",
+        steps: [
+          {
+            label: "Render runtime spec",
+            detail: "Freeze the Dockerfile build inputs for staging."
+          }
+        ]
+      })
+    ).rejects.toBeInstanceOf(TRPCError);
+  });
 });

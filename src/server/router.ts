@@ -9,6 +9,7 @@ import {
   type AppRole
 } from "../shared/authz";
 import {
+  createDeploymentRecord,
   ensureControlPlaneReady,
   listApiTokenInventory,
   getDeploymentRecord,
@@ -51,6 +52,7 @@ const roleProcedure = (allowedRoles: readonly AppRole[]) =>
     });
   });
 const adminProcedure = roleProcedure(["owner", "admin"]);
+const deployProcedure = roleProcedure(["owner", "admin", "operator", "developer"]);
 
 const productPrinciples = [
   "Safety before autonomy",
@@ -73,7 +75,7 @@ export const appRouter = t.router({
   })),
   platformOverview: t.procedure.query(() => ({
     name: "DaoFlow",
-    currentSlice: "agent-safe-tokens",
+    currentSlice: "deployment-write-path",
     thesis:
       "A Docker-first deployment control plane for bare metal and VPS environments.",
     architecture: {
@@ -124,7 +126,7 @@ export const appRouter = t.router({
   recentDeployments: protectedProcedure
     .input(
       z.object({
-        status: z.enum(["healthy", "failed", "running"]).optional(),
+        status: z.enum(["healthy", "failed", "running", "queued"]).optional(),
         limit: z.number().int().min(1).max(50).optional()
       })
     )
@@ -146,6 +148,44 @@ export const appRouter = t.router({
         throw new TRPCError({
           code: "NOT_FOUND",
           message: "Deployment record not found."
+        });
+      }
+
+      return deployment;
+    }),
+  createDeploymentRecord: deployProcedure
+    .input(
+      z.object({
+        projectName: z.string().min(1).max(80),
+        environmentName: z.string().min(1).max(80),
+        serviceName: z.string().min(1).max(80),
+        sourceType: z.enum(["compose", "dockerfile", "image"]),
+        targetServerId: z.string().min(1),
+        commitSha: z.string().regex(/^[a-f0-9]{7,40}$/i),
+        imageTag: z.string().min(1).max(160),
+        steps: z
+          .array(
+            z.object({
+              label: z.string().min(1).max(80),
+              detail: z.string().min(1).max(280)
+            })
+          )
+          .min(1)
+          .max(6)
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      await ensureControlPlaneReady();
+      const deployment = createDeploymentRecord({
+        ...input,
+        requestedByUserId: ctx.session.user.id,
+        requestedByEmail: ctx.session.user.email
+      });
+
+      if (!deployment) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Target server not found."
         });
       }
 

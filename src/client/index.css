@@ -245,6 +245,41 @@ body {
   margin-top: 1rem;
 }
 
+.deployment-composer {
+  margin-bottom: 1rem;
+  display: grid;
+  grid-template-columns: 1.4fr repeat(3, minmax(0, 1fr)) auto;
+  gap: 1rem;
+  align-items: end;
+  border: 1px solid rgba(31, 36, 31, 0.1);
+  border-radius: 24px;
+  background: rgba(255, 252, 246, 0.82);
+  box-shadow: 0 18px 60px rgba(73, 64, 46, 0.08);
+  padding: 1.5rem;
+}
+
+.deployment-composer h3 {
+  margin: 0.45rem 0 0;
+  font-size: 1.35rem;
+}
+
+.deployment-composer label {
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.92rem;
+  color: #415046;
+}
+
+.deployment-composer input {
+  width: 100%;
+  border: 1px solid rgba(31, 36, 31, 0.14);
+  border-radius: 14px;
+  padding: 0.85rem 0.95rem;
+  background: rgba(255, 255, 255, 0.8);
+  color: inherit;
+  font: inherit;
+}
+
 .deployment-list {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -435,6 +470,7 @@ body {
   .hero,
   .auth-section,
   .grid,
+  .deployment-composer,
   .deployment-list,
   .token-list,
   .token-summary,

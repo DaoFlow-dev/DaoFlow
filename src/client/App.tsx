@@ -10,6 +10,7 @@ export default function App() {
   const health = trpc.health.useQuery();
   const overview = trpc.platformOverview.useQuery();
   const roadmap = trpc.roadmap.useQuery({});
+  const createDeploymentRecord = trpc.createDeploymentRecord.useMutation();
   const recentDeployments = trpc.recentDeployments.useQuery({}, {
     enabled: Boolean(session.data)
   });
@@ -28,7 +29,11 @@ export default function App() {
   const [name, setName] = useState("DaoFlow Operator");
   const [email, setEmail] = useState("operator@daoflow.local");
   const [password, setPassword] = useState("secret1234");
+  const [serviceName, setServiceName] = useState("edge-worker");
+  const [commitSha, setCommitSha] = useState("abcdef1");
+  const [imageTag, setImageTag] = useState("ghcr.io/daoflow/edge-worker:0.2.0");
   const [authFeedback, setAuthFeedback] = useState<string | null>(null);
+  const [deploymentFeedback, setDeploymentFeedback] = useState<string | null>(null);
 
   async function handleSignUp(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -85,6 +90,43 @@ export default function App() {
     await signOut();
     await session.refetch();
     setAuthFeedback("Signed out.");
+    setDeploymentFeedback(null);
+  }
+
+  async function handleCreateDeployment(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setDeploymentFeedback(null);
+
+    try {
+      const deployment = await createDeploymentRecord.mutateAsync({
+        projectName: "DaoFlow",
+        environmentName: "staging",
+        serviceName,
+        sourceType: "dockerfile",
+        targetServerId: "srv_foundation_1",
+        commitSha,
+        imageTag,
+        steps: [
+          {
+            label: "Render runtime spec",
+            detail: `Freeze the Dockerfile inputs for ${serviceName} in staging.`
+          },
+          {
+            label: "Queue execution handoff",
+            detail: "Wait for the future execution-plane worker to pick up the job."
+          }
+        ]
+      });
+
+      await recentDeployments.refetch();
+      setDeploymentFeedback(`Queued ${deployment.serviceName} as ${deployment.id}.`);
+    } catch (error) {
+      setDeploymentFeedback(
+        isTRPCClientError(error)
+          ? error.message
+          : "Unable to queue the deployment record right now."
+      );
+    }
   }
 
   const viewerMessage =
@@ -103,6 +145,11 @@ export default function App() {
     agentTokenInventory.error && isTRPCClientError(agentTokenInventory.error)
       ? agentTokenInventory.error.message
       : null;
+  const canQueueDeployments =
+    currentRole === "owner" ||
+    currentRole === "admin" ||
+    currentRole === "operator" ||
+    currentRole === "developer";
 
   return (
     <main className="shell">
@@ -294,9 +341,49 @@ export default function App() {
 
       <section className="deployments">
         <div className="roadmap__header">
-          <p className="roadmap__kicker">Typed deployment records</p>
-          <h2>Recent deployments</h2>
+          <p className="roadmap__kicker">Deployment write-path foundation</p>
+          <h2>Queued and historical deployments</h2>
         </div>
+
+        {session.data && canQueueDeployments ? (
+          <form className="deployment-composer" onSubmit={(event) => void handleCreateDeployment(event)}>
+            <div>
+              <p className="roadmap-item__lane">Safe operator action</p>
+              <h3>Queue a deployment record</h3>
+              <p className="deployment-card__meta">
+                This only creates immutable control-plane records and pending steps. Docker
+                execution remains outside the web process.
+              </p>
+            </div>
+            <label>
+              Service name
+              <input
+                value={serviceName}
+                onChange={(event) => setServiceName(event.target.value)}
+              />
+            </label>
+            <label>
+              Commit SHA
+              <input value={commitSha} onChange={(event) => setCommitSha(event.target.value)} />
+            </label>
+            <label>
+              Image tag
+              <input value={imageTag} onChange={(event) => setImageTag(event.target.value)} />
+            </label>
+            <button className="action-button" disabled={createDeploymentRecord.isPending} type="submit">
+              {createDeploymentRecord.isPending ? "Queueing..." : "Queue deployment record"}
+            </button>
+            {deploymentFeedback ? (
+              <p className="auth-feedback" data-testid="deployment-feedback">
+                {deploymentFeedback}
+              </p>
+            ) : null}
+          </form>
+        ) : session.data ? (
+          <p className="viewer-empty">
+            Deploy-capable roles can queue immutable deployment records here.
+          </p>
+        ) : null}
 
         {session.data && recentDeployments.data ? (
           <div className="deployment-list">
@@ -324,6 +411,9 @@ export default function App() {
                 <p className="deployment-card__meta">
                   Source: {deployment.sourceType} · Commit: {deployment.commitSha} · Image:{" "}
                   {deployment.imageTag}
+                </p>
+                <p className="deployment-card__meta">
+                  Requested by {deployment.requestedByEmail}
                 </p>
                 <ul className="deployment-card__steps">
                   {deployment.steps.map((step) => (
