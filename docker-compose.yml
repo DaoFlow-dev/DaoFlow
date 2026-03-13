@@ -3,14 +3,47 @@ services:
     build: .
     ports:
       - "3000:3000"
-    volumes:
-      - daoflow-data:/app/data
     environment:
-      - BETTER_AUTH_SECRET=dev-secret-for-local-testing
-      - BETTER_AUTH_URL=http://localhost:3000
-      - BETTER_AUTH_DB_PATH=/app/data/auth.sqlite
-      - CONTROL_PLANE_DB_PATH=/app/data/control-plane.sqlite
-    restart: unless-stopped
+      DATABASE_URL: postgresql://daoflow:daoflow_dev@postgres:5432/daoflow
+      REDIS_URL: redis://redis:6379
+      BETTER_AUTH_SECRET: daoflow-dev-secret-please-change-2026
+      BETTER_AUTH_URL: http://localhost:3000
+      ENCRYPTION_KEY: daoflow-dev-encryption-key-change-me-32chars
+      NODE_ENV: production
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  postgres:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_DB: daoflow
+      POSTGRES_USER: daoflow
+      POSTGRES_PASSWORD: daoflow_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U daoflow"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
 
 volumes:
-  daoflow-data:
+  pgdata:
+  redisdata:

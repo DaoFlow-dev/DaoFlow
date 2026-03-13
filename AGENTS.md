@@ -140,11 +140,12 @@ Responsible for:
 
 Suggested implementation:
 
-- TypeScript end to end
-- Next.js for the web UI
-- API routes only for lightweight control-plane requests
-- Postgres for primary state
-- Redis or a queue system for background jobs
+- Bun as runtime and package manager
+- Vite plus React for the web UI
+- tRPC for type-safe API layer
+- Drizzle ORM with typed schemas and migrations
+- Postgres 17 plus pgvector for primary state and future embedding features
+- Redis for background job queue and real-time SSE streaming
 
 ### Execution plane
 
