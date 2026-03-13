@@ -1,0 +1,25 @@
+{
+  "name": "@daoflow/cli",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "daoflow": "./src/index.ts"
+  },
+  "scripts": {
+    "dev": "bun src/index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@daoflow/shared": "workspace:*",
+    "chalk": "^5.4.1",
+    "commander": "^13.1.0",
+    "dockerode": "^4.0.6",
+    "ora": "^8.2.0"
+  },
+  "devDependencies": {
+    "@types/dockerode": "^3.3.40",
+    "@types/node": "^24.5.2",
+    "typescript": "^5.9.2"
+  }
+}

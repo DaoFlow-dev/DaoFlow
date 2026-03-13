@@ -1,0 +1,1 @@
+{"root":["./src/app.tsx","./src/main.tsx","./src/components/status-card.test.tsx","./src/components/status-card.tsx","./src/components/ui/button.tsx","./src/lib/auth-client.ts","./src/lib/trpc.ts","./src/lib/utils.ts"],"errors":true,"version":"5.9.3"}

@@ -1,0 +1,40 @@
+{
+  "name": "@daoflow/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "scripts": {
+    "dev": "bun --watch src/index.ts",
+    "build": "tsup src/index.ts --format esm --platform node --target node22 --out-dir dist --clean",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --coverage"
+  },
+  "dependencies": {
+    "@daoflow/shared": "workspace:*",
+    "@trpc/server": "^11.7.1",
+    "@types/pg": "8.18.0",
+    "better-auth": "^1.5.5",
+    "cors": "^2.8.5",
+    "drizzle-orm": "0.45.1",
+    "express": "^5.1.0",
+    "helmet": "^8.1.0",
+    "morgan": "^1.10.1",
+    "pg": "8.20.0",
+    "zod": "^4.1.8"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.3",
+    "@types/morgan": "^1.9.10",
+    "@types/node": "^24.5.2",
+    "@types/supertest": "^6.0.3",
+    "@vitest/coverage-v8": "^4.0.7",
+    "drizzle-kit": "0.31.9",
+    "jsdom": "^27.0.0",
+    "supertest": "^7.1.4",
+    "tsup": "^8.5.0",
+    "typescript": "^5.9.2",
+    "vitest": "^4.0.7"
+  }
+}
