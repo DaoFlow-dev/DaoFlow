@@ -1,9 +1,8 @@
 import { randomUUID } from "node:crypto";
-import { eq, desc, sql, and } from "drizzle-orm";
+import { eq, desc, sql } from "drizzle-orm";
 import { db } from "../connection";
 import { deployments, deploymentSteps, deploymentLogs } from "../schema/deployments";
 import { servers } from "../schema/servers";
-import { projects, environments } from "../schema/projects";
 import type { AppRole } from "@daoflow/shared";
 
 export type DeploymentStatus =

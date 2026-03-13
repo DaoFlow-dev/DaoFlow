@@ -1,12 +1,12 @@
 import { randomUUID } from "node:crypto";
-import { eq, desc, and, sql } from "drizzle-orm";
+import { eq, desc, and } from "drizzle-orm";
 import { db } from "../connection";
-import { environmentVariables, environments, projects } from "../schema/projects";
+import { environmentVariables, environments } from "../schema/projects";
 import { auditEntries } from "../schema/audit";
-import { encrypt, decrypt, displayValue } from "../crypto";
+import { encrypt, displayValue } from "../crypto";
 import type { AppRole } from "@daoflow/shared";
 
-const id = () => randomUUID().replace(/-/g, "").slice(0, 32);
+const _id = () => randomUUID().replace(/-/g, "").slice(0, 32);
 
 export interface UpsertEnvironmentVariableInput {
   environmentId: string;

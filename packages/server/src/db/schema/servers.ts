@@ -3,8 +3,6 @@ import {
   integer,
   jsonb,
   pgTable,
-  serial,
-  text,
   timestamp,
   uniqueIndex,
   varchar

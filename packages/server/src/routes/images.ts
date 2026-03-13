@@ -87,7 +87,7 @@ router.post("/push", async (req, res) => {
  *
  * List Docker images on the server.
  */
-router.get("/", async (_req, res) => {
+router.get("/", (_req, res) => {
   try {
     const output = execSync("docker images --format json", {
       timeout: 10_000,

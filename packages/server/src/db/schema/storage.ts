@@ -1,13 +1,4 @@
-import {
-  index,
-  integer,
-  jsonb,
-  pgTable,
-  serial,
-  text,
-  timestamp,
-  varchar
-} from "drizzle-orm/pg-core";
+import { index, integer, jsonb, pgTable, text, timestamp, varchar } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { servers } from "./servers";
 import { users } from "./users";

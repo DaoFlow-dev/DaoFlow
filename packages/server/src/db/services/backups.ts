@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { eq, desc, sql } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 import { db } from "../connection";
 import { volumes, backupPolicies, backupRuns, backupRestores } from "../schema/storage";
 import { auditEntries } from "../schema/audit";

@@ -18,7 +18,7 @@ export function loginCommand(): Command {
           console.error(chalk.red(`✗ Server returned ${res.status}`));
           process.exit(1);
         }
-      } catch (err) {
+      } catch {
         console.error(chalk.red(`✗ Cannot reach ${url}`));
         process.exit(1);
       }

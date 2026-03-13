@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { eq, desc, sql } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 import { db } from "../connection";
 import { approvalRequests } from "../schema/audit";
 import { auditEntries } from "../schema/audit";

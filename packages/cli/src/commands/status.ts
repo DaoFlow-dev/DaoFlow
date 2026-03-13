@@ -7,7 +7,7 @@ export function statusCommand(): Command {
   return new Command("status")
     .description("Show current deployment and server status")
     .option("--json", "Output as JSON")
-    .action(async (opts) => {
+    .action(async (_opts) => {
       // Show context info
       const config = loadConfig();
       const ctx = getCurrentContext();
@@ -43,7 +43,7 @@ export function statusCommand(): Command {
           const icon = check.readinessStatus === "ready" ? chalk.green("●") : chalk.yellow("●");
           console.log(`  ${icon} ${check.serverName.padEnd(20)} ${check.serverHost}`);
         }
-      } catch (err) {
+      } catch {
         console.log(chalk.dim("  Unable to fetch server status"));
       }
 

@@ -8,16 +8,20 @@ export default tseslint.config(
   {
     ignores: [
       "coverage/**",
-      "dist/**",
+      "**/dist/**",
       "eslint.config.js",
+      "e2e/**",
       "playwright-report/**",
       "test-results/**",
-      "tmp/**"
+      "tmp/**",
+      "src/**",
+      "**/*.config.ts",
+      "drizzle.config.ts"
     ]
   },
   js.configs.recommended,
   {
-    files: ["**/*.{ts,tsx}"],
+    files: ["packages/**/*.{ts,tsx}", "e2e/**/*.ts"],
     extends: tseslint.configs.recommendedTypeChecked,
     languageOptions: {
       parserOptions: {
@@ -35,7 +39,20 @@ export default tseslint.config(
     },
     rules: {
       ...reactHooks.configs.recommended.rules,
-      "react-refresh/only-export-components": ["warn", { allowConstantExport: true }]
+      "react-refresh/only-export-components": ["warn", { allowConstantExport: true }],
+      "@typescript-eslint/no-unsafe-assignment": "warn",
+      "@typescript-eslint/no-unsafe-member-access": "warn",
+      "@typescript-eslint/no-unsafe-argument": "warn",
+      "@typescript-eslint/no-unsafe-call": "warn",
+      "@typescript-eslint/no-unsafe-return": "warn",
+      "@typescript-eslint/no-explicit-any": "warn",
+      "@typescript-eslint/restrict-template-expressions": "warn",
+      "@typescript-eslint/require-await": "warn",
+      "@typescript-eslint/await-thenable": "warn",
+      "@typescript-eslint/no-unused-vars": [
+        "error",
+        { argsIgnorePattern: "^_", varsIgnorePattern: "^_" }
+      ]
     }
   }
 );

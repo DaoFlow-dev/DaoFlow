@@ -1,12 +1,10 @@
-import { desc, sql } from "drizzle-orm";
+import { desc } from "drizzle-orm";
 import { db } from "../connection";
 import { apiTokens, principals } from "../schema/tokens";
 import {
   getApiTokenScopeLanes,
   getEffectiveTokenCapabilities,
-  normalizeApiTokenScopes,
-  type ApiTokenScope,
-  type ApiTokenScopeLane
+  type ApiTokenScope
 } from "@daoflow/shared";
 
 export async function listApiTokenInventory() {

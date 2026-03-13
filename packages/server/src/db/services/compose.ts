@@ -69,7 +69,7 @@ export async function listComposeReleaseCatalog(limit = 24) {
   };
 }
 
-export async function listComposeDriftReport(limit = 24): Promise<{
+export async function listComposeDriftReport(_limit = 24): Promise<{
   summary: {
     totalServices: number;
     alignedServices: number;
@@ -91,7 +91,7 @@ export async function listComposeDriftReport(limit = 24): Promise<{
   };
 }
 
-export async function queueComposeRelease(input: {
+export async function queueComposeRelease(_input: {
   composeServiceId: string;
   commitSha: string;
   imageTag?: string | null;

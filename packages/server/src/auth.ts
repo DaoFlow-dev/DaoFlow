@@ -1,7 +1,7 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { db } from "./db/connection";
-import { bootstrapOwnerRole, defaultSignupRole, normalizeAppRole } from "@daoflow/shared";
+import { bootstrapOwnerRole, defaultSignupRole } from "@daoflow/shared";
 import { DEFAULT_CLIENT_PORT, DEFAULT_SERVER_PORT } from "@daoflow/shared";
 
 function resolveAuthBaseURL() {

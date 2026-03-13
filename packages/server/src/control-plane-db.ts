@@ -71,7 +71,7 @@ export {
 } from "./db/crypto";
 
 // ── Control Plane Readiness ──────────────────────────────────
-export async function ensureControlPlaneReady() {
+export function ensureControlPlaneReady() {
   // With Postgres + Drizzle, the DB is always ready once connected.
   // Seed data is applied via db:push + db:seed scripts.
 }
