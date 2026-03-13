@@ -76,6 +76,11 @@ jobs:
         env:
           DATABASE_URL: postgresql://daoflow:daoflow_ci@localhost:5432/daoflow_test
 
+      - name: Push DB schema
+        run: bunx drizzle-kit push --force
+        env:
+          DATABASE_URL: postgresql://daoflow:daoflow_ci@localhost:5432/daoflow_test
+
       - name: Install Playwright browser
         run: bunx playwright install --with-deps chromium
 

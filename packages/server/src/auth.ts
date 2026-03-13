@@ -33,12 +33,14 @@ export const auth = betterAuth({
     `http://127.0.0.1:${DEFAULT_SERVER_PORT}`
   ],
   database: drizzleAdapter(db, {
-    provider: "pg"
+    provider: "pg",
+    usePlural: true
   }),
   emailAndPassword: {
     enabled: true
   },
   user: {
+    modelName: "users",
     additionalFields: {
       role: {
         type: "string",

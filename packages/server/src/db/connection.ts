@@ -9,5 +9,7 @@ const pool = new pg.Pool({
   connectionTimeoutMillis: 5_000
 });
 
-export const db = drizzle(pool);
+import * as schema from "./schema";
+
+export const db = drizzle(pool, { schema });
 export { pool };
