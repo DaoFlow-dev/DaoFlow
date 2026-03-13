@@ -77,7 +77,7 @@ jobs:
           DATABASE_URL: postgresql://daoflow:daoflow_ci@localhost:5432/daoflow_test
 
       - name: Push DB schema
-        run: ./node_modules/.bin/drizzle-kit push --force
+        run: bun run db:push:ci
         env:
           DATABASE_URL: postgresql://daoflow:daoflow_ci@localhost:5432/daoflow_test
 

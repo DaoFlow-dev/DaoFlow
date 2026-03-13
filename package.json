@@ -23,6 +23,7 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
+    "db:push:ci": "drizzle-kit push --force",
     "db:studio": "drizzle-kit studio",
     "cli": "bun packages/cli/src/index.ts"
   },
@@ -35,6 +36,7 @@
     "eslint-plugin-react-refresh": "^0.4.22",
     "globals": "^16.4.0",
     "prettier": "^3.6.2",
+    "drizzle-kit": "0.31.9",
     "typescript": "^5.9.2",
     "typescript-eslint": "^8.44.1"
   }
