@@ -8,7 +8,7 @@
  * These tables are part of Better Auth's core and are required for
  * authentication to work. See: https://better-auth.com/docs/adapters/drizzle
  */
-import { boolean, integer, pgTable, text, timestamp, varchar } from "drizzle-orm/pg-core";
+import { integer, pgTable, text, timestamp } from "drizzle-orm/pg-core";
 import { users } from "./users";
 
 export const sessions = pgTable("sessions", {
