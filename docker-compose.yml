@@ -1,0 +1,16 @@
+services:
+  daoflow:
+    build: .
+    ports:
+      - "3000:3000"
+    volumes:
+      - daoflow-data:/app/data
+    environment:
+      - BETTER_AUTH_SECRET=dev-secret-for-local-testing
+      - BETTER_AUTH_URL=http://localhost:3000
+      - BETTER_AUTH_DB_PATH=/app/data/auth.sqlite
+      - CONTROL_PLANE_DB_PATH=/app/data/control-plane.sqlite
+    restart: unless-stopped
+
+volumes:
+  daoflow-data:
