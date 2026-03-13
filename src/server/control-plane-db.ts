@@ -24,6 +24,7 @@ export type ExecutionJobStatus = "pending" | "dispatched" | "completed" | "faile
 export type DeploymentEventLevel = "info" | "warning" | "error";
 export type BackupTargetType = "volume" | "database";
 export type BackupRunStatus = "queued" | "running" | "succeeded" | "failed";
+export type BackupRestoreStatus = "queued" | "running" | "succeeded" | "failed";
 export type AuditActorType = "human" | "system";
 export type PersistentVolumeBackupCoverage = "protected" | "stale" | "missing";
 export type PersistentVolumeRestoreReadiness = "verified" | "stale" | "untested";
@@ -312,6 +313,35 @@ export interface BackupOverview {
   runs: BackupRunRecord[];
 }
 
+export interface BackupRestoreRequestRecord {
+  id: string;
+  backupRunId: string;
+  policyId: string;
+  projectName: string;
+  environmentName: string;
+  serviceName: string;
+  targetType: BackupTargetType;
+  status: BackupRestoreStatus;
+  requestedBy: string;
+  destinationServerName: string;
+  sourceArtifactPath: string;
+  restorePath: string;
+  validationSummary: string;
+  requestedAt: string;
+  finishedAt: string | null;
+}
+
+export interface BackupRestoreQueue {
+  summary: {
+    totalRequests: number;
+    queuedRequests: number;
+    runningRequests: number;
+    succeededRequests: number;
+    failedRequests: number;
+  };
+  requests: BackupRestoreRequestRecord[];
+}
+
 export interface ServerInventoryRecord {
   id: string;
   name: string;
@@ -542,6 +572,18 @@ interface SeedBackupRun {
   artifactPath: string | null;
   bytesWritten: number | null;
   startedAt: string;
+  finishedAt: string | null;
+}
+
+interface SeedBackupRestoreRequest {
+  id: string;
+  backupRunId: string;
+  status: BackupRestoreStatus;
+  requestedBy: string;
+  destinationServerId: string;
+  restorePath: string;
+  validationSummary: string;
+  requestedAt: string;
   finishedAt: string | null;
 }
 
@@ -810,6 +852,19 @@ function seedControlPlaneData() {
       finishedAt: new Date(now.getTime() - 53 * 60 * 1000).toISOString()
     }
   ] as const satisfies readonly SeedBackupRun[];
+  const seedBackupRestoreRequests = [
+    {
+      id: "brestore_foundation_volume_verify",
+      backupRunId: "brun_foundation_volume_success",
+      status: "succeeded",
+      requestedBy: "operator@daoflow.local",
+      destinationServerId: serverId,
+      restorePath: "/var/lib/postgresql/data",
+      validationSummary: "Restore drill replayed the volume snapshot and passed the smoke query check.",
+      requestedAt: new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000 - 20 * 60 * 1000).toISOString(),
+      finishedAt: new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000).toISOString()
+    }
+  ] as const satisfies readonly SeedBackupRestoreRequest[];
   const seedPersistentVolumes = [
     {
       id: "pvol_daoflow_postgres_prod",
@@ -1392,6 +1447,20 @@ function seedControlPlaneData() {
     )
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
+  const insertBackupRestoreRequest = controlPlaneDb.prepare(`
+    INSERT OR IGNORE INTO backup_restore_requests (
+      id,
+      backup_run_id,
+      status,
+      requested_by,
+      destination_server_id,
+      restore_path,
+      validation_summary,
+      requested_at,
+      finished_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
   const insertEnvironment = controlPlaneDb.prepare(`
     INSERT OR IGNORE INTO environments (
       id,
@@ -1667,6 +1736,20 @@ function seedControlPlaneData() {
     );
   }
 
+  for (const restore of seedBackupRestoreRequests) {
+    insertBackupRestoreRequest.run(
+      restore.id,
+      restore.backupRunId,
+      restore.status,
+      restore.requestedBy,
+      restore.destinationServerId,
+      restore.restorePath,
+      restore.validationSummary,
+      restore.requestedAt,
+      restore.finishedAt
+    );
+  }
+
   for (const volume of seedPersistentVolumes) {
     insertPersistentVolume.run(
       volume.id,
@@ -1853,6 +1936,18 @@ const controlPlaneReady = Promise.resolve().then(() => {
       finished_at TEXT
     );
 
+    CREATE TABLE IF NOT EXISTS backup_restore_requests (
+      id TEXT PRIMARY KEY,
+      backup_run_id TEXT NOT NULL REFERENCES backup_runs(id) ON DELETE CASCADE,
+      status TEXT NOT NULL,
+      requested_by TEXT NOT NULL,
+      destination_server_id TEXT NOT NULL REFERENCES servers(id),
+      restore_path TEXT NOT NULL,
+      validation_summary TEXT NOT NULL,
+      requested_at TEXT NOT NULL,
+      finished_at TEXT
+    );
+
     CREATE TABLE IF NOT EXISTS persistent_volumes (
       id TEXT PRIMARY KEY,
       environment_id TEXT NOT NULL REFERENCES environments(id) ON DELETE CASCADE,
@@ -1945,6 +2040,10 @@ const controlPlaneReady = Promise.resolve().then(() => {
       ON backup_runs (policy_id, started_at DESC);
     CREATE INDEX IF NOT EXISTS idx_backup_runs_status_started_at
       ON backup_runs (status, started_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_backup_restore_requests_backup_run_requested_at
+      ON backup_restore_requests (backup_run_id, requested_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_backup_restore_requests_status_requested_at
+      ON backup_restore_requests (status, requested_at DESC);
     CREATE INDEX IF NOT EXISTS idx_persistent_volumes_environment_id
       ON persistent_volumes (environment_id);
     CREATE INDEX IF NOT EXISTS idx_persistent_volumes_backup_policy_id
@@ -2111,6 +2210,24 @@ interface BackupRunRow {
   artifact_path: string | null;
   bytes_written: number | null;
   started_at: string;
+  finished_at: string | null;
+}
+
+interface BackupRestoreRequestRow {
+  id: string;
+  backup_run_id: string;
+  policy_id: string;
+  project_name: string;
+  environment_name: string;
+  service_name: string;
+  target_type: BackupTargetType;
+  status: BackupRestoreStatus;
+  requested_by: string;
+  destination_server_name: string;
+  source_artifact_path: string;
+  restore_path: string;
+  validation_summary: string;
+  requested_at: string;
   finished_at: string | null;
 }
 
@@ -4077,6 +4194,53 @@ function getBackupRunSummary() {
     | undefined;
 }
 
+function getBackupRestoreRequestRows(limit = 12) {
+  return controlPlaneDb.prepare(`
+    SELECT
+      backup_restore_requests.id,
+      backup_restore_requests.backup_run_id,
+      backup_runs.policy_id,
+      backup_policies.project_name,
+      backup_policies.environment_name,
+      backup_policies.service_name,
+      backup_policies.target_type,
+      backup_restore_requests.status,
+      backup_restore_requests.requested_by,
+      servers.name AS destination_server_name,
+      backup_runs.artifact_path AS source_artifact_path,
+      backup_restore_requests.restore_path,
+      backup_restore_requests.validation_summary,
+      backup_restore_requests.requested_at,
+      backup_restore_requests.finished_at
+    FROM backup_restore_requests
+    INNER JOIN backup_runs ON backup_runs.id = backup_restore_requests.backup_run_id
+    INNER JOIN backup_policies ON backup_policies.id = backup_runs.policy_id
+    INNER JOIN servers ON servers.id = backup_restore_requests.destination_server_id
+    ORDER BY backup_restore_requests.requested_at DESC
+    LIMIT ?
+  `).all(limit) as unknown as BackupRestoreRequestRow[];
+}
+
+function getBackupRestoreRequestSummary() {
+  return controlPlaneDb.prepare(`
+    SELECT
+      COUNT(*) AS total_requests,
+      SUM(CASE WHEN status = 'queued' THEN 1 ELSE 0 END) AS queued_requests,
+      SUM(CASE WHEN status = 'running' THEN 1 ELSE 0 END) AS running_requests,
+      SUM(CASE WHEN status = 'succeeded' THEN 1 ELSE 0 END) AS succeeded_requests,
+      SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) AS failed_requests
+    FROM backup_restore_requests
+  `).get() as
+    | {
+        total_requests?: number;
+        queued_requests?: number;
+        running_requests?: number;
+        succeeded_requests?: number;
+        failed_requests?: number;
+      }
+    | undefined;
+}
+
 export function listBackupOverview(limit = 12): BackupOverview {
   const policies = getBackupPolicyRows().map((row) => ({
     id: row.id,
@@ -4118,6 +4282,62 @@ export function listBackupOverview(limit = 12): BackupOverview {
     policies,
     runs
   };
+}
+
+export function listBackupRestoreQueue(limit = 12): BackupRestoreQueue {
+  const summary = getBackupRestoreRequestSummary();
+  const requests = getBackupRestoreRequestRows(limit).map((row) => ({
+    id: row.id,
+    backupRunId: row.backup_run_id,
+    policyId: row.policy_id,
+    projectName: row.project_name,
+    environmentName: row.environment_name,
+    serviceName: row.service_name,
+    targetType: row.target_type,
+    status: row.status,
+    requestedBy: row.requested_by,
+    destinationServerName: row.destination_server_name,
+    sourceArtifactPath: row.source_artifact_path,
+    restorePath: row.restore_path,
+    validationSummary: row.validation_summary,
+    requestedAt: row.requested_at,
+    finishedAt: row.finished_at
+  }));
+
+  return {
+    summary: {
+      totalRequests: summary?.total_requests ?? 0,
+      queuedRequests: summary?.queued_requests ?? 0,
+      runningRequests: summary?.running_requests ?? 0,
+      succeededRequests: summary?.succeeded_requests ?? 0,
+      failedRequests: summary?.failed_requests ?? 0
+    },
+    requests
+  };
+}
+
+function inferRestorePath(policyId: string, targetType: BackupTargetType, serviceName: string) {
+  if (targetType === "volume") {
+    const persistentVolume = controlPlaneDb.prepare(`
+      SELECT mount_path
+      FROM persistent_volumes
+      WHERE backup_policy_id = ?
+      ORDER BY created_at DESC
+      LIMIT 1
+    `).get(policyId) as
+      | {
+          mount_path: string;
+        }
+      | undefined;
+
+    if (persistentVolume?.mount_path) {
+      return persistentVolume.mount_path;
+    }
+
+    return `/srv/restore/${serviceName}`;
+  }
+
+  return `/srv/restore/${serviceName}.sql`;
 }
 
 export function triggerBackupRun(
@@ -4237,6 +4457,129 @@ export function triggerBackupRun(
     startedAt: run.started_at,
     finishedAt: run.finished_at
   } satisfies BackupRunRecord;
+}
+
+export function queueBackupRestore(
+  backupRunId: string,
+  requestedByUserId: string,
+  requestedBy: string,
+  requestedByRole: AppRole
+) {
+  const run = controlPlaneDb.prepare(`
+    SELECT
+      backup_runs.id,
+      backup_runs.policy_id,
+      backup_runs.status,
+      backup_runs.trigger_kind,
+      backup_runs.requested_by,
+      backup_runs.artifact_path,
+      backup_runs.bytes_written,
+      backup_runs.started_at,
+      backup_runs.finished_at,
+      backup_policies.project_name,
+      backup_policies.environment_name,
+      backup_policies.service_name,
+      backup_policies.target_type,
+      environments.target_server_id,
+      servers.name AS destination_server_name
+    FROM backup_runs
+    INNER JOIN backup_policies ON backup_policies.id = backup_runs.policy_id
+    INNER JOIN projects ON projects.name = backup_policies.project_name
+    INNER JOIN environments
+      ON environments.project_id = projects.id
+     AND environments.name = backup_policies.environment_name
+    INNER JOIN servers ON servers.id = environments.target_server_id
+    WHERE backup_runs.id = ?
+    LIMIT 1
+  `).get(backupRunId) as
+    | (BackupRunRow & {
+        target_server_id: string;
+        destination_server_name: string;
+      })
+    | undefined;
+
+  if (!run || run.status !== "succeeded" || !run.artifact_path) {
+    return null;
+  }
+
+  const requestId = `brestore_${randomUUID().slice(0, 8)}`;
+  const requestedAt = new Date().toISOString();
+  const restorePath = inferRestorePath(run.policy_id, run.target_type, run.service_name);
+  const validationSummary =
+    run.target_type === "volume"
+      ? "Worker will mount the snapshot in isolation, verify file ownership, and gate switchover on smoke checks."
+      : "Worker will replay the dump into an isolated target and gate switchover on schema and connectivity checks.";
+
+  controlPlaneDb.exec("BEGIN");
+
+  try {
+    controlPlaneDb.prepare(`
+      INSERT INTO backup_restore_requests (
+        id,
+        backup_run_id,
+        status,
+        requested_by,
+        destination_server_id,
+        restore_path,
+        validation_summary,
+        requested_at,
+        finished_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      requestId,
+      backupRunId,
+      "queued",
+      requestedBy,
+      run.target_server_id,
+      restorePath,
+      validationSummary,
+      requestedAt,
+      null
+    );
+
+    appendAuditEntry({
+      actorType: "human",
+      actorId: requestedByUserId,
+      actorLabel: requestedBy,
+      actorRole: requestedByRole,
+      action: "backup.restore.queue",
+      resourceType: "backup-run",
+      resourceId: backupRunId,
+      resourceLabel: `${run.service_name}@${run.environment_name}`,
+      detail: `Queued a restore drill from ${run.artifact_path} to ${run.destination_server_name}:${restorePath}.`,
+      createdAt: requestedAt
+    });
+
+    controlPlaneDb.exec("COMMIT");
+  } catch (error) {
+    controlPlaneDb.exec("ROLLBACK");
+    throw error;
+  }
+
+  const restore = getBackupRestoreRequestRows(50).find((entry) => entry.id === requestId);
+
+  if (!restore) {
+    throw new Error("Backup restore request was created but could not be loaded.");
+  }
+
+  return {
+    id: restore.id,
+    backupRunId: restore.backup_run_id,
+    policyId: restore.policy_id,
+    projectName: restore.project_name,
+    environmentName: restore.environment_name,
+    serviceName: restore.service_name,
+    targetType: restore.target_type,
+    status: restore.status,
+    requestedBy: restore.requested_by,
+    destinationServerName: restore.destination_server_name,
+    sourceArtifactPath: restore.source_artifact_path,
+    restorePath: restore.restore_path,
+    validationSummary: restore.validation_summary,
+    requestedAt: restore.requested_at,
+    finishedAt: restore.finished_at
+  } satisfies BackupRestoreRequestRecord;
 }
 
 export function listInfrastructureInventory(): InfrastructureInventory {

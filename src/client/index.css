@@ -499,6 +499,13 @@ body {
   gap: 1rem;
 }
 
+.restore-summary {
+  margin-bottom: 1rem;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1rem;
+}
+
 .audit-summary {
   margin-bottom: 1rem;
   display: grid;
@@ -549,6 +556,12 @@ body {
 
 .backup-policy-list,
 .backup-run-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.restore-run-list {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 1rem;
@@ -836,6 +849,7 @@ body {
   .environment-variable-composer,
   .server-onboarding,
   .backup-summary,
+  .restore-summary,
   .audit-summary,
   .log-summary,
   .compose-release-summary,
@@ -844,6 +858,7 @@ body {
   .persistent-volume-summary,
   .backup-policy-list,
   .backup-run-list,
+  .restore-run-list,
   .deployment-list,
   .inventory-summary,
   .inventory-columns,

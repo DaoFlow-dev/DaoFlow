@@ -207,6 +207,11 @@ test("loads the DaoFlow foundation dashboard", async ({ page }) => {
   await expect(page.getByText("Scoped automation identities")).toBeVisible();
   await expect(page.getByText("Backup policies and runs")).toBeVisible();
   await expect(page.getByTestId("backup-summary")).toContainText("2");
+  await expect(page.getByText("Backup restore queue")).toBeVisible();
+  await expect(page.getByTestId("restore-summary")).toContainText("1");
+  await expect(
+    page.getByTestId("backup-restore-brestore_foundation_volume_verify")
+  ).toContainText("/var/lib/postgresql/data");
   await page
     .locator('[data-testid^="backup-policy-"]')
     .filter({ hasText: "postgres-volume" })
@@ -216,9 +221,26 @@ test("loads the DaoFlow foundation dashboard", async ({ page }) => {
   await expect(
     page.locator('[data-testid^="backup-run-"]').filter({ hasText: "postgres-volume" }).first()
   ).toContainText("queued");
+  await page
+    .locator('[data-testid^="backup-run-"]')
+    .filter({ hasText: "postgres-volume" })
+    .filter({ hasText: "succeeded" })
+    .getByRole("button", { name: "Queue restore" })
+    .click();
+  await expect(page.getByTestId("restore-feedback")).toContainText(
+    "Queued restore drill for postgres-volume"
+  );
+  await expect(
+    page.locator('[data-testid^="backup-restore-"]').filter({ hasText: "queued" }).first()
+  ).toContainText("foundation-vps-1:/var/lib/postgresql/data");
   await expect(
     page.locator('[data-testid^="audit-entry-"]').filter({
       hasText: "backup.trigger"
+    }).filter({ hasText: "postgres-volume@production-us-west" })
+  ).toContainText(email);
+  await expect(
+    page.locator('[data-testid^="audit-entry-"]').filter({
+      hasText: "backup.restore.queue"
     }).filter({ hasText: "postgres-volume@production-us-west" })
   ).toContainText(email);
   await expect(page.getByTestId("token-summary")).toContainText("3");

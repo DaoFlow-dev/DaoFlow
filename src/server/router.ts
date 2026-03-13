@@ -12,7 +12,9 @@ import {
   completeExecutionJob,
   listComposeReleaseCatalog,
   createDeploymentRecord,
+  listBackupRestoreQueue,
   queueComposeRelease,
+  queueBackupRestore,
   registerServer,
   dispatchExecutionJob,
   ensureControlPlaneReady,
@@ -95,7 +97,7 @@ export const appRouter = t.router({
   })),
   platformOverview: t.procedure.query(() => ({
     name: "DaoFlow",
-    currentSlice: "compose-release-targets",
+    currentSlice: "backup-restore-flows",
     thesis:
       "A Docker-first deployment control plane for bare metal and VPS environments.",
     architecture: {
@@ -402,6 +404,16 @@ export const appRouter = t.router({
       await ensureControlPlaneReady();
       return listBackupOverview(input.limit ?? 12);
     }),
+  backupRestoreQueue: protectedProcedure
+    .input(
+      z.object({
+        limit: z.number().int().min(1).max(50).optional()
+      })
+    )
+    .query(async ({ input }) => {
+      await ensureControlPlaneReady();
+      return listBackupRestoreQueue(input.limit ?? 12);
+    }),
   triggerBackupRun: executionProcedure
     .input(
       z.object({
@@ -425,6 +437,30 @@ export const appRouter = t.router({
       }
 
       return run;
+    }),
+  queueBackupRestore: executionProcedure
+    .input(
+      z.object({
+        backupRunId: z.string().min(1)
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      await ensureControlPlaneReady();
+      const restore = queueBackupRestore(
+        input.backupRunId,
+        ctx.session.user.id,
+        ctx.session.user.email,
+        ctx.role
+      );
+
+      if (!restore) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Only successful backup runs with an artifact can be restored."
+        });
+      }
+
+      return restore;
     }),
   dispatchExecutionJob: executionProcedure
     .input(

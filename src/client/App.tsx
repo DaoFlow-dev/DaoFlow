@@ -147,6 +147,7 @@ export default function App() {
   const queueComposeRelease = trpc.queueComposeRelease.useMutation();
   const createDeploymentRecord = trpc.createDeploymentRecord.useMutation();
   const triggerBackupRun = trpc.triggerBackupRun.useMutation();
+  const queueBackupRestore = trpc.queueBackupRestore.useMutation();
   const dispatchExecutionJob = trpc.dispatchExecutionJob.useMutation();
   const completeExecutionJob = trpc.completeExecutionJob.useMutation();
   const failExecutionJob = trpc.failExecutionJob.useMutation();
@@ -154,6 +155,9 @@ export default function App() {
     enabled: Boolean(session.data)
   });
   const backupOverview = trpc.backupOverview.useQuery({}, {
+    enabled: Boolean(session.data)
+  });
+  const backupRestoreQueue = trpc.backupRestoreQueue.useQuery({}, {
     enabled: Boolean(session.data)
   });
   const executionQueue = trpc.executionQueue.useQuery({}, {
@@ -233,6 +237,7 @@ export default function App() {
   const [composeReleaseFeedback, setComposeReleaseFeedback] = useState<string | null>(null);
   const [executionFeedback, setExecutionFeedback] = useState<string | null>(null);
   const [backupFeedback, setBackupFeedback] = useState<string | null>(null);
+  const [backupRestoreFeedback, setBackupRestoreFeedback] = useState<string | null>(null);
   const [serverFeedback, setServerFeedback] = useState<string | null>(null);
   const [environmentVariableFeedback, setEnvironmentVariableFeedback] = useState<string | null>(
     null
@@ -297,6 +302,7 @@ export default function App() {
     setComposeReleaseFeedback(null);
     setExecutionFeedback(null);
     setBackupFeedback(null);
+    setBackupRestoreFeedback(null);
     setServerFeedback(null);
     setEnvironmentVariableFeedback(null);
   }
@@ -313,6 +319,7 @@ export default function App() {
     await deploymentLogs.refetch();
     await environmentVariables.refetch();
     await backupOverview.refetch();
+    await backupRestoreQueue.refetch();
     await executionQueue.refetch();
     await operationsTimeline.refetch();
   }
@@ -474,6 +481,24 @@ export default function App() {
     }
   }
 
+  async function handleQueueBackupRestore(backupRunId: string, service: string) {
+    setBackupRestoreFeedback(null);
+
+    try {
+      await queueBackupRestore.mutateAsync({
+        backupRunId
+      });
+      await refreshOperationalViews();
+      setBackupRestoreFeedback(`Queued restore drill for ${service}.`);
+    } catch (error) {
+      setBackupRestoreFeedback(
+        isTRPCClientError(error)
+          ? error.message
+          : "Unable to queue the restore drill right now."
+      );
+    }
+  }
+
   async function handleUpsertEnvironmentVariable(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setEnvironmentVariableFeedback(null);
@@ -515,6 +540,10 @@ export default function App() {
   const backupMessage =
     backupOverview.error && isTRPCClientError(backupOverview.error)
       ? backupOverview.error.message
+      : null;
+  const backupRestoreMessage =
+    backupRestoreQueue.error && isTRPCClientError(backupRestoreQueue.error)
+      ? backupRestoreQueue.error.message
       : null;
   const executionQueueMessage =
     executionQueue.error && isTRPCClientError(executionQueue.error)
@@ -578,6 +607,7 @@ export default function App() {
     completeExecutionJob.isPending ||
     failExecutionJob.isPending;
   const backupMutationPending = triggerBackupRun.isPending;
+  const backupRestoreMutationPending = queueBackupRestore.isPending;
   const composeReleaseMutationPending = queueComposeRelease.isPending;
   const serverMutationPending = registerServer.isPending;
   const environmentVariableMutationPending = upsertEnvironmentVariable.isPending;
@@ -1936,6 +1966,11 @@ export default function App() {
                 {backupFeedback}
               </p>
             ) : null}
+            {backupRestoreFeedback ? (
+              <p className="auth-feedback" data-testid="restore-feedback">
+                {backupRestoreFeedback}
+              </p>
+            ) : null}
 
             <div className="backup-policy-list">
               {backupOverview.data.policies.map((policy) => (
@@ -1999,9 +2034,84 @@ export default function App() {
                   <p className="deployment-card__meta">
                     {run.artifactPath ?? "Artifact path will be assigned by the future backup worker."}
                   </p>
+                  {canOperateExecutionJobs && run.status === "succeeded" && run.artifactPath ? (
+                    <div className="job-actions">
+                      <button
+                        className="action-button action-button--muted"
+                        disabled={backupRestoreMutationPending}
+                        onClick={() => {
+                          void handleQueueBackupRestore(run.id, run.serviceName);
+                        }}
+                        type="button"
+                      >
+                        Queue restore
+                      </button>
+                    </div>
+                  ) : null}
                 </article>
               ))}
             </div>
+
+            {backupRestoreQueue.data ? (
+              <>
+                <div className="roadmap__header">
+                  <p className="roadmap__kicker">Recovery drills</p>
+                  <h2>Backup restore queue</h2>
+                </div>
+
+                <div className="restore-summary" data-testid="restore-summary">
+                  <div className="token-summary__item">
+                    <span className="metric__label">Requests</span>
+                    <strong>{backupRestoreQueue.data.summary.totalRequests}</strong>
+                  </div>
+                  <div className="token-summary__item">
+                    <span className="metric__label">Queued</span>
+                    <strong>{backupRestoreQueue.data.summary.queuedRequests}</strong>
+                  </div>
+                  <div className="token-summary__item">
+                    <span className="metric__label">Succeeded</span>
+                    <strong>{backupRestoreQueue.data.summary.succeededRequests}</strong>
+                  </div>
+                  <div className="token-summary__item">
+                    <span className="metric__label">Failed</span>
+                    <strong>{backupRestoreQueue.data.summary.failedRequests}</strong>
+                  </div>
+                </div>
+
+                <div className="restore-run-list">
+                  {backupRestoreQueue.data.requests.map((request) => (
+                    <article
+                      className="timeline-event"
+                      data-testid={`backup-restore-${request.id}`}
+                      key={request.id}
+                    >
+                      <div className="timeline-event__top">
+                        <div>
+                          <p className="roadmap-item__lane">
+                            {request.environmentName} · {request.targetType}
+                          </p>
+                          <h3>{request.serviceName}</h3>
+                        </div>
+                        <span
+                          className={`deployment-status deployment-status--${request.status === "succeeded" ? "healthy" : request.status === "failed" ? "failed" : request.status === "running" ? "running" : "queued"}`}
+                        >
+                          {request.status}
+                        </span>
+                      </div>
+                      <p className="deployment-card__meta">
+                        Restore to {request.destinationServerName}:{request.restorePath}
+                      </p>
+                      <p className="deployment-card__meta">{request.sourceArtifactPath}</p>
+                      <p className="deployment-card__meta">{request.validationSummary}</p>
+                    </article>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <p className="viewer-empty">
+                {backupRestoreMessage ?? "Sign in to inspect queued and historical restore drills."}
+              </p>
+            )}
           </>
         ) : (
           <p className="viewer-empty">

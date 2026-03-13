@@ -365,6 +365,35 @@ describe("appRouter", () => {
     expect(overview.summary.totalPolicies).toBeGreaterThan(0);
   });
 
+  it("returns backup restore queue for signed-in viewers", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-backup-restores-viewer",
+      session: makeSession("viewer")
+    });
+
+    const restores = await caller.backupRestoreQueue({});
+
+    expect(restores.summary).toEqual({
+      totalRequests: 1,
+      queuedRequests: 0,
+      runningRequests: 0,
+      succeededRequests: 1,
+      failedRequests: 0
+    });
+    expect(restores.requests[0]).toMatchObject({
+      backupRunId: "brun_foundation_volume_success",
+      policyId: "bpol_foundation_volume_daily",
+      projectName: "DaoFlow",
+      environmentName: "production-us-west",
+      serviceName: "postgres-volume",
+      targetType: "volume",
+      status: "succeeded",
+      destinationServerName: "foundation-vps-1",
+      sourceArtifactPath: "s3://daoflow-backups/prod/postgres-volume-2026-03-11.tar.zst",
+      restorePath: "/var/lib/postgresql/data"
+    });
+  });
+
   it("rejects protected procedures without a session", async () => {
     const caller = appRouter.createCaller({ requestId: "test-viewer", session: null });
 
@@ -428,6 +457,19 @@ describe("appRouter", () => {
     await expect(
       caller.triggerBackupRun({
         policyId: "bpol_foundation_volume_daily"
+      })
+    ).rejects.toBeInstanceOf(TRPCError);
+  });
+
+  it("blocks backup restore queueing for viewer roles", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-backup-restore-viewer-block",
+      session: makeSession("viewer")
+    });
+
+    await expect(
+      caller.queueBackupRestore({
+        backupRunId: "brun_foundation_volume_success"
       })
     ).rejects.toBeInstanceOf(TRPCError);
   });
@@ -982,6 +1024,56 @@ describe("appRouter", () => {
     const overview = await caller.backupOverview({});
     expect(overview.runs[0]?.id).toBe(run.id);
     expect(overview.summary.queuedRuns).toBeGreaterThanOrEqual(1);
+  });
+
+  it("queues restore drills from successful backup artifacts", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-queue-restore",
+      session: makeSession("operator")
+    });
+
+    const restore = await caller.queueBackupRestore({
+      backupRunId: "brun_foundation_volume_success"
+    });
+
+    expect(restore).toMatchObject({
+      backupRunId: "brun_foundation_volume_success",
+      status: "queued",
+      requestedBy: "operator@daoflow.local",
+      destinationServerName: "foundation-vps-1",
+      restorePath: "/var/lib/postgresql/data"
+    });
+    expect(restore.validationSummary).toContain("smoke checks");
+
+    const queue = await caller.backupRestoreQueue({});
+    expect(queue.summary.queuedRequests).toBeGreaterThanOrEqual(1);
+    expect(queue.requests.some((request) => request.id === restore.id)).toBe(true);
+
+    const auditTrail = await caller.auditTrail({ limit: 50 });
+    expect(
+      auditTrail.entries.some(
+        (entry) =>
+          entry.action === "backup.restore.queue" &&
+          entry.resourceType === "backup-run" &&
+          entry.resourceId === "brun_foundation_volume_success"
+      )
+    ).toBe(true);
+  });
+
+  it("rejects restore drills for failed backup runs without artifacts", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-queue-restore-failed-run",
+      session: makeSession("operator")
+    });
+
+    await expect(
+      caller.queueBackupRestore({
+        backupRunId: "brun_foundation_db_failed"
+      })
+    ).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+      message: "Only successful backup runs with an artifact can be restored."
+    });
   });
 
   it("blocks queued deployment creation for viewer roles", async () => {
