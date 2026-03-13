@@ -623,6 +623,15 @@ describe("appRouter", () => {
     await expect(caller.agentTokenInventory()).rejects.toBeInstanceOf(TRPCError);
   });
 
+  it("blocks principal inventory for non-admin roles", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-principal-viewer",
+      session: makeSession("viewer")
+    });
+
+    await expect(caller.principalInventory()).rejects.toBeInstanceOf(TRPCError);
+  });
+
   it("returns scoped api token inventory for elevated roles", async () => {
     const caller = appRouter.createCaller({
       requestId: "test-token-owner",
@@ -639,6 +648,51 @@ describe("appRouter", () => {
     expect(readOnlyToken?.lanes).toEqual(["read"]);
     expect(readOnlyToken?.effectiveCapabilities).not.toContain("deploy.execute");
     expect(plannerToken?.lanes).toContain("planning");
+  });
+
+  it("returns principal inventory for elevated roles", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-principal-owner",
+      session: makeSession("owner")
+    });
+
+    const response = await caller.principalInventory();
+    const releaseService = response.principals.find(
+      (principal) => principal.id === "principal_release_service_1"
+    );
+    const plannerAgent = response.principals.find(
+      (principal) => principal.id === "principal_planner_agent_1"
+    );
+    const ownerPrincipal = response.principals.find((principal) => principal.id === "principal_owner_1");
+
+    expect(response.summary).toEqual({
+      totalPrincipals: 4,
+      humanPrincipals: 1,
+      serviceAccounts: 1,
+      agentPrincipals: 2,
+      commandCapablePrincipals: 2
+    });
+    expect(ownerPrincipal).toMatchObject({
+      kind: "human",
+      role: "owner",
+      tokenCount: 0,
+      highestLane: "none"
+    });
+    expect(releaseService).toMatchObject({
+      kind: "service-account",
+      role: "operator",
+      tokenCount: 1,
+      inactiveTokenCount: 1,
+      highestLane: "command"
+    });
+    expect(plannerAgent).toMatchObject({
+      kind: "agent",
+      role: "agent",
+      tokenCount: 1,
+      activeTokenCount: 1,
+      planningTokenCount: 1,
+      highestLane: "planning"
+    });
   });
 
   it("registers a new server and exposes blocked readiness for first contact", async () => {

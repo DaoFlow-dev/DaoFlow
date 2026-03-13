@@ -233,6 +233,9 @@ export default function App() {
   });
   const currentRole = viewer.data?.authz.role ?? "guest";
   const canViewAgentTokenInventory = currentRole === "owner" || currentRole === "admin";
+  const principalInventory = trpc.principalInventory.useQuery(undefined, {
+    enabled: canViewAgentTokenInventory
+  });
   const agentTokenInventory = trpc.agentTokenInventory.useQuery(undefined, {
     enabled: canViewAgentTokenInventory
   });
@@ -718,6 +721,10 @@ export default function App() {
   const tokenMessage =
     agentTokenInventory.error && isTRPCClientError(agentTokenInventory.error)
       ? agentTokenInventory.error.message
+      : null;
+  const principalMessage =
+    principalInventory.error && isTRPCClientError(principalInventory.error)
+      ? principalInventory.error.message
       : null;
   const canQueueDeployments =
     currentRole === "owner" ||

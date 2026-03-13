@@ -630,6 +630,35 @@ export interface ApiTokenInventory {
   tokens: ApiTokenRecord[];
 }
 
+export interface PrincipalRecord {
+  id: string;
+  name: string;
+  kind: PrincipalKind;
+  role: AppRole;
+  createdAt: string;
+  tokenCount: number;
+  activeTokenCount: number;
+  inactiveTokenCount: number;
+  readOnlyTokenCount: number;
+  planningTokenCount: number;
+  commandTokenCount: number;
+  lastTokenUsedAt: string | null;
+  highestLane: ApiTokenScopeLane | "none";
+  defaultCapabilities: string[];
+  tokenLabels: string[];
+}
+
+export interface PrincipalInventory {
+  summary: {
+    totalPrincipals: number;
+    humanPrincipals: number;
+    serviceAccounts: number;
+    agentPrincipals: number;
+    commandCapablePrincipals: number;
+  };
+  principals: PrincipalRecord[];
+}
+
 interface SeedExecutionJob {
   id: string;
   deploymentId: string;
@@ -2570,6 +2599,14 @@ interface ApiTokenRow {
   created_at: string;
   expires_at: string | null;
   last_used_at: string | null;
+}
+
+interface PrincipalRow {
+  id: string;
+  name: string;
+  kind: PrincipalKind;
+  role: AppRole;
+  created_at: string;
 }
 
 interface ApiTokenScopeRow {
@@ -6296,6 +6333,26 @@ function getApiTokenRows() {
   `).all() as unknown as ApiTokenRow[];
 }
 
+function getPrincipalRows() {
+  return controlPlaneDb.prepare(`
+    SELECT
+      id,
+      name,
+      kind,
+      role,
+      created_at
+    FROM principals
+    ORDER BY
+      CASE kind
+        WHEN 'human' THEN 0
+        WHEN 'service-account' THEN 1
+        ELSE 2
+      END ASC,
+      created_at ASC,
+      name ASC
+  `).all() as unknown as PrincipalRow[];
+}
+
 function listScopesForTokens(tokenIds: readonly string[]) {
   const scopesByTokenId = new Map<string, ApiTokenScope[]>();
 
@@ -6367,5 +6424,89 @@ export function listApiTokenInventory(): ApiTokenInventory {
       inactiveTokens: tokens.filter((token) => token.status !== "active").length
     },
     tokens
+  };
+}
+
+function getHighestPrincipalLane(lanes: readonly ApiTokenScopeLane[]) {
+  if (lanes.includes("command")) {
+    return "command" as const;
+  }
+
+  if (lanes.includes("planning")) {
+    return "planning" as const;
+  }
+
+  if (lanes.includes("read")) {
+    return "read" as const;
+  }
+
+  return "none" as const;
+}
+
+export function listPrincipalInventory(): PrincipalInventory {
+  const principalRows = getPrincipalRows();
+  const tokenInventory = listApiTokenInventory();
+  const tokensByPrincipalId = new Map<string, ApiTokenRecord[]>();
+
+  for (const token of tokenInventory.tokens) {
+    const principalTokens = tokensByPrincipalId.get(token.principalId) ?? [];
+    principalTokens.push(token);
+    tokensByPrincipalId.set(token.principalId, principalTokens);
+  }
+
+  const principals = principalRows.map((row) => {
+    const principalTokens = tokensByPrincipalId.get(row.id) ?? [];
+    const principalLanes = Array.from(
+      new Set(principalTokens.flatMap((token) => token.lanes))
+    ) as ApiTokenScopeLane[];
+    const defaultCapabilities = [...roleCapabilities[row.role]];
+    const activeTokenCount = principalTokens.filter((token) => token.status === "active").length;
+    const inactiveTokenCount = principalTokens.length - activeTokenCount;
+    const readOnlyTokenCount = principalTokens.filter((token) => token.isReadOnly).length;
+    const planningTokenCount = principalTokens.filter((token) => token.lanes.includes("planning")).length;
+    const commandTokenCount = principalTokens.filter((token) => token.lanes.includes("command")).length;
+    const lastTokenUsedAt = principalTokens.reduce<string | null>((latest, token) => {
+      if (!token.lastUsedAt) {
+        return latest;
+      }
+
+      if (!latest || Date.parse(token.lastUsedAt) > Date.parse(latest)) {
+        return token.lastUsedAt;
+      }
+
+      return latest;
+    }, null);
+
+    return {
+      id: row.id,
+      name: row.name,
+      kind: row.kind,
+      role: row.role,
+      createdAt: row.created_at,
+      tokenCount: principalTokens.length,
+      activeTokenCount,
+      inactiveTokenCount,
+      readOnlyTokenCount,
+      planningTokenCount,
+      commandTokenCount,
+      lastTokenUsedAt,
+      highestLane: getHighestPrincipalLane(principalLanes),
+      defaultCapabilities,
+      tokenLabels: principalTokens.map((token) => token.label)
+    } satisfies PrincipalRecord;
+  });
+
+  return {
+    summary: {
+      totalPrincipals: principals.length,
+      humanPrincipals: principals.filter((principal) => principal.kind === "human").length,
+      serviceAccounts: principals.filter((principal) => principal.kind === "service-account").length,
+      agentPrincipals: principals.filter((principal) => principal.kind === "agent").length,
+      commandCapablePrincipals: principals.filter((principal) =>
+        principal.highestLane === "command" ||
+        getApiTokenScopeLanes(principal.defaultCapabilities).includes("command")
+      ).length
+    },
+    principals
   };
 }

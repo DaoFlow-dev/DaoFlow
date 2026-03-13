@@ -27,6 +27,7 @@ import {
   listAuditTrail,
   listBackupOverview,
   listApiTokenInventory,
+  listPrincipalInventory,
   listDeploymentLogs,
   listDeploymentInsights,
   listDeploymentRollbackPlans,
@@ -103,7 +104,7 @@ export const appRouter = t.router({
   })),
   platformOverview: t.procedure.query(() => ({
     name: "DaoFlow",
-    currentSlice: "approval-gates",
+    currentSlice: "principal-inventory",
     thesis:
       "A Docker-first deployment control plane for bare metal and VPS environments.",
     architecture: {
@@ -704,6 +705,10 @@ export const appRouter = t.router({
   agentTokenInventory: adminProcedure.query(async () => {
     await ensureControlPlaneReady();
     return listApiTokenInventory();
+  }),
+  principalInventory: adminProcedure.query(async () => {
+    await ensureControlPlaneReady();
+    return listPrincipalInventory();
   }),
   viewer: protectedProcedure.query(({ ctx }) => {
     const role = normalizeAppRole((ctx.session.user as Record<string, unknown>).role);

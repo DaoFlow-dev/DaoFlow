@@ -12,7 +12,10 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "types": ["node", "vite/client", "vitest/globals"],
-    "baseUrl": "."
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/client/*"]
+    }
   },
   "include": [
     "e2e",
