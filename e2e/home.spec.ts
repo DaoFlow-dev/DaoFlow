@@ -230,7 +230,7 @@ test("loads the DaoFlow foundation dashboard", async ({ page }) => {
   await expect(page.getByTestId("backup-summary")).toContainText("2");
   await expect(page.getByText("Backup restore queue")).toBeVisible();
   await expect(page.getByTestId("restore-summary")).toContainText("1");
-  await expect(page.getByTestId("backup-restore-brestore_foundation_volume_verify")).toContainText(
+  await expect(page.getByTestId("backup-restore-brestore_vol_verify")).toContainText(
     "/var/lib/postgresql/data"
   );
   await expect(page.getByText("Approval queue")).toBeVisible();

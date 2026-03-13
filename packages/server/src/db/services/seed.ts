@@ -579,7 +579,7 @@ export async function seedControlPlaneData() {
     await tx
       .insert(backupRestores)
       .values({
-        id: "brestore_foundation_volume_verify",
+        id: "brestore_vol_verify",
         backupRunId: "brun_foundation_volume_success",
         status: "succeeded",
         targetPath: "/var/lib/postgresql/data",
