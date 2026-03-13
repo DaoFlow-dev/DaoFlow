@@ -27,15 +27,18 @@ export async function registerServer(input: RegisterServerInput) {
   if (byHost[0]) return { status: "conflict" as const, conflictField: "host" };
 
   const serverId = id();
-  const [server] = await db.insert(servers).values({
-    id: serverId,
-    name: input.name,
-    host: input.host,
-    region: input.region,
-    sshPort: input.sshPort,
-    kind: input.kind,
-    status: "pending verification"
-  }).returning();
+  const [server] = await db
+    .insert(servers)
+    .values({
+      id: serverId,
+      name: input.name,
+      host: input.host,
+      region: input.region,
+      sshPort: input.sshPort,
+      kind: input.kind,
+      status: "pending verification"
+    })
+    .returning();
 
   await db.insert(auditEntries).values({
     actorType: "user",
@@ -57,13 +60,13 @@ export async function listServerReadiness(limit = 12) {
 
   const summary = {
     totalServers: rows.length,
-    readyServers: rows.filter(s => s.status === "ready").length,
-    attentionServers: rows.filter(s => s.status === "pending verification").length,
-    blockedServers: rows.filter(s => s.status === "offline").length,
+    readyServers: rows.filter((s) => s.status === "ready").length,
+    attentionServers: rows.filter((s) => s.status === "pending verification").length,
+    blockedServers: rows.filter((s) => s.status === "offline").length,
     averageLatencyMs: null as number | null
   };
 
-  const checks = rows.map(s => ({
+  const checks = rows.map((s) => ({
     serverId: s.id,
     serverName: s.name,
     serverHost: s.host,
@@ -93,9 +96,9 @@ export async function listInfrastructureInventory() {
       totalServers: serverRows.length,
       totalProjects: projectRows.length,
       totalEnvironments: envRows.length,
-      healthyServers: serverRows.filter(s => s.status === "ready").length
+      healthyServers: serverRows.filter((s) => s.status === "ready").length
     },
-    servers: serverRows.map(s => ({
+    servers: serverRows.map((s) => ({
       id: s.id,
       name: s.name,
       serverName: s.name,
@@ -108,7 +111,7 @@ export async function listInfrastructureInventory() {
       lastHeartbeatAt: s.lastCheckedAt ?? null,
       environmentCount: 0
     })),
-    projects: projectRows.map(p => ({
+    projects: projectRows.map((p) => ({
       id: p.id,
       name: p.name,
       repositoryUrl: p.repoUrl ?? "",
@@ -117,7 +120,7 @@ export async function listInfrastructureInventory() {
       environmentCount: 0,
       latestDeploymentStatus: "healthy"
     })),
-    environments: envRows.map(e => ({
+    environments: envRows.map((e) => ({
       id: e.id,
       projectId: e.projectId,
       projectName: "",

@@ -3,7 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "workspaces": ["packages/*"],
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
     "dev": "concurrently -k \"bun --filter @daoflow/server dev\" \"bun --filter @daoflow/client dev\"",
     "build": "bun --filter '*' build",
@@ -12,10 +14,12 @@
     "start": "NODE_ENV=production bun packages/server/dist/index.js",
     "typecheck": "tsc -b packages/shared packages/server packages/client packages/cli",
     "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "test": "bun run verify",
     "test:unit": "bun --filter @daoflow/server test",
     "test:e2e": "playwright test",
-    "verify": "bun run lint && bun run typecheck && bun run test:unit",
+    "verify": "bun run format:check && bun run lint && bun run typecheck && bun run test:unit",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
@@ -30,6 +34,7 @@
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.22",
     "globals": "^16.4.0",
+    "prettier": "^3.6.2",
     "typescript": "^5.9.2",
     "typescript-eslint": "^8.44.1"
   }

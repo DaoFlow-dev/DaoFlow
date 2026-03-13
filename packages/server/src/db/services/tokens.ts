@@ -12,7 +12,7 @@ import {
 export async function listApiTokenInventory() {
   const tokens = await db.select().from(apiTokens).orderBy(desc(apiTokens.createdAt));
 
-  const mapped = tokens.map(t => {
+  const mapped = tokens.map((t) => {
     const scopes = (t.scopes?.split(",").filter(Boolean) ?? []) as ApiTokenScope[];
     const lanes = getApiTokenScopeLanes(scopes);
     const effective = getEffectiveTokenCapabilities("viewer", scopes);
@@ -43,11 +43,11 @@ export async function listApiTokenInventory() {
   return {
     summary: {
       totalTokens: mapped.length,
-      agentTokens: mapped.filter(t => t.principalType === "agent").length,
-      readOnlyTokens: mapped.filter(t => t.isReadOnly).length,
-      planningTokens: mapped.filter(t => t.lanes.includes("planning")).length,
-      commandTokens: mapped.filter(t => t.lanes.includes("command")).length,
-      inactiveTokens: mapped.filter(t => t.status !== "active").length
+      agentTokens: mapped.filter((t) => t.principalType === "agent").length,
+      readOnlyTokens: mapped.filter((t) => t.isReadOnly).length,
+      planningTokens: mapped.filter((t) => t.lanes.includes("planning")).length,
+      commandTokens: mapped.filter((t) => t.lanes.includes("command")).length,
+      inactiveTokens: mapped.filter((t) => t.status !== "active").length
     },
     tokens: mapped
   };
@@ -59,12 +59,12 @@ export async function listPrincipalInventory() {
   return {
     summary: {
       totalPrincipals: rows.length,
-      humanPrincipals: rows.filter(p => p.type === "user").length,
-      serviceAccounts: rows.filter(p => p.type === "service").length,
-      agentPrincipals: rows.filter(p => p.type === "agent").length,
+      humanPrincipals: rows.filter((p) => p.type === "user").length,
+      serviceAccounts: rows.filter((p) => p.type === "service").length,
+      agentPrincipals: rows.filter((p) => p.type === "agent").length,
       commandCapablePrincipals: 0
     },
-    principals: rows.map(p => ({
+    principals: rows.map((p) => ({
       id: p.id,
       name: p.name,
       type: p.type,

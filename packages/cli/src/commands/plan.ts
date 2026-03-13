@@ -20,7 +20,7 @@ export function planCommand(): Command {
         services?: Array<{ serviceName: string; status: string; imageTag: string | null }>;
       }>("/trpc/listComposeReleaseCatalog");
 
-      const current = data.services?.find(s => s.serviceName === opts.service);
+      const current = data.services?.find((s) => s.serviceName === opts.service);
 
       console.log(`  ${chalk.bold("Service:")}   ${opts.service}`);
       console.log(`  ${chalk.bold("Server:")}    ${opts.server ?? "default"}`);
@@ -50,7 +50,14 @@ export function planCommand(): Command {
       console.log(`    ${chalk.yellow("?")} Server reachability (run: daoflow status)`);
       console.log();
 
-      console.log(chalk.dim("  To execute: daoflow deploy --service " + opts.service + " --server " + (opts.server ?? "<id>")));
+      console.log(
+        chalk.dim(
+          "  To execute: daoflow deploy --service " +
+            opts.service +
+            " --server " +
+            (opts.server ?? "<id>")
+        )
+      );
       console.log();
     });
 }

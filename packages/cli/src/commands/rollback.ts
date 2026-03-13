@@ -12,15 +12,17 @@ export function rollbackCommand(): Command {
       const api = new ApiClient();
 
       // Fetch rollback plans
-      const data = await api.get<Array<{
-        deploymentId: string;
-        serviceName: string;
-        targetCommitSha: string;
-        targetImageTag: string;
-        isAvailable: boolean;
-        reason: string;
-        steps: string[];
-      }>>("/trpc/listDeploymentRollbackPlans");
+      const data = await api.get<
+        Array<{
+          deploymentId: string;
+          serviceName: string;
+          targetCommitSha: string;
+          targetImageTag: string;
+          isAvailable: boolean;
+          reason: string;
+          steps: string[];
+        }>
+      >("/trpc/listDeploymentRollbackPlans");
 
       if (!data.length) {
         console.log(chalk.yellow("No rollback targets available."));
@@ -31,13 +33,15 @@ export function rollbackCommand(): Command {
         console.log(chalk.bold("\n  Available Rollback Targets\n"));
         for (const plan of data) {
           const available = plan.isAvailable ? chalk.green("✓") : chalk.red("✗");
-          console.log(`  ${available} ${plan.deploymentId.slice(0, 8)}  ${plan.serviceName.padEnd(20)} ${plan.targetImageTag ?? "—"}`);
+          console.log(
+            `  ${available} ${plan.deploymentId.slice(0, 8)}  ${plan.serviceName.padEnd(20)} ${plan.targetImageTag ?? "—"}`
+          );
         }
         console.log(chalk.dim("\n  Usage: daoflow rollback <deployment-id>\n"));
         return;
       }
 
-      const target = data.find(p => p.deploymentId.startsWith(deploymentId));
+      const target = data.find((p) => p.deploymentId.startsWith(deploymentId));
       if (!target) {
         console.error(chalk.red(`✗ Deployment ${deploymentId} not found`));
         process.exit(1);

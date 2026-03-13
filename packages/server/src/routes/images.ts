@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
 import { execSync } from "node:child_process";
 
-const router = Router();
+const router: ReturnType<typeof Router> = Router();
 
 /**
  * POST /api/v1/images/push
@@ -60,7 +60,9 @@ router.post("/push", async (req, res) => {
     // Cleanup tarball
     try {
       execSync(`rm -f ${tarPath}`);
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
 
     res.json({
       status: "ok",
@@ -97,7 +99,11 @@ router.get("/", async (_req, res) => {
       .split("\n")
       .filter(Boolean)
       .map((line: string) => {
-        try { return JSON.parse(line); } catch { return null; }
+        try {
+          return JSON.parse(line);
+        } catch {
+          return null;
+        }
       })
       .filter(Boolean);
 

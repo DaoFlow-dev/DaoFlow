@@ -1,19 +1,8 @@
-export const appRoles = [
-  "owner",
-  "admin",
-  "operator",
-  "developer",
-  "viewer",
-  "agent"
-] as const;
+export const appRoles = ["owner", "admin", "operator", "developer", "viewer", "agent"] as const;
 
 export type AppRole = (typeof appRoles)[number];
 
-export const apiTokenScopeLanes = [
-  "read",
-  "planning",
-  "command"
-] as const;
+export const apiTokenScopeLanes = ["read", "planning", "command"] as const;
 
 export type ApiTokenScopeLane = (typeof apiTokenScopeLanes)[number];
 
@@ -71,24 +60,9 @@ export const roleCapabilities: Record<AppRole, readonly string[]> = {
     "servers.manage",
     "agents.plan"
   ],
-  developer: [
-    "read.projects",
-    "read.deployments",
-    "read.logs",
-    "deploy.execute",
-    "agents.plan"
-  ],
-  viewer: [
-    "read.projects",
-    "read.deployments",
-    "read.logs"
-  ],
-  agent: [
-    "read.projects",
-    "read.deployments",
-    "read.logs",
-    "agents.plan"
-  ]
+  developer: ["read.projects", "read.deployments", "read.logs", "deploy.execute", "agents.plan"],
+  viewer: ["read.projects", "read.deployments", "read.logs"],
+  agent: ["read.projects", "read.deployments", "read.logs", "agents.plan"]
 };
 
 const apiTokenScopeLaneMap: Record<ApiTokenScope, ApiTokenScopeLane> = {

@@ -77,7 +77,7 @@ const roleProcedure = (allowedRoles: readonly AppRole[]) =>
         role
       }
     });
-});
+  });
 const adminProcedure = roleProcedure(["owner", "admin"]);
 const deployProcedure = roleProcedure(["owner", "admin", "operator", "developer"]);
 const executionProcedure = roleProcedure(["owner", "admin", "operator"]);
@@ -90,11 +90,7 @@ const productPrinciples = [
   "Auditability before convenience"
 ] as const;
 
-const agentApiLanes = [
-  "read APIs",
-  "planning APIs",
-  "command APIs"
-] as const;
+const agentApiLanes = ["read APIs", "planning APIs", "command APIs"] as const;
 
 export const appRouter = t.router({
   health: t.procedure.query(() => ({
@@ -105,8 +101,7 @@ export const appRouter = t.router({
   platformOverview: t.procedure.query(() => ({
     name: "DaoFlow",
     currentSlice: "principal-inventory",
-    thesis:
-      "A Docker-first deployment control plane for bare metal and VPS environments.",
+    thesis: "A Docker-first deployment control plane for bare metal and VPS environments.",
     architecture: {
       controlPlane: ["React web UI", "tRPC API", "typed domain services"],
       executionPlane: [
@@ -423,7 +418,10 @@ export const appRouter = t.router({
     .input(
       z.object({
         environmentId: z.string().min(1),
-        key: z.string().regex(/^[A-Z_][A-Z0-9_]*$/).max(80),
+        key: z
+          .string()
+          .regex(/^[A-Z_][A-Z0-9_]*$/)
+          .max(80),
         value: z.string().min(1).max(4000),
         isSecret: z.boolean(),
         category: z.enum(["runtime", "build"]),

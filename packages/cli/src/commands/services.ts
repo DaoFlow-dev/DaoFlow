@@ -39,9 +39,11 @@ export function servicesCommand(): Command {
 
       for (const svc of data.services) {
         const statusColor =
-          svc.status === "completed" ? chalk.green :
-          svc.status === "failed" ? chalk.red :
-          chalk.yellow;
+          svc.status === "completed"
+            ? chalk.green
+            : svc.status === "failed"
+              ? chalk.red
+              : chalk.yellow;
 
         console.log(
           `  ${svc.serviceName.padEnd(24)} ${statusColor(svc.status.padEnd(14))} ${(svc.targetServerName ?? "").padEnd(20)} ${(svc.imageTag ?? "—").padEnd(30)}`

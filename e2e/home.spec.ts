@@ -3,9 +3,7 @@ import { expect, test } from "@playwright/test";
 test("loads the DaoFlow foundation dashboard", async ({ page }) => {
   await page.goto("/");
 
-  await expect(
-    page.getByRole("heading", { name: "DaoFlow", level: 1 })
-  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "DaoFlow", level: 1 })).toBeVisible();
   await expect(page.getByText("Docker-first control plane")).toBeVisible();
   await expect(page.getByText("healthy")).toBeVisible();
   await expect(page.getByText("Foundation slice")).toHaveCount(4);
@@ -27,19 +25,23 @@ test("loads the DaoFlow foundation dashboard", async ({ page }) => {
   await expect(page.getByText("Servers, projects, and environments")).toBeVisible();
   await expect(page.getByTestId("inventory-summary")).toContainText("3");
   await expect(page.getByTestId("server-card-srv_foundation_1")).toContainText("foundation-vps-1");
-  await expect(page.getByTestId("server-card-srv_foundation_1")).toContainText("Docker Engine 28.0");
-  await expect(
-    page.getByTestId("project-card-proj_daoflow_control_plane")
-  ).toContainText("https://github.com/daoflow/daoflow");
-  await expect(
-    page.getByTestId("environment-card-env_daoflow_production")
-  ).toContainText("/srv/daoflow/production/compose.yaml");
+  await expect(page.getByTestId("server-card-srv_foundation_1")).toContainText(
+    "Docker Engine 28.0"
+  );
+  await expect(page.getByTestId("project-card-proj_daoflow_control_plane")).toContainText(
+    "https://github.com/daoflow/daoflow"
+  );
+  await expect(page.getByTestId("environment-card-env_daoflow_production")).toContainText(
+    "/srv/daoflow/production/compose.yaml"
+  );
   await expect(page.getByText("Server readiness and onboarding")).toBeVisible();
   await expect(page.getByTestId("server-readiness-summary")).toContainText("24 ms");
+  await expect(page.getByTestId("server-readiness-card-srv_foundation_1")).toContainText(
+    "Connectivity checks are healthy."
+  );
   await expect(
-    page.getByTestId("server-readiness-card-srv_foundation_1")
-  ).toContainText("Connectivity checks are healthy.");
-  await expect(page.getByRole("heading", { name: "Compose release catalog", level: 2 })).toBeVisible();
+    page.getByRole("heading", { name: "Compose release catalog", level: 2 })
+  ).toBeVisible();
   await expect(page.getByTestId("compose-release-summary")).toContainText("5");
   await expect(
     page.getByTestId("compose-service-card-compose_daoflow_prod_control_plane")
@@ -65,53 +67,53 @@ test("loads the DaoFlow foundation dashboard", async ({ page }) => {
   ).toContainText("Branch pattern: preview/*");
   await expect(page.getByText("Persistent volume registry")).toBeVisible();
   await expect(page.getByTestId("persistent-volume-summary")).toContainText("Needs attention");
-  await expect(
-    page.getByTestId("persistent-volume-card-pvol_daoflow_postgres_prod")
-  ).toContainText("Backup policy: bpol_foundation_volume_daily");
-  await expect(
-    page.getByTestId("persistent-volume-card-pvol_daoflow_uploads_prod")
-  ).toContainText("Backup policy: Unmanaged");
+  await expect(page.getByTestId("persistent-volume-card-pvol_daoflow_postgres_prod")).toContainText(
+    "Backup policy: bpol_foundation_volume_daily"
+  );
+  await expect(page.getByTestId("persistent-volume-card-pvol_daoflow_uploads_prod")).toContainText(
+    "Backup policy: Unmanaged"
+  );
   await expect(page.getByText("Queued and historical deployments")).toBeVisible();
   await expect(page.getByText("Agent-ready deployment diagnostics")).toBeVisible();
-  await expect(
-    page.getByTestId("deployment-insight-dep_foundation_20260311_1")
-  ).toContainText("Health check failed and left the deployment unhealthy.");
-  await expect(
-    page.getByTestId("deployment-insight-dep_foundation_20260311_1")
-  ).toContainText("Healthy baseline: 03e40ca");
+  await expect(page.getByTestId("deployment-insight-dep_foundation_20260311_1")).toContainText(
+    "Health check failed and left the deployment unhealthy."
+  );
+  await expect(page.getByTestId("deployment-insight-dep_foundation_20260311_1")).toContainText(
+    "Healthy baseline: 03e40ca"
+  );
   await expect(page.getByRole("heading", { name: "Rollback planning", level: 2 })).toBeVisible();
-  await expect(
-    page.getByTestId("rollback-plan-dep_foundation_20260311_1")
-  ).toContainText("Rollback target: 03e40ca");
-  await expect(
-    page.getByTestId("rollback-plan-dep_foundation_20260311_1")
-  ).toContainText("Verify the target server is still reachable before issuing rollback commands.");
-  await expect(
-    page.getByTestId("rollback-plan-dep_foundation_20260311_1")
-  ).toContainText("Replay environment variables and volume attachments from the rollback target snapshot.");
-  await expect(
-    page.getByTestId("rollback-plan-dep_foundation_20260312_1")
-  ).toContainText("Current deployment is already healthy; rollback is not recommended.");
+  await expect(page.getByTestId("rollback-plan-dep_foundation_20260311_1")).toContainText(
+    "Rollback target: 03e40ca"
+  );
+  await expect(page.getByTestId("rollback-plan-dep_foundation_20260311_1")).toContainText(
+    "Verify the target server is still reachable before issuing rollback commands."
+  );
+  await expect(page.getByTestId("rollback-plan-dep_foundation_20260311_1")).toContainText(
+    "Replay environment variables and volume attachments from the rollback target snapshot."
+  );
+  await expect(page.getByTestId("rollback-plan-dep_foundation_20260312_1")).toContainText(
+    "Current deployment is already healthy; rollback is not recommended."
+  );
   await expect(page.getByText("Immutable control-plane audit trail")).toBeVisible();
   await expect(page.getByTestId("audit-summary")).toContainText("3");
-  await expect(
-    page.getByTestId("audit-entry-audit_foundation_execution_complete")
-  ).toContainText("execution.complete");
+  await expect(page.getByTestId("audit-entry-audit_foundation_execution_complete")).toContainText(
+    "execution.complete"
+  );
   await expect(page.getByText("Append-only deployment logs")).toBeVisible();
   await expect(page.getByTestId("log-summary")).toContainText("6");
-  await expect(
-    page.getByTestId("deployment-log-line-log_foundation_failed_2")
-  ).toContainText("Container exited with code 1 during readiness probe.");
+  await expect(page.getByTestId("deployment-log-line-log_foundation_failed_2")).toContainText(
+    "Container exited with code 1 during readiness probe."
+  );
   await expect(page.getByText("Worker handoff queue")).toBeVisible();
-  await expect(
-    page.getByTestId("deployment-card-dep_foundation_20260312_1")
-  ).toContainText("production-us-west");
-  await expect(
-    page.getByTestId("deployment-card-dep_foundation_20260312_1")
-  ).toContainText("Resolve compose spec");
-  await expect(
-    page.getByTestId("deployment-card-dep_foundation_20260312_1")
-  ).toContainText("Requested by owner@daoflow.local");
+  await expect(page.getByTestId("deployment-card-dep_foundation_20260312_1")).toContainText(
+    "production-us-west"
+  );
+  await expect(page.getByTestId("deployment-card-dep_foundation_20260312_1")).toContainText(
+    "Resolve compose spec"
+  );
+  await expect(page.getByTestId("deployment-card-dep_foundation_20260312_1")).toContainText(
+    "Requested by owner@daoflow.local"
+  );
   const uniqueServerName = `edge-vps-${Date.now()}`;
   const uniqueServerHost = `10.0.2.${(Date.now() % 200) + 10}`;
   await page.getByLabel("Server name").fill(uniqueServerName);
@@ -136,9 +138,12 @@ test("loads the DaoFlow foundation dashboard", async ({ page }) => {
     "Queued compose release for control-plane"
   );
   await expect(
-    page.locator('[data-testid^="deployment-card-"]').filter({ hasText: "Source: compose" }).filter({
-      hasText: "Commit: fedcba1"
-    })
+    page
+      .locator('[data-testid^="deployment-card-"]')
+      .filter({ hasText: "Source: compose" })
+      .filter({
+        hasText: "Commit: fedcba1"
+      })
   ).toContainText("ghcr.io/daoflow/control-plane:0.1.1");
   const manualDeploymentForm = page.getByTestId("manual-deployment-form");
   await manualDeploymentForm.getByLabel("Service name").fill("edge-worker-ui");
@@ -163,9 +168,12 @@ test("loads the DaoFlow foundation dashboard", async ({ page }) => {
     page.locator('[data-testid^="deployment-card-"]').filter({ hasText: "edge-worker-ui" })
   ).toContainText(`Requested by ${email}`);
   await expect(
-    page.locator('[data-testid^="audit-entry-"]').filter({
-      hasText: "deployment.create"
-    }).filter({ hasText: "edge-worker-ui@staging" })
+    page
+      .locator('[data-testid^="audit-entry-"]')
+      .filter({
+        hasText: "deployment.create"
+      })
+      .filter({ hasText: "edge-worker-ui@staging" })
   ).toContainText(email);
   await expect(
     page.locator('[data-testid^="deployment-log-line-"]').filter({
@@ -190,7 +198,9 @@ test("loads the DaoFlow foundation dashboard", async ({ page }) => {
     .filter({ hasText: "edge-worker-ui" })
     .getByRole("button", { name: "Mark healthy" })
     .click();
-  await expect(page.getByTestId("execution-feedback")).toContainText("Marked edge-worker-ui healthy");
+  await expect(page.getByTestId("execution-feedback")).toContainText(
+    "Marked edge-worker-ui healthy"
+  );
   await expect(
     page.locator('[data-testid^="execution-job-"]').filter({ hasText: "edge-worker-ui" })
   ).toContainText("completed");
@@ -198,9 +208,12 @@ test("loads the DaoFlow foundation dashboard", async ({ page }) => {
     page.locator('[data-testid^="deployment-card-"]').filter({ hasText: "edge-worker-ui" })
   ).toContainText("healthy");
   await expect(
-    page.locator('[data-testid^="audit-entry-"]').filter({
-      hasText: "execution.complete"
-    }).filter({ hasText: "edge-worker-ui@staging" })
+    page
+      .locator('[data-testid^="audit-entry-"]')
+      .filter({
+        hasText: "execution.complete"
+      })
+      .filter({ hasText: "edge-worker-ui@staging" })
   ).toContainText(email);
   await expect(
     page.locator('[data-testid^="deployment-log-line-"]').filter({
@@ -217,9 +230,9 @@ test("loads the DaoFlow foundation dashboard", async ({ page }) => {
   await expect(page.getByTestId("backup-summary")).toContainText("2");
   await expect(page.getByText("Backup restore queue")).toBeVisible();
   await expect(page.getByTestId("restore-summary")).toContainText("1");
-  await expect(
-    page.getByTestId("backup-restore-brestore_foundation_volume_verify")
-  ).toContainText("/var/lib/postgresql/data");
+  await expect(page.getByTestId("backup-restore-brestore_foundation_volume_verify")).toContainText(
+    "/var/lib/postgresql/data"
+  );
   await expect(page.getByText("Approval queue")).toBeVisible();
   await expect(page.getByTestId("approval-summary")).toContainText("1");
   await page
@@ -227,7 +240,9 @@ test("loads the DaoFlow foundation dashboard", async ({ page }) => {
     .filter({ hasText: "postgres-volume" })
     .getByRole("button", { name: "Queue backup" })
     .click();
-  await expect(page.getByTestId("backup-feedback")).toContainText("Queued backup run for postgres-volume");
+  await expect(page.getByTestId("backup-feedback")).toContainText(
+    "Queued backup run for postgres-volume"
+  );
   await expect(
     page.locator('[data-testid^="backup-run-"]').filter({ hasText: "postgres-volume" }).first()
   ).toContainText("queued");
@@ -264,30 +279,38 @@ test("loads the DaoFlow foundation dashboard", async ({ page }) => {
   );
   await expect(requestedApproval).toContainText("approved");
   await expect(
-    page.locator('[data-testid^="audit-entry-"]').filter({
-      hasText: "backup.trigger"
-    }).filter({ hasText: "postgres-volume@production-us-west" })
+    page
+      .locator('[data-testid^="audit-entry-"]')
+      .filter({
+        hasText: "backup.trigger"
+      })
+      .filter({ hasText: "postgres-volume@production-us-west" })
   ).toContainText(email);
   await expect(
-    page.locator('[data-testid^="audit-entry-"]').filter({
-      hasText: "approval.approve"
-    }).filter({ hasText: "postgres-volume@production-us-west" })
+    page
+      .locator('[data-testid^="audit-entry-"]')
+      .filter({
+        hasText: "approval.approve"
+      })
+      .filter({ hasText: "postgres-volume@production-us-west" })
   ).toContainText(email);
   await expect(
-    page.locator('[data-testid^="audit-entry-"]').filter({
-      hasText: "backup.restore.queue"
-    }).filter({ hasText: "postgres-volume@production-us-west" }).filter({ hasText: email })
+    page
+      .locator('[data-testid^="audit-entry-"]')
+      .filter({
+        hasText: "backup.restore.queue"
+      })
+      .filter({ hasText: "postgres-volume@production-us-west" })
+      .filter({ hasText: email })
   ).toHaveCount(2);
   await expect(page.getByTestId("token-summary")).toContainText("3");
-  await expect(
-    page.getByTestId("token-card-token_observer_readonly")
-  ).toContainText("readonly-observer");
-  await expect(
-    page.getByTestId("token-card-token_observer_readonly")
-  ).toContainText("read.projects");
-  await expect(page.getByTestId("token-card-token_planner_agent")).toContainText(
-    "agents.plan"
+  await expect(page.getByTestId("token-card-token_observer_readonly")).toContainText(
+    "readonly-observer"
   );
+  await expect(page.getByTestId("token-card-token_observer_readonly")).toContainText(
+    "read.projects"
+  );
+  await expect(page.getByTestId("token-card-token_planner_agent")).toContainText("agents.plan");
   await expect(page.getByText("Better Auth + tRPC protected procedure")).toBeVisible();
 
   await page.getByRole("button", { name: "Sign out" }).click();

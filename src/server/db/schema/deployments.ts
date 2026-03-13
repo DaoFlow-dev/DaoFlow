@@ -33,10 +33,9 @@ export const deployments = pgTable(
     status: varchar("status", { length: 20 }).default("queued").notNull(), // queued | prepare | deploy | finalize | completed | failed
     conclusion: varchar("conclusion", { length: 20 }), // succeeded | failed | canceled | skipped
     trigger: varchar("trigger", { length: 20 }).default("user").notNull(), // user | webhook | api | agent
-    requestedByUserId: integer("requested_by_user_id").references(
-      () => users.id,
-      { onDelete: "set null" }
-    ),
+    requestedByUserId: integer("requested_by_user_id").references(() => users.id, {
+      onDelete: "set null"
+    }),
     requestedByEmail: varchar("requested_by_email", { length: 320 }),
     requestedByRole: varchar("requested_by_role", { length: 20 }),
     containerId: varchar("container_id", { length: 64 }),
@@ -68,9 +67,7 @@ export const deploymentSteps = pgTable(
     completedAt: timestamp("completed_at"),
     sortOrder: serial("sort_order").notNull()
   },
-  (table) => [
-    index("deployment_steps_deployment_id_idx").on(table.deploymentId)
-  ]
+  (table) => [index("deployment_steps_deployment_id_idx").on(table.deploymentId)]
 );
 
 export const deploymentLogs = pgTable(
@@ -109,22 +106,16 @@ export const deploymentsRelations = relations(deployments, ({ one, many }) => ({
   logs: many(deploymentLogs)
 }));
 
-export const deploymentStepsRelations = relations(
-  deploymentSteps,
-  ({ one }) => ({
-    deployment: one(deployments, {
-      fields: [deploymentSteps.deploymentId],
-      references: [deployments.id]
-    })
+export const deploymentStepsRelations = relations(deploymentSteps, ({ one }) => ({
+  deployment: one(deployments, {
+    fields: [deploymentSteps.deploymentId],
+    references: [deployments.id]
   })
-);
+}));
 
-export const deploymentLogsRelations = relations(
-  deploymentLogs,
-  ({ one }) => ({
-    deployment: one(deployments, {
-      fields: [deploymentLogs.deploymentId],
-      references: [deployments.id]
-    })
+export const deploymentLogsRelations = relations(deploymentLogs, ({ one }) => ({
+  deployment: one(deployments, {
+    fields: [deploymentLogs.deploymentId],
+    references: [deployments.id]
   })
-);
+}));

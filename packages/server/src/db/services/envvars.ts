@@ -22,7 +22,11 @@ export interface UpsertEnvironmentVariableInput {
 
 export async function upsertEnvironmentVariable(input: UpsertEnvironmentVariableInput) {
   // Verify environment exists
-  const env = await db.select().from(environments).where(eq(environments.id, input.environmentId)).limit(1);
+  const env = await db
+    .select()
+    .from(environments)
+    .where(eq(environments.id, input.environmentId))
+    .limit(1);
   if (!env[0]) return null;
 
   const encryptedValue = encrypt(input.value);
@@ -31,10 +35,12 @@ export async function upsertEnvironmentVariable(input: UpsertEnvironmentVariable
   const existing = await db
     .select()
     .from(environmentVariables)
-    .where(and(
-      eq(environmentVariables.environmentId, input.environmentId),
-      eq(environmentVariables.key, input.key)
-    ))
+    .where(
+      and(
+        eq(environmentVariables.environmentId, input.environmentId),
+        eq(environmentVariables.key, input.key)
+      )
+    )
     .limit(1);
 
   if (existing[0]) {
@@ -82,12 +88,15 @@ export async function upsertEnvironmentVariable(input: UpsertEnvironmentVariable
 
 export async function listEnvironmentVariableInventory(environmentId?: string, limit = 50) {
   const query = environmentId
-    ? db.select().from(environmentVariables).where(eq(environmentVariables.environmentId, environmentId))
+    ? db
+        .select()
+        .from(environmentVariables)
+        .where(eq(environmentVariables.environmentId, environmentId))
     : db.select().from(environmentVariables);
 
   const rows = await query.orderBy(desc(environmentVariables.createdAt)).limit(limit);
 
-  const variables = rows.map(row => ({
+  const variables = rows.map((row) => ({
     id: row.id,
     environmentId: row.environmentId,
     environmentName: row.environmentId,
@@ -105,9 +114,9 @@ export async function listEnvironmentVariableInventory(environmentId?: string, l
   return {
     summary: {
       totalVariables: variables.length,
-      secretVariables: variables.filter(v => v.isSecret).length,
-      runtimeVariables: variables.filter(v => v.category === "runtime").length,
-      buildVariables: variables.filter(v => v.category === "build").length
+      secretVariables: variables.filter((v) => v.isSecret).length,
+      runtimeVariables: variables.filter((v) => v.category === "runtime").length,
+      buildVariables: variables.filter((v) => v.category === "build").length
     },
     variables
   };

@@ -84,25 +84,27 @@ export function createApp() {
     })
   );
 
-  app.use((error: unknown, req: express.Request, res: express.Response, next: express.NextFunction) => {
-    void next;
-    console.error(
-      JSON.stringify({
-        level: "error",
-        message: "Unhandled request error",
-        requestId: resolveRequestId(req, res),
-        error: error instanceof Error ? error.message : String(error)
-      })
-    );
+  app.use(
+    (error: unknown, req: express.Request, res: express.Response, next: express.NextFunction) => {
+      void next;
+      console.error(
+        JSON.stringify({
+          level: "error",
+          message: "Unhandled request error",
+          requestId: resolveRequestId(req, res),
+          error: error instanceof Error ? error.message : String(error)
+        })
+      );
 
-    if (res.headersSent) {
-      return;
+      if (res.headersSent) {
+        return;
+      }
+
+      res.status(500).json({
+        error: "Internal Server Error"
+      });
     }
-
-    res.status(500).json({
-      error: "Internal Server Error"
-    });
-  });
+  );
 
   return app;
 }

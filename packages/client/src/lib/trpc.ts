@@ -1,7 +1,7 @@
 import { QueryClient } from "@tanstack/react-query";
 import { createTRPCReact } from "@trpc/react-query";
 import { httpBatchLink } from "@trpc/client";
-import type { AppRouter } from "../../server/router";
+import type { AppRouter } from "@daoflow/server/router";
 
 export const trpc = createTRPCReact<AppRouter>();
 

@@ -3,7 +3,11 @@ import { db } from "../connection";
 import { auditEntries, events } from "../schema/audit";
 
 export async function listAuditTrail(limit = 12) {
-  const entries = await db.select().from(auditEntries).orderBy(desc(auditEntries.createdAt)).limit(limit);
+  const entries = await db
+    .select()
+    .from(auditEntries)
+    .orderBy(desc(auditEntries.createdAt))
+    .limit(limit);
 
   const totalResult = await db.select({ count: sql<number>`count(*)` }).from(auditEntries);
   const total = Number(totalResult[0]?.count ?? 0);
@@ -11,12 +15,12 @@ export async function listAuditTrail(limit = 12) {
   return {
     summary: {
       totalEntries: total,
-      deploymentActions: entries.filter(e => e.action.startsWith("deployment.")).length,
-      executionActions: entries.filter(e => e.action.startsWith("execution.")).length,
-      backupActions: entries.filter(e => e.action.startsWith("backup.")).length,
-      humanEntries: entries.filter(e => e.actorType === "user").length
+      deploymentActions: entries.filter((e) => e.action.startsWith("deployment.")).length,
+      executionActions: entries.filter((e) => e.action.startsWith("execution.")).length,
+      backupActions: entries.filter((e) => e.action.startsWith("backup.")).length,
+      humanEntries: entries.filter((e) => e.actorType === "user").length
     },
-    entries: entries.map(e => {
+    entries: entries.map((e) => {
       const parts = e.targetResource.split("/");
       return {
         ...e,
@@ -37,7 +41,7 @@ export async function listOperationsTimeline(deploymentId?: string, limit = 12) 
     : db.select().from(events);
 
   const rows = await query.orderBy(desc(events.createdAt)).limit(limit);
-  return rows.map(e => ({
+  return rows.map((e) => ({
     ...e,
     serviceName: e.resourceId,
     createdAt: e.createdAt.toISOString()

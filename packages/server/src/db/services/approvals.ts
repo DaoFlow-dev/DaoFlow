@@ -36,16 +36,19 @@ export async function createApprovalRequest(input: CreateApprovalRequestInput) {
       ? `compose-service/${input.composeServiceId}`
       : `backup-run/${input.backupRunId}`;
 
-  const [request] = await db.insert(approvalRequests).values({
-    id: requestId,
-    actionType: input.actionType,
-    targetResource,
-    reason: input.reason,
-    status: "pending",
-    requestedByEmail: input.requestedByEmail,
-    requestedByRole: input.requestedByRole,
-    inputSummary: { actionType: input.actionType }
-  }).returning();
+  const [request] = await db
+    .insert(approvalRequests)
+    .values({
+      id: requestId,
+      actionType: input.actionType,
+      targetResource,
+      reason: input.reason,
+      status: "pending",
+      requestedByEmail: input.requestedByEmail,
+      requestedByRole: input.requestedByRole,
+      inputSummary: { actionType: input.actionType }
+    })
+    .returning();
 
   await db.insert(auditEntries).values({
     actorType: "user",
@@ -79,14 +82,18 @@ function enrichApproval(r: typeof approvalRequests.$inferSelect) {
 }
 
 export async function listApprovalQueue(limit = 24) {
-  const requests = await db.select().from(approvalRequests).orderBy(desc(approvalRequests.createdAt)).limit(limit);
+  const requests = await db
+    .select()
+    .from(approvalRequests)
+    .orderBy(desc(approvalRequests.createdAt))
+    .limit(limit);
 
   return {
     summary: {
       totalRequests: requests.length,
-      pendingRequests: requests.filter(r => r.status === "pending").length,
-      approvedRequests: requests.filter(r => r.status === "approved").length,
-      rejectedRequests: requests.filter(r => r.status === "rejected").length,
+      pendingRequests: requests.filter((r) => r.status === "pending").length,
+      approvedRequests: requests.filter((r) => r.status === "approved").length,
+      rejectedRequests: requests.filter((r) => r.status === "rejected").length,
       criticalRequests: 0
     },
     requests: requests.map(enrichApproval)
@@ -99,11 +106,17 @@ export async function approveApprovalRequest(
   email: string,
   role: AppRole
 ) {
-  const rows = await db.select().from(approvalRequests).where(eq(approvalRequests.id, requestId)).limit(1);
+  const rows = await db
+    .select()
+    .from(approvalRequests)
+    .where(eq(approvalRequests.id, requestId))
+    .limit(1);
   if (!rows[0]) return { status: "not-found" as const };
-  if (rows[0].status !== "pending") return { status: "invalid-state" as const, currentStatus: rows[0].status };
+  if (rows[0].status !== "pending")
+    return { status: "invalid-state" as const, currentStatus: rows[0].status };
 
-  await db.update(approvalRequests)
+  await db
+    .update(approvalRequests)
     .set({ status: "approved", resolvedByEmail: email, resolvedAt: new Date() })
     .where(eq(approvalRequests.id, requestId));
 
@@ -119,7 +132,10 @@ export async function approveApprovalRequest(
     outcome: "success"
   });
 
-  const [updated] = await db.select().from(approvalRequests).where(eq(approvalRequests.id, requestId));
+  const [updated] = await db
+    .select()
+    .from(approvalRequests)
+    .where(eq(approvalRequests.id, requestId));
   return { status: "ok" as const, request: enrichApproval(updated) };
 }
 
@@ -129,11 +145,17 @@ export async function rejectApprovalRequest(
   email: string,
   role: AppRole
 ) {
-  const rows = await db.select().from(approvalRequests).where(eq(approvalRequests.id, requestId)).limit(1);
+  const rows = await db
+    .select()
+    .from(approvalRequests)
+    .where(eq(approvalRequests.id, requestId))
+    .limit(1);
   if (!rows[0]) return { status: "not-found" as const };
-  if (rows[0].status !== "pending") return { status: "invalid-state" as const, currentStatus: rows[0].status };
+  if (rows[0].status !== "pending")
+    return { status: "invalid-state" as const, currentStatus: rows[0].status };
 
-  await db.update(approvalRequests)
+  await db
+    .update(approvalRequests)
     .set({ status: "rejected", resolvedByEmail: email, resolvedAt: new Date() })
     .where(eq(approvalRequests.id, requestId));
 
@@ -149,6 +171,9 @@ export async function rejectApprovalRequest(
     outcome: "success"
   });
 
-  const [updated] = await db.select().from(approvalRequests).where(eq(approvalRequests.id, requestId));
+  const [updated] = await db
+    .select()
+    .from(approvalRequests)
+    .where(eq(approvalRequests.id, requestId));
   return { status: "ok" as const, request: enrichApproval(updated) };
 }

@@ -24,9 +24,7 @@ export const projects = pgTable(
       .references(() => teams.id, { onDelete: "cascade" }),
     repoFullName: varchar("repo_full_name", { length: 255 }),
     repoUrl: text("repo_url"),
-    sourceType: varchar("source_type", { length: 20 })
-      .default("compose")
-      .notNull(), // compose | dockerfile | image
+    sourceType: varchar("source_type", { length: 20 }).default("compose").notNull(), // compose | dockerfile | image
     composePath: text("compose_path"),
     config: jsonb("config").default({}).notNull(),
     status: varchar("status", { length: 20 }).default("active").notNull(), // active | paused | deleted
@@ -60,10 +58,7 @@ export const environments = pgTable(
   },
   (table) => [
     index("environments_project_id_idx").on(table.projectId),
-    uniqueIndex("environments_project_slug_idx").on(
-      table.projectId,
-      table.slug
-    )
+    uniqueIndex("environments_project_slug_idx").on(table.projectId, table.slug)
   ]
 );
 
@@ -101,27 +96,21 @@ export const projectsRelations = relations(projects, ({ one, many }) => ({
   environments: many(environments)
 }));
 
-export const environmentsRelations = relations(
-  environments,
-  ({ one, many }) => ({
-    project: one(projects, {
-      fields: [environments.projectId],
-      references: [projects.id]
-    }),
-    variables: many(environmentVariables)
-  })
-);
+export const environmentsRelations = relations(environments, ({ one, many }) => ({
+  project: one(projects, {
+    fields: [environments.projectId],
+    references: [projects.id]
+  }),
+  variables: many(environmentVariables)
+}));
 
-export const environmentVariablesRelations = relations(
-  environmentVariables,
-  ({ one }) => ({
-    environment: one(environments, {
-      fields: [environmentVariables.environmentId],
-      references: [environments.id]
-    }),
-    updatedByUser: one(users, {
-      fields: [environmentVariables.updatedByUserId],
-      references: [users.id]
-    })
+export const environmentVariablesRelations = relations(environmentVariables, ({ one }) => ({
+  environment: one(environments, {
+    fields: [environmentVariables.environmentId],
+    references: [environments.id]
+  }),
+  updatedByUser: one(users, {
+    fields: [environmentVariables.updatedByUserId],
+    references: [users.id]
   })
-);
+}));

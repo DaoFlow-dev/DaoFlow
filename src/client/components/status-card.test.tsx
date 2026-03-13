@@ -7,10 +7,7 @@ import { StatusCard } from "./status-card";
 describe("StatusCard", () => {
   it("renders the supplied items", () => {
     render(
-      <StatusCard
-        title="Agent API lanes"
-        items={["read APIs", "planning APIs", "command APIs"]}
-      />
+      <StatusCard title="Agent API lanes" items={["read APIs", "planning APIs", "command APIs"]} />
     );
 
     expect(screen.getByRole("heading", { name: "Agent API lanes" })).toBeVisible();

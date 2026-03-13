@@ -61,10 +61,9 @@ export const backupRuns = pgTable(
     status: varchar("status", { length: 20 }).default("queued").notNull(), // queued | running | succeeded | failed
     artifactPath: text("artifact_path"),
     sizeBytes: text("size_bytes"),
-    triggeredByUserId: integer("triggered_by_user_id").references(
-      () => users.id,
-      { onDelete: "set null" }
-    ),
+    triggeredByUserId: integer("triggered_by_user_id").references(() => users.id, {
+      onDelete: "set null"
+    }),
     error: text("error"),
     startedAt: timestamp("started_at"),
     completedAt: timestamp("completed_at"),
@@ -86,10 +85,9 @@ export const backupRestores = pgTable(
       .references(() => backupRuns.id),
     status: varchar("status", { length: 20 }).default("queued").notNull(),
     targetPath: text("target_path"),
-    triggeredByUserId: integer("triggered_by_user_id").references(
-      () => users.id,
-      { onDelete: "set null" }
-    ),
+    triggeredByUserId: integer("triggered_by_user_id").references(() => users.id, {
+      onDelete: "set null"
+    }),
     error: text("error"),
     startedAt: timestamp("started_at"),
     completedAt: timestamp("completed_at"),
@@ -109,16 +107,13 @@ export const volumesRelations = relations(volumes, ({ one, many }) => ({
   backupPolicies: many(backupPolicies)
 }));
 
-export const backupPoliciesRelations = relations(
-  backupPolicies,
-  ({ one, many }) => ({
-    volume: one(volumes, {
-      fields: [backupPolicies.volumeId],
-      references: [volumes.id]
-    }),
-    runs: many(backupRuns)
-  })
-);
+export const backupPoliciesRelations = relations(backupPolicies, ({ one, many }) => ({
+  volume: one(volumes, {
+    fields: [backupPolicies.volumeId],
+    references: [volumes.id]
+  }),
+  runs: many(backupRuns)
+}));
 
 export const backupRunsRelations = relations(backupRuns, ({ one, many }) => ({
   policy: one(backupPolicies, {
@@ -132,16 +127,13 @@ export const backupRunsRelations = relations(backupRuns, ({ one, many }) => ({
   restores: many(backupRestores)
 }));
 
-export const backupRestoresRelations = relations(
-  backupRestores,
-  ({ one }) => ({
-    backupRun: one(backupRuns, {
-      fields: [backupRestores.backupRunId],
-      references: [backupRuns.id]
-    }),
-    triggeredByUser: one(users, {
-      fields: [backupRestores.triggeredByUserId],
-      references: [users.id]
-    })
+export const backupRestoresRelations = relations(backupRestores, ({ one }) => ({
+  backupRun: one(backupRuns, {
+    fields: [backupRestores.backupRunId],
+    references: [backupRuns.id]
+  }),
+  triggeredByUser: one(users, {
+    fields: [backupRestores.triggeredByUserId],
+    references: [users.id]
   })
-);
+}));

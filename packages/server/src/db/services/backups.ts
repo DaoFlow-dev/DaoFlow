@@ -14,12 +14,12 @@ export async function listBackupOverview(limit = 12) {
   return {
     summary: {
       totalPolicies: policies.length,
-      queuedRuns: runs.filter(r => r.status === "queued").length,
-      runningRuns: runs.filter(r => r.status === "running").length,
-      succeededRuns: runs.filter(r => r.status === "succeeded").length,
-      failedRuns: runs.filter(r => r.status === "failed").length
+      queuedRuns: runs.filter((r) => r.status === "queued").length,
+      runningRuns: runs.filter((r) => r.status === "running").length,
+      succeededRuns: runs.filter((r) => r.status === "succeeded").length,
+      failedRuns: runs.filter((r) => r.status === "failed").length
     },
-    policies: policies.map(p => ({
+    policies: policies.map((p) => ({
       id: p.id,
       projectName: p.name,
       environmentName: "",
@@ -31,7 +31,7 @@ export async function listBackupOverview(limit = 12) {
       nextRunAt: new Date().toISOString(),
       lastRunAt: null as string | null
     })),
-    runs: runs.map(r => ({
+    runs: runs.map((r) => ({
       id: r.id,
       policyId: r.policyId,
       projectName: "",
@@ -55,16 +55,23 @@ export async function triggerBackupRun(
   email: string,
   role: AppRole
 ) {
-  const policy = await db.select().from(backupPolicies).where(eq(backupPolicies.id, policyId)).limit(1);
+  const policy = await db
+    .select()
+    .from(backupPolicies)
+    .where(eq(backupPolicies.id, policyId))
+    .limit(1);
   if (!policy[0]) return null;
 
   const runId = id();
-  const [run] = await db.insert(backupRuns).values({
-    id: runId,
-    policyId,
-    status: "queued",
-    startedAt: new Date()
-  }).returning();
+  const [run] = await db
+    .insert(backupRuns)
+    .values({
+      id: runId,
+      policyId,
+      status: "queued",
+      startedAt: new Date()
+    })
+    .returning();
 
   await db.insert(auditEntries).values({
     actorType: "user",
@@ -91,13 +98,16 @@ export async function queueBackupRestore(
   if (!run[0] || run[0].status !== "succeeded" || !run[0].artifactPath) return null;
 
   const restoreId = id();
-  const [restore] = await db.insert(backupRestores).values({
-    id: restoreId,
-    backupRunId,
-    status: "queued",
-    targetPath: run[0].artifactPath,
-    startedAt: new Date()
-  }).returning();
+  const [restore] = await db
+    .insert(backupRestores)
+    .values({
+      id: restoreId,
+      backupRunId,
+      status: "queued",
+      targetPath: run[0].artifactPath,
+      startedAt: new Date()
+    })
+    .returning();
 
   await db.insert(auditEntries).values({
     actorType: "user",
@@ -115,17 +125,21 @@ export async function queueBackupRestore(
 }
 
 export async function listBackupRestoreQueue(limit = 12) {
-  const restores = await db.select().from(backupRestores).orderBy(desc(backupRestores.createdAt)).limit(limit);
+  const restores = await db
+    .select()
+    .from(backupRestores)
+    .orderBy(desc(backupRestores.createdAt))
+    .limit(limit);
 
   return {
     summary: {
       totalRequests: restores.length,
-      queuedRequests: restores.filter(r => r.status === "queued").length,
-      runningRequests: restores.filter(r => r.status === "running").length,
-      succeededRequests: restores.filter(r => r.status === "succeeded").length,
-      failedRequests: restores.filter(r => r.status === "failed").length
+      queuedRequests: restores.filter((r) => r.status === "queued").length,
+      runningRequests: restores.filter((r) => r.status === "running").length,
+      succeededRequests: restores.filter((r) => r.status === "succeeded").length,
+      failedRequests: restores.filter((r) => r.status === "failed").length
     },
-    requests: restores.map(r => ({
+    requests: restores.map((r) => ({
       ...r,
       policyId: "",
       projectName: "",
@@ -153,7 +167,7 @@ export async function listPersistentVolumeInventory(limit = 12) {
       attentionVolumes: 0,
       attachedBytes: vols.reduce((sum, v) => sum + Number(v.sizeBytes ?? 0), 0)
     },
-    volumes: vols.map(v => ({
+    volumes: vols.map((v) => ({
       id: v.id,
       environmentId: "",
       environmentName: "",

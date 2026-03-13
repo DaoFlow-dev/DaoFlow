@@ -65,16 +65,14 @@ export const approvalRequests = pgTable(
     targetResource: varchar("target_resource", { length: 200 }).notNull(),
     reason: text("reason"),
     status: varchar("status", { length: 20 }).default("pending").notNull(), // pending | approved | rejected
-    requestedByUserId: integer("requested_by_user_id").references(
-      () => users.id,
-      { onDelete: "set null" }
-    ),
+    requestedByUserId: integer("requested_by_user_id").references(() => users.id, {
+      onDelete: "set null"
+    }),
     requestedByEmail: varchar("requested_by_email", { length: 320 }),
     requestedByRole: varchar("requested_by_role", { length: 20 }),
-    resolvedByUserId: integer("resolved_by_user_id").references(
-      () => users.id,
-      { onDelete: "set null" }
-    ),
+    resolvedByUserId: integer("resolved_by_user_id").references(() => users.id, {
+      onDelete: "set null"
+    }),
     resolvedByEmail: varchar("resolved_by_email", { length: 320 }),
     inputSummary: jsonb("input_summary"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -87,16 +85,13 @@ export const approvalRequests = pgTable(
   ]
 );
 
-export const approvalRequestsRelations = relations(
-  approvalRequests,
-  ({ one }) => ({
-    requestedByUser: one(users, {
-      fields: [approvalRequests.requestedByUserId],
-      references: [users.id]
-    }),
-    resolvedByUser: one(users, {
-      fields: [approvalRequests.resolvedByUserId],
-      references: [users.id]
-    })
+export const approvalRequestsRelations = relations(approvalRequests, ({ one }) => ({
+  requestedByUser: one(users, {
+    fields: [approvalRequests.requestedByUserId],
+    references: [users.id]
+  }),
+  resolvedByUser: one(users, {
+    fields: [approvalRequests.resolvedByUserId],
+    references: [users.id]
   })
-);
+}));

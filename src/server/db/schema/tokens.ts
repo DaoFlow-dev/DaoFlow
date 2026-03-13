@@ -1,11 +1,4 @@
-import {
-  integer,
-  index,
-  pgTable,
-  text,
-  timestamp,
-  varchar
-} from "drizzle-orm/pg-core";
+import { integer, index, pgTable, text, timestamp, varchar } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { users } from "./users";
 
@@ -29,10 +22,7 @@ export const apiTokens = pgTable(
     revokedAt: timestamp("revoked_at")
   },
   (table) => [
-    index("api_tokens_principal_idx").on(
-      table.principalType,
-      table.principalId
-    ),
+    index("api_tokens_principal_idx").on(table.principalType, table.principalId),
     index("api_tokens_token_hash_idx").on(table.tokenHash),
     index("api_tokens_status_idx").on(table.status),
     index("api_tokens_created_at_idx").on(table.createdAt)

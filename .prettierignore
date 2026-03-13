@@ -1,0 +1,9 @@
+dist
+coverage
+node_modules
+playwright-report
+test-results
+bun.lock
+tmp
+*.min.js
+*.min.css

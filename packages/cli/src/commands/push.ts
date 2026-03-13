@@ -24,10 +24,9 @@ export function pushCommand(): Command {
       if (!opts.skipBuild) {
         console.log(chalk.blue(`⟳ Building Docker image ${tag}...`));
         try {
-          execSync(
-            `docker build -t ${tag} -f ${opts.dockerfile} ${opts.context}`,
-            { stdio: "inherit" }
-          );
+          execSync(`docker build -t ${tag} -f ${opts.dockerfile} ${opts.context}`, {
+            stdio: "inherit"
+          });
           console.log(chalk.green(`✓ Image built: ${tag}`));
         } catch {
           console.error(chalk.red("✗ Docker build failed"));
@@ -69,6 +68,8 @@ export function pushCommand(): Command {
       // Cleanup
       try {
         execSync(`rm -f ${tarPath}`);
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
     });
 }

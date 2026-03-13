@@ -6,9 +6,7 @@ export class ApiClient {
   constructor(ctx?: DaoFlowContext) {
     const resolved = ctx ?? getCurrentContext();
     if (!resolved) {
-      throw new Error(
-        "Not logged in. Run `daoflow login` first."
-      );
+      throw new Error("Not logged in. Run `daoflow login` first.");
     }
     this.ctx = resolved;
   }

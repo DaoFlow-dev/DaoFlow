@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 
+import "@testing-library/jest-dom/vitest";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { StatusCard } from "./status-card";
@@ -7,10 +8,7 @@ import { StatusCard } from "./status-card";
 describe("StatusCard", () => {
   it("renders the supplied items", () => {
     render(
-      <StatusCard
-        title="Agent API lanes"
-        items={["read APIs", "planning APIs", "command APIs"]}
-      />
+      <StatusCard title="Agent API lanes" items={["read APIs", "planning APIs", "command APIs"]} />
     );
 
     expect(screen.getByRole("heading", { name: "Agent API lanes" })).toBeVisible();

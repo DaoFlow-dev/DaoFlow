@@ -5,7 +5,10 @@
     "moduleResolution": "Bundler",
     "lib": ["ES2023"],
     "strict": true,
-    "noEmit": true,
+    "composite": true,
+    "declaration": true,
+    "declarationMap": true,
+    "outDir": "./dist",
     "skipLibCheck": true,
     "allowSyntheticDefaultImports": true,
     "resolveJsonModule": true,
@@ -13,7 +16,5 @@
     "types": ["node", "vitest/globals"]
   },
   "include": ["src"],
-  "references": [
-    { "path": "../shared" }
-  ]
+  "references": [{ "path": "../shared" }]
 }

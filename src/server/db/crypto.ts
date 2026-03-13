@@ -3,9 +3,7 @@ import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:
 const getKey = () =>
   createHash("sha256")
     .update(
-      process.env.ENCRYPTION_KEY ??
-        process.env.BETTER_AUTH_SECRET ??
-        "daoflow-local-control-plane"
+      process.env.ENCRYPTION_KEY ?? process.env.BETTER_AUTH_SECRET ?? "daoflow-local-control-plane"
     )
     .digest();
 
@@ -22,10 +20,9 @@ export function decrypt(payload: string): string {
   if (!ivB64 || !tagB64 || !encB64) throw new Error("Invalid encrypted payload.");
   const decipher = createDecipheriv("aes-256-gcm", getKey(), Buffer.from(ivB64, "base64"));
   decipher.setAuthTag(Buffer.from(tagB64, "base64"));
-  return Buffer.concat([
-    decipher.update(Buffer.from(encB64, "base64")),
-    decipher.final()
-  ]).toString("utf8");
+  return Buffer.concat([decipher.update(Buffer.from(encB64, "base64")), decipher.final()]).toString(
+    "utf8"
+  );
 }
 
 export function displayValue(encryptedValue: string, isSecret: boolean): string {

@@ -1,16 +1,18 @@
 import { randomUUID } from "node:crypto";
 import { eq, desc, sql, and } from "drizzle-orm";
 import { db } from "../connection";
-import {
-  deployments,
-  deploymentSteps,
-  deploymentLogs
-} from "../schema/deployments";
+import { deployments, deploymentSteps, deploymentLogs } from "../schema/deployments";
 import { servers } from "../schema/servers";
 import { projects, environments } from "../schema/projects";
 import type { AppRole } from "../../../shared/authz";
 
-export type DeploymentStatus = "queued" | "prepare" | "deploy" | "finalize" | "completed" | "failed";
+export type DeploymentStatus =
+  | "queued"
+  | "prepare"
+  | "deploy"
+  | "finalize"
+  | "completed"
+  | "failed";
 export type DeploymentSourceType = "compose" | "dockerfile" | "image";
 
 const id = () => randomUUID().replace(/-/g, "").slice(0, 32);
@@ -30,7 +32,11 @@ export interface CreateDeploymentInput {
 }
 
 export async function createDeploymentRecord(input: CreateDeploymentInput) {
-  const server = await db.select().from(servers).where(eq(servers.id, input.targetServerId)).limit(1);
+  const server = await db
+    .select()
+    .from(servers)
+    .where(eq(servers.id, input.targetServerId))
+    .limit(1);
   if (!server[0]) return null;
 
   const deploymentId = id();
@@ -63,11 +69,7 @@ export async function createDeploymentRecord(input: CreateDeploymentInput) {
 }
 
 export async function getDeploymentRecord(deploymentId: string) {
-  const rows = await db
-    .select()
-    .from(deployments)
-    .where(eq(deployments.id, deploymentId))
-    .limit(1);
+  const rows = await db.select().from(deployments).where(eq(deployments.id, deploymentId)).limit(1);
 
   if (!rows[0]) return null;
 
@@ -84,7 +86,7 @@ export async function getDeploymentRecord(deploymentId: string) {
     environmentName: dep.environmentId,
     targetServerName: dep.targetServerId,
     targetServerHost: dep.targetServerId,
-    steps: steps.map(s => ({
+    steps: steps.map((s) => ({
       ...s,
       position: s.sortOrder,
       startedAt: s.startedAt?.toISOString() ?? new Date().toISOString(),
@@ -99,7 +101,7 @@ export async function listDeploymentRecords(status?: string, limit = 20) {
     : db.select().from(deployments);
 
   const rows = await query.orderBy(desc(deployments.createdAt)).limit(limit);
-  return rows.map(d => ({
+  return rows.map((d) => ({
     ...d,
     projectName: d.projectId,
     environmentName: d.environmentId,
@@ -130,9 +132,9 @@ export async function listDeploymentLogs(deploymentId?: string, limit = 18) {
       stderrLines: Number(stderrResult[0]?.count ?? 0),
       deploymentCount: 0
     },
-    lines: logs.map(l => ({
+    lines: logs.map((l) => ({
       ...l,
-      stream: l.level === "error" ? "stderr" as const : "stdout" as const,
+      stream: l.level === "error" ? ("stderr" as const) : ("stdout" as const),
       lineNumber: l.id,
       createdAt: l.createdAt.toISOString(),
       projectName: "",
@@ -160,7 +162,12 @@ export async function listDeploymentInsights(limit = 6) {
     suspectedRootCause: d.error ? JSON.stringify(d.error) : "Unknown",
     safeActions: ["review logs", "check server health", "retry deployment"],
     evidence: [] as { kind: string; id: string; title: string; detail: string }[],
-    healthyBaseline: null as { deploymentId: string; commitSha: string; imageTag: string; finishedAt: string | null } | null
+    healthyBaseline: null as {
+      deploymentId: string;
+      commitSha: string;
+      imageTag: string;
+      finishedAt: string | null;
+    } | null
   }));
 }
 

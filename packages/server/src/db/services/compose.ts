@@ -42,10 +42,10 @@ export async function listComposeReleaseCatalog(limit = 24) {
     summary: {
       totalServices: rows.length,
       statefulServices: 0,
-      healthyEnvironments: rows.filter(r => r.status === "completed").length,
+      healthyEnvironments: rows.filter((r) => r.status === "completed").length,
       uniqueNetworks: 0
     },
-    services: rows.map(r => ({
+    services: rows.map((r) => ({
       id: r.id,
       environmentId: r.environmentId,
       environmentName: r.environmentId,

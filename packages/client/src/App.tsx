@@ -165,15 +165,24 @@ export default function App() {
   const health = trpc.health.useQuery();
   const overview = trpc.platformOverview.useQuery();
   const roadmap = trpc.roadmap.useQuery({});
-  const composeReleaseCatalog = trpc.composeReleaseCatalog.useQuery({}, {
-    enabled: Boolean(session.data)
-  });
-  const composeDriftReport = trpc.composeDriftReport.useQuery({}, {
-    enabled: Boolean(session.data)
-  });
-  const approvalQueue = trpc.approvalQueue.useQuery({}, {
-    enabled: Boolean(session.data)
-  });
+  const composeReleaseCatalog = trpc.composeReleaseCatalog.useQuery(
+    {},
+    {
+      enabled: Boolean(session.data)
+    }
+  );
+  const composeDriftReport = trpc.composeDriftReport.useQuery(
+    {},
+    {
+      enabled: Boolean(session.data)
+    }
+  );
+  const approvalQueue = trpc.approvalQueue.useQuery(
+    {},
+    {
+      enabled: Boolean(session.data)
+    }
+  );
   const requestApproval = trpc.requestApproval.useMutation();
   const approveApprovalRequest = trpc.approveApprovalRequest.useMutation();
   const rejectApprovalRequest = trpc.rejectApprovalRequest.useMutation();
@@ -184,45 +193,81 @@ export default function App() {
   const dispatchExecutionJob = trpc.dispatchExecutionJob.useMutation();
   const completeExecutionJob = trpc.completeExecutionJob.useMutation();
   const failExecutionJob = trpc.failExecutionJob.useMutation();
-  const recentDeployments = trpc.recentDeployments.useQuery({}, {
-    enabled: Boolean(session.data)
-  });
-  const backupOverview = trpc.backupOverview.useQuery({}, {
-    enabled: Boolean(session.data)
-  });
-  const backupRestoreQueue = trpc.backupRestoreQueue.useQuery({}, {
-    enabled: Boolean(session.data)
-  });
-  const executionQueue = trpc.executionQueue.useQuery({}, {
-    enabled: Boolean(session.data)
-  });
-  const operationsTimeline = trpc.operationsTimeline.useQuery({}, {
-    enabled: Boolean(session.data)
-  });
+  const recentDeployments = trpc.recentDeployments.useQuery(
+    {},
+    {
+      enabled: Boolean(session.data)
+    }
+  );
+  const backupOverview = trpc.backupOverview.useQuery(
+    {},
+    {
+      enabled: Boolean(session.data)
+    }
+  );
+  const backupRestoreQueue = trpc.backupRestoreQueue.useQuery(
+    {},
+    {
+      enabled: Boolean(session.data)
+    }
+  );
+  const executionQueue = trpc.executionQueue.useQuery(
+    {},
+    {
+      enabled: Boolean(session.data)
+    }
+  );
+  const operationsTimeline = trpc.operationsTimeline.useQuery(
+    {},
+    {
+      enabled: Boolean(session.data)
+    }
+  );
   const infrastructureInventory = trpc.infrastructureInventory.useQuery(undefined, {
     enabled: Boolean(session.data)
   });
-  const serverReadiness = trpc.serverReadiness.useQuery({}, {
-    enabled: Boolean(session.data)
-  });
-  const persistentVolumes = trpc.persistentVolumes.useQuery({}, {
-    enabled: Boolean(session.data)
-  });
-  const deploymentInsights = trpc.deploymentInsights.useQuery({}, {
-    enabled: Boolean(session.data)
-  });
-  const deploymentRollbackPlans = trpc.deploymentRollbackPlans.useQuery({}, {
-    enabled: Boolean(session.data)
-  });
-  const auditTrail = trpc.auditTrail.useQuery({}, {
-    enabled: Boolean(session.data)
-  });
-  const deploymentLogs = trpc.deploymentLogs.useQuery({}, {
-    enabled: Boolean(session.data)
-  });
-  const environmentVariables = trpc.environmentVariables.useQuery({}, {
-    enabled: Boolean(session.data)
-  });
+  const serverReadiness = trpc.serverReadiness.useQuery(
+    {},
+    {
+      enabled: Boolean(session.data)
+    }
+  );
+  const persistentVolumes = trpc.persistentVolumes.useQuery(
+    {},
+    {
+      enabled: Boolean(session.data)
+    }
+  );
+  const deploymentInsights = trpc.deploymentInsights.useQuery(
+    {},
+    {
+      enabled: Boolean(session.data)
+    }
+  );
+  const deploymentRollbackPlans = trpc.deploymentRollbackPlans.useQuery(
+    {},
+    {
+      enabled: Boolean(session.data)
+    }
+  );
+  const auditTrail = trpc.auditTrail.useQuery(
+    {},
+    {
+      enabled: Boolean(session.data)
+    }
+  );
+  const deploymentLogs = trpc.deploymentLogs.useQuery(
+    {},
+    {
+      enabled: Boolean(session.data)
+    }
+  );
+  const environmentVariables = trpc.environmentVariables.useQuery(
+    {},
+    {
+      enabled: Boolean(session.data)
+    }
+  );
   const upsertEnvironmentVariable = trpc.upsertEnvironmentVariable.useMutation();
   const registerServer = trpc.registerServer.useMutation();
   const viewer = trpc.viewer.useQuery(undefined, {
@@ -258,9 +303,8 @@ export default function App() {
   const [serverKind, setServerKind] = useState<"docker-engine" | "docker-swarm-manager">(
     "docker-engine"
   );
-  const [environmentVariableEnvironmentId, setEnvironmentVariableEnvironmentId] = useState(
-    "env_daoflow_staging"
-  );
+  const [environmentVariableEnvironmentId, setEnvironmentVariableEnvironmentId] =
+    useState("env_daoflow_staging");
   const [environmentVariableKey, setEnvironmentVariableKey] = useState("NEXT_PUBLIC_SUPPORT_EMAIL");
   const [environmentVariableValue, setEnvironmentVariableValue] = useState("ops@daoflow.local");
   const [environmentVariableCategory, setEnvironmentVariableCategory] = useState<
@@ -368,11 +412,11 @@ export default function App() {
     setComposeReleaseFeedback(null);
 
     try {
-      const deployment = await queueComposeRelease.mutateAsync({
+      const deployment = (await queueComposeRelease.mutateAsync({
         composeServiceId: composeReleaseTargetId,
         commitSha: composeReleaseCommitSha,
         imageTag: composeReleaseImageTag || undefined
-      }) as { serviceName: string; id: string } | null;
+      })) as { serviceName: string; id: string } | null;
 
       await refreshOperationalViews();
       setComposeReleaseFeedback(
@@ -382,9 +426,7 @@ export default function App() {
       );
     } catch (error) {
       setComposeReleaseFeedback(
-        isTRPCClientError(error)
-          ? error.message
-          : "Unable to queue the compose release right now."
+        isTRPCClientError(error) ? error.message : "Unable to queue the compose release right now."
       );
     }
   }
@@ -401,7 +443,9 @@ export default function App() {
         reason: "Require an explicit second reviewer before executing this Compose release."
       });
       await refreshOperationalViews();
-      setApprovalFeedback(`Requested approval for ${request.actionType} on ${request.targetResource}.`);
+      setApprovalFeedback(
+        `Requested approval for ${request.actionType} on ${request.targetResource}.`
+      );
     } catch (error) {
       setApprovalFeedback(
         isTRPCClientError(error)
@@ -464,9 +508,7 @@ export default function App() {
       setServerFeedback(`Registered ${server.name} and queued first connectivity checks.`);
     } catch (error) {
       setServerFeedback(
-        isTRPCClientError(error)
-          ? error.message
-          : "Unable to register the server right now."
+        isTRPCClientError(error) ? error.message : "Unable to register the server right now."
       );
     }
   }
@@ -482,9 +524,7 @@ export default function App() {
       setExecutionFeedback(`Dispatched ${service} to the execution worker.`);
     } catch (error) {
       setExecutionFeedback(
-        isTRPCClientError(error)
-          ? error.message
-          : "Unable to dispatch the execution job right now."
+        isTRPCClientError(error) ? error.message : "Unable to dispatch the execution job right now."
       );
     }
   }
@@ -500,9 +540,7 @@ export default function App() {
       setExecutionFeedback(`Marked ${service} healthy.`);
     } catch (error) {
       setExecutionFeedback(
-        isTRPCClientError(error)
-          ? error.message
-          : "Unable to complete the execution job right now."
+        isTRPCClientError(error) ? error.message : "Unable to complete the execution job right now."
       );
     }
   }
@@ -519,9 +557,7 @@ export default function App() {
       setExecutionFeedback(`Marked ${service} failed.`);
     } catch (error) {
       setExecutionFeedback(
-        isTRPCClientError(error)
-          ? error.message
-          : "Unable to fail the execution job right now."
+        isTRPCClientError(error) ? error.message : "Unable to fail the execution job right now."
       );
     }
   }
@@ -537,9 +573,7 @@ export default function App() {
       setBackupFeedback(`Queued backup run for ${service}.`);
     } catch (error) {
       setBackupFeedback(
-        isTRPCClientError(error)
-          ? error.message
-          : "Unable to queue the backup run right now."
+        isTRPCClientError(error) ? error.message : "Unable to queue the backup run right now."
       );
     }
   }
@@ -555,9 +589,7 @@ export default function App() {
       setBackupRestoreFeedback(`Queued restore drill for ${service}.`);
     } catch (error) {
       setBackupRestoreFeedback(
-        isTRPCClientError(error)
-          ? error.message
-          : "Unable to queue the restore drill right now."
+        isTRPCClientError(error) ? error.message : "Unable to queue the restore drill right now."
       );
     }
   }
@@ -615,9 +647,7 @@ export default function App() {
       );
     } catch (error) {
       setApprovalFeedback(
-        isTRPCClientError(error)
-          ? error.message
-          : "Unable to reject this guarded action right now."
+        isTRPCClientError(error) ? error.message : "Unable to reject this guarded action right now."
       );
     }
   }
@@ -649,9 +679,7 @@ export default function App() {
   }
 
   const viewerMessage =
-    viewer.error && isTRPCClientError(viewer.error)
-      ? viewer.error.message
-      : null;
+    viewer.error && isTRPCClientError(viewer.error) ? viewer.error.message : null;
   const adminMessage =
     adminControlPlane.error && isTRPCClientError(adminControlPlane.error)
       ? adminControlPlane.error.message
@@ -709,9 +737,7 @@ export default function App() {
       ? deploymentRollbackPlans.error.message
       : null;
   const auditMessage =
-    auditTrail.error && isTRPCClientError(auditTrail.error)
-      ? auditTrail.error.message
-      : null;
+    auditTrail.error && isTRPCClientError(auditTrail.error) ? auditTrail.error.message : null;
   const logsMessage =
     deploymentLogs.error && isTRPCClientError(deploymentLogs.error)
       ? deploymentLogs.error.message
@@ -744,13 +770,13 @@ export default function App() {
   const canManageEnvironmentVariables = canQueueDeployments;
   const canManageServers = currentRole === "owner" || currentRole === "admin";
   const executionMutationPending =
-    dispatchExecutionJob.isPending ||
-    completeExecutionJob.isPending ||
-    failExecutionJob.isPending;
+    dispatchExecutionJob.isPending || completeExecutionJob.isPending || failExecutionJob.isPending;
   const backupMutationPending = triggerBackupRun.isPending;
   const backupRestoreMutationPending = queueBackupRestore.isPending;
   const approvalMutationPending =
-    requestApproval.isPending || approveApprovalRequest.isPending || rejectApprovalRequest.isPending;
+    requestApproval.isPending ||
+    approveApprovalRequest.isPending ||
+    rejectApprovalRequest.isPending;
   const composeReleaseMutationPending = queueComposeRelease.isPending;
   const serverMutationPending = registerServer.isPending;
   const environmentVariableMutationPending = upsertEnvironmentVariable.isPending;
@@ -762,8 +788,8 @@ export default function App() {
           <p className="hero__kicker">Docker-first control plane</p>
           <h1>DaoFlow</h1>
           <p className="hero__lede">
-            A typed control plane for Docker and Compose deployments with agent-safe
-            automation boundaries.
+            A typed control plane for Docker and Compose deployments with agent-safe automation
+            boundaries.
           </p>
         </div>
 
@@ -771,11 +797,7 @@ export default function App() {
           <div className="metric metric--auth">
             <span className="metric__label">Session</span>
             <span className="metric__value" data-testid="session-state">
-              {session.isPending
-                ? "checking"
-                : session.data
-                  ? "signed in"
-                  : "signed out"}
+              {session.isPending ? "checking" : session.data ? "signed in" : "signed out"}
             </span>
             {session.data ? (
               <p className="metric__detail" data-testid="session-email">
@@ -787,15 +809,11 @@ export default function App() {
           </div>
           <div className="metric">
             <span className="metric__label">Service health</span>
-            <span className="metric__value">
-              {health.data?.status ?? "checking"}
-            </span>
+            <span className="metric__value">{health.data?.status ?? "checking"}</span>
           </div>
           <div className="metric">
             <span className="metric__label">Current slice</span>
-            <span className="metric__value">
-              {overview.data?.currentSlice ?? "loading"}
-            </span>
+            <span className="metric__value">{overview.data?.currentSlice ?? "loading"}</span>
           </div>
           <div className="metric">
             <span className="metric__label">Role</span>
@@ -925,18 +943,12 @@ export default function App() {
       </section>
 
       <section className="grid">
-        <StatusCard
-          title="Control plane"
-          items={overview.data?.architecture.controlPlane ?? []}
-        />
+        <StatusCard title="Control plane" items={overview.data?.architecture.controlPlane ?? []} />
         <StatusCard
           title="Execution plane"
           items={overview.data?.architecture.executionPlane ?? []}
         />
-        <StatusCard
-          title="Agent API lanes"
-          items={overview.data?.guardrails.agentApiLanes ?? []}
-        />
+        <StatusCard title="Agent API lanes" items={overview.data?.guardrails.agentApiLanes ?? []} />
         <StatusCard
           title="Product principles"
           items={overview.data?.guardrails.productPrinciples ?? []}
@@ -1078,7 +1090,8 @@ export default function App() {
           </>
         ) : (
           <p className="viewer-empty">
-            {infrastructureMessage ?? "Sign in to inspect managed servers, projects, and environments."}
+            {infrastructureMessage ??
+              "Sign in to inspect managed servers, projects, and environments."}
           </p>
         )}
       </section>
@@ -1090,7 +1103,10 @@ export default function App() {
         </div>
 
         {session.data && canManageServers ? (
-          <form className="server-onboarding" onSubmit={(event) => void handleRegisterServer(event)}>
+          <form
+            className="server-onboarding"
+            onSubmit={(event) => void handleRegisterServer(event)}
+          >
             <div>
               <p className="roadmap-item__lane">Admin-only action</p>
               <h3>Register a target host</h3>
@@ -1245,7 +1261,10 @@ export default function App() {
         </div>
 
         {session.data && canManageEnvironmentVariables && infrastructureInventory.data ? (
-          <form className="environment-variable-composer" onSubmit={(event) => void handleUpsertEnvironmentVariable(event)}>
+          <form
+            className="environment-variable-composer"
+            onSubmit={(event) => void handleUpsertEnvironmentVariable(event)}
+          >
             <div>
               <p className="roadmap-item__lane">Redacted read model</p>
               <h3>Save scoped variable</h3>
@@ -1329,7 +1348,10 @@ export default function App() {
 
         {session.data && environmentVariables.data ? (
           <>
-            <div className="environment-variable-summary" data-testid="environment-variable-summary">
+            <div
+              className="environment-variable-summary"
+              data-testid="environment-variable-summary"
+            >
               <div className="token-summary__item">
                 <span className="metric__label">Variables</span>
                 <strong>{environmentVariables.data.summary.totalVariables}</strong>
@@ -1368,18 +1390,14 @@ export default function App() {
                       {variable.isSecret ? "secret" : variable.category}
                     </span>
                   </div>
-                  <p className="deployment-card__meta">
-                    Value: {variable.displayValue}
-                  </p>
+                  <p className="deployment-card__meta">Value: {variable.displayValue}</p>
                   <p className="deployment-card__meta">
                     Category: {variable.category} · Source: {variable.source}
                   </p>
                   <p className="deployment-card__meta">
                     Branch pattern: {variable.branchPattern ?? "all branches"}
                   </p>
-                  <p className="deployment-card__meta">
-                    Updated by {variable.updatedByEmail}
-                  </p>
+                  <p className="deployment-card__meta">Updated by {variable.updatedByEmail}</p>
                 </article>
               ))}
             </div>
@@ -1440,7 +1458,8 @@ export default function App() {
                     </span>
                   </div>
                   <p className="deployment-card__meta">
-                    {volume.serviceName} on {volume.targetServerName} · {formatBytes(volume.sizeBytes)}
+                    {volume.serviceName} on {volume.targetServerName} ·{" "}
+                    {formatBytes(volume.sizeBytes)}
                   </p>
                   <p className="deployment-card__meta">
                     Mount path: {volume.mountPath} · Driver: {volume.driver}
@@ -1450,8 +1469,8 @@ export default function App() {
                     {volume.restoreReadiness}
                   </p>
                   <p className="deployment-card__meta">
-                    Last backup: {volume.lastBackupAt ?? "No snapshot recorded"} · Last restore test:{" "}
-                    {volume.lastRestoreTestAt ?? "Not exercised"}
+                    Last backup: {volume.lastBackupAt ?? "No snapshot recorded"} · Last restore
+                    test: {volume.lastRestoreTestAt ?? "Not exercised"}
                   </p>
                 </article>
               ))}
@@ -1512,7 +1531,11 @@ export default function App() {
                 placeholder="optional override"
               />
             </label>
-            <button className="action-button" disabled={composeReleaseMutationPending} type="submit">
+            <button
+              className="action-button"
+              disabled={composeReleaseMutationPending}
+              type="submit"
+            >
               {composeReleaseMutationPending ? "Queueing..." : "Queue compose release"}
             </button>
             {canRequestApprovals ? (
@@ -1534,9 +1557,7 @@ export default function App() {
             ) : null}
           </form>
         ) : session.data ? (
-          <p className="viewer-empty">
-            Deploy-capable roles can queue Compose releases here.
-          </p>
+          <p className="viewer-empty">Deploy-capable roles can queue Compose releases here.</p>
         ) : null}
 
         {session.data && composeReleaseCatalog.data ? (
@@ -1587,14 +1608,19 @@ export default function App() {
                     Image: {service.imageReference} · Replicas: {service.replicaCount}
                   </p>
                   <p className="deployment-card__meta">
-                    Ports: {service.exposedPorts.length > 0 ? service.exposedPorts.join(", ") : "internal only"}
+                    Ports:{" "}
+                    {service.exposedPorts.length > 0
+                      ? service.exposedPorts.join(", ")
+                      : "internal only"}
                   </p>
                   <p className="deployment-card__meta">
-                    Dependencies: {service.dependencies.length > 0 ? service.dependencies.join(", ") : "none"} ·
+                    Dependencies:{" "}
+                    {service.dependencies.length > 0 ? service.dependencies.join(", ") : "none"} ·
                     Network: {service.networkName}
                   </p>
                   <p className="deployment-card__meta">
-                    Volumes: {service.volumeMounts.join(", ")} · Healthcheck: {service.healthcheckPath ?? "process-level"}
+                    Volumes: {service.volumeMounts.join(", ")} · Healthcheck:{" "}
+                    {service.healthcheckPath ?? "process-level"}
                   </p>
                 </article>
               ))}
@@ -1733,10 +1759,7 @@ export default function App() {
             </div>
             <label>
               Service name
-              <input
-                value={serviceName}
-                onChange={(event) => setServiceName(event.target.value)}
-              />
+              <input value={serviceName} onChange={(event) => setServiceName(event.target.value)} />
             </label>
             <label>
               Commit SHA
@@ -1746,7 +1769,11 @@ export default function App() {
               Image tag
               <input value={imageTag} onChange={(event) => setImageTag(event.target.value)} />
             </label>
-            <button className="action-button" disabled={createDeploymentRecord.isPending} type="submit">
+            <button
+              className="action-button"
+              disabled={createDeploymentRecord.isPending}
+              type="submit"
+            >
               {createDeploymentRecord.isPending ? "Queueing..." : "Queue deployment record"}
             </button>
             {deploymentFeedback ? (
@@ -1782,18 +1809,23 @@ export default function App() {
                   </span>
                 </div>
                 <p className="deployment-card__meta">
-                  {deployment.projectName} on {deployment.targetServerName} ({deployment.targetServerHost})
+                  {deployment.projectName} on {deployment.targetServerName} (
+                  {deployment.targetServerHost})
                 </p>
                 <p className="deployment-card__meta">
                   Source: {deployment.sourceType} · Commit: {deployment.commitSha} · Image:{" "}
                   {deployment.imageTag}
                 </p>
-                <p className="deployment-card__meta">
-                  Requested by {deployment.requestedByEmail}
-                </p>
+                <p className="deployment-card__meta">Requested by {deployment.requestedByEmail}</p>
                 {"steps" in deployment && Array.isArray((deployment as any).steps) && (
                   <ul className="deployment-card__steps">
-                    {((deployment as any).steps as { id: number; label: string; detail: string | null }[]).map((step) => (
+                    {(
+                      (deployment as any).steps as {
+                        id: number;
+                        label: string;
+                        detail: string | null;
+                      }[]
+                    ).map((step) => (
                       <li key={step.id}>
                         <strong>{step.label}</strong>: {step.detail}
                       </li>
@@ -1897,9 +1929,7 @@ export default function App() {
                   </span>
                 </div>
                 <p className="deployment-card__meta">{plan.reason}</p>
-                <p className="deployment-card__meta">
-                  Current status: {plan.currentStatus}
-                </p>
+                <p className="deployment-card__meta">Current status: {plan.currentStatus}</p>
                 {plan.targetCommitSha ? (
                   <p className="deployment-card__meta">
                     Rollback target: {plan.targetCommitSha} · {plan.targetImageTag}
@@ -2048,7 +2078,11 @@ export default function App() {
         {session.data && operationsTimeline.data ? (
           <div className="timeline-list">
             {operationsTimeline.data.map((event) => (
-              <article className="timeline-event" data-testid={`timeline-event-${event.id}`} key={event.id}>
+              <article
+                className="timeline-event"
+                data-testid={`timeline-event-${event.id}`}
+                key={event.id}
+              >
                 <div className="timeline-event__top">
                   <div>
                     <p className="roadmap-item__lane">
@@ -2274,7 +2308,11 @@ export default function App() {
 
             <div className="backup-run-list">
               {backupOverview.data.runs.map((run) => (
-                <article className="timeline-event" data-testid={`backup-run-${run.id}`} key={run.id}>
+                <article
+                  className="timeline-event"
+                  data-testid={`backup-run-${run.id}`}
+                  key={run.id}
+                >
                   <div className="timeline-event__top">
                     <div>
                       <p className="roadmap-item__lane">
@@ -2292,7 +2330,8 @@ export default function App() {
                     {run.targetType} backup · Requested by {run.requestedBy}
                   </p>
                   <p className="deployment-card__meta">
-                    {run.artifactPath ?? "Artifact path will be assigned by the future backup worker."}
+                    {run.artifactPath ??
+                      "Artifact path will be assigned by the future backup worker."}
                   </p>
                   {(canOperateExecutionJobs || canRequestApprovals) &&
                   run.status === "succeeded" &&

@@ -8,20 +8,26 @@ export type ExecutionJobStatus = "pending" | "dispatched" | "completed" | "faile
 
 export async function listExecutionQueue(status?: string, limit = 12) {
   const query = status
-    ? db.select().from(deployments).where(eq(deployments.status, status === "pending" ? "queued" : status))
-    : db.select().from(deployments).where(sql`${deployments.status} IN ('queued', 'prepare', 'deploy')`);
+    ? db
+        .select()
+        .from(deployments)
+        .where(eq(deployments.status, status === "pending" ? "queued" : status))
+    : db
+        .select()
+        .from(deployments)
+        .where(sql`${deployments.status} IN ('queued', 'prepare', 'deploy')`);
 
   const rows = await query.orderBy(desc(deployments.createdAt)).limit(limit);
 
   return {
     summary: {
       totalJobs: rows.length,
-      pendingJobs: rows.filter(r => r.status === "queued").length,
-      dispatchedJobs: rows.filter(r => r.status === "deploy").length,
+      pendingJobs: rows.filter((r) => r.status === "queued").length,
+      dispatchedJobs: rows.filter((r) => r.status === "deploy").length,
       completedJobs: 0,
-      failedJobs: rows.filter(r => r.status === "failed").length
+      failedJobs: rows.filter((r) => r.status === "failed").length
     },
-    jobs: rows.map(r => ({
+    jobs: rows.map((r) => ({
       id: r.id,
       deploymentId: r.id,
       serviceName: r.serviceName,
@@ -55,13 +61,15 @@ async function mutateDeploymentStatus(
     return { status: "invalid-state" as const, currentStatus: current };
   }
 
-  const conclusion = newStatus === "completed" ? "succeeded" : newStatus === "failed" ? "failed" : undefined;
+  const conclusion =
+    newStatus === "completed" ? "succeeded" : newStatus === "failed" ? "failed" : undefined;
 
-  await db.update(deployments)
+  await db
+    .update(deployments)
     .set({
       status: newStatus,
       conclusion,
-      concludedAt: (newStatus === "completed" || newStatus === "failed") ? new Date() : undefined,
+      concludedAt: newStatus === "completed" || newStatus === "failed" ? new Date() : undefined,
       updatedAt: new Date()
     })
     .where(eq(deployments.id, jobId));

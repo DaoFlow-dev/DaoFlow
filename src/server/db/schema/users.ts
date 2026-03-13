@@ -56,10 +56,7 @@ export const userIdentities = pgTable(
   (table) => [
     index("user_identities_user_id_idx").on(table.userId),
     index("user_identities_provider_idx").on(table.provider),
-    uniqueIndex("user_identities_provider_user_idx").on(
-      table.provider,
-      table.providerUserId
-    )
+    uniqueIndex("user_identities_provider_user_idx").on(table.provider, table.providerUserId)
   ]
 );
 
@@ -71,12 +68,9 @@ export const usersRelations = relations(users, ({ one, many }) => ({
   identities: many(userIdentities)
 }));
 
-export const userIdentitiesRelations = relations(
-  userIdentities,
-  ({ one }) => ({
-    user: one(users, {
-      fields: [userIdentities.userId],
-      references: [users.id]
-    })
+export const userIdentitiesRelations = relations(userIdentities, ({ one }) => ({
+  user: one(users, {
+    fields: [userIdentities.userId],
+    references: [users.id]
   })
-);
+}));

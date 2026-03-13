@@ -15,7 +15,9 @@ export function envCommand(): Command {
       const api = new ApiClient();
       const data = await api.get<{
         variables: Array<{ key: string; displayValue: string; isSecret: boolean }>;
-      }>(`/trpc/listEnvironmentVariableInventory?input=${encodeURIComponent(JSON.stringify({ environmentId: opts.envId }))}`);
+      }>(
+        `/trpc/listEnvironmentVariableInventory?input=${encodeURIComponent(JSON.stringify({ environmentId: opts.envId }))}`
+      );
 
       const lines = data.variables.map((v) =>
         v.isSecret ? `# ${v.key}=<secret>` : `${v.key}=${v.displayValue}`
@@ -23,7 +25,9 @@ export function envCommand(): Command {
 
       writeFileSync(opts.output, lines.join("\n") + "\n");
       console.log(chalk.green(`✓ Wrote ${data.variables.length} variables to ${opts.output}`));
-      console.log(chalk.dim(`  (${data.variables.filter(v => v.isSecret).length} secrets masked)`));
+      console.log(
+        chalk.dim(`  (${data.variables.filter((v) => v.isSecret).length} secrets masked)`)
+      );
     });
 
   cmd
@@ -41,7 +45,7 @@ export function envCommand(): Command {
       }
 
       const content = readFileSync(opts.input, "utf-8");
-      const lines = content.split("\n").filter(l => l.trim() && !l.startsWith("#"));
+      const lines = content.split("\n").filter((l) => l.trim() && !l.startsWith("#"));
       let count = 0;
 
       for (const line of lines) {
