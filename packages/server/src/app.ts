@@ -1,88 +1,74 @@
-import { toNodeHandler } from "better-auth/node";
-import cors from "cors";
-import express from "express";
-import helmet from "helmet";
-import morgan from "morgan";
-import { createExpressMiddleware } from "@trpc/server/adapters/express";
+import { Hono } from "hono";
+import { cors } from "hono/cors";
+import { logger } from "hono/logger";
+import { secureHeaders } from "hono/secure-headers";
+import { trpcServer } from "@hono/trpc-server";
 import { DEFAULT_CLIENT_PORT } from "@daoflow/shared";
-import { auth } from "./auth";
-import { ensureAuthReady } from "./auth";
+import { auth, ensureAuthReady } from "./auth";
 import { createContext } from "./context";
-import { resolveRequestId } from "./request-id";
+import { createRequestId } from "./request-id";
 import { appRouter } from "./router";
 import { imagesRouter } from "./routes/images";
 
-import type { Express } from "express";
+type Env = {
+  Variables: {
+    requestId: string;
+  };
+};
 
-export function createApp(): Express {
-  const app = express();
+export function createApp() {
+  const app = new Hono<Env>();
   const allowedDevOrigin = `http://localhost:${DEFAULT_CLIENT_PORT}`;
 
-  app.set("trust proxy", process.env.NODE_ENV === "production");
-
-  morgan.token("request-id", (_req, res) => String(res.getHeader("x-request-id") ?? "unknown"));
-
-  app.use((req, res, next) => {
-    const requestId = resolveRequestId(req, res);
-    res.locals.requestId = requestId;
-    res.setHeader("x-request-id", requestId);
-    next();
+  // ── Middleware ─────────────────────────────────────────────
+  app.use("*", async (c, next) => {
+    const requestId = c.req.header("x-request-id") ?? createRequestId();
+    c.set("requestId", requestId);
+    c.header("x-request-id", requestId);
+    await next();
   });
 
+  app.use("*", secureHeaders());
   app.use(
-    helmet({
-      contentSecurityPolicy: false
-    })
-  );
-  app.use(
+    "*",
     cors({
-      origin: process.env.NODE_ENV === "production" ? false : allowedDevOrigin,
+      origin: process.env.NODE_ENV === "production" ? "*" : allowedDevOrigin,
       credentials: true
     })
   );
-  app.use(
-    morgan(":method :url :status :response-time ms request_id=:request-id", {
-      skip: () => process.env.NODE_ENV === "test"
+  app.use("*", logger());
+
+  // ── Better Auth ───────────────────────────────────────────
+  app.all("/api/auth/*", async (c) => {
+    await ensureAuthReady();
+    return auth.handler(c.req.raw);
+  });
+
+  // ── Image push (REST API) ─────────────────────────────────
+  app.route("/api/v1/images", imagesRouter);
+
+  // ── Health ────────────────────────────────────────────────
+  app.get("/health", (c) =>
+    c.json({
+      status: "healthy",
+      service: "daoflow-control-plane",
+      requestId: c.get("requestId"),
+      timestamp: new Date().toISOString()
     })
   );
 
-  const authHandler = toNodeHandler(auth);
-
-  app.all("/api/auth/*splat", async (req, res, next) => {
-    try {
-      await ensureAuthReady();
-      await authHandler(req, res);
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  // Image push endpoint (before express.json() — accepts raw binary stream)
-  app.use("/api/v1/images", imagesRouter);
-
-  app.use(express.json());
-
-  app.get("/health", (req, res) => {
-    res.json({
-      status: "healthy",
-      service: "daoflow-control-plane",
-      requestId: resolveRequestId(req, res),
-      timestamp: new Date().toISOString()
-    });
-  });
-
+  // ── tRPC ──────────────────────────────────────────────────
   app.use(
-    "/trpc",
-    createExpressMiddleware({
+    "/trpc/*",
+    trpcServer({
       router: appRouter,
-      createContext,
-      onError({ error, path, ctx }) {
+      createContext: async (_opts, c) => createContext(c) as unknown as Record<string, unknown>,
+      onError({ error, path }) {
         console.error(
           JSON.stringify({
             level: "error",
             message: "tRPC request failed",
             path,
-            requestId: ctx?.requestId ?? "unknown",
             error: error.message
           })
         );
@@ -90,27 +76,18 @@ export function createApp(): Express {
     })
   );
 
-  app.use(
-    (error: unknown, req: express.Request, res: express.Response, next: express.NextFunction) => {
-      void next;
-      console.error(
-        JSON.stringify({
-          level: "error",
-          message: "Unhandled request error",
-          requestId: resolveRequestId(req, res),
-          error: error instanceof Error ? error.message : String(error)
-        })
-      );
-
-      if (res.headersSent) {
-        return;
-      }
-
-      res.status(500).json({
-        error: "Internal Server Error"
-      });
-    }
-  );
+  // ── Error handler ─────────────────────────────────────────
+  app.onError((err, c) => {
+    console.error(
+      JSON.stringify({
+        level: "error",
+        message: "Unhandled request error",
+        requestId: c.get("requestId"),
+        error: err.message
+      })
+    );
+    return c.json({ error: "Internal Server Error" }, 500);
+  });
 
   return app;
 }

@@ -13,7 +13,7 @@
     "allowSyntheticDefaultImports": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "types": ["node", "vitest/globals"]
+    "types": ["bun", "node", "vitest/globals"]
   },
   "include": ["src"],
   "references": [{ "path": "../shared" }]

@@ -21,7 +21,7 @@
     "test:e2e": "playwright test",
     "verify": "bun run format:check && bun run lint && bun run typecheck && bun run test:unit",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
+    "db:migrate": "bun packages/server/src/db/migration.ts",
     "db:push": "drizzle-kit push",
     "db:push:ci": "drizzle-kit push --force",
     "db:seed": "bun packages/server/src/db/services/seed.ts",

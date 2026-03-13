@@ -1,6 +1,6 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import express from "express";
+import { serveStatic } from "hono/bun";
 import { DEFAULT_SERVER_PORT } from "@daoflow/shared";
 import { createApp } from "./app";
 
@@ -15,26 +15,27 @@ function start() {
   if (isProduction) {
     const clientDistDir = path.resolve(__dirname, "../../client/dist");
 
-    app.use(express.static(clientDistDir));
-    app.get(/^(?!\/trpc|\/health|\/api\/auth).*/, (_req, res) => {
-      res.sendFile(path.join(clientDistDir, "index.html"));
+    app.use("/*", serveStatic({ root: clientDistDir }));
+    app.get("*", async (_c) => {
+      const indexPath = path.join(clientDistDir, "index.html");
+      const file = Bun.file(indexPath);
+      return new Response(file, {
+        headers: { "content-type": "text/html; charset=utf-8" }
+      });
     });
   }
 
-  const server = app.listen(port, () => {
-    console.log(`DaoFlow control plane listening on http://localhost:${port}`);
+  const server = Bun.serve({
+    port,
+    fetch: app.fetch
   });
 
-  const shutdown = (signal: NodeJS.Signals) => {
-    console.log(`Received ${signal}; shutting down DaoFlow control plane.`);
-    server.close((error) => {
-      if (error) {
-        console.error("Failed to close server cleanly", error);
-        process.exit(1);
-      }
+  console.log(`DaoFlow control plane listening on http://localhost:${server.port}`);
 
-      process.exit(0);
-    });
+  const shutdown = (signal: string) => {
+    console.log(`Received ${signal}; shutting down DaoFlow control plane.`);
+    void server.stop();
+    process.exit(0);
   };
 
   process.on("SIGINT", () => shutdown("SIGINT"));
