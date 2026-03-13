@@ -6,3 +6,4 @@ export * from "./deployments";
 export * from "./storage";
 export * from "./audit";
 export * from "./tokens";
+export * from "./auth-schema";
