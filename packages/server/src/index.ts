@@ -13,7 +13,7 @@ function start() {
   const app = createApp();
 
   if (isProduction) {
-    const clientDistDir = path.resolve(__dirname, "../client");
+    const clientDistDir = path.resolve(__dirname, "../../client/dist");
 
     app.use(express.static(clientDistDir));
     app.get(/^(?!\/trpc|\/health|\/api\/auth).*/, (_req, res) => {
