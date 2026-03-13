@@ -261,6 +261,10 @@ body {
   margin-top: 1rem;
 }
 
+.persistent-volumes {
+  margin-top: 1rem;
+}
+
 .infrastructure-inventory {
   margin-top: 1rem;
 }
@@ -436,6 +440,13 @@ body {
   gap: 1rem;
 }
 
+.persistent-volume-summary {
+  margin-bottom: 1rem;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1rem;
+}
+
 .queue-list {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -494,6 +505,12 @@ body {
 }
 
 .environment-variable-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.persistent-volume-list {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 1rem;
@@ -714,6 +731,7 @@ body {
   .audit-summary,
   .log-summary,
   .environment-variable-summary,
+  .persistent-volume-summary,
   .backup-policy-list,
   .backup-run-list,
   .deployment-list,
@@ -729,6 +747,7 @@ body {
   .audit-list,
   .log-list,
   .environment-variable-list,
+  .persistent-volume-list,
   .timeline-list,
   .roadmap__items {
     grid-template-columns: 1fr;

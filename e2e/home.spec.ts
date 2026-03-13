@@ -42,6 +42,14 @@ test("loads the DaoFlow foundation dashboard", async ({ page }) => {
   await expect(
     page.getByTestId("environment-variable-card-envvar_staging_preview_flag")
   ).toContainText("Branch pattern: preview/*");
+  await expect(page.getByText("Persistent volume registry")).toBeVisible();
+  await expect(page.getByTestId("persistent-volume-summary")).toContainText("Needs attention");
+  await expect(
+    page.getByTestId("persistent-volume-card-pvol_daoflow_postgres_prod")
+  ).toContainText("Backup policy: bpol_foundation_volume_daily");
+  await expect(
+    page.getByTestId("persistent-volume-card-pvol_daoflow_uploads_prod")
+  ).toContainText("Backup policy: Unmanaged");
   await expect(page.getByText("Queued and historical deployments")).toBeVisible();
   await expect(page.getByText("Agent-ready deployment diagnostics")).toBeVisible();
   await expect(

@@ -22,6 +22,7 @@ import {
   listDeploymentRollbackPlans,
   listEnvironmentVariableInventory,
   listInfrastructureInventory,
+  listPersistentVolumeInventory,
   getDeploymentRecord,
   listDeploymentRecords,
   listExecutionQueue,
@@ -90,7 +91,7 @@ export const appRouter = t.router({
   })),
   platformOverview: t.procedure.query(() => ({
     name: "DaoFlow",
-    currentSlice: "rollback-planning",
+    currentSlice: "volume-registry",
     thesis:
       "A Docker-first deployment control plane for bare metal and VPS environments.",
     architecture: {
@@ -222,6 +223,16 @@ export const appRouter = t.router({
     await ensureControlPlaneReady();
     return listInfrastructureInventory();
   }),
+  persistentVolumes: protectedProcedure
+    .input(
+      z.object({
+        limit: z.number().int().min(1).max(24).optional()
+      })
+    )
+    .query(async ({ input }) => {
+      await ensureControlPlaneReady();
+      return listPersistentVolumeInventory(input.limit ?? 12);
+    }),
   deploymentInsights: protectedProcedure
     .input(
       z.object({

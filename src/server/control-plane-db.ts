@@ -25,6 +25,8 @@ export type DeploymentEventLevel = "info" | "warning" | "error";
 export type BackupTargetType = "volume" | "database";
 export type BackupRunStatus = "queued" | "running" | "succeeded" | "failed";
 export type AuditActorType = "human" | "system";
+export type PersistentVolumeBackupCoverage = "protected" | "stale" | "missing";
+export type PersistentVolumeRestoreReadiness = "verified" | "stale" | "untested";
 export type AuditResourceType =
   | "deployment"
   | "execution-job"
@@ -355,6 +357,35 @@ export interface InfrastructureInventory {
   environments: EnvironmentInventoryRecord[];
 }
 
+export interface PersistentVolumeRecord {
+  id: string;
+  environmentId: string;
+  environmentName: string;
+  projectName: string;
+  targetServerName: string;
+  serviceName: string;
+  volumeName: string;
+  mountPath: string;
+  driver: string;
+  sizeBytes: number;
+  backupPolicyId: string | null;
+  storageProvider: string | null;
+  lastBackupAt: string | null;
+  lastRestoreTestAt: string | null;
+  backupCoverage: PersistentVolumeBackupCoverage;
+  restoreReadiness: PersistentVolumeRestoreReadiness;
+}
+
+export interface PersistentVolumeInventory {
+  summary: {
+    totalVolumes: number;
+    protectedVolumes: number;
+    attentionVolumes: number;
+    attachedBytes: number;
+  };
+  volumes: PersistentVolumeRecord[];
+}
+
 export interface ApiTokenRecord {
   id: string;
   principalId: string;
@@ -491,6 +522,19 @@ interface SeedEnvironment {
   status: DeploymentStatus;
 }
 
+interface SeedPersistentVolume {
+  id: string;
+  environmentId: string;
+  serviceName: string;
+  volumeName: string;
+  mountPath: string;
+  driver: string;
+  sizeBytes: number;
+  backupPolicyId: string | null;
+  lastBackupAt: string | null;
+  lastRestoreTestAt: string | null;
+}
+
 function resolveControlPlaneDatabasePath() {
   if (process.env.CONTROL_PLANE_DB_PATH) {
     return process.env.CONTROL_PLANE_DB_PATH;
@@ -517,6 +561,9 @@ const controlPlaneDb = createControlPlaneDatabase();
 const environmentCryptoKey = createHash("sha256")
   .update(process.env.CONTROL_PLANE_ENCRYPTION_KEY ?? process.env.BETTER_AUTH_SECRET ?? "daoflow-local-control-plane")
   .digest();
+const controlPlaneReferenceTimestamp = Date.parse("2026-03-12T08:00:00.000Z");
+const persistentVolumeBackupStaleHours = 36;
+const persistentVolumeRestoreStaleDays = 14;
 
 export function encryptEnvironmentValue(value: string) {
   const iv = randomBytes(12);
@@ -556,7 +603,7 @@ function getEnvironmentDisplayValue(encryptedValue: string, isSecret: boolean) {
 }
 
 function seedControlPlaneData() {
-  const now = new Date("2026-03-12T08:00:00.000Z");
+  const now = new Date(controlPlaneReferenceTimestamp);
   const serverId = "srv_foundation_1";
   const deploymentId = "dep_foundation_20260312_1";
   const previousDeploymentId = "dep_foundation_20260311_1";
@@ -658,6 +705,44 @@ function seedControlPlaneData() {
       finishedAt: new Date(now.getTime() - 53 * 60 * 1000).toISOString()
     }
   ] as const satisfies readonly SeedBackupRun[];
+  const seedPersistentVolumes = [
+    {
+      id: "pvol_daoflow_postgres_prod",
+      environmentId: "env_daoflow_production",
+      serviceName: "postgres",
+      volumeName: "daoflow_postgres_data",
+      mountPath: "/var/lib/postgresql/data",
+      driver: "local",
+      sizeBytes: 3221225472,
+      backupPolicyId: "bpol_foundation_volume_daily",
+      lastBackupAt: new Date(now.getTime() - 24 * 60 * 60 * 1000 + 5 * 60 * 1000).toISOString(),
+      lastRestoreTestAt: new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000).toISOString()
+    },
+    {
+      id: "pvol_daoflow_uploads_prod",
+      environmentId: "env_daoflow_production",
+      serviceName: "control-plane",
+      volumeName: "daoflow_upload_cache",
+      mountPath: "/app/data/uploads",
+      driver: "local",
+      sizeBytes: 536870912,
+      backupPolicyId: null,
+      lastBackupAt: null,
+      lastRestoreTestAt: null
+    },
+    {
+      id: "pvol_agent_bridge_sessions_lab",
+      environmentId: "env_agent_bridge_lab",
+      serviceName: "agent-runtime",
+      volumeName: "agent_bridge_sessions",
+      mountPath: "/var/lib/agent-bridge/sessions",
+      driver: "local",
+      sizeBytes: 805306368,
+      backupPolicyId: null,
+      lastBackupAt: null,
+      lastRestoreTestAt: null
+    }
+  ] as const satisfies readonly SeedPersistentVolume[];
   const seedExecutionJobs = [
     {
       id: "job_foundation_20260312_1",
@@ -1192,6 +1277,22 @@ function seedControlPlaneData() {
     )
     VALUES (?, ?, ?, ?, ?, ?)
   `);
+  const insertPersistentVolume = controlPlaneDb.prepare(`
+    INSERT OR IGNORE INTO persistent_volumes (
+      id,
+      environment_id,
+      service_name,
+      volume_name,
+      mount_path,
+      driver,
+      size_bytes,
+      backup_policy_id,
+      last_backup_at,
+      last_restore_test_at,
+      created_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
 
   for (const [index, project] of seedProjects.entries()) {
     insertProject.run(
@@ -1351,6 +1452,22 @@ function seedControlPlaneData() {
       run.finishedAt
     );
   }
+
+  for (const volume of seedPersistentVolumes) {
+    insertPersistentVolume.run(
+      volume.id,
+      volume.environmentId,
+      volume.serviceName,
+      volume.volumeName,
+      volume.mountPath,
+      volume.driver,
+      volume.sizeBytes,
+      volume.backupPolicyId,
+      volume.lastBackupAt,
+      volume.lastRestoreTestAt,
+      now.toISOString()
+    );
+  }
 }
 
 const controlPlaneReady = Promise.resolve().then(() => {
@@ -1491,6 +1608,20 @@ const controlPlaneReady = Promise.resolve().then(() => {
       finished_at TEXT
     );
 
+    CREATE TABLE IF NOT EXISTS persistent_volumes (
+      id TEXT PRIMARY KEY,
+      environment_id TEXT NOT NULL REFERENCES environments(id) ON DELETE CASCADE,
+      service_name TEXT NOT NULL,
+      volume_name TEXT NOT NULL,
+      mount_path TEXT NOT NULL,
+      driver TEXT NOT NULL,
+      size_bytes INTEGER NOT NULL,
+      backup_policy_id TEXT REFERENCES backup_policies(id) ON DELETE SET NULL,
+      last_backup_at TEXT,
+      last_restore_test_at TEXT,
+      created_at TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS audit_entries (
       id TEXT PRIMARY KEY,
       actor_type TEXT NOT NULL,
@@ -1542,6 +1673,10 @@ const controlPlaneReady = Promise.resolve().then(() => {
       ON backup_runs (policy_id, started_at DESC);
     CREATE INDEX IF NOT EXISTS idx_backup_runs_status_started_at
       ON backup_runs (status, started_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_persistent_volumes_environment_id
+      ON persistent_volumes (environment_id);
+    CREATE INDEX IF NOT EXISTS idx_persistent_volumes_backup_policy_id
+      ON persistent_volumes (backup_policy_id);
     CREATE INDEX IF NOT EXISTS idx_audit_entries_created_at
       ON audit_entries (created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_audit_entries_action_created_at
@@ -1778,6 +1913,23 @@ interface EnvironmentInventoryRow {
   compose_file_path: string;
   service_count: number;
   status: DeploymentStatus;
+}
+
+interface PersistentVolumeRow {
+  id: string;
+  environment_id: string;
+  environment_name: string;
+  project_name: string;
+  target_server_name: string;
+  service_name: string;
+  volume_name: string;
+  mount_path: string;
+  driver: string;
+  size_bytes: number;
+  backup_policy_id: string | null;
+  storage_provider: string | null;
+  last_backup_at: string | null;
+  last_restore_test_at: string | null;
 }
 
 function getDeploymentRows(options?: { status?: DeploymentStatus; limit?: number }) {
@@ -3822,6 +3974,107 @@ export function listInfrastructureInventory(): InfrastructureInventory {
       serviceCount: row.service_count,
       status: row.status
     }))
+  };
+}
+
+function getPersistentVolumeRows(limit = 12) {
+  return controlPlaneDb.prepare(`
+    SELECT
+      persistent_volumes.id,
+      persistent_volumes.environment_id,
+      environments.name AS environment_name,
+      projects.name AS project_name,
+      servers.name AS target_server_name,
+      persistent_volumes.service_name,
+      persistent_volumes.volume_name,
+      persistent_volumes.mount_path,
+      persistent_volumes.driver,
+      persistent_volumes.size_bytes,
+      persistent_volumes.backup_policy_id,
+      backup_policies.storage_provider,
+      persistent_volumes.last_backup_at,
+      persistent_volumes.last_restore_test_at
+    FROM persistent_volumes
+    INNER JOIN environments ON environments.id = persistent_volumes.environment_id
+    INNER JOIN projects ON projects.id = environments.project_id
+    INNER JOIN servers ON servers.id = environments.target_server_id
+    LEFT JOIN backup_policies ON backup_policies.id = persistent_volumes.backup_policy_id
+    ORDER BY persistent_volumes.size_bytes DESC, persistent_volumes.volume_name ASC
+    LIMIT ?
+  `).all(limit) as unknown as PersistentVolumeRow[];
+}
+
+function getPersistentVolumeBackupCoverage(row: PersistentVolumeRow): PersistentVolumeBackupCoverage {
+  if (!row.backup_policy_id || !row.last_backup_at) {
+    return "missing";
+  }
+
+  const lastBackupAt = Date.parse(row.last_backup_at);
+
+  if (Number.isNaN(lastBackupAt)) {
+    return "stale";
+  }
+
+  const hoursSinceBackup = (controlPlaneReferenceTimestamp - lastBackupAt) / (60 * 60 * 1000);
+  return hoursSinceBackup > persistentVolumeBackupStaleHours ? "stale" : "protected";
+}
+
+function getPersistentVolumeRestoreReadiness(
+  row: PersistentVolumeRow
+): PersistentVolumeRestoreReadiness {
+  if (!row.last_restore_test_at) {
+    return "untested";
+  }
+
+  const lastRestoreTestAt = Date.parse(row.last_restore_test_at);
+
+  if (Number.isNaN(lastRestoreTestAt)) {
+    return "stale";
+  }
+
+  const daysSinceRestoreTest =
+    (controlPlaneReferenceTimestamp - lastRestoreTestAt) / (24 * 60 * 60 * 1000);
+  return daysSinceRestoreTest > persistentVolumeRestoreStaleDays ? "stale" : "verified";
+}
+
+export function listPersistentVolumeInventory(limit = 12): PersistentVolumeInventory {
+  const volumes = getPersistentVolumeRows(limit).map((row) => {
+    const backupCoverage = getPersistentVolumeBackupCoverage(row);
+    const restoreReadiness = getPersistentVolumeRestoreReadiness(row);
+
+    return {
+      id: row.id,
+      environmentId: row.environment_id,
+      environmentName: row.environment_name,
+      projectName: row.project_name,
+      targetServerName: row.target_server_name,
+      serviceName: row.service_name,
+      volumeName: row.volume_name,
+      mountPath: row.mount_path,
+      driver: row.driver,
+      sizeBytes: row.size_bytes,
+      backupPolicyId: row.backup_policy_id,
+      storageProvider: row.storage_provider,
+      lastBackupAt: row.last_backup_at,
+      lastRestoreTestAt: row.last_restore_test_at,
+      backupCoverage,
+      restoreReadiness
+    };
+  });
+  const protectedVolumes = volumes.filter((volume) => volume.backupCoverage === "protected").length;
+  const attentionVolumes = volumes.filter(
+    (volume) => volume.backupCoverage !== "protected" || volume.restoreReadiness !== "verified"
+  ).length;
+  const attachedBytes = volumes.reduce((total, volume) => total + volume.sizeBytes, 0);
+
+  return {
+    summary: {
+      totalVolumes: volumes.length,
+      protectedVolumes,
+      attentionVolumes,
+      attachedBytes
+    },
+    volumes
   };
 }
 

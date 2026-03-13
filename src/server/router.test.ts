@@ -118,6 +118,45 @@ describe("appRouter", () => {
     });
   });
 
+  it("returns persistent volume inventory for signed-in viewers", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-volume-viewer",
+      session: makeSession("viewer")
+    });
+
+    const inventory = await caller.persistentVolumes({});
+    const protectedVolume = inventory.volumes.find(
+      (volume) => volume.id === "pvol_daoflow_postgres_prod"
+    );
+    const unmanagedVolume = inventory.volumes.find(
+      (volume) => volume.id === "pvol_daoflow_uploads_prod"
+    );
+
+    expect(inventory.summary).toEqual({
+      totalVolumes: 3,
+      protectedVolumes: 1,
+      attentionVolumes: 2,
+      attachedBytes: 4563402752
+    });
+    expect(protectedVolume).toMatchObject({
+      environmentName: "production-us-west",
+      projectName: "DaoFlow",
+      targetServerName: "foundation-vps-1",
+      serviceName: "postgres",
+      volumeName: "daoflow_postgres_data",
+      mountPath: "/var/lib/postgresql/data",
+      backupPolicyId: "bpol_foundation_volume_daily",
+      backupCoverage: "protected",
+      restoreReadiness: "verified"
+    });
+    expect(unmanagedVolume).toMatchObject({
+      serviceName: "control-plane",
+      backupPolicyId: null,
+      backupCoverage: "missing",
+      restoreReadiness: "untested"
+    });
+  });
+
   it("returns evidence-backed deployment insights for signed-in viewers", async () => {
     const caller = appRouter.createCaller({
       requestId: "test-insights-viewer",

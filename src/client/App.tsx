@@ -93,6 +93,37 @@ function getLogTone(stream: string): StatusTone {
   return stream === "stderr" ? "failed" : "queued";
 }
 
+function getPersistentVolumeTone(coverage: string, restoreReadiness: string): StatusTone {
+  if (coverage === "missing") {
+    return "failed";
+  }
+
+  if (coverage === "stale" || restoreReadiness === "stale" || restoreReadiness === "untested") {
+    return "running";
+  }
+
+  return "healthy";
+}
+
+function formatBytes(bytes: number) {
+  if (bytes < 1024) {
+    return `${bytes} B`;
+  }
+
+  const units = ["KB", "MB", "GB", "TB"];
+  let value = bytes;
+  let unitIndex = -1;
+
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024;
+    unitIndex += 1;
+  }
+
+  return `${new Intl.NumberFormat("en-US", {
+    maximumFractionDigits: 1
+  }).format(value)} ${units[unitIndex]}`;
+}
+
 export default function App() {
   const session = useSession();
   const health = trpc.health.useQuery();
@@ -116,6 +147,9 @@ export default function App() {
     enabled: Boolean(session.data)
   });
   const infrastructureInventory = trpc.infrastructureInventory.useQuery(undefined, {
+    enabled: Boolean(session.data)
+  });
+  const persistentVolumes = trpc.persistentVolumes.useQuery({}, {
     enabled: Boolean(session.data)
   });
   const deploymentInsights = trpc.deploymentInsights.useQuery({}, {
@@ -405,6 +439,10 @@ export default function App() {
   const infrastructureMessage =
     infrastructureInventory.error && isTRPCClientError(infrastructureInventory.error)
       ? infrastructureInventory.error.message
+      : null;
+  const persistentVolumesMessage =
+    persistentVolumes.error && isTRPCClientError(persistentVolumes.error)
+      ? persistentVolumes.error.message
       : null;
   const insightsMessage =
     deploymentInsights.error && isTRPCClientError(deploymentInsights.error)
@@ -923,6 +961,79 @@ export default function App() {
           <p className="viewer-empty">
             {environmentVariablesMessage ??
               "Sign in to inspect encrypted environment variable metadata."}
+          </p>
+        )}
+      </section>
+
+      <section className="persistent-volumes">
+        <div className="roadmap__header">
+          <p className="roadmap__kicker">Stateful services</p>
+          <h2>Persistent volume registry</h2>
+        </div>
+
+        {session.data && persistentVolumes.data ? (
+          <>
+            <div className="persistent-volume-summary" data-testid="persistent-volume-summary">
+              <div className="token-summary__item">
+                <span className="metric__label">Volumes</span>
+                <strong>{persistentVolumes.data.summary.totalVolumes}</strong>
+              </div>
+              <div className="token-summary__item">
+                <span className="metric__label">Protected</span>
+                <strong>{persistentVolumes.data.summary.protectedVolumes}</strong>
+              </div>
+              <div className="token-summary__item">
+                <span className="metric__label">Needs attention</span>
+                <strong>{persistentVolumes.data.summary.attentionVolumes}</strong>
+              </div>
+              <div className="token-summary__item">
+                <span className="metric__label">Attached bytes</span>
+                <strong>{formatBytes(persistentVolumes.data.summary.attachedBytes)}</strong>
+              </div>
+            </div>
+
+            <div className="persistent-volume-list">
+              {persistentVolumes.data.volumes.map((volume) => (
+                <article
+                  className="token-card"
+                  data-testid={`persistent-volume-card-${volume.id}`}
+                  key={volume.id}
+                >
+                  <div className="token-card__top">
+                    <div>
+                      <p className="roadmap-item__lane">
+                        {volume.environmentName} · {volume.projectName}
+                      </p>
+                      <h3>{volume.volumeName}</h3>
+                    </div>
+                    <span
+                      className={`deployment-status deployment-status--${getPersistentVolumeTone(volume.backupCoverage, volume.restoreReadiness)}`}
+                    >
+                      {volume.backupCoverage}
+                    </span>
+                  </div>
+                  <p className="deployment-card__meta">
+                    {volume.serviceName} on {volume.targetServerName} · {formatBytes(volume.sizeBytes)}
+                  </p>
+                  <p className="deployment-card__meta">
+                    Mount path: {volume.mountPath} · Driver: {volume.driver}
+                  </p>
+                  <p className="deployment-card__meta">
+                    Backup policy: {volume.backupPolicyId ?? "Unmanaged"} · Restore readiness:{" "}
+                    {volume.restoreReadiness}
+                  </p>
+                  <p className="deployment-card__meta">
+                    Last backup: {volume.lastBackupAt ?? "No snapshot recorded"} · Last restore test:{" "}
+                    {volume.lastRestoreTestAt ?? "Not exercised"}
+                  </p>
+                </article>
+              ))}
+            </div>
+          </>
+        ) : (
+          <p className="viewer-empty">
+            {persistentVolumesMessage ??
+              "Sign in to inspect mounted volumes, backup coverage, and restore readiness."}
           </p>
         )}
       </section>
