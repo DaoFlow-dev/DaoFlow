@@ -1,9 +1,7 @@
 import {
   boolean,
   index,
-  integer,
   pgTable,
-  serial,
   text,
   timestamp,
   uniqueIndex,
@@ -15,7 +13,7 @@ import { teams } from "./teams";
 export const users = pgTable(
   "users",
   {
-    id: serial("id").primaryKey(),
+    id: text("id").primaryKey(),
     email: varchar("email", { length: 320 }).notNull(),
     name: varchar("name", { length: 256 }),
     username: varchar("username", { length: 50 }),
@@ -39,8 +37,8 @@ export const users = pgTable(
 export const userIdentities = pgTable(
   "user_identities",
   {
-    id: serial("id").primaryKey(),
-    userId: integer("user_id")
+    id: text("id").primaryKey(),
+    userId: text("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
     provider: varchar("provider", { length: 20 }).notNull(), // github | google | password

@@ -1,13 +1,4 @@
-import {
-  index,
-  integer,
-  jsonb,
-  pgTable,
-  serial,
-  text,
-  timestamp,
-  varchar
-} from "drizzle-orm/pg-core";
+import { index, jsonb, pgTable, serial, text, timestamp, varchar } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { projects } from "./projects";
 import { servers } from "./servers";
@@ -33,7 +24,7 @@ export const deployments = pgTable(
     status: varchar("status", { length: 20 }).default("queued").notNull(), // queued | prepare | deploy | finalize | completed | failed
     conclusion: varchar("conclusion", { length: 20 }), // succeeded | failed | canceled | skipped
     trigger: varchar("trigger", { length: 20 }).default("user").notNull(), // user | webhook | api | agent
-    requestedByUserId: integer("requested_by_user_id").references(() => users.id, {
+    requestedByUserId: text("requested_by_user_id").references(() => users.id, {
       onDelete: "set null"
     }),
     requestedByEmail: varchar("requested_by_email", { length: 320 }),

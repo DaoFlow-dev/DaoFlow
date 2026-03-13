@@ -1,4 +1,4 @@
-import { integer, index, pgTable, text, timestamp, varchar } from "drizzle-orm/pg-core";
+import { index, pgTable, text, timestamp, varchar } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { users } from "./users";
 
@@ -15,7 +15,7 @@ export const apiTokens = pgTable(
     status: varchar("status", { length: 20 }).default("active").notNull(),
     lastUsedAt: timestamp("last_used_at"),
     expiresAt: timestamp("expires_at"),
-    createdByUserId: integer("created_by_user_id").references(() => users.id, {
+    createdByUserId: text("created_by_user_id").references(() => users.id, {
       onDelete: "set null"
     }),
     createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -36,7 +36,7 @@ export const principals = pgTable(
     type: varchar("type", { length: 20 }).notNull(), // user | service | agent
     name: varchar("name", { length: 100 }).notNull(),
     description: text("description"),
-    linkedUserId: integer("linked_user_id").references(() => users.id, {
+    linkedUserId: text("linked_user_id").references(() => users.id, {
       onDelete: "set null"
     }),
     defaultScopes: text("default_scopes"), // comma-separated default scopes

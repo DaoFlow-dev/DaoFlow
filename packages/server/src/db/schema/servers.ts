@@ -3,6 +3,7 @@ import {
   integer,
   jsonb,
   pgTable,
+  text,
   timestamp,
   uniqueIndex,
   varchar
@@ -22,7 +23,7 @@ export const servers = pgTable(
     status: varchar("status", { length: 30 }).default("pending verification").notNull(),
     dockerVersion: varchar("docker_version", { length: 40 }),
     metadata: jsonb("metadata").default({}).notNull(),
-    registeredByUserId: integer("registered_by_user_id").references(() => users.id, {
+    registeredByUserId: text("registered_by_user_id").references(() => users.id, {
       onDelete: "set null"
     }),
     lastCheckedAt: timestamp("last_checked_at"),

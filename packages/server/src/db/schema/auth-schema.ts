@@ -8,7 +8,7 @@
  * These tables are part of Better Auth's core and are required for
  * authentication to work. See: https://better-auth.com/docs/adapters/drizzle
  */
-import { integer, pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp } from "drizzle-orm/pg-core";
 import { users } from "./users";
 
 export const sessions = pgTable("sessions", {
@@ -19,7 +19,7 @@ export const sessions = pgTable("sessions", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
   ipAddress: text("ip_address"),
   userAgent: text("user_agent"),
-  userId: integer("user_id")
+  userId: text("user_id")
     .notNull()
     .references(() => users.id, { onDelete: "cascade" })
 });
@@ -28,7 +28,7 @@ export const accounts = pgTable("accounts", {
   id: text("id").primaryKey(),
   accountId: text("account_id").notNull(),
   providerId: text("provider_id").notNull(),
-  userId: integer("user_id")
+  userId: text("user_id")
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
   accessToken: text("access_token"),

@@ -1,13 +1,4 @@
-import {
-  index,
-  integer,
-  jsonb,
-  pgTable,
-  serial,
-  text,
-  timestamp,
-  varchar
-} from "drizzle-orm/pg-core";
+import { index, jsonb, pgTable, serial, text, timestamp, varchar } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { users } from "./users";
 
@@ -65,12 +56,12 @@ export const approvalRequests = pgTable(
     targetResource: varchar("target_resource", { length: 200 }).notNull(),
     reason: text("reason"),
     status: varchar("status", { length: 20 }).default("pending").notNull(), // pending | approved | rejected
-    requestedByUserId: integer("requested_by_user_id").references(() => users.id, {
+    requestedByUserId: text("requested_by_user_id").references(() => users.id, {
       onDelete: "set null"
     }),
     requestedByEmail: varchar("requested_by_email", { length: 320 }),
     requestedByRole: varchar("requested_by_role", { length: 20 }),
-    resolvedByUserId: integer("resolved_by_user_id").references(() => users.id, {
+    resolvedByUserId: text("resolved_by_user_id").references(() => users.id, {
       onDelete: "set null"
     }),
     resolvedByEmail: varchar("resolved_by_email", { length: 320 }),
