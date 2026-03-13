@@ -26,7 +26,7 @@ export const servers = pgTable(
       .notNull(),
     dockerVersion: varchar("docker_version", { length: 40 }),
     metadata: jsonb("metadata").default({}).notNull(),
-    registeredByUserId: serial("registered_by_user_id").references(
+    registeredByUserId: integer("registered_by_user_id").references(
       () => users.id,
       { onDelete: "set null" }
     ),

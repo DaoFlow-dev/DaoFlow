@@ -372,11 +372,13 @@ export default function App() {
         composeServiceId: composeReleaseTargetId,
         commitSha: composeReleaseCommitSha,
         imageTag: composeReleaseImageTag || undefined
-      });
+      }) as { serviceName: string; id: string } | null;
 
       await refreshOperationalViews();
       setComposeReleaseFeedback(
-        `Queued compose release for ${deployment.serviceName} as ${deployment.id}.`
+        deployment
+          ? `Queued compose release for ${deployment.serviceName} as ${deployment.id}.`
+          : "Compose service not found."
       );
     } catch (error) {
       setComposeReleaseFeedback(
@@ -399,7 +401,7 @@ export default function App() {
         reason: "Require an explicit second reviewer before executing this Compose release."
       });
       await refreshOperationalViews();
-      setApprovalFeedback(`Requested approval for ${request.actionType} on ${request.resourceLabel}.`);
+      setApprovalFeedback(`Requested approval for ${request.actionType} on ${request.targetResource}.`);
     } catch (error) {
       setApprovalFeedback(
         isTRPCClientError(error)
@@ -459,7 +461,7 @@ export default function App() {
       });
 
       await refreshOperationalViews();
-      setServerFeedback(`Registered ${server.serverName} and queued first connectivity checks.`);
+      setServerFeedback(`Registered ${server.name} and queued first connectivity checks.`);
     } catch (error) {
       setServerFeedback(
         isTRPCClientError(error)
@@ -1789,13 +1791,15 @@ export default function App() {
                 <p className="deployment-card__meta">
                   Requested by {deployment.requestedByEmail}
                 </p>
-                <ul className="deployment-card__steps">
-                  {deployment.steps.map((step) => (
-                    <li key={step.id}>
-                      <strong>{step.label}</strong>: {step.detail}
-                    </li>
-                  ))}
-                </ul>
+                {"steps" in deployment && Array.isArray((deployment as any).steps) && (
+                  <ul className="deployment-card__steps">
+                    {((deployment as any).steps as { id: number; label: string; detail: string | null }[]).map((step) => (
+                      <li key={step.id}>
+                        <strong>{step.label}</strong>: {step.detail}
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </article>
             ))}
           </div>
@@ -2048,7 +2052,7 @@ export default function App() {
                 <div className="timeline-event__top">
                   <div>
                     <p className="roadmap-item__lane">
-                      {event.environmentName} · {event.kind}
+                      {event.resourceType} · {event.kind}
                     </p>
                     <h3>{event.summary}</h3>
                   </div>
@@ -2059,7 +2063,7 @@ export default function App() {
                   </span>
                 </div>
                 <p className="deployment-card__meta">
-                  {event.serviceName} · {event.actorLabel}
+                  {event.serviceName} · {event.resourceId}
                 </p>
                 <p className="deployment-card__meta">{event.detail}</p>
               </article>

@@ -201,7 +201,7 @@ export const appRouter = t.router({
     )
     .query(async ({ input }) => {
       await ensureControlPlaneReady();
-      const deployment = getDeploymentRecord(input.deploymentId);
+      const deployment = await getDeploymentRecord(input.deploymentId);
 
       if (!deployment) {
         throw new TRPCError({
@@ -231,7 +231,7 @@ export const appRouter = t.router({
     )
     .mutation(async ({ ctx, input }) => {
       await ensureControlPlaneReady();
-      const request = createApprovalRequest({
+      const request = await createApprovalRequest({
         ...input,
         requestedByUserId: ctx.session.user.id,
         requestedByEmail: ctx.session.user.email,
@@ -260,7 +260,7 @@ export const appRouter = t.router({
     )
     .mutation(async ({ ctx, input }) => {
       await ensureControlPlaneReady();
-      const deployment = queueComposeRelease({
+      const deployment = await queueComposeRelease({
         ...input,
         requestedByUserId: ctx.session.user.id,
         requestedByEmail: ctx.session.user.email,
@@ -299,7 +299,7 @@ export const appRouter = t.router({
     )
     .mutation(async ({ ctx, input }) => {
       await ensureControlPlaneReady();
-      const deployment = createDeploymentRecord({
+      const deployment = await createDeploymentRecord({
         ...input,
         requestedByUserId: ctx.session.user.id,
         requestedByEmail: ctx.session.user.email,
@@ -352,7 +352,7 @@ export const appRouter = t.router({
     )
     .mutation(async ({ ctx, input }) => {
       await ensureControlPlaneReady();
-      const result = registerServer({
+      const result = await registerServer({
         ...input,
         requestedByUserId: ctx.session.user.id,
         requestedByEmail: ctx.session.user.email,
@@ -432,7 +432,7 @@ export const appRouter = t.router({
     )
     .mutation(async ({ ctx, input }) => {
       await ensureControlPlaneReady();
-      const variable = upsertEnvironmentVariable({
+      const variable = await upsertEnvironmentVariable({
         ...input,
         updatedByUserId: ctx.session.user.id,
         updatedByEmail: ctx.session.user.email,
@@ -487,7 +487,7 @@ export const appRouter = t.router({
     )
     .mutation(async ({ ctx, input }) => {
       await ensureControlPlaneReady();
-      const run = triggerBackupRun(
+      const run = await triggerBackupRun(
         input.policyId,
         ctx.session.user.id,
         ctx.session.user.email,
@@ -511,7 +511,7 @@ export const appRouter = t.router({
     )
     .mutation(async ({ ctx, input }) => {
       await ensureControlPlaneReady();
-      const restore = queueBackupRestore(
+      const restore = await queueBackupRestore(
         input.backupRunId,
         ctx.session.user.id,
         ctx.session.user.email,
@@ -535,7 +535,7 @@ export const appRouter = t.router({
     )
     .mutation(async ({ ctx, input }) => {
       await ensureControlPlaneReady();
-      const result = approveApprovalRequest(
+      const result = await approveApprovalRequest(
         input.requestId,
         ctx.session.user.id,
         ctx.session.user.email,
@@ -556,13 +556,6 @@ export const appRouter = t.router({
         });
       }
 
-      if (result.status === "validation-failed") {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: result.errorMessage ?? "Approval request failed validation."
-        });
-      }
-
       return result.request;
     }),
   rejectApprovalRequest: executionProcedure
@@ -573,7 +566,7 @@ export const appRouter = t.router({
     )
     .mutation(async ({ ctx, input }) => {
       await ensureControlPlaneReady();
-      const result = rejectApprovalRequest(
+      const result = await rejectApprovalRequest(
         input.requestId,
         ctx.session.user.id,
         ctx.session.user.email,
@@ -604,7 +597,7 @@ export const appRouter = t.router({
     )
     .mutation(async ({ ctx, input }) => {
       await ensureControlPlaneReady();
-      const result = dispatchExecutionJob(
+      const result = await dispatchExecutionJob(
         input.jobId,
         ctx.session.user.id,
         ctx.session.user.email,
@@ -635,7 +628,7 @@ export const appRouter = t.router({
     )
     .mutation(async ({ ctx, input }) => {
       await ensureControlPlaneReady();
-      const result = completeExecutionJob(
+      const result = await completeExecutionJob(
         input.jobId,
         ctx.session.user.id,
         ctx.session.user.email,
@@ -667,7 +660,7 @@ export const appRouter = t.router({
     )
     .mutation(async ({ ctx, input }) => {
       await ensureControlPlaneReady();
-      const result = failExecutionJob(
+      const result = await failExecutionJob(
         input.jobId,
         ctx.session.user.id,
         ctx.session.user.email,

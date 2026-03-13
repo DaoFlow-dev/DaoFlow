@@ -1,4 +1,5 @@
 import {
+  integer,
   index,
   pgTable,
   serial,
@@ -19,7 +20,7 @@ export const teams = pgTable(
     slug: varchar("slug", { length: 40 }),
     hasAvatar: boolean("has_avatar").default(false).notNull(),
     status: varchar("status", { length: 20 }).default("active").notNull(),
-    createdByUserId: serial("created_by_user_id").references(() => users.id, {
+    createdByUserId: integer("created_by_user_id").references(() => users.id, {
       onDelete: "set null"
     }),
     createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -39,7 +40,7 @@ export const teamMembers = pgTable(
     teamId: varchar("team_id", { length: 32 })
       .notNull()
       .references(() => teams.id, { onDelete: "cascade" }),
-    userId: serial("user_id")
+    userId: integer("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
     role: varchar("role", { length: 20 }).default("member").notNull(), // owner | admin | member
@@ -61,7 +62,7 @@ export const teamInvites = pgTable(
     email: varchar("email", { length: 320 }).notNull(),
     role: varchar("role", { length: 20 }).default("member").notNull(),
     status: varchar("status", { length: 20 }).default("pending").notNull(), // pending | accepted | revoked
-    inviterId: serial("inviter_id")
+    inviterId: integer("inviter_id")
       .notNull()
       .references(() => users.id),
     createdAt: timestamp("created_at").defaultNow().notNull(),

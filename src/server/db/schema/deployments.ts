@@ -1,5 +1,6 @@
 import {
   index,
+  integer,
   jsonb,
   pgTable,
   serial,
@@ -32,7 +33,7 @@ export const deployments = pgTable(
     status: varchar("status", { length: 20 }).default("queued").notNull(), // queued | prepare | deploy | finalize | completed | failed
     conclusion: varchar("conclusion", { length: 20 }), // succeeded | failed | canceled | skipped
     trigger: varchar("trigger", { length: 20 }).default("user").notNull(), // user | webhook | api | agent
-    requestedByUserId: serial("requested_by_user_id").references(
+    requestedByUserId: integer("requested_by_user_id").references(
       () => users.id,
       { onDelete: "set null" }
     ),

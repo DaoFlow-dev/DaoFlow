@@ -61,7 +61,7 @@ export const backupRuns = pgTable(
     status: varchar("status", { length: 20 }).default("queued").notNull(), // queued | running | succeeded | failed
     artifactPath: text("artifact_path"),
     sizeBytes: text("size_bytes"),
-    triggeredByUserId: serial("triggered_by_user_id").references(
+    triggeredByUserId: integer("triggered_by_user_id").references(
       () => users.id,
       { onDelete: "set null" }
     ),
@@ -86,7 +86,7 @@ export const backupRestores = pgTable(
       .references(() => backupRuns.id),
     status: varchar("status", { length: 20 }).default("queued").notNull(),
     targetPath: text("target_path"),
-    triggeredByUserId: serial("triggered_by_user_id").references(
+    triggeredByUserId: integer("triggered_by_user_id").references(
       () => users.id,
       { onDelete: "set null" }
     ),

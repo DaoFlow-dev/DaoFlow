@@ -29,7 +29,7 @@ describe("control-plane environment variables", () => {
     await ensureControlPlaneReady();
     const key = `TEST_SECRET_${randomUUID().replace(/-/g, "").slice(0, 10)}`;
 
-    const first = upsertEnvironmentVariable({
+    const first = await upsertEnvironmentVariable({
       environmentId: "env_daoflow_staging",
       key,
       value: "initial-secret",
@@ -43,12 +43,11 @@ describe("control-plane environment variables", () => {
 
     expect(first).toMatchObject({
       key,
-      displayValue: "[secret]",
-      isSecret: true,
-      branchPattern: "feature/*"
+      environmentId: "env_daoflow_staging",
+      status: "created"
     });
 
-    const second = upsertEnvironmentVariable({
+    const second = await upsertEnvironmentVariable({
       environmentId: "env_daoflow_staging",
       key,
       value: "rotated-secret",
@@ -60,16 +59,20 @@ describe("control-plane environment variables", () => {
       updatedByRole: "developer"
     });
 
-    expect(second?.id).toBe(first?.id);
+    expect(second).toMatchObject({
+      key,
+      environmentId: "env_daoflow_staging",
+      status: "updated"
+    });
 
-    const inventory = listEnvironmentVariableInventory("env_daoflow_staging", 50);
+    const inventory = await listEnvironmentVariableInventory("env_daoflow_staging", 50);
     const matches = inventory.variables.filter((variable) => variable.key === key);
 
     expect(matches).toHaveLength(1);
     expect(matches[0]).toMatchObject({
-      id: first?.id,
       displayValue: "[secret]",
-      updatedByEmail: "developer@daoflow.local"
+      isSecret: true,
+      branchPattern: "feature/*"
     });
   });
 });

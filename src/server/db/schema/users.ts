@@ -1,6 +1,7 @@
 import {
   boolean,
   index,
+  integer,
   pgTable,
   serial,
   text,
@@ -39,7 +40,7 @@ export const userIdentities = pgTable(
   "user_identities",
   {
     id: serial("id").primaryKey(),
-    userId: serial("user_id")
+    userId: integer("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
     provider: varchar("provider", { length: 20 }).notNull(), // github | google | password

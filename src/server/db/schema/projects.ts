@@ -1,4 +1,5 @@
 import {
+  integer,
   index,
   jsonb,
   pgTable,
@@ -29,7 +30,7 @@ export const projects = pgTable(
     composePath: text("compose_path"),
     config: jsonb("config").default({}).notNull(),
     status: varchar("status", { length: 20 }).default("active").notNull(), // active | paused | deleted
-    createdByUserId: serial("created_by_user_id").references(() => users.id, {
+    createdByUserId: integer("created_by_user_id").references(() => users.id, {
       onDelete: "set null"
     }),
     createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -78,7 +79,7 @@ export const environmentVariables = pgTable(
     isSecret: varchar("is_secret", { length: 5 }).default("false").notNull(),
     category: varchar("category", { length: 20 }).default("runtime").notNull(), // runtime | build
     branchPattern: varchar("branch_pattern", { length: 120 }),
-    updatedByUserId: serial("updated_by_user_id").references(() => users.id),
+    updatedByUserId: integer("updated_by_user_id").references(() => users.id),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull()
   },

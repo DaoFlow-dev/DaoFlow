@@ -1,7 +1,7 @@
 import {
+  integer,
   index,
   pgTable,
-  serial,
   text,
   timestamp,
   varchar
@@ -22,7 +22,7 @@ export const apiTokens = pgTable(
     status: varchar("status", { length: 20 }).default("active").notNull(),
     lastUsedAt: timestamp("last_used_at"),
     expiresAt: timestamp("expires_at"),
-    createdByUserId: serial("created_by_user_id").references(() => users.id, {
+    createdByUserId: integer("created_by_user_id").references(() => users.id, {
       onDelete: "set null"
     }),
     createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -46,7 +46,7 @@ export const principals = pgTable(
     type: varchar("type", { length: 20 }).notNull(), // user | service | agent
     name: varchar("name", { length: 100 }).notNull(),
     description: text("description"),
-    linkedUserId: serial("linked_user_id").references(() => users.id, {
+    linkedUserId: integer("linked_user_id").references(() => users.id, {
       onDelete: "set null"
     }),
     defaultScopes: text("default_scopes"), // comma-separated default scopes

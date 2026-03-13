@@ -1,5 +1,6 @@
 import {
   index,
+  integer,
   jsonb,
   pgTable,
   serial,
@@ -64,13 +65,13 @@ export const approvalRequests = pgTable(
     targetResource: varchar("target_resource", { length: 200 }).notNull(),
     reason: text("reason"),
     status: varchar("status", { length: 20 }).default("pending").notNull(), // pending | approved | rejected
-    requestedByUserId: serial("requested_by_user_id").references(
+    requestedByUserId: integer("requested_by_user_id").references(
       () => users.id,
       { onDelete: "set null" }
     ),
     requestedByEmail: varchar("requested_by_email", { length: 320 }),
     requestedByRole: varchar("requested_by_role", { length: 20 }),
-    resolvedByUserId: serial("resolved_by_user_id").references(
+    resolvedByUserId: integer("resolved_by_user_id").references(
       () => users.id,
       { onDelete: "set null" }
     ),
