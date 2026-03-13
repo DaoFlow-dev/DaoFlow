@@ -8,13 +8,18 @@ import {
 } from "@daoflow/shared";
 
 export async function listApiTokenInventory() {
-  const tokens = await db.select().from(apiTokens).orderBy(desc(apiTokens.createdAt));
+  const [tokens, principalRows] = await Promise.all([
+    db.select().from(apiTokens).orderBy(desc(apiTokens.createdAt)),
+    db.select().from(principals)
+  ]);
+  const principalsById = new Map(principalRows.map((principal) => [principal.id, principal]));
 
   const mapped = tokens.map((t) => {
     const scopes = (t.scopes?.split(",").filter(Boolean) ?? []) as ApiTokenScope[];
     const lanes = getApiTokenScopeLanes(scopes);
     const effective = getEffectiveTokenCapabilities("viewer", scopes);
     const isReadOnly = lanes.length === 1 && lanes[0] === "read";
+    const principal = principalsById.get(t.principalId);
 
     return {
       id: t.id,
@@ -22,9 +27,9 @@ export async function listApiTokenInventory() {
       label: t.name,
       principalType: t.principalType,
       principalKind: t.principalType,
-      principalRole: t.principalType,
+      principalRole: principal?.type ?? t.principalType,
       principalId: t.principalId,
-      principalName: t.principalId,
+      principalName: principal?.name ?? t.principalId,
       tokenPrefix: t.tokenPrefix,
       status: t.status,
       scopes,

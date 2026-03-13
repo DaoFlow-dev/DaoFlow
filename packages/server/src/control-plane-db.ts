@@ -63,6 +63,7 @@ export {
 
 // ── API Tokens & Principals ─────────────────────────────────
 export { listApiTokenInventory, listPrincipalInventory } from "./db/services/tokens";
+export { seedControlPlaneData } from "./db/services/seed";
 
 // ── Encryption Utilities ─────────────────────────────────────
 export {
@@ -71,7 +72,12 @@ export {
 } from "./db/crypto";
 
 // ── Control Plane Readiness ──────────────────────────────────
+let foundationSeedPromise: Promise<void> | null = null;
+
 export function ensureControlPlaneReady() {
-  // With Postgres + Drizzle, the DB is always ready once connected.
-  // Seed data is applied via db:push + db:seed scripts.
+  foundationSeedPromise ??= import("./db/services/seed").then(({ seedControlPlaneData }) =>
+    seedControlPlaneData()
+  );
+
+  return foundationSeedPromise;
 }

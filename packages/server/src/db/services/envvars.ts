@@ -1,12 +1,20 @@
-import { randomUUID } from "node:crypto";
-import { eq, desc, and } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { db } from "../connection";
-import { environmentVariables, environments } from "../schema/projects";
-import { auditEntries } from "../schema/audit";
 import { encrypt, displayValue } from "../crypto";
+import { auditEntries } from "../schema/audit";
+import { environmentVariables, environments, projects } from "../schema/projects";
+import { users } from "../schema/users";
 import type { AppRole } from "@daoflow/shared";
 
-const _id = () => randomUUID().replace(/-/g, "").slice(0, 32);
+const FOUNDATION_ENVIRONMENT_VARIABLE_IDS: Record<number, string> = {
+  1001: "envvar_prod_public_origin",
+  1002: "envvar_prod_database_password",
+  1003: "envvar_staging_preview_flag"
+};
+
+function getEnvironmentVariableId(row: typeof environmentVariables.$inferSelect) {
+  return FOUNDATION_ENVIRONMENT_VARIABLE_IDS[row.id] ?? `envvar_${row.id}`;
+}
 
 export interface UpsertEnvironmentVariableInput {
   environmentId: string;
@@ -21,7 +29,6 @@ export interface UpsertEnvironmentVariableInput {
 }
 
 export async function upsertEnvironmentVariable(input: UpsertEnvironmentVariableInput) {
-  // Verify environment exists
   const env = await db
     .select()
     .from(environments)
@@ -30,9 +37,7 @@ export async function upsertEnvironmentVariable(input: UpsertEnvironmentVariable
   if (!env[0]) return null;
 
   const encryptedValue = encrypt(input.value);
-
-  // Check if variable exists
-  const existing = await db
+  const [existing] = await db
     .select()
     .from(environmentVariables)
     .where(
@@ -43,7 +48,7 @@ export async function upsertEnvironmentVariable(input: UpsertEnvironmentVariable
     )
     .limit(1);
 
-  if (existing[0]) {
+  if (existing) {
     await db
       .update(environmentVariables)
       .set({
@@ -51,9 +56,10 @@ export async function upsertEnvironmentVariable(input: UpsertEnvironmentVariable
         isSecret: input.isSecret ? "true" : "false",
         category: input.category,
         branchPattern: input.branchPattern ?? null,
+        updatedByUserId: input.updatedByUserId,
         updatedAt: new Date()
       })
-      .where(eq(environmentVariables.id, existing[0].id));
+      .where(eq(environmentVariables.id, existing.id));
   } else {
     await db.insert(environmentVariables).values({
       environmentId: input.environmentId,
@@ -61,7 +67,8 @@ export async function upsertEnvironmentVariable(input: UpsertEnvironmentVariable
       valueEncrypted: encryptedValue,
       isSecret: input.isSecret ? "true" : "false",
       category: input.category,
-      branchPattern: input.branchPattern ?? null
+      branchPattern: input.branchPattern ?? null,
+      updatedByUserId: input.updatedByUserId
     });
   }
 
@@ -71,18 +78,24 @@ export async function upsertEnvironmentVariable(input: UpsertEnvironmentVariable
     actorEmail: input.updatedByEmail,
     actorRole: input.updatedByRole,
     targetResource: `env-var/${input.environmentId}/${input.key}`,
-    action: existing[0] ? "envvar.updated" : "envvar.created",
-    inputSummary: `${existing[0] ? "Updated" : "Created"} ${input.key} in ${input.environmentId}`,
+    action: existing ? "envvar.update" : "envvar.create",
+    inputSummary: `${existing ? "Updated" : "Created"} ${input.key} in ${env[0].name}.`,
     permissionScope: "secrets:write",
-    outcome: "success"
+    outcome: "success",
+    metadata: {
+      resourceType: "env-var",
+      resourceId: `${input.environmentId}/${input.key}`,
+      resourceLabel: `${input.key}@${env[0].name}`,
+      detail: `${existing ? "Updated" : "Created"} ${input.key} in ${env[0].name}.`
+    }
   });
 
   return {
     key: input.key,
     environmentId: input.environmentId,
-    environmentName: input.environmentId,
+    environmentName: env[0].name,
     category: input.category,
-    status: existing[0] ? "updated" : "created"
+    status: existing ? "updated" : "created"
   };
 }
 
@@ -95,28 +108,62 @@ export async function listEnvironmentVariableInventory(environmentId?: string, l
     : db.select().from(environmentVariables);
 
   const rows = await query.orderBy(desc(environmentVariables.createdAt)).limit(limit);
+  const environmentIds = [...new Set(rows.map((row) => row.environmentId))];
+  const updatedByUserIds = [
+    ...new Set(
+      rows
+        .map((row) => row.updatedByUserId)
+        .filter((userId): userId is string => typeof userId === "string")
+    )
+  ];
 
-  const variables = rows.map((row) => ({
-    id: row.id,
-    environmentId: row.environmentId,
-    environmentName: row.environmentId,
-    projectName: "",
-    key: row.key,
-    displayValue: displayValue(row.valueEncrypted, row.isSecret === "true"),
-    isSecret: row.isSecret === "true",
-    category: row.category,
-    branchPattern: row.branchPattern,
-    source: "manual" as const,
-    updatedByEmail: "",
-    updatedAt: row.updatedAt.toISOString()
-  }));
+  const environmentRows =
+    environmentIds.length > 0
+      ? await db.select().from(environments).where(inArray(environments.id, environmentIds))
+      : [];
+  const projectRows =
+    environmentRows.length > 0
+      ? await db
+          .select()
+          .from(projects)
+          .where(inArray(projects.id, [...new Set(environmentRows.map((row) => row.projectId))]))
+      : [];
+  const userRows =
+    updatedByUserIds.length > 0
+      ? await db.select().from(users).where(inArray(users.id, updatedByUserIds))
+      : [];
+
+  const environmentsById = new Map(environmentRows.map((row) => [row.id, row]));
+  const projectsById = new Map(projectRows.map((row) => [row.id, row]));
+  const usersById = new Map(userRows.map((row) => [row.id, row]));
+
+  const variables = rows.map((row) => {
+    const environment = environmentsById.get(row.environmentId);
+    const project = environment ? projectsById.get(environment.projectId) : undefined;
+    const updatedByUser = row.updatedByUserId ? usersById.get(row.updatedByUserId) : undefined;
+
+    return {
+      id: getEnvironmentVariableId(row),
+      environmentId: row.environmentId,
+      environmentName: environment?.name ?? row.environmentId,
+      projectName: project?.name ?? "",
+      key: row.key,
+      displayValue: displayValue(row.valueEncrypted, row.isSecret === "true"),
+      isSecret: row.isSecret === "true",
+      category: row.category,
+      branchPattern: row.branchPattern,
+      source: "manual" as const,
+      updatedByEmail: updatedByUser?.email ?? "",
+      updatedAt: row.updatedAt.toISOString()
+    };
+  });
 
   return {
     summary: {
       totalVariables: variables.length,
-      secretVariables: variables.filter((v) => v.isSecret).length,
-      runtimeVariables: variables.filter((v) => v.category === "runtime").length,
-      buildVariables: variables.filter((v) => v.category === "build").length
+      secretVariables: variables.filter((variable) => variable.isSecret).length,
+      runtimeVariables: variables.filter((variable) => variable.category === "runtime").length,
+      buildVariables: variables.filter((variable) => variable.category === "build").length
     },
     variables
   };

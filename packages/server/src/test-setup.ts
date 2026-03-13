@@ -1,1 +1,1 @@
-import "@testing-library/jest-dom/vitest";
+// Server-side Vitest setup intentionally left blank.

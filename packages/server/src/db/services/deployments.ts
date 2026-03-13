@@ -1,7 +1,9 @@
 import { randomUUID } from "node:crypto";
-import { eq, desc, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "../connection";
-import { deployments, deploymentSteps, deploymentLogs } from "../schema/deployments";
+import { auditEntries, events } from "../schema/audit";
+import { deploymentLogs, deployments, deploymentSteps } from "../schema/deployments";
+import { environments, projects } from "../schema/projects";
 import { servers } from "../schema/servers";
 import type { AppRole } from "@daoflow/shared";
 
@@ -15,6 +17,125 @@ export type DeploymentStatus =
 export type DeploymentSourceType = "compose" | "dockerfile" | "image";
 
 const id = () => randomUUID().replace(/-/g, "").slice(0, 32);
+
+type JsonRecord = Record<string, unknown>;
+
+function asRecord(value: unknown): JsonRecord {
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as JsonRecord) : {};
+}
+
+function readString(record: JsonRecord, key: string, fallback = "") {
+  const value = record[key];
+  return typeof value === "string" ? value : fallback;
+}
+
+function readRecordArray(record: JsonRecord, key: string) {
+  const value = record[key];
+  return Array.isArray(value)
+    ? value.filter(
+        (item): item is JsonRecord =>
+          Boolean(item) && typeof item === "object" && !Array.isArray(item)
+      )
+    : [];
+}
+
+function readStringArray(record: JsonRecord, key: string) {
+  const value = record[key];
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string")
+    : [];
+}
+
+function normalizeStatus(
+  status: string,
+  conclusion: string | null
+): "healthy" | "failed" | "running" | "queued" {
+  if (status === "failed" || conclusion === "failed") {
+    return "failed";
+  }
+
+  if (status === "completed" && conclusion === "succeeded") {
+    return "healthy";
+  }
+
+  if (status === "deploy" || status === "prepare" || status === "finalize") {
+    return "running";
+  }
+
+  return "queued";
+}
+
+async function loadProjectEnvironmentByNames(projectName: string, environmentName: string) {
+  const [project] = await db.select().from(projects).where(eq(projects.name, projectName)).limit(1);
+  if (!project) return null;
+
+  const [environment] = await db
+    .select()
+    .from(environments)
+    .where(and(eq(environments.projectId, project.id), eq(environments.name, environmentName)))
+    .limit(1);
+
+  if (!environment) return null;
+  return { project, environment };
+}
+
+async function buildDeploymentIndex(deploymentRows: (typeof deployments.$inferSelect)[]) {
+  if (deploymentRows.length === 0) {
+    return {
+      projectById: new Map<string, typeof projects.$inferSelect>(),
+      environmentById: new Map<string, typeof environments.$inferSelect>(),
+      serverById: new Map<string, typeof servers.$inferSelect>()
+    };
+  }
+
+  const projectIds = [...new Set(deploymentRows.map((row) => row.projectId))];
+  const environmentIds = [...new Set(deploymentRows.map((row) => row.environmentId))];
+  const serverIds = [...new Set(deploymentRows.map((row) => row.targetServerId))];
+
+  const [projectRows, environmentRows, serverRows] = await Promise.all([
+    db.select().from(projects).where(inArray(projects.id, projectIds)),
+    db.select().from(environments).where(inArray(environments.id, environmentIds)),
+    db.select().from(servers).where(inArray(servers.id, serverIds))
+  ]);
+
+  return {
+    projectById: new Map(projectRows.map((row) => [row.id, row])),
+    environmentById: new Map(environmentRows.map((row) => [row.id, row])),
+    serverById: new Map(serverRows.map((row) => [row.id, row]))
+  };
+}
+
+function buildDeploymentView(
+  deployment: typeof deployments.$inferSelect,
+  project: typeof projects.$inferSelect | undefined,
+  environment: typeof environments.$inferSelect | undefined,
+  server: typeof servers.$inferSelect | undefined,
+  steps: (typeof deploymentSteps.$inferSelect)[]
+) {
+  const snapshot = asRecord(deployment.configSnapshot);
+  const status = normalizeStatus(deployment.status, deployment.conclusion);
+
+  return {
+    ...deployment,
+    status,
+    projectName: project?.name ?? readString(snapshot, "projectName", deployment.projectId),
+    environmentName:
+      environment?.name ?? readString(snapshot, "environmentName", deployment.environmentId),
+    targetServerName:
+      server?.name ?? readString(snapshot, "targetServerName", deployment.targetServerId),
+    targetServerHost:
+      server?.host ?? readString(snapshot, "targetServerHost", deployment.targetServerId),
+    createdAt: deployment.createdAt.toISOString(),
+    startedAt: deployment.createdAt.toISOString(),
+    finishedAt: deployment.concludedAt?.toISOString() ?? null,
+    steps: steps.map((step) => ({
+      ...step,
+      position: step.sortOrder,
+      startedAt: step.startedAt?.toISOString() ?? null,
+      finishedAt: step.completedAt?.toISOString() ?? null
+    }))
+  };
+}
 
 export interface CreateDeploymentInput {
   projectName: string;
@@ -31,45 +152,96 @@ export interface CreateDeploymentInput {
 }
 
 export async function createDeploymentRecord(input: CreateDeploymentInput) {
-  const server = await db
-    .select()
-    .from(servers)
-    .where(eq(servers.id, input.targetServerId))
-    .limit(1);
-  if (!server[0]) return null;
+  const [server, projectEnvironment] = await Promise.all([
+    db.select().from(servers).where(eq(servers.id, input.targetServerId)).limit(1),
+    loadProjectEnvironmentByNames(input.projectName, input.environmentName)
+  ]);
+
+  if (!server[0] || !projectEnvironment) return null;
 
   const deploymentId = id();
+  const now = new Date();
+
   await db.insert(deployments).values({
     id: deploymentId,
-    projectId: deploymentId,
-    environmentId: deploymentId,
+    projectId: projectEnvironment.project.id,
+    environmentId: projectEnvironment.environment.id,
     targetServerId: input.targetServerId,
     serviceName: input.serviceName,
     sourceType: input.sourceType,
     commitSha: input.commitSha,
     imageTag: input.imageTag,
-    configSnapshot: {},
+    configSnapshot: {
+      projectName: input.projectName,
+      environmentName: input.environmentName,
+      targetServerName: server[0].name,
+      targetServerHost: server[0].host,
+      queueName: "docker-ssh",
+      workerHint: `ssh://${server[0].name}/docker-engine`
+    },
     status: "queued",
     trigger: "user",
+    requestedByUserId: input.requestedByUserId,
     requestedByEmail: input.requestedByEmail,
-    requestedByRole: input.requestedByRole
+    requestedByRole: input.requestedByRole,
+    updatedAt: now
   });
 
-  for (let i = 0; i < input.steps.length; i++) {
+  for (let index = 0; index < input.steps.length; index += 1) {
     await db.insert(deploymentSteps).values({
       deploymentId,
-      label: input.steps[i].label,
-      detail: input.steps[i].detail,
-      status: "pending"
+      label: input.steps[index].label,
+      detail: input.steps[index].detail,
+      status: "pending",
+      sortOrder: index + 1
     });
   }
+
+  await db.insert(auditEntries).values({
+    actorType: "user",
+    actorId: input.requestedByUserId,
+    actorEmail: input.requestedByEmail,
+    actorRole: input.requestedByRole,
+    targetResource: `deployment/${deploymentId}`,
+    action: "deployment.create",
+    inputSummary: `Queued ${input.serviceName} for ${input.environmentName}.`,
+    permissionScope: "deploy:start",
+    outcome: "success",
+    metadata: {
+      resourceType: "deployment",
+      resourceId: deploymentId,
+      resourceLabel: `${input.serviceName}@${input.environmentName}`,
+      detail: `Queued ${input.serviceName} for ${input.environmentName}.`
+    }
+  });
+
+  await db.insert(deploymentLogs).values({
+    deploymentId,
+    level: "info",
+    message: `Control plane queued ${input.serviceName} for ${input.environmentName} using ${input.sourceType} inputs.`,
+    source: "system",
+    createdAt: now
+  });
+
+  await db.insert(events).values({
+    kind: "execution.job.created",
+    resourceType: "deployment",
+    resourceId: deploymentId,
+    summary: "Deployment record queued.",
+    detail: `${input.serviceName} is waiting in the docker-ssh handoff queue.`,
+    severity: "info",
+    metadata: {
+      serviceName: input.serviceName,
+      actorLabel: "control-plane"
+    },
+    createdAt: now
+  });
 
   return getDeploymentRecord(deploymentId);
 }
 
 export async function getDeploymentRecord(deploymentId: string) {
   const rows = await db.select().from(deployments).where(eq(deployments.id, deploymentId)).limit(1);
-
   if (!rows[0]) return null;
 
   const steps = await db
@@ -78,38 +250,52 @@ export async function getDeploymentRecord(deploymentId: string) {
     .where(eq(deploymentSteps.deploymentId, deploymentId))
     .orderBy(deploymentSteps.sortOrder);
 
-  const dep = rows[0];
-  return {
-    ...dep,
-    projectName: dep.projectId,
-    environmentName: dep.environmentId,
-    targetServerName: dep.targetServerId,
-    targetServerHost: dep.targetServerId,
-    steps: steps.map((s) => ({
-      ...s,
-      position: s.sortOrder,
-      startedAt: s.startedAt?.toISOString() ?? new Date().toISOString(),
-      finishedAt: s.completedAt?.toISOString() ?? null
-    }))
-  };
+  const index = await buildDeploymentIndex(rows);
+
+  return buildDeploymentView(
+    rows[0],
+    index.projectById.get(rows[0].projectId),
+    index.environmentById.get(rows[0].environmentId),
+    index.serverById.get(rows[0].targetServerId),
+    steps
+  );
 }
 
 export async function listDeploymentRecords(status?: string, limit = 20) {
-  const query = status
-    ? db.select().from(deployments).where(eq(deployments.status, status))
-    : db.select().from(deployments);
+  const rows = await db.select().from(deployments).orderBy(desc(deployments.createdAt)).limit(100);
+  if (rows.length === 0) return [];
+  const index = await buildDeploymentIndex(rows);
 
-  const rows = await query.orderBy(desc(deployments.createdAt)).limit(limit);
-  return rows.map((d) => ({
-    ...d,
-    projectName: d.projectId,
-    environmentName: d.environmentId,
-    targetServerName: d.targetServerId,
-    targetServerHost: d.targetServerId,
-    createdAt: d.createdAt.toISOString(),
-    startedAt: d.createdAt?.toISOString() ?? d.createdAt.toISOString(),
-    finishedAt: d.concludedAt?.toISOString() ?? null
-  }));
+  const steps = await db
+    .select()
+    .from(deploymentSteps)
+    .where(
+      inArray(
+        deploymentSteps.deploymentId,
+        rows.map((row) => row.id)
+      )
+    )
+    .orderBy(deploymentSteps.sortOrder);
+
+  const stepsByDeploymentId = new Map<string, (typeof deploymentSteps.$inferSelect)[]>();
+  for (const step of steps) {
+    const collection = stepsByDeploymentId.get(step.deploymentId) ?? [];
+    collection.push(step);
+    stepsByDeploymentId.set(step.deploymentId, collection);
+  }
+
+  const mapped = rows.map((deployment) =>
+    buildDeploymentView(
+      deployment,
+      index.projectById.get(deployment.projectId),
+      index.environmentById.get(deployment.environmentId),
+      index.serverById.get(deployment.targetServerId),
+      stepsByDeploymentId.get(deployment.id) ?? []
+    )
+  );
+
+  const filtered = status ? mapped.filter((deployment) => deployment.status === status) : mapped;
+  return filtered.slice(0, limit);
 }
 
 export async function listDeploymentLogs(deploymentId?: string, limit = 18) {
@@ -118,28 +304,51 @@ export async function listDeploymentLogs(deploymentId?: string, limit = 18) {
     : db.select().from(deploymentLogs);
 
   const logs = await query.orderBy(desc(deploymentLogs.createdAt)).limit(limit);
+  const deploymentIds = [...new Set(logs.map((log) => log.deploymentId))];
+  const deploymentRows =
+    deploymentIds.length > 0
+      ? await db.select().from(deployments).where(inArray(deployments.id, deploymentIds))
+      : [];
+  const index = await buildDeploymentIndex(deploymentRows);
+  const deploymentById = new Map(deploymentRows.map((row) => [row.id, row]));
 
   const countResult = await db.select({ count: sql<number>`count(*)` }).from(deploymentLogs);
   const stderrResult = await db
     .select({ count: sql<number>`count(*)` })
     .from(deploymentLogs)
     .where(eq(deploymentLogs.level, "error"));
+  const deploymentCountResult = await db
+    .select({ count: sql<number>`count(distinct ${deploymentLogs.deploymentId})` })
+    .from(deploymentLogs);
 
   return {
     summary: {
       totalLines: Number(countResult[0]?.count ?? 0),
       stderrLines: Number(stderrResult[0]?.count ?? 0),
-      deploymentCount: 0
+      deploymentCount: Number(deploymentCountResult[0]?.count ?? 0)
     },
-    lines: logs.map((l) => ({
-      ...l,
-      stream: l.level === "error" ? ("stderr" as const) : ("stdout" as const),
-      lineNumber: l.id,
-      createdAt: l.createdAt.toISOString(),
-      projectName: "",
-      environmentName: "",
-      serviceName: ""
-    }))
+    lines: logs.map((log) => {
+      const metadata = asRecord(log.metadata);
+      const deployment = deploymentById.get(log.deploymentId);
+      const project = deployment ? index.projectById.get(deployment.projectId) : undefined;
+      const environment = deployment
+        ? index.environmentById.get(deployment.environmentId)
+        : undefined;
+
+      return {
+        ...log,
+        id: readString(metadata, "seedId", `deployment_log_${log.id}`),
+        stream:
+          readString(metadata, "stream") === "stderr" || log.level === "error"
+            ? ("stderr" as const)
+            : ("stdout" as const),
+        lineNumber: typeof metadata.lineNumber === "number" ? metadata.lineNumber : log.id,
+        createdAt: log.createdAt.toISOString(),
+        projectName: project?.name ?? "",
+        environmentName: environment?.name ?? "",
+        serviceName: deployment?.serviceName ?? ""
+      };
+    })
   };
 }
 
@@ -151,45 +360,124 @@ export async function listDeploymentInsights(limit = 6) {
     .orderBy(desc(deployments.createdAt))
     .limit(limit);
 
-  return rows.map((d) => ({
-    deploymentId: d.id,
-    projectName: d.projectId,
-    environmentName: d.environmentId,
-    serviceName: d.serviceName,
-    status: d.status,
-    summary: `Deployment ${d.id} failed`,
-    suspectedRootCause: d.error ? JSON.stringify(d.error) : "Unknown",
-    safeActions: ["review logs", "check server health", "retry deployment"],
-    evidence: [] as { kind: string; id: string; title: string; detail: string }[],
-    healthyBaseline: null as {
-      deploymentId: string;
-      commitSha: string;
-      imageTag: string;
-      finishedAt: string | null;
-    } | null
-  }));
+  const index = await buildDeploymentIndex(rows);
+
+  return rows.map((deployment) => {
+    const snapshot = asRecord(deployment.configSnapshot);
+    const insight = asRecord(snapshot.insight);
+    const healthyBaseline = asRecord(insight.healthyBaseline);
+
+    return {
+      deploymentId: deployment.id,
+      projectName:
+        index.projectById.get(deployment.projectId)?.name ??
+        readString(snapshot, "projectName", deployment.projectId),
+      environmentName:
+        index.environmentById.get(deployment.environmentId)?.name ??
+        readString(snapshot, "environmentName", deployment.environmentId),
+      serviceName: deployment.serviceName,
+      status: normalizeStatus(deployment.status, deployment.conclusion),
+      summary: readString(insight, "summary", `Deployment ${deployment.id} failed.`),
+      suspectedRootCause: readString(
+        insight,
+        "suspectedRootCause",
+        typeof deployment.error === "object" && deployment.error
+          ? readString(asRecord(deployment.error), "suspectedRootCause", "Unknown")
+          : "Unknown"
+      ),
+      safeActions: readStringArray(insight, "safeActions"),
+      evidence: readRecordArray(insight, "evidence").map((item) => ({
+        kind: readString(item, "kind"),
+        id: readString(item, "id"),
+        title: readString(item, "title"),
+        detail: readString(item, "detail")
+      })),
+      healthyBaseline:
+        Object.keys(healthyBaseline).length > 0
+          ? {
+              deploymentId: readString(healthyBaseline, "deploymentId"),
+              commitSha: readString(healthyBaseline, "commitSha"),
+              imageTag: readString(healthyBaseline, "imageTag"),
+              finishedAt:
+                typeof healthyBaseline.finishedAt === "string" ? healthyBaseline.finishedAt : null
+            }
+          : null
+    };
+  });
 }
 
 export async function listDeploymentRollbackPlans(limit = 6) {
   const rows = await db
     .select()
     .from(deployments)
-    .where(eq(deployments.conclusion, "succeeded"))
     .orderBy(desc(deployments.createdAt))
     .limit(limit);
+  const index = await buildDeploymentIndex(rows);
 
-  return rows.map((d) => ({
-    deploymentId: d.id,
-    projectName: d.projectId,
-    environmentName: d.environmentId,
-    serviceName: d.serviceName,
-    currentStatus: d.status,
-    isAvailable: true,
-    reason: "Previous successful deployment available for rollback",
-    targetDeploymentId: d.id,
-    targetCommitSha: d.commitSha,
-    targetImageTag: d.imageTag,
-    checks: ["verify target image exists", "check volume compatibility"],
-    steps: ["stop current container", "start rollback container", "health check"]
-  }));
+  return rows.map((deployment) => {
+    const snapshot = asRecord(deployment.configSnapshot);
+    const rollbackPlan = asRecord(snapshot.rollbackPlan);
+    const currentStatus = normalizeStatus(deployment.status, deployment.conclusion);
+
+    if (Object.keys(rollbackPlan).length > 0) {
+      return {
+        deploymentId: deployment.id,
+        projectName:
+          index.projectById.get(deployment.projectId)?.name ??
+          readString(snapshot, "projectName", deployment.projectId),
+        environmentName:
+          index.environmentById.get(deployment.environmentId)?.name ??
+          readString(snapshot, "environmentName", deployment.environmentId),
+        serviceName: deployment.serviceName,
+        currentStatus,
+        isAvailable: rollbackPlan.isAvailable !== false,
+        reason: readString(rollbackPlan, "reason"),
+        targetDeploymentId: readString(rollbackPlan, "targetDeploymentId", ""),
+        targetCommitSha: readString(rollbackPlan, "targetCommitSha", ""),
+        targetImageTag: readString(rollbackPlan, "targetImageTag", ""),
+        checks: readStringArray(rollbackPlan, "checks"),
+        steps: readStringArray(rollbackPlan, "steps")
+      };
+    }
+
+    if (currentStatus === "healthy") {
+      return {
+        deploymentId: deployment.id,
+        projectName:
+          index.projectById.get(deployment.projectId)?.name ??
+          readString(snapshot, "projectName", deployment.projectId),
+        environmentName:
+          index.environmentById.get(deployment.environmentId)?.name ??
+          readString(snapshot, "environmentName", deployment.environmentId),
+        serviceName: deployment.serviceName,
+        currentStatus,
+        isAvailable: false,
+        reason: "Current deployment is already healthy; rollback is not recommended.",
+        targetDeploymentId: "",
+        targetCommitSha: "",
+        targetImageTag: "",
+        checks: ["Continue observing logs and readiness checks before taking action."],
+        steps: ["No rollback steps are suggested while the deployment remains healthy."]
+      };
+    }
+
+    return {
+      deploymentId: deployment.id,
+      projectName:
+        index.projectById.get(deployment.projectId)?.name ??
+        readString(snapshot, "projectName", deployment.projectId),
+      environmentName:
+        index.environmentById.get(deployment.environmentId)?.name ??
+        readString(snapshot, "environmentName", deployment.environmentId),
+      serviceName: deployment.serviceName,
+      currentStatus,
+      isAvailable: false,
+      reason: "No deterministic rollback target is available yet.",
+      targetDeploymentId: "",
+      targetCommitSha: "",
+      targetImageTag: "",
+      checks: ["Capture a healthy baseline before offering rollback automation."],
+      steps: ["Promote one deployment to healthy before constructing a rollback plan."]
+    };
+  });
 }
