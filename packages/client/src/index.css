@@ -1045,3 +1045,351 @@ body {
     @apply font-sans;
   }
 }
+
+/* ========= Auto dark mode ========= */
+@media (prefers-color-scheme: dark) {
+  :root:not(.light) {
+    color-scheme: dark;
+    background:
+      radial-gradient(circle at top left, #2a2018 0, transparent 38%),
+      radial-gradient(circle at bottom right, #1a261a 0, transparent 34%),
+      linear-gradient(180deg, #141814 0%, #0e120e 100%);
+    color: #e8ede6;
+  }
+
+  :root:not(.light) .hero__copy,
+  :root:not(.light) .hero__rail,
+  :root:not(.light) .auth-panel,
+  :root:not(.light) .status-card,
+  :root:not(.light) .roadmap-item,
+  :root:not(.light) .deployment-card,
+  :root:not(.light) .token-card,
+  :root:not(.light) .timeline-event {
+    border-color: rgba(255, 255, 255, 0.08);
+    background: rgba(28, 32, 26, 0.85);
+    box-shadow: 0 18px 60px rgba(0, 0, 0, 0.35);
+  }
+
+  :root:not(.light) .metric {
+    background: linear-gradient(180deg, rgba(38, 42, 36, 0.9), rgba(24, 28, 22, 0.95));
+  }
+
+  :root:not(.light) .hero__lede,
+  :root:not(.light) .deployment-card__meta,
+  :root:not(.light) .auth-form label,
+  :root:not(.light) .roadmap-item p:last-child {
+    color: #a8b0a4;
+  }
+
+  :root:not(.light) .hero__kicker,
+  :root:not(.light) .roadmap__kicker,
+  :root:not(.light) .status-card__eyebrow,
+  :root:not(.light) .metric__label {
+    color: #8a947e;
+  }
+
+  :root:not(.light) .auth-form input,
+  :root:not(.light) .deployment-composer input,
+  :root:not(.light) .compose-release-composer input,
+  :root:not(.light) .compose-release-composer select,
+  :root:not(.light) .environment-variable-composer input,
+  :root:not(.light) .environment-variable-composer select,
+  :root:not(.light) .server-onboarding input,
+  :root:not(.light) .server-onboarding select {
+    border-color: rgba(255, 255, 255, 0.12);
+    background: rgba(20, 24, 18, 0.8);
+    color: #e8ede6;
+  }
+
+  :root:not(.light) .action-button {
+    background: #c2d4b8;
+    color: #141814;
+  }
+
+  :root:not(.light) .action-button--muted {
+    background: #4a5a4e;
+    color: #c8d4c0;
+  }
+
+  :root:not(.light) .tab--active {
+    background: #c2d4b8;
+    color: #141814;
+  }
+
+  :root:not(.light) .tab {
+    color: #96a490;
+  }
+
+  :root:not(.light) .token-chip {
+    background: rgba(42, 62, 38, 0.6);
+    color: #b8d4ac;
+  }
+
+  :root:not(.light) .deployment-status--healthy {
+    background: rgba(82, 132, 72, 0.28);
+    color: #8acc78;
+  }
+
+  :root:not(.light) .deployment-status--failed {
+    background: rgba(162, 68, 58, 0.28);
+    color: #e68478;
+  }
+
+  :root:not(.light) .deployment-status--running {
+    background: rgba(162, 132, 52, 0.28);
+    color: #e6c858;
+  }
+
+  :root:not(.light) .deployment-status--queued {
+    background: rgba(72, 102, 142, 0.28);
+    color: #82b4e2;
+  }
+
+  :root:not(.light) .viewer-output {
+    background: #0a0e0a;
+    color: #c8d4c0;
+  }
+
+  :root:not(.light) .deployment-composer,
+  :root:not(.light) .compose-release-composer,
+  :root:not(.light) .environment-variable-composer,
+  :root:not(.light) .server-onboarding {
+    border-color: rgba(255, 255, 255, 0.08);
+    background: rgba(28, 32, 26, 0.85);
+    box-shadow: 0 18px 60px rgba(0, 0, 0, 0.35);
+  }
+}
+
+/* ========= Smooth scrolling ========= */
+html {
+  scroll-behavior: smooth;
+}
+
+/* ========= Sidebar navigation ========= */
+.sidebar-nav {
+  position: fixed;
+  top: 3rem;
+  left: max(0.5rem, calc((100vw - 1160px) / 2 - 180px));
+  width: 160px;
+  max-height: calc(100vh - 6rem);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  z-index: 100;
+}
+
+.sidebar-nav__link {
+  display: block;
+  padding: 0.4rem 0.7rem;
+  border-radius: 10px;
+  font-size: 0.78rem;
+  color: #6a7062;
+  text-decoration: none;
+  transition:
+    background 0.15s,
+    color 0.15s;
+  line-height: 1.4;
+}
+
+.sidebar-nav__link:hover {
+  background: rgba(31, 36, 31, 0.06);
+  color: #1f241f;
+}
+
+.sidebar-nav__link--active {
+  background: rgba(31, 36, 31, 0.1);
+  color: #1f241f;
+  font-weight: 600;
+}
+
+@media (max-width: 1400px) {
+  .sidebar-nav {
+    display: none;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not(.light) .sidebar-nav__link {
+    color: #8a947e;
+  }
+
+  :root:not(.light) .sidebar-nav__link:hover {
+    background: rgba(255, 255, 255, 0.06);
+    color: #c8d4c0;
+  }
+
+  :root:not(.light) .sidebar-nav__link--active {
+    background: rgba(255, 255, 255, 0.1);
+    color: #e8ede6;
+  }
+}
+
+/* ========= Section toggle ========= */
+.section-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  user-select: none;
+}
+
+.section-header__chevron {
+  display: inline-block;
+  width: 0.55rem;
+  height: 0.55rem;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(45deg);
+  transition: transform 0.2s;
+  flex-shrink: 0;
+}
+
+.section-header__chevron--collapsed {
+  transform: rotate(-45deg);
+}
+
+.section-body--collapsed {
+  display: none;
+}
+
+/* ========= Loading skeleton ========= */
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  border-radius: 14px;
+  background: rgba(31, 36, 31, 0.06);
+  min-height: 4rem;
+}
+
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.4) 50%,
+    transparent 100%
+  );
+  animation: skeleton-shimmer 1.6s ease-in-out infinite;
+}
+
+@keyframes skeleton-shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not(.light) .skeleton {
+    background: rgba(255, 255, 255, 0.06);
+  }
+
+  :root:not(.light) .skeleton::after {
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(255, 255, 255, 0.08) 50%,
+      transparent 100%
+    );
+  }
+}
+
+/* ========= Toast notifications ========= */
+.toast-container {
+  position: fixed;
+  top: 1.5rem;
+  right: 1.5rem;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  pointer-events: none;
+}
+
+.toast {
+  pointer-events: auto;
+  padding: 0.8rem 1.2rem;
+  border-radius: 14px;
+  background: rgba(255, 252, 246, 0.95);
+  border: 1px solid rgba(31, 36, 31, 0.1);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 12px 40px rgba(73, 64, 46, 0.15);
+  font-size: 0.88rem;
+  max-width: 380px;
+  animation: toast-slide-in 0.3s ease-out;
+}
+
+.toast--success {
+  border-left: 3px solid #5a9e4a;
+}
+
+.toast--error {
+  border-left: 3px solid #c45040;
+}
+
+.toast--info {
+  border-left: 3px solid #4a82b8;
+}
+
+@keyframes toast-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not(.light) .toast {
+    background: rgba(28, 32, 26, 0.95);
+    border-color: rgba(255, 255, 255, 0.08);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+    color: #e8ede6;
+  }
+}
+
+/* ========= Enhanced focus states ========= */
+input:focus,
+select:focus,
+button:focus-visible {
+  outline: 2px solid #4a82b8;
+  outline-offset: 2px;
+}
+
+/* ========= Smooth card transitions ========= */
+.status-card,
+.deployment-card,
+.token-card,
+.timeline-event,
+.roadmap-item {
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.status-card:hover,
+.deployment-card:hover,
+.token-card:hover,
+.timeline-event:hover,
+.roadmap-item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 22px 70px rgba(73, 64, 46, 0.12);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not(.light) .status-card:hover,
+  :root:not(.light) .deployment-card:hover,
+  :root:not(.light) .token-card:hover,
+  :root:not(.light) .timeline-event:hover,
+  :root:not(.light) .roadmap-item:hover {
+    box-shadow: 0 22px 70px rgba(0, 0, 0, 0.5);
+  }
+}
