@@ -11,6 +11,8 @@ export default defineConfig({
   },
   webServer: {
     command: "bun run start",
+    stdout: "pipe",
+    stderr: "pipe",
     env: {
       DATABASE_URL:
         process.env.DATABASE_URL ?? "postgresql://daoflow:daoflow_dev@localhost:5432/daoflow",
