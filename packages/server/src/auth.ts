@@ -65,14 +65,10 @@ export const auth = betterAuth({
           // role.  Seed-inserted rows bypass sign-up so they don't
           // increment this counter, which is exactly the behavior we want.
           signUpCount++;
-          const assignedRole = signUpCount === 1 ? bootstrapOwnerRole : defaultSignupRole;
-          console.error(
-            `ROLE_DIAG signUpCount=${signUpCount} email=${user.email} assignedRole=${assignedRole}`
-          );
           return Promise.resolve({
             data: {
               ...user,
-              role: assignedRole
+              role: signUpCount === 1 ? bootstrapOwnerRole : defaultSignupRole
             }
           });
         }

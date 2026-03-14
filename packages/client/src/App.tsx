@@ -251,7 +251,7 @@ export default function App() {
     }
   );
   const auditTrail = trpc.auditTrail.useQuery(
-    {},
+    { limit: 50 },
     {
       enabled: Boolean(session.data)
     }
