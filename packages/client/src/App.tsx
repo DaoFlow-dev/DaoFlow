@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { isTRPCClientError } from "@trpc/client";
-import { canAssumeAnyRole, normalizeAppRole } from "@daoflow/shared";
+import { canAssumeAnyRole, normalizeAppRole, type AppRole } from "@daoflow/shared";
 import { useSession } from "./lib/auth-client";
 import { trpc } from "./lib/trpc";
 import { StatusCard } from "./components/status-card";
@@ -49,8 +49,8 @@ export default function App() {
 
   const viewer = trpc.viewer.useQuery(undefined, { enabled });
   const adminControlPlane = trpc.adminControlPlane.useQuery(undefined, { enabled });
-  const currentRole = normalizeAppRole(viewer.data?.authz.role);
-  const canViewAgentTokenInventory = canAssumeAnyRole(currentRole, ["owner", "admin"]);
+  const currentRole = viewer.data ? normalizeAppRole(viewer.data.authz.role) : "guest";
+  const canViewAgentTokenInventory = canAssumeAnyRole(currentRole as AppRole, ["owner", "admin"]);
   const _principalInventory = trpc.principalInventory.useQuery(undefined, {
     enabled: canViewAgentTokenInventory
   });
@@ -87,14 +87,18 @@ export default function App() {
     query.error && isTRPCClientError(query.error) ? query.error.message : null;
 
   // ── Permission helpers ─────────────────────────────────────────
-  const canQueueDeployments = canAssumeAnyRole(currentRole, [
+  const canQueueDeployments = canAssumeAnyRole(currentRole as AppRole, [
     "owner",
     "admin",
     "operator",
     "developer"
   ]);
-  const canOperateExecutionJobs = canAssumeAnyRole(currentRole, ["owner", "admin", "operator"]);
-  const canRequestApprovals = canAssumeAnyRole(currentRole, [
+  const canOperateExecutionJobs = canAssumeAnyRole(currentRole as AppRole, [
+    "owner",
+    "admin",
+    "operator"
+  ]);
+  const canRequestApprovals = canAssumeAnyRole(currentRole as AppRole, [
     "owner",
     "admin",
     "operator",
@@ -102,7 +106,7 @@ export default function App() {
     "agent"
   ]);
   const canManageEnvironmentVariables = canQueueDeployments;
-  const canManageServers = canAssumeAnyRole(currentRole, ["owner", "admin"]);
+  const canManageServers = canAssumeAnyRole(currentRole as AppRole, ["owner", "admin"]);
 
   return (
     <main className="shell">
