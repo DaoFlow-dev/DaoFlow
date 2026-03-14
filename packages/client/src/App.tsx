@@ -1,164 +1,27 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
 import { isTRPCClientError } from "@trpc/client";
-import { signIn, signOut, signUp, useSession } from "./lib/auth-client";
+import { useSession } from "./lib/auth-client";
 import { trpc } from "./lib/trpc";
 import { StatusCard } from "./components/status-card";
+import {
+  getInventoryTone,
+  getExecutionJobTone,
+  getTimelineLifecycle,
+  getTimelineTone,
+  getAuditTone,
+  getLogTone,
+  getPersistentVolumeTone,
+  getComposeDriftTone,
+  formatBytes
+} from "./lib/tone-utils";
+import { HeroSection } from "./features/dashboard/HeroSection";
+import { AuthSection } from "./features/auth/AuthSection";
+import { ServerReadiness } from "./features/infrastructure/ServerReadiness";
+import { EnvironmentVariables } from "./features/infrastructure/EnvironmentVariables";
+import { BackupCatalog } from "./features/backups/BackupCatalog";
+import { ApprovalQueue } from "./features/admin/ApprovalQueue";
 
-type StatusTone = "healthy" | "failed" | "running" | "queued";
-
-function getInventoryTone(status: string): StatusTone {
-  if (status === "healthy") {
-    return "healthy";
-  }
-
-  if (status === "failed" || status === "offline") {
-    return "failed";
-  }
-
-  if (status === "running" || status === "degraded") {
-    return "running";
-  }
-
-  return "queued";
-}
-
-function getExecutionJobTone(status: string): StatusTone {
-  if (status === "completed") {
-    return "healthy";
-  }
-
-  if (status === "failed") {
-    return "failed";
-  }
-
-  if (status === "pending") {
-    return "queued";
-  }
-
-  return "running";
-}
-
-function getTimelineLifecycle(kind: string) {
-  if (kind === "deployment.failed" || kind === "execution.job.failed" || kind === "step.failed") {
-    return "failed" as const;
-  }
-
-  if (
-    kind === "deployment.succeeded" ||
-    kind === "execution.job.completed" ||
-    kind === "step.completed"
-  ) {
-    return "completed" as const;
-  }
-
-  if (kind === "execution.job.dispatched" || kind === "step.running") {
-    return "running" as const;
-  }
-
-  return "queued" as const;
-}
-
-function getTimelineTone(kind: string): StatusTone {
-  const lifecycle = getTimelineLifecycle(kind);
-
-  if (lifecycle === "failed") {
-    return "failed";
-  }
-
-  if (lifecycle === "completed") {
-    return "healthy";
-  }
-
-  return "queued";
-}
-
-function getAuditTone(action: string): StatusTone {
-  if (action === "execution.complete" || action === "approval.approve") {
-    return "healthy";
-  }
-
-  if (action === "execution.fail" || action === "approval.reject") {
-    return "failed";
-  }
-
-  if (action === "execution.dispatch") {
-    return "running";
-  }
-
-  return "queued";
-}
-
-function getLogTone(stream: string): StatusTone {
-  return stream === "stderr" ? "failed" : "queued";
-}
-
-function getServerReadinessTone(status: string): StatusTone {
-  if (status === "ready") {
-    return "healthy";
-  }
-
-  if (status === "attention") {
-    return "running";
-  }
-
-  return "failed";
-}
-
-function getPersistentVolumeTone(coverage: string, restoreReadiness: string): StatusTone {
-  if (coverage === "missing") {
-    return "failed";
-  }
-
-  if (coverage === "stale" || restoreReadiness === "stale" || restoreReadiness === "untested") {
-    return "running";
-  }
-
-  return "healthy";
-}
-
-function getComposeDriftTone(status: string): StatusTone {
-  if (status === "aligned") {
-    return "healthy";
-  }
-
-  if (status === "blocked") {
-    return "failed";
-  }
-
-  return "running";
-}
-
-function getApprovalTone(status: string, riskLevel: string): StatusTone {
-  if (status === "approved") {
-    return "healthy";
-  }
-
-  if (status === "rejected") {
-    return "failed";
-  }
-
-  return riskLevel === "critical" ? "failed" : "running";
-}
-
-function formatBytes(bytes: number) {
-  if (bytes < 1024) {
-    return `${bytes} B`;
-  }
-
-  const units = ["KB", "MB", "GB", "TB"];
-  let value = bytes;
-  let unitIndex = -1;
-
-  while (value >= 1024 && unitIndex < units.length - 1) {
-    value /= 1024;
-    unitIndex += 1;
-  }
-
-  return `${new Intl.NumberFormat("en-US", {
-    maximumFractionDigits: 1
-  }).format(value)} ${units[unitIndex]}`;
-}
 
 export default function App() {
   const session = useSession();
@@ -184,12 +47,8 @@ export default function App() {
     }
   );
   const requestApproval = trpc.requestApproval.useMutation();
-  const approveApprovalRequest = trpc.approveApprovalRequest.useMutation();
-  const rejectApprovalRequest = trpc.rejectApprovalRequest.useMutation();
   const queueComposeRelease = trpc.queueComposeRelease.useMutation();
   const createDeploymentRecord = trpc.createDeploymentRecord.useMutation();
-  const triggerBackupRun = trpc.triggerBackupRun.useMutation();
-  const queueBackupRestore = trpc.queueBackupRestore.useMutation();
   const dispatchExecutionJob = trpc.dispatchExecutionJob.useMutation();
   const completeExecutionJob = trpc.completeExecutionJob.useMutation();
   const failExecutionJob = trpc.failExecutionJob.useMutation();
@@ -268,8 +127,7 @@ export default function App() {
       enabled: Boolean(session.data)
     }
   );
-  const upsertEnvironmentVariable = trpc.upsertEnvironmentVariable.useMutation();
-  const registerServer = trpc.registerServer.useMutation();
+
   const viewer = trpc.viewer.useQuery(undefined, {
     enabled: Boolean(session.data)
   });
@@ -284,10 +142,6 @@ export default function App() {
   const agentTokenInventory = trpc.agentTokenInventory.useQuery(undefined, {
     enabled: canViewAgentTokenInventory
   });
-  const [authMode, setAuthMode] = useState<"sign-in" | "sign-up">("sign-up");
-  const [name, setName] = useState("DaoFlow Operator");
-  const [email, setEmail] = useState("operator@daoflow.local");
-  const [password, setPassword] = useState("secret1234");
   const [serviceName, setServiceName] = useState("edge-worker");
   const [commitSha, setCommitSha] = useState("abcdef1");
   const [imageTag, setImageTag] = useState("ghcr.io/daoflow/edge-worker:0.2.0");
@@ -296,98 +150,10 @@ export default function App() {
   );
   const [composeReleaseCommitSha, setComposeReleaseCommitSha] = useState("abcdef1");
   const [composeReleaseImageTag, setComposeReleaseImageTag] = useState("");
-  const [serverName, setServerName] = useState("edge-vps-2");
-  const [serverHost, setServerHost] = useState("10.0.2.15");
-  const [serverRegion, setServerRegion] = useState("us-central-1");
-  const [serverSshPort, setServerSshPort] = useState("22");
-  const [serverKind, setServerKind] = useState<"docker-engine" | "docker-swarm-manager">(
-    "docker-engine"
-  );
-  const [environmentVariableEnvironmentId, setEnvironmentVariableEnvironmentId] =
-    useState("env_daoflow_staging");
-  const [environmentVariableKey, setEnvironmentVariableKey] = useState("NEXT_PUBLIC_SUPPORT_EMAIL");
-  const [environmentVariableValue, setEnvironmentVariableValue] = useState("ops@daoflow.local");
-  const [environmentVariableCategory, setEnvironmentVariableCategory] = useState<
-    "runtime" | "build"
-  >("runtime");
-  const [environmentVariableBranchPattern, setEnvironmentVariableBranchPattern] = useState("");
-  const [environmentVariableIsSecret, setEnvironmentVariableIsSecret] = useState(false);
-  const [authFeedback, setAuthFeedback] = useState<string | null>(null);
   const [deploymentFeedback, setDeploymentFeedback] = useState<string | null>(null);
   const [composeReleaseFeedback, setComposeReleaseFeedback] = useState<string | null>(null);
   const [executionFeedback, setExecutionFeedback] = useState<string | null>(null);
-  const [backupFeedback, setBackupFeedback] = useState<string | null>(null);
-  const [backupRestoreFeedback, setBackupRestoreFeedback] = useState<string | null>(null);
   const [approvalFeedback, setApprovalFeedback] = useState<string | null>(null);
-  const [serverFeedback, setServerFeedback] = useState<string | null>(null);
-  const [environmentVariableFeedback, setEnvironmentVariableFeedback] = useState<string | null>(
-    null
-  );
-
-  async function handleSignUp(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setAuthFeedback(null);
-
-    const result = await signUp.email({
-      name,
-      email,
-      password
-    });
-
-    if (result.error) {
-      setAuthFeedback(result.error.message ?? "Sign-up failed.");
-      return;
-    }
-
-    await session.refetch();
-    const viewerResponse = await viewer.refetch();
-    await adminControlPlane.refetch();
-    const nextRole = viewerResponse.data?.authz.role;
-
-    if (nextRole === "owner" || nextRole === "admin") {
-      await agentTokenInventory.refetch();
-    }
-    setAuthFeedback("Account created and session established.");
-  }
-
-  async function handleSignIn(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setAuthFeedback(null);
-
-    const result = await signIn.email({
-      email,
-      password
-    });
-
-    if (result.error) {
-      setAuthFeedback(result.error.message ?? "Sign-in failed.");
-      return;
-    }
-
-    await session.refetch();
-    const viewerResponse = await viewer.refetch();
-    await adminControlPlane.refetch();
-    const nextRole = viewerResponse.data?.authz.role;
-
-    if (nextRole === "owner" || nextRole === "admin") {
-      await agentTokenInventory.refetch();
-    }
-    setAuthFeedback("Signed in successfully.");
-  }
-
-  async function handleSignOut() {
-    await signOut();
-    await session.refetch();
-    setAuthFeedback("Signed out.");
-    setDeploymentFeedback(null);
-    setComposeReleaseFeedback(null);
-    setExecutionFeedback(null);
-    setBackupFeedback(null);
-    setBackupRestoreFeedback(null);
-    setApprovalFeedback(null);
-    setServerFeedback(null);
-    setEnvironmentVariableFeedback(null);
-  }
 
   async function refreshOperationalViews() {
     await approvalQueue.refetch();
@@ -491,28 +257,6 @@ export default function App() {
     }
   }
 
-  async function handleRegisterServer(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setServerFeedback(null);
-
-    try {
-      const server = await registerServer.mutateAsync({
-        name: serverName,
-        host: serverHost,
-        region: serverRegion,
-        sshPort: Number.parseInt(serverSshPort, 10),
-        kind: serverKind
-      });
-
-      await refreshOperationalViews();
-      setServerFeedback(`Registered ${server.name} and queued first connectivity checks.`);
-    } catch (error) {
-      setServerFeedback(
-        isTRPCClientError(error) ? error.message : "Unable to register the server right now."
-      );
-    }
-  }
-
   async function handleDispatchJob(jobId: string, service: string) {
     setExecutionFeedback(null);
 
@@ -562,121 +306,6 @@ export default function App() {
     }
   }
 
-  async function handleTriggerBackupRun(policyId: string, service: string) {
-    setBackupFeedback(null);
-
-    try {
-      await triggerBackupRun.mutateAsync({
-        policyId
-      });
-      await refreshOperationalViews();
-      setBackupFeedback(`Queued backup run for ${service}.`);
-    } catch (error) {
-      setBackupFeedback(
-        isTRPCClientError(error) ? error.message : "Unable to queue the backup run right now."
-      );
-    }
-  }
-
-  async function handleQueueBackupRestore(backupRunId: string, service: string) {
-    setBackupRestoreFeedback(null);
-
-    try {
-      await queueBackupRestore.mutateAsync({
-        backupRunId
-      });
-      await refreshOperationalViews();
-      setBackupRestoreFeedback(`Queued restore drill for ${service}.`);
-    } catch (error) {
-      setBackupRestoreFeedback(
-        isTRPCClientError(error) ? error.message : "Unable to queue the restore drill right now."
-      );
-    }
-  }
-
-  async function handleRequestBackupRestoreApproval(backupRunId: string, service: string) {
-    setApprovalFeedback(null);
-
-    try {
-      const request = await requestApproval.mutateAsync({
-        actionType: "backup-restore",
-        backupRunId,
-        reason: "Require an operator checkpoint before replaying this restore drill."
-      });
-      await refreshOperationalViews();
-      setApprovalFeedback(`Requested approval for ${request.actionType} on ${service}.`);
-    } catch (error) {
-      setApprovalFeedback(
-        isTRPCClientError(error)
-          ? error.message
-          : "Unable to request approval for this restore drill right now."
-      );
-    }
-  }
-
-  async function handleApproveApproval(requestId: string, resourceLabel: string) {
-    setApprovalFeedback(null);
-
-    try {
-      const request = await approveApprovalRequest.mutateAsync({
-        requestId
-      });
-      await refreshOperationalViews();
-      setApprovalFeedback(
-        `Approved ${request?.actionType ?? "guarded action"} for ${resourceLabel}.`
-      );
-    } catch (error) {
-      setApprovalFeedback(
-        isTRPCClientError(error)
-          ? error.message
-          : "Unable to approve this guarded action right now."
-      );
-    }
-  }
-
-  async function handleRejectApproval(requestId: string, resourceLabel: string) {
-    setApprovalFeedback(null);
-
-    try {
-      const request = await rejectApprovalRequest.mutateAsync({
-        requestId
-      });
-      await refreshOperationalViews();
-      setApprovalFeedback(
-        `Rejected ${request?.actionType ?? "guarded action"} for ${resourceLabel}.`
-      );
-    } catch (error) {
-      setApprovalFeedback(
-        isTRPCClientError(error) ? error.message : "Unable to reject this guarded action right now."
-      );
-    }
-  }
-
-  async function handleUpsertEnvironmentVariable(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setEnvironmentVariableFeedback(null);
-
-    try {
-      const variable = await upsertEnvironmentVariable.mutateAsync({
-        environmentId: environmentVariableEnvironmentId,
-        key: environmentVariableKey,
-        value: environmentVariableValue,
-        isSecret: environmentVariableIsSecret,
-        category: environmentVariableCategory,
-        branchPattern: environmentVariableBranchPattern || undefined
-      });
-      await refreshOperationalViews();
-      setEnvironmentVariableFeedback(
-        `Saved ${variable.key} for ${variable.environmentName} (${variable.category}).`
-      );
-    } catch (error) {
-      setEnvironmentVariableFeedback(
-        isTRPCClientError(error)
-          ? error.message
-          : "Unable to save the environment variable right now."
-      );
-    }
-  }
 
   const viewerMessage =
     viewer.error && isTRPCClientError(viewer.error) ? viewer.error.message : null;
@@ -771,176 +400,34 @@ export default function App() {
   const canManageServers = currentRole === "owner" || currentRole === "admin";
   const executionMutationPending =
     dispatchExecutionJob.isPending || completeExecutionJob.isPending || failExecutionJob.isPending;
-  const backupMutationPending = triggerBackupRun.isPending;
-  const backupRestoreMutationPending = queueBackupRestore.isPending;
-  const approvalMutationPending =
-    requestApproval.isPending ||
-    approveApprovalRequest.isPending ||
-    rejectApprovalRequest.isPending;
+  const approvalMutationPending = requestApproval.isPending;
   const composeReleaseMutationPending = queueComposeRelease.isPending;
-  const serverMutationPending = registerServer.isPending;
-  const environmentVariableMutationPending = upsertEnvironmentVariable.isPending;
 
   return (
     <main className="shell">
-      <section className="hero">
-        <div className="hero__copy">
-          <p className="hero__kicker">Docker-first control plane</p>
-          <h1>DaoFlow</h1>
-          <p className="hero__lede">
-            A typed control plane for Docker and Compose deployments with agent-safe automation
-            boundaries.
-          </p>
-        </div>
+      <HeroSection
+        session={session}
+        health={health}
+        overview={overview}
+        viewer={viewer}
+        currentRole={currentRole}
+      />
 
-        <div className="hero__rail">
-          <div className="metric metric--auth">
-            <span className="metric__label">Session</span>
-            <span className="metric__value" data-testid="session-state">
-              {session.isPending ? "checking" : session.data ? "signed in" : "signed out"}
-            </span>
-            {session.data ? (
-              <p className="metric__detail" data-testid="session-email">
-                {session.data.user.email}
-              </p>
-            ) : (
-              <p className="metric__detail">Use Better Auth to unlock protected tRPC data.</p>
-            )}
-          </div>
-          <div className="metric">
-            <span className="metric__label">Service health</span>
-            <span className="metric__value">{health.data?.status ?? "checking"}</span>
-          </div>
-          <div className="metric">
-            <span className="metric__label">Current slice</span>
-            <span className="metric__value">{overview.data?.currentSlice ?? "loading"}</span>
-          </div>
-          <div className="metric">
-            <span className="metric__label">Role</span>
-            <span className="metric__value" data-testid="role-state">
-              {currentRole}
-            </span>
-            <p className="metric__detail">
-              {viewer.data
-                ? `${viewer.data.authz.capabilities.length} granted capability lanes`
-                : "Role-aware policies unlock after sign-in."}
-            </p>
-          </div>
-        </div>
-      </section>
-
-      <section className="auth-section">
-        <div className="auth-panel">
-          <div className="auth-panel__header">
-            <div>
-              <p className="roadmap__kicker">Auth slice</p>
-              <h2>Better Auth + protected tRPC</h2>
-            </div>
-            <div className="auth-panel__switches">
-              <button
-                className={authMode === "sign-up" ? "tab tab--active" : "tab"}
-                onClick={() => setAuthMode("sign-up")}
-                type="button"
-              >
-                Sign up
-              </button>
-              <button
-                className={authMode === "sign-in" ? "tab tab--active" : "tab"}
-                onClick={() => setAuthMode("sign-in")}
-                type="button"
-              >
-                Sign in
-              </button>
-            </div>
-          </div>
-
-          {!session.data ? (
-            <form
-              className="auth-form"
-              onSubmit={(event) => {
-                void (authMode === "sign-up" ? handleSignUp(event) : handleSignIn(event));
-              }}
-            >
-              {authMode === "sign-up" ? (
-                <label>
-                  Name
-                  <input value={name} onChange={(event) => setName(event.target.value)} />
-                </label>
-              ) : null}
-
-              <label>
-                Email
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                />
-              </label>
-
-              <label>
-                Password
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                />
-              </label>
-
-              <button className="action-button" type="submit">
-                {authMode === "sign-up" ? "Create account" : "Sign in"}
-              </button>
-            </form>
-          ) : (
-            <div className="auth-state">
-              <p className="auth-state__summary" data-testid="auth-summary">
-                Signed in as <strong>{session.data.user.email}</strong>.
-              </p>
-              <p className="auth-state__role" data-testid="auth-role">
-                Assigned role: <strong>{currentRole}</strong>
-              </p>
-              <button
-                className="action-button action-button--muted"
-                onClick={() => {
-                  void handleSignOut();
-                }}
-                type="button"
-              >
-                Sign out
-              </button>
-            </div>
-          )}
-
-          {authFeedback ? <p className="auth-feedback">{authFeedback}</p> : null}
-        </div>
-
-        <div className="auth-panel auth-panel--viewer">
-          <p className="roadmap__kicker">Protected procedure</p>
-          <h2>Viewer</h2>
-          {session.data && viewer.data ? (
-            <pre className="viewer-output" data-testid="viewer-output">
-              {JSON.stringify(viewer.data, null, 2)}
-            </pre>
-          ) : (
-            <p className="viewer-empty">
-              {viewerMessage ?? "Sign in to fetch the protected viewer procedure."}
-            </p>
-          )}
-        </div>
-
-        <div className="auth-panel auth-panel--viewer">
-          <p className="roadmap__kicker">Role-gated procedure</p>
-          <h2>Admin control plane</h2>
-          {session.data && adminControlPlane.data ? (
-            <pre className="viewer-output" data-testid="admin-output">
-              {JSON.stringify(adminControlPlane.data, null, 2)}
-            </pre>
-          ) : (
-            <p className="viewer-empty">
-              {adminMessage ?? "Elevated roles can inspect governance guardrails here."}
-            </p>
-          )}
-        </div>
-      </section>
+      <AuthSection
+        session={session}
+        viewer={viewer}
+        adminControlPlane={adminControlPlane}
+        agentTokenInventory={agentTokenInventory}
+        currentRole={currentRole}
+        viewerMessage={viewerMessage}
+        adminMessage={adminMessage}
+        onSignOut={() => {
+          setDeploymentFeedback(null);
+          setComposeReleaseFeedback(null);
+          setExecutionFeedback(null);
+          setApprovalFeedback(null);
+        }}
+      />
 
       <section className="grid">
         <StatusCard title="Control plane" items={overview.data?.architecture.controlPlane ?? []} />
@@ -1096,319 +583,22 @@ export default function App() {
         )}
       </section>
 
-      <section className="server-readiness">
-        <div className="roadmap__header">
-          <p className="roadmap__kicker">Onboarding slice</p>
-          <h2>Server readiness and onboarding</h2>
-        </div>
+      <ServerReadiness
+        session={session}
+        serverReadiness={serverReadiness}
+        serverReadinessMessage={serverReadinessMessage}
+        canManageServers={canManageServers}
+        refreshOperationalViews={refreshOperationalViews}
+      />
 
-        {session.data && canManageServers ? (
-          <form
-            className="server-onboarding"
-            onSubmit={(event) => void handleRegisterServer(event)}
-          >
-            <div>
-              <p className="roadmap-item__lane">Admin-only action</p>
-              <h3>Register a target host</h3>
-              <p className="deployment-card__meta">
-                New servers start blocked until SSH, Docker Engine, and Compose probes pass.
-              </p>
-            </div>
-            <label>
-              Server name
-              <input value={serverName} onChange={(event) => setServerName(event.target.value)} />
-            </label>
-            <label>
-              Server host
-              <input value={serverHost} onChange={(event) => setServerHost(event.target.value)} />
-            </label>
-            <label>
-              Server region
-              <input
-                value={serverRegion}
-                onChange={(event) => setServerRegion(event.target.value)}
-              />
-            </label>
-            <label>
-              SSH port
-              <input
-                inputMode="numeric"
-                value={serverSshPort}
-                onChange={(event) => setServerSshPort(event.target.value)}
-              />
-            </label>
-            <label>
-              Target kind
-              <select
-                value={serverKind}
-                onChange={(event) =>
-                  setServerKind(event.target.value as "docker-engine" | "docker-swarm-manager")
-                }
-              >
-                <option value="docker-engine">docker-engine</option>
-                <option value="docker-swarm-manager">docker-swarm-manager</option>
-              </select>
-            </label>
-            <button className="action-button" disabled={serverMutationPending} type="submit">
-              {serverMutationPending ? "Registering..." : "Register server"}
-            </button>
-            {serverFeedback ? (
-              <p className="auth-feedback" data-testid="server-onboarding-feedback">
-                {serverFeedback}
-              </p>
-            ) : null}
-          </form>
-        ) : session.data ? (
-          <p className="viewer-empty">
-            Elevated roles can register new target hosts here. Signed-in viewers can still inspect
-            readiness checks below.
-          </p>
-        ) : null}
-
-        {session.data && serverReadiness.data ? (
-          <>
-            <div className="server-readiness-summary" data-testid="server-readiness-summary">
-              <div className="token-summary__item">
-                <span className="metric__label">Servers</span>
-                <strong>{serverReadiness.data.summary.totalServers}</strong>
-              </div>
-              <div className="token-summary__item">
-                <span className="metric__label">Ready</span>
-                <strong>{serverReadiness.data.summary.readyServers}</strong>
-              </div>
-              <div className="token-summary__item">
-                <span className="metric__label">Blocked</span>
-                <strong>{serverReadiness.data.summary.blockedServers}</strong>
-              </div>
-              <div className="token-summary__item">
-                <span className="metric__label">Avg latency</span>
-                <strong>
-                  {serverReadiness.data.summary.averageLatencyMs === null
-                    ? "n/a"
-                    : `${serverReadiness.data.summary.averageLatencyMs} ms`}
-                </strong>
-              </div>
-            </div>
-
-            <div className="server-readiness-list">
-              {serverReadiness.data.checks.map((check) => (
-                <article
-                  className="timeline-event"
-                  data-testid={`server-readiness-card-${check.serverId}`}
-                  key={check.serverId}
-                >
-                  <div className="timeline-event__top">
-                    <div>
-                      <p className="roadmap-item__lane">
-                        {check.targetKind} · SSH {check.sshPort}
-                      </p>
-                      <h3>{check.serverName}</h3>
-                    </div>
-                    <span
-                      className={`deployment-status deployment-status--${getServerReadinessTone(check.readinessStatus)}`}
-                    >
-                      {check.readinessStatus}
-                    </span>
-                  </div>
-                  <p className="deployment-card__meta">
-                    {check.serverHost} · inventory status {check.serverStatus}
-                  </p>
-                  <p className="deployment-card__meta">
-                    SSH {check.sshReachable ? "reachable" : "blocked"} · Docker{" "}
-                    {check.dockerReachable ? "reachable" : "blocked"} · Compose{" "}
-                    {check.composeReachable ? "reachable" : "blocked"}
-                  </p>
-                  <p className="deployment-card__meta">
-                    Checked at {check.checkedAt} · Latency{" "}
-                    {check.latencyMs === null ? "not measured" : `${check.latencyMs} ms`}
-                  </p>
-                  <div className="rollback-plan__columns">
-                    <div>
-                      <p className="roadmap-item__lane">Issues</p>
-                      <ul className="deployment-card__steps">
-                        {check.issues.length > 0 ? (
-                          check.issues.map((issue) => <li key={issue}>{issue}</li>)
-                        ) : (
-                          <li>Connectivity checks are healthy.</li>
-                        )}
-                      </ul>
-                    </div>
-                    <div>
-                      <p className="roadmap-item__lane">Recommended actions</p>
-                      <ul className="deployment-card__steps">
-                        {check.recommendedActions.map((action) => (
-                          <li key={action}>{action}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  </div>
-                </article>
-              ))}
-            </div>
-          </>
-        ) : (
-          <p className="viewer-empty">
-            {serverReadinessMessage ??
-              "Sign in to inspect server onboarding readiness and connectivity issues."}
-          </p>
-        )}
-      </section>
-
-      <section className="environment-variables">
-        <div className="roadmap__header">
-          <p className="roadmap__kicker">Environment management</p>
-          <h2>Encrypted environment configuration</h2>
-        </div>
-
-        {session.data && canManageEnvironmentVariables && infrastructureInventory.data ? (
-          <form
-            className="environment-variable-composer"
-            onSubmit={(event) => void handleUpsertEnvironmentVariable(event)}
-          >
-            <div>
-              <p className="roadmap-item__lane">Redacted read model</p>
-              <h3>Save scoped variable</h3>
-              <p className="deployment-card__meta">
-                Secret values stay write-only in the UI and are redacted on every read path.
-              </p>
-            </div>
-            <label>
-              Environment
-              <select
-                value={environmentVariableEnvironmentId}
-                onChange={(event) => setEnvironmentVariableEnvironmentId(event.target.value)}
-              >
-                {infrastructureInventory.data.environments.map((environment) => (
-                  <option key={environment.id} value={environment.id}>
-                    {environment.projectName} / {environment.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Key
-              <input
-                value={environmentVariableKey}
-                onChange={(event) => setEnvironmentVariableKey(event.target.value.toUpperCase())}
-              />
-            </label>
-            <label>
-              Value
-              <input
-                value={environmentVariableValue}
-                onChange={(event) => setEnvironmentVariableValue(event.target.value)}
-              />
-            </label>
-            <label>
-              Category
-              <select
-                value={environmentVariableCategory}
-                onChange={(event) =>
-                  setEnvironmentVariableCategory(event.target.value as "runtime" | "build")
-                }
-              >
-                <option value="runtime">runtime</option>
-                <option value="build">build</option>
-              </select>
-            </label>
-            <label>
-              Branch pattern
-              <input
-                value={environmentVariableBranchPattern}
-                onChange={(event) => setEnvironmentVariableBranchPattern(event.target.value)}
-                placeholder="optional, e.g. preview/*"
-              />
-            </label>
-            <label className="checkbox-label">
-              <input
-                checked={environmentVariableIsSecret}
-                onChange={(event) => setEnvironmentVariableIsSecret(event.target.checked)}
-                type="checkbox"
-              />
-              Secret value
-            </label>
-            <button
-              className="action-button"
-              disabled={environmentVariableMutationPending}
-              type="submit"
-            >
-              {environmentVariableMutationPending ? "Saving..." : "Save variable"}
-            </button>
-            {environmentVariableFeedback ? (
-              <p className="auth-feedback" data-testid="environment-variable-feedback">
-                {environmentVariableFeedback}
-              </p>
-            ) : null}
-          </form>
-        ) : session.data ? (
-          <p className="viewer-empty">
-            Deploy-capable roles can update encrypted environment variables here.
-          </p>
-        ) : null}
-
-        {session.data && environmentVariables.data ? (
-          <>
-            <div
-              className="environment-variable-summary"
-              data-testid="environment-variable-summary"
-            >
-              <div className="token-summary__item">
-                <span className="metric__label">Variables</span>
-                <strong>{environmentVariables.data.summary.totalVariables}</strong>
-              </div>
-              <div className="token-summary__item">
-                <span className="metric__label">Secrets</span>
-                <strong>{environmentVariables.data.summary.secretVariables}</strong>
-              </div>
-              <div className="token-summary__item">
-                <span className="metric__label">Runtime</span>
-                <strong>{environmentVariables.data.summary.runtimeVariables}</strong>
-              </div>
-              <div className="token-summary__item">
-                <span className="metric__label">Build</span>
-                <strong>{environmentVariables.data.summary.buildVariables}</strong>
-              </div>
-            </div>
-
-            <div className="environment-variable-list">
-              {environmentVariables.data.variables.map((variable) => (
-                <article
-                  className="token-card"
-                  data-testid={`environment-variable-card-${variable.id}`}
-                  key={variable.id}
-                >
-                  <div className="token-card__top">
-                    <div>
-                      <p className="roadmap-item__lane">
-                        {variable.projectName} / {variable.environmentName}
-                      </p>
-                      <h3>{variable.key}</h3>
-                    </div>
-                    <span
-                      className={`deployment-status deployment-status--${variable.isSecret ? "failed" : "queued"}`}
-                    >
-                      {variable.isSecret ? "secret" : variable.category}
-                    </span>
-                  </div>
-                  <p className="deployment-card__meta">Value: {variable.displayValue}</p>
-                  <p className="deployment-card__meta">
-                    Category: {variable.category} · Source: {variable.source}
-                  </p>
-                  <p className="deployment-card__meta">
-                    Branch pattern: {variable.branchPattern ?? "all branches"}
-                  </p>
-                  <p className="deployment-card__meta">Updated by {variable.updatedByEmail}</p>
-                </article>
-              ))}
-            </div>
-          </>
-        ) : (
-          <p className="viewer-empty">
-            {environmentVariablesMessage ??
-              "Sign in to inspect encrypted environment variable metadata."}
-          </p>
-        )}
-      </section>
+      <EnvironmentVariables
+        session={session}
+        environmentVariables={environmentVariables}
+        environmentVariablesMessage={environmentVariablesMessage}
+        canManageEnvironmentVariables={canManageEnvironmentVariables}
+        infrastructureInventory={infrastructureInventory}
+        refreshOperationalViews={refreshOperationalViews}
+      />
 
       <section className="persistent-volumes">
         <div className="roadmap__header">
@@ -2227,318 +1417,26 @@ export default function App() {
         )}
       </section>
 
-      <section className="backup-catalog">
-        <div className="roadmap__header">
-          <p className="roadmap__kicker">Backup awareness</p>
-          <h2>Backup policies and runs</h2>
-        </div>
+      <BackupCatalog
+        session={session}
+        backupOverview={backupOverview}
+        backupRestoreQueue={backupRestoreQueue}
+        backupMessage={backupMessage}
+        backupRestoreMessage={backupRestoreMessage}
+        canOperateExecutionJobs={canOperateExecutionJobs}
+        canRequestApprovals={canRequestApprovals}
+        refreshOperationalViews={refreshOperationalViews}
+        onApprovalFeedback={setApprovalFeedback}
+      />
 
-        {session.data && backupOverview.data ? (
-          <>
-            <div className="backup-summary" data-testid="backup-summary">
-              <div className="token-summary__item">
-                <span className="metric__label">Policies</span>
-                <strong>{backupOverview.data.summary.totalPolicies}</strong>
-              </div>
-              <div className="token-summary__item">
-                <span className="metric__label">Queued</span>
-                <strong>{backupOverview.data.summary.queuedRuns}</strong>
-              </div>
-              <div className="token-summary__item">
-                <span className="metric__label">Succeeded</span>
-                <strong>{backupOverview.data.summary.succeededRuns}</strong>
-              </div>
-              <div className="token-summary__item">
-                <span className="metric__label">Failed</span>
-                <strong>{backupOverview.data.summary.failedRuns}</strong>
-              </div>
-            </div>
-
-            {backupFeedback ? (
-              <p className="auth-feedback" data-testid="backup-feedback">
-                {backupFeedback}
-              </p>
-            ) : null}
-            {backupRestoreFeedback ? (
-              <p className="auth-feedback" data-testid="restore-feedback">
-                {backupRestoreFeedback}
-              </p>
-            ) : null}
-
-            <div className="backup-policy-list">
-              {backupOverview.data.policies.map((policy) => (
-                <article
-                  className="token-card"
-                  data-testid={`backup-policy-${policy.id}`}
-                  key={policy.id}
-                >
-                  <div className="token-card__top">
-                    <div>
-                      <p className="roadmap-item__lane">{policy.environmentName}</p>
-                      <h3>{policy.serviceName}</h3>
-                    </div>
-                    <span className="deployment-status deployment-status--queued">
-                      {policy.targetType}
-                    </span>
-                  </div>
-                  <p className="deployment-card__meta">
-                    {policy.storageProvider} · {policy.scheduleLabel}
-                  </p>
-                  <p className="deployment-card__meta">
-                    Retention: {policy.retentionCount} snapshots
-                  </p>
-                  {canOperateExecutionJobs ? (
-                    <div className="job-actions">
-                      <button
-                        className="action-button"
-                        disabled={backupMutationPending}
-                        onClick={() => {
-                          void handleTriggerBackupRun(policy.id, policy.serviceName);
-                        }}
-                        type="button"
-                      >
-                        Queue backup
-                      </button>
-                    </div>
-                  ) : null}
-                </article>
-              ))}
-            </div>
-
-            <div className="backup-run-list">
-              {backupOverview.data.runs.map((run) => (
-                <article
-                  className="timeline-event"
-                  data-testid={`backup-run-${run.id}`}
-                  key={run.id}
-                >
-                  <div className="timeline-event__top">
-                    <div>
-                      <p className="roadmap-item__lane">
-                        {run.environmentName} · {run.triggerKind}
-                      </p>
-                      <h3>{run.serviceName}</h3>
-                    </div>
-                    <span
-                      className={`deployment-status deployment-status--${run.status === "succeeded" ? "healthy" : run.status === "failed" ? "failed" : run.status === "running" ? "running" : "queued"}`}
-                    >
-                      {run.status}
-                    </span>
-                  </div>
-                  <p className="deployment-card__meta">
-                    {run.targetType} backup · Requested by {run.requestedBy}
-                  </p>
-                  <p className="deployment-card__meta">
-                    {run.artifactPath ??
-                      "Artifact path will be assigned by the future backup worker."}
-                  </p>
-                  {(canOperateExecutionJobs || canRequestApprovals) &&
-                  run.status === "succeeded" &&
-                  run.artifactPath ? (
-                    <div className="job-actions">
-                      {canOperateExecutionJobs ? (
-                        <button
-                          className="action-button action-button--muted"
-                          disabled={backupRestoreMutationPending}
-                          onClick={() => {
-                            void handleQueueBackupRestore(run.id, run.serviceName);
-                          }}
-                          type="button"
-                        >
-                          Queue restore
-                        </button>
-                      ) : null}
-                      {canRequestApprovals ? (
-                        <button
-                          className="action-button"
-                          disabled={approvalMutationPending}
-                          onClick={() => {
-                            void handleRequestBackupRestoreApproval(run.id, run.serviceName);
-                          }}
-                          type="button"
-                        >
-                          {approvalMutationPending ? "Requesting..." : "Request approval"}
-                        </button>
-                      ) : null}
-                    </div>
-                  ) : null}
-                </article>
-              ))}
-            </div>
-
-            {backupRestoreQueue.data ? (
-              <>
-                <div className="roadmap__header">
-                  <p className="roadmap__kicker">Recovery drills</p>
-                  <h2>Backup restore queue</h2>
-                </div>
-
-                <div className="restore-summary" data-testid="restore-summary">
-                  <div className="token-summary__item">
-                    <span className="metric__label">Requests</span>
-                    <strong>{backupRestoreQueue.data.summary.totalRequests}</strong>
-                  </div>
-                  <div className="token-summary__item">
-                    <span className="metric__label">Queued</span>
-                    <strong>{backupRestoreQueue.data.summary.queuedRequests}</strong>
-                  </div>
-                  <div className="token-summary__item">
-                    <span className="metric__label">Succeeded</span>
-                    <strong>{backupRestoreQueue.data.summary.succeededRequests}</strong>
-                  </div>
-                  <div className="token-summary__item">
-                    <span className="metric__label">Failed</span>
-                    <strong>{backupRestoreQueue.data.summary.failedRequests}</strong>
-                  </div>
-                </div>
-
-                <div className="restore-run-list">
-                  {backupRestoreQueue.data.requests.map((request) => (
-                    <article
-                      className="timeline-event"
-                      data-testid={`backup-restore-${request.id}`}
-                      key={request.id}
-                    >
-                      <div className="timeline-event__top">
-                        <div>
-                          <p className="roadmap-item__lane">
-                            {request.environmentName} · {request.targetType}
-                          </p>
-                          <h3>{request.serviceName}</h3>
-                        </div>
-                        <span
-                          className={`deployment-status deployment-status--${request.status === "succeeded" ? "healthy" : request.status === "failed" ? "failed" : request.status === "running" ? "running" : "queued"}`}
-                        >
-                          {request.status}
-                        </span>
-                      </div>
-                      <p className="deployment-card__meta">
-                        Restore to {request.destinationServerName}:{request.restorePath}
-                      </p>
-                      <p className="deployment-card__meta">{request.sourceArtifactPath}</p>
-                      <p className="deployment-card__meta">{request.validationSummary}</p>
-                    </article>
-                  ))}
-                </div>
-              </>
-            ) : (
-              <p className="viewer-empty">
-                {backupRestoreMessage ?? "Sign in to inspect queued and historical restore drills."}
-              </p>
-            )}
-          </>
-        ) : (
-          <p className="viewer-empty">
-            {backupMessage ?? "Sign in to inspect backup policies and recent runs."}
-          </p>
-        )}
-      </section>
-
-      <section className="approval-queue">
-        <div className="roadmap__header">
-          <p className="roadmap__kicker">Agent-safe command gates</p>
-          <h2>Approval queue</h2>
-        </div>
-
-        {approvalFeedback ? (
-          <p className="auth-feedback" data-testid="approval-feedback">
-            {approvalFeedback}
-          </p>
-        ) : null}
-
-        {session.data && approvalQueue.data ? (
-          <>
-            <div className="approval-summary" data-testid="approval-summary">
-              <div className="token-summary__item">
-                <span className="metric__label">Requests</span>
-                <strong>{approvalQueue.data.summary.totalRequests}</strong>
-              </div>
-              <div className="token-summary__item">
-                <span className="metric__label">Pending</span>
-                <strong>{approvalQueue.data.summary.pendingRequests}</strong>
-              </div>
-              <div className="token-summary__item">
-                <span className="metric__label">Approved</span>
-                <strong>{approvalQueue.data.summary.approvedRequests}</strong>
-              </div>
-              <div className="token-summary__item">
-                <span className="metric__label">Critical</span>
-                <strong>{approvalQueue.data.summary.criticalRequests}</strong>
-              </div>
-            </div>
-
-            <div className="approval-list">
-              {approvalQueue.data.requests.map((request) => (
-                <article
-                  className="token-card"
-                  data-testid={`approval-request-${request.id}`}
-                  key={request.id}
-                >
-                  <div className="token-card__top">
-                    <div>
-                      <p className="roadmap-item__lane">
-                        {request.requestedBy} · {request.requestedByRole}
-                      </p>
-                      <h3>{request.actionType}</h3>
-                    </div>
-                    <span
-                      className={`deployment-status deployment-status--${getApprovalTone(request.status, request.riskLevel)}`}
-                    >
-                      {request.status}
-                    </span>
-                  </div>
-                  <p className="deployment-card__meta">
-                    {request.resourceLabel} · Risk: {request.riskLevel}
-                  </p>
-                  <p className="deployment-card__meta">{request.reason}</p>
-                  <p className="deployment-card__meta">{request.commandSummary}</p>
-                  <p className="deployment-card__meta">
-                    Requested: {request.requestedAt} · Expires: {request.expiresAt}
-                  </p>
-                  {request.decidedBy ? (
-                    <p className="deployment-card__meta">
-                      Decision: {request.decidedBy} · {request.decidedAt}
-                    </p>
-                  ) : null}
-                  <ul className="deployment-card__steps">
-                    {request.recommendedChecks.map((check) => (
-                      <li key={check}>{check}</li>
-                    ))}
-                  </ul>
-                  {canOperateExecutionJobs && request.status === "pending" ? (
-                    <div className="job-actions">
-                      <button
-                        className="action-button"
-                        disabled={approvalMutationPending}
-                        onClick={() => {
-                          void handleApproveApproval(request.id, request.resourceLabel);
-                        }}
-                        type="button"
-                      >
-                        {approvalMutationPending ? "Applying..." : "Approve"}
-                      </button>
-                      <button
-                        className="action-button action-button--muted"
-                        disabled={approvalMutationPending}
-                        onClick={() => {
-                          void handleRejectApproval(request.id, request.resourceLabel);
-                        }}
-                        type="button"
-                      >
-                        {approvalMutationPending ? "Applying..." : "Reject"}
-                      </button>
-                    </div>
-                  ) : null}
-                </article>
-              ))}
-            </div>
-          </>
-        ) : (
-          <p className="viewer-empty">
-            {approvalMessage ?? "Sign in to inspect high-risk actions waiting for human approval."}
-          </p>
-        )}
-      </section>
+      <ApprovalQueue
+        session={session}
+        approvalQueue={approvalQueue}
+        approvalMessage={approvalMessage}
+        canOperateExecutionJobs={canOperateExecutionJobs}
+        refreshOperationalViews={refreshOperationalViews}
+        externalFeedback={approvalFeedback}
+      />
 
       <section className="token-inventory">
         <div className="roadmap__header">
