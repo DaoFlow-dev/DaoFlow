@@ -31,7 +31,14 @@ let foundationSeedPromise: Promise<void> | null = null;
 
 /** Lazy-init seed data — caches the promise so it only runs once. */
 export function ensureControlPlaneReady() {
-  foundationSeedPromise ??= seedControlPlaneData();
+  foundationSeedPromise ??= seedControlPlaneData().catch((err) => {
+    // Clear the cached promise so the next request retries
+    foundationSeedPromise = null;
+    console.warn(
+      "[seed] Control-plane seed failed (will retry on next request):",
+      err instanceof Error ? err.message : String(err)
+    );
+  });
   return foundationSeedPromise;
 }
 
