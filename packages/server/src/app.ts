@@ -41,7 +41,20 @@ export function createApp() {
   // ── Better Auth ───────────────────────────────────────────
   app.all("/api/auth/*", async (c) => {
     await ensureAuthReady();
-    return auth.handler(c.req.raw);
+    try {
+      const r = await auth.handler(c.req.raw);
+      if (!r.ok) {
+        const cloned = r.clone();
+        const body = await cloned.text().catch(() => "");
+        console.error(
+          `AUTH_DEBUG status=${r.status} url=${c.req.url} body=${body.substring(0, 500)}`
+        );
+      }
+      return r;
+    } catch (err) {
+      console.error(`AUTH_DEBUG_EXCEPTION url=${c.req.url}`, err);
+      throw err;
+    }
   });
 
   // ── Image push (REST API) ─────────────────────────────────

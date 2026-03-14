@@ -53,10 +53,16 @@ export const auth = betterAuth({
       create: {
         before: async (user) => {
           // Query actual user count from DB instead of in-memory counter.
-          // This is correct even when multiple E2E test files run against
-          // the same server process, or when the server restarts.
-          const result = await pool.query("SELECT count(*)::int AS cnt FROM users");
-          const existingUsers = result.rows[0]?.cnt ?? 0;
+          // Wrap in try/catch: Better Auth creates tables lazily, so the
+          // very first sign-up may run before the `users` table exists.
+          let existingUsers = 0;
+          try {
+            const result = await pool.query("SELECT count(*)::int AS cnt FROM users");
+            existingUsers = result.rows[0]?.cnt ?? 0;
+          } catch {
+            // Table doesn't exist yet → this IS the first user
+            existingUsers = 0;
+          }
           return {
             data: {
               ...user,
