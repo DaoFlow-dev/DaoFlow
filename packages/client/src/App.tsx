@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { isTRPCClientError } from "@trpc/client";
+import { canAssumeAnyRole, normalizeAppRole } from "@daoflow/shared";
 import { useSession } from "./lib/auth-client";
 import { trpc } from "./lib/trpc";
 import { StatusCard } from "./components/status-card";
@@ -48,8 +49,8 @@ export default function App() {
 
   const viewer = trpc.viewer.useQuery(undefined, { enabled });
   const adminControlPlane = trpc.adminControlPlane.useQuery(undefined, { enabled });
-  const currentRole = viewer.data?.authz.role ?? "guest";
-  const canViewAgentTokenInventory = currentRole === "owner" || currentRole === "admin";
+  const currentRole = normalizeAppRole(viewer.data?.authz.role);
+  const canViewAgentTokenInventory = canAssumeAnyRole(currentRole, ["owner", "admin"]);
   const _principalInventory = trpc.principalInventory.useQuery(undefined, {
     enabled: canViewAgentTokenInventory
   });
@@ -86,21 +87,22 @@ export default function App() {
     query.error && isTRPCClientError(query.error) ? query.error.message : null;
 
   // ── Permission helpers ─────────────────────────────────────────
-  const canQueueDeployments =
-    currentRole === "owner" ||
-    currentRole === "admin" ||
-    currentRole === "operator" ||
-    currentRole === "developer";
-  const canOperateExecutionJobs =
-    currentRole === "owner" || currentRole === "admin" || currentRole === "operator";
-  const canRequestApprovals =
-    currentRole === "owner" ||
-    currentRole === "admin" ||
-    currentRole === "operator" ||
-    currentRole === "developer" ||
-    currentRole === "agent";
+  const canQueueDeployments = canAssumeAnyRole(currentRole, [
+    "owner",
+    "admin",
+    "operator",
+    "developer"
+  ]);
+  const canOperateExecutionJobs = canAssumeAnyRole(currentRole, ["owner", "admin", "operator"]);
+  const canRequestApprovals = canAssumeAnyRole(currentRole, [
+    "owner",
+    "admin",
+    "operator",
+    "developer",
+    "agent"
+  ]);
   const canManageEnvironmentVariables = canQueueDeployments;
-  const canManageServers = currentRole === "owner" || currentRole === "admin";
+  const canManageServers = canAssumeAnyRole(currentRole, ["owner", "admin"]);
 
   return (
     <main className="shell">

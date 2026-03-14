@@ -4,7 +4,7 @@ import { logger } from "hono/logger";
 import { secureHeaders } from "hono/secure-headers";
 import { trpcServer } from "@hono/trpc-server";
 import { DEFAULT_CLIENT_PORT } from "@daoflow/shared";
-import { auth, ensureAuthReady } from "./auth";
+import { auth } from "./auth";
 import { createContext } from "./context";
 import { createRequestId } from "./request-id";
 import { appRouter } from "./router";
@@ -40,10 +40,7 @@ export function createApp() {
   app.use("*", logger());
 
   // ── Better Auth ───────────────────────────────────────────
-  app.all("/api/auth/*", async (c) => {
-    await ensureAuthReady();
-    return auth.handler(c.req.raw);
-  });
+  app.all("/api/auth/*", (c) => auth.handler(c.req.raw));
 
   // ── Image push (REST API) ─────────────────────────────────
   app.route("/api/v1/images", imagesRouter);

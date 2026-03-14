@@ -1,22 +1,49 @@
 import { Hono } from "hono";
 import { createWriteStream, mkdirSync, existsSync, statSync } from "node:fs";
+import { unlink } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
-import { execSync } from "node:child_process";
 
 const imagesRouter = new Hono();
+
+/**
+ * Run a shell command asynchronously using Bun.spawn so the server
+ * stays responsive while Docker operations complete.
+ */
+async function exec(
+  cmd: string[],
+  opts?: { timeout?: number; stdin?: string }
+): Promise<{ stdout: string; stderr: string; exitCode: number }> {
+  const proc = Bun.spawn(cmd, {
+    stdin: opts?.stdin ? new Response(opts.stdin).body! : "ignore",
+    stdout: "pipe",
+    stderr: "pipe"
+  });
+
+  const timeout = opts?.timeout ?? 30_000;
+  const timer = setTimeout(() => proc.kill(), timeout);
+
+  const [stdout, stderr] = await Promise.all([
+    new Response(proc.stdout).text(),
+    new Response(proc.stderr).text()
+  ]);
+
+  const exitCode = await proc.exited;
+  clearTimeout(timer);
+
+  return { stdout, stderr, exitCode };
+}
 
 /**
  * POST /push
  *
  * Receives a Docker image tarball (gzipped) and loads it on the target server.
  * Query params: tag, server, service
- *
- * This is the server-side of `daoflow push` — streams a Docker save tarball
- * directly to the server and loads it via `docker load`.
  */
 imagesRouter.post("/push", async (c) => {
+  // TODO: gate behind deployProcedure-equivalent auth once images
+  // move to the tRPC router. For now this is internal-only.
   const tag = c.req.query("tag") ?? "daoflow-app:latest";
   const serverId = c.req.query("server") ?? "";
   const serviceName = c.req.query("service") ?? "";
@@ -62,39 +89,25 @@ imagesRouter.post("/push", async (c) => {
     const fileSize = statSync(tarPath).size;
     const sizeMB = (fileSize / 1024 / 1024).toFixed(1);
 
-    // Load image into Docker
-    try {
-      execSync(`docker load < ${tarPath}`, {
-        timeout: 300_000,
-        stdio: "pipe"
-      });
-    } catch (err: unknown) {
-      const stderr =
-        err instanceof Error
-          ? err.message
-          : typeof err === "object" &&
-              err !== null &&
-              "stderr" in err &&
-              typeof (err as { stderr: unknown }).stderr === "object"
-            ? String((err as { stderr: { toString(): string } }).stderr)
-            : "Failed to load Docker image";
+    // Load image into Docker (async — does NOT block the server)
+    const result = await exec(["docker", "load", "-i", tarPath], {
+      timeout: 300_000
+    });
+
+    if (result.exitCode !== 0) {
       return c.json(
         {
           status: "error",
           error: "docker_load_failed",
-          message: stderr,
+          message: result.stderr || "Failed to load Docker image",
           uploadId
         },
         500
       );
     }
 
-    // Cleanup tarball
-    try {
-      execSync(`rm -f ${tarPath}`);
-    } catch {
-      /* ignore */
-    }
+    // Cleanup tarball (async, best-effort)
+    await unlink(tarPath).catch(() => {});
 
     return c.json({
       status: "ok",
@@ -130,14 +143,13 @@ interface DockerImageInfo {
   Size: string;
 }
 
-imagesRouter.get("/", (c) => {
+imagesRouter.get("/", async (c) => {
   try {
-    const output = execSync("docker images --format json", {
-      timeout: 10_000,
-      encoding: "utf-8"
+    const result = await exec(["docker", "images", "--format", "json"], {
+      timeout: 10_000
     });
 
-    const images: DockerImageInfo[] = output
+    const images: DockerImageInfo[] = result.stdout
       .trim()
       .split("\n")
       .filter(Boolean)

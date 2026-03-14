@@ -79,9 +79,4 @@ export const auth = betterAuth({
   }
 });
 
-export async function ensureAuthReady() {
-  // Better Auth with drizzle adapter handles migrations automatically
-  // No explicit migration step needed — tables are created on first use
-}
-
 export type AuthSession = Awaited<ReturnType<typeof auth.api.getSession>>;

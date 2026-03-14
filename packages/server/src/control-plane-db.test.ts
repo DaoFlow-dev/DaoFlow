@@ -19,9 +19,7 @@ describe("control-plane environment variables", () => {
   it("rejects malformed encrypted payloads", async () => {
     await ensureControlPlaneReady();
 
-    expect(() => decryptEnvironmentValue("bad-payload")).toThrow(
-      "Invalid encrypted environment payload."
-    );
+    expect(() => decryptEnvironmentValue("bad-payload")).toThrow("Invalid encrypted payload.");
   });
 
   it("upserts scoped variables and keeps secret reads redacted", async () => {
