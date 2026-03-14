@@ -1,9 +1,5 @@
 import { appRoles, defaultSignupRole, normalizeAppRole, roleCapabilities } from "@daoflow/shared";
-import {
-  ensureControlPlaneReady,
-  listApiTokenInventory,
-  listPrincipalInventory
-} from "../control-plane-db";
+import { listApiTokenInventory, listPrincipalInventory } from "../control-plane-db";
 import { t, protectedProcedure, adminProcedure } from "../trpc";
 
 export const adminRouter = t.router({
@@ -49,11 +45,9 @@ export const adminRouter = t.router({
     ]
   })),
   agentTokenInventory: adminProcedure.query(async () => {
-    await ensureControlPlaneReady();
     return listApiTokenInventory();
   }),
   principalInventory: adminProcedure.query(async () => {
-    await ensureControlPlaneReady();
     return listPrincipalInventory();
   })
 });

@@ -6,7 +6,6 @@ import {
   createApprovalRequest,
   createDeploymentRecord,
   dispatchExecutionJob,
-  ensureControlPlaneReady,
   failExecutionJob,
   queueBackupRestore,
   queueComposeRelease,
@@ -36,7 +35,6 @@ export const commandRouter = t.router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      await ensureControlPlaneReady();
       const result = await registerServer({
         ...input,
         requestedByUserId: ctx.session.user.id,
@@ -75,7 +73,6 @@ export const commandRouter = t.router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      await ensureControlPlaneReady();
       const deployment = await createDeploymentRecord({
         ...input,
         requestedByUserId: ctx.session.user.id,
@@ -101,7 +98,6 @@ export const commandRouter = t.router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      await ensureControlPlaneReady();
       const deployment = await queueComposeRelease({
         ...input,
         requestedByUserId: ctx.session.user.id,
@@ -133,7 +129,6 @@ export const commandRouter = t.router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      await ensureControlPlaneReady();
       const variable = await upsertEnvironmentVariable({
         ...input,
         updatedByUserId: ctx.session.user.id,
@@ -168,7 +163,6 @@ export const commandRouter = t.router({
       ])
     )
     .mutation(async ({ ctx, input }) => {
-      await ensureControlPlaneReady();
       const request = await createApprovalRequest({
         ...input,
         requestedByUserId: ctx.session.user.id,
@@ -195,7 +189,6 @@ export const commandRouter = t.router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      await ensureControlPlaneReady();
       const result = await approveApprovalRequest(
         input.requestId,
         ctx.session.user.id,
@@ -213,7 +206,6 @@ export const commandRouter = t.router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      await ensureControlPlaneReady();
       const result = await rejectApprovalRequest(
         input.requestId,
         ctx.session.user.id,
@@ -231,7 +223,6 @@ export const commandRouter = t.router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      await ensureControlPlaneReady();
       const run = await triggerBackupRun(
         input.policyId,
         ctx.session.user.id,
@@ -255,7 +246,6 @@ export const commandRouter = t.router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      await ensureControlPlaneReady();
       const restore = await queueBackupRestore(
         input.backupRunId,
         ctx.session.user.id,
@@ -279,7 +269,6 @@ export const commandRouter = t.router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      await ensureControlPlaneReady();
       const result = await dispatchExecutionJob(
         input.jobId,
         ctx.session.user.id,
@@ -297,7 +286,6 @@ export const commandRouter = t.router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      await ensureControlPlaneReady();
       const result = await completeExecutionJob(
         input.jobId,
         ctx.session.user.id,
@@ -316,7 +304,6 @@ export const commandRouter = t.router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      await ensureControlPlaneReady();
       const result = await failExecutionJob(
         input.jobId,
         ctx.session.user.id,

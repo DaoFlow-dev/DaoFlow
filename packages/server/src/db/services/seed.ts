@@ -27,10 +27,6 @@ function hoursAfter(hours: number) {
   return new Date(FOUNDATION_REFERENCE_TIME.getTime() + hours * 60 * 60 * 1000);
 }
 
-function _minutesAfter(minutes: number) {
-  return new Date(FOUNDATION_REFERENCE_TIME.getTime() + minutes * 60 * 1000);
-}
-
 export async function seedControlPlaneData() {
   await db.transaction(async (tx) => {
     await tx

@@ -1,16 +1,20 @@
 import { initTRPC, TRPCError } from "@trpc/server";
 import { canAssumeAnyRole, normalizeAppRole, type AppRole } from "@daoflow/shared";
 import type { Context } from "./context";
+import { ensureControlPlaneReady } from "./control-plane-db";
 
 export const t = initTRPC.context<Context>().create();
 
-export const protectedProcedure = t.procedure.use(({ ctx, next }) => {
+export const protectedProcedure = t.procedure.use(async ({ ctx, next }) => {
   if (!ctx.session) {
     throw new TRPCError({
       code: "UNAUTHORIZED",
       message: "Sign in to access this procedure."
     });
   }
+
+  // Run once per request — the promise caches after first call
+  await ensureControlPlaneReady();
 
   return next({
     ctx: {

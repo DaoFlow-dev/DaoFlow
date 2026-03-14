@@ -380,10 +380,6 @@ export default function App() {
     agentTokenInventory.error && isTRPCClientError(agentTokenInventory.error)
       ? agentTokenInventory.error.message
       : null;
-  const _principalMessage =
-    principalInventory.error && isTRPCClientError(principalInventory.error)
-      ? principalInventory.error.message
-      : null;
   const canQueueDeployments =
     currentRole === "owner" ||
     currentRole === "admin" ||

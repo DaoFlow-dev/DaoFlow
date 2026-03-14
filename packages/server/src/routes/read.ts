@@ -1,6 +1,5 @@
 import { z } from "zod";
 import {
-  ensureControlPlaneReady,
   getDeploymentRecord,
   listApprovalQueue,
   listAuditTrail,
@@ -94,7 +93,6 @@ export const readRouter = t.router({
       })
     )
     .query(async ({ input }) => {
-      await ensureControlPlaneReady();
       return listDeploymentRecords(input.status, input.limit ?? 20);
     }),
   composeReleaseCatalog: protectedProcedure
@@ -104,7 +102,6 @@ export const readRouter = t.router({
       })
     )
     .query(async ({ input }) => {
-      await ensureControlPlaneReady();
       return listComposeReleaseCatalog(input.limit ?? 24);
     }),
   composeDriftReport: protectedProcedure
@@ -114,7 +111,6 @@ export const readRouter = t.router({
       })
     )
     .query(async ({ input }) => {
-      await ensureControlPlaneReady();
       return listComposeDriftReport(input.limit ?? 24);
     }),
   approvalQueue: protectedProcedure
@@ -124,7 +120,6 @@ export const readRouter = t.router({
       })
     )
     .query(async ({ input }) => {
-      await ensureControlPlaneReady();
       return listApprovalQueue(input.limit ?? 24);
     }),
   deploymentDetails: protectedProcedure
@@ -134,7 +129,6 @@ export const readRouter = t.router({
       })
     )
     .query(async ({ input }) => {
-      await ensureControlPlaneReady();
       const deployment = await getDeploymentRecord(input.deploymentId);
 
       if (!deployment) {
@@ -154,11 +148,9 @@ export const readRouter = t.router({
       })
     )
     .query(async ({ input }) => {
-      await ensureControlPlaneReady();
       return listExecutionQueue(input.status, input.limit ?? 12);
     }),
   infrastructureInventory: protectedProcedure.query(async () => {
-    await ensureControlPlaneReady();
     return listInfrastructureInventory();
   }),
   serverReadiness: protectedProcedure
@@ -168,7 +160,6 @@ export const readRouter = t.router({
       })
     )
     .query(async ({ input }) => {
-      await ensureControlPlaneReady();
       return listServerReadiness(input.limit ?? 12);
     }),
   persistentVolumes: protectedProcedure
@@ -178,7 +169,6 @@ export const readRouter = t.router({
       })
     )
     .query(async ({ input }) => {
-      await ensureControlPlaneReady();
       return listPersistentVolumeInventory(input.limit ?? 12);
     }),
   deploymentInsights: protectedProcedure
@@ -188,7 +178,6 @@ export const readRouter = t.router({
       })
     )
     .query(async ({ input }) => {
-      await ensureControlPlaneReady();
       return listDeploymentInsights(input.limit ?? 6);
     }),
   deploymentRollbackPlans: protectedProcedure
@@ -198,7 +187,6 @@ export const readRouter = t.router({
       })
     )
     .query(async ({ input }) => {
-      await ensureControlPlaneReady();
       return listDeploymentRollbackPlans(input.limit ?? 6);
     }),
   auditTrail: protectedProcedure
@@ -208,7 +196,6 @@ export const readRouter = t.router({
       })
     )
     .query(async ({ input }) => {
-      await ensureControlPlaneReady();
       return listAuditTrail(input.limit ?? 12);
     }),
   environmentVariables: protectedProcedure
@@ -219,7 +206,6 @@ export const readRouter = t.router({
       })
     )
     .query(async ({ input }) => {
-      await ensureControlPlaneReady();
       return listEnvironmentVariableInventory(input.environmentId, input.limit ?? 50);
     }),
   deploymentLogs: protectedProcedure
@@ -230,7 +216,6 @@ export const readRouter = t.router({
       })
     )
     .query(async ({ input }) => {
-      await ensureControlPlaneReady();
       return listDeploymentLogs(input.deploymentId, input.limit ?? 18);
     }),
   backupOverview: protectedProcedure
@@ -240,7 +225,6 @@ export const readRouter = t.router({
       })
     )
     .query(async ({ input }) => {
-      await ensureControlPlaneReady();
       return listBackupOverview(input.limit ?? 12);
     }),
   backupRestoreQueue: protectedProcedure
@@ -250,7 +234,6 @@ export const readRouter = t.router({
       })
     )
     .query(async ({ input }) => {
-      await ensureControlPlaneReady();
       return listBackupRestoreQueue(input.limit ?? 12);
     }),
   operationsTimeline: protectedProcedure
@@ -261,7 +244,6 @@ export const readRouter = t.router({
       })
     )
     .query(async ({ input }) => {
-      await ensureControlPlaneReady();
       return listOperationsTimeline(input.deploymentId, input.limit ?? 12);
     })
 });
