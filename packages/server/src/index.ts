@@ -66,4 +66,19 @@ function start() {
   process.on("SIGTERM", () => void shutdown("SIGTERM"));
 }
 
-void start();
+// Catch any unhandled errors so CI/Playwright can see them
+process.on("uncaughtException", (err) => {
+  console.error("[FATAL] Uncaught exception:", err);
+  process.exit(1);
+});
+process.on("unhandledRejection", (reason) => {
+  console.error("[FATAL] Unhandled rejection:", reason);
+  process.exit(1);
+});
+
+try {
+  start();
+} catch (err) {
+  console.error("[FATAL] Server failed to start:", err);
+  process.exit(1);
+}
