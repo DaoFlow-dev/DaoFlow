@@ -35,7 +35,7 @@ if (isProduction) {
     const indexPath = path.join(clientDistDir, "index.html");
     const file = Bun.file(indexPath);
     return new Response(file, {
-      headers: { "content-type": "text/html; charset=utf-8" },
+      headers: { "content-type": "text/html; charset=utf-8" }
     });
   });
 }
@@ -43,12 +43,10 @@ if (isProduction) {
 // Keep the server reference at module scope so Bun's GC doesn't collect it
 const server = Bun.serve({
   port,
-  fetch: app.fetch,
+  fetch: app.fetch
 });
 
-console.log(
-  `DaoFlow control plane listening on http://localhost:${server.port}`
-);
+console.log(`DaoFlow control plane listening on http://localhost:${server.port}`);
 
 // Start the execution worker when Docker is available
 if (shouldStartWorker()) {
