@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { signUpOwner, signInAsOwner, OWNER_EMAIL, OWNER_PASSWORD } from "./helpers";
+import { signInAsOwner, OWNER_EMAIL, OWNER_PASSWORD } from "./helpers";
 
 test.describe("Authentication flows", () => {
   test("first user sign-up → owner role → sign-out → sign-in cycle", async ({ page }) => {
@@ -7,12 +7,9 @@ test.describe("Authentication flows", () => {
 
     // Confirm landing page loads
     await expect(page.getByRole("heading", { name: "DaoFlow", level: 1 })).toBeVisible();
-    await expect(page.getByTestId("session-state")).toHaveText("signed out");
 
-    // Sign up as the first user (gets owner role) using shared credentials
-    await signUpOwner(page);
-
-    // Verify session established
+    // Sign in as the owner (created in global setup)
+    await signInAsOwner(page);
     await expect(page.getByTestId("session-state")).toHaveText("signed in");
     await expect(page.getByTestId("session-email")).toHaveText(OWNER_EMAIL);
     await expect(page.getByTestId("role-state")).toHaveText("owner");
