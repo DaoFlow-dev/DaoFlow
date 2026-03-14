@@ -50,7 +50,7 @@ export default function App() {
   const adminControlPlane = trpc.adminControlPlane.useQuery(undefined, { enabled });
   const currentRole = viewer.data?.authz.role ?? "guest";
   const canViewAgentTokenInventory = currentRole === "owner" || currentRole === "admin";
-  const principalInventory = trpc.principalInventory.useQuery(undefined, {
+  const _principalInventory = trpc.principalInventory.useQuery(undefined, {
     enabled: canViewAgentTokenInventory
   });
   const agentTokenInventory = trpc.agentTokenInventory.useQuery(undefined, {

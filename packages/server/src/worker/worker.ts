@@ -8,7 +8,7 @@
  * Future: extract to a separate process, add SSH-based remote execution.
  */
 
-import { eq, and, asc, sql as rawSql } from "drizzle-orm";
+import { eq, and, sql as rawSql } from "drizzle-orm";
 import { db } from "../db/connection";
 import { deployments, deploymentSteps } from "../db/schema/deployments";
 import { auditEntries, events } from "../db/schema/audit";
