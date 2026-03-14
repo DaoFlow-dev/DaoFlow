@@ -129,7 +129,7 @@ test("loads the DaoFlow foundation dashboard", async ({ page }) => {
     page.locator('[data-testid^="server-card-"]').filter({ hasText: uniqueServerName })
   ).toContainText("pending verification");
   const composeReleaseForm = page.getByTestId("compose-release-form");
-  await composeReleaseForm.getByLabel("Commit SHA").fill("fedcba1");
+  await composeReleaseForm.getByLabel("Commit SHA").fill("e2e0001");
   await composeReleaseForm.getByLabel("Image override").fill("ghcr.io/daoflow/control-plane:0.1.1");
   await composeReleaseForm.getByRole("button", { name: "Queue compose release" }).click();
   await expect(page.getByTestId("compose-release-feedback")).toContainText(
@@ -139,9 +139,7 @@ test("loads the DaoFlow foundation dashboard", async ({ page }) => {
     page
       .locator('[data-testid^="deployment-card-"]')
       .filter({ hasText: "Source: compose" })
-      .filter({
-        hasText: "Commit: fedcba1"
-      })
+      .filter({ hasText: "Commit: e2e0001" })
   ).toContainText("ghcr.io/daoflow/control-plane:0.1.1");
   const manualDeploymentForm = page.getByTestId("manual-deployment-form");
   await manualDeploymentForm.getByLabel("Service name").fill("edge-worker-ui");
@@ -219,11 +217,14 @@ test("loads the DaoFlow foundation dashboard", async ({ page }) => {
     })
   ).toContainText("staging");
   await expect(
-    page.locator('[data-testid^="timeline-event-"]').filter({
-      hasText: "Deployment reached a healthy state."
-    })
+    page
+      .locator('[data-testid^="timeline-event-"]')
+      .filter({
+        hasText: "Deployment reached a healthy state."
+      })
+      .first()
   ).toContainText("edge-worker-ui");
-  await expect(page.getByText("Scoped automation identities")).toBeVisible();
+  await expect(page.getByText("Scoped automation identities").first()).toBeVisible();
   await expect(page.getByText("Backup policies and runs")).toBeVisible();
   await expect(page.getByTestId("backup-summary")).toContainText("2");
   await expect(page.getByText("Backup restore queue")).toBeVisible();

@@ -5,7 +5,7 @@ test.describe("RBAC and agent tokens", () => {
   test("owner can see agent token inventory", async ({ page }) => {
     await signInAsOwner(page);
 
-    await expect(page.getByText("Scoped automation identities")).toBeVisible();
+    await expect(page.getByText("Scoped automation identities").first()).toBeVisible();
     await expect(page.getByTestId("token-summary")).toContainText("3");
     await expect(page.getByTestId("token-card-token_observer_readonly")).toContainText(
       "readonly-observer"
