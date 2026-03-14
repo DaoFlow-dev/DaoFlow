@@ -10,9 +10,7 @@ export default defineConfig({
     trace: "on-first-retry"
   },
   webServer: {
-    command: "bun run start",
-    stdout: "pipe",
-    stderr: "pipe",
+    command: "bun run build && bun run start",
     env: {
       DATABASE_URL:
         process.env.DATABASE_URL ?? "postgresql://daoflow:daoflow_dev@localhost:5432/daoflow",

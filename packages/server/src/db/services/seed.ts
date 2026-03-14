@@ -1143,12 +1143,3 @@ export async function seedControlPlaneData() {
 
   console.log("Seeded DaoFlow foundation control-plane data.");
 }
-
-if (import.meta.main) {
-  seedControlPlaneData()
-    .then(() => process.exit(0))
-    .catch((error) => {
-      console.error(error);
-      process.exit(1);
-    });
-}

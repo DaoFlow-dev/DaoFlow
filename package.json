@@ -24,7 +24,7 @@
     "db:migrate": "bun packages/server/src/db/migration.ts",
     "db:push": "drizzle-kit push",
     "db:push:ci": "drizzle-kit push --force",
-    "db:seed": "bun packages/server/src/db/services/seed.ts",
+    "db:seed": "bun packages/server/src/db/services/run-seed.ts",
     "db:studio": "drizzle-kit studio",
     "cli": "bun packages/cli/src/index.ts"
   },
