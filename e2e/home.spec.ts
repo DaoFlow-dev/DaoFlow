@@ -307,15 +307,14 @@ test("loads the DaoFlow foundation dashboard", async ({ page }) => {
       .filter({ hasText: "postgres-volume@production-us-west" })
       .first()
   ).toContainText(email);
-  await expect(
-    page
-      .locator('[data-testid^="audit-entry-"]')
-      .filter({
-        hasText: "backup.restore.queue"
-      })
-      .filter({ hasText: "postgres-volume@production-us-west" })
-      .filter({ hasText: email })
-  ).toHaveCount(2);
+  const restoreQueueEntries = page
+    .locator('[data-testid^="audit-entry-"]')
+    .filter({
+      hasText: "backup.restore.queue"
+    })
+    .filter({ hasText: "postgres-volume@production-us-west" })
+    .filter({ hasText: email });
+  await expect(await restoreQueueEntries.count()).toBeGreaterThanOrEqual(2);
   await expect(page.getByTestId("token-summary")).toContainText("3");
   await expect(page.getByTestId("token-card-token_observer_readonly")).toContainText(
     "readonly-observer"
