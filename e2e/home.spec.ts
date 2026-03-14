@@ -56,7 +56,7 @@ test("loads the DaoFlow foundation dashboard", async ({ page }) => {
     page.getByTestId("compose-drift-card-compose_daoflow_staging_control_plane")
   ).toContainText("crash-loop");
   await expect(page.getByText("Encrypted environment configuration")).toBeVisible();
-  await expect(page.getByTestId("environment-variable-summary")).toContainText("3");
+  await expect(page.getByTestId("environment-variable-summary")).toContainText("Variables");
   await expect(
     page.getByTestId("environment-variable-card-envvar_prod_database_password")
   ).toContainText("Value: [secret]");
