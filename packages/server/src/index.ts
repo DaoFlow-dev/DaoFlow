@@ -63,4 +63,9 @@ function start() {
   process.on("SIGTERM", () => shutdown("SIGTERM"));
 }
 
+// Log unhandled rejections for CI visibility (don't exit — let Bun handle it)
+process.on("unhandledRejection", (reason) => {
+  console.error("[warn] Unhandled rejection:", reason);
+});
+
 void start();
