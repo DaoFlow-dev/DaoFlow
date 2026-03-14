@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { signInAsOwner, OWNER_EMAIL } from "./helpers";
 
 test("loads the DaoFlow foundation dashboard", async ({ page }) => {
   await page.goto("/");
@@ -8,11 +9,8 @@ test("loads the DaoFlow foundation dashboard", async ({ page }) => {
   await expect(page.getByText("healthy")).toBeVisible();
   await expect(page.getByText("Foundation slice")).toHaveCount(4);
 
-  const email = `operator+${Date.now()}@daoflow.local`;
-  await page.getByLabel("Name").fill("DaoFlow Operator");
-  await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Password").fill("secret1234");
-  await page.getByRole("button", { name: "Create account" }).click();
+  await signInAsOwner(page);
+  const email = OWNER_EMAIL;
 
   await expect(page.getByTestId("session-state")).toHaveText("signed in");
   await expect(page.getByTestId("session-email")).toHaveText(email);

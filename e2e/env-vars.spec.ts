@@ -1,19 +1,9 @@
 import { expect, test } from "@playwright/test";
-
-async function signUpAsOwner(page: import("@playwright/test").Page) {
-  const email = `env-owner+${Date.now()}@daoflow.local`;
-  await page.goto("/");
-  await page.getByLabel("Name").fill("Env Admin");
-  await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Password").fill("secret1234");
-  await page.getByRole("button", { name: "Create account" }).click();
-  await expect(page.getByTestId("session-state")).toHaveText("signed in");
-  return email;
-}
+import { signInAsOwner } from "./helpers";
 
 test.describe("Environment variables", () => {
   test("seed environment variables are visible", async ({ page }) => {
-    await signUpAsOwner(page);
+    await signInAsOwner(page);
 
     await expect(page.getByText("Encrypted environment configuration")).toBeVisible();
     await expect(page.getByTestId("environment-variable-summary")).toContainText("3");
@@ -26,7 +16,7 @@ test.describe("Environment variables", () => {
   });
 
   test("save a runtime environment variable", async ({ page }) => {
-    await signUpAsOwner(page);
+    await signInAsOwner(page);
 
     await page.getByLabel("Key").fill("API_BASE_URL");
     await page.getByLabel("Value", { exact: true }).fill("https://api.daoflow.dev");
@@ -45,7 +35,7 @@ test.describe("Environment variables", () => {
   });
 
   test("save a secret environment variable shows masked value", async ({ page }) => {
-    await signUpAsOwner(page);
+    await signInAsOwner(page);
 
     await page.getByLabel("Key").fill("DB_PASSWORD");
     await page.getByLabel("Value", { exact: true }).fill("super-secret-pw");
@@ -63,7 +53,7 @@ test.describe("Environment variables", () => {
   });
 
   test("save a build variable with branch pattern", async ({ page }) => {
-    await signUpAsOwner(page);
+    await signInAsOwner(page);
 
     await page.getByLabel("Key").fill("FEATURE_FLAG");
     await page.getByLabel("Value", { exact: true }).fill("true");

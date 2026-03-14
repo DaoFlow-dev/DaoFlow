@@ -1,19 +1,9 @@
 import { expect, test } from "@playwright/test";
-
-async function signUpAsOwner(page: import("@playwright/test").Page) {
-  const email = `cmp-owner+${Date.now()}@daoflow.local`;
-  await page.goto("/");
-  await page.getByLabel("Name").fill("Compose Admin");
-  await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Password").fill("secret1234");
-  await page.getByRole("button", { name: "Create account" }).click();
-  await expect(page.getByTestId("session-state")).toHaveText("signed in");
-  return email;
-}
+import { signInAsOwner } from "./helpers";
 
 test.describe("Compose releases and drift", () => {
   test("seed compose release catalog is visible", async ({ page }) => {
-    await signUpAsOwner(page);
+    await signInAsOwner(page);
 
     await expect(
       page.getByRole("heading", { name: "Compose release catalog", level: 2 })
@@ -28,7 +18,7 @@ test.describe("Compose releases and drift", () => {
   });
 
   test("compose drift inspector shows seed drifts", async ({ page }) => {
-    await signUpAsOwner(page);
+    await signInAsOwner(page);
 
     await expect(page.getByText("Compose drift inspector")).toBeVisible();
     await expect(page.getByTestId("compose-drift-summary")).toContainText("3");
@@ -41,7 +31,7 @@ test.describe("Compose releases and drift", () => {
   });
 
   test("queue a compose release", async ({ page }) => {
-    await signUpAsOwner(page);
+    await signInAsOwner(page);
 
     const form = page.getByTestId("compose-release-form");
     await form.getByLabel("Commit SHA").fill("release99");

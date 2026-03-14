@@ -1,19 +1,9 @@
 import { expect, test } from "@playwright/test";
-
-async function signUpAsOwner(page: import("@playwright/test").Page) {
-  const email = `dep-owner+${Date.now()}@daoflow.local`;
-  await page.goto("/");
-  await page.getByLabel("Name").fill("Deploy Admin");
-  await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Password").fill("secret1234");
-  await page.getByRole("button", { name: "Create account" }).click();
-  await expect(page.getByTestId("session-state")).toHaveText("signed in");
-  return email;
-}
+import { signInAsOwner, OWNER_EMAIL } from "./helpers";
 
 test.describe("Deployment lifecycle", () => {
   test("create deployment → dispatch → mark healthy", async ({ page }) => {
-    const email = await signUpAsOwner(page);
+    await signInAsOwner(page);
 
     // Fill deployment form
     const form = page.getByTestId("manual-deployment-form");
@@ -29,7 +19,7 @@ test.describe("Deployment lifecycle", () => {
     const depCard = page
       .locator('[data-testid^="deployment-card-"]')
       .filter({ hasText: "api-gateway" });
-    await expect(depCard).toContainText(`Requested by ${email}`);
+    await expect(depCard).toContainText(`Requested by ${OWNER_EMAIL}`);
     await expect(depCard).toContainText("Commit: abc1234");
 
     // Verify execution job appears
@@ -55,7 +45,7 @@ test.describe("Deployment lifecycle", () => {
         .locator('[data-testid^="audit-entry-"]')
         .filter({ hasText: "execution.complete" })
         .filter({ hasText: "api-gateway" })
-    ).toContainText(email);
+    ).toContainText(OWNER_EMAIL);
 
     // Verify deployment log
     await expect(
@@ -74,7 +64,7 @@ test.describe("Deployment lifecycle", () => {
   });
 
   test("create deployment → dispatch → mark failed", async ({ page }) => {
-    await signUpAsOwner(page);
+    await signInAsOwner(page);
 
     const form = page.getByTestId("manual-deployment-form");
     await form.getByLabel("Service name").fill("broken-svc");
@@ -96,7 +86,7 @@ test.describe("Deployment lifecycle", () => {
   });
 
   test("seed deployment insights and rollback plans are visible", async ({ page }) => {
-    await signUpAsOwner(page);
+    await signInAsOwner(page);
 
     // Deployment insights
     await expect(page.getByText("Agent-ready deployment diagnostics")).toBeVisible();

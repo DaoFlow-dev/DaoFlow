@@ -1,20 +1,9 @@
 import { expect, test } from "@playwright/test";
-
-/** Helper: register and sign in as owner */
-async function signUpAsOwner(page: import("@playwright/test").Page) {
-  const email = `srv-owner+${Date.now()}@daoflow.local`;
-  await page.goto("/");
-  await page.getByLabel("Name").fill("Server Admin");
-  await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Password").fill("secret1234");
-  await page.getByRole("button", { name: "Create account" }).click();
-  await expect(page.getByTestId("session-state")).toHaveText("signed in");
-  return email;
-}
+import { signInAsOwner } from "./helpers";
 
 test.describe("Server management", () => {
   test("register a new server and verify infrastructure inventory", async ({ page }) => {
-    await signUpAsOwner(page);
+    await signInAsOwner(page);
 
     // Verify seed servers exist
     await expect(page.getByText("Servers, projects, and environments")).toBeVisible();
@@ -48,7 +37,7 @@ test.describe("Server management", () => {
   });
 
   test("seed servers show in readiness panel with connectivity status", async ({ page }) => {
-    await signUpAsOwner(page);
+    await signInAsOwner(page);
 
     await expect(page.getByText("Server readiness and onboarding")).toBeVisible();
     await expect(page.getByTestId("server-readiness-summary")).toContainText("24 ms");

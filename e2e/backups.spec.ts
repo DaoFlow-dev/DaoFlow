@@ -1,19 +1,9 @@
 import { expect, test } from "@playwright/test";
-
-async function signUpAsOwner(page: import("@playwright/test").Page) {
-  const email = `bak-owner+${Date.now()}@daoflow.local`;
-  await page.goto("/");
-  await page.getByLabel("Name").fill("Backup Admin");
-  await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Password").fill("secret1234");
-  await page.getByRole("button", { name: "Create account" }).click();
-  await expect(page.getByTestId("session-state")).toHaveText("signed in");
-  return email;
-}
+import { signInAsOwner } from "./helpers";
 
 test.describe("Backup and restore workflows", () => {
   test("seed backup data is visible", async ({ page }) => {
-    await signUpAsOwner(page);
+    await signInAsOwner(page);
 
     await expect(page.getByText("Backup policies and runs")).toBeVisible();
     await expect(page.getByTestId("backup-summary")).toContainText("2");
@@ -25,7 +15,7 @@ test.describe("Backup and restore workflows", () => {
   });
 
   test("trigger a backup run from policy", async ({ page }) => {
-    await signUpAsOwner(page);
+    await signInAsOwner(page);
 
     await page
       .locator('[data-testid^="backup-policy-"]')
@@ -44,7 +34,7 @@ test.describe("Backup and restore workflows", () => {
   });
 
   test("queue a restore drill from a successful backup run", async ({ page }) => {
-    await signUpAsOwner(page);
+    await signInAsOwner(page);
 
     await page
       .locator('[data-testid^="backup-run-"]')
