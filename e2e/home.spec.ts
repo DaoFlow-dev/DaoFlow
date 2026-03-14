@@ -140,6 +140,7 @@ test("loads the DaoFlow foundation dashboard", async ({ page }) => {
       .locator('[data-testid^="deployment-card-"]')
       .filter({ hasText: "Source: compose" })
       .filter({ hasText: "Commit: e2e0001" })
+      .first()
   ).toContainText("ghcr.io/daoflow/control-plane:0.1.1");
   const manualDeploymentForm = page.getByTestId("manual-deployment-form");
   await manualDeploymentForm.getByLabel("Service name").fill("edge-worker-ui");
@@ -154,14 +155,17 @@ test("loads the DaoFlow foundation dashboard", async ({ page }) => {
     "Saved SERVICE_TOKEN for staging"
   );
   await expect(
-    page.locator('[data-testid^="environment-variable-card-"]').filter({
-      hasText: "SERVICE_TOKEN"
-    })
+    page
+      .locator('[data-testid^="environment-variable-card-"]')
+      .filter({
+        hasText: "SERVICE_TOKEN"
+      })
+      .first()
   ).toContainText("Value: [secret]");
   await page.getByRole("button", { name: "Queue deployment record" }).click();
   await expect(page.getByTestId("deployment-feedback")).toContainText("Queued edge-worker-ui");
   await expect(
-    page.locator('[data-testid^="deployment-card-"]').filter({ hasText: "edge-worker-ui" })
+    page.locator('[data-testid^="deployment-card-"]').filter({ hasText: "edge-worker-ui" }).first()
   ).toContainText(`Requested by ${email}`);
   await expect(
     page
@@ -170,15 +174,19 @@ test("loads the DaoFlow foundation dashboard", async ({ page }) => {
         hasText: "deployment.create"
       })
       .filter({ hasText: "edge-worker-ui@staging" })
+      .first()
   ).toContainText(email);
   await expect(
-    page.locator('[data-testid^="deployment-log-line-"]').filter({
-      hasText: "Control plane queued edge-worker-ui"
-    })
+    page
+      .locator('[data-testid^="deployment-log-line-"]')
+      .filter({
+        hasText: "Control plane queued edge-worker-ui"
+      })
+      .first()
   ).toContainText("staging");
   await expect(page.getByTestId("queue-summary")).toBeVisible();
   await expect(
-    page.locator('[data-testid^="execution-job-"]').filter({ hasText: "edge-worker-ui" })
+    page.locator('[data-testid^="execution-job-"]').filter({ hasText: "edge-worker-ui" }).first()
   ).toContainText("Queue: docker-ssh");
   await page
     .locator('[data-testid^="execution-job-"]')
@@ -187,7 +195,7 @@ test("loads the DaoFlow foundation dashboard", async ({ page }) => {
     .click();
   await expect(page.getByTestId("execution-feedback")).toContainText("Dispatched edge-worker-ui");
   await expect(
-    page.locator('[data-testid^="execution-job-"]').filter({ hasText: "edge-worker-ui" })
+    page.locator('[data-testid^="execution-job-"]').filter({ hasText: "edge-worker-ui" }).first()
   ).toContainText("dispatched");
   await page
     .locator('[data-testid^="execution-job-"]')
@@ -198,10 +206,10 @@ test("loads the DaoFlow foundation dashboard", async ({ page }) => {
     "Marked edge-worker-ui healthy"
   );
   await expect(
-    page.locator('[data-testid^="execution-job-"]').filter({ hasText: "edge-worker-ui" })
+    page.locator('[data-testid^="execution-job-"]').filter({ hasText: "edge-worker-ui" }).first()
   ).toContainText("completed");
   await expect(
-    page.locator('[data-testid^="deployment-card-"]').filter({ hasText: "edge-worker-ui" })
+    page.locator('[data-testid^="deployment-card-"]').filter({ hasText: "edge-worker-ui" }).first()
   ).toContainText("healthy");
   await expect(
     page
@@ -210,11 +218,15 @@ test("loads the DaoFlow foundation dashboard", async ({ page }) => {
         hasText: "execution.complete"
       })
       .filter({ hasText: "edge-worker-ui@staging" })
+      .first()
   ).toContainText(email);
   await expect(
-    page.locator('[data-testid^="deployment-log-line-"]').filter({
-      hasText: "edge-worker-ui reported healthy"
-    })
+    page
+      .locator('[data-testid^="deployment-log-line-"]')
+      .filter({
+        hasText: "edge-worker-ui reported healthy"
+      })
+      .first()
   ).toContainText("staging");
   await expect(
     page
@@ -284,6 +296,7 @@ test("loads the DaoFlow foundation dashboard", async ({ page }) => {
         hasText: "backup.trigger"
       })
       .filter({ hasText: "postgres-volume@production-us-west" })
+      .first()
   ).toContainText(email);
   await expect(
     page
@@ -292,6 +305,7 @@ test("loads the DaoFlow foundation dashboard", async ({ page }) => {
         hasText: "approval.approve"
       })
       .filter({ hasText: "postgres-volume@production-us-west" })
+      .first()
   ).toContainText(email);
   await expect(
     page
