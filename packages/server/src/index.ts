@@ -24,56 +24,51 @@ function shouldStartWorker(): boolean {
   return true;
 }
 
-function start() {
-  const app = createApp();
+// ── Server bootstrap ──────────────────────────────────────────
+const app = createApp();
 
-  if (isProduction) {
-    const clientDistDir = path.resolve(__dirname, "../../client/dist");
+if (isProduction) {
+  const clientDistDir = path.resolve(__dirname, "../../client/dist");
 
-    app.use("/*", serveStatic({ root: clientDistDir }));
-    app.get("*", (_c) => {
-      const indexPath = path.join(clientDistDir, "index.html");
-      const file = Bun.file(indexPath);
-      return new Response(file, {
-        headers: { "content-type": "text/html; charset=utf-8" }
-      });
+  app.use("/*", serveStatic({ root: clientDistDir }));
+  app.get("*", (_c) => {
+    const indexPath = path.join(clientDistDir, "index.html");
+    const file = Bun.file(indexPath);
+    return new Response(file, {
+      headers: { "content-type": "text/html; charset=utf-8" },
     });
-  }
-
-  const server = Bun.serve({
-    port,
-    fetch: app.fetch
   });
-
-  console.log(`DaoFlow control plane listening on http://localhost:${server.port}`);
-
-  // Start the execution worker when Docker is available
-  if (shouldStartWorker()) {
-    startWorker();
-  }
-
-  const shutdown = async (signal: string) => {
-    console.log(`Received ${signal}; shutting down DaoFlow control plane.`);
-    stopWorker();
-    void server.stop();
-    // Drain the database pool so in-flight queries complete
-    const { pool } = await import("./db/connection");
-    await pool.end();
-    process.exit(0);
-  };
-
-  process.on("SIGINT", () => void shutdown("SIGINT"));
-  process.on("SIGTERM", () => void shutdown("SIGTERM"));
 }
 
-// Log unhandled errors for CI visibility (don't exit — let Bun handle it)
+// Keep the server reference at module scope so Bun's GC doesn't collect it
+const server = Bun.serve({
+  port,
+  fetch: app.fetch,
+});
+
+console.log(
+  `DaoFlow control plane listening on http://localhost:${server.port}`
+);
+
+// Start the execution worker when Docker is available
+if (shouldStartWorker()) {
+  startWorker();
+}
+
+// ── Graceful shutdown ─────────────────────────────────────────
+const shutdown = async (signal: string) => {
+  console.log(`Received ${signal}; shutting down DaoFlow control plane.`);
+  stopWorker();
+  void server.stop();
+  const { pool } = await import("./db/connection");
+  await pool.end();
+  process.exit(0);
+};
+
+process.on("SIGINT", () => void shutdown("SIGINT"));
+process.on("SIGTERM", () => void shutdown("SIGTERM"));
+
+// Log unhandled errors for CI visibility
 process.on("unhandledRejection", (reason) => {
   console.error("[warn] Unhandled rejection:", reason);
 });
-
-try {
-  start();
-} catch (err) {
-  console.error("[FATAL] Server failed to start:", err);
-  process.exit(1);
-}
