@@ -3,6 +3,7 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { db } from "./db/connection";
 import { bootstrapOwnerRole, defaultSignupRole } from "@daoflow/shared";
 import { DEFAULT_CLIENT_PORT, DEFAULT_SERVER_PORT } from "@daoflow/shared";
+import { pool } from "./db/connection";
 
 function resolveAuthBaseURL() {
   return process.env.BETTER_AUTH_URL ?? `http://localhost:${DEFAULT_SERVER_PORT}`;
@@ -19,8 +20,6 @@ function resolveAuthSecret() {
 
   return "daoflow-local-dev-secret-please-change-2026";
 }
-
-let userCount = 0;
 
 export const auth = betterAuth({
   appName: "DaoFlow",
@@ -52,14 +51,18 @@ export const auth = betterAuth({
   databaseHooks: {
     user: {
       create: {
-        before: (user) => {
-          userCount++;
-          return Promise.resolve({
+        before: async (user) => {
+          // Query actual user count from DB instead of in-memory counter.
+          // This is correct even when multiple E2E test files run against
+          // the same server process, or when the server restarts.
+          const result = await pool.query("SELECT count(*)::int AS cnt FROM users");
+          const existingUsers = result.rows[0]?.cnt ?? 0;
+          return {
             data: {
               ...user,
-              role: userCount === 1 ? bootstrapOwnerRole : defaultSignupRole
+              role: existingUsers === 0 ? bootstrapOwnerRole : defaultSignupRole
             }
-          });
+          };
         }
       }
     }
