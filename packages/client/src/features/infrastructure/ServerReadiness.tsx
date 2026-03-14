@@ -86,10 +86,7 @@ export function ServerReadiness({
       </div>
 
       {session.data && canManageServers ? (
-        <form
-          className="server-onboarding"
-          onSubmit={(event) => void handleRegisterServer(event)}
-        >
+        <form className="server-onboarding" onSubmit={(event) => void handleRegisterServer(event)}>
           <div>
             <p className="roadmap-item__lane">Admin-only action</p>
             <h3>Register a target host</h3>
@@ -107,10 +104,7 @@ export function ServerReadiness({
           </label>
           <label>
             Server region
-            <input
-              value={serverRegion}
-              onChange={(event) => setServerRegion(event.target.value)}
-            />
+            <input value={serverRegion} onChange={(event) => setServerRegion(event.target.value)} />
           </label>
           <label>
             SSH port

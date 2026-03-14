@@ -184,10 +184,7 @@ export function EnvironmentVariables({
 
       {session.data && environmentVariables.data ? (
         <>
-          <div
-            className="environment-variable-summary"
-            data-testid="environment-variable-summary"
-          >
+          <div className="environment-variable-summary" data-testid="environment-variable-summary">
             <div className="token-summary__item">
               <span className="metric__label">Variables</span>
               <strong>{environmentVariables.data.summary.totalVariables}</strong>

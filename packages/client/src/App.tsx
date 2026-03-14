@@ -22,7 +22,6 @@ import { EnvironmentVariables } from "./features/infrastructure/EnvironmentVaria
 import { BackupCatalog } from "./features/backups/BackupCatalog";
 import { ApprovalQueue } from "./features/admin/ApprovalQueue";
 
-
 export default function App() {
   const session = useSession();
   const health = trpc.health.useQuery();
@@ -305,7 +304,6 @@ export default function App() {
       );
     }
   }
-
 
   const viewerMessage =
     viewer.error && isTRPCClientError(viewer.error) ? viewer.error.message : null;

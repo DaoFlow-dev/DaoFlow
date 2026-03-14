@@ -1,5 +1,3 @@
-import type { StatusTone } from "../../lib/tone-utils";
-
 interface SessionData {
   user: { email: string };
 }

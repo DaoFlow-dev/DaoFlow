@@ -218,11 +218,7 @@ export function BackupCatalog({
 
           <div className="backup-run-list">
             {backupOverview.data.runs.map((run) => (
-              <article
-                className="timeline-event"
-                data-testid={`backup-run-${run.id}`}
-                key={run.id}
-              >
+              <article className="timeline-event" data-testid={`backup-run-${run.id}`} key={run.id}>
                 <div className="timeline-event__top">
                   <div>
                     <p className="roadmap-item__lane">
