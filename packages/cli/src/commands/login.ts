@@ -8,7 +8,7 @@ export function loginCommand(): Command {
     .requiredOption("--url <url>", "DaoFlow API URL (e.g. https://daoflow.example.com)")
     .requiredOption("--token <token>", "API token")
     .option("--context <name>", "Context name", "default")
-    .action(async (opts) => {
+    .action(async (opts: { url: string; token: string; context: string }) => {
       const { url, token, context } = opts;
 
       // Validate connection

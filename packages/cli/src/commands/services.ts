@@ -6,7 +6,7 @@ export function servicesCommand(): Command {
   return new Command("services")
     .description("List services and their status")
     .option("--json", "Output as JSON")
-    .action(async (opts) => {
+    .action(async (opts: { json?: boolean }) => {
       const api = new ApiClient();
 
       const data = await api.get<{

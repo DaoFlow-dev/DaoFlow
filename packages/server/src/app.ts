@@ -62,7 +62,7 @@ export function createApp() {
     "/trpc/*",
     trpcServer({
       router: appRouter,
-      createContext: async (_opts, c) => createContext(c) as unknown as Record<string, unknown>,
+      createContext: (_opts, c) => createContext(c) as unknown as Record<string, unknown>,
       onError({ error, path }) {
         console.error(
           JSON.stringify({

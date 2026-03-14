@@ -8,7 +8,7 @@ export function planCommand(): Command {
     .requiredOption("--service <name>", "Service name")
     .option("--server <id>", "Target server ID")
     .option("--image <tag>", "Image tag")
-    .action(async (opts) => {
+    .action(async (opts: { service: string; server?: string; image?: string }) => {
       const api = new ApiClient();
 
       console.log(chalk.bold("\n  Deployment Plan (dry-run)\n"));

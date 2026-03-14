@@ -28,7 +28,7 @@ export function loadConfig(): DaoFlowConfig {
   if (!existsSync(CONFIG_FILE)) {
     return { currentContext: "default", contexts: {} };
   }
-  return JSON.parse(readFileSync(CONFIG_FILE, "utf-8"));
+  return JSON.parse(readFileSync(CONFIG_FILE, "utf-8")) as DaoFlowConfig;
 }
 
 export function saveConfig(config: DaoFlowConfig): void {

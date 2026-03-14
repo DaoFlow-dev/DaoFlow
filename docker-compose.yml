@@ -3,6 +3,10 @@ services:
     build: .
     ports:
       - "3000:3000"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - daoflow-staging:/app/staging
+    privileged: true
     environment:
       DATABASE_URL: postgresql://daoflow:daoflow_dev@postgres:5432/daoflow
       REDIS_URL: redis://redis:6379
@@ -10,6 +14,7 @@ services:
       BETTER_AUTH_URL: http://localhost:3000
       ENCRYPTION_KEY: daoflow-dev-encryption-key-change-me-32chars
       NODE_ENV: production
+      GIT_WORK_DIR: /app/staging
     depends_on:
       postgres:
         condition: service_healthy
@@ -47,3 +52,4 @@ services:
 volumes:
   pgdata:
   redisdata:
+  daoflow-staging:

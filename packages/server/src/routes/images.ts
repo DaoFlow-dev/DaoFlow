@@ -68,12 +68,21 @@ imagesRouter.post("/push", async (c) => {
         timeout: 300_000,
         stdio: "pipe"
       });
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const stderr =
+        err instanceof Error
+          ? err.message
+          : typeof err === "object" &&
+              err !== null &&
+              "stderr" in err &&
+              typeof (err as { stderr: unknown }).stderr === "object"
+            ? String((err as { stderr: { toString(): string } }).stderr)
+            : "Failed to load Docker image";
       return c.json(
         {
           status: "error",
           error: "docker_load_failed",
-          message: err.stderr?.toString() ?? "Failed to load Docker image",
+          message: stderr,
           uploadId
         },
         500
@@ -113,6 +122,14 @@ imagesRouter.post("/push", async (c) => {
  *
  * List Docker images on the server.
  */
+interface DockerImageInfo {
+  Repository: string;
+  Tag: string;
+  ID: string;
+  CreatedAt: string;
+  Size: string;
+}
+
 imagesRouter.get("/", (c) => {
   try {
     const output = execSync("docker images --format json", {
@@ -120,18 +137,18 @@ imagesRouter.get("/", (c) => {
       encoding: "utf-8"
     });
 
-    const images = output
+    const images: DockerImageInfo[] = output
       .trim()
       .split("\n")
       .filter(Boolean)
-      .map((line: string) => {
+      .map((line: string): DockerImageInfo | null => {
         try {
-          return JSON.parse(line);
+          return JSON.parse(line) as DockerImageInfo;
         } catch {
           return null;
         }
       })
-      .filter(Boolean);
+      .filter((item): item is DockerImageInfo => item !== null);
 
     return c.json({ images });
   } catch {

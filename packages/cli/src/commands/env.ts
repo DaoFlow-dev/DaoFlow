@@ -11,7 +11,7 @@ export function envCommand(): Command {
     .description("Download .env from DaoFlow to local filesystem")
     .option("--env-id <id>", "Environment ID")
     .option("--output <path>", "Output file path", ".env")
-    .action(async (opts) => {
+    .action(async (opts: { envId?: string; output: string }) => {
       const api = new ApiClient();
       const data = await api.get<{
         variables: Array<{ key: string; displayValue: string; isSecret: boolean }>;
@@ -36,7 +36,7 @@ export function envCommand(): Command {
     .requiredOption("--env-id <id>", "Environment ID")
     .option("--input <path>", "Input .env file", ".env")
     .option("--secret", "Mark all variables as secret")
-    .action(async (opts) => {
+    .action(async (opts: { envId: string; input: string; secret?: boolean }) => {
       const api = new ApiClient();
 
       if (!existsSync(opts.input)) {

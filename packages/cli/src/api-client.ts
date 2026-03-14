@@ -60,9 +60,9 @@ export class ApiClient {
     const res = await fetch(`${this.baseUrl}${path}`, {
       method: "POST",
       headers,
-      body: stream as any,
+      body: stream as unknown as BodyInit,
       duplex: "half"
-    } as any);
+    } as RequestInit & { duplex: string });
     if (!res.ok) {
       throw new Error(`Upload failed ${res.status}: ${await res.text()}`);
     }

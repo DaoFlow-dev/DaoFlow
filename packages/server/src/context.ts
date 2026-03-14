@@ -15,7 +15,8 @@ export async function createContext(c: HonoContext): Promise<Context> {
   });
 
   return {
-    requestId: c.get("requestId") ?? c.req.header("x-request-id") ?? "unknown",
+    requestId:
+      (c.get("requestId") as string | undefined) ?? c.req.header("x-request-id") ?? "unknown",
     session
   };
 }

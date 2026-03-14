@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import { serveStatic } from "hono/bun";
 import { DEFAULT_SERVER_PORT } from "@daoflow/shared";
 import { createApp } from "./app";
+import { startWorker, stopWorker } from "./worker";
 
 const port = Number(process.env.PORT ?? DEFAULT_SERVER_PORT);
 const isProduction = process.env.NODE_ENV === "production";
@@ -16,7 +17,7 @@ function start() {
     const clientDistDir = path.resolve(__dirname, "../../client/dist");
 
     app.use("/*", serveStatic({ root: clientDistDir }));
-    app.get("*", async (_c) => {
+    app.get("*", (_c) => {
       const indexPath = path.join(clientDistDir, "index.html");
       const file = Bun.file(indexPath);
       return new Response(file, {
@@ -32,8 +33,12 @@ function start() {
 
   console.log(`DaoFlow control plane listening on http://localhost:${server.port}`);
 
+  // Start the execution worker (polls for queued deployments)
+  startWorker();
+
   const shutdown = (signal: string) => {
     console.log(`Received ${signal}; shutting down DaoFlow control plane.`);
+    stopWorker();
     void server.stop();
     process.exit(0);
   };

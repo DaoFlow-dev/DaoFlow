@@ -7,7 +7,7 @@ export function statusCommand(): Command {
   return new Command("status")
     .description("Show current deployment and server status")
     .option("--json", "Output as JSON")
-    .action(async (_opts) => {
+    .action(async (_opts: { json?: boolean }) => {
       // Show context info
       const config = loadConfig();
       const ctx = getCurrentContext();

@@ -11,21 +11,30 @@ export function deployCommand(): Command {
     .option("--commit <sha>", "Commit SHA")
     .option("--image <tag>", "Image tag")
     .option("--env <id>", "Environment ID")
-    .action(async (opts) => {
-      const api = new ApiClient();
-      console.log(chalk.blue(`⟳ Deploying ${opts.service}...`));
+    .action(
+      async (opts: {
+        service: string;
+        server: string;
+        source: string;
+        commit?: string;
+        image?: string;
+        env?: string;
+      }) => {
+        const api = new ApiClient();
+        console.log(chalk.blue(`⟳ Deploying ${opts.service}...`));
 
-      const result = await api.post("/trpc/createDeployment", {
-        serviceName: opts.service,
-        targetServerId: opts.server,
-        sourceType: opts.source,
-        commitSha: opts.commit ?? "",
-        imageTag: opts.image ?? "",
-        environmentName: opts.env ?? "production",
-        projectName: "default"
-      });
+        const result = await api.post("/trpc/createDeployment", {
+          serviceName: opts.service,
+          targetServerId: opts.server,
+          sourceType: opts.source,
+          commitSha: opts.commit ?? "",
+          imageTag: opts.image ?? "",
+          environmentName: opts.env ?? "production",
+          projectName: "default"
+        });
 
-      console.log(chalk.green(`✓ Deployment queued`));
-      console.log(chalk.dim(JSON.stringify(result, null, 2)));
-    });
+        console.log(chalk.green(`✓ Deployment queued`));
+        console.log(chalk.dim(JSON.stringify(result, null, 2)));
+      }
+    );
 }

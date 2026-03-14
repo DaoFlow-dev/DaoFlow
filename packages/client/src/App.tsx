@@ -1817,21 +1817,20 @@ export default function App() {
                   {deployment.imageTag}
                 </p>
                 <p className="deployment-card__meta">Requested by {deployment.requestedByEmail}</p>
-                {"steps" in deployment && Array.isArray((deployment as any).steps) && (
-                  <ul className="deployment-card__steps">
-                    {(
-                      (deployment as any).steps as {
-                        id: number;
-                        label: string;
-                        detail: string | null;
-                      }[]
-                    ).map((step) => (
-                      <li key={step.id}>
-                        <strong>{step.label}</strong>: {step.detail}
-                      </li>
-                    ))}
-                  </ul>
-                )}
+                {"steps" in deployment &&
+                  Array.isArray((deployment as unknown as { steps: unknown }).steps) && (
+                    <ul className="deployment-card__steps">
+                      {(
+                        deployment as unknown as {
+                          steps: { id: number; label: string; detail: string | null }[];
+                        }
+                      ).steps.map((step) => (
+                        <li key={step.id}>
+                          <strong>{step.label}</strong>: {step.detail}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
               </article>
             ))}
           </div>
