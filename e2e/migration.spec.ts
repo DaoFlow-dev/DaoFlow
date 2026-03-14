@@ -2,14 +2,14 @@ import { expect, test } from "@playwright/test";
 
 test.describe("Database migration and health", () => {
   test("health endpoint returns healthy", async ({ request }) => {
-    const response = await request.get("/api/trpc/health");
+    const response = await request.get("/trpc/health");
     expect(response.ok()).toBeTruthy();
     const body = await response.json();
     expect(body.result.data).toMatchObject({ status: "healthy" });
   });
 
   test("platform overview loads with architecture data", async ({ request }) => {
-    const response = await request.get("/api/trpc/platformOverview");
+    const response = await request.get("/trpc/platformOverview");
     expect(response.ok()).toBeTruthy();
     const body = await response.json();
     const data = body.result.data;
