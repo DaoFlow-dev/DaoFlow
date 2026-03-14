@@ -4,7 +4,7 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 
 const DEFAULT_CLIENT_PORT = 5173;
-const DEFAULT_SERVER_PORT = 4000;
+const DEFAULT_SERVER_PORT = 3000;
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
