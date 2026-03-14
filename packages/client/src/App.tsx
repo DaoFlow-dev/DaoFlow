@@ -194,7 +194,7 @@ export default function App() {
   const completeExecutionJob = trpc.completeExecutionJob.useMutation();
   const failExecutionJob = trpc.failExecutionJob.useMutation();
   const recentDeployments = trpc.recentDeployments.useQuery(
-    {},
+    { limit: 50 },
     {
       enabled: Boolean(session.data)
     }
@@ -212,13 +212,13 @@ export default function App() {
     }
   );
   const executionQueue = trpc.executionQueue.useQuery(
-    {},
+    { limit: 50 },
     {
       enabled: Boolean(session.data)
     }
   );
   const operationsTimeline = trpc.operationsTimeline.useQuery(
-    {},
+    { limit: 50 },
     {
       enabled: Boolean(session.data)
     }
