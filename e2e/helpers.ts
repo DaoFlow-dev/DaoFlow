@@ -22,10 +22,15 @@ export async function signUpOwner(page: Page) {
 /** Sign in as the shared owner. Call this in every other test file. */
 export async function signInAsOwner(page: Page) {
   await page.goto("/");
-  // Switch to sign-in tab
-  await page.getByRole("button", { name: "Sign in" }).first().click();
+  // The default mode is "sign-up". Click the "Sign in" tab to switch.
+  // Use the tab button (inside auth-panel__switches) to avoid matching the submit button.
+  await page.locator(".auth-panel__switches button", { hasText: "Sign in" }).click();
+  // Wait for the form to switch to sign-in mode (Name field disappears)
+  await expect(page.getByLabel("Name")).not.toBeVisible();
+  // Fill credentials
   await page.getByLabel("Email").fill(OWNER_EMAIL);
   await page.getByLabel("Password").fill(OWNER_PASSWORD);
-  await page.getByRole("button", { name: "Sign in" }).last().click();
+  // Click the submit button (the action-button inside auth-form)
+  await page.locator(".auth-form .action-button").click();
   await expect(page.getByTestId("session-state")).toHaveText("signed in");
 }

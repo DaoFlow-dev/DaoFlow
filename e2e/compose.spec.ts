@@ -34,7 +34,7 @@ test.describe("Compose releases and drift", () => {
     await signInAsOwner(page);
 
     const form = page.getByTestId("compose-release-form");
-    await form.getByLabel("Commit SHA").fill("release99");
+    await form.getByLabel("Commit SHA").fill("babe999");
     await form.getByLabel("Image override").fill("ghcr.io/daoflow/control-plane:1.0.0");
     await form.getByRole("button", { name: "Queue compose release" }).click();
 
@@ -47,7 +47,7 @@ test.describe("Compose releases and drift", () => {
       page
         .locator('[data-testid^="deployment-card-"]')
         .filter({ hasText: "Source: compose" })
-        .filter({ hasText: "Commit: release99" })
+        .filter({ hasText: "Commit: babe999" })
     ).toContainText("ghcr.io/daoflow/control-plane:1.0.0");
   });
 });
