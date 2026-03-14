@@ -187,15 +187,15 @@ export async function createDeploymentRecord(input: CreateDeploymentInput) {
     updatedAt: now
   });
 
-  for (let index = 0; index < input.steps.length; index += 1) {
-    await db.insert(deploymentSteps).values({
+  await db.insert(deploymentSteps).values(
+    input.steps.map((step, index) => ({
       deploymentId,
-      label: input.steps[index].label,
-      detail: input.steps[index].detail,
-      status: "pending",
+      label: step.label,
+      detail: step.detail,
+      status: "pending" as const,
       sortOrder: index + 1
-    });
-  }
+    }))
+  );
 
   await db.insert(auditEntries).values({
     actorType: "user",
@@ -312,20 +312,19 @@ export async function listDeploymentLogs(deploymentId?: string, limit = 18) {
   const index = await buildDeploymentIndex(deploymentRows);
   const deploymentById = new Map(deploymentRows.map((row) => [row.id, row]));
 
-  const countResult = await db.select({ count: sql<number>`count(*)` }).from(deploymentLogs);
-  const stderrResult = await db
-    .select({ count: sql<number>`count(*)` })
-    .from(deploymentLogs)
-    .where(eq(deploymentLogs.level, "error"));
-  const deploymentCountResult = await db
-    .select({ count: sql<number>`count(distinct ${deploymentLogs.deploymentId})` })
+  const [counts] = await db
+    .select({
+      totalLines: sql<number>`count(*)`,
+      stderrLines: sql<number>`count(*) filter (where ${deploymentLogs.level} = 'error')`,
+      deploymentCount: sql<number>`count(distinct ${deploymentLogs.deploymentId})`
+    })
     .from(deploymentLogs);
 
   return {
     summary: {
-      totalLines: Number(countResult[0]?.count ?? 0),
-      stderrLines: Number(stderrResult[0]?.count ?? 0),
-      deploymentCount: Number(deploymentCountResult[0]?.count ?? 0)
+      totalLines: Number(counts?.totalLines ?? 0),
+      stderrLines: Number(counts?.stderrLines ?? 0),
+      deploymentCount: Number(counts?.deploymentCount ?? 0)
     },
     lines: logs.map((log) => {
       const metadata = asRecord(log.metadata);

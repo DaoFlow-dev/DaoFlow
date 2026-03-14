@@ -156,21 +156,23 @@ export default function App() {
   const [approvalFeedback, setApprovalFeedback] = useState<string | null>(null);
 
   async function refreshOperationalViews() {
-    await approvalQueue.refetch();
-    await composeReleaseCatalog.refetch();
-    await infrastructureInventory.refetch();
-    await serverReadiness.refetch();
-    await persistentVolumes.refetch();
-    await recentDeployments.refetch();
-    await deploymentInsights.refetch();
-    await deploymentRollbackPlans.refetch();
-    await auditTrail.refetch();
-    await deploymentLogs.refetch();
-    await environmentVariables.refetch();
-    await backupOverview.refetch();
-    await backupRestoreQueue.refetch();
-    await executionQueue.refetch();
-    await operationsTimeline.refetch();
+    await Promise.all([
+      approvalQueue.refetch(),
+      composeReleaseCatalog.refetch(),
+      infrastructureInventory.refetch(),
+      serverReadiness.refetch(),
+      persistentVolumes.refetch(),
+      recentDeployments.refetch(),
+      deploymentInsights.refetch(),
+      deploymentRollbackPlans.refetch(),
+      auditTrail.refetch(),
+      deploymentLogs.refetch(),
+      environmentVariables.refetch(),
+      backupOverview.refetch(),
+      backupRestoreQueue.refetch(),
+      executionQueue.refetch(),
+      operationsTimeline.refetch()
+    ]);
   }
 
   async function handleQueueComposeRelease(event: FormEvent<HTMLFormElement>) {

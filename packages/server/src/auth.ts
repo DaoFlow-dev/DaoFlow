@@ -1,6 +1,8 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { sql } from "drizzle-orm";
 import { db } from "./db/connection";
+import { users } from "./db/schema/users";
 import { bootstrapOwnerRole, defaultSignupRole } from "@daoflow/shared";
 import { DEFAULT_CLIENT_PORT, DEFAULT_SERVER_PORT } from "@daoflow/shared";
 
@@ -22,7 +24,6 @@ function resolveAuthSecret() {
 
 const authBaseURL = resolveAuthBaseURL();
 const isHTTPS = authBaseURL.startsWith("https://");
-let signUpCount = 0;
 
 export const auth = betterAuth({
   appName: "DaoFlow",
@@ -60,17 +61,18 @@ export const auth = betterAuth({
   databaseHooks: {
     user: {
       create: {
-        before: (user) => {
-          // The first user to sign up through Better Auth gets the owner
-          // role.  Seed-inserted rows bypass sign-up so they don't
-          // increment this counter, which is exactly the behavior we want.
-          signUpCount++;
-          return Promise.resolve({
+        before: async (user) => {
+          // Query the database to check if any users exist. This is
+          // restart-safe — unlike the previous in-memory counter, it
+          // cannot be tricked by restarting the server.
+          const [result] = await db.select({ count: sql<number>`count(*)` }).from(users);
+          const isFirstUser = Number(result.count) === 0;
+          return {
             data: {
               ...user,
-              role: signUpCount === 1 ? bootstrapOwnerRole : defaultSignupRole
+              role: isFirstUser ? bootstrapOwnerRole : defaultSignupRole
             }
-          });
+          };
         }
       }
     }

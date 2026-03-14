@@ -8,7 +8,7 @@
  * Future: extract to a separate process, add SSH-based remote execution.
  */
 
-import { eq } from "drizzle-orm";
+import { eq, and, asc, sql as rawSql } from "drizzle-orm";
 import { db } from "../db/connection";
 import { deployments, deploymentSteps } from "../db/schema/deployments";
 import { auditEntries, events } from "../db/schema/audit";
@@ -452,18 +452,24 @@ async function waitForHealthy(
 
 async function pollQueue(): Promise<void> {
   try {
-    // Find the oldest queued deployment
+    // Atomic claim: UPDATE the oldest queued deployment to "prepare" in one
+    // statement. If two workers poll at the same time, only one succeeds
+    // because the WHERE clause filters by status = "queued".
     const [job] = await db
-      .select()
-      .from(deployments)
-      .where(eq(deployments.status, "queued"))
-      .orderBy(deployments.createdAt)
-      .limit(1);
+      .update(deployments)
+      .set({ status: "prepare", updatedAt: new Date() })
+      .where(
+        and(
+          eq(deployments.status, "queued"),
+          eq(
+            deployments.id,
+            rawSql`(SELECT id FROM ${deployments} WHERE status = 'queued' ORDER BY created_at ASC LIMIT 1 FOR UPDATE SKIP LOCKED)`
+          )
+        )
+      )
+      .returning();
 
     if (!job) return;
-
-    // Claim the job by transitioning to prepare
-    await transitionDeployment(job.id, "prepare");
 
     // Record audit entry
     await db.insert(auditEntries).values({

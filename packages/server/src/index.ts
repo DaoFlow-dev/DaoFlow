@@ -52,15 +52,18 @@ function start() {
     startWorker();
   }
 
-  const shutdown = (signal: string) => {
+  const shutdown = async (signal: string) => {
     console.log(`Received ${signal}; shutting down DaoFlow control plane.`);
     stopWorker();
     void server.stop();
+    // Drain the database pool so in-flight queries complete
+    const { pool } = await import("./db/connection");
+    await pool.end();
     process.exit(0);
   };
 
-  process.on("SIGINT", () => shutdown("SIGINT"));
-  process.on("SIGTERM", () => shutdown("SIGTERM"));
+  process.on("SIGINT", () => void shutdown("SIGINT"));
+  process.on("SIGTERM", () => void shutdown("SIGTERM"));
 }
 
 void start();

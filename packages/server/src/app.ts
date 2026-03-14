@@ -32,7 +32,8 @@ export function createApp() {
   app.use(
     "*",
     cors({
-      origin: process.env.NODE_ENV === "production" ? "*" : allowedDevOrigin,
+      origin:
+        process.env.CORS_ORIGIN ?? (process.env.NODE_ENV === "production" ? "" : allowedDevOrigin),
       credentials: true
     })
   );
