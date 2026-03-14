@@ -21,7 +21,9 @@ test.describe("RBAC and agent tokens", () => {
 
     await expect(page.getByText("Immutable control-plane audit trail")).toBeVisible();
     await expect(page.getByTestId("audit-summary")).toBeVisible();
-    await expect(page.getByTestId("audit-entry-4002")).toContainText("execution.complete");
+    await expect(page.getByTestId("audit-entry-audit_foundation_execution_complete")).toContainText(
+      "execution.complete"
+    );
   });
 
   test("owner sees deployment logs", async ({ page }) => {
@@ -29,7 +31,7 @@ test.describe("RBAC and agent tokens", () => {
 
     await expect(page.getByText("Append-only deployment logs")).toBeVisible();
     await expect(page.getByTestId("log-summary")).toBeVisible();
-    await expect(page.getByTestId("deployment-log-line-3005")).toContainText(
+    await expect(page.getByTestId("deployment-log-line-log_foundation_failed_2")).toContainText(
       "Container exited with code 1 during readiness probe."
     );
   });
