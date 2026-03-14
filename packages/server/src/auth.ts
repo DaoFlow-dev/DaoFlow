@@ -21,10 +21,19 @@ function resolveAuthSecret() {
   return "daoflow-local-dev-secret-please-change-2026";
 }
 
+const authBaseURL = resolveAuthBaseURL();
+const isHTTPS = authBaseURL.startsWith("https://");
+
 export const auth = betterAuth({
   appName: "DaoFlow",
-  baseURL: resolveAuthBaseURL(),
+  baseURL: authBaseURL,
   secret: resolveAuthSecret(),
+  advanced: {
+    // Better Auth defaults to Secure cookies in production mode, but if
+    // the server is behind plain HTTP (CI, local dev without TLS), the
+    // browser silently rejects them.  Only set Secure when using HTTPS.
+    useSecureCookies: isHTTPS
+  },
   trustedOrigins: [
     `http://localhost:${DEFAULT_CLIENT_PORT}`,
     `http://127.0.0.1:${DEFAULT_CLIENT_PORT}`,
