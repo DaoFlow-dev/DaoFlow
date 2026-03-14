@@ -245,7 +245,7 @@ export default function App() {
     }
   );
   const deploymentRollbackPlans = trpc.deploymentRollbackPlans.useQuery(
-    {},
+    { limit: 12 },
     {
       enabled: Boolean(session.data)
     }
