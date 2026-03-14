@@ -1,4 +1,5 @@
 import path from "node:path";
+import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { serveStatic } from "hono/bun";
 import { DEFAULT_SERVER_PORT } from "@daoflow/shared";
@@ -9,6 +10,19 @@ const port = Number(process.env.PORT ?? DEFAULT_SERVER_PORT);
 const isProduction = process.env.NODE_ENV === "production";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+function shouldStartWorker(): boolean {
+  if (process.env.DISABLE_WORKER === "true" || process.env.CI === "true") {
+    return false;
+  }
+  if (!existsSync("/var/run/docker.sock")) {
+    console.log(
+      "[worker] Docker socket not found at /var/run/docker.sock — execution worker disabled"
+    );
+    return false;
+  }
+  return true;
+}
 
 function start() {
   const app = createApp();
@@ -33,8 +47,10 @@ function start() {
 
   console.log(`DaoFlow control plane listening on http://localhost:${server.port}`);
 
-  // Start the execution worker (polls for queued deployments)
-  startWorker();
+  // Start the execution worker when Docker is available
+  if (shouldStartWorker()) {
+    startWorker();
+  }
 
   const shutdown = (signal: string) => {
     console.log(`Received ${signal}; shutting down DaoFlow control plane.`);
