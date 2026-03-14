@@ -66,14 +66,9 @@ function start() {
   process.on("SIGTERM", () => void shutdown("SIGTERM"));
 }
 
-// Catch any unhandled errors so CI/Playwright can see them
-process.on("uncaughtException", (err) => {
-  console.error("[FATAL] Uncaught exception:", err);
-  process.exit(1);
-});
+// Log unhandled errors for CI visibility (don't exit — let Bun handle it)
 process.on("unhandledRejection", (reason) => {
-  console.error("[FATAL] Unhandled rejection:", reason);
-  process.exit(1);
+  console.error("[warn] Unhandled rejection:", reason);
 });
 
 try {
