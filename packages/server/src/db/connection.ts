@@ -6,7 +6,7 @@ const pool = new pg.Pool({
     process.env.DATABASE_URL ?? "postgresql://daoflow:daoflow_dev@localhost:5432/daoflow",
   max: 20,
   idleTimeoutMillis: 30_000,
-  connectionTimeoutMillis: 5_000,
+  connectionTimeoutMillis: 5_000
 });
 
 // Prevent unhandled 'error' events on idle clients from crashing the process.
