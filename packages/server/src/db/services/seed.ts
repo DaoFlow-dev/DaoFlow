@@ -27,6 +27,14 @@ function hoursAfter(hours: number) {
   return new Date(FOUNDATION_REFERENCE_TIME.getTime() + hours * 60 * 60 * 1000);
 }
 
+let foundationSeedPromise: Promise<void> | null = null;
+
+/** Lazy-init seed data — caches the promise so it only runs once. */
+export function ensureControlPlaneReady() {
+  foundationSeedPromise ??= seedControlPlaneData();
+  return foundationSeedPromise;
+}
+
 export async function seedControlPlaneData() {
   await db.transaction(async (tx) => {
     await tx

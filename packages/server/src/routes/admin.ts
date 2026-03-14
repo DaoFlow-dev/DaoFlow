@@ -1,5 +1,5 @@
 import { appRoles, defaultSignupRole, normalizeAppRole, roleCapabilities } from "@daoflow/shared";
-import { listApiTokenInventory, listPrincipalInventory } from "../control-plane-db";
+import { listApiTokenInventory, listPrincipalInventory } from "../db/services/tokens";
 import { t, protectedProcedure, adminProcedure } from "../trpc";
 
 export const adminRouter = t.router({

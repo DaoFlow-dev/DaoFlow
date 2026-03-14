@@ -1,12 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import {
-  decryptEnvironmentValue,
-  encryptEnvironmentValue,
-  ensureControlPlaneReady,
-  listEnvironmentVariableInventory,
-  upsertEnvironmentVariable
-} from "./control-plane-db";
+  encrypt as encryptEnvironmentValue,
+  decrypt as decryptEnvironmentValue
+} from "./db/crypto";
+import { ensureControlPlaneReady } from "./db/services/seed";
+import { listEnvironmentVariableInventory, upsertEnvironmentVariable } from "./db/services/envvars";
 
 describe("control-plane environment variables", () => {
   it("round-trips encrypted environment values", async () => {

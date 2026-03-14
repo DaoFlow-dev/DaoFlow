@@ -1,19 +1,20 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
+import { createDeploymentRecord } from "../db/services/deployments";
 import {
   approveApprovalRequest,
-  completeExecutionJob,
   createApprovalRequest,
-  createDeploymentRecord,
+  rejectApprovalRequest
+} from "../db/services/approvals";
+import { queueBackupRestore, triggerBackupRun } from "../db/services/backups";
+import { queueComposeRelease } from "../db/services/compose";
+import { upsertEnvironmentVariable } from "../db/services/envvars";
+import {
+  completeExecutionJob,
   dispatchExecutionJob,
-  failExecutionJob,
-  queueBackupRestore,
-  queueComposeRelease,
-  registerServer,
-  rejectApprovalRequest,
-  triggerBackupRun,
-  upsertEnvironmentVariable
-} from "../control-plane-db";
+  failExecutionJob
+} from "../db/services/execution";
+import { registerServer } from "../db/services/servers";
 import {
   t,
   adminProcedure,

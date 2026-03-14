@@ -1,7 +1,7 @@
 import { initTRPC, TRPCError } from "@trpc/server";
 import { canAssumeAnyRole, normalizeAppRole, type AppRole } from "@daoflow/shared";
 import type { Context } from "./context";
-import { ensureControlPlaneReady } from "./control-plane-db";
+import { ensureControlPlaneReady } from "./db/services/seed";
 
 export const t = initTRPC.context<Context>().create();
 

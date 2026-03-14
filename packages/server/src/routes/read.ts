@@ -1,23 +1,22 @@
 import { z } from "zod";
 import {
   getDeploymentRecord,
-  listApprovalQueue,
-  listAuditTrail,
-  listBackupOverview,
-  listBackupRestoreQueue,
-  listComposeDriftReport,
-  listComposeReleaseCatalog,
   listDeploymentInsights,
   listDeploymentLogs,
   listDeploymentRecords,
-  listDeploymentRollbackPlans,
-  listEnvironmentVariableInventory,
-  listExecutionQueue,
-  listInfrastructureInventory,
-  listOperationsTimeline,
-  listPersistentVolumeInventory,
-  listServerReadiness
-} from "../control-plane-db";
+  listDeploymentRollbackPlans
+} from "../db/services/deployments";
+import { listApprovalQueue } from "../db/services/approvals";
+import { listAuditTrail, listOperationsTimeline } from "../db/services/audit";
+import {
+  listBackupOverview,
+  listBackupRestoreQueue,
+  listPersistentVolumeInventory
+} from "../db/services/backups";
+import { listComposeDriftReport, listComposeReleaseCatalog } from "../db/services/compose";
+import { listEnvironmentVariableInventory } from "../db/services/envvars";
+import { listExecutionQueue } from "../db/services/execution";
+import { listInfrastructureInventory, listServerReadiness } from "../db/services/servers";
 import { t, protectedProcedure } from "../trpc";
 import { TRPCError } from "@trpc/server";
 
