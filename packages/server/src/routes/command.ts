@@ -23,6 +23,17 @@ import {
   planningProcedure,
   throwOnOperationError
 } from "../trpc";
+import type { Context } from "../context";
+import type { AppRole } from "@daoflow/shared";
+
+/** Extract common actor fields from a resolved tRPC context. */
+function actorFromCtx(ctx: Context & { session: NonNullable<Context["session"]>; role: AppRole }) {
+  return {
+    requestedByUserId: ctx.session.user.id,
+    requestedByEmail: ctx.session.user.email,
+    requestedByRole: ctx.role
+  };
+}
 
 export const commandRouter = t.router({
   registerServer: adminProcedure
@@ -38,9 +49,7 @@ export const commandRouter = t.router({
     .mutation(async ({ ctx, input }) => {
       const result = await registerServer({
         ...input,
-        requestedByUserId: ctx.session.user.id,
-        requestedByEmail: ctx.session.user.email,
-        requestedByRole: ctx.role
+        ...actorFromCtx(ctx)
       });
 
       if (result.status === "conflict") {
@@ -60,8 +69,12 @@ export const commandRouter = t.router({
         serviceName: z.string().min(1).max(80),
         sourceType: z.enum(["compose", "dockerfile", "image"]),
         targetServerId: z.string().min(1),
-        commitSha: z.string().regex(/^[a-f0-9]{7,40}$/i),
-        imageTag: z.string().min(1).max(160),
+        commitSha: z
+          .string()
+          .regex(/^[a-f0-9]{7,40}$/i)
+          .optional()
+          .default(""),
+        imageTag: z.string().max(160).optional().default(""),
         steps: z
           .array(
             z.object({
@@ -76,9 +89,7 @@ export const commandRouter = t.router({
     .mutation(async ({ ctx, input }) => {
       const deployment = await createDeploymentRecord({
         ...input,
-        requestedByUserId: ctx.session.user.id,
-        requestedByEmail: ctx.session.user.email,
-        requestedByRole: ctx.role
+        ...actorFromCtx(ctx)
       });
 
       if (!deployment) {
@@ -101,9 +112,7 @@ export const commandRouter = t.router({
     .mutation(async ({ ctx, input }) => {
       const deployment = await queueComposeRelease({
         ...input,
-        requestedByUserId: ctx.session.user.id,
-        requestedByEmail: ctx.session.user.email,
-        requestedByRole: ctx.role
+        ...actorFromCtx(ctx)
       });
 
       if (!deployment) {
@@ -166,9 +175,7 @@ export const commandRouter = t.router({
     .mutation(async ({ ctx, input }) => {
       const request = await createApprovalRequest({
         ...input,
-        requestedByUserId: ctx.session.user.id,
-        requestedByEmail: ctx.session.user.email,
-        requestedByRole: ctx.role
+        ...actorFromCtx(ctx)
       });
 
       if (!request) {

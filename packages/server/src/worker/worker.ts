@@ -9,6 +9,7 @@
  */
 
 import { eq, and, sql as rawSql } from "drizzle-orm";
+import { join } from "node:path";
 import { db } from "../db/connection";
 import { deployments, deploymentSteps } from "../db/schema/deployments";
 import { auditEntries, events } from "../db/schema/audit";
@@ -321,8 +322,8 @@ async function executeDockerfileDeployment(
   await markStepRunning(buildStepId);
   await transitionDeployment(deployment.id, "deploy");
 
-  const absoluteContext = `${cloneResult.workDir}/${buildContext}`.replace("//", "/");
-  const absoluteDockerfile = `${cloneResult.workDir}/${dockerfile}`.replace("//", "/");
+  const absoluteContext = join(cloneResult.workDir, buildContext);
+  const absoluteDockerfile = join(cloneResult.workDir, dockerfile);
 
   const buildResult = await dockerBuild(absoluteContext, absoluteDockerfile, tag, onLog);
   if (buildResult.exitCode !== 0) {
