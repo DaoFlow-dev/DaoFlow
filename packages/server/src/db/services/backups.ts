@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import { desc, eq, inArray } from "drizzle-orm";
 import { db } from "../connection";
 import { auditEntries } from "../schema/audit";
@@ -6,10 +5,7 @@ import { backupPolicies, backupRestores, backupRuns, volumes } from "../schema/s
 import { servers } from "../schema/servers";
 import { users } from "../schema/users";
 import type { AppRole } from "@daoflow/shared";
-
-const id = () => randomUUID().replace(/-/g, "").slice(0, 32);
-
-type JsonRecord = Record<string, unknown>;
+import { newId as id, asRecord, readString } from "./json-helpers";
 
 const SEEDED_POLICY_VIEW: Record<
   string,
@@ -36,15 +32,6 @@ const SEEDED_POLICY_VIEW: Record<
     storageProvider: "s3-compatible"
   }
 };
-
-function asRecord(value: unknown): JsonRecord {
-  return value && typeof value === "object" && !Array.isArray(value) ? (value as JsonRecord) : {};
-}
-
-function readString(record: JsonRecord, key: string, fallback = "") {
-  const value = record[key];
-  return typeof value === "string" ? value : fallback;
-}
 
 function getPolicyView(
   policy: typeof backupPolicies.$inferSelect,

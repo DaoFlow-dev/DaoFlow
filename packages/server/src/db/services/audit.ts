@@ -1,17 +1,7 @@
 import { desc, eq, sql } from "drizzle-orm";
 import { db } from "../connection";
 import { auditEntries, events } from "../schema/audit";
-
-type JsonRecord = Record<string, unknown>;
-
-function asRecord(value: unknown): JsonRecord {
-  return value && typeof value === "object" && !Array.isArray(value) ? (value as JsonRecord) : {};
-}
-
-function readString(record: JsonRecord, key: string, fallback = "") {
-  const value = record[key];
-  return typeof value === "string" ? value : fallback;
-}
+import { asRecord, readString } from "./json-helpers";
 
 export async function listAuditTrail(limit = 12) {
   const entries = await db

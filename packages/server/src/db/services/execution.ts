@@ -5,19 +5,9 @@ import { deploymentLogs, deployments } from "../schema/deployments";
 import { environments, projects } from "../schema/projects";
 import { servers } from "../schema/servers";
 import type { AppRole } from "@daoflow/shared";
+import { asRecord, readString } from "./json-helpers";
 
 export type ExecutionJobStatus = "pending" | "dispatched" | "completed" | "failed";
-
-type JsonRecord = Record<string, unknown>;
-
-function asRecord(value: unknown): JsonRecord {
-  return value && typeof value === "object" && !Array.isArray(value) ? (value as JsonRecord) : {};
-}
-
-function readString(record: JsonRecord, key: string, fallback = "") {
-  const value = record[key];
-  return typeof value === "string" ? value : fallback;
-}
 
 function mapExecutionStatus(status: string): ExecutionJobStatus {
   if (status === "deploy") return "dispatched";

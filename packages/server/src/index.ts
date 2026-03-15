@@ -4,7 +4,6 @@ import { fileURLToPath } from "node:url";
 import { serveStatic } from "hono/bun";
 import { DEFAULT_SERVER_PORT } from "@daoflow/shared";
 import { createApp } from "./app";
-import { pool } from "./db/connection";
 import { startWorker, stopWorker } from "./worker";
 
 const port = Number(process.env.PORT ?? DEFAULT_SERVER_PORT);
@@ -53,16 +52,15 @@ function start() {
     startWorker();
   }
 
-  const shutdown = async (signal: string) => {
+  const shutdown = (signal: string) => {
     console.log(`Received ${signal}; shutting down DaoFlow control plane.`);
     stopWorker();
     void server.stop();
-    await pool.end();
     process.exit(0);
   };
 
-  process.on("SIGINT", () => void shutdown("SIGINT"));
-  process.on("SIGTERM", () => void shutdown("SIGTERM"));
+  process.on("SIGINT", () => shutdown("SIGINT"));
+  process.on("SIGTERM", () => shutdown("SIGTERM"));
 }
 
 // Log unhandled rejections for CI visibility (don't exit — let Bun handle it)

@@ -1,40 +1,17 @@
-import { randomUUID } from "node:crypto";
 import { desc, eq } from "drizzle-orm";
 import { db } from "../connection";
 import { auditEntries } from "../schema/audit";
 import { environments, projects } from "../schema/projects";
 import { servers } from "../schema/servers";
 import type { AppRole } from "@daoflow/shared";
-
-const id = () => randomUUID().replace(/-/g, "").slice(0, 32);
-
-type JsonRecord = Record<string, unknown>;
-
-function asRecord(value: unknown): JsonRecord {
-  return value && typeof value === "object" && !Array.isArray(value) ? (value as JsonRecord) : {};
-}
-
-function readString(record: JsonRecord, key: string, fallback = "") {
-  const value = record[key];
-  return typeof value === "string" ? value : fallback;
-}
-
-function readNumber(record: JsonRecord, key: string, fallback: number | null = null) {
-  const value = record[key];
-  return typeof value === "number" ? value : fallback;
-}
-
-function readBoolean(record: JsonRecord, key: string, fallback = false) {
-  const value = record[key];
-  return typeof value === "boolean" ? value : fallback;
-}
-
-function readStringArray(record: JsonRecord, key: string) {
-  const value = record[key];
-  return Array.isArray(value)
-    ? value.filter((item): item is string => typeof item === "string")
-    : [];
-}
+import {
+  newId as id,
+  asRecord,
+  readString,
+  readNumber,
+  readBoolean,
+  readStringArray
+} from "./json-helpers";
 
 export interface RegisterServerInput {
   name: string;

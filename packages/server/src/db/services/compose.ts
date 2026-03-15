@@ -3,6 +3,7 @@ import { db } from "../connection";
 import { createDeploymentRecord } from "./deployments";
 import { environments } from "../schema/projects";
 import type { AppRole } from "@daoflow/shared";
+import { asRecord, readString, readNumber, readStringArray, readRecordArray } from "./json-helpers";
 
 export interface ComposeDriftDiffRecord {
   id: string;
@@ -32,39 +33,6 @@ export interface ComposeDriftRecord {
   diffs: ComposeDriftDiffRecord[];
 }
 
-type JsonRecord = Record<string, unknown>;
-
-function asRecord(value: unknown): JsonRecord {
-  return value && typeof value === "object" && !Array.isArray(value) ? (value as JsonRecord) : {};
-}
-
-function readString(record: JsonRecord, key: string, fallback = "") {
-  const value = record[key];
-  return typeof value === "string" ? value : fallback;
-}
-
-function readNumber(record: JsonRecord, key: string, fallback = 0) {
-  const value = record[key];
-  return typeof value === "number" ? value : fallback;
-}
-
-function readStringArray(record: JsonRecord, key: string) {
-  const value = record[key];
-  return Array.isArray(value)
-    ? value.filter((item): item is string => typeof item === "string")
-    : [];
-}
-
-function readRecordArray(record: JsonRecord, key: string) {
-  const value = record[key];
-  return Array.isArray(value)
-    ? value.filter(
-        (item): item is JsonRecord =>
-          Boolean(item) && typeof item === "object" && !Array.isArray(item)
-      )
-    : [];
-}
-
 export async function listComposeReleaseCatalog(limit = 24) {
   const rows = await db.select().from(environments).orderBy(desc(environments.createdAt));
   const services = rows.flatMap((environment) => {
@@ -83,7 +51,7 @@ export async function listComposeReleaseCatalog(limit = 24) {
       networkName: readString(config, "networkName"),
       imageReference: readString(service, "imageReference"),
       imageTag: readString(service, "imageReference"),
-      replicaCount: readNumber(service, "replicaCount"),
+      replicaCount: readNumber(service, "replicaCount", 0) ?? 0,
       exposedPorts: readStringArray(service, "exposedPorts"),
       dependencies: readStringArray(service, "dependencies"),
       volumeMounts: readStringArray(service, "volumeMounts"),
@@ -144,8 +112,8 @@ export async function listComposeDriftReport(limit = 24): Promise<{
       impactSummary: readString(report, "impactSummary"),
       desiredImageReference: readString(report, "desiredImageReference"),
       actualImageReference: readString(report, "actualImageReference"),
-      desiredReplicaCount: readNumber(report, "desiredReplicaCount"),
-      actualReplicaCount: readNumber(report, "actualReplicaCount"),
+      desiredReplicaCount: readNumber(report, "desiredReplicaCount", 0) ?? 0,
+      actualReplicaCount: readNumber(report, "actualReplicaCount", 0) ?? 0,
       actualContainerState: readString(report, "actualContainerState"),
       lastCheckedAt: readString(report, "lastCheckedAt"),
       recommendedActions: readStringArray(report, "recommendedActions"),

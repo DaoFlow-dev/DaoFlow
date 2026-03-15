@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import { desc, eq } from "drizzle-orm";
 import { db } from "../connection";
 import { queueBackupRestore } from "./backups";
@@ -6,26 +5,7 @@ import { listComposeReleaseCatalog } from "./compose";
 import { approvalRequests, auditEntries } from "../schema/audit";
 import { backupPolicies, backupRuns } from "../schema/storage";
 import type { AppRole } from "@daoflow/shared";
-
-const id = () => randomUUID().replace(/-/g, "").slice(0, 32);
-
-type JsonRecord = Record<string, unknown>;
-
-function asRecord(value: unknown): JsonRecord {
-  return value && typeof value === "object" && !Array.isArray(value) ? (value as JsonRecord) : {};
-}
-
-function readString(record: JsonRecord, key: string, fallback = "") {
-  const value = record[key];
-  return typeof value === "string" ? value : fallback;
-}
-
-function readStringArray(record: JsonRecord, key: string) {
-  const value = record[key];
-  return Array.isArray(value)
-    ? value.filter((item): item is string => typeof item === "string")
-    : [];
-}
+import { newId as id, asRecord, readString, readStringArray } from "./json-helpers";
 
 export type ApprovalActionType = "compose-release" | "backup-restore";
 

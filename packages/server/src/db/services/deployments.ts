@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "../connection";
 import { auditEntries, events } from "../schema/audit";
@@ -6,6 +5,13 @@ import { deploymentLogs, deployments, deploymentSteps } from "../schema/deployme
 import { environments, projects } from "../schema/projects";
 import { servers } from "../schema/servers";
 import type { AppRole } from "@daoflow/shared";
+import {
+  newId as id,
+  asRecord,
+  readString,
+  readRecordArray,
+  readStringArray
+} from "./json-helpers";
 
 export type DeploymentStatus =
   | "queued"
@@ -15,36 +21,6 @@ export type DeploymentStatus =
   | "completed"
   | "failed";
 export type DeploymentSourceType = "compose" | "dockerfile" | "image";
-
-const id = () => randomUUID().replace(/-/g, "").slice(0, 32);
-
-type JsonRecord = Record<string, unknown>;
-
-function asRecord(value: unknown): JsonRecord {
-  return value && typeof value === "object" && !Array.isArray(value) ? (value as JsonRecord) : {};
-}
-
-function readString(record: JsonRecord, key: string, fallback = "") {
-  const value = record[key];
-  return typeof value === "string" ? value : fallback;
-}
-
-function readRecordArray(record: JsonRecord, key: string) {
-  const value = record[key];
-  return Array.isArray(value)
-    ? value.filter(
-        (item): item is JsonRecord =>
-          Boolean(item) && typeof item === "object" && !Array.isArray(item)
-      )
-    : [];
-}
-
-function readStringArray(record: JsonRecord, key: string) {
-  const value = record[key];
-  return Array.isArray(value)
-    ? value.filter((item): item is string => typeof item === "string")
-    : [];
-}
 
 function normalizeStatus(
   status: string,
