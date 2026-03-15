@@ -18,6 +18,7 @@ import { listComposeDriftReport, listComposeReleaseCatalog } from "../db/service
 import { listEnvironmentVariableInventory } from "../db/services/envvars";
 import { listExecutionQueue } from "../db/services/execution";
 import { listInfrastructureInventory, listServerReadiness } from "../db/services/servers";
+import { listProjects, getProject, listEnvironments } from "../db/services/projects";
 import { t, protectedProcedure } from "../trpc";
 import { limitInput, statusLimitInput } from "../schemas";
 
@@ -175,5 +176,22 @@ export const readRouter = t.router({
     )
     .query(async ({ input }) => {
       return listOperationsTimeline(input.deploymentId, input.limit ?? 12);
+    }),
+  projects: protectedProcedure.input(limitInput(50)).query(async ({ input }) => {
+    return listProjects(input.limit ?? 50);
+  }),
+  projectDetails: protectedProcedure
+    .input(z.object({ projectId: z.string().min(1) }))
+    .query(async ({ input }) => {
+      const project = await getProject(input.projectId);
+      if (!project) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Project not found." });
+      }
+      return project;
+    }),
+  projectEnvironments: protectedProcedure
+    .input(z.object({ projectId: z.string().min(1) }))
+    .query(async ({ input }) => {
+      return listEnvironments(input.projectId);
     })
 });
