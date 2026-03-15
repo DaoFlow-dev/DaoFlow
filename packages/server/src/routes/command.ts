@@ -16,6 +16,14 @@ import {
 } from "../db/services/execution";
 import { registerServer } from "../db/services/servers";
 import {
+  createProject,
+  updateProject,
+  deleteProject,
+  createEnvironment,
+  updateEnvironment,
+  deleteEnvironment
+} from "../db/services/projects";
+import {
   t,
   adminProcedure,
   deployProcedure,
@@ -315,5 +323,135 @@ export const commandRouter = t.router({
 
       throwOnOperationError(result, "Execution job");
       return result.job;
+    }),
+
+  /* ── Project CRUD ──────────────────────────────────────────────── */
+  createProject: deployProcedure
+    .input(
+      z.object({
+        name: z.string().min(1).max(80),
+        description: z.string().max(500).optional(),
+        repoUrl: z.string().max(300).optional(),
+        defaultBranch: z.string().max(80).optional(),
+        teamId: z.string().min(1)
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const result = await createProject({
+        ...input,
+        requestedByUserId: ctx.session.user.id,
+        requestedByEmail: ctx.session.user.email,
+        requestedByRole: ctx.role
+      });
+      if (result.status === "conflict") {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: `A project named "${input.name}" already exists.`
+        });
+      }
+      return result.project;
+    }),
+
+  updateProject: deployProcedure
+    .input(
+      z.object({
+        projectId: z.string().min(1),
+        name: z.string().min(1).max(80).optional(),
+        description: z.string().max(500).optional(),
+        repoUrl: z.string().max(300).optional(),
+        defaultBranch: z.string().max(80).optional()
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const result = await updateProject({
+        ...input,
+        requestedByUserId: ctx.session.user.id,
+        requestedByEmail: ctx.session.user.email,
+        requestedByRole: ctx.role
+      });
+      if (result.status === "not_found") {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Project not found." });
+      }
+      if (result.status === "conflict") {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: `A project named "${input.name}" already exists.`
+        });
+      }
+      return result.project;
+    }),
+
+  deleteProject: adminProcedure
+    .input(z.object({ projectId: z.string().min(1) }))
+    .mutation(async ({ ctx, input }) => {
+      const result = await deleteProject({
+        ...input,
+        requestedByUserId: ctx.session.user.id,
+        requestedByEmail: ctx.session.user.email,
+        requestedByRole: ctx.role
+      });
+      if (result.status === "not_found") {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Project not found." });
+      }
+      return { deleted: true };
+    }),
+
+  /* ── Environment CRUD ──────────────────────────────────────────── */
+  createEnvironment: deployProcedure
+    .input(
+      z.object({
+        projectId: z.string().min(1),
+        name: z.string().min(1).max(80),
+        targetServerId: z.string().optional()
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const result = await createEnvironment({
+        ...input,
+        requestedByUserId: ctx.session.user.id,
+        requestedByEmail: ctx.session.user.email,
+        requestedByRole: ctx.role
+      });
+      if (result.status === "not_found") {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Parent project not found." });
+      }
+      return result.environment;
+    }),
+
+  updateEnvironment: deployProcedure
+    .input(
+      z.object({
+        environmentId: z.string().min(1),
+        name: z.string().min(1).max(80).optional(),
+        status: z.string().max(40).optional(),
+        targetServerId: z.string().optional()
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const result = await updateEnvironment({
+        ...input,
+        requestedByUserId: ctx.session.user.id,
+        requestedByEmail: ctx.session.user.email,
+        requestedByRole: ctx.role
+      });
+      if (result.status === "not_found") {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Environment not found." });
+      }
+      return result.environment;
+    }),
+
+  deleteEnvironment: adminProcedure
+    .input(z.object({ environmentId: z.string().min(1) }))
+    .mutation(async ({ ctx, input }) => {
+      const result = await deleteEnvironment({
+        ...input,
+        requestedByUserId: ctx.session.user.id,
+        requestedByEmail: ctx.session.user.email,
+        requestedByRole: ctx.role
+      });
+      if (result.status === "not_found") {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Environment not found." });
+      }
+      return { deleted: true };
     })
 });
