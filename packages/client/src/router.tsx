@@ -6,6 +6,7 @@ import ServersPage from "./pages/ServersPage";
 import DeploymentsPage from "./pages/DeploymentsPage";
 import BackupsPage from "./pages/BackupsPage";
 import SettingsPage from "./pages/SettingsPage";
+import SetupWizardPage from "./pages/SetupWizardPage";
 import NotFoundPage from "./pages/NotFoundPage";
 
 /**
@@ -25,6 +26,7 @@ export const router = createBrowserRouter([
       { path: "deployments", element: <DeploymentsPage /> },
       { path: "backups", element: <BackupsPage /> },
       { path: "settings", element: <SettingsPage /> },
+      { path: "setup", element: <SetupWizardPage /> },
       { path: "*", element: <NotFoundPage /> },
     ],
   },
