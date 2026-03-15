@@ -42,6 +42,34 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
+
+  /* ── DaoFlow Design Tokens ── */
+  --df-bg-surface: #0f1117;
+  --df-bg-card: #161920;
+  --df-bg-card-hover: #1c1f2a;
+  --df-bg-input: #1a1d24;
+  --df-text-primary: #f0f2f5;
+  --df-text-secondary: #7a8194;
+  --df-text-muted: #5a6478;
+  --df-border-subtle: rgba(255, 255, 255, 0.08);
+  --df-border-default: rgba(255, 255, 255, 0.12);
+  --df-status-healthy: #22c55e;
+  --df-status-running: #3b82f6;
+  --df-status-queued: #eab308;
+  --df-status-failed: #ef4444;
+  --df-status-inactive: #6b7280;
+  --df-spacing-xs: 0.25rem;
+  --df-spacing-sm: 0.5rem;
+  --df-spacing-md: 1rem;
+  --df-spacing-lg: 1.5rem;
+  --df-spacing-xl: 2rem;
+  --df-radius-sm: 6px;
+  --df-radius-md: 10px;
+  --df-radius-lg: 14px;
+  --df-sidebar-width: 240px;
+  --df-topbar-height: 56px;
+  --df-transition-fast: 150ms ease;
+  --df-transition-default: 250ms ease;
 }
 
 * {
