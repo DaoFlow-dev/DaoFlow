@@ -57,6 +57,103 @@ body {
   min-height: 100vh;
 }
 
+/* ========= Layout ========= */
+.layout {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  min-height: 100vh;
+}
+
+.sidebar {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  padding: 1.25rem 0.75rem;
+  background: #12141a;
+  border-right: 1px solid rgba(255, 255, 255, 0.07);
+  overflow-y: auto;
+}
+
+.sidebar__brand {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0 0.5rem 1rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  margin-bottom: 0.75rem;
+}
+
+.sidebar__logo {
+  font-size: 1.25rem;
+  color: #3b82f6;
+}
+
+.sidebar__title {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: #f0f2f5;
+  letter-spacing: -0.02em;
+}
+
+.sidebar__nav {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  flex: 1;
+}
+
+.sidebar__link {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.55rem 0.65rem;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  color: #7a8194;
+  text-decoration: none;
+  transition: background 0.15s, color 0.15s;
+  font-weight: 500;
+}
+
+.sidebar__link:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: #e1e4ea;
+}
+
+.sidebar__link--active {
+  background: rgba(59, 130, 246, 0.12);
+  color: #7db4f8;
+  font-weight: 600;
+}
+
+.sidebar__link-icon {
+  font-size: 1rem;
+  width: 1.2rem;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.sidebar__footer {
+  padding: 0.75rem 0.5rem 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  margin-top: 0.5rem;
+}
+
+.sidebar__user {
+  margin: 0;
+  font-size: 0.75rem;
+  color: #5a6478;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.layout__main {
+  overflow-y: auto;
+}
+
 /* ========= Shell ========= */
 .shell {
   width: min(1200px, calc(100% - 2rem));
@@ -797,6 +894,18 @@ body {
   .timeline-list,
   .roadmap__items {
     grid-template-columns: 1fr;
+  }
+
+  .layout {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    position: fixed;
+    left: -240px;
+    transition: left 0.25s;
+    z-index: 200;
+    width: 220px;
   }
 
   .shell {

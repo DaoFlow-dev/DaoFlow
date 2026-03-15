@@ -1,16 +1,19 @@
 import { createBrowserRouter } from "react-router-dom";
+import { DashboardLayout } from "./layouts/DashboardLayout";
 import App from "./App";
 
 /**
  * Central route definitions for DaoFlow.
  *
- * Phase 1 starts with a single catch-all route that renders the existing
- * monolithic dashboard. As pages are extracted in later tasks, each route
- * will point to its own page component.
+ * DashboardLayout provides the sidebar + topbar shell.
+ * App renders as the index page; new pages will be added as siblings.
  */
 export const router = createBrowserRouter([
   {
     path: "/",
-    element: <App />,
+    element: <DashboardLayout />,
+    children: [
+      { index: true, element: <App /> },
+    ],
   },
 ]);
