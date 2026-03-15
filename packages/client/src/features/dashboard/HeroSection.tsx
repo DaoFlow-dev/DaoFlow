@@ -13,16 +13,18 @@ export interface HeroSectionProps {
 export function HeroSection({ session, health, overview, currentRole, viewer }: HeroSectionProps) {
   return (
     <section className="hero">
-      <div className="hero__copy">
-        <p className="hero__kicker">Docker-first control plane</p>
-        <h1>DaoFlow</h1>
+      <div className="hero__topbar">
+        <div className="hero__brand">
+          <p className="hero__kicker">Docker-first control plane</p>
+          <h1>DaoFlow</h1>
+        </div>
         <p className="hero__lede">
           A typed control plane for Docker and Compose deployments with agent-safe automation
           boundaries.
         </p>
       </div>
 
-      <div className="hero__rail">
+      <div className="hero__metrics">
         <div className="metric metric--auth">
           <span className="metric__label">Session</span>
           <span className="metric__value" data-testid="session-state">
