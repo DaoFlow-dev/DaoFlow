@@ -1,4 +1,6 @@
-import { Outlet, NavLink } from "react-router-dom";
+import { NavLink, Outlet } from "react-router-dom";
+import { ErrorBoundary } from "../components/ErrorBoundary";
+import { PageTitle } from "../components/PageTitle";
 import { useSession } from "../lib/auth-client";
 
 const navItems = [
@@ -46,9 +48,12 @@ export function DashboardLayout() {
         </div>
       </aside>
 
-      <div className="layout__main">
-        <Outlet />
-      </div>
+      <section className="layout__content">
+        <ErrorBoundary>
+          <PageTitle />
+          <Outlet />
+        </ErrorBoundary>
+      </section>
     </div>
   );
 }

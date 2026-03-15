@@ -8,3 +8,5 @@ export { ConfirmDialog } from "./ConfirmDialog";
 export { ToastContainer, toast } from "./Toast";
 export { Breadcrumb } from "./Breadcrumb";
 export { Pagination } from "./Pagination";
+export { ErrorBoundary } from "./ErrorBoundary";
+export { PageTitle } from "./PageTitle";
