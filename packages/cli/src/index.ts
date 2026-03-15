@@ -9,6 +9,8 @@ import { logsCommand } from "./commands/logs";
 import { planCommand } from "./commands/plan";
 import { rollbackCommand } from "./commands/rollback";
 import { statusCommand } from "./commands/status";
+import { projectsCommand } from "./commands/projects";
+import { doctorCommand } from "./commands/doctor";
 
 const program = new Command();
 
@@ -26,5 +28,7 @@ program.addCommand(logsCommand());
 program.addCommand(planCommand());
 program.addCommand(rollbackCommand());
 program.addCommand(statusCommand());
+program.addCommand(projectsCommand());
+program.addCommand(doctorCommand());
 
 program.parse();
