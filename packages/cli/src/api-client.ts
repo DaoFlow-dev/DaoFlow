@@ -2,44 +2,64 @@ import { getCurrentContext, type DaoFlowContext } from "./config";
 
 export class ApiClient {
   private ctx: DaoFlowContext;
+  private timeoutMs: number;
 
-  constructor(ctx?: DaoFlowContext) {
+  constructor(ctx?: DaoFlowContext, timeoutMs = 30_000) {
     const resolved = ctx ?? getCurrentContext();
     if (!resolved) {
       throw new Error("Not logged in. Run `daoflow login` first.");
     }
     this.ctx = resolved;
+    this.timeoutMs = timeoutMs;
   }
 
   get baseUrl(): string {
     return this.ctx.apiUrl.replace(/\/$/, "");
   }
 
-  private headers(): Record<string, string> {
+  private headers(extra?: Record<string, string>): Record<string, string> {
     return {
       Authorization: `Bearer ${this.ctx.token}`,
-      "Content-Type": "application/json"
+      "Content-Type": "application/json",
+      ...extra
     };
+  }
+
+  private signal(): AbortSignal {
+    return AbortSignal.timeout(this.timeoutMs);
   }
 
   async get<T = unknown>(path: string): Promise<T> {
     const res = await fetch(`${this.baseUrl}${path}`, {
-      headers: this.headers()
+      headers: this.headers(),
+      signal: this.signal()
     });
     if (!res.ok) {
-      throw new Error(`API ${res.status}: ${await res.text()}`);
+      const body = await res.text();
+      throw new ApiError(res.status, body);
     }
     return res.json() as Promise<T>;
   }
 
-  async post<T = unknown>(path: string, body?: unknown): Promise<T> {
+  async post<T = unknown>(
+    path: string,
+    body?: unknown,
+    opts?: { idempotencyKey?: string }
+  ): Promise<T> {
+    const extra: Record<string, string> = {};
+    if (opts?.idempotencyKey) {
+      extra["X-Idempotency-Key"] = opts.idempotencyKey;
+    }
+
     const res = await fetch(`${this.baseUrl}${path}`, {
       method: "POST",
-      headers: this.headers(),
-      body: body ? JSON.stringify(body) : undefined
+      headers: this.headers(extra),
+      body: body ? JSON.stringify(body) : undefined,
+      signal: this.signal()
     });
     if (!res.ok) {
-      throw new Error(`API ${res.status}: ${await res.text()}`);
+      const responseBody = await res.text();
+      throw new ApiError(res.status, responseBody);
     }
     return res.json() as Promise<T>;
   }
@@ -61,10 +81,12 @@ export class ApiClient {
       method: "POST",
       headers,
       body: stream as unknown as BodyInit,
-      duplex: "half"
+      duplex: "half",
+      signal: this.signal()
     } as RequestInit & { duplex: string });
     if (!res.ok) {
-      throw new Error(`Upload failed ${res.status}: ${await res.text()}`);
+      const body = await res.text();
+      throw new ApiError(res.status, body);
     }
     return res.json();
   }
@@ -78,7 +100,8 @@ export class ApiClient {
       signal: abort
     });
     if (!res.ok || !res.body) {
-      throw new Error(`SSE ${res.status}: ${await res.text()}`);
+      const body = await res.text();
+      throw new ApiError(res.status, body);
     }
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
@@ -95,5 +118,22 @@ export class ApiClient {
         }
       }
     }
+  }
+}
+
+/** Structured API error with status code for exit code mapping. */
+export class ApiError extends Error {
+  constructor(
+    public readonly statusCode: number,
+    public readonly body: string
+  ) {
+    super(`API ${statusCode}: ${body}`);
+    this.name = "ApiError";
+  }
+
+  /** Map HTTP status to CLI exit code (2 = permission denied). */
+  get exitCode(): number {
+    if (this.statusCode === 403 || this.statusCode === 401) return 2;
+    return 1;
   }
 }

@@ -1,81 +1,90 @@
 import { Command } from "commander";
 import chalk from "chalk";
-import { ApiClient } from "../api-client";
+import { ApiClient, ApiError } from "../api-client";
 import { getCurrentContext, loadConfig } from "../config";
 
 export function statusCommand(): Command {
   return new Command("status")
     .description("Show current deployment and server status")
-    .option("--json", "Output as JSON")
-    .action(async (_opts: { json?: boolean }) => {
-      // Show context info
+    .action(async () => {
+      const parentOpts = statusCommand().parent?.opts() ?? {};
+      const isJson = parentOpts.json;
       const config = loadConfig();
       const ctx = getCurrentContext();
 
-      console.log(chalk.bold("\n  DaoFlow Status\n"));
-      console.log(`  Context:  ${chalk.cyan(config.currentContext)}`);
-      console.log(`  API URL:  ${ctx?.apiUrl ?? chalk.dim("not configured")}`);
-      console.log();
-
       if (!ctx) {
-        console.log(
-          chalk.yellow("  Not logged in. Run: daoflow login --url <url> --token <token>")
-        );
-        return;
+        if (isJson) {
+          console.log(
+            JSON.stringify({ ok: false, error: "Not logged in", code: "NOT_LOGGED_IN" })
+          );
+        } else {
+          console.log(chalk.yellow("  Not logged in. Run: daoflow login --url <url> --token <token>"));
+        }
+        process.exit(1);
       }
 
       const api = new ApiClient(ctx);
 
-      // Fetch server readiness
       try {
-        const servers = await api.get<{
-          summary: { totalServers: number; readyServers: number; attentionServers: number };
-          checks: Array<{ serverName: string; serverHost: string; readinessStatus: string }>;
-        }>("/trpc/listServerReadiness");
+        const [servers, health] = await Promise.allSettled([
+          api.get<{
+            summary: { totalServers: number; readyServers: number; attentionServers: number };
+            checks: Array<{ serverName: string; serverHost: string; readinessStatus: string; sshReachable: boolean; dockerReachable: boolean }>;
+          }>("/trpc/serverReadiness"),
+          api.get<{ status: string; timestamp: string }>("/trpc/health")
+        ]);
 
-        console.log(chalk.bold("  Servers"));
-        console.log(
-          `  Total: ${servers.summary.totalServers}  Ready: ${chalk.green(servers.summary.readyServers)}  Attention: ${chalk.yellow(servers.summary.attentionServers)}`
-        );
-        console.log();
+        const serverData = servers.status === "fulfilled" ? servers.value : null;
+        const healthData = health.status === "fulfilled" ? health.value : null;
 
-        for (const check of servers.checks) {
-          const icon = check.readinessStatus === "ready" ? chalk.green("●") : chalk.yellow("●");
-          console.log(`  ${icon} ${check.serverName.padEnd(20)} ${check.serverHost}`);
-        }
-      } catch {
-        console.log(chalk.dim("  Unable to fetch server status"));
-      }
+        if (isJson) {
+          console.log(
+            JSON.stringify({
+              ok: true,
+              data: {
+                context: config.currentContext,
+                apiUrl: ctx.apiUrl,
+                health: healthData,
+                servers: serverData
+              }
+            })
+          );
+        } else {
+          console.log(chalk.bold("\n  DaoFlow Status\n"));
+          console.log(`  Context:  ${chalk.cyan(config.currentContext)}`);
+          console.log(`  API URL:  ${ctx.apiUrl}`);
+          console.log(
+            `  Health:   ${healthData ? chalk.green("● healthy") : chalk.yellow("● unknown")}`
+          );
+          console.log();
 
-      // Fetch recent deployments
-      try {
-        const deployments = await api.get<
-          Array<{
-            id: string;
-            serviceName: string;
-            status: string;
-            createdAt: string;
-          }>
-        >("/trpc/listDeploymentRecords?input=" + encodeURIComponent(JSON.stringify({ limit: 5 })));
-
-        console.log(chalk.bold("\n  Recent Deployments"));
-        if (Array.isArray(deployments)) {
-          for (const dep of deployments) {
-            const statusColor =
-              dep.status === "completed"
-                ? chalk.green
-                : dep.status === "failed"
-                  ? chalk.red
-                  : chalk.yellow;
+          if (serverData) {
+            console.log(chalk.bold("  Servers"));
             console.log(
-              `  ${dep.id.slice(0, 8)}  ${dep.serviceName.padEnd(20)} ${statusColor(dep.status.padEnd(12))} ${chalk.dim(dep.createdAt)}`
+              `  Total: ${serverData.summary.totalServers}  Ready: ${chalk.green(serverData.summary.readyServers)}  Attention: ${chalk.yellow(serverData.summary.attentionServers)}`
             );
-          }
-        }
-      } catch {
-        console.log(chalk.dim("  Unable to fetch deployment status"));
-      }
+            console.log();
 
-      console.log();
+            for (const check of serverData.checks) {
+              const icon = check.sshReachable ? chalk.green("●") : chalk.yellow("●");
+              console.log(
+                `  ${icon} ${check.serverName.padEnd(20)} ${check.serverHost}  Docker: ${check.dockerReachable ? "✓" : "✗"}`
+              );
+            }
+          }
+
+          console.log();
+        }
+      } catch (err) {
+        if (err instanceof ApiError) {
+          if (isJson) {
+            console.log(JSON.stringify({ ok: false, error: err.message, code: "API_ERROR" }));
+          } else {
+            console.error(chalk.red(`Error: ${err.message}`));
+          }
+          process.exit(err.exitCode);
+        }
+        throw err;
+      }
     });
 }

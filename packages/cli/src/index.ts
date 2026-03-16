@@ -11,13 +11,18 @@ import { rollbackCommand } from "./commands/rollback";
 import { statusCommand } from "./commands/status";
 import { projectsCommand } from "./commands/projects";
 import { doctorCommand } from "./commands/doctor";
+import { whoamiCommand } from "./commands/whoami";
+import { capabilitiesCommand } from "./commands/capabilities";
 
 const program = new Command();
 
 program
   .name("daoflow")
   .description("DaoFlow CLI — agentic DevOps from one prompt to production")
-  .version("0.1.0");
+  .version("0.1.0")
+  .option("--json", "Output as structured JSON (stdout)")
+  .option("-q, --quiet", "Output bare values only")
+  .option("--timeout <seconds>", "API request timeout in seconds", "30");
 
 program.addCommand(loginCommand());
 program.addCommand(servicesCommand());
@@ -30,5 +35,7 @@ program.addCommand(rollbackCommand());
 program.addCommand(statusCommand());
 program.addCommand(projectsCommand());
 program.addCommand(doctorCommand());
+program.addCommand(whoamiCommand());
+program.addCommand(capabilitiesCommand());
 
 program.parse();
