@@ -38,7 +38,7 @@ export class ApiClient {
       const body = await res.text();
       throw new ApiError(res.status, body);
     }
-    return res.json() as Promise<T>;
+    return this.unwrapTrpc<T>(await res.json());
   }
 
   async post<T = unknown>(
@@ -61,7 +61,27 @@ export class ApiClient {
       const responseBody = await res.text();
       throw new ApiError(res.status, responseBody);
     }
-    return res.json() as Promise<T>;
+    return this.unwrapTrpc<T>(await res.json());
+  }
+
+  /**
+   * tRPC wraps all responses in { result: { data: ... } }.
+   * This unwraps so callers get the actual payload.
+   */
+  private unwrapTrpc<T>(json: unknown): T {
+    if (
+      json &&
+      typeof json === "object" &&
+      "result" in json &&
+      (json as Record<string, unknown>).result &&
+      typeof (json as Record<string, unknown>).result === "object"
+    ) {
+      const result = (json as { result: Record<string, unknown> }).result;
+      if ("data" in result) {
+        return result.data as T;
+      }
+    }
+    return json as T;
   }
 
   async streamUpload(

@@ -10,6 +10,7 @@ import { gitProviders, gitInstallations } from "../schema/git-providers";
 import { auditEntries } from "../schema/audit";
 import type { AppRole } from "@daoflow/shared";
 import { newId as id } from "./json-helpers";
+import { encrypt } from "../crypto";
 
 /* ──────────────────────── Interfaces ──────────────────────── */
 
@@ -53,8 +54,8 @@ export async function registerGitProvider(input: RegisterGitProviderInput) {
       name: input.name,
       appId: input.appId ?? null,
       clientId: input.clientId ?? null,
-      clientSecretEncrypted: input.clientSecret ?? null, // TODO: encrypt
-      privateKeyEncrypted: input.privateKey ?? null, // TODO: encrypt
+      clientSecretEncrypted: input.clientSecret ? encrypt(input.clientSecret) : null,
+      privateKeyEncrypted: input.privateKey ? encrypt(input.privateKey) : null,
       webhookSecret: input.webhookSecret ?? null,
       baseUrl: input.baseUrl ?? null,
       status: "active",

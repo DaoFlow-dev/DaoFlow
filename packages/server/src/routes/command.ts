@@ -32,6 +32,7 @@ import {
   deleteGitProvider,
   createGitInstallation
 } from "../db/services/git-providers";
+import { decrypt } from "../db/crypto";
 import {
   t,
   adminProcedure,
@@ -722,7 +723,9 @@ export const commandRouter = t.router({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           client_id: provider.clientId,
-          client_secret: provider.clientSecretEncrypted, // TODO: decrypt
+          client_secret: provider.clientSecretEncrypted
+            ? decrypt(provider.clientSecretEncrypted)
+            : "",
           code: input.code,
           grant_type: "authorization_code",
           redirect_uri: `${process.env.APP_BASE_URL || "http://localhost:3000"}/settings/git/callback`

@@ -4,47 +4,36 @@ import { ApiClient, ApiError } from "../api-client";
 
 export function deployCommand(): Command {
   return new Command("deploy")
-    .description("Deploy a service from git/compose/dockerfile")
-    .requiredOption("--service <name>", "Service name")
-    .requiredOption("--server <id>", "Target server ID")
-    .option("--source <type>", "Source type: compose | dockerfile | image", "compose")
-    .option("--commit <sha>", "Commit SHA")
-    .option("--image <tag>", "Image tag")
-    .option("--env <id>", "Environment name", "production")
-    .option("--project <name>", "Project name", "default")
+    .description("Deploy a service")
+    .requiredOption("--service <id>", "Service ID to deploy")
+    .option("--commit <sha>", "Commit SHA to deploy")
+    .option("--image <tag>", "Image tag to deploy")
     .option("--dry-run", "Preview deployment plan without executing")
     .option("-y, --yes", "Skip confirmation prompt")
+    .option("--json", "Output as JSON")
     .action(
       async (opts: {
         service: string;
-        server: string;
-        source: string;
         commit?: string;
         image?: string;
-        env: string;
-        project: string;
         dryRun?: boolean;
         yes?: boolean;
+        json?: boolean;
       }) => {
-        const parentOpts = deployCommand().parent?.opts() ?? {};
-        const isJson = parentOpts.json;
+        const isJson = opts.json;
 
         if (opts.dryRun) {
           const plan = {
             ok: true,
             dryRun: true,
             plan: {
-              service: opts.service,
-              server: opts.server,
-              source: opts.source,
-              commit: opts.commit ?? null,
-              image: opts.image ?? null,
-              environment: opts.env,
-              project: opts.project,
+              serviceId: opts.service,
+              commitSha: opts.commit ?? null,
+              imageTag: opts.image ?? null,
               steps: [
-                "pull/build",
-                "create network",
-                "create volumes",
+                "resolve service + environment",
+                "pull/build image",
+                "create network + volumes",
                 "start containers",
                 "health check"
               ]
@@ -55,17 +44,16 @@ export function deployCommand(): Command {
             console.log(JSON.stringify(plan));
           } else {
             console.log(chalk.bold("\n  Deployment Plan (dry-run)\n"));
-            console.log(`  Service:     ${opts.service}`);
-            console.log(`  Server:      ${opts.server}`);
-            console.log(`  Source:      ${opts.source}`);
-            console.log(`  Environment: ${opts.env}`);
+            console.log(`  Service ID: ${opts.service}`);
+            if (opts.commit) console.log(`  Commit:     ${opts.commit}`);
+            if (opts.image) console.log(`  Image:      ${opts.image}`);
             console.log(`  Steps:`);
             for (const step of plan.plan.steps) {
               console.log(`    ${chalk.dim("→")} ${step}`);
             }
             console.log();
           }
-          process.exit(3); // dry-run exit code
+          process.exit(3); // dry-run exit code per AGENTS.md §12
         }
 
         if (!opts.yes) {
@@ -80,22 +68,18 @@ export function deployCommand(): Command {
         try {
           const api = new ApiClient();
           if (!isJson) {
-            console.log(chalk.blue(`⟳ Deploying ${opts.service}...`));
+            console.log(chalk.blue(`⟳ Deploying service ${opts.service}...`));
           }
 
-          const result = await api.post("/trpc/createDeploymentRecord", {
+          const result = await api.post<{
+            id: string;
+            status: string;
+            serviceName: string;
+          }>("/trpc/triggerDeploy", {
             json: {
-              serviceName: opts.service,
-              targetServerId: opts.server,
-              sourceType: opts.source,
-              commitSha: opts.commit ?? "0000000",
-              imageTag: opts.image ?? `${opts.service}:latest`,
-              environmentName: opts.env,
-              projectName: opts.project,
-              steps: [
-                { label: "Pull", detail: `Pull image for ${opts.service}` },
-                { label: "Start", detail: `Start container on ${opts.server}` }
-              ]
+              serviceId: opts.service,
+              commitSha: opts.commit,
+              imageTag: opts.image
             }
           });
 
@@ -103,12 +87,20 @@ export function deployCommand(): Command {
             console.log(JSON.stringify({ ok: true, data: result }));
           } else {
             console.log(chalk.green("✓ Deployment queued"));
-            console.log(chalk.dim(JSON.stringify(result, null, 2)));
+            console.log(chalk.dim(`  ID: ${result.id}`));
+            console.log(chalk.dim(`  Service: ${result.serviceName}`));
           }
         } catch (err) {
           if (err instanceof ApiError) {
             if (isJson) {
-              console.log(JSON.stringify({ ok: false, error: err.message, code: "API_ERROR" }));
+              console.log(
+                JSON.stringify({
+                  ok: false,
+                  error: err.message,
+                  code: err.statusCode === 403 ? "SCOPE_DENIED" : "API_ERROR",
+                  requiredScope: err.statusCode === 403 ? "deploy:start" : undefined
+                })
+              );
             } else {
               console.error(chalk.red(`Error: ${err.message}`));
             }

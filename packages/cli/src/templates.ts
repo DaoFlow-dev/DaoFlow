@@ -29,7 +29,7 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/trpc/healthCheck"]
+      test: ["CMD", "curl", "-f", "http://localhost:3000/trpc/health"]
       interval: 30s
       timeout: 10s
       retries: 5

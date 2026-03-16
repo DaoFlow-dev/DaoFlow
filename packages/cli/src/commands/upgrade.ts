@@ -104,7 +104,7 @@ export function upgradeCommand(): Command {
       let healthy = false;
       for (let i = 0; i < 20; i++) {
         try {
-          const resp = await fetch(`http://127.0.0.1:${port}/trpc/healthCheck`);
+          const resp = await fetch(`http://127.0.0.1:${port}/trpc/health`);
           if (resp.ok) {
             healthy = true;
             break;

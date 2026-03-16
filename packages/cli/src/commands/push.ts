@@ -15,6 +15,8 @@ export function pushCommand(): Command {
     .option("--server <id>", "Target server ID")
     .option("--service <name>", "Service name")
     .option("--skip-build", "Skip docker build, push existing image")
+    .option("-y, --yes", "Skip confirmation prompt")
+    .option("--json", "Output as JSON")
     .action(
       async (opts: {
         tag: string;
@@ -23,39 +25,50 @@ export function pushCommand(): Command {
         server?: string;
         service?: string;
         skipBuild?: boolean;
+        yes?: boolean;
+        json?: boolean;
       }) => {
+        const isJson = opts.json;
+
+        if (!opts.yes) {
+          console.error(
+            chalk.yellow("This will build and push a Docker image. Pass --yes to confirm.")
+          );
+          process.exit(1);
+        }
         const api = new ApiClient();
         const tag: string = opts.tag;
         const tarPath = join(tmpdir(), `daoflow-push-${Date.now()}.tar.gz`);
 
         // Step 1: Build image locally
         if (!opts.skipBuild) {
-          console.log(chalk.blue(`⟳ Building Docker image ${tag}...`));
+          if (!isJson) console.log(chalk.blue(`⟳ Building Docker image ${tag}...`));
           try {
             execSync(`docker build -t ${tag} -f ${opts.dockerfile} ${opts.context}`, {
               stdio: "inherit"
             });
-            console.log(chalk.green(`✓ Image built: ${tag}`));
+            if (!isJson) console.log(chalk.green(`✓ Image built: ${tag}`));
           } catch {
             console.error(chalk.red("✗ Docker build failed"));
             process.exit(1);
           }
         }
 
-        // Step 2: Save image to compressed tarball
-        console.log(chalk.blue("⟳ Compressing image..."));
+        if (!isJson) console.log(chalk.blue("⟳ Compressing image..."));
         try {
           execSync(`docker save ${tag} | gzip > ${tarPath}`, { stdio: "inherit" });
           const size = statSync(tarPath).size;
-          const sizeMB = (size / 1024 / 1024).toFixed(1);
-          console.log(chalk.green(`✓ Saved ${sizeMB} MB`));
+          if (!isJson) {
+            const sizeMB = (size / 1024 / 1024).toFixed(1);
+            console.log(chalk.green(`✓ Saved ${sizeMB} MB`));
+          }
         } catch {
           console.error(chalk.red("✗ Failed to save Docker image"));
           process.exit(1);
         }
 
         // Step 3: Stream tarball to DaoFlow API
-        console.log(chalk.blue("⟳ Pushing image to DaoFlow..."));
+        if (!isJson) console.log(chalk.blue("⟳ Pushing image to DaoFlow..."));
         const fileSize = statSync(tarPath).size;
         const stream = createReadStream(tarPath);
 
@@ -66,8 +79,12 @@ export function pushCommand(): Command {
             fileSize
           );
 
-          console.log(chalk.green("✓ Image pushed successfully"));
-          console.log(chalk.dim(JSON.stringify(result, null, 2)));
+          if (isJson) {
+            console.log(JSON.stringify({ ok: true, data: result }));
+          } else {
+            console.log(chalk.green("✓ Image pushed successfully"));
+            console.log(chalk.dim(JSON.stringify(result, null, 2)));
+          }
         } catch (err: unknown) {
           console.error(chalk.red(`✗ Push failed: ${String(err)}`));
           process.exit(1);

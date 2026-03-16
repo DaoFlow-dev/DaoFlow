@@ -17,37 +17,13 @@ export function logsCommand(): Command {
         const api = new ApiClient();
 
         if (opts.follow) {
-          // SSE streaming mode
-          console.log(chalk.dim("Streaming logs (Ctrl+C to stop)...\n"));
-          const abort = new AbortController();
-          process.on("SIGINT", () => {
-            abort.abort();
-            process.exit(0);
-          });
-
-          const path = opts.deployment
-            ? `/api/v1/logs/stream?deployment=${opts.deployment}`
-            : `/api/v1/logs/stream${service ? `?service=${service}` : ""}`;
-
-          await api.sse(
-            path,
-            (data) => {
-              try {
-                const log = JSON.parse(data) as { level?: string; message?: string };
-                const ts = chalk.dim(new Date().toISOString().slice(11, 23));
-                const level =
-                  log.level === "error"
-                    ? chalk.red("ERR")
-                    : log.level === "warn"
-                      ? chalk.yellow("WRN")
-                      : chalk.blue("INF");
-                console.log(`${ts} ${level} ${log.message ?? data}`);
-              } catch {
-                console.log(data);
-              }
-            },
-            abort.signal
+          // SSE streaming endpoint not yet implemented on the server
+          console.error(
+            chalk.yellow(
+              "Log streaming (--follow) is not yet implemented. Use without --follow for historical logs."
+            )
           );
+          process.exit(1);
         } else {
           // Historical mode
           const params = new URLSearchParams();
