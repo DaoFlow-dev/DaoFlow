@@ -26,7 +26,7 @@ DaoFlow is open source and welcomes contributions. This section covers how to se
 
 ## Contribution Principles
 
-From the [AGENTS.md](https://github.com/daoflow/daoflow/blob/main/AGENTS.md):
+From the [AGENTS.md](https://github.com/DaoFlow-dev/DaoFlow/blob/main/AGENTS.md):
 
 - Prefer smaller trusted primitives over large magical abstractions
 - Prefer durable records over ephemeral process state

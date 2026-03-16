@@ -13,7 +13,7 @@ version: "3.8"
 
 services:
   daoflow:
-    image: ghcr.io/daoflow/daoflow:latest
+    image: ghcr.io/daoflow-dev/daoflow:latest
     restart: unless-stopped
     ports:
       - "3000:3000"

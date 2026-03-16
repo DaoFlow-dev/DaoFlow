@@ -9,6 +9,17 @@ sidebar_position: 1
 
 DaoFlow is an open-source Agentic DevOps System — from prompts to production. It's designed so that AI coding agents can deploy, inspect, diagnose, and rollback applications safely and reliably — while keeping humans fully in control.
 
+## Why DaoFlow?
+
+Every hosting platform was designed for humans. DaoFlow is designed for **AI agents and humans together** — with security as architecture, not afterthought:
+
+- **Your data, your servers** — self-hosted on your infrastructure, zero vendor lock-in
+- **Agent-safe by default** — read-only until explicitly granted write scopes; every mutation audited
+- **Deterministic** — same input, same output, every time; no magic, no surprises
+- **Open source** — fully transparent, inspectable, MIT-licensed
+
+Read the full [Vision & Principles →](/docs/concepts/vision)
+
 ## What is DaoFlow?
 
 DaoFlow combines the strengths of tools like Coolify, Dokploy, and Portainer with an agent-first architecture:
@@ -46,8 +57,10 @@ daoflow capabilities --json
 | -------------------------------------------- | --------------------------------------------- |
 | [Getting Started](/docs/getting-started)     | Install, configure, and deploy your first app |
 | [Core Concepts](/docs/concepts/architecture) | Architecture, projects, servers, deployments  |
+| [Vision & Principles](/docs/concepts/vision) | Why DaoFlow, open-source philosophy           |
 | [CLI Reference](/docs/cli)                   | Complete CLI command documentation            |
 | [API Reference](/docs/api)                   | tRPC API endpoints and authentication         |
+| [Comparisons](/docs/comparisons)             | How DaoFlow compares to other platforms       |
 | [Security & RBAC](/docs/security)            | Roles, scopes, tokens, and audit              |
 | [Deployments](/docs/deployments)             | Compose, Dockerfile, and image deployments    |
 | [Backup & Restore](/docs/backups)            | Policies, runs, and S3 storage                |
