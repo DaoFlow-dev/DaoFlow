@@ -37,11 +37,18 @@ export default function DeploymentLogViewer({ deploymentId }: Props) {
   return (
     <div className="bg-black/90 rounded-md p-3 max-h-72 overflow-y-auto font-mono text-xs leading-relaxed">
       {entries.map((entry, i) => {
-        const level = String(entry.level ?? "info");
-        const message = String(entry.message ?? entry.detail ?? "");
-        const timestamp = entry.timestamp
-          ? new Date(String(entry.timestamp)).toLocaleTimeString()
-          : "";
+        const level =
+          typeof entry.level === "string" ? entry.level : "info";
+        const message =
+          typeof entry.message === "string"
+            ? entry.message
+            : typeof entry.detail === "string"
+              ? entry.detail
+              : "";
+        const timestamp =
+          typeof entry.timestamp === "string" || typeof entry.timestamp === "number"
+            ? new Date(entry.timestamp).toLocaleTimeString()
+            : "";
 
         return (
           <div key={i} className="flex gap-2 hover:bg-white/5 px-1 py-0.5">
