@@ -19,7 +19,7 @@ export function servicesCommand(): Command {
           targetServerName: string;
           imageTag: string | null;
         }>;
-      }>("/trpc/listComposeReleaseCatalog");
+      }>("/trpc/composeReleaseCatalog");
 
       if (opts.json) {
         console.log(JSON.stringify(data, null, 2));

@@ -32,7 +32,7 @@ export function logsCommand(): Command {
           const data = await api.get<{
             lines: Array<{ createdAt: string; level: string; message: string; stream: string }>;
           }>(
-            `/trpc/listDeploymentLogs?input=${encodeURIComponent(JSON.stringify({ deploymentId: opts.deployment, limit: Number(opts.lines) }))}`
+            `/trpc/deploymentLogs?input=${encodeURIComponent(JSON.stringify({ deploymentId: opts.deployment, limit: Number(opts.lines) }))}`
           );
 
           for (const line of data.lines) {

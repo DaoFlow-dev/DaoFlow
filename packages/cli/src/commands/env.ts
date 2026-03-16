@@ -16,7 +16,7 @@ export function envCommand(): Command {
       const data = await api.get<{
         variables: Array<{ key: string; displayValue: string; isSecret: boolean }>;
       }>(
-        `/trpc/listEnvironmentVariableInventory?input=${encodeURIComponent(JSON.stringify({ environmentId: opts.envId }))}`
+        `/trpc/environmentVariables?input=${encodeURIComponent(JSON.stringify({ environmentId: opts.envId }))}`
       );
 
       const lines = data.variables.map((v) =>

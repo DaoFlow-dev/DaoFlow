@@ -18,7 +18,7 @@ export function planCommand(): Command {
       const data = await api.get<{
         summary: Record<string, number>;
         services?: Array<{ serviceName: string; status: string; imageTag: string | null }>;
-      }>("/trpc/listComposeReleaseCatalog");
+      }>("/trpc/composeReleaseCatalog");
 
       const current = data.services?.find((s) => s.serviceName === opts.service);
 
