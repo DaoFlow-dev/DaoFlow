@@ -16,7 +16,7 @@ const program = new Command();
 
 program
   .name("daoflow")
-  .description("DaoFlow CLI — deploy and manage Docker-based applications on your own servers")
+  .description("DaoFlow CLI — agentic DevOps from one prompt to production")
   .version("0.1.0");
 
 program.addCommand(loginCommand());
