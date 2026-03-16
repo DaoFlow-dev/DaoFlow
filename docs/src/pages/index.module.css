@@ -3,11 +3,7 @@
   text-align: center;
   position: relative;
   overflow: hidden;
-  background: linear-gradient(
-    180deg,
-    rgba(37, 99, 235, 0.04) 0%,
-    transparent 60%
-  );
+  background: linear-gradient(180deg, rgba(37, 99, 235, 0.04) 0%, transparent 60%);
 }
 
 .heroContent {

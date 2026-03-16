@@ -22,10 +22,9 @@ const FeatureList = [
     ),
     description: (
       <>
-        AI agents call <code>daoflow deploy</code>, <code>daoflow status</code>,
-        and <code>daoflow rollback</code> directly from their tool-calling
-        loops — with structured JSON output, scoped permissions, and dry-run
-        previews.
+        AI agents call <code>daoflow deploy</code>, <code>daoflow status</code>, and{" "}
+        <code>daoflow rollback</code> directly from their tool-calling loops — with structured JSON
+        output, scoped permissions, and dry-run previews.
       </>
     )
   },
@@ -49,9 +48,8 @@ const FeatureList = [
     ),
     description: (
       <>
-        First-class Compose deployments on bare metal and VPS. Preserve your
-        original Compose file, track every deployment with immutable records,
-        and rollback to any known-good state.
+        First-class Compose deployments on bare metal and VPS. Preserve your original Compose file,
+        track every deployment with immutable records, and rollback to any known-good state.
       </>
     )
   },
@@ -74,9 +72,8 @@ const FeatureList = [
     ),
     description: (
       <>
-        Agents default to read-only. Destructive actions require explicit
-        scopes, <code>--yes</code> confirmation, and approval gates. Every
-        mutation produces an immutable audit record.
+        Agents default to read-only. Destructive actions require explicit scopes, <code>--yes</code>{" "}
+        confirmation, and approval gates. Every mutation produces an immutable audit record.
       </>
     )
   }

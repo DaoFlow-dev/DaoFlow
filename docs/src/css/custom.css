@@ -23,8 +23,7 @@
   --ifm-link-color: #2563eb;
   --ifm-link-hover-color: #1d4ed8;
 
-  --ifm-font-family-base: "Inter", "Geist Variable", system-ui, -apple-system,
-    sans-serif;
+  --ifm-font-family-base: "Inter", "Geist Variable", system-ui, -apple-system, sans-serif;
   --ifm-code-font-size: 95%;
   --ifm-font-size-base: 16px;
   --ifm-border-radius: 8px;

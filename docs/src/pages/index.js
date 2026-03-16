@@ -19,14 +19,11 @@ function HomepageHeader() {
           </Heading>
           <p className={styles.heroSubtitle}>{siteConfig.tagline}</p>
           <p className={styles.heroDescription}>
-            The hosting platform designed from day one for AI agents to deploy,
-            inspect, diagnose, and rollback — with full human oversight.
+            The hosting platform designed from day one for AI agents to deploy, inspect, diagnose,
+            and rollback — with full human oversight.
           </p>
           <div className={styles.buttons}>
-            <Link
-              className={clsx("button button--lg", styles.primaryBtn)}
-              to="/docs/"
-            >
+            <Link className={clsx("button button--lg", styles.primaryBtn)} to="/docs/">
               Get Started →
             </Link>
             <Link

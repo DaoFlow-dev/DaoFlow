@@ -4,8 +4,7 @@ import { themes as prismThemes } from "prism-react-renderer";
 /** @type {import('@docusaurus/types').Config} */
 const config = {
   title: "DaoFlow",
-  tagline:
-    "Open-source Agentic DevOps System — from prompts to production",
+  tagline: "Open-source Agentic DevOps System — from prompts to production",
   favicon: "img/favicon.ico",
 
   future: {
