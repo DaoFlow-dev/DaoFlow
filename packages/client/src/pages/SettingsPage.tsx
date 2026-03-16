@@ -1,59 +1,69 @@
-import { canAssumeAnyRole, normalizeAppRole, type AppRole } from "@daoflow/shared";
-import { trpc } from "../lib/trpc";
 import { useSession } from "../lib/auth-client";
-import { TokenInventory } from "../features/admin/TokenInventory";
-import { isTRPCClientError } from "@trpc/client";
+import { trpc } from "../lib/trpc";
+import { canAssumeAnyRole, normalizeAppRole, type AppRole } from "@daoflow/shared";
+import { Settings, Users, KeyRound, Shield } from "lucide-react";
 
 export default function SettingsPage() {
   const session = useSession();
-  const enabled = Boolean(session.data);
-  const viewer = trpc.viewer.useQuery(undefined, { enabled });
-  const currentRole = viewer.data ? normalizeAppRole(viewer.data.authz.role) : "guest";
-  const canViewTokens = canAssumeAnyRole(currentRole as AppRole, ["owner", "admin"]);
-  const agentTokenInventory = trpc.agentTokenInventory.useQuery(undefined, {
-    enabled: canViewTokens
+  const viewer = trpc.viewer.useQuery(undefined, {
+    enabled: Boolean(session.data)
   });
-
-  const errorMessage = (query: { error: unknown }) =>
-    query.error && isTRPCClientError(query.error) ? query.error.message : null;
+  const currentRole = viewer.data ? normalizeAppRole(viewer.data.authz.role) : "guest";
+  const isAdmin = canAssumeAnyRole(currentRole as AppRole, ["owner", "admin"]);
 
   return (
     <main className="shell">
-      <section className="hero">
-        <div className="hero__topbar">
-          <div className="hero__brand">
-            <p className="hero__kicker">Administration</p>
-            <h1>Settings</h1>
-          </div>
-          <p className="hero__lede">Manage tokens, roles, and platform configuration.</p>
+      <div className="page-header">
+        <div>
+          <h1 className="page-header__title">Settings</h1>
+          <p className="page-header__desc">General configuration and platform settings.</p>
         </div>
-      </section>
+      </div>
 
-      <section style={{ marginTop: "1rem" }}>
-        {!session.data ? (
-          <p style={{ color: "#7a8194" }}>Sign in to access settings.</p>
-        ) : (
-          <>
-            <div className="auth-panel" style={{ marginBottom: "1rem" }}>
-              <h2 style={{ margin: "0 0 0.5rem", fontSize: "1.15rem", color: "#f0f2f5" }}>
-                Account
-              </h2>
-              <p style={{ color: "#7a8194", fontSize: "0.88rem", margin: 0 }}>
-                Signed in as <strong style={{ color: "#e1e4ea" }}>{session.data.user.email}</strong>{" "}
-                · Role: <strong style={{ color: "#e1e4ea" }}>{currentRole}</strong>
-              </p>
+      {!session.data ? (
+        <div className="empty-state">
+          <p>Sign in to access settings.</p>
+        </div>
+      ) : (
+        <div className="settings-grid">
+          <div className="settings-card">
+            <div className="settings-card__icon">
+              <Settings size={20} />
             </div>
+            <h3 className="settings-card__title">General</h3>
+            <p className="settings-card__desc">Platform name, version, and system information.</p>
+          </div>
 
-            {canViewTokens && (
-              <TokenInventory
-                session={session}
-                agentTokenInventory={agentTokenInventory}
-                tokenMessage={errorMessage(agentTokenInventory)}
-              />
-            )}
-          </>
-        )}
-      </section>
+          <div className="settings-card">
+            <div className="settings-card__icon">
+              <Users size={20} />
+            </div>
+            <h3 className="settings-card__title">Users & Roles</h3>
+            <p className="settings-card__desc">Manage team members, roles, and permissions.</p>
+            {!isAdmin && <span className="badge badge--amber">Admin only</span>}
+          </div>
+
+          <div className="settings-card">
+            <div className="settings-card__icon">
+              <KeyRound size={20} />
+            </div>
+            <h3 className="settings-card__title">API Tokens</h3>
+            <p className="settings-card__desc">
+              Create and manage scoped API tokens for integrations.
+            </p>
+          </div>
+
+          <div className="settings-card">
+            <div className="settings-card__icon">
+              <Shield size={20} />
+            </div>
+            <h3 className="settings-card__title">Security</h3>
+            <p className="settings-card__desc">
+              Audit log, session management, and security policies.
+            </p>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

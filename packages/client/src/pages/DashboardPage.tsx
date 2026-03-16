@@ -1,123 +1,63 @@
-import { useState } from "react";
 import { isTRPCClientError } from "@trpc/client";
 import { canAssumeAnyRole, normalizeAppRole, type AppRole } from "@daoflow/shared";
 import { useSession } from "../lib/auth-client";
 import { trpc } from "../lib/trpc";
-import { StatusCard } from "../components/status-card";
-import { HeroSection } from "../features/dashboard/HeroSection";
 import { AuthSection } from "../features/auth/AuthSection";
-import { ServerReadiness } from "../features/infrastructure/ServerReadiness";
-import { EnvironmentVariables } from "../features/infrastructure/EnvironmentVariables";
-import { InfrastructureInventory } from "../features/infrastructure/InfrastructureInventory";
-import { PersistentVolumes } from "../features/infrastructure/PersistentVolumes";
-import { ComposeReleaseCatalog } from "../features/deployments/ComposeReleaseCatalog";
-import { ComposeDrift } from "../features/deployments/ComposeDrift";
-import { DeploymentList } from "../features/deployments/DeploymentList";
-import { DeploymentInsights } from "../features/deployments/DeploymentInsights";
-import { RollbackPlans } from "../features/deployments/RollbackPlans";
-import { ExecutionHandoff } from "../features/deployments/ExecutionHandoff";
-import { DeploymentLogs } from "../features/deployments/DeploymentLogs";
-import { BackupCatalog } from "../features/backups/BackupCatalog";
-import { ApprovalQueue } from "../features/admin/ApprovalQueue";
-import { AuditTrail } from "../features/admin/AuditTrail";
-import { TokenInventory } from "../features/admin/TokenInventory";
+import {
+  Server,
+  FolderKanban,
+  Rocket,
+  Layers,
+  CheckCircle2,
+  XCircle,
+  Clock,
+  Activity
+} from "lucide-react";
 
 export default function DashboardPage() {
   const session = useSession();
   const health = trpc.health.useQuery();
   const overview = trpc.platformOverview.useQuery();
-  const roadmap = trpc.roadmap.useQuery({});
 
-  // ── Authenticated queries ──────────────────────────────────────
   const enabled = Boolean(session.data);
-  const composeReleaseCatalog = trpc.composeReleaseCatalog.useQuery({}, { enabled });
-  const composeDriftReport = trpc.composeDriftReport.useQuery({}, { enabled });
-  const approvalQueue = trpc.approvalQueue.useQuery({}, { enabled });
-  const recentDeployments = trpc.recentDeployments.useQuery({ limit: 50 }, { enabled });
-  const backupOverview = trpc.backupOverview.useQuery({}, { enabled });
-  const backupRestoreQueue = trpc.backupRestoreQueue.useQuery({}, { enabled });
-  const executionQueue = trpc.executionQueue.useQuery({ limit: 50 }, { enabled });
-  const operationsTimeline = trpc.operationsTimeline.useQuery({ limit: 50 }, { enabled });
+  const recentDeployments = trpc.recentDeployments.useQuery({ limit: 8 }, { enabled });
   const infrastructureInventory = trpc.infrastructureInventory.useQuery(undefined, { enabled });
   const serverReadiness = trpc.serverReadiness.useQuery({}, { enabled });
-  const persistentVolumes = trpc.persistentVolumes.useQuery({}, { enabled });
-  const deploymentInsights = trpc.deploymentInsights.useQuery({}, { enabled });
-  const deploymentRollbackPlans = trpc.deploymentRollbackPlans.useQuery({ limit: 12 }, { enabled });
-  const auditTrail = trpc.auditTrail.useQuery({ limit: 50 }, { enabled });
-  const deploymentLogs = trpc.deploymentLogs.useQuery({}, { enabled });
-  const environmentVariables = trpc.environmentVariables.useQuery({}, { enabled });
 
   const viewer = trpc.viewer.useQuery(undefined, { enabled });
   const adminControlPlane = trpc.adminControlPlane.useQuery(undefined, { enabled });
   const currentRole = viewer.data ? normalizeAppRole(viewer.data.authz.role) : "guest";
   const canViewAgentTokenInventory = canAssumeAnyRole(currentRole as AppRole, ["owner", "admin"]);
-  const _principalInventory = trpc.principalInventory.useQuery(undefined, {
-    enabled: canViewAgentTokenInventory
-  });
   const agentTokenInventory = trpc.agentTokenInventory.useQuery(undefined, {
     enabled: canViewAgentTokenInventory
   });
 
-  // ── Shared feedback state ──────────────────────────────────────
-  const [approvalFeedback, setApprovalFeedback] = useState<string | null>(null);
-
-  // ── Refresh all operational views at once ──────────────────────
-  async function refreshOperationalViews() {
-    await Promise.all([
-      approvalQueue.refetch(),
-      composeReleaseCatalog.refetch(),
-      infrastructureInventory.refetch(),
-      serverReadiness.refetch(),
-      persistentVolumes.refetch(),
-      recentDeployments.refetch(),
-      deploymentInsights.refetch(),
-      deploymentRollbackPlans.refetch(),
-      auditTrail.refetch(),
-      deploymentLogs.refetch(),
-      environmentVariables.refetch(),
-      backupOverview.refetch(),
-      backupRestoreQueue.refetch(),
-      executionQueue.refetch(),
-      operationsTimeline.refetch()
-    ]);
-  }
-
-  // ── Error messages ─────────────────────────────────────────────
   const errorMessage = (query: { error: unknown }) =>
     query.error && isTRPCClientError(query.error) ? query.error.message : null;
 
-  // ── Permission helpers ─────────────────────────────────────────
-  const canQueueDeployments = canAssumeAnyRole(currentRole as AppRole, [
-    "owner",
-    "admin",
-    "operator",
-    "developer"
-  ]);
-  const canOperateExecutionJobs = canAssumeAnyRole(currentRole as AppRole, [
-    "owner",
-    "admin",
-    "operator"
-  ]);
-  const canRequestApprovals = canAssumeAnyRole(currentRole as AppRole, [
-    "owner",
-    "admin",
-    "operator",
-    "developer",
-    "agent"
-  ]);
-  const canManageEnvironmentVariables = canQueueDeployments;
-  const canManageServers = canAssumeAnyRole(currentRole as AppRole, ["owner", "admin"]);
+  const infra = infrastructureInventory.data;
+  const servers = infra?.servers ?? [];
+  const projects = infra?.projects ?? [];
+  const deployments = recentDeployments.data ?? [];
+  const serverChecks = serverReadiness.data?.checks ?? [];
 
   return (
     <main className="shell">
-      <HeroSection
-        session={session}
-        health={health}
-        overview={overview}
-        viewer={viewer}
-        currentRole={currentRole}
-      />
+      {/* ── Page header ── */}
+      <div className="page-header">
+        <div>
+          <h1 className="page-header__title" data-testid="main-heading">
+            Dashboard
+          </h1>
+          <p className="page-header__desc">
+            {health.data?.status === "healthy"
+              ? "All systems operational"
+              : "Checking system status…"}
+          </p>
+        </div>
+      </div>
 
+      {/* ── Auth (sign-in / sign-up) ── */}
       <AuthSection
         session={session}
         viewer={viewer}
@@ -126,152 +66,130 @@ export default function DashboardPage() {
         currentRole={currentRole}
         viewerMessage={errorMessage(viewer)}
         adminMessage={errorMessage(adminControlPlane)}
-        onSignOut={() => setApprovalFeedback(null)}
+        onSignOut={() => {}}
       />
 
-      <section className="grid">
-        <StatusCard title="Control plane" items={overview.data?.architecture.controlPlane ?? []} />
-        <StatusCard
-          title="Execution plane"
-          items={overview.data?.architecture.executionPlane ?? []}
-        />
-        <StatusCard title="Agent API lanes" items={overview.data?.guardrails.agentApiLanes ?? []} />
-        <StatusCard
-          title="Product principles"
-          items={overview.data?.guardrails.productPrinciples ?? []}
-        />
-      </section>
+      {/* ── Stats row ── */}
+      {session.data && (
+        <section className="stats-row" data-testid="token-summary">
+          <div className="stat-card">
+            <div className="stat-card__icon stat-card__icon--blue">
+              <Server size={20} />
+            </div>
+            <div className="stat-card__body">
+              <p className="stat-card__value" data-testid="server-count">
+                {servers.length}
+              </p>
+              <p className="stat-card__label">Servers</p>
+            </div>
+          </div>
 
-      <InfrastructureInventory
-        session={session}
-        infrastructureInventory={infrastructureInventory}
-        infrastructureMessage={errorMessage(infrastructureInventory)}
-      />
+          <div className="stat-card">
+            <div className="stat-card__icon stat-card__icon--purple">
+              <FolderKanban size={20} />
+            </div>
+            <div className="stat-card__body">
+              <p className="stat-card__value">{projects.length}</p>
+              <p className="stat-card__label">Projects</p>
+            </div>
+          </div>
 
-      <ServerReadiness
-        session={session}
-        serverReadiness={serverReadiness}
-        serverReadinessMessage={errorMessage(serverReadiness)}
-        canManageServers={canManageServers}
-        refreshOperationalViews={refreshOperationalViews}
-      />
+          <div className="stat-card">
+            <div className="stat-card__icon stat-card__icon--green">
+              <Rocket size={20} />
+            </div>
+            <div className="stat-card__body">
+              <p className="stat-card__value">{deployments.length}</p>
+              <p className="stat-card__label">Recent Deploys</p>
+            </div>
+          </div>
 
-      <EnvironmentVariables
-        session={session}
-        environmentVariables={environmentVariables}
-        environmentVariablesMessage={errorMessage(environmentVariables)}
-        canManageEnvironmentVariables={canManageEnvironmentVariables}
-        infrastructureInventory={infrastructureInventory}
-        refreshOperationalViews={refreshOperationalViews}
-      />
+          <div className="stat-card">
+            <div className="stat-card__icon stat-card__icon--amber">
+              <Layers size={20} />
+            </div>
+            <div className="stat-card__body">
+              <p className="stat-card__value">
+                {overview.data?.architecture.controlPlane.length ?? 0}
+              </p>
+              <p className="stat-card__label">Services</p>
+            </div>
+          </div>
+        </section>
+      )}
 
-      <PersistentVolumes
-        session={session}
-        persistentVolumes={persistentVolumes}
-        persistentVolumesMessage={errorMessage(persistentVolumes)}
-      />
+      {/* ── Server Health ── */}
+      {session.data && serverChecks.length > 0 && (
+        <section className="dash-section">
+          <h2 className="dash-section__title">
+            <Activity size={18} />
+            Server Health
+          </h2>
+          <div className="server-health-grid">
+            {serverChecks.map((s) => (
+              <div className="server-health-card" key={String(s.serverId ?? s.serverName)}>
+                <div className="server-health-card__top">
+                  <span className="server-health-card__name">{String(s.serverName)}</span>
+                  {s.sshReachable ? (
+                    <span className="badge badge--green">
+                      <CheckCircle2 size={12} /> Online
+                    </span>
+                  ) : (
+                    <span className="badge badge--red">
+                      <XCircle size={12} /> Offline
+                    </span>
+                  )}
+                </div>
+                <p className="server-health-card__detail">
+                  {String(s.serverHost ?? "—")} · Docker {s.dockerReachable ? "✓" : "✗"}
+                </p>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
-      <ComposeReleaseCatalog
-        session={session}
-        composeReleaseCatalog={composeReleaseCatalog}
-        composeReleaseCatalogMessage={errorMessage(composeReleaseCatalog)}
-        canQueueDeployments={canQueueDeployments}
-        canRequestApprovals={canRequestApprovals}
-        refreshOperationalViews={refreshOperationalViews}
-        onApprovalFeedback={setApprovalFeedback}
-      />
-
-      <ComposeDrift
-        session={session}
-        composeDriftReport={composeDriftReport}
-        composeDriftMessage={errorMessage(composeDriftReport)}
-      />
-
-      <DeploymentList
-        session={session}
-        recentDeployments={recentDeployments}
-        deploymentMessage={errorMessage(recentDeployments)}
-        canQueueDeployments={canQueueDeployments}
-        refreshOperationalViews={refreshOperationalViews}
-      />
-
-      <DeploymentInsights
-        session={session}
-        deploymentInsights={deploymentInsights}
-        insightsMessage={errorMessage(deploymentInsights)}
-      />
-
-      <RollbackPlans
-        session={session}
-        deploymentRollbackPlans={deploymentRollbackPlans}
-        rollbackPlansMessage={errorMessage(deploymentRollbackPlans)}
-      />
-
-      <ExecutionHandoff
-        session={session}
-        executionQueue={executionQueue}
-        executionQueueMessage={errorMessage(executionQueue)}
-        operationsTimeline={operationsTimeline}
-        timelineMessage={errorMessage(operationsTimeline)}
-        canOperateExecutionJobs={canOperateExecutionJobs}
-        refreshOperationalViews={refreshOperationalViews}
-      />
-
-      <AuditTrail
-        session={session}
-        auditTrail={auditTrail}
-        auditMessage={errorMessage(auditTrail)}
-      />
-
-      <DeploymentLogs
-        session={session}
-        deploymentLogs={deploymentLogs}
-        logsMessage={errorMessage(deploymentLogs)}
-      />
-
-      <BackupCatalog
-        session={session}
-        backupOverview={backupOverview}
-        backupRestoreQueue={backupRestoreQueue}
-        backupMessage={errorMessage(backupOverview)}
-        backupRestoreMessage={errorMessage(backupRestoreQueue)}
-        canOperateExecutionJobs={canOperateExecutionJobs}
-        canRequestApprovals={canRequestApprovals}
-        refreshOperationalViews={refreshOperationalViews}
-        onApprovalFeedback={setApprovalFeedback}
-      />
-
-      <ApprovalQueue
-        session={session}
-        approvalQueue={approvalQueue}
-        approvalMessage={errorMessage(approvalQueue)}
-        canOperateExecutionJobs={canOperateExecutionJobs}
-        refreshOperationalViews={refreshOperationalViews}
-        externalFeedback={approvalFeedback}
-      />
-
-      <TokenInventory
-        session={session}
-        agentTokenInventory={agentTokenInventory}
-        tokenMessage={errorMessage(agentTokenInventory)}
-      />
-
-      <section className="roadmap">
-        <div className="roadmap__header">
-          <p className="roadmap__kicker">Research-driven roadmap</p>
-          <h2>First implementation lane</h2>
-        </div>
-
-        <div className="roadmap__items">
-          {roadmap.data?.map((item) => (
-            <article className="roadmap-item" key={item.title}>
-              <p className="roadmap-item__lane">{item.lane}</p>
-              <h3>{item.title}</h3>
-              <p>{item.summary}</p>
-            </article>
-          ))}
-        </div>
-      </section>
+      {/* ── Recent Deployments ── */}
+      {session.data && deployments.length > 0 && (
+        <section className="dash-section">
+          <h2 className="dash-section__title">
+            <Clock size={18} />
+            Recent Deployments
+          </h2>
+          <div className="deploy-table-wrap">
+            <table className="deploy-table">
+              <thead>
+                <tr>
+                  <th>Service</th>
+                  <th>Status</th>
+                  <th>Type</th>
+                  <th>Triggered</th>
+                </tr>
+              </thead>
+              <tbody>
+                {deployments.map((d) => (
+                  <tr key={String(d.id)}>
+                    <td className="deploy-table__service">
+                      {String(d.serviceName ?? d.projectId ?? "—")}
+                    </td>
+                    <td>
+                      <span
+                        className={`badge badge--${d.status === "healthy" ? "green" : d.status === "failed" ? "red" : d.status === "running" ? "blue" : "amber"}`}
+                      >
+                        {String(d.status)}
+                      </span>
+                    </td>
+                    <td className="deploy-table__type">{String(d.sourceType ?? "docker")}</td>
+                    <td className="deploy-table__time">
+                      {d.createdAt ? new Date(d.createdAt).toLocaleString() : "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
     </main>
   );
 }

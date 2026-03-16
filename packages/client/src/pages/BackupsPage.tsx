@@ -1,105 +1,107 @@
+/* eslint-disable @typescript-eslint/no-base-to-string */
 import { trpc } from "../lib/trpc";
 import { useSession } from "../lib/auth-client";
+import { DatabaseBackup, Plus } from "lucide-react";
 
 export default function BackupsPage() {
   const session = useSession();
-  const enabled = Boolean(session.data);
-  const backupOverview = trpc.backupOverview.useQuery({}, { enabled });
-  const backupRestoreQueue = trpc.backupRestoreQueue.useQuery({}, { enabled });
+  const backupOverview = trpc.backupOverview.useQuery({}, { enabled: Boolean(session.data) });
 
-  const overviewData = backupOverview.data;
-  const policies = overviewData && !Array.isArray(overviewData) ? overviewData.policies : [];
-  const runs = overviewData && !Array.isArray(overviewData) ? overviewData.runs : [];
-  const restoreData = backupRestoreQueue.data;
-  const restoreRequests = restoreData && !Array.isArray(restoreData) ? restoreData.requests : [];
+  const policies = backupOverview.data?.policies ?? [];
+  const runs = backupOverview.data?.runs ?? [];
 
   return (
     <main className="shell">
-      <section className="hero">
-        <div className="hero__topbar">
-          <div className="hero__brand">
-            <p className="hero__kicker">Data protection</p>
-            <h1>Backups</h1>
-          </div>
-          <p className="hero__lede">Manage backup policies, runs, and restore operations.</p>
+      <div className="page-header">
+        <div>
+          <h1 className="page-header__title">Backups</h1>
+          <p className="page-header__desc">
+            Manage backup policies, view run history, and restore data.
+          </p>
         </div>
-      </section>
+        <button className="action-button" disabled>
+          <Plus size={16} /> New Policy
+        </button>
+      </div>
 
-      <section style={{ marginTop: "1rem" }}>
-        {!session.data ? (
-          <p style={{ color: "#7a8194" }}>Sign in to view backups.</p>
-        ) : backupOverview.isLoading ? (
-          <div className="skeleton" style={{ height: "6rem" }} />
-        ) : (
-          <>
-            <h2 style={{ fontSize: "1.15rem", color: "#f0f2f5", marginBottom: "0.75rem" }}>
-              Backup Policies ({policies.length})
-            </h2>
-            {policies.length === 0 ? (
-              <div className="auth-panel" style={{ textAlign: "center", padding: "2rem" }}>
-                <p style={{ color: "#7a8194", margin: 0 }}>No backup policies configured.</p>
-              </div>
-            ) : (
-              <div className="deployment-list">
+      {!session.data ? (
+        <div className="empty-state">
+          <p>Sign in to view backups.</p>
+        </div>
+      ) : backupOverview.isLoading ? (
+        <div className="skeleton" style={{ height: "12rem" }} />
+      ) : policies.length === 0 && runs.length === 0 ? (
+        <div className="empty-state">
+          <DatabaseBackup size={32} />
+          <p>No backup policies configured. Create a policy to start backing up your data.</p>
+        </div>
+      ) : (
+        <>
+          {/* Policies */}
+          {policies.length > 0 && (
+            <section className="dash-section">
+              <h2 className="dash-section__title">Backup Policies</h2>
+              <div className="server-grid">
                 {policies.map((p) => (
-                  <article className="deployment-card" key={p.id}>
-                    <h3>
-                      {p.projectName} — {p.serviceName}
-                    </h3>
-                    <p className="deployment-card__meta">
-                      Retention: {p.retentionCount} · Schedule: {p.scheduleLabel ?? "manual"}
+                  <div className="server-card" key={String(p.id)}>
+                    <div className="server-card__top">
+                      <span className="server-card__name">{String(p.serviceName)}</span>
+                      <span className="badge badge--green">{String(p.targetType)}</span>
+                    </div>
+                    <p className="server-card__detail">
+                      Schedule: {String(p.scheduleLabel ?? "manual")} · Storage:{" "}
+                      {String(p.storageProvider)}
                     </p>
-                  </article>
+                    <p className="server-card__detail">
+                      Retention: {p.retentionCount} backups · Last run:{" "}
+                      {p.lastRunAt ? new Date(p.lastRunAt).toLocaleDateString() : "never"}
+                    </p>
+                  </div>
                 ))}
               </div>
-            )}
+            </section>
+          )}
 
-            <h2 style={{ fontSize: "1.15rem", color: "#f0f2f5", margin: "1.5rem 0 0.75rem" }}>
-              Recent Runs ({runs.length})
-            </h2>
-            {runs.length === 0 ? (
-              <p style={{ color: "#7a8194" }}>No backup runs recorded.</p>
-            ) : (
-              <div className="deployment-list">
-                {runs.map((r) => (
-                  <article className="deployment-card" key={r.id}>
-                    <div className="deployment-card__top">
-                      <h3>Run {r.id.slice(0, 8)}</h3>
-                      <span
-                        className={`deployment-status deployment-status--${r.status === "succeeded" ? "healthy" : r.status === "failed" ? "failed" : "running"}`}
-                      >
-                        {r.status}
-                      </span>
-                    </div>
-                  </article>
-                ))}
+          {/* Recent Runs */}
+          {runs.length > 0 && (
+            <section className="dash-section">
+              <h2 className="dash-section__title">Recent Runs</h2>
+              <div className="deploy-table-wrap">
+                <table className="deploy-table">
+                  <thead>
+                    <tr>
+                      <th>Service</th>
+                      <th>Status</th>
+                      <th>Trigger</th>
+                      <th>Finished</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {runs.map((r) => (
+                      <tr key={String(r.id)}>
+                        <td className="deploy-table__service">
+                          {String(r.serviceName ?? r.policyId)}
+                        </td>
+                        <td>
+                          <span
+                            className={`badge badge--${r.status === "completed" || r.status === "succeeded" ? "green" : r.status === "failed" ? "red" : "amber"}`}
+                          >
+                            {String(r.status)}
+                          </span>
+                        </td>
+                        <td className="deploy-table__type">{String(r.triggerKind)}</td>
+                        <td className="deploy-table__time">
+                          {r.finishedAt ? new Date(r.finishedAt).toLocaleString() : "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-            )}
-
-            <h2 style={{ fontSize: "1.15rem", color: "#f0f2f5", margin: "1.5rem 0 0.75rem" }}>
-              Restore Queue ({restoreRequests.length})
-            </h2>
-            {restoreRequests.length === 0 ? (
-              <p style={{ color: "#7a8194" }}>No pending restores.</p>
-            ) : (
-              <div className="deployment-list">
-                {restoreRequests.map((r) => (
-                  <article className="deployment-card" key={r.id}>
-                    <div className="deployment-card__top">
-                      <h3>Restore {r.id.slice(0, 8)}</h3>
-                      <span
-                        className={`deployment-status deployment-status--${r.status === "completed" ? "healthy" : "running"}`}
-                      >
-                        {r.status}
-                      </span>
-                    </div>
-                  </article>
-                ))}
-              </div>
-            )}
-          </>
-        )}
-      </section>
+            </section>
+          )}
+        </>
+      )}
     </main>
   );
 }

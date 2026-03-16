@@ -1,61 +1,66 @@
+/* eslint-disable @typescript-eslint/no-base-to-string */
 import { trpc } from "../lib/trpc";
 import { useSession } from "../lib/auth-client";
+import { Server, Plus, CheckCircle2, XCircle } from "lucide-react";
 
 export default function ServersPage() {
   const session = useSession();
-  const serverReadiness = trpc.serverReadiness.useQuery(
-    {},
-    {
-      enabled: Boolean(session.data)
-    }
-  );
+  const serverReadiness = trpc.serverReadiness.useQuery({}, { enabled: Boolean(session.data) });
+  const infra = trpc.infrastructureInventory.useQuery(undefined, {
+    enabled: Boolean(session.data)
+  });
 
-  const data = serverReadiness.data;
-  const checks = data && !Array.isArray(data) ? data.checks : [];
+  const servers = infra.data?.servers ?? [];
+  const checks = serverReadiness.data?.checks ?? [];
 
   return (
     <main className="shell">
-      <section className="hero">
-        <div className="hero__topbar">
-          <div className="hero__brand">
-            <p className="hero__kicker">Infrastructure</p>
-            <h1>Servers</h1>
-          </div>
-          <p className="hero__lede">Manage your Docker host servers and connectivity.</p>
+      <div className="page-header">
+        <div>
+          <h1 className="page-header__title">Servers</h1>
+          <p className="page-header__desc">Manage your Docker host servers and connectivity.</p>
         </div>
-      </section>
+        <button className="action-button" disabled>
+          <Plus size={16} /> Add Server
+        </button>
+      </div>
 
-      <section style={{ marginTop: "1rem" }}>
-        {!session.data ? (
-          <p style={{ color: "#7a8194" }}>Sign in to view servers.</p>
-        ) : serverReadiness.isLoading ? (
-          <div className="skeleton" style={{ height: "6rem" }} />
-        ) : checks.length === 0 ? (
-          <div className="auth-panel" style={{ textAlign: "center", padding: "2rem" }}>
-            <p style={{ color: "#7a8194", margin: 0 }}>
-              No servers registered. Add your first server to get started.
-            </p>
-          </div>
-        ) : (
-          <div className="deployment-list">
-            {checks.map((s) => (
-              <article className="deployment-card" key={s.serverId}>
-                <div className="deployment-card__top">
-                  <h3>{s.serverName}</h3>
-                  <span
-                    className={`deployment-status deployment-status--${s.readinessStatus === "ready" ? "healthy" : "queued"}`}
-                  >
-                    {s.readinessStatus}
+      {!session.data ? (
+        <div className="empty-state">
+          <p>Sign in to view servers.</p>
+        </div>
+      ) : servers.length === 0 && checks.length === 0 ? (
+        <div className="empty-state">
+          <Server size={32} />
+          <p>No servers registered. Add your first server to get started.</p>
+        </div>
+      ) : (
+        <div className="server-grid">
+          {checks.map((s) => (
+            <div className="server-card" key={String(s.serverId)}>
+              <div className="server-card__top">
+                <span className="server-card__name">{String(s.serverName)}</span>
+                {s.sshReachable ? (
+                  <span className="badge badge--green">
+                    <CheckCircle2 size={12} /> Online
                   </span>
-                </div>
-                <p className="deployment-card__meta">
-                  {s.serverHost}:{s.sshPort} · {s.targetKind}
-                </p>
-              </article>
-            ))}
-          </div>
-        )}
-      </section>
+                ) : (
+                  <span className="badge badge--red">
+                    <XCircle size={12} /> Offline
+                  </span>
+                )}
+              </div>
+              <p className="server-card__detail">
+                {String(s.serverHost)} · Port {String(s.sshPort)}
+              </p>
+              <p className="server-card__detail">
+                Docker: {s.dockerReachable ? "Connected ✓" : "Unreachable ✗"} · SSH:{" "}
+                {s.sshReachable ? "OK" : "Failed"}
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
     </main>
   );
 }

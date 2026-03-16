@@ -1,58 +1,83 @@
 /* eslint-disable @typescript-eslint/no-base-to-string */
 import { trpc } from "../lib/trpc";
 import { useSession } from "../lib/auth-client";
+import { FolderKanban, Plus, Search } from "lucide-react";
+import { useState } from "react";
 
 export default function ProjectsPage() {
   const session = useSession();
   const infra = trpc.infrastructureInventory.useQuery(undefined, {
     enabled: Boolean(session.data)
   });
+  const [search, setSearch] = useState("");
 
-  const projects = infra.data?.projects ?? [];
+  const projects = (infra.data?.projects ?? []).filter((p) =>
+    String(p.name).toLowerCase().includes(search.toLowerCase())
+  );
 
   return (
     <main className="shell">
-      <section className="hero">
-        <div className="hero__topbar">
-          <div className="hero__brand">
-            <p className="hero__kicker">Project management</p>
-            <h1>Projects</h1>
-          </div>
-          <p className="hero__lede">Manage your Docker and Compose deployment projects.</p>
+      <div className="page-header">
+        <div>
+          <h1 className="page-header__title">Projects</h1>
+          <p className="page-header__desc">Manage your Docker and Compose deployment projects.</p>
         </div>
-      </section>
+        <button className="action-button" disabled>
+          <Plus size={16} /> New Project
+        </button>
+      </div>
 
-      <section style={{ marginTop: "1rem" }}>
-        {!session.data ? (
-          <p style={{ color: "#7a8194" }}>Sign in to view projects.</p>
-        ) : infra.isLoading ? (
-          <div className="skeleton" style={{ height: "6rem" }} />
-        ) : projects.length === 0 ? (
-          <div className="auth-panel" style={{ textAlign: "center", padding: "2rem" }}>
-            <p style={{ color: "#7a8194", margin: 0 }}>
-              No projects yet. Create your first project to get started.
-            </p>
+      {!session.data ? (
+        <div className="empty-state">
+          <p>Sign in to view projects.</p>
+        </div>
+      ) : infra.isLoading ? (
+        <div className="skeleton" style={{ height: "12rem" }} />
+      ) : (
+        <>
+          {/* Search bar */}
+          <div className="search-bar">
+            <Search size={16} className="search-bar__icon" />
+            <input
+              className="search-bar__input"
+              placeholder="Search projects…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
           </div>
-        ) : (
-          <div className="deployment-list">
-            {projects.map((p) => (
-              <article className="deployment-card" key={String(p.id)}>
-                <div className="deployment-card__top">
-                  <h3>{String(p.name)}</h3>
-                  <span
-                    className={`deployment-status deployment-status--${p.latestDeploymentStatus === "completed" ? "healthy" : "queued"}`}
-                  >
-                    {p.latestDeploymentStatus || "new"}
-                  </span>
-                </div>
-                <p className="deployment-card__meta">
-                  {p.environmentCount} environment{p.environmentCount !== 1 ? "s" : ""}
-                </p>
-              </article>
-            ))}
-          </div>
-        )}
-      </section>
+
+          {projects.length === 0 ? (
+            <div className="empty-state">
+              <FolderKanban size={32} />
+              <p>No projects yet. Create your first project to get started.</p>
+            </div>
+          ) : (
+            <div className="project-grid">
+              {projects.map((p) => (
+                <article className="project-card" key={String(p.id)}>
+                  <div className="project-card__top">
+                    <div className="project-card__icon">
+                      <FolderKanban size={18} />
+                    </div>
+                    <div className="project-card__info">
+                      <h3 className="project-card__name">{String(p.name)}</h3>
+                      <p className="project-card__meta">
+                        {p.environmentCount} environment
+                        {p.environmentCount !== 1 ? "s" : ""}
+                      </p>
+                    </div>
+                    <span
+                      className={`badge badge--${p.latestDeploymentStatus === "healthy" ? "green" : p.latestDeploymentStatus === "failed" ? "red" : p.latestDeploymentStatus === "running" ? "blue" : "amber"}`}
+                    >
+                      {p.latestDeploymentStatus || "new"}
+                    </span>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+        </>
+      )}
     </main>
   );
 }
