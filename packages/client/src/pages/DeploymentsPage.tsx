@@ -1,5 +1,16 @@
 import { trpc } from "../lib/trpc";
 import { useSession } from "../lib/auth-client";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow
+} from "@/components/ui/table";
 import { Rocket } from "lucide-react";
 
 export default function DeploymentsPage() {
@@ -12,61 +23,77 @@ export default function DeploymentsPage() {
   const deployments = recentDeployments.data ?? [];
 
   return (
-    <main className="shell">
-      <div className="page-header">
-        <div>
-          <h1 className="page-header__title">Deployments</h1>
-          <p className="page-header__desc">
-            View deployment history and status across all services.
-          </p>
-        </div>
+    <main className="shell space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight">Deployments</h1>
+        <p className="text-sm text-muted-foreground">
+          View deployment history and status across all services.
+        </p>
       </div>
 
-      {!session.data ? (
-        <div className="empty-state">
-          <p>Sign in to view deployments.</p>
-        </div>
-      ) : recentDeployments.isLoading ? (
-        <div className="skeleton" style={{ height: "12rem" }} />
-      ) : deployments.length === 0 ? (
-        <div className="empty-state">
-          <Rocket size={32} />
-          <p>No deployments yet. Queue your first deployment to get started.</p>
-        </div>
-      ) : (
-        <div className="deploy-table-wrap">
-          <table className="deploy-table">
-            <thead>
-              <tr>
-                <th>Service</th>
-                <th>Status</th>
-                <th>Source</th>
-                <th>Created</th>
-              </tr>
-            </thead>
-            <tbody>
-              {deployments.map((d) => (
-                <tr key={String(d.id)}>
-                  <td className="deploy-table__service">
-                    {String(d.serviceName ?? d.projectId ?? "—")}
-                  </td>
-                  <td>
-                    <span
-                      className={`badge badge--${d.status === "healthy" ? "green" : d.status === "failed" ? "red" : d.status === "running" ? "blue" : "amber"}`}
-                    >
-                      {String(d.status)}
-                    </span>
-                  </td>
-                  <td className="deploy-table__type">{String(d.sourceType ?? "docker")}</td>
-                  <td className="deploy-table__time">
-                    {d.createdAt ? new Date(d.createdAt).toLocaleString() : "—"}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Deployment History</CardTitle>
+          <CardDescription>
+            {deployments.length} deployment{deployments.length !== 1 ? "s" : ""}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {recentDeployments.isLoading ? (
+            <div className="space-y-2">
+              <Skeleton className="h-8 w-full" />
+              <Skeleton className="h-8 w-full" />
+              <Skeleton className="h-8 w-full" />
+            </div>
+          ) : deployments.length === 0 ? (
+            <div className="flex flex-col items-center gap-2 py-12 text-center">
+              <Rocket size={32} className="text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">
+                No deployments yet. Queue your first deployment to get started.
+              </p>
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Service</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Source</TableHead>
+                  <TableHead>Created</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {deployments.map((d) => (
+                  <TableRow key={String(d.id)}>
+                    <TableCell className="font-medium">
+                      {String(d.serviceName ?? d.projectId ?? "—")}
+                    </TableCell>
+                    <TableCell>
+                      <Badge
+                        variant={
+                          d.status === "healthy"
+                            ? "default"
+                            : d.status === "failed"
+                              ? "destructive"
+                              : "secondary"
+                        }
+                      >
+                        {String(d.status)}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {String(d.sourceType ?? "docker")}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {d.createdAt ? new Date(d.createdAt).toLocaleString() : "—"}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
     </main>
   );
 }

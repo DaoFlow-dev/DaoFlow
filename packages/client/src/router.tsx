@@ -7,15 +7,17 @@ import DeploymentsPage from "./pages/DeploymentsPage";
 import BackupsPage from "./pages/BackupsPage";
 import SettingsPage from "./pages/SettingsPage";
 import SetupWizardPage from "./pages/SetupWizardPage";
+import LoginPage from "./pages/LoginPage";
 import NotFoundPage from "./pages/NotFoundPage";
 
 /**
  * Central route definitions for DaoFlow.
  *
- * DashboardLayout provides the sidebar + topbar shell.
- * Each page is a child route rendered inside the layout's Outlet.
+ * /login — public landing page with sign-in / sign-up
+ * DashboardLayout gates on session and redirects to /login if unauthenticated.
  */
 export const router = createBrowserRouter([
+  { path: "/login", element: <LoginPage /> },
   {
     path: "/",
     element: <DashboardLayout />,

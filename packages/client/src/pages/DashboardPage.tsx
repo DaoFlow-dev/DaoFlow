@@ -1,195 +1,184 @@
-import { isTRPCClientError } from "@trpc/client";
-import { canAssumeAnyRole, normalizeAppRole, type AppRole } from "@daoflow/shared";
-import { useSession } from "../lib/auth-client";
 import { trpc } from "../lib/trpc";
-import { AuthSection } from "../features/auth/AuthSection";
+import { useSession } from "../lib/auth-client";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
-  Server,
-  FolderKanban,
-  Rocket,
-  Layers,
-  CheckCircle2,
-  XCircle,
-  Clock,
-  Activity
-} from "lucide-react";
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow
+} from "@/components/ui/table";
+import { Server, FolderKanban, Rocket, Activity, CheckCircle2, XCircle } from "lucide-react";
 
 export default function DashboardPage() {
   const session = useSession();
-  const health = trpc.health.useQuery();
-  const overview = trpc.platformOverview.useQuery();
 
-  const enabled = Boolean(session.data);
-  const recentDeployments = trpc.recentDeployments.useQuery({ limit: 8 }, { enabled });
-  const infrastructureInventory = trpc.infrastructureInventory.useQuery(undefined, { enabled });
-  const serverReadiness = trpc.serverReadiness.useQuery({}, { enabled });
-
-  const viewer = trpc.viewer.useQuery(undefined, { enabled });
-  const adminControlPlane = trpc.adminControlPlane.useQuery(undefined, { enabled });
-  const currentRole = viewer.data ? normalizeAppRole(viewer.data.authz.role) : "guest";
-  const canViewAgentTokenInventory = canAssumeAnyRole(currentRole as AppRole, ["owner", "admin"]);
-  const agentTokenInventory = trpc.agentTokenInventory.useQuery(undefined, {
-    enabled: canViewAgentTokenInventory
+  const serverReadiness = trpc.serverReadiness.useQuery({}, { enabled: Boolean(session.data) });
+  const recentDeployments = trpc.recentDeployments.useQuery(
+    { limit: 5 },
+    { enabled: Boolean(session.data) }
+  );
+  const infra = trpc.infrastructureInventory.useQuery(undefined, {
+    enabled: Boolean(session.data)
   });
 
-  const errorMessage = (query: { error: unknown }) =>
-    query.error && isTRPCClientError(query.error) ? query.error.message : null;
-
-  const infra = infrastructureInventory.data;
-  const servers = infra?.servers ?? [];
-  const projects = infra?.projects ?? [];
+  const servers = infra.data?.servers ?? [];
+  const projects = infra.data?.projects ?? [];
   const deployments = recentDeployments.data ?? [];
-  const serverChecks = serverReadiness.data?.checks ?? [];
+  const checks = serverReadiness.data?.checks ?? [];
+
+  const stats = [
+    {
+      label: "Servers",
+      value: servers.length,
+      icon: Server,
+      color: "text-blue-600",
+      bg: "bg-blue-50"
+    },
+    {
+      label: "Projects",
+      value: projects.length,
+      icon: FolderKanban,
+      color: "text-purple-600",
+      bg: "bg-purple-50"
+    },
+    {
+      label: "Deployments",
+      value: deployments.length,
+      icon: Rocket,
+      color: "text-amber-600",
+      bg: "bg-amber-50"
+    },
+    {
+      label: "Services",
+      value: infra.data?.environments?.length ?? 0,
+      icon: Activity,
+      color: "text-emerald-600",
+      bg: "bg-emerald-50"
+    }
+  ];
 
   return (
-    <main className="shell">
-      {/* ── Page header ── */}
-      <div className="page-header">
-        <div>
-          <h1 className="page-header__title" data-testid="main-heading">
-            Dashboard
-          </h1>
-          <p className="page-header__desc">
-            {health.data?.status === "healthy"
-              ? "All systems operational"
-              : "Checking system status…"}
-          </p>
-        </div>
+    <main className="shell space-y-6">
+      {/* Page header */}
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
+        <p className="text-muted-foreground text-sm">
+          Overview of your infrastructure and recent activity.
+        </p>
       </div>
 
-      {/* ── Auth (sign-in / sign-up) ── */}
-      <AuthSection
-        session={session}
-        viewer={viewer}
-        adminControlPlane={adminControlPlane}
-        agentTokenInventory={agentTokenInventory}
-        currentRole={currentRole}
-        viewerMessage={errorMessage(viewer)}
-        adminMessage={errorMessage(adminControlPlane)}
-        onSignOut={() => {}}
-      />
-
-      {/* ── Stats row ── */}
-      {session.data && (
-        <section className="stats-row" data-testid="token-summary">
-          <div className="stat-card">
-            <div className="stat-card__icon stat-card__icon--blue">
-              <Server size={20} />
-            </div>
-            <div className="stat-card__body">
-              <p className="stat-card__value" data-testid="server-count">
-                {servers.length}
-              </p>
-              <p className="stat-card__label">Servers</p>
-            </div>
-          </div>
-
-          <div className="stat-card">
-            <div className="stat-card__icon stat-card__icon--purple">
-              <FolderKanban size={20} />
-            </div>
-            <div className="stat-card__body">
-              <p className="stat-card__value">{projects.length}</p>
-              <p className="stat-card__label">Projects</p>
-            </div>
-          </div>
-
-          <div className="stat-card">
-            <div className="stat-card__icon stat-card__icon--green">
-              <Rocket size={20} />
-            </div>
-            <div className="stat-card__body">
-              <p className="stat-card__value">{deployments.length}</p>
-              <p className="stat-card__label">Recent Deploys</p>
-            </div>
-          </div>
-
-          <div className="stat-card">
-            <div className="stat-card__icon stat-card__icon--amber">
-              <Layers size={20} />
-            </div>
-            <div className="stat-card__body">
-              <p className="stat-card__value">
-                {overview.data?.architecture.controlPlane.length ?? 0}
-              </p>
-              <p className="stat-card__label">Services</p>
-            </div>
-          </div>
-        </section>
-      )}
-
-      {/* ── Server Health ── */}
-      {session.data && serverChecks.length > 0 && (
-        <section className="dash-section">
-          <h2 className="dash-section__title">
-            <Activity size={18} />
-            Server Health
-          </h2>
-          <div className="server-health-grid">
-            {serverChecks.map((s) => (
-              <div className="server-health-card" key={String(s.serverId ?? s.serverName)}>
-                <div className="server-health-card__top">
-                  <span className="server-health-card__name">{String(s.serverName)}</span>
-                  {s.sshReachable ? (
-                    <span className="badge badge--green">
-                      <CheckCircle2 size={12} /> Online
-                    </span>
-                  ) : (
-                    <span className="badge badge--red">
-                      <XCircle size={12} /> Offline
-                    </span>
-                  )}
-                </div>
-                <p className="server-health-card__detail">
-                  {String(s.serverHost ?? "—")} · Docker {s.dockerReachable ? "✓" : "✗"}
-                </p>
+      {/* Stats row */}
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        {stats.map((s) => (
+          <Card key={s.label}>
+            <CardContent className="flex items-center gap-4 p-4">
+              <div
+                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${s.bg}`}
+              >
+                <s.icon size={20} className={s.color} />
               </div>
-            ))}
-          </div>
-        </section>
+              <div>
+                <p className="text-2xl font-bold">{s.value}</p>
+                <p className="text-xs text-muted-foreground">{s.label}</p>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* Server Health */}
+      {checks.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Server Health</CardTitle>
+            <CardDescription>Connectivity status of registered servers</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {checks.map((s) => (
+                <div
+                  key={String(s.serverId)}
+                  className="flex items-center gap-3 rounded-lg border p-3"
+                >
+                  {s.sshReachable ? (
+                    <CheckCircle2 size={18} className="text-emerald-500" />
+                  ) : (
+                    <XCircle size={18} className="text-red-500" />
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">{String(s.serverName)}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {String(s.serverHost)} · Docker {s.dockerReachable ? "✓" : "✗"}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
       )}
 
-      {/* ── Recent Deployments ── */}
-      {session.data && deployments.length > 0 && (
-        <section className="dash-section">
-          <h2 className="dash-section__title">
-            <Clock size={18} />
-            Recent Deployments
-          </h2>
-          <div className="deploy-table-wrap">
-            <table className="deploy-table">
-              <thead>
-                <tr>
-                  <th>Service</th>
-                  <th>Status</th>
-                  <th>Type</th>
-                  <th>Triggered</th>
-                </tr>
-              </thead>
-              <tbody>
+      {/* Recent Deployments */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Recent Deployments</CardTitle>
+          <CardDescription>Latest deployment activity</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {recentDeployments.isLoading ? (
+            <div className="space-y-2">
+              <Skeleton className="h-8 w-full" />
+              <Skeleton className="h-8 w-full" />
+              <Skeleton className="h-8 w-full" />
+            </div>
+          ) : deployments.length === 0 ? (
+            <p className="py-6 text-center text-sm text-muted-foreground">No deployments yet.</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Service</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Source</TableHead>
+                  <TableHead>Created</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {deployments.map((d) => (
-                  <tr key={String(d.id)}>
-                    <td className="deploy-table__service">
+                  <TableRow key={String(d.id)}>
+                    <TableCell className="font-medium">
                       {String(d.serviceName ?? d.projectId ?? "—")}
-                    </td>
-                    <td>
-                      <span
-                        className={`badge badge--${d.status === "healthy" ? "green" : d.status === "failed" ? "red" : d.status === "running" ? "blue" : "amber"}`}
+                    </TableCell>
+                    <TableCell>
+                      <Badge
+                        variant={
+                          d.status === "healthy"
+                            ? "default"
+                            : d.status === "failed"
+                              ? "destructive"
+                              : "secondary"
+                        }
                       >
                         {String(d.status)}
-                      </span>
-                    </td>
-                    <td className="deploy-table__type">{String(d.sourceType ?? "docker")}</td>
-                    <td className="deploy-table__time">
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {String(d.sourceType ?? "docker")}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
                       {d.createdAt ? new Date(d.createdAt).toLocaleString() : "—"}
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      )}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
     </main>
   );
 }

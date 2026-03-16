@@ -1,63 +1,65 @@
-/* eslint-disable @typescript-eslint/no-base-to-string */
 import { trpc } from "../lib/trpc";
 import { useSession } from "../lib/auth-client";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Server, Plus, CheckCircle2, XCircle } from "lucide-react";
 
 export default function ServersPage() {
   const session = useSession();
   const serverReadiness = trpc.serverReadiness.useQuery({}, { enabled: Boolean(session.data) });
-  const infra = trpc.infrastructureInventory.useQuery(undefined, {
-    enabled: Boolean(session.data)
-  });
 
-  const servers = infra.data?.servers ?? [];
   const checks = serverReadiness.data?.checks ?? [];
 
   return (
-    <main className="shell">
-      <div className="page-header">
+    <main className="shell space-y-6">
+      <div className="flex items-center justify-between">
         <div>
-          <h1 className="page-header__title">Servers</h1>
-          <p className="page-header__desc">Manage your Docker host servers and connectivity.</p>
+          <h1 className="text-2xl font-bold tracking-tight">Servers</h1>
+          <p className="text-sm text-muted-foreground">
+            Manage your Docker host servers and connectivity.
+          </p>
         </div>
-        <button className="action-button" disabled>
+        <Button disabled>
           <Plus size={16} /> Add Server
-        </button>
+        </Button>
       </div>
 
-      {!session.data ? (
-        <div className="empty-state">
-          <p>Sign in to view servers.</p>
-        </div>
-      ) : servers.length === 0 && checks.length === 0 ? (
-        <div className="empty-state">
-          <Server size={32} />
-          <p>No servers registered. Add your first server to get started.</p>
+      {checks.length === 0 ? (
+        <div className="flex flex-col items-center gap-2 py-12 text-center">
+          <Server size={32} className="text-muted-foreground" />
+          <p className="text-sm text-muted-foreground">
+            No servers registered. Add your first server to get started.
+          </p>
         </div>
       ) : (
-        <div className="server-grid">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {checks.map((s) => (
-            <div className="server-card" key={String(s.serverId)}>
-              <div className="server-card__top">
-                <span className="server-card__name">{String(s.serverName)}</span>
-                {s.sshReachable ? (
-                  <span className="badge badge--green">
-                    <CheckCircle2 size={12} /> Online
-                  </span>
-                ) : (
-                  <span className="badge badge--red">
-                    <XCircle size={12} /> Offline
-                  </span>
-                )}
-              </div>
-              <p className="server-card__detail">
-                {String(s.serverHost)} · Port {String(s.sshPort)}
-              </p>
-              <p className="server-card__detail">
-                Docker: {s.dockerReachable ? "Connected ✓" : "Unreachable ✗"} · SSH:{" "}
-                {s.sshReachable ? "OK" : "Failed"}
-              </p>
-            </div>
+            <Card key={String(s.serverId)}>
+              <CardHeader className="flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-semibold">{String(s.serverName)}</CardTitle>
+                <Badge variant={s.sshReachable ? "default" : "destructive"}>
+                  {s.sshReachable ? (
+                    <>
+                      <CheckCircle2 size={12} /> Online
+                    </>
+                  ) : (
+                    <>
+                      <XCircle size={12} /> Offline
+                    </>
+                  )}
+                </Badge>
+              </CardHeader>
+              <CardContent>
+                <p className="text-xs text-muted-foreground">
+                  {String(s.serverHost)} · Port {String(s.sshPort)}
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Docker: {s.dockerReachable ? "Connected ✓" : "Unreachable ✗"}
+                  {" · "}SSH: {s.sshReachable ? "OK" : "Failed"}
+                </p>
+              </CardContent>
+            </Card>
           ))}
         </div>
       )}

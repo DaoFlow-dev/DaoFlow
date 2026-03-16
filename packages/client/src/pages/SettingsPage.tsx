@@ -1,7 +1,10 @@
 import { useSession } from "../lib/auth-client";
 import { trpc } from "../lib/trpc";
-import { canAssumeAnyRole, normalizeAppRole, type AppRole } from "@daoflow/shared";
-import { Settings, Users, KeyRound, Shield } from "lucide-react";
+import { normalizeAppRole, canAssumeAnyRole, type AppRole } from "@daoflow/shared";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Settings, Users, KeyRound, Shield, Bell, HardDrive } from "lucide-react";
 
 export default function SettingsPage() {
   const session = useSession();
@@ -11,58 +14,96 @@ export default function SettingsPage() {
   const currentRole = viewer.data ? normalizeAppRole(viewer.data.authz.role) : "guest";
   const isAdmin = canAssumeAnyRole(currentRole as AppRole, ["owner", "admin"]);
 
+  const settingsSections = [
+    {
+      id: "general",
+      label: "General",
+      icon: Settings,
+      title: "General Settings",
+      desc: "Platform name, version, and system information."
+    },
+    {
+      id: "users",
+      label: "Users",
+      icon: Users,
+      title: "Users & Roles",
+      desc: "Manage team members, roles, and permissions.",
+      adminOnly: true
+    },
+    {
+      id: "tokens",
+      label: "Tokens",
+      icon: KeyRound,
+      title: "API Tokens",
+      desc: "Create and manage scoped API tokens for integrations and agents."
+    },
+    {
+      id: "security",
+      label: "Security",
+      icon: Shield,
+      title: "Security & Audit",
+      desc: "Audit log, session management, and security policies."
+    },
+    {
+      id: "notifications",
+      label: "Notifications",
+      icon: Bell,
+      title: "Notifications",
+      desc: "Configure alerts and notification channels."
+    },
+    {
+      id: "volumes",
+      label: "Volumes",
+      icon: HardDrive,
+      title: "Persistent Volumes",
+      desc: "Manage named volumes and storage configuration."
+    }
+  ];
+
   return (
-    <main className="shell">
-      <div className="page-header">
-        <div>
-          <h1 className="page-header__title">Settings</h1>
-          <p className="page-header__desc">General configuration and platform settings.</p>
-        </div>
+    <main className="shell space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight">Settings</h1>
+        <p className="text-sm text-muted-foreground">
+          General configuration and platform settings.
+        </p>
       </div>
 
       {!session.data ? (
-        <div className="empty-state">
-          <p>Sign in to access settings.</p>
+        <div className="flex flex-col items-center gap-2 py-12 text-center">
+          <p className="text-sm text-muted-foreground">Sign in to access settings.</p>
         </div>
       ) : (
-        <div className="settings-grid">
-          <div className="settings-card">
-            <div className="settings-card__icon">
-              <Settings size={20} />
-            </div>
-            <h3 className="settings-card__title">General</h3>
-            <p className="settings-card__desc">Platform name, version, and system information.</p>
-          </div>
+        <Tabs defaultValue="general" className="w-full">
+          <TabsList className="w-full justify-start">
+            {settingsSections.map((s) => (
+              <TabsTrigger key={s.id} value={s.id} className="gap-1.5">
+                <s.icon size={14} />
+                {s.label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
 
-          <div className="settings-card">
-            <div className="settings-card__icon">
-              <Users size={20} />
-            </div>
-            <h3 className="settings-card__title">Users & Roles</h3>
-            <p className="settings-card__desc">Manage team members, roles, and permissions.</p>
-            {!isAdmin && <span className="badge badge--amber">Admin only</span>}
-          </div>
-
-          <div className="settings-card">
-            <div className="settings-card__icon">
-              <KeyRound size={20} />
-            </div>
-            <h3 className="settings-card__title">API Tokens</h3>
-            <p className="settings-card__desc">
-              Create and manage scoped API tokens for integrations.
-            </p>
-          </div>
-
-          <div className="settings-card">
-            <div className="settings-card__icon">
-              <Shield size={20} />
-            </div>
-            <h3 className="settings-card__title">Security</h3>
-            <p className="settings-card__desc">
-              Audit log, session management, and security policies.
-            </p>
-          </div>
-        </div>
+          {settingsSections.map((s) => (
+            <TabsContent key={s.id} value={s.id} className="mt-4">
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center gap-2">
+                    <CardTitle className="text-base">{s.title}</CardTitle>
+                    {s.adminOnly && !isAdmin && <Badge variant="secondary">Admin only</Badge>}
+                  </div>
+                  <CardDescription>{s.desc}</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-muted-foreground">
+                    This section is under development. Configure {s.label.toLowerCase()} settings
+                    here.
+                  </p>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          ))}
+        </Tabs>
       )}
     </main>
   );
