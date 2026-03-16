@@ -5,6 +5,7 @@ import { serveStatic } from "hono/bun";
 import { DEFAULT_SERVER_PORT } from "@daoflow/shared";
 import { createApp } from "./app";
 import { startWorker, stopWorker } from "./worker";
+import { startTemporalWorker, stopTemporalWorker, closeTemporalClient } from "./worker";
 
 const port = Number(process.env.PORT ?? DEFAULT_SERVER_PORT);
 const isProduction = process.env.NODE_ENV === "production";
@@ -22,6 +23,10 @@ function shouldStartWorker(): boolean {
     return false;
   }
   return true;
+}
+
+function useTemporalWorker(): boolean {
+  return !!process.env.TEMPORAL_ADDRESS;
 }
 
 function start() {
@@ -49,12 +54,27 @@ function start() {
 
   // Start the execution worker when Docker is available
   if (shouldStartWorker()) {
-    startWorker();
+    if (useTemporalWorker()) {
+      console.log("[worker] Temporal mode enabled, starting Temporal worker...");
+      void startTemporalWorker().catch((err) => {
+        console.error("[worker] Temporal worker failed:", err);
+        console.log("[worker] Falling back to legacy polling worker");
+        startWorker();
+      });
+    } else {
+      console.log("[worker] No TEMPORAL_ADDRESS set, using legacy polling worker");
+      startWorker();
+    }
   }
 
   const shutdown = (signal: string) => {
     console.log(`Received ${signal}; shutting down DaoFlow control plane.`);
-    stopWorker();
+    if (useTemporalWorker()) {
+      stopTemporalWorker();
+      void closeTemporalClient();
+    } else {
+      stopWorker();
+    }
     void server.stop();
     process.exit(0);
   };

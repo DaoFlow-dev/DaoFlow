@@ -17,6 +17,11 @@
   "dependencies": {
     "@daoflow/shared": "workspace:*",
     "@hono/trpc-server": "0.4.2",
+    "@temporalio/activity": "1.15.0",
+    "@temporalio/client": "1.15.0",
+    "@temporalio/common": "1.15.0",
+    "@temporalio/worker": "1.15.0",
+    "@temporalio/workflow": "1.15.0",
     "@trpc/server": "^11.7.1",
     "@types/pg": "8.18.0",
     "better-auth": "^1.5.5",

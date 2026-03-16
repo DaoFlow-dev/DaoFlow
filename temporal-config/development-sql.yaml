@@ -1,0 +1,5 @@
+# Temporal dynamic config for development
+# https://docs.temporal.io/references/dynamic-configuration
+system.forceSearchAttributesCacheRefreshOnRead:
+  - value: true
+    constraints: {}

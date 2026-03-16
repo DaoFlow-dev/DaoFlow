@@ -15,11 +15,16 @@ services:
       ENCRYPTION_KEY: daoflow-dev-encryption-key-change-me-32chars
       NODE_ENV: production
       GIT_WORK_DIR: /app/staging
+      TEMPORAL_ADDRESS: temporal:7233
+      TEMPORAL_NAMESPACE: daoflow
+      TEMPORAL_TASK_QUEUE: daoflow-deployments
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+      temporal:
+        condition: service_started
 
   postgres:
     image: pgvector/pgvector:pg17
@@ -49,7 +54,52 @@ services:
       timeout: 3s
       retries: 5
 
+  # ── Temporal Stack ─────────────────────────────────────────
+  temporal-postgresql:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: temporal
+      POSTGRES_USER: temporal
+      POSTGRES_PASSWORD: temporal_dev
+    volumes:
+      - temporal-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U temporal"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  temporal:
+    image: temporalio/auto-setup:1.28.1
+    ports:
+      - "7233:7233"
+    environment:
+      - DB=postgres12
+      - DB_PORT=5432
+      - POSTGRES_USER=temporal
+      - POSTGRES_PWD=temporal_dev
+      - POSTGRES_SEEDS=temporal-postgresql
+      - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development-sql.yaml
+      - TEMPORAL_BROADCAST_ADDRESS=0.0.0.0
+    depends_on:
+      temporal-postgresql:
+        condition: service_healthy
+    volumes:
+      - ./temporal-config:/etc/temporal/config/dynamicconfig
+
+  temporal-ui:
+    image: temporalio/ui:2.34.0
+    ports:
+      - "8233:8080"
+    environment:
+      - TEMPORAL_ADDRESS=temporal:7233
+      - TEMPORAL_CORS_ORIGINS=http://localhost:3000
+    depends_on:
+      - temporal
+
 volumes:
   pgdata:
   redisdata:
   daoflow-staging:
+  temporal-pgdata:
+
