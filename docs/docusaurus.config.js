@@ -4,7 +4,8 @@ import { themes as prismThemes } from "prism-react-renderer";
 /** @type {import('@docusaurus/types').Config} */
 const config = {
   title: "DaoFlow",
-  tagline: "The agentic platform to host deterministic systems — from one prompt to production",
+  tagline:
+    "Open-source Agentic DevOps System — from prompts to production",
   favicon: "img/favicon.ico",
 
   future: {
@@ -24,6 +25,31 @@ const config = {
     defaultLocale: "en",
     locales: ["en"]
   },
+
+  headTags: [
+    {
+      tagName: "link",
+      attributes: {
+        rel: "preconnect",
+        href: "https://fonts.googleapis.com"
+      }
+    },
+    {
+      tagName: "link",
+      attributes: {
+        rel: "preconnect",
+        href: "https://fonts.gstatic.com",
+        crossorigin: "anonymous"
+      }
+    },
+    {
+      tagName: "link",
+      attributes: {
+        rel: "stylesheet",
+        href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+      }
+    }
+  ],
 
   presets: [
     [
@@ -47,10 +73,15 @@ const config = {
     ({
       colorMode: {
         defaultMode: "light",
-        respectPrefersColorScheme: true
+        disableSwitch: true,
+        respectPrefersColorScheme: false
       },
       navbar: {
         title: "DaoFlow",
+        logo: {
+          alt: "DaoFlow Logo",
+          src: "img/logo.svg"
+        },
         items: [
           {
             type: "docSidebar",
@@ -69,7 +100,12 @@ const config = {
             position: "left"
           },
           {
-            href: "https://github.com/daoflow/daoflow",
+            to: "/docs/agents",
+            label: "Agents",
+            position: "left"
+          },
+          {
+            href: "https://github.com/DaoFlow-dev/DaoFlow",
             label: "GitHub",
             position: "right"
           }
@@ -82,7 +118,7 @@ const config = {
             title: "Documentation",
             items: [
               { label: "Getting Started", to: "/docs/getting-started" },
-              { label: "Architecture", to: "/docs/architecture" },
+              { label: "Architecture", to: "/docs/concepts/architecture" },
               { label: "CLI Reference", to: "/docs/cli" },
               { label: "API Reference", to: "/docs/api" }
             ]
@@ -90,15 +126,19 @@ const config = {
           {
             title: "Product",
             items: [
-              { label: "Deployment Guide", to: "/docs/deployments" },
+              { label: "Deployments", to: "/docs/deployments" },
               { label: "Backup & Restore", to: "/docs/backups" },
-              { label: "Security & RBAC", to: "/docs/security" }
+              { label: "Security & RBAC", to: "/docs/security" },
+              { label: "Agent Integration", to: "/docs/agents" }
             ]
           },
           {
             title: "Community",
             items: [
-              { label: "GitHub", href: "https://github.com/daoflow/daoflow" },
+              {
+                label: "GitHub",
+                href: "https://github.com/DaoFlow-dev/DaoFlow"
+              },
               { label: "Discord", href: "https://discord.gg/daoflow" }
             ]
           }
@@ -107,7 +147,7 @@ const config = {
       },
       prism: {
         theme: prismThemes.github,
-        darkTheme: prismThemes.dracula,
+        darkTheme: prismThemes.github,
         additionalLanguages: ["bash", "json", "yaml", "docker", "toml"]
       }
     })

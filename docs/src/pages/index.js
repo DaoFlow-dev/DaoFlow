@@ -10,16 +10,32 @@ import styles from "./index.module.css";
 function HomepageHeader() {
   const { siteConfig } = useDocusaurusContext();
   return (
-    <header className={clsx("hero hero--primary", styles.heroBanner)}>
+    <header className={clsx(styles.heroBanner)}>
       <div className="container">
-        <Heading as="h1" className="hero__title">
-          {siteConfig.title}
-        </Heading>
-        <p className="hero__subtitle">{siteConfig.tagline}</p>
-        <div className={styles.buttons}>
-          <Link className="button button--secondary button--lg" to="/docs/intro">
-            Docusaurus Tutorial - 5min ⏱️
-          </Link>
+        <div className={styles.heroContent}>
+          <span className={styles.badge}>Open Source</span>
+          <Heading as="h1" className={styles.heroTitle}>
+            {siteConfig.title}
+          </Heading>
+          <p className={styles.heroSubtitle}>{siteConfig.tagline}</p>
+          <p className={styles.heroDescription}>
+            The hosting platform designed from day one for AI agents to deploy,
+            inspect, diagnose, and rollback — with full human oversight.
+          </p>
+          <div className={styles.buttons}>
+            <Link
+              className={clsx("button button--lg", styles.primaryBtn)}
+              to="/docs/"
+            >
+              Get Started →
+            </Link>
+            <Link
+              className={clsx("button button--lg", styles.secondaryBtn)}
+              href="https://github.com/DaoFlow-dev/DaoFlow"
+            >
+              View on GitHub
+            </Link>
+          </div>
         </div>
       </div>
     </header>
@@ -27,11 +43,10 @@ function HomepageHeader() {
 }
 
 export default function Home() {
-  const { siteConfig } = useDocusaurusContext();
   return (
     <Layout
-      title={`Hello from ${siteConfig.title}`}
-      description="Description will go into a meta tag in <head />"
+      title="Documentation"
+      description="DaoFlow — Open-source Agentic DevOps System. Deploy, inspect, diagnose, and rollback with AI agents."
     >
       <HomepageHeader />
       <main>

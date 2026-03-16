@@ -1,30 +1,279 @@
 /**
- * Any CSS included here will be global. The classic template
- * bundles Infima by default. Infima is a CSS framework designed to
- * work well for content-centric websites.
+ * DaoFlow branded theme — light dashboard aesthetic
+ * Palette: #ffffff base, #f8f9fb surfaces, #3b82f6 accent blue
+ * Font: Inter via Google Fonts
  */
 
-/* You can override the default Infima variables here. */
 :root {
-  --ifm-color-primary: #2e8555;
-  --ifm-color-primary-dark: #29784c;
-  --ifm-color-primary-darker: #277148;
-  --ifm-color-primary-darkest: #205d3b;
-  --ifm-color-primary-light: #33925d;
-  --ifm-color-primary-lighter: #359962;
-  --ifm-color-primary-lightest: #3cad6e;
+  --ifm-color-primary: #2563eb;
+  --ifm-color-primary-dark: #1d4ed8;
+  --ifm-color-primary-darker: #1e40af;
+  --ifm-color-primary-darkest: #1e3a8a;
+  --ifm-color-primary-light: #3b82f6;
+  --ifm-color-primary-lighter: #60a5fa;
+  --ifm-color-primary-lightest: #93c5fd;
+
+  --ifm-background-color: #ffffff;
+  --ifm-background-surface-color: #f8f9fb;
+  --ifm-navbar-background-color: #ffffff;
+  --ifm-footer-background-color: #f8f9fb;
+  --ifm-font-color-base: #1e293b;
+  --ifm-font-color-secondary: #64748b;
+  --ifm-heading-color: #0f172a;
+  --ifm-link-color: #2563eb;
+  --ifm-link-hover-color: #1d4ed8;
+
+  --ifm-font-family-base: "Inter", "Geist Variable", system-ui, -apple-system,
+    sans-serif;
   --ifm-code-font-size: 95%;
-  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.1);
+  --ifm-font-size-base: 16px;
+  --ifm-border-radius: 8px;
+
+  --ifm-code-background: #f1f5f9;
+  --ifm-code-padding-horizontal: 0.4rem;
+  --ifm-code-padding-vertical: 0.2rem;
+  --ifm-pre-background: #f8f9fb;
+  --ifm-pre-border-radius: 8px;
+
+  --ifm-toc-border-color: #e2e8f0;
+  --ifm-hr-border-color: #e2e8f0;
+  --ifm-table-border-color: #e2e8f0;
+
+  --docusaurus-highlighted-code-line-bg: rgba(37, 99, 235, 0.08);
 }
 
-/* For readability concerns, you should choose a lighter palette in dark mode. */
-[data-theme="dark"] {
-  --ifm-color-primary: #25c2a0;
-  --ifm-color-primary-dark: #21af90;
-  --ifm-color-primary-darker: #1fa588;
-  --ifm-color-primary-darkest: #1a8870;
-  --ifm-color-primary-light: #29d5b0;
-  --ifm-color-primary-lighter: #32d8b4;
-  --ifm-color-primary-lightest: #4fddbf;
-  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.3);
+/* ---------- Global ---------- */
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ---------- Navbar ---------- */
+.navbar {
+  border-bottom: 1px solid #e2e8f0;
+  box-shadow: none;
+}
+
+.navbar__title {
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #0f172a;
+}
+
+.navbar__link {
+  font-weight: 500;
+  font-size: 0.9rem;
+  color: #64748b;
+  transition: color 0.15s ease;
+}
+
+.navbar__link:hover,
+.navbar__link--active {
+  color: #0f172a;
+}
+
+/* ---------- Sidebar ---------- */
+.menu {
+  background: #ffffff;
+}
+
+.menu__link {
+  font-size: 0.875rem;
+  color: #64748b;
+  border-radius: 6px;
+  transition: all 0.15s ease;
+}
+
+.menu__link:hover {
+  background: rgba(37, 99, 235, 0.06);
+  color: #1e293b;
+}
+
+.menu__link--active:not(.menu__link--sublist) {
+  background: rgba(37, 99, 235, 0.08);
+  color: #2563eb;
+  font-weight: 600;
+}
+
+.menu__list-item-collapsible .menu__link--sublist-caret {
+  color: #94a3b8;
+}
+
+/* ---------- TOC ---------- */
+.table-of-contents__link {
+  color: #94a3b8;
+  transition: color 0.15s ease;
+}
+
+.table-of-contents__link:hover,
+.table-of-contents__link--active {
+  color: #2563eb;
+}
+
+/* ---------- Content ---------- */
+.markdown h1 {
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: #0f172a;
+}
+
+.markdown h2 {
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  border-bottom: 1px solid #e2e8f0;
+  padding-bottom: 0.5rem;
+  color: #0f172a;
+}
+
+.markdown h3 {
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.markdown a {
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+
+/* Tables */
+table {
+  border-collapse: collapse;
+}
+
+table th {
+  background: #f1f5f9;
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  letter-spacing: 0.05em;
+  color: #64748b;
+}
+
+table td,
+table th {
+  border-color: #e2e8f0;
+}
+
+table tr:nth-child(even) {
+  background: #f8fafc;
+}
+
+/* Code blocks */
+.prism-code {
+  border: 1px solid #e2e8f0;
+}
+
+code {
+  border: 1px solid #e2e8f0;
+  color: #1e293b;
+  background: #f1f5f9;
+}
+
+/* Admonitions */
+.admonition {
+  border-radius: 8px;
+  border-left-width: 3px;
+}
+
+/* ---------- Footer ---------- */
+.footer {
+  border-top: 1px solid #e2e8f0;
+}
+
+.footer__title {
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: #0f172a;
+}
+
+.footer__link-item {
+  color: #64748b;
+  transition: color 0.15s ease;
+}
+
+.footer__link-item:hover {
+  color: #2563eb;
+}
+
+.footer__copyright {
+  color: #94a3b8;
+}
+
+/* ---------- Pagination ---------- */
+.pagination-nav__link {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  transition: border-color 0.15s ease;
+}
+
+.pagination-nav__link:hover {
+  border-color: #93c5fd;
+}
+
+.pagination-nav__sublabel {
+  color: #94a3b8;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* ---------- Breadcrumbs ---------- */
+.breadcrumbs__link {
+  color: #94a3b8;
+  transition: color 0.15s ease;
+}
+
+.breadcrumbs__link:hover {
+  color: #1e293b;
+}
+
+/* ---------- Scrollbar ---------- */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.2);
+}
+
+/* ---------- Tabs ---------- */
+.tabs__item {
+  border-radius: 6px 6px 0 0;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.tabs__item--active {
+  color: #2563eb;
+  border-bottom-color: #2563eb;
+}
+
+/* ---------- Cards (for doc cards) ---------- */
+.card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.card:hover {
+  border-color: #93c5fd;
+  box-shadow: 0 4px 24px rgba(37, 99, 235, 0.08);
 }
