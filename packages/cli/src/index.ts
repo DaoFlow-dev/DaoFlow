@@ -16,6 +16,7 @@ import { capabilitiesCommand } from "./commands/capabilities";
 import { installCommand } from "./commands/install";
 import { upgradeCommand } from "./commands/upgrade";
 import { uninstallCommand } from "./commands/uninstall";
+import { backupCommand } from "./commands/backup";
 
 const program = new Command();
 
@@ -43,5 +44,6 @@ program.addCommand(capabilitiesCommand());
 program.addCommand(installCommand());
 program.addCommand(upgradeCommand());
 program.addCommand(uninstallCommand());
+program.addCommand(backupCommand());
 
 program.parse();

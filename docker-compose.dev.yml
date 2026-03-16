@@ -1,0 +1,83 @@
+# docker-compose.dev.yml — Local development stack
+# Usage: docker compose -f docker-compose.dev.yml up -d
+#
+# This spins up the infrastructure DaoFlow needs for local development:
+# Postgres, Redis, and optionally Temporal. The DaoFlow server itself
+# runs via `bun run dev` on the host (not containerized).
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_DB: daoflow
+      POSTGRES_USER: daoflow
+      POSTGRES_PASSWORD: daoflow_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U daoflow"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # ── Temporal (optional — DaoFlow works without it) ───────────
+  # Uncomment the services below to enable Temporal workflow engine.
+  # Set TEMPORAL_ADDRESS=localhost:7233 in your .env when using this.
+  #
+  # temporal-postgresql:
+  #   image: postgres:15-alpine
+  #   environment:
+  #     POSTGRES_DB: temporal
+  #     POSTGRES_USER: temporal
+  #     POSTGRES_PASSWORD: temporal_dev
+  #   volumes:
+  #     - temporal-pgdata:/var/lib/postgresql/data
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "pg_isready -U temporal"]
+  #     interval: 5s
+  #     timeout: 3s
+  #     retries: 5
+  #
+  # temporal:
+  #   image: temporalio/auto-setup:1.28.1
+  #   ports:
+  #     - "7233:7233"
+  #   environment:
+  #     - DB=postgres12
+  #     - DB_PORT=5432
+  #     - POSTGRES_USER=temporal
+  #     - POSTGRES_PWD=temporal_dev
+  #     - POSTGRES_SEEDS=temporal-postgresql
+  #     - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development-sql.yaml
+  #     - TEMPORAL_BROADCAST_ADDRESS=0.0.0.0
+  #   depends_on:
+  #     temporal-postgresql:
+  #       condition: service_healthy
+  #
+  # temporal-ui:
+  #   image: temporalio/ui:2.34.0
+  #   ports:
+  #     - "8233:8080"
+  #   environment:
+  #     - TEMPORAL_ADDRESS=temporal:7233
+  #   depends_on:
+  #     - temporal
+
+volumes:
+  pgdata:
+  redisdata:
+  # temporal-pgdata:

@@ -1,104 +1,68 @@
+# docker-compose.yml — Production deployment stack
+# Usage: docker compose up -d
+#
+# This runs the complete DaoFlow control plane from pre-built
+# GitHub Container Registry images. Used for self-hosted production
+# deployments on bare metal and VPS environments.
+
 services:
   daoflow:
-    build: .
+    image: ghcr.io/daoflow-dev/daoflow:latest
+    restart: unless-stopped
     ports:
       - "3000:3000"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - daoflow-staging:/app/staging
-    privileged: true
+      - daoflow-ssh:/app/.ssh
     environment:
-      DATABASE_URL: postgresql://daoflow:daoflow_dev@postgres:5432/daoflow
+      DATABASE_URL: postgresql://daoflow:${POSTGRES_PASSWORD:-daoflow_prod}@postgres:5432/daoflow
       REDIS_URL: redis://redis:6379
-      BETTER_AUTH_SECRET: daoflow-dev-secret-please-change-2026
-      BETTER_AUTH_URL: http://localhost:3000
-      ENCRYPTION_KEY: daoflow-dev-encryption-key-change-me-32chars
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?Set BETTER_AUTH_SECRET in .env}
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3000}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?Set ENCRYPTION_KEY in .env}
       NODE_ENV: production
       GIT_WORK_DIR: /app/staging
-      TEMPORAL_ADDRESS: temporal:7233
-      TEMPORAL_NAMESPACE: daoflow
-      TEMPORAL_TASK_QUEUE: daoflow-deployments
+      SSH_KEY_DIR: /app/.ssh
+      DEPLOY_TIMEOUT_MS: ${DEPLOY_TIMEOUT_MS:-600000}
+      # Temporal (optional):
+      # TEMPORAL_ADDRESS: temporal:7233
+      # TEMPORAL_NAMESPACE: daoflow
+      # TEMPORAL_TASK_QUEUE: daoflow-deployments
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
-      temporal:
-        condition: service_started
 
   postgres:
     image: pgvector/pgvector:pg17
+    restart: unless-stopped
     environment:
       POSTGRES_DB: daoflow
       POSTGRES_USER: daoflow
-      POSTGRES_PASSWORD: daoflow_dev
-    ports:
-      - "5432:5432"
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-daoflow_prod}
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U daoflow"]
-      interval: 5s
-      timeout: 3s
+      interval: 10s
+      timeout: 5s
       retries: 5
 
   redis:
     image: redis:7-alpine
-    ports:
-      - "6379:6379"
+    restart: unless-stopped
     volumes:
       - redisdata:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
+      interval: 10s
+      timeout: 5s
       retries: 5
-
-  # ── Temporal Stack ─────────────────────────────────────────
-  temporal-postgresql:
-    image: postgres:15-alpine
-    environment:
-      POSTGRES_DB: temporal
-      POSTGRES_USER: temporal
-      POSTGRES_PASSWORD: temporal_dev
-    volumes:
-      - temporal-pgdata:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U temporal"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-
-  temporal:
-    image: temporalio/auto-setup:1.28.1
-    ports:
-      - "7233:7233"
-    environment:
-      - DB=postgres12
-      - DB_PORT=5432
-      - POSTGRES_USER=temporal
-      - POSTGRES_PWD=temporal_dev
-      - POSTGRES_SEEDS=temporal-postgresql
-      - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development-sql.yaml
-      - TEMPORAL_BROADCAST_ADDRESS=0.0.0.0
-    depends_on:
-      temporal-postgresql:
-        condition: service_healthy
-    volumes:
-      - ./temporal-config:/etc/temporal/config/dynamicconfig
-
-  temporal-ui:
-    image: temporalio/ui:2.34.0
-    ports:
-      - "8233:8080"
-    environment:
-      - TEMPORAL_ADDRESS=temporal:7233
-      - TEMPORAL_CORS_ORIGINS=http://localhost:3000
-    depends_on:
-      - temporal
 
 volumes:
   pgdata:
   redisdata:
   daoflow-staging:
-  temporal-pgdata:
+  daoflow-ssh:
