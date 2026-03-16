@@ -18,13 +18,11 @@ test.describe("Database migration and health", () => {
     expect(data.architecture.executionPlane).toBeDefined();
   });
 
-  test("page loads after migration — core sections render", async ({ page }) => {
+  test("page loads after migration — redirects to login", async ({ page }) => {
     await page.goto("/");
 
-    // Core landing page elements that require successful DB migration
+    // Unauthenticated users should be redirected to login page
+    await expect(page).toHaveURL(/\/login/);
     await expect(page.getByRole("heading", { name: "DaoFlow", level: 1 })).toBeVisible();
-    await expect(page.getByText("Docker-first control plane")).toBeVisible();
-    await expect(page.getByText("healthy")).toBeVisible();
-    await expect(page.getByText("Foundation slice")).toHaveCount(4);
   });
 });
