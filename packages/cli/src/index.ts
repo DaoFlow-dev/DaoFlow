@@ -13,6 +13,9 @@ import { projectsCommand } from "./commands/projects";
 import { doctorCommand } from "./commands/doctor";
 import { whoamiCommand } from "./commands/whoami";
 import { capabilitiesCommand } from "./commands/capabilities";
+import { installCommand } from "./commands/install";
+import { upgradeCommand } from "./commands/upgrade";
+import { uninstallCommand } from "./commands/uninstall";
 
 const program = new Command();
 
@@ -37,5 +40,8 @@ program.addCommand(projectsCommand());
 program.addCommand(doctorCommand());
 program.addCommand(whoamiCommand());
 program.addCommand(capabilitiesCommand());
+program.addCommand(installCommand());
+program.addCommand(upgradeCommand());
+program.addCommand(uninstallCommand());
 
 program.parse();
