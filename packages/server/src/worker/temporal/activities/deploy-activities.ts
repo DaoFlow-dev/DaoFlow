@@ -215,7 +215,11 @@ export async function executeComposeDeployment(deployment: DeploymentInfo): Prom
       workDir = result.workDir;
     } else {
       workDir = ensureStagingDir(deployment.id);
-      onLog({ stream: "stdout", message: "No repository URL configured, using staging directory", timestamp: new Date() });
+      onLog({
+        stream: "stdout",
+        message: "No repository URL configured, using staging directory",
+        timestamp: new Date()
+      });
     }
     await markStepComplete(cloneStepId, `Workspace ready at ${workDir}`);
 
@@ -224,7 +228,10 @@ export async function executeComposeDeployment(deployment: DeploymentInfo): Prom
     await markStepRunning(pullStepId);
     const pullResult = await dockerComposePull(composeFile, projectName, workDir, onLog);
     if (pullResult.exitCode !== 0) {
-      await markStepFailed(pullStepId, `docker compose pull exited with code ${pullResult.exitCode}`);
+      await markStepFailed(
+        pullStepId,
+        `docker compose pull exited with code ${pullResult.exitCode}`
+      );
       throw new Error(`docker compose pull failed with exit code ${pullResult.exitCode}`);
     }
     await markStepComplete(pullStepId, "All images pulled");
@@ -262,7 +269,8 @@ export async function executeDockerfileDeployment(deployment: DeploymentInfo): P
   const branch = config.branch ?? "main";
   const dockerfile = config.dockerfile ?? "Dockerfile";
   const buildContext = config.buildContext ?? ".";
-  const tag = deployment.imageTag ?? `daoflow/${deployment.serviceName}:${deployment.commitSha ?? "latest"}`;
+  const tag =
+    deployment.imageTag ?? `daoflow/${deployment.serviceName}:${deployment.commitSha ?? "latest"}`;
 
   try {
     // Clone
@@ -295,17 +303,25 @@ export async function executeDockerfileDeployment(deployment: DeploymentInfo): P
     // Run container
     const runStepId = await createStep(deployment.id, "Start container", 3);
     await markStepRunning(runStepId);
-    const runResult = await dockerRun(tag, containerName, {
-      ports: config.ports ?? [],
-      volumes: config.volumes ?? [],
-      env: config.env ?? {},
-      network: config.network
-    }, onLog);
+    const runResult = await dockerRun(
+      tag,
+      containerName,
+      {
+        ports: config.ports ?? [],
+        volumes: config.volumes ?? [],
+        env: config.env ?? {},
+        network: config.network
+      },
+      onLog
+    );
     if (runResult.exitCode !== 0) {
       await markStepFailed(runStepId, `docker run exited with code ${runResult.exitCode}`);
       throw new Error(`docker run failed with exit code ${runResult.exitCode}`);
     }
-    await db.update(deployments).set({ containerId: containerName }).where(eq(deployments.id, deployment.id));
+    await db
+      .update(deployments)
+      .set({ containerId: containerName })
+      .where(eq(deployments.id, deployment.id));
     await markStepComplete(runStepId, `Container ${containerName} started`);
 
     // Health check
@@ -342,17 +358,25 @@ export async function executeImageDeployment(deployment: DeploymentInfo): Promis
     await transitionDeployment(deployment.id, "deploy");
     const runStepId = await createStep(deployment.id, "Start container", 2);
     await markStepRunning(runStepId);
-    const runResult = await dockerRun(tag, containerName, {
-      ports: config.ports ?? [],
-      volumes: config.volumes ?? [],
-      env: config.env ?? {},
-      network: config.network
-    }, onLog);
+    const runResult = await dockerRun(
+      tag,
+      containerName,
+      {
+        ports: config.ports ?? [],
+        volumes: config.volumes ?? [],
+        env: config.env ?? {},
+        network: config.network
+      },
+      onLog
+    );
     if (runResult.exitCode !== 0) {
       await markStepFailed(runStepId, `docker run exited with code ${runResult.exitCode}`);
       throw new Error(`docker run failed with exit code ${runResult.exitCode}`);
     }
-    await db.update(deployments).set({ containerId: containerName }).where(eq(deployments.id, deployment.id));
+    await db
+      .update(deployments)
+      .set({ containerId: containerName })
+      .where(eq(deployments.id, deployment.id));
     await markStepComplete(runStepId, `Container ${containerName} started`);
 
     // Health check
@@ -365,7 +389,11 @@ export async function executeImageDeployment(deployment: DeploymentInfo): Promis
 /**
  * Wait for a container to become healthy, or throw on timeout.
  */
-async function waitForHealthy(deploymentId: string, containerName: string, onLog: OnLog): Promise<void> {
+async function waitForHealthy(
+  deploymentId: string,
+  containerName: string,
+  onLog: OnLog
+): Promise<void> {
   const healthStepId = await createStep(deploymentId, "Health check", 10);
   await markStepRunning(healthStepId);
 
@@ -379,7 +407,10 @@ async function waitForHealthy(deploymentId: string, containerName: string, onLog
     await new Promise((resolve) => setTimeout(resolve, HEALTH_CHECK_INTERVAL_MS));
   }
 
-  await markStepFailed(healthStepId, `Container ${containerName} did not become healthy within ${HEALTH_CHECK_TIMEOUT_MS / 1000}s`);
+  await markStepFailed(
+    healthStepId,
+    `Container ${containerName} did not become healthy within ${HEALTH_CHECK_TIMEOUT_MS / 1000}s`
+  );
   throw new Error(`Health check timeout for ${containerName}`);
 }
 

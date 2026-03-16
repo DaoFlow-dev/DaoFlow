@@ -21,7 +21,7 @@ export const toast = {
   success: (msg: string) => externalAdd?.(msg, "success"),
   error: (msg: string) => externalAdd?.(msg, "error"),
   warning: (msg: string) => externalAdd?.(msg, "warning"),
-  info: (msg: string) => externalAdd?.(msg, "info"),
+  info: (msg: string) => externalAdd?.(msg, "info")
 };
 
 /**

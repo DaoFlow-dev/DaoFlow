@@ -84,7 +84,14 @@ export async function deploymentWorkflow(input: DeploymentWorkflowInput): Promis
     console.error(`[temporal] Deployment ${id} failed:`, message);
 
     await transitionDeployment(id, "failed", "failed", message);
-    await emitDeploymentEvent(id, serviceName, "deployment.failed", "Deployment failed", message, "error");
+    await emitDeploymentEvent(
+      id,
+      serviceName,
+      "deployment.failed",
+      "Deployment failed",
+      message,
+      "error"
+    );
 
     // Re-throw so Temporal records the workflow as failed
     throw err;

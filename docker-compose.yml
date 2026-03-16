@@ -102,4 +102,3 @@ volumes:
   redisdata:
   daoflow-staging:
   temporal-pgdata:
-

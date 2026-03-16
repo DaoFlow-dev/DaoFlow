@@ -21,7 +21,7 @@ export function Card({
     `df-card--${variant}`,
     `df-card--pad-${padding}`,
     hoverable ? "df-card--hoverable" : "",
-    className,
+    className
   ]
     .filter(Boolean)
     .join(" ");

@@ -3,9 +3,12 @@ import { useSession } from "../lib/auth-client";
 
 export default function ServersPage() {
   const session = useSession();
-  const serverReadiness = trpc.serverReadiness.useQuery({}, {
-    enabled: Boolean(session.data),
-  });
+  const serverReadiness = trpc.serverReadiness.useQuery(
+    {},
+    {
+      enabled: Boolean(session.data)
+    }
+  );
 
   const data = serverReadiness.data;
   const checks = data && !Array.isArray(data) ? data.checks : [];
@@ -18,9 +21,7 @@ export default function ServersPage() {
             <p className="hero__kicker">Infrastructure</p>
             <h1>Servers</h1>
           </div>
-          <p className="hero__lede">
-            Manage your Docker host servers and connectivity.
-          </p>
+          <p className="hero__lede">Manage your Docker host servers and connectivity.</p>
         </div>
       </section>
 
@@ -31,7 +32,9 @@ export default function ServersPage() {
           <div className="skeleton" style={{ height: "6rem" }} />
         ) : checks.length === 0 ? (
           <div className="auth-panel" style={{ textAlign: "center", padding: "2rem" }}>
-            <p style={{ color: "#7a8194", margin: 0 }}>No servers registered. Add your first server to get started.</p>
+            <p style={{ color: "#7a8194", margin: 0 }}>
+              No servers registered. Add your first server to get started.
+            </p>
           </div>
         ) : (
           <div className="deployment-list">
@@ -39,7 +42,9 @@ export default function ServersPage() {
               <article className="deployment-card" key={s.serverId}>
                 <div className="deployment-card__top">
                   <h3>{s.serverName}</h3>
-                  <span className={`deployment-status deployment-status--${s.readinessStatus === "ready" ? "healthy" : "queued"}`}>
+                  <span
+                    className={`deployment-status deployment-status--${s.readinessStatus === "ready" ? "healthy" : "queued"}`}
+                  >
                     {s.readinessStatus}
                   </span>
                 </div>

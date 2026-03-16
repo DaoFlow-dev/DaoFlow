@@ -32,11 +32,7 @@ export function Modal({ open, onClose, title, children, footer, size = "md" }: M
         {title && (
           <div className="df-modal__header">
             <h2 className="df-modal__title">{title}</h2>
-            <button
-              className="df-modal__close"
-              onClick={onClose}
-              aria-label="Close"
-            >
+            <button className="df-modal__close" onClick={onClose} aria-label="Close">
               ✕
             </button>
           </div>

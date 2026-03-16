@@ -48,7 +48,9 @@ export async function startDeploymentWorkflow(input: {
     workflowExecutionTimeout: "30m"
   });
 
-  console.log(`[temporal-client] Started deployment workflow: ${handle.workflowId} (run: ${handle.firstExecutionRunId})`);
+  console.log(
+    `[temporal-client] Started deployment workflow: ${handle.workflowId} (run: ${handle.firstExecutionRunId})`
+  );
 
   return {
     workflowId: handle.workflowId,

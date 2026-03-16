@@ -12,7 +12,9 @@ export function projectsCommand(): Command {
     .action(async (opts) => {
       try {
         const api = new ApiClient();
-        const projects = await api.get<unknown[]>("/trpc/projects?input=" + encodeURIComponent(JSON.stringify({ limit: 50 })));
+        const projects = await api.get<unknown[]>(
+          "/trpc/projects?input=" + encodeURIComponent(JSON.stringify({ limit: 50 }))
+        );
 
         if (opts.json) {
           console.log(JSON.stringify(projects, null, 2));

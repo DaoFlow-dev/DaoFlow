@@ -17,9 +17,7 @@ export function doctorCommand(): Command {
       checks.push({
         name: "Configuration",
         status: ctx ? "ok" : "warn",
-        detail: ctx
-          ? `API URL: ${ctx.apiUrl}`
-          : "No context configured. Run: daoflow login <url>"
+        detail: ctx ? `API URL: ${ctx.apiUrl}` : "No context configured. Run: daoflow login <url>"
       });
 
       // 2. API connectivity
@@ -45,9 +43,7 @@ export function doctorCommand(): Command {
       checks.push({
         name: "Authentication",
         status: ctx?.token ? "ok" : "warn",
-        detail: ctx?.token
-          ? "Token configured"
-          : "No token found. Run: daoflow login"
+        detail: ctx?.token ? "Token configured" : "No token found. Run: daoflow login"
       });
 
       // 4. Context name

@@ -20,7 +20,7 @@ export function DataTable<T>({
   data,
   keyExtractor,
   emptyMessage = "No data to display.",
-  onRowClick,
+  onRowClick
 }: DataTableProps<T>) {
   if (data.length === 0) {
     return (

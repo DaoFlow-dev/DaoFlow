@@ -13,16 +13,18 @@ export function Breadcrumb({ items }: BreadcrumbProps) {
   const location = useLocation();
 
   // Auto-generate breadcrumbs from URL path if no items provided
-  const crumbs: BreadcrumbItem[] = items ?? (() => {
-    const segments = location.pathname.split("/").filter(Boolean);
-    return [
-      { label: "Dashboard", href: "/" },
-      ...segments.map((seg, i) => ({
-        label: seg.charAt(0).toUpperCase() + seg.slice(1),
-        href: i < segments.length - 1 ? "/" + segments.slice(0, i + 1).join("/") : undefined,
-      })),
-    ];
-  })();
+  const crumbs: BreadcrumbItem[] =
+    items ??
+    (() => {
+      const segments = location.pathname.split("/").filter(Boolean);
+      return [
+        { label: "Dashboard", href: "/" },
+        ...segments.map((seg, i) => ({
+          label: seg.charAt(0).toUpperCase() + seg.slice(1),
+          href: i < segments.length - 1 ? "/" + segments.slice(0, i + 1).join("/") : undefined
+        }))
+      ];
+    })();
 
   if (crumbs.length <= 1) return null;
 

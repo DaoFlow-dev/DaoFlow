@@ -5,18 +5,8 @@ interface BadgeProps {
   className?: string;
 }
 
-export function Badge({
-  children,
-  variant = "default",
-  size = "sm",
-  className = "",
-}: BadgeProps) {
-  const cls = [
-    "df-badge",
-    `df-badge--${variant}`,
-    `df-badge--${size}`,
-    className,
-  ]
+export function Badge({ children, variant = "default", size = "sm", className = "" }: BadgeProps) {
+  const cls = ["df-badge", `df-badge--${variant}`, `df-badge--${size}`, className]
     .filter(Boolean)
     .join(" ");
 

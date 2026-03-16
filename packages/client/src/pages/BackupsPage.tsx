@@ -21,9 +21,7 @@ export default function BackupsPage() {
             <p className="hero__kicker">Data protection</p>
             <h1>Backups</h1>
           </div>
-          <p className="hero__lede">
-            Manage backup policies, runs, and restore operations.
-          </p>
+          <p className="hero__lede">Manage backup policies, runs, and restore operations.</p>
         </div>
       </section>
 
@@ -45,7 +43,9 @@ export default function BackupsPage() {
               <div className="deployment-list">
                 {policies.map((p) => (
                   <article className="deployment-card" key={p.id}>
-                    <h3>{p.projectName} — {p.serviceName}</h3>
+                    <h3>
+                      {p.projectName} — {p.serviceName}
+                    </h3>
                     <p className="deployment-card__meta">
                       Retention: {p.retentionCount} · Schedule: {p.scheduleLabel ?? "manual"}
                     </p>
@@ -65,7 +65,9 @@ export default function BackupsPage() {
                   <article className="deployment-card" key={r.id}>
                     <div className="deployment-card__top">
                       <h3>Run {r.id.slice(0, 8)}</h3>
-                      <span className={`deployment-status deployment-status--${r.status === "succeeded" ? "healthy" : r.status === "failed" ? "failed" : "running"}`}>
+                      <span
+                        className={`deployment-status deployment-status--${r.status === "succeeded" ? "healthy" : r.status === "failed" ? "failed" : "running"}`}
+                      >
                         {r.status}
                       </span>
                     </div>
@@ -85,7 +87,9 @@ export default function BackupsPage() {
                   <article className="deployment-card" key={r.id}>
                     <div className="deployment-card__top">
                       <h3>Restore {r.id.slice(0, 8)}</h3>
-                      <span className={`deployment-status deployment-status--${r.status === "completed" ? "healthy" : "running"}`}>
+                      <span
+                        className={`deployment-status deployment-status--${r.status === "completed" ? "healthy" : "running"}`}
+                      >
                         {r.status}
                       </span>
                     </div>

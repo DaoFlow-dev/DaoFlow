@@ -9,7 +9,7 @@ const navItems = [
   { to: "/servers", label: "Servers", icon: "⬢" },
   { to: "/deployments", label: "Deployments", icon: "▸" },
   { to: "/backups", label: "Backups", icon: "⛁" },
-  { to: "/settings", label: "Settings", icon: "⚙" },
+  { to: "/settings", label: "Settings", icon: "⚙" }
 ] as const;
 
 export function DashboardLayout() {

@@ -8,7 +8,7 @@ const TITLES: Record<string, string> = {
   "/deployments": "Deployments — DaoFlow",
   "/backups": "Backups — DaoFlow",
   "/settings": "Settings — DaoFlow",
-  "/setup": "Setup — DaoFlow",
+  "/setup": "Setup — DaoFlow"
 };
 
 /**

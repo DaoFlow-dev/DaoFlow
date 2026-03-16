@@ -4,7 +4,7 @@ import { useSession } from "../lib/auth-client";
 export default function ProjectsPage() {
   const session = useSession();
   const infra = trpc.infrastructureInventory.useQuery(undefined, {
-    enabled: Boolean(session.data),
+    enabled: Boolean(session.data)
   });
 
   const projects = infra.data?.projects ?? [];
@@ -17,9 +17,7 @@ export default function ProjectsPage() {
             <p className="hero__kicker">Project management</p>
             <h1>Projects</h1>
           </div>
-          <p className="hero__lede">
-            Manage your Docker and Compose deployment projects.
-          </p>
+          <p className="hero__lede">Manage your Docker and Compose deployment projects.</p>
         </div>
       </section>
 
@@ -30,7 +28,9 @@ export default function ProjectsPage() {
           <div className="skeleton" style={{ height: "6rem" }} />
         ) : projects.length === 0 ? (
           <div className="auth-panel" style={{ textAlign: "center", padding: "2rem" }}>
-            <p style={{ color: "#7a8194", margin: 0 }}>No projects yet. Create your first project to get started.</p>
+            <p style={{ color: "#7a8194", margin: 0 }}>
+              No projects yet. Create your first project to get started.
+            </p>
           </div>
         ) : (
           <div className="deployment-list">
@@ -38,7 +38,9 @@ export default function ProjectsPage() {
               <article className="deployment-card" key={p.id}>
                 <div className="deployment-card__top">
                   <h3>{p.name}</h3>
-                  <span className={`deployment-status deployment-status--${p.latestDeploymentStatus === "completed" ? "healthy" : "queued"}`}>
+                  <span
+                    className={`deployment-status deployment-status--${p.latestDeploymentStatus === "completed" ? "healthy" : "queued"}`}
+                  >
                     {p.latestDeploymentStatus || "new"}
                   </span>
                 </div>

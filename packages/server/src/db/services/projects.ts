@@ -178,9 +178,7 @@ export async function deleteProject(input: DeleteProjectInput) {
     .where(eq(environments.projectId, input.projectId));
 
   for (const env of envRows) {
-    await db
-      .delete(environmentVariables)
-      .where(eq(environmentVariables.environmentId, env.id));
+    await db.delete(environmentVariables).where(eq(environmentVariables.environmentId, env.id));
   }
   await db.delete(environments).where(eq(environments.projectId, input.projectId));
   await db.delete(projects).where(eq(projects.id, input.projectId));
@@ -221,11 +219,7 @@ export async function getProject(projectId: string) {
 /* ──────────────────────── Environment CRUD ──────────────────────── */
 
 export async function createEnvironment(input: CreateEnvironmentInput) {
-  const project = await db
-    .select()
-    .from(projects)
-    .where(eq(projects.id, input.projectId))
-    .limit(1);
+  const project = await db.select().from(projects).where(eq(projects.id, input.projectId)).limit(1);
   if (!project[0]) return { status: "not_found" as const, entity: "project" };
 
   const environmentId = id();

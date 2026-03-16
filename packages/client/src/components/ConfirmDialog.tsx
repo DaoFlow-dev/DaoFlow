@@ -21,7 +21,7 @@ export function ConfirmDialog({
   confirmLabel = "Confirm",
   cancelLabel = "Cancel",
   variant = "default",
-  isPending = false,
+  isPending = false
 }: ConfirmDialogProps) {
   return (
     <Modal

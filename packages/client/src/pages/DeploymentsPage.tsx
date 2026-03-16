@@ -3,9 +3,12 @@ import { useSession } from "../lib/auth-client";
 
 export default function DeploymentsPage() {
   const session = useSession();
-  const recentDeployments = trpc.recentDeployments.useQuery({ limit: 50 }, {
-    enabled: Boolean(session.data),
-  });
+  const recentDeployments = trpc.recentDeployments.useQuery(
+    { limit: 50 },
+    {
+      enabled: Boolean(session.data)
+    }
+  );
 
   const items = recentDeployments.data ?? [];
 
@@ -17,9 +20,7 @@ export default function DeploymentsPage() {
             <p className="hero__kicker">Deployment history</p>
             <h1>Deployments</h1>
           </div>
-          <p className="hero__lede">
-            Track deployment history, logs, and rollback targets.
-          </p>
+          <p className="hero__lede">Track deployment history, logs, and rollback targets.</p>
         </div>
       </section>
 
@@ -30,7 +31,9 @@ export default function DeploymentsPage() {
           <div className="skeleton" style={{ height: "6rem" }} />
         ) : items.length === 0 ? (
           <div className="auth-panel" style={{ textAlign: "center", padding: "2rem" }}>
-            <p style={{ color: "#7a8194", margin: 0 }}>No deployments yet. Queue a deployment to get started.</p>
+            <p style={{ color: "#7a8194", margin: 0 }}>
+              No deployments yet. Queue a deployment to get started.
+            </p>
           </div>
         ) : (
           <div className="deployment-list">
@@ -43,7 +46,8 @@ export default function DeploymentsPage() {
                   </span>
                 </div>
                 <p className="deployment-card__meta">
-                  {d.sourceType} · {d.commitSha?.slice(0, 7) ?? "—"} · {new Date(d.createdAt).toLocaleString()}
+                  {d.sourceType} · {d.commitSha?.slice(0, 7) ?? "—"} ·{" "}
+                  {new Date(d.createdAt).toLocaleString()}
                 </p>
               </article>
             ))}

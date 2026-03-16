@@ -43,10 +43,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
             <p className="df-error-boundary__message">
               {this.state.error?.message ?? "An unexpected error occurred."}
             </p>
-            <button
-              className="df-btn df-btn--ghost"
-              onClick={() => window.location.reload()}
-            >
+            <button className="df-btn df-btn--ghost" onClick={() => window.location.reload()}>
               Reload Page
             </button>
           </div>

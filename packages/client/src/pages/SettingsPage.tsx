@@ -11,7 +11,7 @@ export default function SettingsPage() {
   const currentRole = viewer.data ? normalizeAppRole(viewer.data.authz.role) : "guest";
   const canViewTokens = canAssumeAnyRole(currentRole as AppRole, ["owner", "admin"]);
   const agentTokenInventory = trpc.agentTokenInventory.useQuery(undefined, {
-    enabled: canViewTokens,
+    enabled: canViewTokens
   });
 
   const errorMessage = (query: { error: unknown }) =>
@@ -25,9 +25,7 @@ export default function SettingsPage() {
             <p className="hero__kicker">Administration</p>
             <h1>Settings</h1>
           </div>
-          <p className="hero__lede">
-            Manage tokens, roles, and platform configuration.
-          </p>
+          <p className="hero__lede">Manage tokens, roles, and platform configuration.</p>
         </div>
       </section>
 
@@ -37,9 +35,12 @@ export default function SettingsPage() {
         ) : (
           <>
             <div className="auth-panel" style={{ marginBottom: "1rem" }}>
-              <h2 style={{ margin: "0 0 0.5rem", fontSize: "1.15rem", color: "#f0f2f5" }}>Account</h2>
+              <h2 style={{ margin: "0 0 0.5rem", fontSize: "1.15rem", color: "#f0f2f5" }}>
+                Account
+              </h2>
               <p style={{ color: "#7a8194", fontSize: "0.88rem", margin: 0 }}>
-                Signed in as <strong style={{ color: "#e1e4ea" }}>{session.data.user.email}</strong> · Role: <strong style={{ color: "#e1e4ea" }}>{currentRole}</strong>
+                Signed in as <strong style={{ color: "#e1e4ea" }}>{session.data.user.email}</strong>{" "}
+                · Role: <strong style={{ color: "#e1e4ea" }}>{currentRole}</strong>
               </p>
             </div>
 
