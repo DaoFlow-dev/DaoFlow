@@ -5,7 +5,7 @@ import { execSync } from "child_process";
 import { createInterface } from "readline";
 import chalk from "chalk";
 import ora from "ora";
-import { generateComposeYml, generateEnvFile, defaultInstallDir, parseEnvFile } from "../templates";
+import { fetchComposeYml, generateEnvFile, defaultInstallDir, parseEnvFile } from "../templates";
 
 const VERSION = "0.1.0";
 
@@ -122,12 +122,37 @@ export function installCommand(): Command {
           process.exit(1);
         }
 
+        // Password generation choice
+        const pwChoice = await prompt(
+          "Database passwords — auto-generate or enter manually? (auto/manual)",
+          "auto"
+        );
+
+        let pgPassword: string | undefined;
+        let temporalPgPassword: string | undefined;
+
+        if (pwChoice.toLowerCase() === "manual") {
+          pgPassword = await prompt("Postgres password (daoflow DB)");
+          temporalPgPassword = await prompt("Postgres password (temporal DB)");
+          if (!pgPassword || !temporalPgPassword) {
+            console.error(chalk.red("Both database passwords are required."));
+            process.exit(1);
+          }
+        } else {
+          console.error(chalk.dim("  Secure passwords will be auto-generated."));
+        }
+
+        // Store for later use in generateEnvFile
+        (opts as any)._pgPassword = pgPassword;
+        (opts as any)._temporalPgPassword = temporalPgPassword;
+
         console.error();
         console.error(chalk.bold("Configuration:"));
-        console.error(`  Directory:  ${chalk.cyan(dir)}`);
-        console.error(`  Domain:     ${chalk.cyan(domain)}`);
-        console.error(`  Port:       ${chalk.cyan(String(port))}`);
-        console.error(`  Admin:      ${chalk.cyan(email)}`);
+        console.error(`  Directory:     ${chalk.cyan(dir)}`);
+        console.error(`  Domain:        ${chalk.cyan(domain)}`);
+        console.error(`  Port:          ${chalk.cyan(String(port))}`);
+        console.error(`  Admin:         ${chalk.cyan(email)}`);
+        console.error(`  DB Passwords:  ${chalk.cyan(pgPassword ? "manual" : "auto-generated")}`);
         console.error();
 
         const confirm = await prompt("Proceed? (y/N)", "y");
@@ -183,15 +208,31 @@ export function installCommand(): Command {
 
       // -- Step 5: Generate .env --
       const envSpinner = !isJson ? ora("Generating secrets and configuration...").start() : null;
-      const envContent = generateEnvFile({ version: VERSION, domain, port });
+      const envContent = generateEnvFile({
+        version: VERSION,
+        domain,
+        port,
+        postgresPassword: (opts as any)._pgPassword,
+        temporalPostgresPassword: (opts as any)._temporalPgPassword,
+      });
       writeFileSync(envPath, envContent, { mode: 0o600 });
       envSpinner?.succeed("Secrets generated and saved to .env");
 
-      // -- Step 6: Generate docker-compose.yml --
-      const composeSpinner = !isJson ? ora("Writing docker-compose.yml...").start() : null;
-      const composeContent = generateComposeYml(VERSION);
-      writeFileSync(composePath, composeContent);
-      composeSpinner?.succeed("docker-compose.yml written");
+      // -- Step 6: Fetch docker-compose.yml --
+      const composeSpinner = !isJson ? ora("Fetching docker-compose.yml...").start() : null;
+      try {
+        const composeContent = await fetchComposeYml();
+        writeFileSync(composePath, composeContent);
+        composeSpinner?.succeed("docker-compose.yml written");
+      } catch (e: any) {
+        composeSpinner?.fail("Failed to fetch docker-compose.yml");
+        if (isJson) {
+          console.log(JSON.stringify({ ok: false, error: e.message, code: "COMPOSE_FETCH_FAILED" }));
+        } else {
+          console.error(chalk.red(e.message));
+        }
+        process.exit(1);
+      }
 
       // -- Step 7: Pull images --
       const pullSpinner = !isJson

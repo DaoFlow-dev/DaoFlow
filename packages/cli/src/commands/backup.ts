@@ -101,21 +101,21 @@ export function backupCommand(): Command {
     .option("--dry-run", "Preview without executing")
     .option("-y, --yes", "Skip confirmation")
     .action(async (opts: { policyId: string; json?: boolean; dryRun?: boolean; yes?: boolean }) => {
+      if (opts.dryRun) {
+        console.log(
+          JSON.stringify({
+            ok: true,
+            dryRun: true,
+            action: "backup.run",
+            policyId: opts.policyId,
+            message: "Would trigger a backup run for this policy"
+          }, null, 2)
+        );
+        process.exit(3);
+      }
+
       try {
         const client = new ApiClient();
-
-        if (opts.dryRun) {
-          console.log(
-            JSON.stringify({
-              ok: true,
-              dryRun: true,
-              action: "backup.run",
-              policyId: opts.policyId,
-              message: "Would trigger a backup run for this policy"
-            }, null, 2)
-          );
-          process.exit(3);
-        }
 
         if (!opts.yes) {
           console.error(`To trigger backup for policy ${opts.policyId}, add --yes`);
@@ -150,21 +150,21 @@ export function backupCommand(): Command {
     .option("--dry-run", "Preview without executing")
     .option("-y, --yes", "Skip confirmation")
     .action(async (opts: { backupRunId: string; json?: boolean; dryRun?: boolean; yes?: boolean }) => {
+      if (opts.dryRun) {
+        console.log(
+          JSON.stringify({
+            ok: true,
+            dryRun: true,
+            action: "backup.restore",
+            backupRunId: opts.backupRunId,
+            message: "Would queue a restore from this backup run"
+          }, null, 2)
+        );
+        process.exit(3);
+      }
+
       try {
         const client = new ApiClient();
-
-        if (opts.dryRun) {
-          console.log(
-            JSON.stringify({
-              ok: true,
-              dryRun: true,
-              action: "backup.restore",
-              backupRunId: opts.backupRunId,
-              message: "Would queue a restore from this backup run"
-            }, null, 2)
-          );
-          process.exit(3);
-        }
 
         if (!opts.yes) {
           console.error(`To restore from backup ${opts.backupRunId}, add --yes`);

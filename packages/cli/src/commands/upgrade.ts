@@ -4,7 +4,7 @@ import { join } from "path";
 import { execSync } from "child_process";
 import chalk from "chalk";
 import ora from "ora";
-import { defaultInstallDir, parseEnvFile, generateComposeYml } from "../templates";
+import { defaultInstallDir, parseEnvFile, fetchComposeYml } from "../templates";
 
 export function upgradeCommand(): Command {
   return new Command("upgrade")
@@ -69,10 +69,16 @@ export function upgradeCommand(): Command {
       writeFileSync(envPath, newEnv, { mode: 0o600 });
       updateSpinner?.succeed(`Version set to ${targetVersion}`);
 
-      // -- Step 2: Regenerate docker-compose.yml --
-      const composeSpinner = !isJson ? ora("Updating docker-compose.yml...").start() : null;
-      writeFileSync(composePath, generateComposeYml(targetVersion));
-      composeSpinner?.succeed("docker-compose.yml updated");
+      // -- Step 2: Fetch latest docker-compose.yml --
+      const composeSpinner = !isJson ? ora("Fetching latest docker-compose.yml...").start() : null;
+      try {
+        const composeContent = await fetchComposeYml();
+        writeFileSync(composePath, composeContent);
+        composeSpinner?.succeed("docker-compose.yml updated");
+      } catch (e: any) {
+        composeSpinner?.warn(`Could not fetch latest compose file: ${e.message}`);
+        if (!isJson) console.error(chalk.dim("  Keeping existing docker-compose.yml"));
+      }
 
       // -- Step 3: Pull new images --
       const pullSpinner = !isJson ? ora("Pulling latest Docker images...").start() : null;
