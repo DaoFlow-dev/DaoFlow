@@ -3,6 +3,7 @@ import Link from "@docusaurus/Link";
 import useDocusaurusContext from "@docusaurus/useDocusaurusContext";
 import Layout from "@theme/Layout";
 import HomepageFeatures from "@site/src/components/HomepageFeatures";
+import CodeBlock from "@theme/CodeBlock";
 
 import Heading from "@theme/Heading";
 import styles from "./index.module.css";
@@ -39,6 +40,48 @@ function HomepageHeader() {
   );
 }
 
+function HomepageCode() {
+  const installCode = `# Install DaoFlow (one command)
+curl -fsSL https://raw.githubusercontent.com/DaoFlow-dev/DaoFlow/main/scripts/install.sh | sh`;
+
+  const agentCode = `# Deploy from your AI agent
+daoflow deploy --compose ./compose.yaml --server vps1 --dry-run --json
+daoflow deploy --compose ./compose.yaml --server vps1 --yes --json
+
+# Diagnose failures
+daoflow doctor --json
+
+# Rollback safely
+daoflow rollback --service my-app --yes --json`;
+
+  return (
+    <section className={styles.codeSection}>
+      <div className="container">
+        <div className={styles.codeSectionHeader}>
+          <Heading as="h2" className={styles.codeSectionTitle}>
+            From prompt to production
+          </Heading>
+          <p className={styles.codeSectionSubtitle}>
+            One install. One CLI. Your AI agent handles the rest.
+          </p>
+        </div>
+        <div className={styles.codeBlocks}>
+          <div className={styles.codeBlock}>
+            <CodeBlock language="bash" title="Install">
+              {installCode}
+            </CodeBlock>
+          </div>
+          <div className={styles.codeBlock}>
+            <CodeBlock language="bash" title="Deploy with your AI agent">
+              {agentCode}
+            </CodeBlock>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export default function Home() {
   return (
     <Layout
@@ -48,6 +91,7 @@ export default function Home() {
       <HomepageHeader />
       <main>
         <HomepageFeatures />
+        <HomepageCode />
       </main>
     </Layout>
   );

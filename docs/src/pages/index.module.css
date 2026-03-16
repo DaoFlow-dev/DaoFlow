@@ -102,3 +102,43 @@
     font-size: 1.1rem;
   }
 }
+
+.codeSection {
+  padding: 4rem 0;
+  background: #f8f9fb;
+}
+
+.codeSectionHeader {
+  text-align: center;
+  margin-bottom: 2.5rem;
+}
+
+.codeSectionTitle {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin-bottom: 0.5rem;
+}
+
+.codeSectionSubtitle {
+  font-size: 1.1rem;
+  color: #64748b;
+}
+
+.codeBlocks {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  max-width: 960px;
+  margin: 0 auto;
+}
+
+.codeBlock {
+  min-width: 0;
+}
+
+@media screen and (max-width: 768px) {
+  .codeBlocks {
+    grid-template-columns: 1fr;
+  }
+}
