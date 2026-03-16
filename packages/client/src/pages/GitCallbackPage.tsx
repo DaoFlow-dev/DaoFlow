@@ -113,11 +113,11 @@ export default function GitCallbackPage() {
 
           {state !== "processing" && (
             <div className="flex justify-center gap-2">
-              <Button onClick={() => navigate("/settings")} variant="outline">
+              <Button onClick={() => void navigate("/settings")} variant="outline">
                 Back to Settings
               </Button>
               {state === "success" && (
-                <Button onClick={() => navigate("/projects")}>Go to Projects</Button>
+                <Button onClick={() => void navigate("/projects")}>Go to Projects</Button>
               )}
             </div>
           )}
