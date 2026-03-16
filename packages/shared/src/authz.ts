@@ -1,83 +1,199 @@
+// ─── Roles ───────────────────────────────────────────────────
 export const appRoles = ["owner", "admin", "operator", "developer", "viewer", "agent"] as const;
 
 export type AppRole = (typeof appRoles)[number];
 
+export const bootstrapOwnerRole: AppRole = "owner";
+export const defaultSignupRole: AppRole = "viewer";
+
+// ─── Token Scope Lanes ───────────────────────────────────────
 export const apiTokenScopeLanes = ["read", "planning", "command"] as const;
 
 export type ApiTokenScopeLane = (typeof apiTokenScopeLanes)[number];
 
+// ─── Scopes (colon-delimited, matches AGENTS.md §11) ────────
 export const apiTokenScopes = [
-  "read.projects",
-  "read.deployments",
-  "read.logs",
-  "agents.plan",
-  "deploy.execute",
-  "backup.manage",
-  "members.manage",
-  "roles.manage",
-  "tokens.manage",
-  "servers.manage",
-  "agents.execute"
+  // Infrastructure
+  "server:read",
+  "server:write",
+  // Deployment
+  "deploy:read",
+  "deploy:start",
+  "deploy:cancel",
+  "deploy:rollback",
+  "service:read",
+  "service:update",
+  // Data & Secrets
+  "env:read",
+  "env:write",
+  "secrets:read",
+  "secrets:write",
+  "volumes:read",
+  "volumes:write",
+  "backup:read",
+  "backup:run",
+  "backup:restore",
+  // Observability
+  "logs:read",
+  "events:read",
+  "diagnostics:read",
+  // Administration
+  "members:manage",
+  "tokens:manage",
+  "approvals:create",
+  "approvals:decide",
+  "terminal:open",
+  "policy:override"
 ] as const;
 
 export type ApiTokenScope = (typeof apiTokenScopes)[number];
 
-export const bootstrapOwnerRole: AppRole = "owner";
-export const defaultSignupRole: AppRole = "viewer";
+// ─── Lane mapping ────────────────────────────────────────────
+const apiTokenScopeLaneMap: Record<ApiTokenScope, ApiTokenScopeLane> = {
+  "server:read": "read",
+  "server:write": "command",
+  "deploy:read": "read",
+  "deploy:start": "command",
+  "deploy:cancel": "command",
+  "deploy:rollback": "command",
+  "service:read": "read",
+  "service:update": "command",
+  "env:read": "read",
+  "env:write": "command",
+  "secrets:read": "read",
+  "secrets:write": "command",
+  "volumes:read": "read",
+  "volumes:write": "command",
+  "backup:read": "read",
+  "backup:run": "command",
+  "backup:restore": "command",
+  "logs:read": "read",
+  "events:read": "read",
+  "diagnostics:read": "read",
+  "members:manage": "command",
+  "tokens:manage": "command",
+  "approvals:create": "planning",
+  "approvals:decide": "command",
+  "terminal:open": "command",
+  "policy:override": "command"
+};
 
-export const roleCapabilities: Record<AppRole, readonly string[]> = {
+// ─── Role → Capabilities ─────────────────────────────────────
+export const roleCapabilities: Record<AppRole, readonly ApiTokenScope[]> = {
   owner: [
-    "read.projects",
-    "read.deployments",
-    "read.logs",
-    "deploy.execute",
-    "backup.manage",
-    "members.manage",
-    "roles.manage",
-    "tokens.manage",
-    "servers.manage",
-    "agents.plan",
-    "agents.execute"
+    "server:read",
+    "server:write",
+    "deploy:read",
+    "deploy:start",
+    "deploy:cancel",
+    "deploy:rollback",
+    "service:read",
+    "service:update",
+    "env:read",
+    "env:write",
+    "secrets:read",
+    "secrets:write",
+    "volumes:read",
+    "volumes:write",
+    "backup:read",
+    "backup:run",
+    "backup:restore",
+    "logs:read",
+    "events:read",
+    "diagnostics:read",
+    "members:manage",
+    "tokens:manage",
+    "approvals:create",
+    "approvals:decide",
+    "terminal:open",
+    "policy:override"
   ],
   admin: [
-    "read.projects",
-    "read.deployments",
-    "read.logs",
-    "deploy.execute",
-    "backup.manage",
-    "members.manage",
-    "roles.manage",
-    "tokens.manage",
-    "servers.manage",
-    "agents.plan"
+    "server:read",
+    "server:write",
+    "deploy:read",
+    "deploy:start",
+    "deploy:cancel",
+    "deploy:rollback",
+    "service:read",
+    "service:update",
+    "env:read",
+    "env:write",
+    "secrets:read",
+    "secrets:write",
+    "volumes:read",
+    "volumes:write",
+    "backup:read",
+    "backup:run",
+    "backup:restore",
+    "logs:read",
+    "events:read",
+    "diagnostics:read",
+    "members:manage",
+    "tokens:manage",
+    "approvals:create",
+    "approvals:decide"
   ],
   operator: [
-    "read.projects",
-    "read.deployments",
-    "read.logs",
-    "deploy.execute",
-    "backup.manage",
-    "servers.manage",
-    "agents.plan"
+    "server:read",
+    "server:write",
+    "deploy:read",
+    "deploy:start",
+    "deploy:cancel",
+    "deploy:rollback",
+    "service:read",
+    "service:update",
+    "env:read",
+    "env:write",
+    "volumes:read",
+    "volumes:write",
+    "backup:read",
+    "backup:run",
+    "backup:restore",
+    "logs:read",
+    "events:read",
+    "diagnostics:read",
+    "approvals:create",
+    "approvals:decide"
   ],
-  developer: ["read.projects", "read.deployments", "read.logs", "deploy.execute", "agents.plan"],
-  viewer: ["read.projects", "read.deployments", "read.logs"],
-  agent: ["read.projects", "read.deployments", "read.logs", "agents.plan"]
+  developer: [
+    "server:read",
+    "deploy:read",
+    "deploy:start",
+    "service:read",
+    "env:read",
+    "env:write",
+    "volumes:read",
+    "backup:read",
+    "logs:read",
+    "events:read",
+    "approvals:create"
+  ],
+  viewer: [
+    "server:read",
+    "deploy:read",
+    "service:read",
+    "env:read",
+    "volumes:read",
+    "backup:read",
+    "logs:read",
+    "events:read"
+  ],
+  agent: [
+    "server:read",
+    "deploy:read",
+    "service:read",
+    "env:read",
+    "volumes:read",
+    "backup:read",
+    "logs:read",
+    "events:read",
+    "diagnostics:read",
+    "approvals:create"
+  ]
 };
 
-const apiTokenScopeLaneMap: Record<ApiTokenScope, ApiTokenScopeLane> = {
-  "read.projects": "read",
-  "read.deployments": "read",
-  "read.logs": "read",
-  "agents.plan": "planning",
-  "deploy.execute": "command",
-  "backup.manage": "command",
-  "members.manage": "command",
-  "roles.manage": "command",
-  "tokens.manage": "command",
-  "servers.manage": "command",
-  "agents.execute": "command"
-};
+// ─── Guard Functions ─────────────────────────────────────────
 
 export function isAppRole(value: unknown): value is AppRole {
   return typeof value === "string" && appRoles.includes(value as AppRole);
@@ -93,6 +209,19 @@ export function normalizeAppRole(value: unknown): AppRole {
 
 export function canAssumeAnyRole(role: AppRole, allowedRoles: readonly AppRole[]) {
   return allowedRoles.includes(role);
+}
+
+/** Check if a set of scopes includes a single required scope. */
+export function hasScope(grantedScopes: readonly string[], required: ApiTokenScope): boolean {
+  return grantedScopes.includes(required);
+}
+
+/** Check if a set of scopes includes ALL of the required scopes. */
+export function hasAllScopes(
+  grantedScopes: readonly string[],
+  required: readonly ApiTokenScope[]
+): boolean {
+  return required.every((s) => grantedScopes.includes(s));
 }
 
 export function normalizeApiTokenScopes(scopes: readonly string[]) {
@@ -120,7 +249,5 @@ export function getApiTokenScopeLanes(scopes: readonly string[]) {
 export function getEffectiveTokenCapabilities(role: AppRole, scopes: readonly string[]) {
   const grantedScopes = new Set(normalizeApiTokenScopes(scopes));
 
-  return roleCapabilities[role].filter((capability) =>
-    grantedScopes.has(capability as ApiTokenScope)
-  );
+  return roleCapabilities[role].filter((capability) => grantedScopes.has(capability));
 }
