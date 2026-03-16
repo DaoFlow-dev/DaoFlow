@@ -14,17 +14,17 @@ daoflow deploy [options]
 
 ## Options
 
-| Flag | Required | Description |
-|------|----------|-------------|
-| `--service <name>` | Yes | Service name |
-| `--server <name>` | Yes | Target server |
-| `--compose <path>` | — | Path to compose.yaml |
-| `--image <ref>` | — | Docker image reference |
-| `--env <key=value>` | — | Set environment variables (repeatable) |
-| `--dry-run` | — | Preview plan without executing (exit code 3) |
-| `--yes` | — | Skip confirmation prompt (required for non-interactive) |
-| `--idempotency-key <key>` | — | Prevent duplicate deployments |
-| `--json` | — | Structured JSON output |
+| Flag                      | Required | Description                                             |
+| ------------------------- | -------- | ------------------------------------------------------- |
+| `--service <name>`        | Yes      | Service name                                            |
+| `--server <name>`         | Yes      | Target server                                           |
+| `--compose <path>`        | —        | Path to compose.yaml                                    |
+| `--image <ref>`           | —        | Docker image reference                                  |
+| `--env <key=value>`       | —        | Set environment variables (repeatable)                  |
+| `--dry-run`               | —        | Preview plan without executing (exit code 3)            |
+| `--yes`                   | —        | Skip confirmation prompt (required for non-interactive) |
+| `--idempotency-key <key>` | —        | Prevent duplicate deployments                           |
+| `--json`                  | —        | Structured JSON output                                  |
 
 ## Required Scope
 

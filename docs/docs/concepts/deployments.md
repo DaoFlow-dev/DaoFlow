@@ -13,14 +13,14 @@ queued → prepare → deploy → finalize → completed
                                     └→ failed
 ```
 
-| Status | Description |
-|--------|-------------|
-| `queued` | Deployment requested, waiting to start |
-| `prepare` | Pulling images, building, cloning repos |
-| `deploy` | Running `docker compose up` or `docker run` |
-| `finalize` | Health checks, post-deploy verification |
-| `completed` | Successfully deployed |
-| `failed` | Deployment failed at some step |
+| Status      | Description                                 |
+| ----------- | ------------------------------------------- |
+| `queued`    | Deployment requested, waiting to start      |
+| `prepare`   | Pulling images, building, cloning repos     |
+| `deploy`    | Running `docker compose up` or `docker run` |
+| `finalize`  | Health checks, post-deploy verification     |
+| `completed` | Successfully deployed                       |
+| `failed`    | Deployment failed at some step              |
 
 ## Deployment Record
 
@@ -40,11 +40,11 @@ Every deployment records:
 
 DaoFlow supports three deployment sources:
 
-| Source | Description | Example |
-|--------|-------------|---------|
-| **Compose** | Docker Compose file | `--compose ./compose.yaml` |
-| **Dockerfile** | Build from repository | `--repo https://github.com/org/app` |
-| **Image** | Pre-built container image | `--image nginx:alpine` |
+| Source         | Description               | Example                             |
+| -------------- | ------------------------- | ----------------------------------- |
+| **Compose**    | Docker Compose file       | `--compose ./compose.yaml`          |
+| **Dockerfile** | Build from repository     | `--repo https://github.com/org/app` |
+| **Image**      | Pre-built container image | `--image nginx:alpine`              |
 
 ## Deployment Steps
 
@@ -62,9 +62,9 @@ Each step has its own status, start time, and completion time.
 
 ## Permissions
 
-| Action | Required Scope |
-|--------|---------------|
-| View deployment history | `deploy:read` |
-| Start a deployment | `deploy:start` |
-| Cancel a deployment | `deploy:cancel` |
-| Rollback a deployment | `deploy:rollback` |
+| Action                  | Required Scope    |
+| ----------------------- | ----------------- |
+| View deployment history | `deploy:read`     |
+| Start a deployment      | `deploy:start`    |
+| Cancel a deployment     | `deploy:cancel`   |
+| Rollback a deployment   | `deploy:rollback` |

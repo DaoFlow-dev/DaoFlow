@@ -30,24 +30,24 @@ POST /trpc/createApiToken
 
 ## Token Properties
 
-| Property | Description |
-|----------|-------------|
-| **Name** | Human-readable label |
-| **Scopes** | Granted permission scopes |
-| **Lane** | Computed: `read`, `planning`, or `command` |
-| **Principal** | The user/agent this token belongs to |
-| **Expiry** | When the token expires (optional) |
-| **Status** | `active` or `revoked` |
+| Property      | Description                                |
+| ------------- | ------------------------------------------ |
+| **Name**      | Human-readable label                       |
+| **Scopes**    | Granted permission scopes                  |
+| **Lane**      | Computed: `read`, `planning`, or `command` |
+| **Principal** | The user/agent this token belongs to       |
+| **Expiry**    | When the token expires (optional)          |
+| **Status**    | `active` or `revoked`                      |
 
 ## Lane Mapping
 
 Tokens are classified into lanes based on their scopes:
 
-| Lane | Contains Scopes |
-|------|----------------|
-| **read** | Only read scopes (`*:read`, `events:read`, `diagnostics:read`) |
-| **planning** | Read scopes + planning-related (no mutations) |
-| **command** | Any write/mutating scope |
+| Lane         | Contains Scopes                                                |
+| ------------ | -------------------------------------------------------------- |
+| **read**     | Only read scopes (`*:read`, `events:read`, `diagnostics:read`) |
+| **planning** | Read scopes + planning-related (no mutations)                  |
+| **command**  | Any write/mutating scope                                       |
 
 ## Security Best Practices
 

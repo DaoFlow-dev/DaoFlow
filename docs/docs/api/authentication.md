@@ -44,13 +44,13 @@ Tokens follow the format: `dfl_<random_string>`
 
 ### Token Properties
 
-| Property | Description |
-|----------|-------------|
-| Name | Human-readable label |
-| Scopes | Granted permission scopes |
-| Principal | The user/agent this token belongs to |
-| Expiry | When the token expires (optional) |
-| Lane | Computed from scopes: read, planning, or command |
+| Property  | Description                                      |
+| --------- | ------------------------------------------------ |
+| Name      | Human-readable label                             |
+| Scopes    | Granted permission scopes                        |
+| Principal | The user/agent this token belongs to             |
+| Expiry    | When the token expires (optional)                |
+| Lane      | Computed from scopes: read, planning, or command |
 
 ## First User
 

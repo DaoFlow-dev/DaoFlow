@@ -47,9 +47,7 @@ export function whoamiCommand(): Command {
           console.log(`  Role:     ${chalk.cyan(viewer.authz.role)}`);
           console.log(`  Session:  ${chalk.dim(viewer.session.id.slice(0, 12) + "…")}`);
           console.log(`  Expires:  ${chalk.dim(viewer.session.expiresAt)}`);
-          console.log(
-            `  Scopes:   ${viewer.authz.capabilities.length} granted\n`
-          );
+          console.log(`  Scopes:   ${viewer.authz.capabilities.length} granted\n`);
         }
       } catch (err) {
         if (isJson) {

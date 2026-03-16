@@ -8,19 +8,19 @@ Every write operation in DaoFlow generates an immutable audit record.
 
 ## Audit Record Schema
 
-| Field | Description |
-|-------|-------------|
-| `actorType` | `user`, `agent`, `system`, or `token` |
-| `actorId` | Principal ID who performed the action |
-| `actorEmail` | Actor's email (if applicable) |
-| `actorRole` | Role at the time of the action |
-| `organizationId` | Organization context |
-| `targetResource` | Resource affected (e.g., `deployment:dep_abc123`) |
-| `action` | What happened (e.g., `deployment.created`) |
-| `inputSummary` | Summary of input parameters |
-| `permissionScope` | Scope used to authorize |
-| `outcome` | `success` or `failure` |
-| `createdAt` | Timestamp (ISO 8601) |
+| Field             | Description                                       |
+| ----------------- | ------------------------------------------------- |
+| `actorType`       | `user`, `agent`, `system`, or `token`             |
+| `actorId`         | Principal ID who performed the action             |
+| `actorEmail`      | Actor's email (if applicable)                     |
+| `actorRole`       | Role at the time of the action                    |
+| `organizationId`  | Organization context                              |
+| `targetResource`  | Resource affected (e.g., `deployment:dep_abc123`) |
+| `action`          | What happened (e.g., `deployment.created`)        |
+| `inputSummary`    | Summary of input parameters                       |
+| `permissionScope` | Scope used to authorize                           |
+| `outcome`         | `success` or `failure`                            |
+| `createdAt`       | Timestamp (ISO 8601)                              |
 
 ## Viewing Audit Logs
 

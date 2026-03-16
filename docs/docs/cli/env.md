@@ -42,12 +42,12 @@ daoflow env delete --project my-app --env production \
 
 ## Options
 
-| Flag | Description |
-|------|-------------|
-| `--project <name>` | Target project (required) |
-| `--env <name>` | Target environment (default: `production`) |
-| `--yes` | Skip confirmation for set/delete |
-| `--json` | Structured JSON output |
+| Flag               | Description                                |
+| ------------------ | ------------------------------------------ |
+| `--project <name>` | Target project (required)                  |
+| `--env <name>`     | Target environment (default: `production`) |
+| `--yes`            | Skip confirmation for set/delete           |
+| `--json`           | Structured JSON output                     |
 
 ## JSON Output (list)
 

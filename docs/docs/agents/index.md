@@ -35,12 +35,12 @@ daoflow capabilities --json
 
 ## Agent Workflows
 
-| Workflow | Steps |
-|----------|-------|
-| **Deploy** | `capabilities` → `plan` → `deploy --dry-run` → `deploy --yes` |
-| **Diagnose** | `status` → `logs` → `doctor` |
-| **Rollback** | `status` → `rollback --dry-run` → `rollback --yes` |
-| **Monitor** | `status` → `logs --follow` |
+| Workflow     | Steps                                                         |
+| ------------ | ------------------------------------------------------------- |
+| **Deploy**   | `capabilities` → `plan` → `deploy --dry-run` → `deploy --yes` |
+| **Diagnose** | `status` → `logs` → `doctor`                                  |
+| **Rollback** | `status` → `rollback --dry-run` → `rollback --yes`            |
+| **Monitor**  | `status` → `logs --follow`                                    |
 
 ## Related
 

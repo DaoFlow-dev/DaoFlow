@@ -668,8 +668,7 @@ export async function seedControlPlaneData() {
           tokenPrefix: "df_plan_7ab2",
           principalType: "agent",
           principalId: "principal_planner_agent_1",
-          scopes:
-            "server:read,deploy:read,service:read,logs:read,events:read,approvals:create",
+          scopes: "server:read,deploy:read,service:read,logs:read,events:read,approvals:create",
           status: "active",
           lastUsedAt: hoursBefore(2),
           expiresAt: daysBefore(-25),

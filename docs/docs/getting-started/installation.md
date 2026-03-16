@@ -11,7 +11,7 @@ DaoFlow installs in one command. It's just a normal Docker Compose project on yo
 ### One-Line Install
 
 ```bash
-curl -fsSL https://get.daoflow.dev | sh
+curl -fsSL https://raw.githubusercontent.com/DaoFlow-dev/DaoFlow/main/scripts/install.sh | sh
 ```
 
 This downloads the `daoflow` CLI binary and runs the interactive installer, which:
@@ -25,7 +25,7 @@ This downloads the `daoflow` CLI binary and runs the interactive installer, whic
 ### Non-Interactive Install (CI / Agent-Friendly)
 
 ```bash
-curl -fsSL https://get.daoflow.dev | sh -s -- \
+curl -fsSL https://raw.githubusercontent.com/DaoFlow-dev/DaoFlow/main/scripts/install.sh | sh -s -- \
   --dir /opt/daoflow \
   --domain deploy.example.com \
   --email admin@example.com \
@@ -136,13 +136,13 @@ cp .env.example .env
 
 Key variables:
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `DATABASE_URL` | `postgresql://daoflow:daoflow_dev@localhost:5432/daoflow` | Postgres connection |
-| `REDIS_URL` | `redis://localhost:6379` | Redis connection |
-| `BETTER_AUTH_SECRET` | — | Session signing secret (min 32 chars) |
-| `BETTER_AUTH_URL` | `http://localhost:3000` | Public auth URL |
-| `ENCRYPTION_KEY` | — | Encryption key (exactly 32 chars) |
+| Variable             | Default                                                   | Description                           |
+| -------------------- | --------------------------------------------------------- | ------------------------------------- |
+| `DATABASE_URL`       | `postgresql://daoflow:daoflow_dev@localhost:5432/daoflow` | Postgres connection                   |
+| `REDIS_URL`          | `redis://localhost:6379`                                  | Redis connection                      |
+| `BETTER_AUTH_SECRET` | —                                                         | Session signing secret (min 32 chars) |
+| `BETTER_AUTH_URL`    | `http://localhost:3000`                                   | Public auth URL                       |
+| `ENCRYPTION_KEY`     | —                                                         | Encryption key (exactly 32 chars)     |
 
 ### 4. Migrate and Run
 

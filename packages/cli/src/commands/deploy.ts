@@ -41,7 +41,13 @@ export function deployCommand(): Command {
               image: opts.image ?? null,
               environment: opts.env,
               project: opts.project,
-              steps: ["pull/build", "create network", "create volumes", "start containers", "health check"]
+              steps: [
+                "pull/build",
+                "create network",
+                "create volumes",
+                "start containers",
+                "health check"
+              ]
             }
           };
 
@@ -64,7 +70,9 @@ export function deployCommand(): Command {
 
         if (!opts.yes) {
           console.error(
-            chalk.yellow("Destructive operation. Pass --yes to confirm, or use --dry-run to preview.")
+            chalk.yellow(
+              "Destructive operation. Pass --yes to confirm, or use --dry-run to preview."
+            )
           );
           process.exit(1);
         }
@@ -100,9 +108,7 @@ export function deployCommand(): Command {
         } catch (err) {
           if (err instanceof ApiError) {
             if (isJson) {
-              console.log(
-                JSON.stringify({ ok: false, error: err.message, code: "API_ERROR" })
-              );
+              console.log(JSON.stringify({ ok: false, error: err.message, code: "API_ERROR" }));
             } else {
               console.error(chalk.red(`Error: ${err.message}`));
             }

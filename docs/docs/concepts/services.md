@@ -8,11 +8,11 @@ A service is the runtime unit in DaoFlow — a running container or set of conta
 
 ## Service Types
 
-| Type | Description | Defined By |
-|------|-------------|-----------|
-| **Compose Service** | Multi-container app from a `compose.yaml` | Docker Compose file |
-| **Dockerfile Service** | Built from a Dockerfile in a Git repo | Git URL + Dockerfile path |
-| **Image Service** | Runs a pre-built Docker image | Image reference (e.g., `nginx:alpine`) |
+| Type                   | Description                               | Defined By                             |
+| ---------------------- | ----------------------------------------- | -------------------------------------- |
+| **Compose Service**    | Multi-container app from a `compose.yaml` | Docker Compose file                    |
+| **Dockerfile Service** | Built from a Dockerfile in a Git repo     | Git URL + Dockerfile path              |
+| **Image Service**      | Runs a pre-built Docker image             | Image reference (e.g., `nginx:alpine`) |
 
 ## Service Configuration
 
@@ -31,12 +31,12 @@ Each service stores:
 
 Services don't have runtime state tracked in the database — their state is determined by the latest deployment status:
 
-| Deployment Status | Service State |
-|-------------------|--------------|
+| Deployment Status       | Service State     |
+| ----------------------- | ----------------- |
 | `completed` (succeeded) | Running / Healthy |
-| `completed` (failed) | Degraded |
-| `queued` / `deploy` | Updating |
-| No deployments | Not deployed |
+| `completed` (failed)    | Degraded          |
+| `queued` / `deploy`     | Updating          |
+| No deployments          | Not deployed      |
 
 ## Working with Services
 
@@ -53,8 +53,8 @@ daoflow service update --name my-api --image my-api:v2 --yes
 
 ## Permissions
 
-| Action | Required Scope |
-|--------|---------------|
-| List services | `service:read` |
-| View service config | `service:read` |
+| Action                | Required Scope   |
+| --------------------- | ---------------- |
+| List services         | `service:read`   |
+| View service config   | `service:read`   |
 | Update service config | `service:update` |

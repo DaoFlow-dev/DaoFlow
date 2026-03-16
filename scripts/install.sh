@@ -1,7 +1,7 @@
 #!/bin/sh
 # DaoFlow Installer
-# Usage: curl -fsSL https://get.daoflow.dev | sh
-#        curl -fsSL https://get.daoflow.dev | sh -s -- --domain deploy.example.com --email admin@test.com --password pass --yes
+# Usage: curl -fsSL https://raw.githubusercontent.com/DaoFlow-dev/DaoFlow/main/scripts/install.sh | sh
+#        curl -fsSL https://raw.githubusercontent.com/DaoFlow-dev/DaoFlow/main/scripts/install.sh | sh -s -- --domain deploy.example.com --email admin@test.com --password pass --yes
 set -eu
 
 REPO="DaoFlow-dev/DaoFlow"

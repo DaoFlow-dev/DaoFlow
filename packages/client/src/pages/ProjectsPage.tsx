@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-base-to-string */
 import { useState } from "react";
 import { trpc } from "../lib/trpc";
 import { useSession } from "../lib/auth-client";
@@ -108,11 +107,7 @@ export default function ProjectsPage() {
                 />
               </div>
               <div className="flex justify-end gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setDialogOpen(false)}
-                >
+                <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
                   Cancel
                 </Button>
                 <Button type="submit" disabled={!newProject.name || createProject.isPending}>
@@ -120,9 +115,7 @@ export default function ProjectsPage() {
                 </Button>
               </div>
               {createProject.error && (
-                <p className="text-sm text-destructive">
-                  {createProject.error.message}
-                </p>
+                <p className="text-sm text-destructive">{createProject.error.message}</p>
               )}
             </form>
           </DialogContent>
@@ -152,7 +145,9 @@ export default function ProjectsPage() {
         <div className="flex flex-col items-center gap-2 py-12 text-center">
           <FolderKanban size={32} className="text-muted-foreground" />
           <p className="text-sm text-muted-foreground">
-            {search ? "No projects match your search." : "No projects yet. Create one to get started."}
+            {search
+              ? "No projects match your search."
+              : "No projects yet. Create one to get started."}
           </p>
         </div>
       ) : (

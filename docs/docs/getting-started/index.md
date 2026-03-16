@@ -8,13 +8,13 @@ Get up and running with DaoFlow in under 5 minutes. DaoFlow is an agent-first de
 
 ## Prerequisites
 
-| Requirement | Minimum Version |
-|-------------|----------------|
-| Docker Engine | 20.10+ |
-| Docker Compose | v2.0+ |
+| Requirement    | Minimum Version     |
+| -------------- | ------------------- |
+| Docker Engine  | 20.10+              |
+| Docker Compose | v2.0+               |
 | Node.js or Bun | Node 18+ / Bun 1.0+ |
-| PostgreSQL | 17 |
-| Redis | 7.0+ |
+| PostgreSQL     | 17                  |
+| Redis          | 7.0+                |
 
 ## Quick Start
 
@@ -45,12 +45,12 @@ The dashboard will be available at `http://localhost:3000`.
 
 DaoFlow ships as a monorepo with four packages:
 
-| Package | Description |
-|---------|-------------|
+| Package           | Description                                   |
+| ----------------- | --------------------------------------------- |
 | `packages/server` | API server (tRPC + Better Auth + Drizzle ORM) |
-| `packages/client` | Web dashboard (React + Vite + shadcn/ui) |
-| `packages/cli` | Agent-first CLI (`daoflow` command) |
-| `packages/shared` | Shared types, scopes, and utilities |
+| `packages/client` | Web dashboard (React + Vite + shadcn/ui)      |
+| `packages/cli`    | Agent-first CLI (`daoflow` command)           |
+| `packages/shared` | Shared types, scopes, and utilities           |
 
 ## First Steps
 

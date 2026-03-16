@@ -49,14 +49,14 @@ ssh-copy-id -i ~/.ssh/daoflow_key.pub user@your-server
 
 DaoFlow monitors server health with periodic checks:
 
-| Check | What It Verifies |
-|-------|-----------------|
-| SSH Connectivity | Can connect over SSH |
-| Docker Available | Docker daemon is running |
+| Check             | What It Verifies            |
+| ----------------- | --------------------------- |
+| SSH Connectivity  | Can connect over SSH        |
+| Docker Available  | Docker daemon is running    |
 | Compose Available | Docker Compose is installed |
-| Disk Space | Available storage capacity |
-| Memory | Available RAM |
-| CPU Load | Current load average |
+| Disk Space        | Available storage capacity  |
+| Memory            | Available RAM               |
+| CPU Load          | Current load average        |
 
 Health checks run at a configurable interval (default: 60 seconds).
 
@@ -90,10 +90,10 @@ daoflow doctor --json
 
 Access to server operations requires specific scopes:
 
-| Action | Required Scope |
-|--------|---------------|
-| List servers | `server:read` |
-| View server health | `server:read` |
-| Register server | `server:write` |
+| Action               | Required Scope |
+| -------------------- | -------------- |
+| List servers         | `server:read`  |
+| View server health   | `server:read`  |
+| Register server      | `server:write` |
 | Update server config | `server:write` |
-| Remove server | `server:write` |
+| Remove server        | `server:write` |

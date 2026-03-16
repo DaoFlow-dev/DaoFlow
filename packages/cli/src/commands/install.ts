@@ -5,12 +5,7 @@ import { execSync } from "child_process";
 import { createInterface } from "readline";
 import chalk from "chalk";
 import ora from "ora";
-import {
-  generateComposeYml,
-  generateEnvFile,
-  defaultInstallDir,
-  parseEnvFile
-} from "../templates";
+import { generateComposeYml, generateEnvFile, defaultInstallDir, parseEnvFile } from "../templates";
 
 const VERSION = "0.1.0";
 
@@ -20,8 +15,8 @@ const VERSION = "0.1.0";
 function prompt(question: string, defaultValue?: string): Promise<string> {
   const rl = createInterface({ input: process.stdin, output: process.stderr });
   const suffix = defaultValue ? ` [${defaultValue}]` : "";
-  return new Promise(resolve => {
-    rl.question(`${question}${suffix}: `, answer => {
+  return new Promise((resolve) => {
+    rl.question(`${question}${suffix}: `, (answer) => {
       rl.close();
       resolve(answer.trim() || defaultValue || "");
     });
@@ -59,7 +54,7 @@ export function installCommand(): Command {
     .option("--password <password>", "Admin password for first user")
     .option("--yes", "Skip confirmation prompts")
     .option("--json", "Output as structured JSON")
-    .action(async opts => {
+    .action(async (opts) => {
       const isJson = opts.json || process.argv.includes("--json");
       const isNonInteractive = opts.yes || false;
 
@@ -73,7 +68,8 @@ export function installCommand(): Command {
           console.log(
             JSON.stringify({
               ok: false,
-              error: "Docker is not installed. Install Docker first: https://docs.docker.com/engine/install/",
+              error:
+                "Docker is not installed. Install Docker first: https://docs.docker.com/engine/install/",
               code: "DOCKER_NOT_FOUND"
             })
           );
@@ -88,7 +84,13 @@ export function installCommand(): Command {
       if (!docker.compose) {
         spinner?.fail("Docker Compose v2 is required");
         if (isJson) {
-          console.log(JSON.stringify({ ok: false, error: "Docker Compose v2 not found", code: "COMPOSE_NOT_FOUND" }));
+          console.log(
+            JSON.stringify({
+              ok: false,
+              error: "Docker Compose v2 not found",
+              code: "COMPOSE_NOT_FOUND"
+            })
+          );
         }
         process.exit(1);
       }
@@ -103,10 +105,10 @@ export function installCommand(): Command {
       let password = opts.password;
 
       if (!isNonInteractive) {
+        console.error(chalk.bold("\n🚀 DaoFlow Installer\n"));
         console.error(
-          chalk.bold("\n🚀 DaoFlow Installer\n")
+          chalk.dim("This will create a production DaoFlow instance on this server.\n")
         );
-        console.error(chalk.dim("This will create a production DaoFlow instance on this server.\n"));
 
         dir = await prompt("Install directory", dir);
         domain = await prompt("Domain name", domain || "localhost");
@@ -144,7 +146,8 @@ export function installCommand(): Command {
         }
         if (!password) {
           const msg = "Admin password is required (--password)";
-          if (isJson) console.log(JSON.stringify({ ok: false, error: msg, code: "MISSING_PASSWORD" }));
+          if (isJson)
+            console.log(JSON.stringify({ ok: false, error: msg, code: "MISSING_PASSWORD" }));
           else console.error(chalk.red(msg));
           process.exit(1);
         }
@@ -168,9 +171,7 @@ export function installCommand(): Command {
             process.exit(0);
           }
         } else {
-          console.error(
-            chalk.yellow(`Overwriting existing installation (v${existingVersion}).`)
-          );
+          console.error(chalk.yellow(`Overwriting existing installation (v${existingVersion}).`));
         }
       }
 
@@ -193,7 +194,9 @@ export function installCommand(): Command {
       composeSpinner?.succeed("docker-compose.yml written");
 
       // -- Step 7: Pull images --
-      const pullSpinner = !isJson ? ora("Pulling Docker images (this may take a minute)...").start() : null;
+      const pullSpinner = !isJson
+        ? ora("Pulling Docker images (this may take a minute)...").start()
+        : null;
       try {
         execSync("docker compose pull", {
           cwd: dir,
@@ -201,7 +204,7 @@ export function installCommand(): Command {
           env: { ...process.env, ...parseEnvFile(readFileSync(envPath, "utf-8")) }
         });
         pullSpinner?.succeed("Docker images pulled");
-      } catch (e) {
+      } catch {
         pullSpinner?.warn("Image pull failed — will attempt to start anyway");
       }
 
@@ -237,7 +240,7 @@ export function installCommand(): Command {
         } catch {
           // Not ready yet
         }
-        await new Promise(r => setTimeout(r, 2000));
+        await new Promise((r) => setTimeout(r, 2000));
       }
 
       if (healthy) {

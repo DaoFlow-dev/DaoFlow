@@ -6,26 +6,27 @@ sidebar_position: 2
 
 ## Hardware
 
-| Resource | Minimum | Recommended |
-|----------|---------|-------------|
-| CPU | 1 vCPU | 2+ vCPU |
-| RAM | 1 GB | 2+ GB |
-| Disk | 10 GB | 20+ GB |
-| Network | Public IP or Tailscale/CF Tunnel | Static IP with DNS |
+| Resource | Minimum                          | Recommended        |
+| -------- | -------------------------------- | ------------------ |
+| CPU      | 1 vCPU                           | 2+ vCPU            |
+| RAM      | 1 GB                             | 2+ GB              |
+| Disk     | 10 GB                            | 20+ GB             |
+| Network  | Public IP or Tailscale/CF Tunnel | Static IP with DNS |
 
 ## Software
 
-| Software | Version |
-|----------|---------|
-| Linux | Ubuntu 22.04+, Debian 12+, Rocky 9+, or any Docker-capable distro |
-| Docker Engine | 20.10+ |
-| Docker Compose | v2.0+ |
+| Software       | Version                                                           |
+| -------------- | ----------------------------------------------------------------- |
+| Linux          | Ubuntu 22.04+, Debian 12+, Rocky 9+, or any Docker-capable distro |
+| Docker Engine  | 20.10+                                                            |
+| Docker Compose | v2.0+                                                             |
 
 macOS is supported for development but not recommended for production.
 
 ## Managed Servers
 
 Each server you deploy to needs:
+
 - SSH access with key-based authentication
 - Docker Engine 20.10+ installed
 - Docker Compose v2+ installed
@@ -34,11 +35,11 @@ Each server you deploy to needs:
 
 ## Ports
 
-| Port | Service | Default |
-|------|---------|---------|
+| Port | Service              | Default                         |
+| ---- | -------------------- | ------------------------------- |
 | 3000 | DaoFlow web UI + API | Configurable via `PORT` env var |
-| 5432 | PostgreSQL | Internal only |
-| 6379 | Redis | Internal only |
+| 5432 | PostgreSQL           | Internal only                   |
+| 6379 | Redis                | Internal only                   |
 
 ## Database
 

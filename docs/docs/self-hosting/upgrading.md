@@ -62,7 +62,7 @@ For production stability, pin to a specific version:
 ```yaml
 services:
   daoflow:
-    image: ghcr.io/daoflow/daoflow:v0.1.0  # pinned
+    image: ghcr.io/daoflow/daoflow:v0.1.0 # pinned
 ```
 
 ## Changelog

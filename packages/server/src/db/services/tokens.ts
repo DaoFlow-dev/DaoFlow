@@ -20,11 +20,7 @@ export async function listApiTokenInventory() {
     const lanes = getApiTokenScopeLanes(scopes);
     const principal = principalsById.get(t.principalId);
     const principalRole = normalizeAppRole(
-      principal?.type === "agent"
-        ? "agent"
-        : principal?.type === "service"
-          ? "developer"
-          : "viewer"
+      principal?.type === "agent" ? "agent" : principal?.type === "service" ? "developer" : "viewer"
     );
     const effective = getEffectiveTokenCapabilities(principalRole, scopes);
     const isReadOnly = lanes.length === 1 && lanes[0] === "read";

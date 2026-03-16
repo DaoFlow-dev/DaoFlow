@@ -14,13 +14,13 @@ daoflow rollback [options]
 
 ## Options
 
-| Flag | Description |
-|------|-------------|
-| `--service <name>` | Service to rollback (required) |
+| Flag                   | Description                                         |
+| ---------------------- | --------------------------------------------------- |
+| `--service <name>`     | Service to rollback (required)                      |
 | `--to <deployment_id>` | Target deployment ID (default: previous successful) |
-| `--dry-run` | Preview rollback plan without executing |
-| `--yes` | Skip confirmation |
-| `--json` | Structured JSON output |
+| `--dry-run`            | Preview rollback plan without executing             |
+| `--yes`                | Skip confirmation                                   |
+| `--json`               | Structured JSON output                              |
 
 ## Required Scope
 

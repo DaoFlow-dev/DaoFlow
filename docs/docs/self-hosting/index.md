@@ -12,10 +12,10 @@ The recommended way to deploy DaoFlow in production:
 
 ```bash
 # Interactive — prompts for domain, admin email, password
-curl -fsSL https://get.daoflow.dev | sh
+curl -fsSL https://raw.githubusercontent.com/DaoFlow-dev/DaoFlow/main/scripts/install.sh | sh
 
 # Non-interactive — fully automated
-curl -fsSL https://get.daoflow.dev | sh -s -- \
+curl -fsSL https://raw.githubusercontent.com/DaoFlow-dev/DaoFlow/main/scripts/install.sh | sh -s -- \
   --dir /opt/daoflow \
   --domain deploy.example.com \
   --email admin@example.com \
@@ -29,13 +29,13 @@ Or deploy manually with Docker Compose (see [Docker Compose Setup](./docker-comp
 
 ## Contents
 
-| Guide | Description |
-|-------|-------------|
-| [Requirements](./requirements) | Hardware and software prerequisites |
-| [Docker Compose](./docker-compose) | Production Docker Compose deployment |
-| [Environment Variables](./environment-variables) | All configurable env vars |
-| [SSL & Domains](./ssl-and-domains) | HTTPS and domain configuration |
-| [Upgrading](./upgrading) | Upgrading to new versions |
+| Guide                                            | Description                          |
+| ------------------------------------------------ | ------------------------------------ |
+| [Requirements](./requirements)                   | Hardware and software prerequisites  |
+| [Docker Compose](./docker-compose)               | Production Docker Compose deployment |
+| [Environment Variables](./environment-variables) | All configurable env vars            |
+| [SSL & Domains](./ssl-and-domains)               | HTTPS and domain configuration       |
+| [Upgrading](./upgrading)                         | Upgrading to new versions            |
 
 ## Architecture
 

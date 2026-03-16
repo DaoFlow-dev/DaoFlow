@@ -20,13 +20,13 @@ cd packages/cli && bun run build && bun link
 
 Every command accepts these flags:
 
-| Flag | Description |
-|------|-------------|
-| `--json` | Output structured JSON to stdout (progress/errors to stderr) |
-| `--quiet` / `-q` | Bare value output only (just the ID, just the URL) |
-| `--timeout <seconds>` | Request timeout (default: 30) |
-| `--help` | Show command help with examples |
-| `--version` | Show CLI version |
+| Flag                  | Description                                                  |
+| --------------------- | ------------------------------------------------------------ |
+| `--json`              | Output structured JSON to stdout (progress/errors to stderr) |
+| `--quiet` / `-q`      | Bare value output only (just the ID, just the URL)           |
+| `--timeout <seconds>` | Request timeout (default: 30)                                |
+| `--help`              | Show command help with examples                              |
+| `--version`           | Show CLI version                                             |
 
 ## Output Contract
 
@@ -37,27 +37,27 @@ Every command accepts these flags:
 
 ## Exit Codes
 
-| Code | Meaning |
-|------|---------|
-| `0` | Success |
-| `1` | General error |
-| `2` | Permission denied |
-| `3` | Dry-run completed (no changes) |
+| Code | Meaning                        |
+| ---- | ------------------------------ |
+| `0`  | Success                        |
+| `1`  | General error                  |
+| `2`  | Permission denied              |
+| `3`  | Dry-run completed (no changes) |
 
 ## Command Overview
 
-| Command | Lane | Scope Required | Mutating |
-|---------|------|---------------|----------|
-| [`login`](./auth) | — | none | yes |
-| [`whoami`](./whoami) | read | any valid token | no |
-| [`capabilities`](./capabilities) | read | any valid token | no |
-| [`status`](./status) | read | `server:read` | no |
-| [`deploy`](./deploy) | command | `deploy:start` | yes |
-| [`rollback`](./rollback) | command | `deploy:rollback` | yes |
-| [`logs`](./logs) | read | `logs:read` | no |
-| [`env`](./env) | read/command | `env:read` / `env:write` | varies |
-| [`plan`](./plan) | planning | `deploy:read` | no |
-| [`doctor`](./doctor) | read | `server:read`, `logs:read` | no |
+| Command                          | Lane         | Scope Required             | Mutating |
+| -------------------------------- | ------------ | -------------------------- | -------- |
+| [`login`](./auth)                | —            | none                       | yes      |
+| [`whoami`](./whoami)             | read         | any valid token            | no       |
+| [`capabilities`](./capabilities) | read         | any valid token            | no       |
+| [`status`](./status)             | read         | `server:read`              | no       |
+| [`deploy`](./deploy)             | command      | `deploy:start`             | yes      |
+| [`rollback`](./rollback)         | command      | `deploy:rollback`          | yes      |
+| [`logs`](./logs)                 | read         | `logs:read`                | no       |
+| [`env`](./env)                   | read/command | `env:read` / `env:write`   | varies   |
+| [`plan`](./plan)                 | planning     | `deploy:read`              | no       |
+| [`doctor`](./doctor)             | read         | `server:read`, `logs:read` | no       |
 
 ## Configuration
 

@@ -8,17 +8,17 @@ A backup run is a single execution of a backup policy or manual backup.
 
 ## Run Schema
 
-| Field | Description |
-|-------|-------------|
-| `id` | Unique identifier |
-| `policyId` | Associated policy (null for manual runs) |
-| `status` | `running`, `completed`, `failed` |
-| `type` | `database`, `volume`, `full` |
-| `sizeBytes` | Backup size |
-| `storagePath` | Where the backup is stored |
-| `startedAt` | When the run started |
-| `completedAt` | When the run finished |
-| `error` | Error message (if failed) |
+| Field         | Description                              |
+| ------------- | ---------------------------------------- |
+| `id`          | Unique identifier                        |
+| `policyId`    | Associated policy (null for manual runs) |
+| `status`      | `running`, `completed`, `failed`         |
+| `type`        | `database`, `volume`, `full`             |
+| `sizeBytes`   | Backup size                              |
+| `storagePath` | Where the backup is stored               |
+| `startedAt`   | When the run started                     |
+| `completedAt` | When the run finished                    |
+| `error`       | Error message (if failed)                |
 
 ## Manual Backups
 

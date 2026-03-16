@@ -13,7 +13,7 @@ export function upgradeCommand(): Command {
     .option("--version <version>", "Target version (default: latest)")
     .option("--yes", "Skip confirmation prompts")
     .option("--json", "Output as structured JSON")
-    .action(async opts => {
+    .action(async (opts) => {
       const isJson = opts.json || process.argv.includes("--json");
       const dir = opts.dir;
       const envPath = join(dir, ".env");
@@ -46,8 +46,8 @@ export function upgradeCommand(): Command {
         // Simple y/n prompt
         const rl = await import("readline");
         const iface = rl.createInterface({ input: process.stdin, output: process.stderr });
-        const answer = await new Promise<string>(resolve => {
-          iface.question("Proceed with upgrade? (y/N): ", ans => {
+        const answer = await new Promise<string>((resolve) => {
+          iface.question("Proceed with upgrade? (y/N): ", (ans) => {
             iface.close();
             resolve(ans.trim());
           });
@@ -62,10 +62,7 @@ export function upgradeCommand(): Command {
       const updateSpinner = !isJson ? ora("Updating configuration...").start() : null;
       let newEnv = envContent;
       if (envContent.includes("DAOFLOW_VERSION=")) {
-        newEnv = envContent.replace(
-          /DAOFLOW_VERSION=.*/,
-          `DAOFLOW_VERSION=${targetVersion}`
-        );
+        newEnv = envContent.replace(/DAOFLOW_VERSION=.*/, `DAOFLOW_VERSION=${targetVersion}`);
       } else {
         newEnv = `DAOFLOW_VERSION=${targetVersion}\n${envContent}`;
       }
@@ -82,7 +79,7 @@ export function upgradeCommand(): Command {
       try {
         execSync("docker compose pull", { cwd: dir, stdio: "pipe" });
         pullSpinner?.succeed("New images pulled");
-      } catch (e) {
+      } catch {
         pullSpinner?.warn("Pull failed — will try to restart with cached images");
       }
 
@@ -108,9 +105,14 @@ export function upgradeCommand(): Command {
       for (let i = 0; i < 20; i++) {
         try {
           const resp = await fetch(`http://127.0.0.1:${port}/trpc/healthCheck`);
-          if (resp.ok) { healthy = true; break; }
-        } catch { /* not ready */ }
-        await new Promise(r => setTimeout(r, 2000));
+          if (resp.ok) {
+            healthy = true;
+            break;
+          }
+        } catch {
+          /* not ready */
+        }
+        await new Promise((r) => setTimeout(r, 2000));
       }
 
       if (healthy) {
@@ -121,13 +123,15 @@ export function upgradeCommand(): Command {
 
       // -- Output --
       if (isJson) {
-        console.log(JSON.stringify({
-          ok: true,
-          previousVersion: currentVersion,
-          newVersion: targetVersion,
-          directory: dir,
-          healthy
-        }));
+        console.log(
+          JSON.stringify({
+            ok: true,
+            previousVersion: currentVersion,
+            newVersion: targetVersion,
+            directory: dir,
+            healthy
+          })
+        );
       } else {
         console.error();
         console.error(chalk.green.bold("✅ DaoFlow upgraded successfully!"));

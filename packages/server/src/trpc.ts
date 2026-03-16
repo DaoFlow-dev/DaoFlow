@@ -89,7 +89,10 @@ export const planningProcedure = roleProcedure([
 ]);
 
 // ── Actor context helper (dedup 15+ call sites) ──────────────
-export function getActorContext(ctx: { session: { user: { id: string; email: string } }; role: AppRole }) {
+export function getActorContext(ctx: {
+  session: { user: { id: string; email: string } };
+  role: AppRole;
+}) {
   return {
     requestedByUserId: ctx.session.user.id,
     requestedByEmail: ctx.session.user.email,
@@ -98,7 +101,10 @@ export function getActorContext(ctx: { session: { user: { id: string; email: str
 }
 
 /** Alias for update mutations where "updated" reads better. */
-export function getUpdaterContext(ctx: { session: { user: { id: string; email: string } }; role: AppRole }) {
+export function getUpdaterContext(ctx: {
+  session: { user: { id: string; email: string } };
+  role: AppRole;
+}) {
   return {
     updatedByUserId: ctx.session.user.id,
     updatedByEmail: ctx.session.user.email,

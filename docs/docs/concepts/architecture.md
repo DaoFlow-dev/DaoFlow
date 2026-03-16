@@ -57,15 +57,15 @@ The control plane is responsible for:
 
 ### Tech Stack
 
-| Component | Technology |
-|-----------|-----------|
-| Runtime | Bun |
-| API Layer | tRPC |
-| Auth | Better Auth |
-| ORM | Drizzle ORM |
-| Database | PostgreSQL 17 |
-| Cache/Queue | Redis 7 |
-| Web UI | React + Vite + shadcn/ui |
+| Component   | Technology               |
+| ----------- | ------------------------ |
+| Runtime     | Bun                      |
+| API Layer   | tRPC                     |
+| Auth        | Better Auth              |
+| ORM         | Drizzle ORM              |
+| Database    | PostgreSQL 17            |
+| Cache/Queue | Redis 7                  |
+| Web UI      | React + Vite + shadcn/ui |
 
 ## Execution Plane
 
@@ -90,11 +90,11 @@ DaoFlow connects to managed servers over **SSH**. This means:
 
 The API is organized into three lanes for safety:
 
-| Lane | Purpose | Side Effects |
-|------|---------|-------------|
-| **Read** | Observe infrastructure state | None |
-| **Planning** | Preview changes and generate plans | None |
-| **Command** | Execute mutations | Yes — creates audit records |
+| Lane         | Purpose                            | Side Effects                |
+| ------------ | ---------------------------------- | --------------------------- |
+| **Read**     | Observe infrastructure state       | None                        |
+| **Planning** | Preview changes and generate plans | None                        |
+| **Command**  | Execute mutations                  | Yes — creates audit records |
 
 This design ensures AI agents can safely observe and plan without accidentally mutating infrastructure. See the [API Reference](/docs/api) for details.
 

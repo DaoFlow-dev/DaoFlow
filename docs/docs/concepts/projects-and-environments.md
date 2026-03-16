@@ -10,13 +10,13 @@ Projects are the top-level organizational unit in DaoFlow. Each project can have
 
 A project represents a deployable application or system. It groups related services, environments, and deployment history together.
 
-| Field | Description |
-|-------|-------------|
-| Name | Human-readable project name (e.g., `my-web-app`) |
-| Slug | URL-safe identifier (auto-generated) |
+| Field          | Description                                          |
+| -------------- | ---------------------------------------------------- |
+| Name           | Human-readable project name (e.g., `my-web-app`)     |
+| Slug           | URL-safe identifier (auto-generated)                 |
 | Repository URL | Optional Git repository for source-based deployments |
-| Source Type | `compose`, `dockerfile`, or `image` |
-| Team | The team/organization that owns this project |
+| Source Type    | `compose`, `dockerfile`, or `image`                  |
+| Team           | The team/organization that owns this project         |
 
 ### Creating Projects
 
@@ -57,6 +57,7 @@ daoflow projects --json
 Environments represent deployment targets within a project — typically `production`, `staging`, and `development`.
 
 Each environment:
+
 - Has its own set of environment variables
 - Can target a different server
 - Maintains independent deployment history

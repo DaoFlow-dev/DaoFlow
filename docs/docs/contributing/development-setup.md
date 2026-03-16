@@ -40,17 +40,17 @@ The dashboard runs on `http://localhost:3000`.
 
 ## Package Scripts
 
-| Script | Description |
-|--------|-------------|
-| `bun run dev` | Start dev server (API + client) |
-| `bun run build` | Production build |
-| `bun run start` | Start production server |
-| `bun run db:migrate` | Run database migrations |
-| `bun run db:seed` | Seed demo data |
-| `bun run typecheck` | TypeScript type checking |
-| `bun run lint` | ESLint |
-| `bun run test` | Unit tests |
-| `bun run test:e2e` | End-to-end tests (Playwright) |
+| Script               | Description                     |
+| -------------------- | ------------------------------- |
+| `bun run dev`        | Start dev server (API + client) |
+| `bun run build`      | Production build                |
+| `bun run start`      | Start production server         |
+| `bun run db:migrate` | Run database migrations         |
+| `bun run db:seed`    | Seed demo data                  |
+| `bun run typecheck`  | TypeScript type checking        |
+| `bun run lint`       | ESLint                          |
+| `bun run test`       | Unit tests                      |
+| `bun run test:e2e`   | End-to-end tests (Playwright)   |
 
 ## Monorepo Structure
 

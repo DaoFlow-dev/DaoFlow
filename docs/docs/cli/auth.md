@@ -14,10 +14,10 @@ daoflow login --url <api_url> --token <api_token>
 
 ## Options
 
-| Flag | Required | Description |
-|------|----------|-------------|
-| `--url` | Yes | URL of the DaoFlow instance |
-| `--token` | Yes | API token for authentication |
+| Flag      | Required | Description                  |
+| --------- | -------- | ---------------------------- |
+| `--url`   | Yes      | URL of the DaoFlow instance  |
+| `--token` | Yes      | API token for authentication |
 
 ## Behavior
 

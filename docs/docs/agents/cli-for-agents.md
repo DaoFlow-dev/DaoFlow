@@ -54,12 +54,12 @@ fi
 
 ## Exit Code Reference
 
-| Code | Meaning | Agent Action |
-|------|---------|-------------|
-| `0` | Success | Proceed |
-| `1` | Error | Read error message, diagnose |
-| `2` | Permission denied | Check required scope, request elevation |
-| `3` | Dry-run complete | Review plan, decide to execute |
+| Code | Meaning           | Agent Action                            |
+| ---- | ----------------- | --------------------------------------- |
+| `0`  | Success           | Proceed                                 |
+| `1`  | Error             | Read error message, diagnose            |
+| `2`  | Permission denied | Check required scope, request elevation |
+| `3`  | Dry-run complete  | Review plan, decide to execute          |
 
 ## Timeout Handling
 

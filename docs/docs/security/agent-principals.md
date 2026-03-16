@@ -9,6 +9,7 @@ Agent principals are dedicated identities for AI coding agents. They provide con
 ## Why Agent Principals?
 
 AI agents need:
+
 - Their own identity (not a shared user account)
 - Read-only defaults (safety first)
 - Explicit scope grants for write operations
@@ -28,6 +29,7 @@ AI agents need:
 ### Default Permissions
 
 Agent principals get the `agent` role, which includes only read scopes:
+
 - `server:read`, `deploy:read`, `service:read`
 - `logs:read`, `events:read`, `diagnostics:read`
 
@@ -41,15 +43,15 @@ To allow an agent to deploy:
 
 ## Agent Safety Model
 
-| Principle | Implementation |
-|-----------|---------------|
-| Read-only by default | `agent` role has no write scopes |
-| Explicit write grants | Write scopes added per-token |
-| No self-elevation | Agents cannot modify their own permissions |
-| Audit trail | Every action logged with agent identity |
-| Structured errors | Permission denials include required scopes |
-| `--yes` required | CLI commands require explicit confirmation |
-| `--dry-run` available | Agents can preview before executing |
+| Principle             | Implementation                             |
+| --------------------- | ------------------------------------------ |
+| Read-only by default  | `agent` role has no write scopes           |
+| Explicit write grants | Write scopes added per-token               |
+| No self-elevation     | Agents cannot modify their own permissions |
+| Audit trail           | Every action logged with agent identity    |
+| Structured errors     | Permission denials include required scopes |
+| `--yes` required      | CLI commands require explicit confirmation |
+| `--dry-run` available | Agents can preview before executing        |
 
 ## Best Practices
 

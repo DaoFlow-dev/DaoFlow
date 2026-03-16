@@ -15,6 +15,7 @@ export default tseslint.config(
       "test-results/**",
       "tmp/**",
       "src/**",
+      "docs/**",
       "**/*.config.ts",
       "drizzle.config.ts"
     ]

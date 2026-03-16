@@ -14,8 +14,8 @@ daoflow whoami [options]
 
 ## Options
 
-| Flag | Description |
-|------|-------------|
+| Flag     | Description            |
+| -------- | ---------------------- |
 | `--json` | Structured JSON output |
 
 ## Required Scope

@@ -14,11 +14,11 @@ export function statusCommand(): Command {
 
       if (!ctx) {
         if (isJson) {
-          console.log(
-            JSON.stringify({ ok: false, error: "Not logged in", code: "NOT_LOGGED_IN" })
-          );
+          console.log(JSON.stringify({ ok: false, error: "Not logged in", code: "NOT_LOGGED_IN" }));
         } else {
-          console.log(chalk.yellow("  Not logged in. Run: daoflow login --url <url> --token <token>"));
+          console.log(
+            chalk.yellow("  Not logged in. Run: daoflow login --url <url> --token <token>")
+          );
         }
         process.exit(1);
       }
@@ -29,7 +29,13 @@ export function statusCommand(): Command {
         const [servers, health] = await Promise.allSettled([
           api.get<{
             summary: { totalServers: number; readyServers: number; attentionServers: number };
-            checks: Array<{ serverName: string; serverHost: string; readinessStatus: string; sshReachable: boolean; dockerReachable: boolean }>;
+            checks: Array<{
+              serverName: string;
+              serverHost: string;
+              readinessStatus: string;
+              sshReachable: boolean;
+              dockerReachable: boolean;
+            }>;
           }>("/trpc/serverReadiness"),
           api.get<{ status: string; timestamp: string }>("/trpc/health")
         ]);

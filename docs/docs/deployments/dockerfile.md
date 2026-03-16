@@ -28,13 +28,13 @@ daoflow deploy \
 
 The build follows these steps:
 
-| Step | Action |
-|------|--------|
-| Clone | `git clone --depth 1` the repository |
-| Checkout | Check out the specified branch/commit |
-| Build | `docker build -t <tag> -f Dockerfile .` |
-| Start | `docker run` with configured ports, env, volumes |
-| Health | Run health checks |
+| Step     | Action                                           |
+| -------- | ------------------------------------------------ |
+| Clone    | `git clone --depth 1` the repository             |
+| Checkout | Check out the specified branch/commit            |
+| Build    | `docker build -t <tag> -f Dockerfile .`          |
+| Start    | `docker run` with configured ports, env, volumes |
+| Health   | Run health checks                                |
 
 ## Multi-Stage Builds
 

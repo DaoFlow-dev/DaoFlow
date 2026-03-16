@@ -1,6 +1,6 @@
 import { useSession } from "../lib/auth-client";
 import { trpc } from "../lib/trpc";
-import { normalizeAppRole, canAssumeAnyRole, roleCapabilities, type AppRole } from "@daoflow/shared";
+import { normalizeAppRole, canAssumeAnyRole, roleCapabilities } from "@daoflow/shared";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -26,14 +26,11 @@ export default function SettingsPage() {
   const principals = trpc.principalInventory.useQuery(undefined, {
     enabled: Boolean(session.data)
   });
-  const audit = trpc.auditTrail.useQuery(
-    { limit: 20 },
-    { enabled: Boolean(session.data) }
-  );
+  const audit = trpc.auditTrail.useQuery({ limit: 20 }, { enabled: Boolean(session.data) });
 
   const currentRole = viewer.data ? normalizeAppRole(viewer.data.authz.role) : "viewer";
-  const isAdmin = canAssumeAnyRole(currentRole as AppRole, ["owner", "admin"]);
-  const caps = viewer.data ? roleCapabilities[currentRole as AppRole] : [];
+  const isAdmin = canAssumeAnyRole(currentRole, ["owner", "admin"]);
+  const caps = viewer.data ? roleCapabilities[currentRole] : [];
 
   return (
     <main className="shell space-y-6">
@@ -126,7 +123,9 @@ export default function SettingsPage() {
                   <CardTitle className="text-base">Users & Principals</CardTitle>
                   {!isAdmin && <Badge variant="secondary">Admin only</Badge>}
                 </div>
-                <CardDescription>Team members, service accounts, and agent principals.</CardDescription>
+                <CardDescription>
+                  Team members, service accounts, and agent principals.
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 {principals.isLoading ? (
@@ -158,9 +157,7 @@ export default function SettingsPage() {
                             </Badge>
                           </TableCell>
                           <TableCell>
-                            <Badge
-                              variant={p.status === "active" ? "default" : "destructive"}
-                            >
+                            <Badge variant={p.status === "active" ? "default" : "destructive"}>
                               {p.status}
                             </Badge>
                           </TableCell>
@@ -199,21 +196,15 @@ export default function SettingsPage() {
                   <>
                     <div className="mb-4 grid gap-3 sm:grid-cols-3">
                       <div className="rounded-lg border p-3 text-center">
-                        <p className="text-lg font-bold">
-                          {tokens.data.summary.totalTokens}
-                        </p>
+                        <p className="text-lg font-bold">{tokens.data.summary.totalTokens}</p>
                         <p className="text-xs text-muted-foreground">Total</p>
                       </div>
                       <div className="rounded-lg border p-3 text-center">
-                        <p className="text-lg font-bold">
-                          {tokens.data.summary.readOnlyTokens}
-                        </p>
+                        <p className="text-lg font-bold">{tokens.data.summary.readOnlyTokens}</p>
                         <p className="text-xs text-muted-foreground">Read-only</p>
                       </div>
                       <div className="rounded-lg border p-3 text-center">
-                        <p className="text-lg font-bold">
-                          {tokens.data.summary.commandTokens}
-                        </p>
+                        <p className="text-lg font-bold">{tokens.data.summary.commandTokens}</p>
                         <p className="text-xs text-muted-foreground">Command</p>
                       </div>
                     </div>
@@ -255,9 +246,7 @@ export default function SettingsPage() {
                               </div>
                             </TableCell>
                             <TableCell>
-                              <Badge
-                                variant={t.status === "active" ? "default" : "secondary"}
-                              >
+                              <Badge variant={t.status === "active" ? "default" : "secondary"}>
                                 {t.status}
                               </Badge>
                             </TableCell>
@@ -305,33 +294,31 @@ export default function SettingsPage() {
                     </TableHeader>
                     <TableBody>
                       {(Array.isArray(audit.data) ? audit.data : []).map(
-                        (entry: Record<string, unknown>, i: number) => (
-                          <TableRow key={String(entry.id ?? i)}>
-                            <TableCell className="font-medium">
-                              {String(entry.action ?? "—")}
-                            </TableCell>
-                            <TableCell className="text-muted-foreground">
-                              {String(entry.actorEmail ?? entry.actorId ?? "—")}
-                            </TableCell>
-                            <TableCell className="text-muted-foreground">
-                              {String(entry.resourceType ?? "—")}
-                            </TableCell>
-                            <TableCell>
-                              <Badge
-                                variant={
-                                  entry.outcome === "success" ? "default" : "destructive"
-                                }
-                              >
-                                {String(entry.outcome ?? "—")}
-                              </Badge>
-                            </TableCell>
-                            <TableCell className="text-muted-foreground">
-                              {entry.createdAt
-                                ? new Date(String(entry.createdAt)).toLocaleString()
-                                : "—"}
-                            </TableCell>
-                          </TableRow>
-                        )
+                        /* eslint-disable @typescript-eslint/no-base-to-string */
+                        (entry: Record<string, unknown>, i: number) => {
+                          const id = String(entry["id"] ?? i);
+                          const action = String(entry["action"] ?? "—");
+                          const actor = String(entry["actorEmail"] ?? entry["actorId"] ?? "—");
+                          const resource = String(entry["resourceType"] ?? "—");
+                          const outcome = String(entry["outcome"] ?? "—");
+                          const created = entry["createdAt"]
+                            ? new Date(String(entry["createdAt"])).toLocaleString()
+                            : "—";
+                          /* eslint-enable @typescript-eslint/no-base-to-string */
+                          return (
+                            <TableRow key={id}>
+                              <TableCell className="font-medium">{action}</TableCell>
+                              <TableCell className="text-muted-foreground">{actor}</TableCell>
+                              <TableCell className="text-muted-foreground">{resource}</TableCell>
+                              <TableCell>
+                                <Badge variant={outcome === "success" ? "default" : "destructive"}>
+                                  {outcome}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="text-muted-foreground">{created}</TableCell>
+                            </TableRow>
+                          );
+                        }
                       )}
                     </TableBody>
                   </Table>

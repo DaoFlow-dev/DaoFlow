@@ -13,7 +13,7 @@ export function uninstallCommand(): Command {
     .option("--remove-data", "Also remove volumes and database data (destructive)")
     .option("--yes", "Skip confirmation prompts")
     .option("--json", "Output as structured JSON")
-    .action(async opts => {
+    .action(async (opts) => {
       const isJson = opts.json || process.argv.includes("--json");
       const dir = opts.dir;
       const removeData = opts.removeData || false;
@@ -34,18 +34,21 @@ export function uninstallCommand(): Command {
         console.error(chalk.bold("\n⚠️  DaoFlow Uninstall\n"));
         console.error(`  Directory: ${chalk.dim(dir)}`);
         if (removeData) {
-          console.error(chalk.red.bold("  WARNING: --remove-data will permanently delete all data!"));
+          console.error(
+            chalk.red.bold("  WARNING: --remove-data will permanently delete all data!")
+          );
         }
         console.error();
 
         const rl = await import("readline");
         const iface = rl.createInterface({ input: process.stdin, output: process.stderr });
-        const answer = await new Promise<string>(resolve => {
+        const answer = await new Promise<string>((resolve) => {
           iface.question(
-            removeData
-              ? "Type 'DELETE' to confirm permanent data removal: "
-              : "Proceed? (y/N): ",
-            ans => { iface.close(); resolve(ans.trim()); }
+            removeData ? "Type 'DELETE' to confirm permanent data removal: " : "Proceed? (y/N): ",
+            (ans) => {
+              iface.close();
+              resolve(ans.trim());
+            }
           );
         });
 
@@ -77,11 +80,13 @@ export function uninstallCommand(): Command {
 
       // -- Output --
       if (isJson) {
-        console.log(JSON.stringify({
-          ok: true,
-          directory: dir,
-          dataRemoved: removeData
-        }));
+        console.log(
+          JSON.stringify({
+            ok: true,
+            directory: dir,
+            dataRemoved: removeData
+          })
+        );
       } else {
         console.error();
         if (removeData) {

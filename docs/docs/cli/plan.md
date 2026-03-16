@@ -14,13 +14,13 @@ daoflow plan [options]
 
 ## Options
 
-| Flag | Description |
-|------|-------------|
+| Flag               | Description                    |
+| ------------------ | ------------------------------ |
 | `--service <name>` | Service to plan for (required) |
-| `--server <name>` | Target server |
-| `--compose <path>` | Path to compose.yaml |
-| `--image <ref>` | Docker image to plan with |
-| `--json` | Structured JSON output |
+| `--server <name>`  | Target server                  |
+| `--compose <path>` | Path to compose.yaml           |
+| `--image <ref>`    | Docker image to plan with      |
+| `--json`           | Structured JSON output         |
 
 ## Required Scope
 

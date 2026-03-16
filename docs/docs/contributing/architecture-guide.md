@@ -9,6 +9,7 @@ How the DaoFlow codebase is organized.
 ## Package Overview
 
 ### `packages/server`
+
 The API server, built with tRPC and Better Auth.
 
 ```
@@ -31,6 +32,7 @@ server/
 ```
 
 ### `packages/client`
+
 The web dashboard, built with React and Vite.
 
 ```
@@ -44,6 +46,7 @@ client/
 ```
 
 ### `packages/cli`
+
 The agent-first CLI, built with Commander.
 
 ```
@@ -55,6 +58,7 @@ cli/
 ```
 
 ### `packages/shared`
+
 Shared code between server, client, and CLI.
 
 ```

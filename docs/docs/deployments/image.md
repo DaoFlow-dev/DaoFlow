@@ -27,13 +27,13 @@ daoflow deploy \
 
 DaoFlow works with any Docker registry:
 
-| Registry | Example |
-|----------|---------|
-| Docker Hub | `nginx:alpine` |
-| GitHub Container Registry | `ghcr.io/org/app:latest` |
-| AWS ECR | `123456.dkr.ecr.us-east-1.amazonaws.com/app:v1` |
-| Google Artifact Registry | `us-docker.pkg.dev/project/repo/app:v1` |
-| Self-hosted | `registry.example.com/app:v1` |
+| Registry                  | Example                                         |
+| ------------------------- | ----------------------------------------------- |
+| Docker Hub                | `nginx:alpine`                                  |
+| GitHub Container Registry | `ghcr.io/org/app:latest`                        |
+| AWS ECR                   | `123456.dkr.ecr.us-east-1.amazonaws.com/app:v1` |
+| Google Artifact Registry  | `us-docker.pkg.dev/project/repo/app:v1`         |
+| Self-hosted               | `registry.example.com/app:v1`                   |
 
 ## Pinning Versions
 

@@ -10,11 +10,11 @@ Best practices for AI agents using the DaoFlow API directly.
 
 Always use the appropriate API lane:
 
-| Lane | When to Use | Safe for Agents |
-|------|-------------|----------------|
-| **Read** | Observing state | ✅ Always safe |
-| **Planning** | Previewing changes | ✅ Always safe |
-| **Command** | Executing mutations | ⚠️ Requires write scopes |
+| Lane         | When to Use         | Safe for Agents          |
+| ------------ | ------------------- | ------------------------ |
+| **Read**     | Observing state     | ✅ Always safe           |
+| **Planning** | Previewing changes  | ✅ Always safe           |
+| **Command**  | Executing mutations | ⚠️ Requires write scopes |
 
 ## Recommended API Flow
 

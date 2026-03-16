@@ -15,12 +15,12 @@ Approval gates add a human-in-the-loop for high-risk operations, ensuring agents
 
 ## Gated Actions
 
-| Action | Why It's Gated |
-|--------|---------------|
-| Backup restore | Could overwrite current data |
-| Server removal | Removes infrastructure target |
-| Production env changes | Could break production |
-| Secret rotation | Could invalidate integrations |
+| Action                 | Why It's Gated                |
+| ---------------------- | ----------------------------- |
+| Backup restore         | Could overwrite current data  |
+| Server removal         | Removes infrastructure target |
+| Production env changes | Could break production        |
+| Secret rotation        | Could invalidate integrations |
 
 ## CLI Flow
 
@@ -59,8 +59,8 @@ POST /trpc/updateApprovalRequest
 
 ## Required Scopes
 
-| Action | Scope |
-|--------|-------|
+| Action         | Scope              |
+| -------------- | ------------------ |
 | Create request | `approvals:create` |
 | Approve/reject | `approvals:decide` |
 

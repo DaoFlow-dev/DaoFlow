@@ -14,10 +14,10 @@ daoflow status [options]
 
 ## Options
 
-| Flag | Description |
-|------|-------------|
+| Flag              | Description                 |
+| ----------------- | --------------------------- |
 | `--server <name>` | Filter to a specific server |
-| `--json` | Structured JSON output |
+| `--json`          | Structured JSON output      |
 
 ## Required Scope
 

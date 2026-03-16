@@ -28,12 +28,12 @@ daoflow rollback --service my-app --dry-run --json
 
 ## Rollback vs Revert
 
-| | Rollback | Revert |
-|--|---------|--------|
-| Creates new deployment record | ✅ | ❌ |
-| Preserves audit trail | ✅ | ❌ |
-| Can target any previous deploy | ✅ | Only last |
-| Requires `deploy:rollback` scope | ✅ | N/A |
+|                                  | Rollback | Revert    |
+| -------------------------------- | -------- | --------- |
+| Creates new deployment record    | ✅       | ❌        |
+| Preserves audit trail            | ✅       | ❌        |
+| Can target any previous deploy   | ✅       | Only last |
+| Requires `deploy:rollback` scope | ✅       | N/A       |
 
 ## Required Scope
 

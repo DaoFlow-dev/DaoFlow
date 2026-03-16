@@ -16,14 +16,14 @@ Conventions and formatting standards for the DaoFlow codebase.
 
 ## Naming
 
-| Entity | Convention | Example |
-|--------|-----------|---------|
-| Files | kebab-case | `api-client.ts` |
-| Variables | camelCase | `deploymentRecord` |
-| Types | PascalCase | `DeploymentStatus` |
-| Constants | UPPER_SNAKE_CASE | `MAX_RETRIES` |
-| Database columns | snake_case | `created_at` |
-| API scopes | colon-delimited | `deploy:start` |
+| Entity           | Convention       | Example            |
+| ---------------- | ---------------- | ------------------ |
+| Files            | kebab-case       | `api-client.ts`    |
+| Variables        | camelCase        | `deploymentRecord` |
+| Types            | PascalCase       | `DeploymentStatus` |
+| Constants        | UPPER_SNAKE_CASE | `MAX_RETRIES`      |
+| Database columns | snake_case       | `created_at`       |
+| API scopes       | colon-delimited  | `deploy:start`     |
 
 ## File Organization
 

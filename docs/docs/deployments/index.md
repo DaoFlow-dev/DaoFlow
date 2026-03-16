@@ -8,11 +8,11 @@ DaoFlow supports three deployment sources: Docker Compose, Dockerfile, and pre-b
 
 ## Deployment Sources
 
-| Source | Best For | Input |
-|--------|----------|-------|
-| [Compose](./compose) | Multi-service apps | `compose.yaml` file |
-| [Dockerfile](./dockerfile) | Build from source | Git repo + Dockerfile |
-| [Image](./image) | Pre-built containers | Docker image reference |
+| Source                     | Best For             | Input                  |
+| -------------------------- | -------------------- | ---------------------- |
+| [Compose](./compose)       | Multi-service apps   | `compose.yaml` file    |
+| [Dockerfile](./dockerfile) | Build from source    | Git repo + Dockerfile  |
+| [Image](./image)           | Pre-built containers | Docker image reference |
 
 ## Deployment Lifecycle
 

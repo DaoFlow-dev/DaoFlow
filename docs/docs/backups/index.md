@@ -8,19 +8,19 @@ Persistent data is a core feature in DaoFlow. The backup system supports databas
 
 ## Overview
 
-| Feature | Description |
-|---------|-------------|
-| [Policies](./policies) | Define what to backup, when, and retention rules |
-| [Runs](./runs) | View backup execution history |
-| [Restore](./restore) | Restore from a specific backup |
-| [S3 Storage](./s3-storage) | Configure remote backup storage |
+| Feature                    | Description                                      |
+| -------------------------- | ------------------------------------------------ |
+| [Policies](./policies)     | Define what to backup, when, and retention rules |
+| [Runs](./runs)             | View backup execution history                    |
+| [Restore](./restore)       | Restore from a specific backup                   |
+| [S3 Storage](./s3-storage) | Configure remote backup storage                  |
 
 ## Backup Types
 
-| Type | What It Captures |
-|------|-----------------|
-| **Database dump** | Logical dump of PostgreSQL databases |
-| **Volume archive** | Tar archive of Docker named volumes |
+| Type                | What It Captures                                |
+| ------------------- | ----------------------------------------------- |
+| **Database dump**   | Logical dump of PostgreSQL databases            |
+| **Volume archive**  | Tar archive of Docker named volumes             |
 | **Compose package** | Full service state including config and volumes |
 
 ## Quick Start
@@ -38,9 +38,9 @@ daoflow backup restore --backup bkp_abc123 --yes
 
 ## Permissions
 
-| Action | Required Scope |
-|--------|---------------|
-| View policies | `backup:read` |
-| View backup history | `backup:read` |
-| Run a backup | `backup:run` |
-| Restore a backup | `backup:restore` |
+| Action              | Required Scope   |
+| ------------------- | ---------------- |
+| View policies       | `backup:read`    |
+| View backup history | `backup:read`    |
+| Run a backup        | `backup:run`     |
+| Restore a backup    | `backup:restore` |

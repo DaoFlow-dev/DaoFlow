@@ -40,15 +40,15 @@ daoflow capabilities
 
 ## Documentation Sections
 
-| Section | Description |
-|---------|-------------|
-| [Getting Started](/docs/getting-started) | Install, configure, and deploy your first app |
-| [Core Concepts](/docs/concepts/architecture) | Architecture, projects, servers, deployments |
-| [CLI Reference](/docs/cli) | Complete CLI command documentation |
-| [API Reference](/docs/api) | tRPC API endpoints and authentication |
-| [Security & RBAC](/docs/security) | Roles, scopes, tokens, and audit |
-| [Deployments](/docs/deployments) | Compose, Dockerfile, and image deployments |
-| [Backup & Restore](/docs/backups) | Policies, runs, and S3 storage |
-| [Agent Integration](/docs/agents) | Using DaoFlow with AI coding agents |
-| [Self-Hosting](/docs/self-hosting) | Deploy DaoFlow on your own infrastructure |
-| [Contributing](/docs/contributing) | Development setup, testing, and code style |
+| Section                                      | Description                                   |
+| -------------------------------------------- | --------------------------------------------- |
+| [Getting Started](/docs/getting-started)     | Install, configure, and deploy your first app |
+| [Core Concepts](/docs/concepts/architecture) | Architecture, projects, servers, deployments  |
+| [CLI Reference](/docs/cli)                   | Complete CLI command documentation            |
+| [API Reference](/docs/api)                   | tRPC API endpoints and authentication         |
+| [Security & RBAC](/docs/security)            | Roles, scopes, tokens, and audit              |
+| [Deployments](/docs/deployments)             | Compose, Dockerfile, and image deployments    |
+| [Backup & Restore](/docs/backups)            | Policies, runs, and S3 storage                |
+| [Agent Integration](/docs/agents)            | Using DaoFlow with AI coding agents           |
+| [Self-Hosting](/docs/self-hosting)           | Deploy DaoFlow on your own infrastructure     |
+| [Contributing](/docs/contributing)           | Development setup, testing, and code style    |

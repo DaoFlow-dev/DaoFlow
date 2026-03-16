@@ -26,10 +26,10 @@ Principal (user/agent/service account)
 
 ## Quick Reference
 
-| Topic | Description |
-|-------|-------------|
-| [Roles](./roles) | 6 built-in roles with different capability levels |
-| [Scopes](./scopes) | 26 colon-delimited permission scopes |
-| [API Tokens](./api-tokens) | Creating and managing scoped tokens |
-| [Agent Principals](./agent-principals) | Dedicated identities for AI systems |
-| [Audit Trail](./audit-trail) | Immutable log of all write operations |
+| Topic                                  | Description                                       |
+| -------------------------------------- | ------------------------------------------------- |
+| [Roles](./roles)                       | 6 built-in roles with different capability levels |
+| [Scopes](./scopes)                     | 26 colon-delimited permission scopes              |
+| [API Tokens](./api-tokens)             | Creating and managing scoped tokens               |
+| [Agent Principals](./agent-principals) | Dedicated identities for AI systems               |
+| [Audit Trail](./audit-trail)           | Immutable log of all write operations             |

@@ -17,12 +17,12 @@ DaoFlow is open source and welcomes contributions. This section covers how to se
 
 ## Guides
 
-| Guide | Description |
-|-------|-------------|
-| [Development Setup](./development-setup) | Local environment setup |
+| Guide                                      | Description                   |
+| ------------------------------------------ | ----------------------------- |
+| [Development Setup](./development-setup)   | Local environment setup       |
 | [Architecture Guide](./architecture-guide) | How the codebase is organized |
-| [Testing](./testing) | Writing and running tests |
-| [Code Style](./code-style) | Conventions and formatting |
+| [Testing](./testing)                       | Writing and running tests     |
+| [Code Style](./code-style)                 | Conventions and formatting    |
 
 ## Contribution Principles
 
@@ -37,6 +37,7 @@ From the [AGENTS.md](https://github.com/daoflow/daoflow/blob/main/AGENTS.md):
 ## Decision Rule
 
 If a feature increases system complexity, it must clearly improve at least one of:
+
 - Deployment reliability
 - Operator clarity
 - Backup safety

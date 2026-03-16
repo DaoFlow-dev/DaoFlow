@@ -8,11 +8,11 @@ DaoFlow's API is built with [tRPC](https://trpc.io) and organized into three lan
 
 ## Three-Lane Model
 
-| Lane | Purpose | Side Effects | Example |
-|------|---------|-------------|---------|
-| **Read** | Query current state | None | `healthCheck`, `recentDeployments`, `infrastructureInventory` |
-| **Planning** | Preview changes | None | `deploymentPlan`, `rollbackPlan`, `configDiff` |
-| **Command** | Execute mutations | Yes | `createDeploymentRecord`, `registerServer`, `updateApprovalRequest` |
+| Lane         | Purpose             | Side Effects | Example                                                             |
+| ------------ | ------------------- | ------------ | ------------------------------------------------------------------- |
+| **Read**     | Query current state | None         | `healthCheck`, `recentDeployments`, `infrastructureInventory`       |
+| **Planning** | Preview changes     | None         | `deploymentPlan`, `rollbackPlan`, `configDiff`                      |
+| **Command**  | Execute mutations   | Yes          | `createDeploymentRecord`, `registerServer`, `updateApprovalRequest` |
 
 ## Base URL
 
@@ -23,6 +23,7 @@ http://localhost:3000/trpc
 ## Authentication
 
 All API requests (except `healthCheck`) require authentication via:
+
 - **Session cookie** — for browser-based access
 - **Bearer token** — for CLI and agent access
 

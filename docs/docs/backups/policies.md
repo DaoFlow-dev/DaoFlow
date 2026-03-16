@@ -8,14 +8,14 @@ Backup policies define automated backup schedules with retention rules.
 
 ## Policy Configuration
 
-| Field | Description |
-|-------|-------------|
-| **Name** | Policy identifier |
-| **Service** | Which service to backup |
-| **Schedule** | Cron expression (e.g., `0 2 * * *` for 2 AM daily) |
-| **Type** | `database`, `volume`, or `full` |
+| Field         | Description                                        |
+| ------------- | -------------------------------------------------- |
+| **Name**      | Policy identifier                                  |
+| **Service**   | Which service to backup                            |
+| **Schedule**  | Cron expression (e.g., `0 2 * * *` for 2 AM daily) |
+| **Type**      | `database`, `volume`, or `full`                    |
 | **Retention** | How many backups to keep (e.g., 7 daily, 4 weekly) |
-| **Storage** | Where to store (local or S3) |
+| **Storage**   | Where to store (local or S3)                       |
 
 ## Creating Policies
 
@@ -37,11 +37,11 @@ daoflow backup policy create \
 
 ## Retention Rules
 
-| Strategy | Description |
-|----------|-------------|
-| **Count-based** | Keep the last N backups |
-| **Time-based** | Keep backups from the last N days |
-| **Tiered** | Keep 7 daily + 4 weekly + 3 monthly |
+| Strategy        | Description                         |
+| --------------- | ----------------------------------- |
+| **Count-based** | Keep the last N backups             |
+| **Time-based**  | Keep backups from the last N days   |
+| **Tiered**      | Keep 7 daily + 4 weekly + 3 monthly |
 
 Old backups are automatically pruned after new successful backups complete.
 

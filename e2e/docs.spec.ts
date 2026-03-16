@@ -71,7 +71,6 @@ test.describe("Documentation Site", () => {
     await expect(page.locator("h1")).toBeVisible();
   });
 
-
   test("clicking sidebar link navigates to a docs subpage", async ({ page }) => {
     await page.goto("/docs");
     // Click any sidebar link and verify navigation happens

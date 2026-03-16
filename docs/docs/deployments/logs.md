@@ -8,11 +8,11 @@ DaoFlow provides three layers of observability for deployments.
 
 ## Log Layers
 
-| Layer | Description | Format |
-|-------|-------------|--------|
-| **Raw Logs** | Exact stdout/stderr from containers | Plain text |
-| **Structured Timeline** | Deploy steps with status and timing | JSON events |
-| **Agent Summaries** | AI-readable failure analysis | Structured JSON |
+| Layer                   | Description                         | Format          |
+| ----------------------- | ----------------------------------- | --------------- |
+| **Raw Logs**            | Exact stdout/stderr from containers | Plain text      |
+| **Structured Timeline** | Deploy steps with status and timing | JSON events     |
+| **Agent Summaries**     | AI-readable failure analysis        | Structured JSON |
 
 ## Viewing Logs
 
@@ -56,10 +56,10 @@ GET /trpc/deploymentLogs?input={"json":{"deploymentId":"dep_abc123"}}
 }
 ```
 
-| Field | Values |
-|-------|--------|
-| `level` | `debug`, `info`, `warn`, `error` |
-| `source` | `build`, `runtime`, `system` |
+| Field    | Values                           |
+| -------- | -------------------------------- |
+| `level`  | `debug`, `info`, `warn`, `error` |
+| `source` | `build`, `runtime`, `system`     |
 
 ## Retention
 

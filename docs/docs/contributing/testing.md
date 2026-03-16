@@ -8,12 +8,12 @@ DaoFlow uses a multi-layer testing strategy.
 
 ## Test Types
 
-| Type | Tool | Directory | Runs |
-|------|------|-----------|------|
-| Unit tests | Bun test runner | `packages/*/src/*.test.ts` | `bun run test` |
-| E2E tests | Playwright | `e2e/` | `bunx playwright test` |
-| Docs tests | Playwright | `e2e/docs.spec.ts` | `bunx playwright test --config playwright-docs.config.ts` |
-| Type checking | TypeScript | — | `bun run typecheck` |
+| Type          | Tool            | Directory                  | Runs                                                      |
+| ------------- | --------------- | -------------------------- | --------------------------------------------------------- |
+| Unit tests    | Bun test runner | `packages/*/src/*.test.ts` | `bun run test`                                            |
+| E2E tests     | Playwright      | `e2e/`                     | `bunx playwright test`                                    |
+| Docs tests    | Playwright      | `e2e/docs.spec.ts`         | `bunx playwright test --config playwright-docs.config.ts` |
+| Type checking | TypeScript      | —                          | `bun run typecheck`                                       |
 
 ## Running Tests
 

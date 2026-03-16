@@ -17,6 +17,7 @@ GET /trpc/healthCheck
 **Scope:** None (public)
 
 **Response:**
+
 ```json
 { "result": { "data": { "json": { "status": "ok", "version": "0.1.0" } } } }
 ```
@@ -42,6 +43,7 @@ GET /trpc/infrastructureInventory
 **Scope:** `server:read`, `service:read`
 
 **Response includes:**
+
 - `servers[]` — name, host, status, Docker version
 - `projects[]` — name, environment count, service count, latest deployment status
 - `services[]` — name, source type, status
