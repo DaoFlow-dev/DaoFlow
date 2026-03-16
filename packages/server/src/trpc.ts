@@ -88,6 +88,25 @@ export const planningProcedure = roleProcedure([
   "agent"
 ]);
 
+// ── Scoped procedure shortcuts (role + scope enforcement) ────
+// These enforce AGENTS.md §11 — agents need both role AND scope.
+const ALL_WRITE = ["owner", "admin", "operator", "developer"] as const;
+const ALL_OPS = ["owner", "admin", "operator"] as const;
+const ADMIN_ONLY = ["owner", "admin"] as const;
+const ALL_INCL_AGENT = ["owner", "admin", "operator", "developer", "agent"] as const;
+
+export const serverWriteProcedure = scopedProcedure(ADMIN_ONLY, ["server:write"]);
+export const deployStartProcedure = scopedProcedure(ALL_WRITE, ["deploy:start"]);
+export const deployRollbackProcedure = scopedProcedure(ALL_WRITE, ["deploy:rollback"]);
+export const envWriteProcedure = scopedProcedure(ALL_WRITE, ["env:write"]);
+export const serviceUpdateProcedure = scopedProcedure(ALL_WRITE, ["service:update"]);
+export const backupRunProcedure = scopedProcedure(ALL_OPS, ["backup:run"]);
+export const backupRestoreProcedure = scopedProcedure(ALL_OPS, ["backup:restore"]);
+export const approvalsCreateProcedure = scopedProcedure(ALL_INCL_AGENT, ["approvals:create"]);
+export const approvalsDecideProcedure = scopedProcedure(ALL_OPS, ["approvals:decide"]);
+export const tokensManageProcedure = scopedProcedure(ADMIN_ONLY, ["tokens:manage"]);
+export const membersManageProcedure = scopedProcedure(ADMIN_ONLY, ["members:manage"]);
+
 // ── Actor context helper (dedup 15+ call sites) ──────────────
 export function getActorContext(ctx: {
   session: { user: { id: string; email: string } };

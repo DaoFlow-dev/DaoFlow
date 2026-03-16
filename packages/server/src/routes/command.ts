@@ -36,16 +36,23 @@ import { decrypt } from "../db/crypto";
 import {
   t,
   adminProcedure,
-  deployProcedure,
-  executionProcedure,
+  serverWriteProcedure,
+  deployStartProcedure,
+  deployRollbackProcedure,
+  envWriteProcedure,
+  serviceUpdateProcedure,
+  backupRunProcedure,
+  backupRestoreProcedure,
+  approvalsCreateProcedure,
+  approvalsDecideProcedure,
+  tokensManageProcedure,
   getActorContext,
   getUpdaterContext,
-  planningProcedure,
   throwOnOperationError
 } from "../trpc";
 
 export const commandRouter = t.router({
-  registerServer: adminProcedure
+  registerServer: serverWriteProcedure
     .input(
       z.object({
         name: z.string().min(1).max(80),
@@ -70,7 +77,7 @@ export const commandRouter = t.router({
 
       return result.server;
     }),
-  createDeploymentRecord: deployProcedure
+  createDeploymentRecord: deployStartProcedure
     .input(
       z.object({
         projectName: z.string().min(1).max(80),
@@ -106,7 +113,7 @@ export const commandRouter = t.router({
 
       return deployment;
     }),
-  queueComposeRelease: deployProcedure
+  queueComposeRelease: deployStartProcedure
     .input(
       z.object({
         composeServiceId: z.string().min(1),
@@ -129,7 +136,7 @@ export const commandRouter = t.router({
 
       return deployment;
     }),
-  upsertEnvironmentVariable: deployProcedure
+  upsertEnvironmentVariable: envWriteProcedure
     .input(
       z.object({
         environmentId: z.string().min(1),
@@ -158,7 +165,7 @@ export const commandRouter = t.router({
 
       return variable;
     }),
-  requestApproval: planningProcedure
+  requestApproval: approvalsCreateProcedure
     .input(
       z.discriminatedUnion("actionType", [
         z.object({
@@ -193,7 +200,7 @@ export const commandRouter = t.router({
 
       return request;
     }),
-  approveApprovalRequest: executionProcedure
+  approveApprovalRequest: approvalsDecideProcedure
     .input(
       z.object({
         requestId: z.string().min(1)
@@ -211,7 +218,7 @@ export const commandRouter = t.router({
       throwOnOperationError(result, "Approval request");
       return result.request;
     }),
-  rejectApprovalRequest: executionProcedure
+  rejectApprovalRequest: approvalsDecideProcedure
     .input(
       z.object({
         requestId: z.string().min(1)
@@ -229,7 +236,7 @@ export const commandRouter = t.router({
       throwOnOperationError(result, "Approval request");
       return result.request;
     }),
-  triggerBackupRun: executionProcedure
+  triggerBackupRun: backupRunProcedure
     .input(
       z.object({
         policyId: z.string().min(1)
@@ -253,7 +260,7 @@ export const commandRouter = t.router({
 
       return run;
     }),
-  queueBackupRestore: executionProcedure
+  queueBackupRestore: backupRestoreProcedure
     .input(
       z.object({
         backupRunId: z.string().min(1)
@@ -277,7 +284,7 @@ export const commandRouter = t.router({
 
       return restore;
     }),
-  dispatchExecutionJob: executionProcedure
+  dispatchExecutionJob: deployStartProcedure
     .input(
       z.object({
         jobId: z.string().min(1)
@@ -295,7 +302,7 @@ export const commandRouter = t.router({
       throwOnOperationError(result, "Execution job");
       return result.job;
     }),
-  completeExecutionJob: executionProcedure
+  completeExecutionJob: deployStartProcedure
     .input(
       z.object({
         jobId: z.string().min(1)
@@ -313,7 +320,7 @@ export const commandRouter = t.router({
       throwOnOperationError(result, "Execution job");
       return result.job;
     }),
-  failExecutionJob: executionProcedure
+  failExecutionJob: deployStartProcedure
     .input(
       z.object({
         jobId: z.string().min(1),
@@ -335,7 +342,7 @@ export const commandRouter = t.router({
     }),
 
   /* ── Project CRUD ──────────────────────────────────────────────── */
-  createProject: deployProcedure
+  createProject: deployStartProcedure
     .input(
       z.object({
         name: z.string().min(1).max(80),
@@ -359,7 +366,7 @@ export const commandRouter = t.router({
       return result.project;
     }),
 
-  updateProject: deployProcedure
+  updateProject: serviceUpdateProcedure
     .input(
       z.object({
         projectId: z.string().min(1),
@@ -400,7 +407,7 @@ export const commandRouter = t.router({
     }),
 
   /* ── Environment CRUD ──────────────────────────────────────────── */
-  createEnvironment: deployProcedure
+  createEnvironment: deployStartProcedure
     .input(
       z.object({
         projectId: z.string().min(1),
@@ -419,7 +426,7 @@ export const commandRouter = t.router({
       return result.environment;
     }),
 
-  updateEnvironment: deployProcedure
+  updateEnvironment: serviceUpdateProcedure
     .input(
       z.object({
         environmentId: z.string().min(1),
@@ -453,7 +460,7 @@ export const commandRouter = t.router({
     }),
 
   /* ── Service CRUD ──────────────────────────────────────────── */
-  createService: deployProcedure
+  createService: serviceUpdateProcedure
     .input(
       z.object({
         name: z.string().min(1).max(80),
@@ -485,7 +492,7 @@ export const commandRouter = t.router({
       return result.service;
     }),
 
-  updateService: deployProcedure
+  updateService: serviceUpdateProcedure
     .input(
       z.object({
         serviceId: z.string().min(1),
@@ -525,7 +532,7 @@ export const commandRouter = t.router({
     }),
 
   /* ── Deploy from Service ───────────────────────────────────── */
-  triggerDeploy: deployProcedure
+  triggerDeploy: deployStartProcedure
     .input(
       z.object({
         serviceId: z.string().min(1),
@@ -560,7 +567,7 @@ export const commandRouter = t.router({
     }),
 
   /* ── Rollback ──────────────────────────────────────────────── */
-  executeRollback: deployProcedure
+  executeRollback: deployRollbackProcedure
     .input(
       z.object({
         serviceId: z.string().min(1),
@@ -616,7 +623,7 @@ export const commandRouter = t.router({
       return result.principal;
     }),
 
-  generateAgentToken: adminProcedure
+  generateAgentToken: tokensManageProcedure
     .input(
       z.object({
         principalId: z.string().min(1),
@@ -635,7 +642,7 @@ export const commandRouter = t.router({
       return { token: result.token, tokenValue: result.tokenValue };
     }),
 
-  revokeAgentToken: adminProcedure
+  revokeAgentToken: tokensManageProcedure
     .input(z.object({ tokenId: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => {
       const result = await revokeAgentToken({
