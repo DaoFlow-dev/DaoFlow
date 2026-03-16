@@ -20,7 +20,7 @@ For CLI and agent access, use API tokens:
 
 ```bash
 curl -H "Authorization: Bearer dfl_your_token_here" \
-  http://localhost:3000/trpc/healthCheck
+  http://localhost:3000/trpc/health
 ```
 
 ### Creating Tokens

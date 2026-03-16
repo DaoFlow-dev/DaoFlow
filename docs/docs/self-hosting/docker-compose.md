@@ -90,5 +90,5 @@ docker compose logs -f daoflow
 ## Health Check
 
 ```bash
-curl http://localhost:3000/trpc/healthCheck
+curl http://localhost:3000/trpc/health
 ```

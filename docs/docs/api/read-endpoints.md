@@ -6,12 +6,12 @@ sidebar_position: 3
 
 Read endpoints are safe to call — they never modify state.
 
-## healthCheck
+## health
 
 Check API availability.
 
 ```
-GET /trpc/healthCheck
+GET /trpc/health
 ```
 
 **Scope:** None (public)

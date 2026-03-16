@@ -160,7 +160,7 @@ Dashboard runs on `http://localhost:3000`.
 daoflow doctor --json
 
 # API health check
-curl http://localhost:3000/trpc/healthCheck
+curl http://localhost:3000/trpc/health
 ```
 
 ## Next Steps

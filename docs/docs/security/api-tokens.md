@@ -65,5 +65,5 @@ daoflow login --url https://deploy.example.com --token dfl_abc123
 
 # curl
 curl -H "Authorization: Bearer dfl_abc123" \
-  https://deploy.example.com/trpc/healthCheck
+  https://deploy.example.com/trpc/health
 ```

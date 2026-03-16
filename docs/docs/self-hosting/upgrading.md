@@ -16,7 +16,7 @@ docker compose pull
 docker compose up -d
 
 # Check health
-curl http://localhost:3000/trpc/healthCheck
+curl http://localhost:3000/trpc/health
 ```
 
 DaoFlow automatically runs database migrations on startup.
@@ -25,7 +25,7 @@ DaoFlow automatically runs database migrations on startup.
 
 ```bash
 # Via API
-curl http://localhost:3000/trpc/healthCheck | jq '.result.data.json.version'
+curl http://localhost:3000/trpc/health | jq '.result.data.json.version'
 
 # Via CLI
 daoflow --version
