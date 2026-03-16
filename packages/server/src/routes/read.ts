@@ -43,6 +43,7 @@ export const readRouter = t.router({
     name: "DaoFlow",
     currentSlice: "principal-inventory",
     thesis: "The agentic platform to host deterministic systems — from one prompt to production.",
+    tagline: "Open-source Agentic DevOps System — from prompts to production.",
     architecture: {
       controlPlane: ["React web UI", "tRPC API", "typed domain services"],
       executionPlane: [

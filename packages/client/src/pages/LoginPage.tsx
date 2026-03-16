@@ -158,7 +158,7 @@ export default function LoginPage() {
         </Card>
 
         <p className="login-page__footer">
-          Deterministic hosting that humans and agents can trust.
+          Open-source Agentic DevOps System — from prompts to production.
         </p>
       </div>
     </div>

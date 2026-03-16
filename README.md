@@ -2,7 +2,7 @@
 
 > The agentic platform to host deterministic systems — from one prompt to production.
 
-DaoFlow is an open-source agentic hosting platform for deterministic Docker and Compose systems on VPS and bare-metal infrastructure with:
+Open-source Agentic DevOps System — from prompts to production. DaoFlow hosts deterministic Docker and Compose systems on VPS and bare-metal infrastructure with:
 
 - Docker and Docker Compose deployments
 - typed control-plane APIs

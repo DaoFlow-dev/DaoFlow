@@ -21,8 +21,7 @@ export function HeroSection({ session, health, overview, currentRole, viewer }: 
           <h1>DaoFlow</h1>
         </div>
         <p className="hero__lede">
-          A typed hosting platform for deterministic Docker and Compose systems with agent-safe
-          automation boundaries.
+          Open-source Agentic DevOps System — from prompts to production.
         </p>
       </div>
 

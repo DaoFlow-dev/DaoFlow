@@ -10,6 +10,8 @@ DaoFlow is the best AI-agent-first hosting platform for deterministic systems ba
 
 The vision is **the agentic platform to host deterministic systems — from one prompt to production**.
 
+The tagline is **Open-source Agentic DevOps System — from prompts to production**.
+
 The goal is not to be an AWS wrapper and not to be a Kubernetes clone. The goal is to build the hosting platform that AI agents can operate safely, reliably, and autonomously — while keeping humans fully in control through scoped permissions, audit trails, and approval gates.
 
 DaoFlow is designed from day one so that an AI coding agent can:
