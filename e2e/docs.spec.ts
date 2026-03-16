@@ -20,8 +20,9 @@ test.describe("Documentation Site", () => {
 
   test("docs root page renders with overview content", async ({ page }) => {
     await page.goto("/docs");
-    const article = page.locator("article, .markdown, main");
-    await expect(article.first()).toBeVisible();
+    // Docusaurus renders docs content in a .theme-doc-markdown container or main element
+    const content = page.locator(".theme-doc-markdown, .markdown, main");
+    await expect(content.first()).toBeVisible();
     await expect(page.locator("h1").first()).toBeVisible();
   });
 
@@ -31,10 +32,10 @@ test.describe("Documentation Site", () => {
   });
 
   test("sidebar navigation exists", async ({ page }) => {
-    await page.goto("/docs");
-    // Docusaurus sidebar can be nav.menu, aside, or .theme-doc-sidebar-container
-    const sidebar = page.locator("aside").first();
-    await expect(sidebar).toBeVisible();
+    await page.goto("/docs/getting-started");
+    // Docusaurus sidebar: .theme-doc-sidebar-container or aside element
+    const sidebar = page.locator(".theme-doc-sidebar-container, aside, nav.menu");
+    await expect(sidebar.first()).toBeVisible();
   });
 
   test("navbar has Docs, API, CLI, GitHub links", async ({ page }) => {
