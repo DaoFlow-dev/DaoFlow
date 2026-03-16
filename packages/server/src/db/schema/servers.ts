@@ -19,9 +19,11 @@ export const servers = pgTable(
     host: varchar("host", { length: 120 }).notNull(),
     region: varchar("region", { length: 60 }),
     sshPort: integer("ssh_port").default(22).notNull(),
+    sshKeyId: varchar("ssh_key_id", { length: 64 }),
     kind: varchar("kind", { length: 30 }).default("docker-engine").notNull(),
     status: varchar("status", { length: 30 }).default("pending verification").notNull(),
     dockerVersion: varchar("docker_version", { length: 40 }),
+    composeVersion: varchar("compose_version", { length: 40 }),
     metadata: jsonb("metadata").default({}).notNull(),
     registeredByUserId: text("registered_by_user_id").references(() => users.id, {
       onDelete: "set null"

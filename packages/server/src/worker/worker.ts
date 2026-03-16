@@ -26,6 +26,7 @@ import {
 } from "./deploy-strategies";
 
 const POLL_INTERVAL_MS = 5_000;
+const DEPLOY_TIMEOUT_MS = Number(process.env.DEPLOY_TIMEOUT_MS ?? 600_000); // 10 min default
 
 let running = false;
 
@@ -42,6 +43,14 @@ async function executeDeployment(deployment: DeploymentRow): Promise<void> {
     `[worker] Executing deployment ${deployment.id} for ${deployment.serviceName} (${deployment.sourceType})`
   );
 
+  // Wrap execution with a timeout (T-26: deployment timeout)
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    setTimeout(
+      () => reject(new Error(`Deployment timed out after ${DEPLOY_TIMEOUT_MS / 1000}s`)),
+      DEPLOY_TIMEOUT_MS
+    );
+  });
+
   try {
     // ── Phase 1: Prepare ──────────────────────────────────
     await transitionDeployment(deployment.id, "prepare");
@@ -53,11 +62,20 @@ async function executeDeployment(deployment: DeploymentRow): Promise<void> {
     );
 
     if (deployment.sourceType === "compose") {
-      await executeComposeDeployment(deployment, config, projectName, onLog);
+      await Promise.race([
+        executeComposeDeployment(deployment, config, projectName, onLog),
+        timeoutPromise
+      ]);
     } else if (deployment.sourceType === "dockerfile") {
-      await executeDockerfileDeployment(deployment, config, containerName, onLog);
+      await Promise.race([
+        executeDockerfileDeployment(deployment, config, containerName, onLog),
+        timeoutPromise
+      ]);
     } else if (deployment.sourceType === "image") {
-      await executeImageDeployment(deployment, config, containerName, onLog);
+      await Promise.race([
+        executeImageDeployment(deployment, config, containerName, onLog),
+        timeoutPromise
+      ]);
     } else {
       throw new Error(`Unsupported source type: ${deployment.sourceType}`);
     }
