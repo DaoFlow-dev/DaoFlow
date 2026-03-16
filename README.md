@@ -117,6 +117,23 @@ docker run --rm -p 3000:3000 \
   daoflow:local
 ```
 
+## Documentation
+
+Full docs at [**daoflow-dev.github.io/DaoFlow**](https://daoflow-dev.github.io/DaoFlow/).
+
+| Topic                                                                             | Description                               |
+| --------------------------------------------------------------------------------- | ----------------------------------------- |
+| [Getting Started](https://daoflow-dev.github.io/DaoFlow/docs/)                    | Install, configure, deploy your first app |
+| [Vision & Principles](https://daoflow-dev.github.io/DaoFlow/docs/concepts/vision) | Why DaoFlow — open-source philosophy      |
+| [CLI Reference](https://daoflow-dev.github.io/DaoFlow/docs/cli)                   | Every command, flag, and exit code        |
+| [Comparisons](https://daoflow-dev.github.io/DaoFlow/docs/comparisons)             | vs Vercel, Coolify, Dokploy, AWS, Kamal   |
+| [Agent Integration](https://daoflow-dev.github.io/DaoFlow/docs/agents)            | Using DaoFlow with AI coding agents       |
+| [Security & RBAC](https://daoflow-dev.github.io/DaoFlow/docs/security)            | Roles, scopes, tokens, audit              |
+
 ## Product Direction
 
 The product charter for contributors and coding agents lives in [AGENTS.md](./AGENTS.md).
+
+## License
+
+MIT
