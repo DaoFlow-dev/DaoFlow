@@ -23,6 +23,10 @@ import {
   updateEnvironment,
   deleteEnvironment
 } from "../db/services/projects";
+import { createService, updateService, deleteService } from "../db/services/services";
+import { triggerDeploy } from "../db/services/trigger-deploy";
+import { executeRollback } from "../db/services/execute-rollback";
+import { createAgentPrincipal, generateAgentToken, revokeAgentToken } from "../db/services/agents";
 import {
   t,
   adminProcedure,
@@ -440,5 +444,201 @@ export const commandRouter = t.router({
         throw new TRPCError({ code: "NOT_FOUND", message: "Environment not found." });
       }
       return { deleted: true };
+    }),
+
+  /* ── Service CRUD ──────────────────────────────────────────── */
+  createService: deployProcedure
+    .input(
+      z.object({
+        name: z.string().min(1).max(80),
+        environmentId: z.string().min(1),
+        projectId: z.string().min(1),
+        sourceType: z.enum(["compose", "dockerfile", "image"]),
+        imageReference: z.string().max(255).optional(),
+        dockerfilePath: z.string().max(500).optional(),
+        composeServiceName: z.string().max(100).optional(),
+        port: z.string().max(20).optional(),
+        healthcheckPath: z.string().max(255).optional(),
+        targetServerId: z.string().optional()
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const result = await createService({
+        ...input,
+        ...getActorContext(ctx)
+      });
+      if (result.status === "not_found") {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Environment not found." });
+      }
+      if (result.status === "conflict") {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: `A service with this name already exists in the environment.`
+        });
+      }
+      return result.service;
+    }),
+
+  updateService: deployProcedure
+    .input(
+      z.object({
+        serviceId: z.string().min(1),
+        name: z.string().min(1).max(80).optional(),
+        sourceType: z.enum(["compose", "dockerfile", "image"]).optional(),
+        imageReference: z.string().max(255).optional(),
+        dockerfilePath: z.string().max(500).optional(),
+        composeServiceName: z.string().max(100).optional(),
+        port: z.string().max(20).optional(),
+        healthcheckPath: z.string().max(255).optional(),
+        replicaCount: z.string().max(5).optional(),
+        targetServerId: z.string().optional()
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const result = await updateService({
+        ...input,
+        ...getActorContext(ctx)
+      });
+      if (result.status === "not_found") {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Service not found." });
+      }
+      return result.service;
+    }),
+
+  deleteService: adminProcedure
+    .input(z.object({ serviceId: z.string().min(1) }))
+    .mutation(async ({ ctx, input }) => {
+      const result = await deleteService({
+        ...input,
+        ...getActorContext(ctx)
+      });
+      if (result.status === "not_found") {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Service not found." });
+      }
+      return { deleted: true };
+    }),
+
+  /* ── Deploy from Service ───────────────────────────────────── */
+  triggerDeploy: deployProcedure
+    .input(
+      z.object({
+        serviceId: z.string().min(1),
+        commitSha: z.string().optional(),
+        imageTag: z.string().optional()
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const result = await triggerDeploy({
+        ...input,
+        ...getActorContext(ctx)
+      });
+      if (result.status === "not_found") {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: `${result.entity ?? "Resource"} not found.`
+        });
+      }
+      if (result.status === "no_server") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "No target server configured for this service or environment."
+        });
+      }
+      if (result.status === "create_failed") {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Failed to create deployment record."
+        });
+      }
+      return result.deployment;
+    }),
+
+  /* ── Rollback ──────────────────────────────────────────────── */
+  executeRollback: deployProcedure
+    .input(
+      z.object({
+        serviceId: z.string().min(1),
+        targetDeploymentId: z.string().min(1)
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const result = await executeRollback({
+        ...input,
+        ...getActorContext(ctx)
+      });
+      if (result.status === "not_found") {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: `${result.entity ?? "Resource"} not found.`
+        });
+      }
+      if (result.status === "invalid_target") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Target deployment is not a successful deployment."
+        });
+      }
+      if (result.status === "outside_retention") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Target deployment is outside the retention window (${result.retention} versions).`
+        });
+      }
+      if (result.status === "create_failed") {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Failed to create rollback deployment."
+        });
+      }
+      return result.deployment;
+    }),
+
+  /* ── Agent Management ────────────────────────────────────── */
+  createAgent: adminProcedure
+    .input(
+      z.object({
+        name: z.string().min(1).max(80),
+        description: z.string().max(255).optional(),
+        scopes: z.array(z.string()).min(1)
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const result = await createAgentPrincipal({
+        ...input,
+        ...getActorContext(ctx)
+      });
+      return result.principal;
+    }),
+
+  generateAgentToken: adminProcedure
+    .input(
+      z.object({
+        principalId: z.string().min(1),
+        tokenName: z.string().min(1).max(80),
+        expiresInDays: z.number().int().min(1).max(365).optional()
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const result = await generateAgentToken({
+        ...input,
+        ...getActorContext(ctx)
+      });
+      if (result.status === "not_found") {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Agent not found." });
+      }
+      return { token: result.token, tokenValue: result.tokenValue };
+    }),
+
+  revokeAgentToken: adminProcedure
+    .input(z.object({ tokenId: z.string().min(1) }))
+    .mutation(async ({ ctx, input }) => {
+      const result = await revokeAgentToken({
+        ...input,
+        ...getActorContext(ctx)
+      });
+      if (result.status === "not_found") {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Token not found." });
+      }
+      return { revoked: true };
     })
 });

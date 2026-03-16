@@ -19,6 +19,9 @@ import { listEnvironmentVariableInventory } from "../db/services/envvars";
 import { listExecutionQueue } from "../db/services/execution";
 import { listInfrastructureInventory, listServerReadiness } from "../db/services/servers";
 import { listProjects, getProject, listEnvironments } from "../db/services/projects";
+import { listServices, listServicesByProject, getService } from "../db/services/services";
+import { listRollbackTargets } from "../db/services/execute-rollback";
+import { listAgentPrincipals } from "../db/services/agents";
 import { t, protectedProcedure } from "../trpc";
 import { limitInput, statusLimitInput } from "../schemas";
 
@@ -196,5 +199,37 @@ export const readRouter = t.router({
     .input(z.object({ projectId: z.string().min(1) }))
     .query(async ({ input }) => {
       return listEnvironments(input.projectId);
-    })
+    }),
+  services: protectedProcedure
+    .input(
+      z.object({
+        environmentId: z.string().min(1).optional(),
+        limit: z.number().int().min(1).max(100).optional()
+      })
+    )
+    .query(async ({ input }) => {
+      return listServices(input.environmentId, input.limit ?? 50);
+    }),
+  serviceDetails: protectedProcedure
+    .input(z.object({ serviceId: z.string().min(1) }))
+    .query(async ({ input }) => {
+      const service = await getService(input.serviceId);
+      if (!service) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Service not found." });
+      }
+      return service;
+    }),
+  projectServices: protectedProcedure
+    .input(z.object({ projectId: z.string().min(1) }))
+    .query(async ({ input }) => {
+      return listServicesByProject(input.projectId);
+    }),
+  rollbackTargets: protectedProcedure
+    .input(z.object({ serviceId: z.string().min(1) }))
+    .query(async ({ input }) => {
+      return listRollbackTargets(input.serviceId);
+    }),
+  agents: protectedProcedure.query(async () => {
+    return listAgentPrincipals();
+  })
 });

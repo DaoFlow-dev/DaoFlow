@@ -29,7 +29,8 @@ import {
   Bell,
   HardDrive,
   ChevronsUpDown,
-  Hexagon
+  Hexagon,
+  Bot
 } from "lucide-react";
 
 const homeNav = [
@@ -37,7 +38,8 @@ const homeNav = [
   { to: "/projects", label: "Projects", icon: FolderKanban },
   { to: "/servers", label: "Servers", icon: Server },
   { to: "/deployments", label: "Deployments", icon: Rocket },
-  { to: "/backups", label: "Backups", icon: DatabaseBackup }
+  { to: "/backups", label: "Backups", icon: DatabaseBackup },
+  { to: "/agents", label: "Agents", icon: Bot }
 ] as const;
 
 const settingsNav = [
