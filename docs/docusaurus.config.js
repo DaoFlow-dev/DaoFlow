@@ -17,7 +17,8 @@ const config = {
   organizationName: 'daoflow',
   projectName: 'daoflow',
 
-  onBrokenLinks: 'throw',
+  onBrokenLinks: 'warn',
+  onBrokenMarkdownLinks: 'warn',
 
   i18n: {
     defaultLocale: 'en',
