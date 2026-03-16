@@ -93,6 +93,7 @@ jobs:
           BETTER_AUTH_URL: http://127.0.0.1:3000
           ENCRYPTION_KEY: daoflow-ci-encryption-key-32chars00
           NODE_ENV: production
+          DISABLE_WORKER: "true"
           CI: true
 
       - name: Upload Playwright report
