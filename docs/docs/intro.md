@@ -23,7 +23,9 @@ DaoFlow combines the strengths of tools like Coolify, Dokploy, and Portainer wit
 
 ```bash
 # Install the CLI
-bun add -g @daoflow/cli
+curl -fsSL -o /usr/local/bin/daoflow \
+  https://github.com/DaoFlow-dev/DaoFlow/releases/latest/download/daoflow-$(uname -s | tr A-Z a-z)-$(uname -m | sed 's/x86_64/x64/;s/aarch64/arm64/')
+chmod +x /usr/local/bin/daoflow
 
 # Login to your DaoFlow instance
 daoflow login --url https://your-instance.com --token YOUR_TOKEN
@@ -35,7 +37,7 @@ daoflow status --json
 daoflow deploy --service my-app --server vps1 --compose ./compose.yaml --yes
 
 # View your permissions
-daoflow capabilities
+daoflow capabilities --json
 ```
 
 ## Documentation Sections

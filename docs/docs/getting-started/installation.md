@@ -115,8 +115,8 @@ For contributing to DaoFlow itself:
 ### 1. Clone and Install
 
 ```bash
-git clone https://github.com/daoflow/daoflow.git
-cd daoflow
+git clone https://github.com/DaoFlow-dev/DaoFlow.git
+cd DaoFlow
 bun install
 ```
 

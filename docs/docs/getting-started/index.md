@@ -8,20 +8,20 @@ Get up and running with DaoFlow in under 5 minutes. DaoFlow is an agent-first ho
 
 ## Prerequisites
 
-| Requirement    | Minimum Version     |
-| -------------- | ------------------- |
-| Docker Engine  | 20.10+              |
-| Docker Compose | v2.0+               |
-| Node.js or Bun | Node 18+ / Bun 1.0+ |
-| PostgreSQL     | 17                  |
-| Redis          | 7.0+                |
+| Requirement    | Minimum Version |
+| -------------- | --------------- |
+| Docker Engine  | 20.10+          |
+| Docker Compose | v2.0+           |
+| Bun            | 1.0+            |
+| PostgreSQL     | 17              |
+| Redis          | 7.0+            |
 
 ## Quick Start
 
 ```bash
 # Clone the repository
-git clone https://github.com/daoflow/daoflow.git
-cd daoflow
+git clone https://github.com/DaoFlow-dev/DaoFlow.git
+cd DaoFlow
 
 # Start infrastructure (Postgres + Redis)
 docker compose up -d
@@ -64,7 +64,9 @@ If you're an AI coding agent, start with the [CLI reference](/docs/cli) or the [
 
 ```bash
 # Install the CLI
-bun add -g @daoflow/cli
+curl -fsSL -o /usr/local/bin/daoflow \
+  https://github.com/DaoFlow-dev/DaoFlow/releases/latest/download/daoflow-$(uname -s | tr A-Z a-z)-$(uname -m | sed 's/x86_64/x64/;s/aarch64/arm64/')
+chmod +x /usr/local/bin/daoflow
 
 # Authenticate
 daoflow login --url http://localhost:3000 --token YOUR_TOKEN

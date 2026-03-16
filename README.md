@@ -2,140 +2,118 @@
 
 > The agentic platform to host deterministic systems — from one prompt to production.
 
-Open-source Agentic DevOps System — from prompts to production. DaoFlow hosts deterministic Docker and Compose systems on VPS and bare-metal infrastructure with:
+Open-source Agentic DevOps System built for AI agents and humans. Deploy, inspect, diagnose, and rollback Docker Compose applications on your own VPS and bare-metal servers — safely and reliably.
 
-- Docker and Docker Compose deployments
-- typed control-plane APIs
-- agent-safe automation boundaries
-- persistent volume and backup awareness
-- persistent volume registry with backup coverage and restore-readiness signals
-- server onboarding with first-contact readiness checks for SSH, Docker Engine, and Compose
-- typed Compose release targets with topology-aware rollout steps
-- Compose drift inspection that compares desired specs with the last observed runtime state
-- approval queue for high-risk Compose releases and restore drills before execution
-- backup restore queue with operator-triggered recovery drills from successful artifacts
-- deployment, event, and log visibility
-- queued deployment records with immutable step history
-- worker-ready execution handoff jobs and an immutable operations timeline
-- operator-driven execution lifecycle controls for dispatching, succeeding, and failing jobs
-- backup policies, recent backup runs, and manual backup queue triggers
-- typed infrastructure inventory for servers, projects, and Compose environments
-- agent-ready deployment diagnostics with evidence-backed summaries and safe next actions
-- immutable control-plane audit entries for deployment, execution, and backup actions
-- append-only deployment log lines with read-only API access and worker lifecycle updates
-- encrypted environment variable inventory with redacted secret reads and scoped branch patterns
-- rollback planning surfaces with healthy baseline targeting, preflight checks, and recovery steps
+- **Agent-first CLI** — structured JSON output, scoped permissions, dry-run previews
+- **Three-lane API** — read, planning, and command lanes so agents observe without mutating
+- **Docker Compose native** — first-class Compose deployments with immutable deployment records
+- **Safe by default** — agents start read-only; destructive actions need explicit scopes and `--yes`
+- **Full audit trail** — every mutation produces an immutable audit record
+- **Persistent data** — named volumes, backup policies, S3-compatible storage, restore workflows
+
+## Quick Start
+
+### Production Install
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/DaoFlow-dev/DaoFlow/main/scripts/install.sh | sh
+```
+
+This downloads the `daoflow` CLI, checks Docker, and runs the interactive installer — creates `/opt/daoflow/` with `.env`, `docker-compose.yml`, and starts all services.
+
+Non-interactive (CI / agent-friendly):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/DaoFlow-dev/DaoFlow/main/scripts/install.sh | sh -s -- \
+  --domain deploy.example.com \
+  --email admin@example.com \
+  --password 'YourSecurePassword123' \
+  --yes
+```
+
+### CLI-Only Install
+
+```bash
+# macOS (Apple Silicon)
+curl -fsSL -o /usr/local/bin/daoflow \
+  https://github.com/DaoFlow-dev/DaoFlow/releases/latest/download/daoflow-darwin-arm64
+chmod +x /usr/local/bin/daoflow
+
+# Linux (x64)
+curl -fsSL -o /usr/local/bin/daoflow \
+  https://github.com/DaoFlow-dev/DaoFlow/releases/latest/download/daoflow-linux-x64
+chmod +x /usr/local/bin/daoflow
+```
+
+Verify:
+
+```bash
+daoflow --version
+daoflow whoami --json
+```
 
 ## Current Stack
 
-This repository now starts with a small but real full-stack foundation:
-
-- React + Vite for the web UI
-- Hono + tRPC for the Node.js control plane
-- Vitest for unit tests
-- Playwright for end-to-end tests
-- Docker multi-stage build for production packaging
-- GitHub Actions for CI
+| Component   | Technology               |
+| ----------- | ------------------------ |
+| Runtime     | Bun                      |
+| API Layer   | Hono + tRPC              |
+| Auth        | Better Auth              |
+| ORM         | Drizzle ORM              |
+| Database    | PostgreSQL 17            |
+| Cache/Queue | Redis 7                  |
+| Web UI      | React + Vite + shadcn/ui |
+| Testing     | Vitest + Playwright      |
+| Packaging   | Docker multi-stage build |
+| CI          | GitHub Actions           |
 
 ## Development
 
-Requirements:
-
-- Bun 1.2+
-
-Install dependencies:
+Requirements: **Bun 1.2+**, **Docker** with Compose v2.
 
 ```bash
+git clone https://github.com/DaoFlow-dev/DaoFlow.git
+cd DaoFlow
 bun install
-```
-
-Optional local environment file:
-
-```bash
+docker compose up -d          # Postgres 17 + Redis 7
 cp .env.example .env
+bun run db:migrate
+bun run dev
 ```
 
-Run the app in development:
+- API server: `http://localhost:3000`
+- Vite web UI: `http://localhost:5173`
 
-```bash
-bun dev
-```
+Auth notes:
 
-This starts:
-
-- the API server on `http://localhost:3000`
-- the Vite web UI on `http://localhost:5173`
-
-Auth configuration:
-
-- `BETTER_AUTH_SECRET` is optional in local development and required for production deployments.
-- `BETTER_AUTH_URL` should match the externally reachable control-plane origin in production.
-- `CORS_ORIGIN` should be set in production to the client origin (e.g. `https://app.daoflow.dev`).
-- The first account created in a fresh database is bootstrapped as `owner`; later self-serve sign-ups default to `viewer`.
+- `BETTER_AUTH_SECRET` is optional locally, required in production
+- `BETTER_AUTH_URL` must match the externally reachable origin in production
+- First account created becomes `owner`; subsequent sign-ups default to `viewer`
 
 ## Quality Gates
 
-Run linting:
-
 ```bash
-bun lint
-```
-
-Run type-checking:
-
-```bash
-bun typecheck
-```
-
-Run unit tests:
-
-```bash
-bun test:unit
-```
-
-Run end-to-end tests:
-
-```bash
-bun test:e2e
-```
-
-Run the full local verification flow:
-
-```bash
-bun verify
+bun lint                      # ESLint
+bun typecheck                 # TypeScript
+bun test:unit                 # Vitest
+bun test:e2e                  # Playwright
+bun verify                    # All of the above
 ```
 
 ## Production Build
 
-Build the client and server:
-
 ```bash
-bun run build
+bun run build                 # Build client + server
+bun start                     # Start production server
 ```
 
-Start the production server:
-
-```bash
-bun start
-```
-
-## Docker
-
-Build the image:
+Docker:
 
 ```bash
 docker build -t daoflow:local .
-```
-
-Run it:
-
-```bash
-docker run --rm \
-  -p 3000:3000 \
-  -v "$(pwd)/data:/app/data" \
+docker run --rm -p 3000:3000 \
   -e BETTER_AUTH_SECRET=replace-with-a-long-random-secret \
   -e BETTER_AUTH_URL=http://localhost:3000 \
-  -e CORS_ORIGIN=http://localhost:5173 \
   daoflow:local
 ```
 

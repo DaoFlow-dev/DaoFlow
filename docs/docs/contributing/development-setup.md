@@ -17,8 +17,8 @@ Set up your local environment for DaoFlow development.
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/daoflow/daoflow.git
-cd daoflow
+git clone https://github.com/DaoFlow-dev/DaoFlow.git
+cd DaoFlow
 
 # 2. Install dependencies
 bun install
