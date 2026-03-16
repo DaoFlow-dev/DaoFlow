@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-base-to-string */
 import { trpc } from "../lib/trpc";
 import { useSession } from "../lib/auth-client";
 
@@ -35,9 +36,9 @@ export default function ProjectsPage() {
         ) : (
           <div className="deployment-list">
             {projects.map((p) => (
-              <article className="deployment-card" key={p.id}>
+              <article className="deployment-card" key={String(p.id)}>
                 <div className="deployment-card__top">
-                  <h3>{p.name}</h3>
+                  <h3>{String(p.name)}</h3>
                   <span
                     className={`deployment-status deployment-status--${p.latestDeploymentStatus === "completed" ? "healthy" : "queued"}`}
                   >

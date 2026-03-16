@@ -29,7 +29,8 @@ export function projectsCommand(): Command {
         console.log("\n📁 Projects\n");
         for (const p of projects) {
           const proj = p as Record<string, unknown>;
-          console.log(`  • ${proj.name ?? "Unnamed"}  (${proj.id ?? ""})`);
+          // eslint-disable-next-line @typescript-eslint/no-base-to-string, @typescript-eslint/restrict-template-expressions
+          console.log(`  • ${String(proj.name ?? "Unnamed")}  (${String(proj.id ?? "")})`);
         }
         console.log("");
       } catch (err) {

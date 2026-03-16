@@ -25,7 +25,7 @@ function shouldStartWorker(): boolean {
   return true;
 }
 
-function useTemporalWorker(): boolean {
+function isTemporalEnabled(): boolean {
   return !!process.env.TEMPORAL_ADDRESS;
 }
 
@@ -54,7 +54,7 @@ function start() {
 
   // Start the execution worker when Docker is available
   if (shouldStartWorker()) {
-    if (useTemporalWorker()) {
+    if (isTemporalEnabled()) {
       console.log("[worker] Temporal mode enabled, starting Temporal worker...");
       void startTemporalWorker().catch((err) => {
         console.error("[worker] Temporal worker failed:", err);
@@ -69,7 +69,7 @@ function start() {
 
   const shutdown = (signal: string) => {
     console.log(`Received ${signal}; shutting down DaoFlow control plane.`);
-    if (useTemporalWorker()) {
+    if (isTemporalEnabled()) {
       stopTemporalWorker();
       void closeTemporalClient();
     } else {

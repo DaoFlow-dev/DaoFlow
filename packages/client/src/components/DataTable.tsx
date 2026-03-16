@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-base-to-string */
 import type { ReactNode } from "react";
 
 interface Column<T> {
@@ -53,7 +54,10 @@ export function DataTable<T>({
                 <td key={col.key}>
                   {col.render
                     ? col.render(item)
-                    : String((item as Record<string, unknown>)[col.key] ?? "")}
+                    : (() => {
+                        const val = (item as Record<string, unknown>)[col.key];
+                        return val == null ? "" : String(val);
+                      })()}
                 </td>
               ))}
             </tr>
