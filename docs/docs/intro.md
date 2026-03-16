@@ -38,15 +38,15 @@ But unlike giving an AI agent raw SSH access, DaoFlow ensures:
 
 Inspired by the open-source philosophy of projects like OpenClaw — where Peter Steinberger proved that "ship beats perfect" and that agents need **constrained primitives, not unlimited access** — DaoFlow is built on these beliefs:
 
-| Principle | What It Means |
-|-----------|---------------|
-| **Agent-first, human-supervised** | Every feature works for both AI agents and humans |
-| **Safety before autonomy** | Agents default to read-only until explicitly granted write scopes |
-| **Ship beats perfect** | A working deployment pipeline today beats a perfect one never |
-| **Your servers, your rules** | Self-hosted, inspectable, no vendor lock-in — just Docker Compose |
-| **Structured over pretty** | JSON to stdout, prose to stderr — agents parse, humans read |
-| **Auditability over convenience** | Every mutation produces an immutable record |
-| **Transparency over magic** | The Compose file is right there. No hidden abstractions |
+| Principle                         | What It Means                                                     |
+| --------------------------------- | ----------------------------------------------------------------- |
+| **Agent-first, human-supervised** | Every feature works for both AI agents and humans                 |
+| **Safety before autonomy**        | Agents default to read-only until explicitly granted write scopes |
+| **Ship beats perfect**            | A working deployment pipeline today beats a perfect one never     |
+| **Your servers, your rules**      | Self-hosted, inspectable, no vendor lock-in — just Docker Compose |
+| **Structured over pretty**        | JSON to stdout, prose to stderr — agents parse, humans read       |
+| **Auditability over convenience** | Every mutation produces an immutable record                       |
+| **Transparency over magic**       | The Compose file is right there. No hidden abstractions           |
 
 ## Quick Start
 
@@ -81,27 +81,27 @@ daoflow capabilities --json
 
 **Three API lanes** keep agents safe:
 
-| Lane | Purpose | Example | Mutating? |
-|------|---------|---------|:---------:|
-| **Read** | Observe current state | `daoflow status --json` | No |
-| **Planning** | Preview what would happen | `daoflow deploy --dry-run` | No |
-| **Command** | Execute changes | `daoflow deploy --yes` | Yes |
+| Lane         | Purpose                   | Example                    | Mutating? |
+| ------------ | ------------------------- | -------------------------- | :-------: |
+| **Read**     | Observe current state     | `daoflow status --json`    |    No     |
+| **Planning** | Preview what would happen | `daoflow deploy --dry-run` |    No     |
+| **Command**  | Execute changes           | `daoflow deploy --yes`     |    Yes    |
 
 ## Documentation
 
-| Section | Description |
-|---------|-------------|
-| [Getting Started](/docs/getting-started) | Install, configure, and deploy your first app |
-| [Core Concepts](/docs/concepts/architecture) | Architecture, projects, servers, deployments |
-| [CLI Reference](/docs/cli) | Complete CLI command documentation |
-| [API Reference](/docs/api) | tRPC API endpoints and authentication |
-| [Security & RBAC](/docs/security) | Roles, scopes, tokens, and audit |
-| [Deployments](/docs/deployments) | Compose, Dockerfile, and image deployments |
-| [Backup & Restore](/docs/backups) | Policies, runs, and S3 storage |
-| [Agent Integration](/docs/agents) | Using DaoFlow with AI coding agents |
-| [Self-Hosting](/docs/self-hosting) | Deploy DaoFlow on your own infrastructure |
-| [Comparisons](/docs/comparisons) | How DaoFlow compares to alternatives |
-| [Contributing](/docs/contributing) | Development setup, testing, and code style |
+| Section                                      | Description                                   |
+| -------------------------------------------- | --------------------------------------------- |
+| [Getting Started](/docs/getting-started)     | Install, configure, and deploy your first app |
+| [Core Concepts](/docs/concepts/architecture) | Architecture, projects, servers, deployments  |
+| [CLI Reference](/docs/cli)                   | Complete CLI command documentation            |
+| [API Reference](/docs/api)                   | tRPC API endpoints and authentication         |
+| [Security & RBAC](/docs/security)            | Roles, scopes, tokens, and audit              |
+| [Deployments](/docs/deployments)             | Compose, Dockerfile, and image deployments    |
+| [Backup & Restore](/docs/backups)            | Policies, runs, and S3 storage                |
+| [Agent Integration](/docs/agents)            | Using DaoFlow with AI coding agents           |
+| [Self-Hosting](/docs/self-hosting)           | Deploy DaoFlow on your own infrastructure     |
+| [Comparisons](/docs/comparisons)             | How DaoFlow compares to alternatives          |
+| [Contributing](/docs/contributing)           | Development setup, testing, and code style    |
 
 ## The Vision
 

@@ -31,7 +31,7 @@ daoflow login --url https://deploy.example.com --token dfl_agent_token
 
 # The agent can now safely:
 daoflow status --json          # Read infrastructure state
-daoflow deploy --dry-run       # Preview without executing  
+daoflow deploy --dry-run       # Preview without executing
 daoflow deploy --yes --json    # Deploy with confirmation
 daoflow rollback --dry-run     # Preview rollback
 daoflow capabilities --json    # Check what it's allowed to do
@@ -39,13 +39,13 @@ daoflow capabilities --json    # Check what it's allowed to do
 
 ## Agent Workflows
 
-| Workflow | Commands | Risk Level |
-|----------|----------|:----------:|
-| **Observe** | `status`, `logs`, `doctor` | None |
-| **Plan** | `plan`, `deploy --dry-run`, `rollback --dry-run` | None |
-| **Deploy** | `deploy --yes` | Scoped |
-| **Rollback** | `rollback --yes` | Scoped |
-| **Configure** | `env push --yes` | Scoped |
+| Workflow      | Commands                                         | Risk Level |
+| ------------- | ------------------------------------------------ | :--------: |
+| **Observe**   | `status`, `logs`, `doctor`                       |    None    |
+| **Plan**      | `plan`, `deploy --dry-run`, `rollback --dry-run` |    None    |
+| **Deploy**    | `deploy --yes`                                   |   Scoped   |
+| **Rollback**  | `rollback --yes`                                 |   Scoped   |
+| **Configure** | `env push --yes`                                 |   Scoped   |
 
 Every command that mutates infrastructure requires both the `--yes` flag **and** the correct scope in the token. Without both, the command fails with a structured error telling the agent exactly what scope it needs.
 
