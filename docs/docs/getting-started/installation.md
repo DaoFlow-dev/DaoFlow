@@ -4,145 +4,162 @@ sidebar_position: 2
 
 # Installation
 
-This guide covers installing DaoFlow on your local machine for development, or on a server for production use.
+DaoFlow installs in one command. It's just a normal Docker Compose project on your server — no vendor lock-in, no hacks.
 
-## Development Setup
+## Production Install (Recommended)
 
-### 1. Clone the Repository
-
-```bash
-git clone https://github.com/daoflow/daoflow.git
-cd daoflow
-```
-
-### 2. Install Dependencies
-
-DaoFlow uses [Bun](https://bun.sh) as its package manager and runtime:
+### One-Line Install
 
 ```bash
-# Install Bun (if not already installed)
-curl -fsSL https://bun.sh/install | bash
-
-# Install all workspace dependencies
-bun install
+curl -fsSL https://get.daoflow.dev | sh
 ```
 
-### 3. Start Infrastructure
+This downloads the `daoflow` CLI binary and runs the interactive installer, which:
 
-DaoFlow requires PostgreSQL 17 and Redis 7. The included `docker-compose.yml` starts both:
+1. Checks Docker is installed (installs it on Linux if needed)
+2. Asks for your domain, admin email, and password
+3. Creates `/opt/daoflow/` with `.env` and `docker-compose.yml`
+4. Auto-generates all secrets (auth, encryption, database)
+5. Pulls images, starts services, and verifies health
+
+### Non-Interactive Install (CI / Agent-Friendly)
 
 ```bash
-docker compose up -d
+curl -fsSL https://get.daoflow.dev | sh -s -- \
+  --dir /opt/daoflow \
+  --domain deploy.example.com \
+  --email admin@example.com \
+  --password 'YourSecurePassword123' \
+  --yes
 ```
 
-This starts:
-- **PostgreSQL** on port `5432` (user: `daoflow`, password: `daoflow_dev`, db: `daoflow`)
-- **Redis** on port `6379`
+### What Gets Created
 
-### 4. Configure Environment
+```
+/opt/daoflow/              # All files in one directory
+├── .env                   # All config + auto-generated secrets (0600 perms)
+├── docker-compose.yml     # Standard Docker Compose — fully inspectable
+└── backups/               # Local backup storage
+```
 
-Copy the example environment file:
+The `.env` file contains everything — no hidden config:
 
 ```bash
-cp .env.example .env
+DAOFLOW_VERSION=0.1.0
+DATABASE_URL=postgresql://daoflow:GENERATED@db:5432/daoflow
+REDIS_URL=redis://redis:6379
+BETTER_AUTH_SECRET=GENERATED_64_CHAR_HEX
+BETTER_AUTH_URL=https://deploy.example.com
+ENCRYPTION_KEY=GENERATED_32_CHAR_HEX
+POSTGRES_PASSWORD=GENERATED_32_CHAR_HEX
 ```
 
-Key environment variables:
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `DATABASE_URL` | `postgresql://daoflow:daoflow_dev@localhost:5432/daoflow` | PostgreSQL connection string |
-| `REDIS_URL` | `redis://localhost:6379` | Redis connection string |
-| `BETTER_AUTH_SECRET` | — | Secret for session signing (min 32 chars) |
-| `BETTER_AUTH_URL` | `http://localhost:3000` | Public URL of the auth server |
-| `ENCRYPTION_KEY` | — | Key for encrypting secrets (exactly 32 chars) |
-
-### 5. Run Migrations
+### Upgrading
 
 ```bash
-bun run db:migrate
+# Upgrade to latest
+daoflow upgrade --yes
+
+# Pin to a specific version
+daoflow upgrade --version 0.2.0 --yes
+
+# JSON output for agents
+daoflow upgrade --yes --json
 ```
 
-### 6. Start Development Server
+### Uninstalling
 
 ```bash
-bun run dev
+# Stop services (preserves data)
+daoflow uninstall --yes
+
+# Stop + remove all data (requires typing DELETE)
+daoflow uninstall --remove-data --yes
 ```
 
-This starts the API server and web dashboard on `http://localhost:3000`.
+## Installing the CLI Only
 
-## Production Setup
-
-For production deployments, see the [Self-Hosting guide](/docs/self-hosting).
-
-### Production Docker Compose
-
-```yaml
-services:
-  daoflow:
-    image: ghcr.io/daoflow/daoflow:latest
-    ports:
-      - "3000:3000"
-    environment:
-      DATABASE_URL: postgresql://daoflow:SECURE_PASSWORD@db:5432/daoflow
-      REDIS_URL: redis://redis:6379
-      BETTER_AUTH_SECRET: your-production-secret-min-32-chars
-      BETTER_AUTH_URL: https://your-domain.com
-      ENCRYPTION_KEY: your-32-char-encryption-key-here
-      NODE_ENV: production
-    depends_on:
-      - db
-      - redis
-
-  db:
-    image: postgres:17-alpine
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-    environment:
-      POSTGRES_USER: daoflow
-      POSTGRES_PASSWORD: SECURE_PASSWORD
-      POSTGRES_DB: daoflow
-
-  redis:
-    image: redis:7-alpine
-    volumes:
-      - redisdata:/data
-
-volumes:
-  pgdata:
-  redisdata:
-```
-
-## Installing the CLI
-
-The CLI can be installed globally:
+If you only need the CLI (not the server), download the binary for your platform:
 
 ```bash
-# Via Bun
-bun add -g @daoflow/cli
+# macOS (Apple Silicon)
+curl -fsSL -o /usr/local/bin/daoflow \
+  https://github.com/DaoFlow-dev/DaoFlow/releases/latest/download/daoflow-darwin-arm64
+chmod +x /usr/local/bin/daoflow
 
-# Or build from source
+# Linux (x64)
+curl -fsSL -o /usr/local/bin/daoflow \
+  https://github.com/DaoFlow-dev/DaoFlow/releases/latest/download/daoflow-linux-x64
+chmod +x /usr/local/bin/daoflow
+```
+
+Or build from source:
+
+```bash
 cd packages/cli
-bun run build
-bun link
+bun run build          # Current platform
+bun run build:all      # All 4 platforms (linux-x64, linux-arm64, darwin-arm64, darwin-x64)
 ```
 
-Verify the installation:
+Verify:
 
 ```bash
 daoflow --version
 daoflow --help
 ```
 
-## Verifying Your Setup
+## Development Setup
 
-Run the built-in health check:
+For contributing to DaoFlow itself:
+
+### 1. Clone and Install
 
 ```bash
-# Via CLI
+git clone https://github.com/daoflow/daoflow.git
+cd daoflow
+bun install
+```
+
+### 2. Start Infrastructure
+
+```bash
+docker compose up -d
+```
+
+This starts PostgreSQL 17 (port 5432) and Redis 7 (port 6379).
+
+### 3. Configure
+
+```bash
+cp .env.example .env
+```
+
+Key variables:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DATABASE_URL` | `postgresql://daoflow:daoflow_dev@localhost:5432/daoflow` | Postgres connection |
+| `REDIS_URL` | `redis://localhost:6379` | Redis connection |
+| `BETTER_AUTH_SECRET` | — | Session signing secret (min 32 chars) |
+| `BETTER_AUTH_URL` | `http://localhost:3000` | Public auth URL |
+| `ENCRYPTION_KEY` | — | Encryption key (exactly 32 chars) |
+
+### 4. Migrate and Run
+
+```bash
+bun run db:migrate
+bun run dev
+```
+
+Dashboard runs on `http://localhost:3000`.
+
+## Verifying Your Setup
+
+```bash
+# CLI health check
 daoflow doctor --json
 
-# Via API
+# API health check
 curl http://localhost:3000/trpc/healthCheck
 ```
 
@@ -150,3 +167,4 @@ curl http://localhost:3000/trpc/healthCheck
 
 - [Deploy your first application →](./first-deployment)
 - [Configure your instance →](./configuration)
+- [Set up SSL & domains →](/docs/self-hosting/ssl-and-domains)

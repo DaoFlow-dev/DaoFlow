@@ -6,11 +6,24 @@ sidebar_position: 1
 
 DaoFlow is designed to run on your own infrastructure. This section covers production deployment requirements, Docker Compose setup, environment configuration, SSL, and upgrades.
 
-## Quick Start
+## Quick Start (CLI Installer)
+
+The recommended way to deploy DaoFlow in production:
 
 ```bash
-curl -sSL https://get.daoflow.dev | sh
+# Interactive — prompts for domain, admin email, password
+curl -fsSL https://get.daoflow.dev | sh
+
+# Non-interactive — fully automated
+curl -fsSL https://get.daoflow.dev | sh -s -- \
+  --dir /opt/daoflow \
+  --domain deploy.example.com \
+  --email admin@example.com \
+  --password 'SecureP@ss123' \
+  --yes
 ```
+
+See [Installation](/docs/getting-started/installation) for full details.
 
 Or deploy manually with Docker Compose (see [Docker Compose Setup](./docker-compose)).
 
