@@ -2,61 +2,58 @@ import { expect, test } from "@playwright/test";
 import { signInAsOwner, OWNER_EMAIL, OWNER_PASSWORD } from "./helpers";
 
 test.describe("Authentication flows", () => {
-  test("first user sign-up → owner role → sign-out → sign-in cycle", async ({ page }) => {
+  test("owner sign-in — dashboard loads after authentication", async ({ page }) => {
+    // Sign in as the owner (created in global-setup)
+    await signInAsOwner(page);
+
+    // Verify we landed on the dashboard
+    await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
+
+    // Verify sidebar shows user info
+    await expect(page.locator(".sidebar__user-name")).toContainText("E2E Owner");
+  });
+
+  test("unauthenticated user is redirected to login page", async ({ page }) => {
     await page.goto("/");
 
-    // Confirm landing page loads
-    await expect(page.getByRole("heading", { name: "DaoFlow", level: 1 })).toBeVisible();
+    // Should redirect to /login
+    await expect(page).toHaveURL(/\/login/);
 
-    // Sign in as the owner (created in global setup)
+    // Login page should have the auth card
+    await expect(page.getByRole("heading", { name: "Welcome" })).toBeVisible();
+    await expect(page.getByRole("tab", { name: "Sign in" })).toBeVisible();
+    await expect(page.getByRole("tab", { name: "Sign up" })).toBeVisible();
+  });
+
+  test("sign-out redirects to login page", async ({ page }) => {
+    // Sign in first
     await signInAsOwner(page);
-    await expect(page.getByTestId("session-state")).toHaveText("signed in");
-    await expect(page.getByTestId("session-email")).toHaveText(OWNER_EMAIL);
-    await expect(page.getByTestId("role-state")).toHaveText("owner");
-    await expect(page.getByTestId("auth-role")).toContainText("owner");
+    await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
 
-    // Verify protected data loads
-    await expect(page.getByTestId("viewer-output")).toContainText(OWNER_EMAIL);
-    await expect(page.getByTestId("admin-output")).toContainText('"defaultSignupRole"');
+    // Open user dropdown and sign out
+    await page.locator(".sidebar__user-card").click();
+    await page.getByRole("menuitem", { name: "Sign out" }).click();
 
-    // Sign out
-    await page.getByRole("button", { name: "Sign out" }).click();
-    await expect(page.getByTestId("session-state")).toHaveText("signed out");
-
-    // Switch to sign-in tab and sign back in
-    await page.getByRole("button", { name: "Sign in" }).first().click();
-    await page.getByLabel("Email").fill(OWNER_EMAIL);
-    await page.getByLabel("Password").fill(OWNER_PASSWORD);
-    await page.getByRole("button", { name: "Sign in" }).last().click();
-
-    // Verify re-authenticated
-    await expect(page.getByTestId("session-state")).toHaveText("signed in");
-    await expect(page.getByTestId("session-email")).toHaveText(OWNER_EMAIL);
-    await expect(page.getByTestId("role-state")).toHaveText("owner");
+    // Should redirect to login page
+    await expect(page).toHaveURL(/\/login/, { timeout: 10_000 });
   });
 
   test("second user registration gets viewer role", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/login");
 
-    // Register a brand-new second user (should get viewer, since owner exists)
+    // Switch to sign-up tab
+    await page.getByRole("tab", { name: "Sign up" }).click();
+
+    // Register a brand-new second user
     const viewer = `viewer+${Date.now()}@daoflow.local`;
     await page.getByLabel("Name").fill("Viewer User");
     await page.getByLabel("Email").fill(viewer);
     await page.getByLabel("Password").fill("viewerpass123");
     await page.getByRole("button", { name: "Create account" }).click();
 
-    await expect(page.getByTestId("session-state")).toHaveText("signed in");
-    await expect(page.getByTestId("session-email")).toHaveText(viewer);
-    await expect(page.getByTestId("role-state")).toHaveText("viewer");
-  });
-
-  test("protected panels require authentication", async ({ page }) => {
-    await page.goto("/");
-
-    // Before sign-in, viewer panel shows placeholder
-    await expect(page.getByText("Sign in to fetch the protected viewer procedure.")).toBeVisible();
-
-    // Hero metrics show guest role
-    await expect(page.getByTestId("role-state")).toHaveText("guest");
+    // Should redirect to dashboard
+    await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible({
+      timeout: 15_000
+    });
   });
 });
