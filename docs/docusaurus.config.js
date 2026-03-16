@@ -99,6 +99,11 @@ const config = {
             position: "left"
           },
           {
+            to: "/docs/comparisons",
+            label: "Comparisons",
+            position: "left"
+          },
+          {
             to: "/docs/agents",
             label: "Agents",
             position: "left"
