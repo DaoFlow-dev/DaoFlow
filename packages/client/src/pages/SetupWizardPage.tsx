@@ -33,7 +33,7 @@ export default function SetupWizardPage() {
             Welcome to DaoFlow
           </h1>
           <p style={{ color: "#7a8194", fontSize: "0.95rem", margin: "0 0 1.5rem" }}>
-            Let{"'"}s set up your deployment control plane in a few quick steps.
+            Let{"'"}s set up your hosting platform in a few quick steps.
           </p>
           {session.data ? (
             <button className="action-button" onClick={() => setStep("server")}>

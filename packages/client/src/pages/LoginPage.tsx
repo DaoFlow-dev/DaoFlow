@@ -61,7 +61,9 @@ export default function LoginPage() {
           <Hexagon size={40} strokeWidth={1.5} />
           <h1>DaoFlow</h1>
         </div>
-        <p className="login-page__tagline">Agentic DevOps from one prompt to production.</p>
+        <p className="login-page__tagline">
+          The agentic platform to host deterministic systems — from one prompt to production.
+        </p>
 
         <Card className="login-page__card">
           <CardHeader className="text-center">
@@ -156,7 +158,7 @@ export default function LoginPage() {
         </Card>
 
         <p className="login-page__footer">
-          Agentic DevOps that everybody can use for coding and deploying.
+          Deterministic hosting that humans and agents can trust.
         </p>
       </div>
     </div>

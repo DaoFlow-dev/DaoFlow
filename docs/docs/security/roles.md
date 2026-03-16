@@ -8,14 +8,14 @@ DaoFlow has 6 built-in roles, each with a predefined set of capabilities.
 
 ## Role Hierarchy
 
-| Role        | Description                                     | Default For    |
-| ----------- | ----------------------------------------------- | -------------- |
-| `owner`     | Full access to everything                       | First user     |
-| `admin`     | All operational permissions, no policy override | Promoted users |
-| `operator`  | Deploy, manage servers, run backups             | DevOps team    |
-| `developer` | Deploy, view logs, manage env vars              | Dev team       |
-| `viewer`    | Read-only access to all data                    | New users      |
-| `agent`     | Read-only by default, scoped write via tokens   | AI agents      |
+| Role        | Description                                     | Default For     |
+| ----------- | ----------------------------------------------- | --------------- |
+| `owner`     | Full access to everything                       | First user      |
+| `admin`     | All operational permissions, no policy override | Promoted users  |
+| `operator`  | Deploy, manage servers, run backups             | Operations team |
+| `developer` | Deploy, view logs, manage env vars              | Dev team        |
+| `viewer`    | Read-only access to all data                    | New users       |
+| `agent`     | Read-only by default, scoped write via tokens   | AI agents       |
 
 ## Capabilities by Role
 

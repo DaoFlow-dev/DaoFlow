@@ -63,7 +63,11 @@ test.describe("Dashboard", () => {
 
     // DaoFlow branding
     await expect(page.getByRole("heading", { name: "DaoFlow", level: 1 })).toBeVisible();
-    await expect(page.getByText("Agentic DevOps from one prompt to production")).toBeVisible();
+    await expect(
+      page.getByText(
+        "The agentic platform to host deterministic systems — from one prompt to production."
+      )
+    ).toBeVisible();
     await expect(page.getByRole("heading", { name: "Welcome" })).toBeVisible();
   });
 });

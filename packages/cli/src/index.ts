@@ -21,7 +21,7 @@ const program = new Command();
 
 program
   .name("daoflow")
-  .description("DaoFlow CLI — agentic DevOps from one prompt to production")
+  .description("DaoFlow CLI — the agentic platform to host deterministic systems")
   .version("0.1.0")
   .option("--json", "Output as structured JSON (stdout)")
   .option("-q, --quiet", "Output bare values only")

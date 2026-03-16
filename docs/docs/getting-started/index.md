@@ -4,7 +4,7 @@ sidebar_position: 1
 
 # Getting Started
 
-Get up and running with DaoFlow in under 5 minutes. DaoFlow is an agent-first deployment platform for Docker infrastructure — designed so AI coding agents and humans can deploy, inspect, and manage applications safely.
+Get up and running with DaoFlow in under 5 minutes. DaoFlow is an agent-first hosting platform for deterministic Docker systems — designed so AI coding agents and humans can deploy, inspect, and manage applications safely.
 
 ## Prerequisites
 

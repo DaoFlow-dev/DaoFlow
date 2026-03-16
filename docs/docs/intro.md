@@ -5,9 +5,9 @@ sidebar_position: 1
 
 # DaoFlow Documentation
 
-**Agentic DevOps — from one prompt to production.**
+**The agentic platform to host deterministic systems — from one prompt to production.**
 
-DaoFlow is the best AI-agent-first deployment and DevOps platform based on Docker and Docker Compose. It's designed so that AI coding agents can deploy, inspect, diagnose, and rollback applications safely and reliably — while keeping humans fully in control.
+DaoFlow is the best AI-agent-first hosting platform for deterministic systems based on Docker and Docker Compose. It's designed so that AI coding agents can deploy, inspect, diagnose, and rollback applications safely and reliably — while keeping humans fully in control.
 
 ## What is DaoFlow?
 

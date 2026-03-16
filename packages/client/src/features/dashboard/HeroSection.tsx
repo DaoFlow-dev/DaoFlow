@@ -15,12 +15,14 @@ export function HeroSection({ session, health, overview, currentRole, viewer }: 
     <section className="hero">
       <div className="hero__topbar">
         <div className="hero__brand">
-          <p className="hero__kicker">Agentic DevOps — from one prompt to production</p>
+          <p className="hero__kicker">
+            The agentic platform to host deterministic systems — from one prompt to production
+          </p>
           <h1>DaoFlow</h1>
         </div>
         <p className="hero__lede">
-          A typed control plane for Docker and Compose deployments with agent-safe automation
-          boundaries.
+          A typed hosting platform for deterministic Docker and Compose systems with agent-safe
+          automation boundaries.
         </p>
       </div>
 

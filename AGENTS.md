@@ -6,11 +6,11 @@ If the README and this file disagree, follow this file.
 
 ## 1. Product Thesis
 
-DaoFlow is the best AI-agent-first deployment and DevOps platform based on Docker and Docker Compose.
+DaoFlow is the best AI-agent-first hosting platform for deterministic systems based on Docker and Docker Compose.
 
-The vision is **agentic DevOps — from one prompt to production**.
+The vision is **the agentic platform to host deterministic systems — from one prompt to production**.
 
-The goal is not to be an AWS wrapper and not to be a Kubernetes clone. The goal is to build the deployment platform that AI agents can operate safely, reliably, and autonomously — while keeping humans fully in control through scoped permissions, audit trails, and approval gates.
+The goal is not to be an AWS wrapper and not to be a Kubernetes clone. The goal is to build the hosting platform that AI agents can operate safely, reliably, and autonomously — while keeping humans fully in control through scoped permissions, audit trails, and approval gates.
 
 DaoFlow is designed from day one so that an AI coding agent can:
 
@@ -22,10 +22,10 @@ DaoFlow is designed from day one so that an AI coding agent can:
 
 The product should feel like:
 
-- The first deployment tool that truly works with AI agents, not against them
+- The first hosting platform that truly works with AI agents, not against them
 - Easier than raw Docker and Docker Compose
 - More transparent than closed hosted PaaS products
-- More agent-safe than any existing self-hosted deployment tool
+- More agent-safe than any existing self-hosted hosting platform
 - The CLI your AI coding assistant reaches for when it needs to deploy
 
 ## 2. What We Are Building
@@ -34,7 +34,7 @@ DaoFlow should combine the strongest ideas from Coolify, Dokploy, AgentHub, and 
 
 - **An agent-first CLI** that AI coding agents can use directly from their tool-calling loop to deploy, inspect, diagnose, and rollback — with structured JSON output, scoped permissions, and dry-run previews
 - **An agent-first API** with three lanes (read, planning, command) so agents can observe and plan without accidentally mutating infrastructure
-- A Docker and Docker Compose deployment management UI for bare metal and VPS environments
+- A Docker and Docker Compose hosting management UI for bare metal and VPS environments
 - Strong support for persistent volumes, backups, restore flows, logs, and deployment history
 - Multi-user and multi-agent role-based access control with fine-grained capability scoping
 - Agentic observability: logs, events, diffs, and deployment context that are easy for agents to read without giving them unsafe write access

@@ -8,7 +8,7 @@ DaoFlow is designed from day one for AI coding agents. This section covers how t
 
 ## Why Agent-First?
 
-Most deployment tools treat AI as an afterthought. DaoFlow builds agent safety into the core:
+Most hosting platforms treat AI as an afterthought. DaoFlow builds agent safety into the core:
 
 - **Structured JSON output** on every CLI command
 - **Three-lane API** (read → planning → command) so agents can observe without accidentally mutating
