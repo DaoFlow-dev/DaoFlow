@@ -2,11 +2,11 @@ import { expect, test } from "@playwright/test";
 import { signInAsOwner } from "./helpers";
 
 test.describe("Backup and restore workflows", () => {
-  test("backups page loads", async ({ page }) => {
+  test("backups page loads after sign-in", async ({ page }) => {
     await signInAsOwner(page);
 
     // Navigate to backups page
-    await page.locator(".sidebar__link", { hasText: "Backups" }).click();
+    await page.getByRole("link", { name: "Backups" }).click();
     await expect(page.getByRole("heading", { name: "Backups" })).toBeVisible();
   });
 

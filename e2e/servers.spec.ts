@@ -6,7 +6,7 @@ test.describe("Server management", () => {
     await signInAsOwner(page);
 
     // Navigate to servers page
-    await page.locator(".sidebar__link", { hasText: "Servers" }).click();
+    await page.getByRole("link", { name: "Servers" }).click();
     await expect(page.getByRole("heading", { name: "Servers" })).toBeVisible();
   });
 

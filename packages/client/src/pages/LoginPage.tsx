@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { signIn, signUp, useSession } from "../lib/auth-client";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -61,13 +61,11 @@ export default function LoginPage() {
           <Hexagon size={40} strokeWidth={1.5} />
           <h1>DaoFlow</h1>
         </div>
-        <p className="login-page__tagline">
-          Deploy and manage Docker workloads on your own infrastructure.
-        </p>
+        <p className="login-page__tagline">Agentic DevOps from one prompt to production.</p>
 
         <Card className="login-page__card">
           <CardHeader className="text-center">
-            <CardTitle className="text-xl">Welcome</CardTitle>
+            <h2 className="text-xl font-semibold leading-none tracking-tight">Welcome</h2>
             <CardDescription>Sign in to your account or create a new one</CardDescription>
           </CardHeader>
           <CardContent>
@@ -158,7 +156,7 @@ export default function LoginPage() {
         </Card>
 
         <p className="login-page__footer">
-          Self-hosted deployment control plane for Docker infrastructure.
+          Agentic DevOps that everybody can use for coding and deploying.
         </p>
       </div>
     </div>

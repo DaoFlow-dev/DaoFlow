@@ -15,7 +15,7 @@ export function HeroSection({ session, health, overview, currentRole, viewer }: 
     <section className="hero">
       <div className="hero__topbar">
         <div className="hero__brand">
-          <p className="hero__kicker">Docker-first control plane</p>
+          <p className="hero__kicker">Agentic DevOps — from one prompt to production</p>
           <h1>DaoFlow</h1>
         </div>
         <p className="hero__lede">

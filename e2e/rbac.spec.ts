@@ -6,7 +6,7 @@ test.describe("RBAC and agent tokens", () => {
     await signInAsOwner(page);
 
     // Navigate to settings
-    await page.locator(".sidebar__link", { hasText: "General" }).click();
+    await page.getByRole("link", { name: "General" }).click();
     await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
 
     // Verify key tabs exist
