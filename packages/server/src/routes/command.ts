@@ -28,6 +28,11 @@ import { triggerDeploy } from "../db/services/trigger-deploy";
 import { executeRollback } from "../db/services/execute-rollback";
 import { createAgentPrincipal, generateAgentToken, revokeAgentToken } from "../db/services/agents";
 import {
+  registerGitProvider,
+  deleteGitProvider,
+  createGitInstallation
+} from "../db/services/git-providers";
+import {
   t,
   adminProcedure,
   deployProcedure,
@@ -640,5 +645,54 @@ export const commandRouter = t.router({
         throw new TRPCError({ code: "NOT_FOUND", message: "Token not found." });
       }
       return { revoked: true };
+    }),
+
+  /* ── Git Providers ──────────────────────────────────────── */
+  registerGitProvider: adminProcedure
+    .input(
+      z.object({
+        type: z.enum(["github", "gitlab"]),
+        name: z.string().min(1).max(100),
+        appId: z.string().max(40).optional(),
+        clientId: z.string().max(80).optional(),
+        clientSecret: z.string().optional(),
+        privateKey: z.string().optional(),
+        webhookSecret: z.string().max(128).optional(),
+        baseUrl: z.string().max(255).optional()
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const result = await registerGitProvider({
+        ...input,
+        ...getActorContext(ctx)
+      });
+      return result.provider;
+    }),
+
+  deleteGitProvider: adminProcedure
+    .input(z.object({ providerId: z.string().min(1) }))
+    .mutation(async ({ ctx, input }) => {
+      await deleteGitProvider(input.providerId, getActorContext(ctx));
+      return { deleted: true };
+    }),
+
+  createGitInstallation: adminProcedure
+    .input(
+      z.object({
+        providerId: z.string().min(1),
+        installationId: z.string().min(1),
+        accountName: z.string().min(1).max(100),
+        accountType: z.string().max(20).optional(),
+        repositorySelection: z.string().max(20).optional(),
+        permissions: z.string().optional(),
+        installedByUserId: z.string().optional()
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const result = await createGitInstallation({
+        ...input,
+        ...getActorContext(ctx)
+      });
+      return result.installation;
     })
 });

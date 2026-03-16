@@ -23,11 +23,9 @@ export default function ProjectsPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [newProject, setNewProject] = useState({ name: "", description: "", repoUrl: "" });
 
-  const infra = trpc.infrastructureInventory.useQuery(undefined, {
-    enabled: Boolean(session.data)
-  });
+  const projectsQuery = trpc.projects.useQuery({ limit: 50 }, { enabled: Boolean(session.data) });
 
-  const allProjects = (infra.data?.projects ?? []).filter((p) =>
+  const allProjects = (projectsQuery.data ?? []).filter((p) =>
     String(p.name).toLowerCase().includes(search.toLowerCase())
   );
 
@@ -35,7 +33,7 @@ export default function ProjectsPage() {
     onSuccess: () => {
       setDialogOpen(false);
       setNewProject({ name: "", description: "", repoUrl: "" });
-      void infra.refetch();
+      void projectsQuery.refetch();
     }
   });
 
@@ -135,7 +133,7 @@ export default function ProjectsPage() {
         />
       </div>
 
-      {infra.isLoading ? (
+      {projectsQuery.isLoading ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {[1, 2, 3].map((i) => (
             <Skeleton key={i} className="h-28 w-full rounded-lg" />
@@ -161,26 +159,24 @@ export default function ProjectsPage() {
                 <div className="flex-1 min-w-0">
                   <p className="truncate text-sm font-semibold">{String(p.name)}</p>
                   <p className="text-xs text-muted-foreground">
-                    {p.environmentCount ?? 0} environment
-                    {(p.environmentCount ?? 0) !== 1 ? "s" : ""}
+                    {String(p.sourceType ?? "compose")}
                   </p>
                 </div>
                 <Badge
                   variant={
-                    p.latestDeploymentStatus === "healthy"
+                    p.status === "active"
                       ? "default"
-                      : p.latestDeploymentStatus === "failed"
-                        ? "destructive"
-                        : "secondary"
+                      : p.status === "paused"
+                        ? "secondary"
+                        : "destructive"
                   }
                 >
-                  {String(p.latestDeploymentStatus ?? "No deploys")}
+                  {String(p.status)}
                 </Badge>
               </CardHeader>
               <CardContent className="pt-0">
-                <p className="text-xs text-muted-foreground">
-                  {p.serviceCount ?? 0} service
-                  {(p.serviceCount ?? 0) !== 1 ? "s" : ""}
+                <p className="text-xs text-muted-foreground truncate">
+                  {p.repoFullName ?? p.repoUrl ?? "No repository linked"}
                 </p>
               </CardContent>
             </Card>

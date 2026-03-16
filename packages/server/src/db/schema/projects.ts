@@ -1,4 +1,5 @@
 import {
+  boolean,
   index,
   jsonb,
   pgTable,
@@ -11,6 +12,7 @@ import {
 import { relations } from "drizzle-orm";
 import { teams } from "./teams";
 import { users } from "./users";
+import { gitProviders, gitInstallations } from "./git-providers";
 
 export const projects = pgTable(
   "projects",
@@ -27,6 +29,16 @@ export const projects = pgTable(
     composePath: text("compose_path"),
     config: jsonb("config").default({}).notNull(),
     status: varchar("status", { length: 20 }).default("active").notNull(), // active | paused | deleted
+    gitProviderId: varchar("git_provider_id", { length: 32 }).references(() => gitProviders.id, {
+      onDelete: "set null"
+    }),
+    gitInstallationId: varchar("git_installation_id", { length: 32 }).references(
+      () => gitInstallations.id,
+      { onDelete: "set null" }
+    ),
+    defaultBranch: varchar("default_branch", { length: 80 }).default("main"),
+    autoDeploy: boolean("auto_deploy").default(false).notNull(),
+    autoDeployBranch: varchar("auto_deploy_branch", { length: 120 }),
     createdByUserId: text("created_by_user_id").references(() => users.id, {
       onDelete: "set null"
     }),

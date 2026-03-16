@@ -13,7 +13,8 @@ import {
   TableHeader,
   TableRow
 } from "@/components/ui/table";
-import { Settings, Users, KeyRound, Shield, Bell, HardDrive } from "lucide-react";
+import { Settings, Users, KeyRound, Shield, Bell, HardDrive, GitBranch } from "lucide-react";
+import GitProvidersTab from "@/components/GitProvidersTab";
 
 export default function SettingsPage() {
   const session = useSession();
@@ -65,6 +66,9 @@ export default function SettingsPage() {
             </TabsTrigger>
             <TabsTrigger value="volumes" className="gap-1.5">
               <HardDrive size={14} /> Volumes
+            </TabsTrigger>
+            <TabsTrigger value="git" className="gap-1.5">
+              <GitBranch size={14} /> Git Providers
             </TabsTrigger>
           </TabsList>
 
@@ -355,6 +359,11 @@ export default function SettingsPage() {
                 </p>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* ── Git Providers ──────────────────────────────── */}
+          <TabsContent value="git" className="mt-4">
+            <GitProvidersTab />
           </TabsContent>
         </Tabs>
       )}
