@@ -1,9 +1,18 @@
 import { useSession } from "../lib/auth-client";
 import { trpc } from "../lib/trpc";
-import { normalizeAppRole, canAssumeAnyRole, type AppRole } from "@daoflow/shared";
+import { normalizeAppRole, canAssumeAnyRole, roleCapabilities, type AppRole } from "@daoflow/shared";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow
+} from "@/components/ui/table";
 import { Settings, Users, KeyRound, Shield, Bell, HardDrive } from "lucide-react";
 
 export default function SettingsPage() {
@@ -11,54 +20,20 @@ export default function SettingsPage() {
   const viewer = trpc.viewer.useQuery(undefined, {
     enabled: Boolean(session.data)
   });
-  const currentRole = viewer.data ? normalizeAppRole(viewer.data.authz.role) : "guest";
-  const isAdmin = canAssumeAnyRole(currentRole as AppRole, ["owner", "admin"]);
+  const tokens = trpc.agentTokenInventory.useQuery(undefined, {
+    enabled: Boolean(session.data)
+  });
+  const principals = trpc.principalInventory.useQuery(undefined, {
+    enabled: Boolean(session.data)
+  });
+  const audit = trpc.auditTrail.useQuery(
+    { limit: 20 },
+    { enabled: Boolean(session.data) }
+  );
 
-  const settingsSections = [
-    {
-      id: "general",
-      label: "General",
-      icon: Settings,
-      title: "General Settings",
-      desc: "Platform name, version, and system information."
-    },
-    {
-      id: "users",
-      label: "Users",
-      icon: Users,
-      title: "Users & Roles",
-      desc: "Manage team members, roles, and permissions.",
-      adminOnly: true
-    },
-    {
-      id: "tokens",
-      label: "Tokens",
-      icon: KeyRound,
-      title: "API Tokens",
-      desc: "Create and manage scoped API tokens for integrations and agents."
-    },
-    {
-      id: "security",
-      label: "Security",
-      icon: Shield,
-      title: "Security & Audit",
-      desc: "Audit log, session management, and security policies."
-    },
-    {
-      id: "notifications",
-      label: "Notifications",
-      icon: Bell,
-      title: "Notifications",
-      desc: "Configure alerts and notification channels."
-    },
-    {
-      id: "volumes",
-      label: "Volumes",
-      icon: HardDrive,
-      title: "Persistent Volumes",
-      desc: "Manage named volumes and storage configuration."
-    }
-  ];
+  const currentRole = viewer.data ? normalizeAppRole(viewer.data.authz.role) : "viewer";
+  const isAdmin = canAssumeAnyRole(currentRole as AppRole, ["owner", "admin"]);
+  const caps = viewer.data ? roleCapabilities[currentRole as AppRole] : [];
 
   return (
     <main className="shell space-y-6">
@@ -76,33 +51,324 @@ export default function SettingsPage() {
       ) : (
         <Tabs defaultValue="general" className="w-full">
           <TabsList className="w-full justify-start">
-            {settingsSections.map((s) => (
-              <TabsTrigger key={s.id} value={s.id} className="gap-1.5">
-                <s.icon size={14} />
-                {s.label}
-              </TabsTrigger>
-            ))}
+            <TabsTrigger value="general" className="gap-1.5">
+              <Settings size={14} /> General
+            </TabsTrigger>
+            <TabsTrigger value="users" className="gap-1.5">
+              <Users size={14} /> Users
+            </TabsTrigger>
+            <TabsTrigger value="tokens" className="gap-1.5">
+              <KeyRound size={14} /> Tokens
+            </TabsTrigger>
+            <TabsTrigger value="security" className="gap-1.5">
+              <Shield size={14} /> Security
+            </TabsTrigger>
+            <TabsTrigger value="notifications" className="gap-1.5">
+              <Bell size={14} /> Notifications
+            </TabsTrigger>
+            <TabsTrigger value="volumes" className="gap-1.5">
+              <HardDrive size={14} /> Volumes
+            </TabsTrigger>
           </TabsList>
 
-          {settingsSections.map((s) => (
-            <TabsContent key={s.id} value={s.id} className="mt-4">
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center gap-2">
-                    <CardTitle className="text-base">{s.title}</CardTitle>
-                    {s.adminOnly && !isAdmin && <Badge variant="secondary">Admin only</Badge>}
+          {/* ── General ───────────────────────────────────── */}
+          <TabsContent value="general" className="mt-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">General Settings</CardTitle>
+                <CardDescription>Platform information and system status.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-lg border p-3">
+                    <p className="text-xs text-muted-foreground">Platform</p>
+                    <p className="text-sm font-medium">DaoFlow v0.1.0</p>
                   </div>
-                  <CardDescription>{s.desc}</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-muted-foreground">
-                    This section is under development. Configure {s.label.toLowerCase()} settings
-                    here.
+                  <div className="rounded-lg border p-3">
+                    <p className="text-xs text-muted-foreground">Your Role</p>
+                    <p className="text-sm font-medium capitalize">{currentRole}</p>
+                  </div>
+                  <div className="rounded-lg border p-3">
+                    <p className="text-xs text-muted-foreground">Email</p>
+                    <p className="text-sm font-medium">{viewer.data?.user.email ?? "—"}</p>
+                  </div>
+                  <div className="rounded-lg border p-3">
+                    <p className="text-xs text-muted-foreground">Session Expires</p>
+                    <p className="text-sm font-medium">
+                      {viewer.data?.session.expiresAt
+                        ? new Date(viewer.data.session.expiresAt).toLocaleString()
+                        : "—"}
+                    </p>
+                  </div>
+                </div>
+
+                <div>
+                  <p className="mb-2 text-xs text-muted-foreground">
+                    Granted Scopes ({caps.length})
                   </p>
-                </CardContent>
-              </Card>
-            </TabsContent>
-          ))}
+                  <div className="flex flex-wrap gap-1.5">
+                    {caps.map((scope) => (
+                      <Badge key={scope} variant="secondary" className="text-xs">
+                        {scope}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* ── Users ─────────────────────────────────────── */}
+          <TabsContent value="users" className="mt-4">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <CardTitle className="text-base">Users & Principals</CardTitle>
+                  {!isAdmin && <Badge variant="secondary">Admin only</Badge>}
+                </div>
+                <CardDescription>Team members, service accounts, and agent principals.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {principals.isLoading ? (
+                  <div className="space-y-2">
+                    <Skeleton className="h-8 w-full" />
+                    <Skeleton className="h-8 w-full" />
+                  </div>
+                ) : !principals.data || principals.data.principals.length === 0 ? (
+                  <p className="py-4 text-center text-sm text-muted-foreground">
+                    No principals registered.
+                  </p>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Name</TableHead>
+                        <TableHead>Type</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Created</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {principals.data.principals.map((p) => (
+                        <TableRow key={p.id}>
+                          <TableCell className="font-medium">{p.name}</TableCell>
+                          <TableCell>
+                            <Badge variant={p.type === "agent" ? "outline" : "secondary"}>
+                              {p.type}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Badge
+                              variant={p.status === "active" ? "default" : "destructive"}
+                            >
+                              {p.status}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-muted-foreground">
+                            {new Date(p.createdAt).toLocaleDateString()}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* ── Tokens ────────────────────────────────────── */}
+          <TabsContent value="tokens" className="mt-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">API Tokens</CardTitle>
+                <CardDescription>
+                  Scoped API tokens for integrations and agent access.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {tokens.isLoading ? (
+                  <div className="space-y-2">
+                    <Skeleton className="h-8 w-full" />
+                    <Skeleton className="h-8 w-full" />
+                  </div>
+                ) : !tokens.data || tokens.data.tokens.length === 0 ? (
+                  <p className="py-4 text-center text-sm text-muted-foreground">
+                    No API tokens created yet.
+                  </p>
+                ) : (
+                  <>
+                    <div className="mb-4 grid gap-3 sm:grid-cols-3">
+                      <div className="rounded-lg border p-3 text-center">
+                        <p className="text-lg font-bold">
+                          {tokens.data.summary.totalTokens}
+                        </p>
+                        <p className="text-xs text-muted-foreground">Total</p>
+                      </div>
+                      <div className="rounded-lg border p-3 text-center">
+                        <p className="text-lg font-bold">
+                          {tokens.data.summary.readOnlyTokens}
+                        </p>
+                        <p className="text-xs text-muted-foreground">Read-only</p>
+                      </div>
+                      <div className="rounded-lg border p-3 text-center">
+                        <p className="text-lg font-bold">
+                          {tokens.data.summary.commandTokens}
+                        </p>
+                        <p className="text-xs text-muted-foreground">Command</p>
+                      </div>
+                    </div>
+
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Name</TableHead>
+                          <TableHead>Principal</TableHead>
+                          <TableHead>Lanes</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Created</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {tokens.data.tokens.map((t) => (
+                          <TableRow key={t.id}>
+                            <TableCell className="font-medium">{t.name}</TableCell>
+                            <TableCell>
+                              <Badge variant="outline">{t.principalKind}</Badge>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex gap-1">
+                                {t.lanes.map((lane) => (
+                                  <Badge
+                                    key={lane}
+                                    variant={
+                                      lane === "command"
+                                        ? "destructive"
+                                        : lane === "planning"
+                                          ? "secondary"
+                                          : "default"
+                                    }
+                                    className="text-xs"
+                                  >
+                                    {lane}
+                                  </Badge>
+                                ))}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <Badge
+                                variant={t.status === "active" ? "default" : "secondary"}
+                              >
+                                {t.status}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-muted-foreground">
+                              {new Date(t.createdAt).toLocaleDateString()}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* ── Security & Audit ──────────────────────────── */}
+          <TabsContent value="security" className="mt-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Security & Audit</CardTitle>
+                <CardDescription>Recent audit trail and security events.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {audit.isLoading ? (
+                  <div className="space-y-2">
+                    <Skeleton className="h-8 w-full" />
+                    <Skeleton className="h-8 w-full" />
+                    <Skeleton className="h-8 w-full" />
+                  </div>
+                ) : !audit.data || (Array.isArray(audit.data) && audit.data.length === 0) ? (
+                  <p className="py-4 text-center text-sm text-muted-foreground">
+                    No audit entries recorded yet.
+                  </p>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Action</TableHead>
+                        <TableHead>Actor</TableHead>
+                        <TableHead>Resource</TableHead>
+                        <TableHead>Outcome</TableHead>
+                        <TableHead>Time</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {(Array.isArray(audit.data) ? audit.data : []).map(
+                        (entry: Record<string, unknown>, i: number) => (
+                          <TableRow key={String(entry.id ?? i)}>
+                            <TableCell className="font-medium">
+                              {String(entry.action ?? "—")}
+                            </TableCell>
+                            <TableCell className="text-muted-foreground">
+                              {String(entry.actorEmail ?? entry.actorId ?? "—")}
+                            </TableCell>
+                            <TableCell className="text-muted-foreground">
+                              {String(entry.resourceType ?? "—")}
+                            </TableCell>
+                            <TableCell>
+                              <Badge
+                                variant={
+                                  entry.outcome === "success" ? "default" : "destructive"
+                                }
+                              >
+                                {String(entry.outcome ?? "—")}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-muted-foreground">
+                              {entry.createdAt
+                                ? new Date(String(entry.createdAt)).toLocaleString()
+                                : "—"}
+                            </TableCell>
+                          </TableRow>
+                        )
+                      )}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* ── Notifications ─────────────────────────────── */}
+          <TabsContent value="notifications" className="mt-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Notifications</CardTitle>
+                <CardDescription>Configure alerts and notification channels.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground">
+                  Notification channels (email, Slack, Discord, webhooks) coming in Milestone 12.
+                </p>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* ── Volumes ───────────────────────────────────── */}
+          <TabsContent value="volumes" className="mt-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Persistent Volumes</CardTitle>
+                <CardDescription>Manage named volumes and storage configuration.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground">
+                  Volume management coming in Milestone 8.
+                </p>
+              </CardContent>
+            </Card>
+          </TabsContent>
         </Tabs>
       )}
     </main>
