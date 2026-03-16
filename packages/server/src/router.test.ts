@@ -61,7 +61,7 @@ describe("appRouter", () => {
     const response = await caller.viewer();
 
     expect(response.authz.role).toBe("viewer");
-    expect(response.authz.capabilities).toContain("read.projects");
+    expect(response.authz.capabilities).toContain("server:read");
   });
 
   it("returns deployment records without inline step expansion", async () => {

@@ -1,10 +1,18 @@
 import { initTRPC, TRPCError } from "@trpc/server";
-import { canAssumeAnyRole, normalizeAppRole, type AppRole } from "@daoflow/shared";
+import {
+  canAssumeAnyRole,
+  hasAllScopes,
+  normalizeAppRole,
+  roleCapabilities,
+  type ApiTokenScope,
+  type AppRole
+} from "@daoflow/shared";
 import type { Context } from "./context";
 import { ensureControlPlaneReady } from "./db/services/seed";
 
 export const t = initTRPC.context<Context>().create();
 
+// ── Protected: requires session ──────────────────────────────
 export const protectedProcedure = t.procedure.use(async ({ ctx, next }) => {
   if (!ctx.session) {
     throw new TRPCError({
@@ -24,6 +32,7 @@ export const protectedProcedure = t.procedure.use(async ({ ctx, next }) => {
   });
 });
 
+// ── Role-gated ───────────────────────────────────────────────
 export const roleProcedure = (allowedRoles: readonly AppRole[]) =>
   protectedProcedure.use(({ ctx, next }) => {
     const role = normalizeAppRole((ctx.session.user as Record<string, unknown>).role);
@@ -43,6 +52,31 @@ export const roleProcedure = (allowedRoles: readonly AppRole[]) =>
     });
   });
 
+// ── Scope-gated (role + token scopes) ────────────────────────
+export const scopedProcedure = (
+  allowedRoles: readonly AppRole[],
+  requiredScopes: readonly ApiTokenScope[]
+) =>
+  roleProcedure(allowedRoles).use(({ ctx, next }) => {
+    const capabilities = roleCapabilities[ctx.role];
+
+    if (!hasAllScopes(capabilities, requiredScopes)) {
+      throw new TRPCError({
+        code: "FORBIDDEN",
+        message: `Missing required scope(s): ${requiredScopes.join(", ")}`,
+        cause: {
+          ok: false,
+          code: "SCOPE_DENIED",
+          requiredScopes,
+          grantedScopes: capabilities
+        }
+      });
+    }
+
+    return next({ ctx });
+  });
+
+// ── Convenience role shortcuts ───────────────────────────────
 export const adminProcedure = roleProcedure(["owner", "admin"]);
 export const deployProcedure = roleProcedure(["owner", "admin", "operator", "developer"]);
 export const executionProcedure = roleProcedure(["owner", "admin", "operator"]);
@@ -53,6 +87,24 @@ export const planningProcedure = roleProcedure([
   "developer",
   "agent"
 ]);
+
+// ── Actor context helper (dedup 15+ call sites) ──────────────
+export function getActorContext(ctx: { session: { user: { id: string; email: string } }; role: AppRole }) {
+  return {
+    requestedByUserId: ctx.session.user.id,
+    requestedByEmail: ctx.session.user.email,
+    requestedByRole: ctx.role
+  };
+}
+
+/** Alias for update mutations where "updated" reads better. */
+export function getUpdaterContext(ctx: { session: { user: { id: string; email: string } }; role: AppRole }) {
+  return {
+    updatedByUserId: ctx.session.user.id,
+    updatedByEmail: ctx.session.user.email,
+    updatedByRole: ctx.role
+  };
+}
 
 /** Throw a TRPCError for common domain operation result patterns. */
 export function throwOnOperationError(

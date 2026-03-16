@@ -4,6 +4,7 @@ import { apiTokens, principals } from "../schema/tokens";
 import {
   getApiTokenScopeLanes,
   getEffectiveTokenCapabilities,
+  normalizeAppRole,
   type ApiTokenScope
 } from "@daoflow/shared";
 
@@ -17,9 +18,16 @@ export async function listApiTokenInventory() {
   const mapped = tokens.map((t) => {
     const scopes = (t.scopes?.split(",").filter(Boolean) ?? []) as ApiTokenScope[];
     const lanes = getApiTokenScopeLanes(scopes);
-    const effective = getEffectiveTokenCapabilities("viewer", scopes);
-    const isReadOnly = lanes.length === 1 && lanes[0] === "read";
     const principal = principalsById.get(t.principalId);
+    const principalRole = normalizeAppRole(
+      principal?.type === "agent"
+        ? "agent"
+        : principal?.type === "service"
+          ? "developer"
+          : "viewer"
+    );
+    const effective = getEffectiveTokenCapabilities(principalRole, scopes);
+    const isReadOnly = lanes.length === 1 && lanes[0] === "read";
 
     return {
       id: t.id,
@@ -27,7 +35,7 @@ export async function listApiTokenInventory() {
       label: t.name,
       principalType: t.principalType,
       principalKind: t.principalType,
-      principalRole: principal?.type ?? t.principalType,
+      principalRole,
       principalId: t.principalId,
       principalName: principal?.name ?? t.principalId,
       tokenPrefix: t.tokenPrefix,

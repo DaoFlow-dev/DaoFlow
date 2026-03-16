@@ -23,10 +23,12 @@ import { t, protectedProcedure } from "../trpc";
 import { limitInput, statusLimitInput } from "../schemas";
 
 const productPrinciples = [
+  "Agent-first, human-supervised",
   "Safety before autonomy",
   "Compose-first before platform sprawl",
   "Transparent infrastructure before magic",
-  "Auditability before convenience"
+  "Auditability before convenience",
+  "Structured output before pretty output"
 ] as const;
 
 const agentApiLanes = ["read APIs", "planning APIs", "command APIs"] as const;
@@ -40,7 +42,7 @@ export const readRouter = t.router({
   platformOverview: t.procedure.query(() => ({
     name: "DaoFlow",
     currentSlice: "principal-inventory",
-    thesis: "A Docker-first deployment control plane for bare metal and VPS environments.",
+    thesis: "Agentic DevOps — from one prompt to production.",
     architecture: {
       controlPlane: ["React web UI", "tRPC API", "typed domain services"],
       executionPlane: [

@@ -28,6 +28,8 @@ import {
   adminProcedure,
   deployProcedure,
   executionProcedure,
+  getActorContext,
+  getUpdaterContext,
   planningProcedure,
   throwOnOperationError
 } from "../trpc";
@@ -46,9 +48,7 @@ export const commandRouter = t.router({
     .mutation(async ({ ctx, input }) => {
       const result = await registerServer({
         ...input,
-        requestedByUserId: ctx.session.user.id,
-        requestedByEmail: ctx.session.user.email,
-        requestedByRole: ctx.role
+        ...getActorContext(ctx)
       });
 
       if (result.status === "conflict") {
@@ -84,9 +84,7 @@ export const commandRouter = t.router({
     .mutation(async ({ ctx, input }) => {
       const deployment = await createDeploymentRecord({
         ...input,
-        requestedByUserId: ctx.session.user.id,
-        requestedByEmail: ctx.session.user.email,
-        requestedByRole: ctx.role
+        ...getActorContext(ctx)
       });
 
       if (!deployment) {
@@ -109,9 +107,7 @@ export const commandRouter = t.router({
     .mutation(async ({ ctx, input }) => {
       const deployment = await queueComposeRelease({
         ...input,
-        requestedByUserId: ctx.session.user.id,
-        requestedByEmail: ctx.session.user.email,
-        requestedByRole: ctx.role
+        ...getActorContext(ctx)
       });
 
       if (!deployment) {
@@ -140,9 +136,7 @@ export const commandRouter = t.router({
     .mutation(async ({ ctx, input }) => {
       const variable = await upsertEnvironmentVariable({
         ...input,
-        updatedByUserId: ctx.session.user.id,
-        updatedByEmail: ctx.session.user.email,
-        updatedByRole: ctx.role
+        ...getUpdaterContext(ctx)
       });
 
       if (!variable) {
@@ -174,9 +168,7 @@ export const commandRouter = t.router({
     .mutation(async ({ ctx, input }) => {
       const request = await createApprovalRequest({
         ...input,
-        requestedByUserId: ctx.session.user.id,
-        requestedByEmail: ctx.session.user.email,
-        requestedByRole: ctx.role
+        ...getActorContext(ctx)
       });
 
       if (!request) {
@@ -198,11 +190,12 @@ export const commandRouter = t.router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      const actor = getActorContext(ctx);
       const result = await approveApprovalRequest(
         input.requestId,
-        ctx.session.user.id,
-        ctx.session.user.email,
-        ctx.role
+        actor.requestedByUserId,
+        actor.requestedByEmail,
+        actor.requestedByRole
       );
 
       throwOnOperationError(result, "Approval request");
@@ -215,11 +208,12 @@ export const commandRouter = t.router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      const actor = getActorContext(ctx);
       const result = await rejectApprovalRequest(
         input.requestId,
-        ctx.session.user.id,
-        ctx.session.user.email,
-        ctx.role
+        actor.requestedByUserId,
+        actor.requestedByEmail,
+        actor.requestedByRole
       );
 
       throwOnOperationError(result, "Approval request");
@@ -232,11 +226,12 @@ export const commandRouter = t.router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      const actor = getActorContext(ctx);
       const run = await triggerBackupRun(
         input.policyId,
-        ctx.session.user.id,
-        ctx.session.user.email,
-        ctx.role
+        actor.requestedByUserId,
+        actor.requestedByEmail,
+        actor.requestedByRole
       );
 
       if (!run) {
@@ -255,11 +250,12 @@ export const commandRouter = t.router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      const actor = getActorContext(ctx);
       const restore = await queueBackupRestore(
         input.backupRunId,
-        ctx.session.user.id,
-        ctx.session.user.email,
-        ctx.role
+        actor.requestedByUserId,
+        actor.requestedByEmail,
+        actor.requestedByRole
       );
 
       if (!restore) {
@@ -278,11 +274,12 @@ export const commandRouter = t.router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      const actor = getActorContext(ctx);
       const result = await dispatchExecutionJob(
         input.jobId,
-        ctx.session.user.id,
-        ctx.session.user.email,
-        ctx.role
+        actor.requestedByUserId,
+        actor.requestedByEmail,
+        actor.requestedByRole
       );
 
       throwOnOperationError(result, "Execution job");
@@ -295,11 +292,12 @@ export const commandRouter = t.router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      const actor = getActorContext(ctx);
       const result = await completeExecutionJob(
         input.jobId,
-        ctx.session.user.id,
-        ctx.session.user.email,
-        ctx.role
+        actor.requestedByUserId,
+        actor.requestedByEmail,
+        actor.requestedByRole
       );
 
       throwOnOperationError(result, "Execution job");
@@ -313,11 +311,12 @@ export const commandRouter = t.router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      const actor = getActorContext(ctx);
       const result = await failExecutionJob(
         input.jobId,
-        ctx.session.user.id,
-        ctx.session.user.email,
-        ctx.role,
+        actor.requestedByUserId,
+        actor.requestedByEmail,
+        actor.requestedByRole,
         input.reason
       );
 
@@ -339,9 +338,7 @@ export const commandRouter = t.router({
     .mutation(async ({ ctx, input }) => {
       const result = await createProject({
         ...input,
-        requestedByUserId: ctx.session.user.id,
-        requestedByEmail: ctx.session.user.email,
-        requestedByRole: ctx.role
+        ...getActorContext(ctx)
       });
       if (result.status === "conflict") {
         throw new TRPCError({
@@ -365,9 +362,7 @@ export const commandRouter = t.router({
     .mutation(async ({ ctx, input }) => {
       const result = await updateProject({
         ...input,
-        requestedByUserId: ctx.session.user.id,
-        requestedByEmail: ctx.session.user.email,
-        requestedByRole: ctx.role
+        ...getActorContext(ctx)
       });
       if (result.status === "not_found") {
         throw new TRPCError({ code: "NOT_FOUND", message: "Project not found." });
@@ -386,9 +381,7 @@ export const commandRouter = t.router({
     .mutation(async ({ ctx, input }) => {
       const result = await deleteProject({
         ...input,
-        requestedByUserId: ctx.session.user.id,
-        requestedByEmail: ctx.session.user.email,
-        requestedByRole: ctx.role
+        ...getActorContext(ctx)
       });
       if (result.status === "not_found") {
         throw new TRPCError({ code: "NOT_FOUND", message: "Project not found." });
@@ -408,9 +401,7 @@ export const commandRouter = t.router({
     .mutation(async ({ ctx, input }) => {
       const result = await createEnvironment({
         ...input,
-        requestedByUserId: ctx.session.user.id,
-        requestedByEmail: ctx.session.user.email,
-        requestedByRole: ctx.role
+        ...getActorContext(ctx)
       });
       if (result.status === "not_found") {
         throw new TRPCError({ code: "NOT_FOUND", message: "Parent project not found." });
@@ -430,9 +421,7 @@ export const commandRouter = t.router({
     .mutation(async ({ ctx, input }) => {
       const result = await updateEnvironment({
         ...input,
-        requestedByUserId: ctx.session.user.id,
-        requestedByEmail: ctx.session.user.email,
-        requestedByRole: ctx.role
+        ...getActorContext(ctx)
       });
       if (result.status === "not_found") {
         throw new TRPCError({ code: "NOT_FOUND", message: "Environment not found." });
@@ -445,9 +434,7 @@ export const commandRouter = t.router({
     .mutation(async ({ ctx, input }) => {
       const result = await deleteEnvironment({
         ...input,
-        requestedByUserId: ctx.session.user.id,
-        requestedByEmail: ctx.session.user.email,
-        requestedByRole: ctx.role
+        ...getActorContext(ctx)
       });
       if (result.status === "not_found") {
         throw new TRPCError({ code: "NOT_FOUND", message: "Environment not found." });

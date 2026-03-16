@@ -8,19 +8,19 @@ import {
 describe("authz token scopes", () => {
   it("normalizes duplicate and unknown token scopes", () => {
     expect(
-      normalizeApiTokenScopes(["read.projects", "unknown.scope", "read.projects", "agents.plan"])
-    ).toEqual(["read.projects", "agents.plan"]);
+      normalizeApiTokenScopes(["server:read", "unknown.scope", "server:read", "approvals:create"])
+    ).toEqual(["server:read", "approvals:create"]);
   });
 
   it("intersects principal capabilities with token scopes", () => {
     expect(
-      getEffectiveTokenCapabilities("operator", ["read.projects", "deploy.execute", "roles.manage"])
-    ).toEqual(["read.projects", "deploy.execute"]);
+      getEffectiveTokenCapabilities("operator", ["server:read", "deploy:start", "tokens:manage"])
+    ).toEqual(["server:read", "deploy:start"]);
   });
 
   it("maps scopes into agent-safe API lanes", () => {
     expect(
-      getApiTokenScopeLanes(["read.projects", "read.logs", "agents.plan", "deploy.execute"])
+      getApiTokenScopeLanes(["server:read", "logs:read", "approvals:create", "deploy:start"])
     ).toEqual(["read", "planning", "command"]);
   });
 });

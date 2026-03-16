@@ -611,7 +611,7 @@ export async function seedControlPlaneData() {
           name: "observer-agent",
           description: "Read-only deployment observer.",
           linkedUserId: "user_observer_agent",
-          defaultScopes: "read.projects,read.deployments,read.logs",
+          defaultScopes: "server:read,deploy:read,service:read,logs:read,events:read",
           status: "active",
           createdAt: daysBefore(12),
           updatedAt: daysBefore(12)
@@ -622,7 +622,8 @@ export async function seedControlPlaneData() {
           name: "planner-agent",
           description: "Planning-only automation identity.",
           linkedUserId: "user_planner_agent",
-          defaultScopes: "read.projects,read.deployments,read.logs,agents.plan",
+          defaultScopes:
+            "server:read,deploy:read,service:read,logs:read,events:read,approvals:create",
           status: "active",
           createdAt: daysBefore(5),
           updatedAt: daysBefore(5)
@@ -633,7 +634,8 @@ export async function seedControlPlaneData() {
           name: "release-service",
           description: "Paused command-capable release automation.",
           linkedUserId: null,
-          defaultScopes: "read.projects,read.deployments,read.logs,agents.plan,deploy.execute",
+          defaultScopes:
+            "server:read,deploy:read,deploy:start,service:read,logs:read,events:read,approvals:create",
           status: "paused",
           createdAt: daysBefore(16),
           updatedAt: daysBefore(16)
@@ -651,7 +653,7 @@ export async function seedControlPlaneData() {
           tokenPrefix: "df_read_4f39",
           principalType: "agent",
           principalId: "principal_observer_agent_1",
-          scopes: "read.projects,read.deployments,read.logs",
+          scopes: "server:read,deploy:read,service:read,logs:read,events:read",
           status: "active",
           lastUsedAt: minutesBefore(6),
           expiresAt: null,
@@ -666,7 +668,8 @@ export async function seedControlPlaneData() {
           tokenPrefix: "df_plan_7ab2",
           principalType: "agent",
           principalId: "principal_planner_agent_1",
-          scopes: "read.projects,read.deployments,read.logs,agents.plan",
+          scopes:
+            "server:read,deploy:read,service:read,logs:read,events:read,approvals:create",
           status: "active",
           lastUsedAt: hoursBefore(2),
           expiresAt: daysBefore(-25),
@@ -681,7 +684,8 @@ export async function seedControlPlaneData() {
           tokenPrefix: "df_cmd_2cd8",
           principalType: "service",
           principalId: "principal_release_service_1",
-          scopes: "read.projects,read.deployments,read.logs,agents.plan,deploy.execute",
+          scopes:
+            "server:read,deploy:read,deploy:start,service:read,logs:read,events:read,approvals:create",
           status: "paused",
           lastUsedAt: hoursBefore(19),
           expiresAt: null,
