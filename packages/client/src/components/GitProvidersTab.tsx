@@ -12,7 +12,7 @@ import {
   DialogTitle,
   DialogFooter
 } from "@/components/ui/dialog";
-import { GitBranch, Plus, Trash2 } from "lucide-react";
+import { GitBranch, Plus, Trash2, ExternalLink } from "lucide-react";
 
 export default function GitProvidersTab() {
   const [showRegister, setShowRegister] = useState(false);
@@ -65,7 +65,15 @@ function ProviderCard({
   provider,
   onDeleted
 }: {
-  provider: { id: string; type: string; name: string; status: string; appId: string | null };
+  provider: {
+    id: string;
+    type: string;
+    name: string;
+    status: string;
+    appId: string | null;
+    clientId: string | null;
+    baseUrl: string | null;
+  };
   onDeleted: () => void;
 }) {
   const deleteMutation = trpc.deleteGitProvider.useMutation({
@@ -96,8 +104,34 @@ function ProviderCard({
           </div>
         </div>
       </CardHeader>
-      <CardContent>
-        <p className="text-xs text-muted-foreground">App ID: {provider.appId ?? "—"}</p>
+      <CardContent className="flex items-center justify-between">
+        <p className="text-xs text-muted-foreground">
+          {provider.type === "github"
+            ? `App ID: ${provider.appId ?? "—"}`
+            : `Client ID: ${provider.clientId ?? "—"}`}
+          {provider.baseUrl ? ` · ${provider.baseUrl}` : ""}
+        </p>
+        {provider.type === "github" && provider.appId ? (
+          <a
+            href={`https://github.com/apps/${provider.name}/installations/new?state=${provider.id}`}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <Button variant="outline" size="sm">
+              <ExternalLink size={12} className="mr-1" /> Install on GitHub
+            </Button>
+          </a>
+        ) : provider.type === "gitlab" && provider.clientId ? (
+          <a
+            href={`${provider.baseUrl || "https://gitlab.com"}/oauth/authorize?client_id=${provider.clientId}&redirect_uri=${encodeURIComponent(window.location.origin + "/settings/git/callback")}&response_type=code&state=${provider.id}&scope=api`}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <Button variant="outline" size="sm">
+              <ExternalLink size={12} className="mr-1" /> Connect GitLab
+            </Button>
+          </a>
+        ) : null}
       </CardContent>
     </Card>
   );
@@ -119,6 +153,7 @@ function RegisterProviderDialog({
   const [appId, setAppId] = useState("");
   const [clientId, setClientId] = useState("");
   const [webhookSecret, setWebhookSecret] = useState("");
+  const [baseUrl, setBaseUrl] = useState("");
 
   const register = trpc.registerGitProvider.useMutation({
     onSuccess: () => {
@@ -128,6 +163,7 @@ function RegisterProviderDialog({
       setAppId("");
       setClientId("");
       setWebhookSecret("");
+      setBaseUrl("");
     }
   });
 
@@ -139,7 +175,8 @@ function RegisterProviderDialog({
       name: name.trim(),
       appId: appId.trim() || undefined,
       clientId: clientId.trim() || undefined,
-      webhookSecret: webhookSecret.trim() || undefined
+      webhookSecret: webhookSecret.trim() || undefined,
+      baseUrl: baseUrl.trim() || undefined
     });
   }
 
@@ -206,6 +243,18 @@ function RegisterProviderDialog({
               placeholder="whsec_..."
             />
           </div>
+          {type === "gitlab" && (
+            <div>
+              <Label htmlFor="gp-baseurl">Base URL (self-hosted)</Label>
+              <Input
+                id="gp-baseurl"
+                value={baseUrl}
+                onChange={(e) => setBaseUrl(e.target.value)}
+                placeholder="https://gitlab.example.com"
+              />
+              <p className="text-xs text-muted-foreground mt-1">Leave empty for gitlab.com</p>
+            </div>
+          )}
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel

@@ -10,6 +10,7 @@ import SettingsPage from "./pages/SettingsPage";
 import SetupWizardPage from "./pages/SetupWizardPage";
 import ServiceDetailPage from "./pages/ServiceDetailPage";
 import AgentsPage from "./pages/AgentsPage";
+import GitCallbackPage from "./pages/GitCallbackPage";
 import LoginPage from "./pages/LoginPage";
 import NotFoundPage from "./pages/NotFoundPage";
 
@@ -34,6 +35,7 @@ export const router = createBrowserRouter([
       { path: "backups", element: <BackupsPage /> },
       { path: "agents", element: <AgentsPage /> },
       { path: "settings", element: <SettingsPage /> },
+      { path: "settings/git/callback", element: <GitCallbackPage /> },
       { path: "setup", element: <SetupWizardPage /> },
       { path: "*", element: <NotFoundPage /> }
     ]
