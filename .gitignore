@@ -15,4 +15,5 @@ program.md
 claude-review.md
 
 
-.pngtmp/postiz-research/
+tmp/postiz-research/
+.playwright-mcp/console-2026-*.log
