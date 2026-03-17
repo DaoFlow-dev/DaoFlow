@@ -2,6 +2,7 @@ import { defineConfig, devices } from "@playwright/test";
 
 const PLAYWRIGHT_DATABASE_URL =
   process.env.PLAYWRIGHT_DATABASE_URL ??
+  process.env.DATABASE_URL ??
   "postgresql://daoflow:daoflow_dev@localhost:5432/daoflow_e2e";
 
 export default defineConfig({
