@@ -7,6 +7,7 @@
     "packages/*"
   ],
   "scripts": {
+    "prepare": "sh ./scripts/install-git-hooks.sh",
     "dev": "concurrently -k \"bun --filter @daoflow/server dev\" \"bun --filter @daoflow/client dev\"",
     "build": "bun --filter '*' build",
     "build:client": "bun --filter @daoflow/client build",
@@ -32,7 +33,8 @@
     "db:seed": "bun packages/server/src/db/services/run-seed.ts",
     "db:seed:e2e-auth": "bun packages/server/src/db/services/seed-e2e-auth-users.ts",
     "db:studio": "drizzle-kit studio",
-    "cli": "bun packages/cli/src/index.ts"
+    "cli": "bun packages/cli/src/index.ts",
+    "hooks:install": "sh ./scripts/install-git-hooks.sh"
   },
   "devDependencies": {
     "@eslint/js": "^9.36.0",

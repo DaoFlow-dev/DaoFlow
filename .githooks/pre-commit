@@ -1,0 +1,24 @@
+#!/usr/bin/env sh
+set -eu
+
+if [ "${DAOFLOW_SKIP_PRECOMMIT:-}" = "1" ]; then
+  echo "[pre-commit] skipped because DAOFLOW_SKIP_PRECOMMIT=1"
+  exit 0
+fi
+
+if ! command -v bun >/dev/null 2>&1; then
+  echo "[pre-commit] bun is required" >&2
+  exit 1
+fi
+
+echo "[pre-commit] bun run format"
+bun run format
+
+echo "[pre-commit] git add -A"
+git add -A
+
+echo "[pre-commit] bun run lint"
+bun run lint
+
+echo "[pre-commit] bun run typecheck"
+bun run typecheck

@@ -510,9 +510,10 @@ Every agent and contributor must run these checks before every commit and push. 
 1. `bun run format` — auto-fix formatting
 2. `bun run lint` — must produce 0 errors (warnings acceptable)
 3. `bunx tsc --noEmit` — must produce empty output (no type errors)
-4. `git add -A && git commit -m "type(scope): description"` — use conventional commits
-5. `git push origin main`
-6. `gh run list --limit 2 --json databaseId,status,conclusion,name` — verify CI passes
+4. Git `pre-commit` hook must be installed via `bun install` or `bun run hooks:install`
+5. `git add -A && git commit -m "type(scope): description"` — use conventional commits
+6. `git push origin main`
+7. `gh run list --limit 2 --json databaseId,status,conclusion,name` — verify CI passes
 
 ### CI Failure Protocol
 

@@ -6,6 +6,15 @@ description: Run format, tests, lint, typecheck, and acpx review before committi
 
 Run this workflow **before every `git commit` and `git push`** to ensure code quality and prevent CI failures.
 
+The repo installs a Git `pre-commit` hook through `bun install` or `bun run hooks:install`. That hook runs:
+
+- `bun run format`
+- `git add -A`
+- `bun run lint`
+- `bun run typecheck`
+
+Use `DAOFLOW_SKIP_PRECOMMIT=1 git commit ...` only for exceptional recovery cases.
+
 ## Steps
 
 // turbo-all
