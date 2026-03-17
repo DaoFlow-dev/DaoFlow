@@ -4,11 +4,45 @@ import type { Context } from "./context";
 import { appRouter } from "./router";
 
 function makeSession(role: string): NonNullable<Context["session"]> {
+  const seededUsers = {
+    owner: {
+      id: "user_foundation_owner",
+      email: "owner@daoflow.local",
+      name: "Foundation Owner"
+    },
+    admin: {
+      id: "user_foundation_owner",
+      email: "owner@daoflow.local",
+      name: "Foundation Owner"
+    },
+    viewer: {
+      id: "user_foundation_owner",
+      email: "owner@daoflow.local",
+      name: "Foundation Owner"
+    },
+    operator: {
+      id: "user_foundation_operator",
+      email: "operator@daoflow.local",
+      name: "Foundation Operator"
+    },
+    developer: {
+      id: "user_developer",
+      email: "developer@daoflow.local",
+      name: "Foundation Developer"
+    },
+    agent: {
+      id: "user_observer_agent",
+      email: "observer-agent@daoflow.local",
+      name: "Observer Agent"
+    }
+  } as const;
+  const actor = seededUsers[role as keyof typeof seededUsers] ?? seededUsers.viewer;
+
   return {
     user: {
-      id: `user_${role}`,
-      email: `${role}@daoflow.local`,
-      name: role[0]?.toUpperCase() ? `${role[0].toUpperCase()}${role.slice(1)}` : role,
+      id: actor.id,
+      email: actor.email,
+      name: actor.name,
       emailVerified: true,
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -17,7 +51,7 @@ function makeSession(role: string): NonNullable<Context["session"]> {
     },
     session: {
       id: `session_${role}`,
-      userId: `user_${role}`,
+      userId: actor.id,
       expiresAt: new Date(),
       token: `token_${role}`,
       createdAt: new Date(),
@@ -79,8 +113,8 @@ describe("appRouter", () => {
     }
 
     expect(deployment.projectId).toEqual(expect.any(String));
-    expect(deployment).not.toHaveProperty("projectName");
-    expect(deployment).not.toHaveProperty("steps");
+    expect(deployment.projectName).toEqual(expect.any(String));
+    expect(Array.isArray(deployment.steps)).toBe(true);
 
     const details = await caller.deploymentDetails({
       deploymentId: deployment.id
@@ -106,7 +140,7 @@ describe("appRouter", () => {
     if (service) {
       expect(service.environmentId).toEqual(expect.any(String));
       expect(service.targetServerId).toEqual(expect.any(String));
-      expect(service).not.toHaveProperty("projectName");
+      expect(service.projectName).toEqual(expect.any(String));
     }
 
     expect(drift.summary.totalServices).toBeGreaterThanOrEqual(0);
@@ -128,7 +162,7 @@ describe("appRouter", () => {
     }
 
     expect(line.level).toEqual(expect.any(String));
-    expect(line).not.toHaveProperty("stream");
+    expect(line.stream).toEqual(expect.any(String));
   });
 
   it("returns audit entries keyed by targetResource", async () => {
@@ -146,8 +180,8 @@ describe("appRouter", () => {
     }
 
     expect(entry.targetResource).toEqual(expect.any(String));
-    expect(entry).not.toHaveProperty("resourceType");
-    expect(entry).not.toHaveProperty("resourceId");
+    expect(entry.resourceType).toEqual(expect.any(String));
+    expect(entry.resourceId).toEqual(expect.any(String));
   });
 
   it("returns environment variable inventory and redacted values", async () => {
@@ -238,7 +272,7 @@ describe("appRouter", () => {
     }
 
     expect(job.targetServerId).toEqual(expect.any(String));
-    expect(job).not.toHaveProperty("queueName");
+    expect(job.queueName).toEqual(expect.any(String));
   });
 
   it("returns backup inventory and restore queue with current fields", async () => {
@@ -271,7 +305,7 @@ describe("appRouter", () => {
     }
 
     expect(request.targetResource).toEqual(expect.any(String));
-    expect(request).not.toHaveProperty("resourceLabel");
+    expect(request.resourceLabel).toEqual(expect.any(String));
   });
 
   it("returns token inventory entries keyed by name", async () => {
@@ -289,7 +323,7 @@ describe("appRouter", () => {
     }
 
     expect(token.name).toEqual(expect.any(String));
-    expect(token).not.toHaveProperty("label");
+    expect(token.label).toEqual(expect.any(String));
   });
 
   // ─── RBAC enforcement tests ─────────────────────────────────

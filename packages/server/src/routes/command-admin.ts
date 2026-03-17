@@ -16,6 +16,7 @@ import {
   createApprovalRequest,
   rejectApprovalRequest
 } from "../db/services/approvals";
+import { resolveTeamIdForUser } from "../db/services/teams";
 import {
   t,
   adminProcedure,
@@ -95,12 +96,21 @@ export const adminRouter = t.router({
         description: z.string().max(500).optional(),
         repoUrl: z.string().max(300).optional(),
         defaultBranch: z.string().max(80).optional(),
-        teamId: z.string().min(1)
+        teamId: z.string().min(1).optional()
       })
     )
     .mutation(async ({ ctx, input }) => {
+      const teamId = input.teamId ?? (await resolveTeamIdForUser(ctx.session.user.id));
+      if (!teamId) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "No organization is available for this user."
+        });
+      }
+
       const result = await createProject({
         ...input,
+        teamId,
         ...getActorContext(ctx)
       });
       if (result.status === "conflict") {

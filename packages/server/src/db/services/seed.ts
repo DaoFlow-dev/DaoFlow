@@ -19,6 +19,10 @@ export function ensureControlPlaneReady() {
   return foundationSeedPromise;
 }
 
+export function resetControlPlaneSeedState() {
+  foundationSeedPromise = null;
+}
+
 export async function seedControlPlaneData() {
   await db.transaction(async (tx) => {
     await seedUsers(tx);

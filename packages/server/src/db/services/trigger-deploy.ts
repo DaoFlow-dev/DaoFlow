@@ -8,7 +8,7 @@
 import { eq } from "drizzle-orm";
 import { db } from "../connection";
 import { services } from "../schema/services";
-import { environments } from "../schema/projects";
+import { environments, projects } from "../schema/projects";
 import { createDeploymentRecord, type CreateDeploymentInput } from "./deployments";
 import type { AppRole } from "@daoflow/shared";
 
@@ -63,6 +63,10 @@ export async function triggerDeploy(input: TriggerDeployInput) {
 
   if (!env) return { status: "not_found" as const, entity: "environment" };
 
+  const [project] = await db.select().from(projects).where(eq(projects.id, env.projectId)).limit(1);
+
+  if (!project) return { status: "not_found" as const, entity: "project" };
+
   // Determine target server
   const envConfig = env.config && typeof env.config === "object" ? env.config : {};
   const targetServerId =
@@ -74,7 +78,7 @@ export async function triggerDeploy(input: TriggerDeployInput) {
   }
 
   const deployInput: CreateDeploymentInput = {
-    projectName: env.name, // will be resolved by createDeploymentRecord
+    projectName: project.name,
     environmentName: env.name,
     serviceName: svc.name,
     sourceType: svc.sourceType as "compose" | "dockerfile" | "image",

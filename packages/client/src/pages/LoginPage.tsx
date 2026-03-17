@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { signIn, signUp, useSession } from "../lib/auth-client";
 import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -14,18 +14,25 @@ import { useEffect } from "react";
 export default function LoginPage() {
   const session = useSession();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [feedback, setFeedback] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  const requestedReturnTo = searchParams.get("returnTo");
+  const returnTo =
+    requestedReturnTo && requestedReturnTo.startsWith("/") && !requestedReturnTo.startsWith("//")
+      ? requestedReturnTo
+      : "/";
+
   // Redirect if already signed in
   useEffect(() => {
     if (session.data) {
-      void navigate("/", { replace: true });
+      void navigate(returnTo, { replace: true });
     }
-  }, [session.data, navigate]);
+  }, [navigate, returnTo, session.data]);
 
   async function handleSignUp(e: FormEvent) {
     e.preventDefault();

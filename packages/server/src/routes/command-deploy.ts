@@ -14,12 +14,15 @@ import {
 import { triggerDeploy } from "../db/services/trigger-deploy";
 import { executeRollback } from "../db/services/execute-rollback";
 import { upsertEnvironmentVariable, deleteEnvironmentVariable } from "../db/services/envvars";
+import { resolveEnvironmentSecretInventory } from "../db/services/onepassword";
+import { resolveTeamIdForUser } from "../db/services/teams";
 import {
   t,
   deployStartProcedure,
   deployCancelProcedure,
   deployRollbackProcedure,
   envWriteProcedure,
+  secretsReadProcedure,
   getActorContext,
   getUpdaterContext,
   throwOnOperationError,
@@ -116,6 +119,32 @@ export const deployRouter = t.router({
       }
 
       return variable;
+    }),
+  resolveEnvironmentSecrets: secretsReadProcedure
+    .input(
+      z.object({
+        environmentId: z.string().min(1)
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      const teamId = await resolveTeamIdForUser(ctx.session.user.id);
+
+      if (!teamId) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "No organization is available for this user."
+        });
+      }
+
+      const variables = await resolveEnvironmentSecretInventory(input.environmentId, teamId);
+
+      return {
+        ok: true,
+        environmentId: input.environmentId,
+        resolved: variables.filter((variable) => variable.status === "resolved").length,
+        unresolved: variables.filter((variable) => variable.status === "unresolved").length,
+        variables
+      };
     }),
   dispatchExecutionJob: deployStartProcedure
     .input(

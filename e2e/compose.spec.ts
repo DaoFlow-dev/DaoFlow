@@ -1,42 +1,41 @@
 import { expect, test } from "@playwright/test";
-import { signInAsOwner } from "./helpers";
+import { signInAsOwner, trpcRequest } from "./helpers";
 
 test.describe("Compose releases and drift", () => {
-  test("compose data visible from dashboard", async ({ page }) => {
+  test("compose deployment surface loads after sign-in", async ({ page }) => {
     await signInAsOwner(page);
 
-    // Dashboard should load after sign-in
-    await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
-
-    // Look for compose-related cards or sections on the dashboard
-    // The dashboard typically shows deployment-related data including compose releases
-    const dashboardContent = page.locator("main");
-    await expect(dashboardContent).toBeVisible();
+    await page.goto("/deployments");
+    await expect(page.getByRole("heading", { name: "Deployments" })).toBeVisible();
+    await expect(page.locator("main")).toBeVisible();
   });
 
-  test("deployments page shows compose-sourced deployments", async ({ page }) => {
+  test("queueing a compose release creates a deployment record", async ({ page }) => {
     await signInAsOwner(page);
 
-    await page.getByRole("link", { name: "Deployments" }).click();
+    const deployment = await trpcRequest<{ id: string; serviceName: string; sourceType: string }>(
+      page,
+      "queueComposeRelease",
+      {
+        composeServiceId: "compose_daoflow_prod_control_plane",
+        commitSha: "abcdef1",
+        imageTag: `ghcr.io/daoflow/control-plane:e2e-${Date.now()}`
+      }
+    );
+
+    expect(deployment.sourceType).toBe("compose");
+
+    await page.goto("/deployments");
     await expect(page.getByRole("heading", { name: "Deployments" })).toBeVisible();
-
-    // If deployment table exists, check for compose source type
-    const hasTable = await page
-      .locator("table")
-      .isVisible()
-      .catch(() => false);
-
-    if (hasTable) {
-      // Source column should exist
-      await expect(page.getByRole("columnheader", { name: "Source" })).toBeVisible();
-    }
+    const deploymentRow = page.locator("tr", { hasText: deployment.serviceName }).first();
+    await expect(deploymentRow).toBeVisible({ timeout: 10_000 });
+    await expect(deploymentRow.getByText("compose")).toBeVisible();
   });
 
   test("compose drift inspector shows comparison data", async ({ page }) => {
     await signInAsOwner(page);
 
-    // Navigate to deployments (compose drift is part of deployment context)
-    await page.getByRole("link", { name: "Deployments" }).click();
+    await page.goto("/deployments");
     await expect(page.getByRole("heading", { name: "Deployments" })).toBeVisible();
 
     // Deployment page should contain deployment-related content

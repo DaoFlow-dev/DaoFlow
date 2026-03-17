@@ -158,7 +158,8 @@ export async function listEnvironmentVariableInventory(environmentId?: string, l
       isSecret: row.isSecret === "true",
       category: row.category,
       branchPattern: row.branchPattern,
-      source: "manual" as const,
+      source: row.source,
+      secretRef: row.secretRef,
       updatedByEmail: updatedByUser?.email ?? "",
       updatedAt: row.updatedAt.toISOString()
     };

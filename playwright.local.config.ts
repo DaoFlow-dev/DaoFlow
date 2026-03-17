@@ -11,29 +11,34 @@
 
 import { defineConfig, devices } from "@playwright/test";
 
+const PLAYWRIGHT_DATABASE_URL =
+  process.env.PLAYWRIGHT_DATABASE_URL ??
+  "postgresql://daoflow:daoflow_dev@localhost:5432/daoflow_e2e";
+
 export default defineConfig({
   testDir: "./e2e",
   timeout: 60_000,
   fullyParallel: false,
+  workers: 1,
   retries: 0,
   use: {
     baseURL: "http://127.0.0.1:3000",
     trace: "on-first-retry"
   },
   webServer: {
-    command: "bun run dev",
+    command: "bun packages/server/src/db/reset.ts && bun run db:push:ci && bun run dev",
     env: {
-      DATABASE_URL:
-        process.env.DATABASE_URL ?? "postgresql://daoflow:daoflow_dev@localhost:5432/daoflow",
+      DATABASE_URL: PLAYWRIGHT_DATABASE_URL,
       REDIS_URL: process.env.REDIS_URL ?? "redis://localhost:6379",
       BETTER_AUTH_SECRET:
         process.env.BETTER_AUTH_SECRET ?? "daoflow-local-e2e-secret-with-enough-entropy-2026",
       BETTER_AUTH_URL: "http://127.0.0.1:3000",
       ENCRYPTION_KEY: process.env.ENCRYPTION_KEY ?? "daoflow-local-e2e-encrypt-key-32ch",
+      DISABLE_WORKER: "true",
       NODE_ENV: "development"
     },
     port: 3000,
-    reuseExistingServer: true,
+    reuseExistingServer: false,
     timeout: 30_000
   },
   projects: [

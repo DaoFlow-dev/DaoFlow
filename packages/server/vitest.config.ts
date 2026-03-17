@@ -6,6 +6,8 @@ export default defineConfig({
     exclude: ["dist/**", "node_modules/**"],
     environment: "node",
     setupFiles: ["./src/test-setup.ts"],
+    maxWorkers: 1,
+    minWorkers: 1,
     coverage: {
       provider: "v8",
       reporter: ["text", "lcov"],

@@ -76,7 +76,8 @@ export function DashboardLayout() {
 
   // Redirect to login if not authenticated
   if (!session.data) {
-    return <Navigate to="/login" replace />;
+    const returnTo = `${location.pathname}${location.search}${location.hash}`;
+    return <Navigate to={`/login?returnTo=${encodeURIComponent(returnTo)}`} replace />;
   }
 
   const userInitial = session.data.user.name?.charAt(0).toUpperCase() ?? "U";

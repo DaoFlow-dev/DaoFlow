@@ -1,6 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
-
-type ToastType = "success" | "error" | "warning" | "info";
+import { registerToastDispatcher, type ToastType } from "../lib/toast";
 
 interface ToastItem {
   id: number;
@@ -9,20 +8,6 @@ interface ToastItem {
 }
 
 let toastId = 0;
-let externalAdd: ((msg: string, type: ToastType) => void) | null = null;
-
-/**
- * Imperative toast trigger — call from anywhere.
- *
- *   toast.success("Deployment started");
- *   toast.error("Server unreachable");
- */
-export const toast = {
-  success: (msg: string) => externalAdd?.(msg, "success"),
-  error: (msg: string) => externalAdd?.(msg, "error"),
-  warning: (msg: string) => externalAdd?.(msg, "warning"),
-  info: (msg: string) => externalAdd?.(msg, "info")
-};
 
 /**
  * Mount once at app root.
@@ -37,9 +22,9 @@ export function ToastContainer() {
   }, []);
 
   useEffect(() => {
-    externalAdd = add;
+    registerToastDispatcher(add);
     return () => {
-      externalAdd = null;
+      registerToastDispatcher(null);
     };
   }, [add]);
 

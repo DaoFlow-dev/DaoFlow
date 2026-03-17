@@ -234,7 +234,7 @@ async function handleComposeDeploy(opts: ComposeDeployOpts): Promise<void> {
     // If local context, show bundle preview
     if (hasLocalContext) {
       try {
-        const bundle = await createContextBundle({
+        const bundle = createContextBundle({
           contextPath: resolvedContext,
           extraIgnore: (opts.config as Record<string, unknown>)?.ignore as string[] | undefined,
           extraInclude: (opts.config as Record<string, unknown>)?.include as string[] | undefined,
@@ -305,10 +305,7 @@ async function handleComposeDeploy(opts: ComposeDeployOpts): Promise<void> {
 
   // ── Interactive prompt ───────────────────────────────────
   if (hasLocalContext && opts.prompt && !opts.yes) {
-    const sizeMB = await estimateContextSize(
-      resolvedContext,
-      opts.config as Record<string, unknown> | undefined
-    );
+    const sizeMB = estimateContextSize(resolvedContext, opts.config as Record<string, unknown>);
     console.log(
       chalk.yellow(
         `\n⚠  ${localContexts.length} service(s) use local build context (${sizeMB}).\n` +
@@ -362,7 +359,7 @@ async function executeContextDeploy(
   // Step 1: Bundle context
   if (!isJson) console.log(chalk.blue("⟳ Bundling build context..."));
 
-  const bundle = await createContextBundle({
+  const bundle = createContextBundle({
     contextPath,
     extraIgnore: cfg?.ignore as string[] | undefined,
     extraInclude: cfg?.include as string[] | undefined,
@@ -476,12 +473,9 @@ async function executeRemoteComposeDeploy(
   }
 }
 
-async function estimateContextSize(
-  contextPath: string,
-  cfg?: Record<string, unknown>
-): Promise<string> {
+function estimateContextSize(contextPath: string, cfg?: Record<string, unknown>): string {
   try {
-    const bundle = await createContextBundle({
+    const bundle = createContextBundle({
       contextPath,
       extraIgnore: cfg?.ignore as string[] | undefined,
       extraInclude: cfg?.include as string[] | undefined

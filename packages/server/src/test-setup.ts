@@ -1,1 +1,3 @@
-// Server-side Vitest setup intentionally left blank.
+import { ensureTestDatabaseReady } from "./test-db";
+
+await ensureTestDatabaseReady();

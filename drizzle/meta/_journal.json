@@ -8,6 +8,13 @@
       "when": 1773702972431,
       "tag": "0000_white_zombie",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1773758596513,
+      "tag": "0001_tiresome_blink",
+      "breakpoints": true
     }
   ]
 }

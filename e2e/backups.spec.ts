@@ -1,19 +1,18 @@
 import { expect, test } from "@playwright/test";
-import { signInAsOwner } from "./helpers";
+import { signInAsOwner, trpcRequest } from "./helpers";
 
 test.describe("Backup and restore workflows", () => {
   test("backups page loads after sign-in", async ({ page }) => {
     await signInAsOwner(page);
 
-    // Navigate to backups page
-    await page.getByRole("link", { name: "Backups" }).click();
+    await page.goto("/backups");
     await expect(page.getByRole("heading", { name: "Backups" })).toBeVisible();
   });
 
   test("seed backup data is visible", async ({ page }) => {
     await signInAsOwner(page);
 
-    await page.getByRole("link", { name: "Backups" }).click();
+    await page.goto("/backups");
     await expect(page.getByRole("heading", { name: "Backups" })).toBeVisible();
 
     // Backups page should show either backup policies/runs or empty state
@@ -28,27 +27,34 @@ test.describe("Backup and restore workflows", () => {
   test("trigger a backup run from policy", async ({ page }) => {
     await signInAsOwner(page);
 
-    await page.getByRole("link", { name: "Backups" }).click();
+    const run = await trpcRequest<{ id: string; policyId: string; status: string }>(
+      page,
+      "triggerBackupNow",
+      {
+        policyId: "bpol_foundation_volume_daily"
+      }
+    );
+
+    expect(run.policyId).toBe("bpol_foundation_volume_daily");
+    expect(run.status).toBe("queued");
+
+    await page.goto("/backups");
     await expect(page.getByRole("heading", { name: "Backups" })).toBeVisible();
-
-    // Backups page should be functional
-    const mainContent = page.locator("main");
-    await expect(mainContent).toBeVisible();
-
-    // If backup policies exist, there should be action buttons
-    const actionButtons = page.getByRole("button");
-    const count = await actionButtons.count();
-    expect(count).toBeGreaterThan(0); // At least some buttons exist on the page
+    await expect(page.getByText("postgres-volume").first()).toBeVisible({ timeout: 10_000 });
   });
 
   test("queue a restore drill from a successful backup run", async ({ page }) => {
     await signInAsOwner(page);
 
-    await page.getByRole("link", { name: "Backups" }).click();
-    await expect(page.getByRole("heading", { name: "Backups" })).toBeVisible();
+    const restore = await trpcRequest<{ id: string; backupRunId: string; status: string }>(
+      page,
+      "triggerTestRestore",
+      {
+        backupRunId: "brun_foundation_volume_success"
+      }
+    );
 
-    // Verify the backups page loads with expected structure
-    const mainContent = page.locator("main");
-    await expect(mainContent).toBeVisible();
+    expect(restore.backupRunId).toBe("brun_foundation_volume_success");
+    expect(restore.status).toBe("queued");
   });
 });

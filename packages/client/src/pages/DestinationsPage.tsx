@@ -84,7 +84,11 @@ export default function DestinationsPage() {
     }
   });
 
-  const testMutation = trpc.testBackupDestination.useMutation();
+  const testMutation = trpc.testBackupDestination.useMutation({
+    onSuccess: () => {
+      void utils.backupDestinations.invalidate();
+    }
+  });
   const deleteMutation = trpc.deleteBackupDestination.useMutation({
     onSuccess: () => {
       void utils.backupDestinations.invalidate();
@@ -119,11 +123,11 @@ export default function DestinationsPage() {
         </div>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
-            <Button>
+            <Button data-testid="destination-add-button">
               <Plus size={16} /> Add Destination
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-xl">
+          <DialogContent className="sm:max-w-xl" data-testid="destination-dialog">
             <DialogHeader>
               <DialogTitle>Add Backup Destination</DialogTitle>
               <DialogDescription>
@@ -150,7 +154,7 @@ export default function DestinationsPage() {
                   value={provider}
                   onValueChange={(v: string) => setProvider(v as ProviderKey)}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger data-testid="destination-provider-select">
                     <SelectValue placeholder="Select provider" />
                   </SelectTrigger>
                   <SelectContent>
@@ -234,6 +238,7 @@ export default function DestinationsPage() {
                 <div className="grid gap-1.5">
                   <Label>Local Path</Label>
                   <Input
+                    data-testid="destination-local-path"
                     placeholder="/tmp/daoflow-backups"
                     value={localPath}
                     onChange={(e) => setLocalPath(e.target.value)}
@@ -290,6 +295,7 @@ export default function DestinationsPage() {
 
             <DialogFooter>
               <Button
+                data-testid="destination-create-button"
                 variant="outline"
                 disabled={createMutation.isPending}
                 onClick={() => {
@@ -351,7 +357,7 @@ export default function DestinationsPage() {
               </TableHeader>
               <TableBody>
                 {data.map((d) => (
-                  <TableRow key={d.id}>
+                  <TableRow key={d.id} data-testid="destination-row">
                     <TableCell className="font-medium">{d.name}</TableCell>
                     <TableCell>
                       <Badge variant="secondary">{d.provider}</Badge>
@@ -374,6 +380,7 @@ export default function DestinationsPage() {
                     </TableCell>
                     <TableCell className="text-right space-x-1">
                       <Button
+                        data-testid="destination-test-button"
                         size="icon"
                         variant="ghost"
                         title="Test Connection"
@@ -383,6 +390,7 @@ export default function DestinationsPage() {
                         <TestTube2 size={14} />
                       </Button>
                       <Button
+                        data-testid="destination-delete-button"
                         size="icon"
                         variant="ghost"
                         title="Delete"

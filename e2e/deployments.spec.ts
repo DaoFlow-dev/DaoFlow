@@ -1,46 +1,53 @@
 import { expect, test } from "@playwright/test";
-import { signInAsOwner } from "./helpers";
+import { signInAsOwner, trpcRequest } from "./helpers";
 
 test.describe("Deployment lifecycle", () => {
   test("deployments page loads after sign-in", async ({ page }) => {
     await signInAsOwner(page);
 
-    // Navigate to deployments page
-    await page.getByRole("link", { name: "Deployments" }).click();
+    await page.goto("/deployments");
     await expect(page.getByRole("heading", { name: "Deployments" })).toBeVisible();
   });
 
-  test("deployment history card shows with table or empty state", async ({ page }) => {
+  test("starting a deploy via authenticated mutation reaches healthy state", async ({ page }) => {
     await signInAsOwner(page);
 
-    await page.getByRole("link", { name: "Deployments" }).click();
+    const suffix = Date.now().toString();
+    const project = await trpcRequest<{ id: string; name: string }>(page, "createProject", {
+      name: `E2E Deploy ${suffix}`,
+      description: "Mutation coverage project"
+    });
+    const environment = await trpcRequest<{ id: string; name: string }>(page, "createEnvironment", {
+      projectId: project.id,
+      name: `prod-${suffix}`,
+      targetServerId: "srv_foundation_1"
+    });
+    const service = await trpcRequest<{ id: string; name: string }>(page, "createService", {
+      name: `web-${suffix}`,
+      environmentId: environment.id,
+      projectId: project.id,
+      sourceType: "image",
+      imageReference: "nginx:alpine",
+      port: "8080",
+      targetServerId: "srv_foundation_1"
+    });
+    const deployment = await trpcRequest<{ id: string }>(page, "triggerDeploy", {
+      serviceId: service.id
+    });
+
+    await trpcRequest(page, "dispatchExecutionJob", { jobId: deployment.id });
+    await trpcRequest(page, "completeExecutionJob", { jobId: deployment.id });
+
+    await page.goto("/deployments");
     await expect(page.getByRole("heading", { name: "Deployments" })).toBeVisible();
-
-    // Deployment History card should always be visible (or at least the page heading)
-    const deploymentHistory = page.getByText("Deployment History");
-    const deploymentHeading = page.getByRole("heading", { name: "Deployments" });
-    await expect(deploymentHistory.or(deploymentHeading).first()).toBeVisible({ timeout: 10_000 });
-
-    // Should show either deployment table, empty state, or loading skeleton
-    const hasTable = await page
-      .locator("table")
-      .isVisible()
-      .catch(() => false);
-    const hasEmptyState = await page
-      .getByText("No deployments yet")
-      .isVisible()
-      .catch(() => false);
-    const hasContent = await page
-      .locator("main")
-      .isVisible()
-      .catch(() => false);
-    expect(hasTable || hasEmptyState || hasContent).toBeTruthy();
+    await expect(page.getByText(service.name)).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText("healthy").first()).toBeVisible({ timeout: 10_000 });
   });
 
   test("seed deployments show status badges and rollback buttons", async ({ page }) => {
     await signInAsOwner(page);
 
-    await page.getByRole("link", { name: "Deployments" }).click();
+    await page.goto("/deployments");
     await expect(page.getByRole("heading", { name: "Deployments" })).toBeVisible();
 
     // If deployment table exists, verify structure
@@ -65,7 +72,7 @@ test.describe("Deployment lifecycle", () => {
   test("clicking a deployment row expands log viewer", async ({ page }) => {
     await signInAsOwner(page);
 
-    await page.getByRole("link", { name: "Deployments" }).click();
+    await page.goto("/deployments");
     await expect(page.getByRole("heading", { name: "Deployments" })).toBeVisible();
 
     const hasTable = await page
@@ -89,7 +96,7 @@ test.describe("Deployment lifecycle", () => {
   test("seed deployment insights and rollback plans are visible", async ({ page }) => {
     await signInAsOwner(page);
 
-    await page.getByRole("link", { name: "Deployments" }).click();
+    await page.goto("/deployments");
     await expect(page.getByRole("heading", { name: "Deployments" })).toBeVisible();
 
     const hasTable = await page

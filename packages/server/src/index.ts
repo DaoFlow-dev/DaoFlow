@@ -34,12 +34,27 @@ function start() {
 
   if (isProduction) {
     const clientDistDir = path.resolve(__dirname, "../../client/dist");
+    const indexPath = path.join(clientDistDir, "index.html");
 
-    app.use("/*", serveStatic({ root: clientDistDir }));
-    app.get("*", (_c) => {
-      const indexPath = path.join(clientDistDir, "index.html");
-      const file = Bun.file(indexPath);
-      return new Response(file, {
+    function fileWithinClientDist(requestPath: string) {
+      const relativePath = requestPath.replace(/^\/+/, "");
+      const candidate = path.resolve(clientDistDir, relativePath);
+      return candidate === clientDistDir || candidate.startsWith(`${clientDistDir}${path.sep}`)
+        ? candidate
+        : null;
+    }
+
+    app.use("/assets/*", serveStatic({ root: clientDistDir }));
+    app.use("/manifest.json", serveStatic({ root: clientDistDir }));
+    app.use("/favicon.ico", serveStatic({ root: clientDistDir }));
+    app.use("/robots.txt", serveStatic({ root: clientDistDir }));
+    app.get("*", async (_c) => {
+      const filePath = fileWithinClientDist(_c.req.path);
+      if (filePath && (await Bun.file(filePath).exists())) {
+        return new Response(Bun.file(filePath));
+      }
+
+      return new Response(Bun.file(indexPath), {
         headers: { "content-type": "text/html; charset=utf-8" }
       });
     });

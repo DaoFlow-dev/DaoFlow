@@ -1,12 +1,11 @@
 import { expect, test } from "@playwright/test";
-import { signInAsOwner } from "./helpers";
+import { signInAsOwner, trpcRequest } from "./helpers";
 
 test.describe("Approval workflows", () => {
   test("settings page security tab shows audit and approval context", async ({ page }) => {
     await signInAsOwner(page);
 
-    // Navigate to settings → Security tab
-    await page.getByRole("link", { name: "General" }).click();
+    await page.goto("/settings");
     await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
     await page.getByRole("tab", { name: "Security" }).click();
 
@@ -14,26 +13,29 @@ test.describe("Approval workflows", () => {
     await expect(page.getByText("Security & Audit")).toBeVisible();
   });
 
-  test("seed approval data is present in audit trail", async ({ page }) => {
+  test("approval request can be created and approved end-to-end", async ({ page }) => {
     await signInAsOwner(page);
 
-    // Navigate to settings → Security tab
-    await page.getByRole("link", { name: "General" }).click();
-    await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
-    await page.getByRole("tab", { name: "Security" }).click();
+    const request = await trpcRequest<{ id: string; status: string; actionType: string }>(
+      page,
+      "requestApproval",
+      {
+        actionType: "backup-restore",
+        backupRunId: "brun_foundation_volume_success",
+        reason: "Need operator approval before replaying backup artifact in e2e."
+      }
+    );
 
-    // Security card should be visible
-    await expect(page.getByText("Security & Audit")).toBeVisible();
+    expect(request.status).toBe("pending");
 
-    // If there are audit entries, they may include approval records
-    const hasTable = await page
-      .locator("table")
-      .isVisible()
-      .catch(() => false);
-    const hasEmptyState = await page
-      .getByText("No audit entries recorded yet.")
-      .isVisible()
-      .catch(() => false);
-    expect(hasTable || hasEmptyState).toBeTruthy();
+    const approved = await trpcRequest<{ id: string; status: string }>(
+      page,
+      "approveApprovalRequest",
+      {
+        requestId: request.id
+      }
+    );
+
+    expect(approved.status).toBe("approved");
   });
 });

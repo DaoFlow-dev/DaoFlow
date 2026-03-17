@@ -91,12 +91,29 @@ export async function listSecretProviders(teamId: string) {
       type: secretProviders.type,
       status: secretProviders.status,
       lastTestedAt: secretProviders.lastTestedAt,
+      metadata: secretProviders.metadata,
       createdAt: secretProviders.createdAt
     })
     .from(secretProviders)
     .where(eq(secretProviders.teamId, teamId));
 
-  return providers;
+  return providers.map((provider) => {
+    const metadata =
+      provider.metadata && typeof provider.metadata === "object"
+        ? (provider.metadata as Record<string, unknown>)
+        : {};
+
+    return {
+      id: provider.id,
+      name: provider.name,
+      type: provider.type,
+      status: provider.status,
+      lastTestedAt: provider.lastTestedAt,
+      lastTestError:
+        typeof metadata["lastTestError"] === "string" ? metadata["lastTestError"] : null,
+      createdAt: provider.createdAt
+    };
+  });
 }
 
 export async function deleteSecretProvider(
@@ -225,11 +242,117 @@ export async function testProviderConnection(
     .set({
       status: result.ok ? "active" : "disconnected",
       lastTestedAt: new Date(),
+      metadata: {
+        ...(provider.metadata && typeof provider.metadata === "object" ? provider.metadata : {}),
+        lastTestError: result.ok ? null : (result.error ?? "Unknown 1Password connection failure")
+      },
       updatedAt: new Date()
     })
     .where(eq(secretProviders.id, providerId));
 
   return result;
+}
+
+function maskResolvedValue(value: string): string {
+  if (value.length <= 4) {
+    return "*".repeat(Math.max(4, value.length));
+  }
+
+  return `${"*".repeat(Math.min(8, value.length - 2))}${value.slice(-2)}`;
+}
+
+export interface ResolvedEnvironmentSecret {
+  key: string;
+  secretRef: string;
+  source: "1password";
+  providerName: string;
+  providerType: string;
+  maskedValue: string | null;
+  status: "resolved" | "unresolved";
+  error?: string;
+}
+
+export async function resolveEnvironmentSecretInventory(
+  environmentId: string,
+  teamId: string
+): Promise<ResolvedEnvironmentSecret[]> {
+  const { environmentVariables } = await import("../schema/projects");
+  const opVars = await db
+    .select({
+      key: environmentVariables.key,
+      secretRef: environmentVariables.secretRef
+    })
+    .from(environmentVariables)
+    .where(
+      and(
+        eq(environmentVariables.environmentId, environmentId),
+        eq(environmentVariables.source, "1password")
+      )
+    );
+
+  if (opVars.length === 0) {
+    return [];
+  }
+
+  const [provider] = await db
+    .select()
+    .from(secretProviders)
+    .where(and(eq(secretProviders.teamId, teamId), eq(secretProviders.type, "1password")))
+    .limit(1);
+
+  if (!provider) {
+    return opVars
+      .filter((variable): variable is { key: string; secretRef: string } =>
+        Boolean(variable.secretRef)
+      )
+      .map((variable) => ({
+        key: variable.key,
+        secretRef: variable.secretRef,
+        source: "1password" as const,
+        providerName: "unconfigured",
+        providerType: "1password",
+        maskedValue: null,
+        status: "unresolved" as const,
+        error: "No 1Password provider configured for this team."
+      }));
+  }
+
+  const config = JSON.parse(decrypt(provider.configEncrypted)) as {
+    serviceAccountToken: string;
+  };
+
+  const resolvedSecrets: ResolvedEnvironmentSecret[] = [];
+  for (const variable of opVars) {
+    if (!variable.secretRef) {
+      continue;
+    }
+
+    try {
+      const value = await resolveSecretReference(config.serviceAccountToken, variable.secretRef);
+      resolvedSecrets.push({
+        key: variable.key,
+        secretRef: variable.secretRef,
+        source: "1password",
+        providerName: provider.name,
+        providerType: provider.type,
+        maskedValue: maskResolvedValue(value),
+        status: "resolved"
+      });
+    } catch (error) {
+      resolvedSecrets.push({
+        key: variable.key,
+        secretRef: variable.secretRef,
+        source: "1password",
+        providerName: provider.name,
+        providerType: provider.type,
+        maskedValue: null,
+        status: "unresolved",
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+  }
+
+  return resolvedSecrets;
 }
 
 /**
@@ -240,46 +363,15 @@ export async function resolveEnvironmentSecrets(
   environmentId: string,
   teamId: string
 ): Promise<Map<string, string>> {
-  // Import the env vars that use 1password source
-  const { environmentVariables } = await import("../schema/projects");
-  const opVars = await db
-    .select()
-    .from(environmentVariables)
-    .where(
-      and(
-        eq(environmentVariables.environmentId, environmentId),
-        eq(environmentVariables.source, "1password")
-      )
-    );
-
-  if (opVars.length === 0) return new Map();
-
-  // Get the team's 1password provider
-  const [provider] = await db
-    .select()
-    .from(secretProviders)
-    .where(and(eq(secretProviders.teamId, teamId), eq(secretProviders.type, "1password")))
-    .limit(1);
-
-  if (!provider) {
-    throw new Error("No 1Password provider configured for this team");
-  }
-
-  const config = JSON.parse(decrypt(provider.configEncrypted)) as {
-    serviceAccountToken: string;
-  };
-
+  const inventory = await resolveEnvironmentSecretInventory(environmentId, teamId);
   const resolved = new Map<string, string>();
-  for (const v of opVars) {
-    if (v.secretRef) {
-      try {
-        const value = await resolveSecretReference(config.serviceAccountToken, v.secretRef);
-        resolved.set(v.key, value);
-      } catch {
-        // On failure, set error marker for this key
-        resolved.set(v.key, `[UNRESOLVED: ${v.secretRef}]`);
-      }
-    }
+  for (const item of inventory) {
+    resolved.set(
+      item.key,
+      item.status === "resolved" && item.maskedValue
+        ? item.maskedValue
+        : `[UNRESOLVED: ${item.secretRef}]`
+    );
   }
 
   return resolved;

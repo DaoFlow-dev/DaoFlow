@@ -293,11 +293,9 @@ export function envCommand(): Command {
     .action(async (opts: { envId: string; json?: boolean }) => {
       try {
         const trpc = createClient();
-        const data = await trpc.environmentVariables.query({ environmentId: opts.envId });
+        const data = await trpc.resolveEnvironmentSecrets.query({ environmentId: opts.envId });
 
-        const opVars = data.variables.filter((v: { source?: string }) => v.source === "1password");
-
-        if (opVars.length === 0) {
+        if (data.variables.length === 0) {
           if (opts.json) {
             console.log(JSON.stringify({ ok: true, resolved: 0, variables: [] }));
           } else {
@@ -310,19 +308,27 @@ export function envCommand(): Command {
           console.log(
             JSON.stringify({
               ok: true,
-              resolved: opVars.length,
-              variables: opVars.map((v: { key: string; secretRef?: string }) => ({
-                key: v.key,
-                secretRef: v.secretRef,
-                status: "reference_stored"
-              }))
+              environmentId: data.environmentId,
+              resolved: data.resolved,
+              unresolved: data.unresolved,
+              variables: data.variables
             })
           );
         } else {
-          console.log(chalk.bold(`\n  1Password References (${opVars.length} variables)\n`));
-          for (const v of opVars as { key: string; secretRef?: string }[]) {
+          console.log(
+            chalk.bold(`\n  1Password References (${data.variables.length} variables)\n`)
+          );
+          for (const variable of data.variables) {
+            const status =
+              variable.status === "resolved" ? chalk.green("resolved") : chalk.yellow("unresolved");
+            const value = variable.maskedValue ? chalk.dim(variable.maskedValue) : chalk.red("n/a");
             console.log(
-              `  ${chalk.cyan(v.key)} → ${chalk.magenta(v.secretRef ?? "[no ref]")}  ${chalk.dim("[resolved at deploy time]")}`
+              `  ${chalk.cyan(variable.key)} → ${chalk.magenta(variable.secretRef)}  ${status}  ${value}`
+            );
+            console.log(
+              chalk.dim(
+                `    provider=${variable.providerName} source=${variable.source}${variable.error ? ` error=${variable.error}` : ""}`
+              )
             );
           }
           console.log();

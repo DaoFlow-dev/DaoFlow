@@ -49,7 +49,7 @@ const DEFAULT_MAX_SIZE = 500 * 1024 * 1024; // 500MB
 /**
  * Create a tar.gz bundle of the build context, respecting .dockerignore.
  */
-export function createContextBundle(opts: BundleOptions): Promise<BundleResult> {
+export function createContextBundle(opts: BundleOptions): BundleResult {
   const contextPath = resolve(opts.contextPath);
   const maxSize = opts.maxSizeBytes ?? DEFAULT_MAX_SIZE;
 
@@ -174,12 +174,12 @@ export function createContextBundle(opts: BundleOptions): Promise<BundleResult> 
     );
   }
 
-  return Promise.resolve({
+  return {
     tarPath,
     fileCount: files.length,
     sizeBytes,
     includedOverrides
-  });
+  };
 }
 
 /**

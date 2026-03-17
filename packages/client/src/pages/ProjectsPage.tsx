@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { trpc } from "../lib/trpc";
 import { useSession } from "../lib/auth-client";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -19,6 +20,7 @@ import { FolderKanban, Plus, Search } from "lucide-react";
 
 export default function ProjectsPage() {
   const session = useSession();
+  const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [newProject, setNewProject] = useState({ name: "", description: "", repoUrl: "" });
@@ -67,8 +69,7 @@ export default function ProjectsPage() {
                 createProject.mutate({
                   name: newProject.name,
                   description: newProject.description || undefined,
-                  repoUrl: newProject.repoUrl || undefined,
-                  teamId: "default"
+                  repoUrl: newProject.repoUrl || undefined
                 });
               }}
             >
@@ -151,7 +152,11 @@ export default function ProjectsPage() {
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {allProjects.map((p) => (
-            <Card key={String(p.id)} className="cursor-pointer transition-colors hover:bg-muted/50">
+            <Card
+              key={String(p.id)}
+              className="cursor-pointer transition-colors hover:bg-muted/50"
+              onClick={() => void navigate(`/projects/${String(p.id)}`)}
+            >
               <CardHeader className="flex-row items-center gap-3 space-y-0 pb-2">
                 <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-muted">
                   <FolderKanban size={18} className="text-muted-foreground" />

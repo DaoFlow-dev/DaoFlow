@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createApp } from "./app";
+import { resetControlPlaneSeedState } from "./db/services/seed";
+import { resetTestDatabase } from "./test-db";
 
 describe("createApp", () => {
   it("serves the health endpoint with security and request metadata", async () => {
@@ -33,6 +35,9 @@ describe("createApp", () => {
   });
 
   it("mounts Better Auth with durable schema bootstrap", async () => {
+    await resetTestDatabase();
+    resetControlPlaneSeedState();
+
     const app = createApp();
     const ownerEmail = `owner+${Date.now()}@daoflow.local`;
     const ownerResponse = await app.request("/api/auth/sign-up/email", {

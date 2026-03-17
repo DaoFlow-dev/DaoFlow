@@ -7,6 +7,7 @@ import {
   testProviderConnection,
   isValidSecretRef
 } from "../db/services/onepassword";
+import { resolveTeamIdForUser } from "../db/services/teams";
 import { t, adminProcedure, protectedProcedure, getActorContext } from "../trpc";
 
 export const secretsRouter = t.router({
@@ -21,12 +22,20 @@ export const secretsRouter = t.router({
     )
     .mutation(async ({ ctx, input }) => {
       const actor = getActorContext(ctx);
+      const teamId = await resolveTeamIdForUser(actor.requestedByUserId);
+
+      if (!teamId) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "No organization is available for this user."
+        });
+      }
 
       const provider = await createSecretProvider({
         name: input.name,
         type: input.type,
         serviceAccountToken: input.serviceAccountToken,
-        teamId: "default",
+        teamId,
         createdByUserId: actor.requestedByUserId,
         createdByEmail: actor.requestedByEmail
       });
@@ -35,15 +44,25 @@ export const secretsRouter = t.router({
     }),
 
   /** List all secret providers for the team */
-  listSecretProviders: protectedProcedure.query(async () => {
-    return listSecretProviders("default");
+  listSecretProviders: protectedProcedure.query(async ({ ctx }) => {
+    const teamId = await resolveTeamIdForUser(ctx.session.user.id);
+    if (!teamId) {
+      return [];
+    }
+
+    return listSecretProviders(teamId);
   }),
 
   /** Test a provider's connection */
   testSecretProvider: adminProcedure
     .input(z.object({ providerId: z.string().min(1) }))
-    .mutation(async ({ input }) => {
-      return testProviderConnection(input.providerId, "default");
+    .mutation(async ({ ctx, input }) => {
+      const teamId = await resolveTeamIdForUser(ctx.session.user.id);
+      if (!teamId) {
+        return { ok: false, error: "No organization is available for this user." };
+      }
+
+      return testProviderConnection(input.providerId, teamId);
     }),
 
   /** Delete a secret provider */
@@ -51,9 +70,18 @@ export const secretsRouter = t.router({
     .input(z.object({ providerId: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => {
       const actor = getActorContext(ctx);
+      const teamId = await resolveTeamIdForUser(actor.requestedByUserId);
+
+      if (!teamId) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "No organization is available for this user."
+        });
+      }
+
       const deleted = await deleteSecretProvider(
         input.providerId,
-        "default",
+        teamId,
         actor.requestedByUserId,
         actor.requestedByEmail
       );
