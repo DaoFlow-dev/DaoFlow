@@ -22,6 +22,8 @@ export interface UpsertEnvironmentVariableInput {
   value: string;
   isSecret: boolean;
   category: "runtime" | "build";
+  source?: "inline" | "1password";
+  secretRef?: string | null;
   branchPattern?: string | null;
   updatedByUserId: string;
   updatedByEmail: string;
@@ -55,6 +57,8 @@ export async function upsertEnvironmentVariable(input: UpsertEnvironmentVariable
         valueEncrypted: encryptedValue,
         isSecret: input.isSecret ? "true" : "false",
         category: input.category,
+        source: input.source ?? "inline",
+        secretRef: input.secretRef ?? null,
         branchPattern: input.branchPattern ?? null,
         updatedByUserId: input.updatedByUserId,
         updatedAt: new Date()
@@ -67,6 +71,8 @@ export async function upsertEnvironmentVariable(input: UpsertEnvironmentVariable
       valueEncrypted: encryptedValue,
       isSecret: input.isSecret ? "true" : "false",
       category: input.category,
+      source: input.source ?? "inline",
+      secretRef: input.secretRef ?? null,
       branchPattern: input.branchPattern ?? null,
       updatedByUserId: input.updatedByUserId
     });

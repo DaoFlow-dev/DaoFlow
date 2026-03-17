@@ -84,6 +84,8 @@ export const environmentVariables = pgTable(
     valueEncrypted: text("value_encrypted").notNull(),
     isSecret: varchar("is_secret", { length: 5 }).default("false").notNull(),
     category: varchar("category", { length: 20 }).default("runtime").notNull(), // runtime | build
+    source: varchar("source", { length: 20 }).default("inline").notNull(), // inline | 1password
+    secretRef: text("secret_ref"), // op://vault/item/field URI when source is "1password"
     branchPattern: varchar("branch_pattern", { length: 120 }),
     updatedByUserId: text("updated_by_user_id").references(() => users.id),
     createdAt: timestamp("created_at").defaultNow().notNull(),

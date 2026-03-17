@@ -30,16 +30,16 @@ Every deployment in DaoFlow follows a deterministic lifecycle with structured st
 
 Each deployment is broken into structured steps for observability:
 
-| Step | Description | Timeline Position |
-|------|-------------|-------------------|
-| `resolve` | Resolve service, environment, and server | First |
-| `clone` | Clone git repository (if git-based) | After resolve |
-| `build` | Build Docker image from Dockerfile | After clone |
-| `pull` | Pull image from registry (if image-based) | After resolve |
-| `volume` | Create/verify named volumes | Before start |
-| `start` | Start containers via `docker compose up` | Core step |
-| `health` | Run health checks | After start |
-| `cleanup` | Remove old containers | After healthy |
+| Step      | Description                               | Timeline Position |
+| --------- | ----------------------------------------- | ----------------- |
+| `resolve` | Resolve service, environment, and server  | First             |
+| `clone`   | Clone git repository (if git-based)       | After resolve     |
+| `build`   | Build Docker image from Dockerfile        | After clone       |
+| `pull`    | Pull image from registry (if image-based) | After resolve     |
+| `volume`  | Create/verify named volumes               | Before start      |
+| `start`   | Start containers via `docker compose up`  | Core step         |
+| `health`  | Run health checks                         | After start       |
+| `cleanup` | Remove old containers                     | After healthy     |
 
 ## Deployment Record
 
@@ -66,11 +66,11 @@ Every deployment produces an immutable record:
 
 ## Source Types
 
-| Type | Description | Input |
-|------|-------------|-------|
-| `image` | Pull and run a Docker image | Image reference |
-| `dockerfile` | Build from Dockerfile | Git repo + Dockerfile path |
-| `compose` | Docker Compose deployment | compose.yaml file |
+| Type         | Description                 | Input                      |
+| ------------ | --------------------------- | -------------------------- |
+| `image`      | Pull and run a Docker image | Image reference            |
+| `dockerfile` | Build from Dockerfile       | Git repo + Dockerfile path |
+| `compose`    | Docker Compose deployment   | compose.yaml file          |
 
 ## Rollback
 

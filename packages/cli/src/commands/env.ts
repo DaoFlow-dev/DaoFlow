@@ -139,7 +139,8 @@ export function envCommand(): Command {
     .description("Set an environment variable")
     .requiredOption("--env-id <id>", "Environment ID")
     .requiredOption("--key <key>", "Variable key")
-    .requiredOption("--value <value>", "Variable value")
+    .option("--value <value>", "Variable value (required unless --secret-ref is used)")
+    .option("--secret-ref <uri>", "1Password secret reference (op://vault/item/field)")
     .option("--secret", "Mark as secret (encrypted at rest)")
     .option("--category <cat>", "Category: runtime, build, secret", "runtime")
     .option("--json", "Output as JSON")
@@ -148,15 +149,41 @@ export function envCommand(): Command {
       async (opts: {
         envId: string;
         key: string;
-        value: string;
+        value?: string;
+        secretRef?: string;
         secret?: boolean;
         category: string;
         json?: boolean;
         yes?: boolean;
       }) => {
+        // Validate: must have either --value or --secret-ref
+        if (!opts.value && !opts.secretRef) {
+          const msg = "Either --value or --secret-ref is required.";
+          if (opts.json) {
+            console.log(JSON.stringify({ ok: false, error: msg, code: "INVALID_INPUT" }));
+          } else {
+            console.error(chalk.red(`✗ ${msg}`));
+          }
+          process.exit(1);
+        }
+
+        // Validate op:// URI format
+        if (opts.secretRef && !/^op:\/\/[^/]+\/[^/]+\/[^/]+$/.test(opts.secretRef)) {
+          const msg = `Invalid secret reference: ${opts.secretRef}. Expected format: op://vault/item/field`;
+          if (opts.json) {
+            console.log(JSON.stringify({ ok: false, error: msg, code: "INVALID_SECRET_REF" }));
+          } else {
+            console.error(chalk.red(`✗ ${msg}`));
+          }
+          process.exit(1);
+        }
+
         if (!opts.yes && !opts.json) {
+          const source = opts.secretRef ? `(1Password: ${opts.secretRef})` : "";
           console.error(
-            chalk.yellow(`Set ${opts.key} in environment ${opts.envId}. Pass --yes to confirm.`)
+            chalk.yellow(
+              `Set ${opts.key} in environment ${opts.envId} ${source}. Pass --yes to confirm.`
+            )
           );
           process.exit(1);
         }
@@ -166,15 +193,33 @@ export function envCommand(): Command {
           await trpc.upsertEnvironmentVariable.mutate({
             environmentId: opts.envId,
             key: opts.key,
-            value: opts.value,
-            isSecret: opts.secret ?? false,
-            category: opts.category as "runtime" | "build"
+            value: opts.secretRef ? `[1password:${opts.secretRef}]` : opts.value!,
+            isSecret: opts.secret ?? !!opts.secretRef,
+            category: opts.category as "runtime" | "build",
+            source: opts.secretRef ? "1password" : "inline",
+            secretRef: opts.secretRef ?? null
           });
 
           if (opts.json) {
-            console.log(JSON.stringify({ ok: true, key: opts.key, environment: opts.envId }));
+            console.log(
+              JSON.stringify({
+                ok: true,
+                key: opts.key,
+                environment: opts.envId,
+                source: opts.secretRef ? "1password" : "inline",
+                secretRef: opts.secretRef ?? null
+              })
+            );
           } else {
-            console.log(chalk.green(`✓ Set ${opts.key} in environment ${opts.envId}`));
+            if (opts.secretRef) {
+              console.log(
+                chalk.green(
+                  `✓ Set ${opts.key} → ${chalk.cyan(opts.secretRef)} in environment ${opts.envId}`
+                )
+              );
+            } else {
+              console.log(chalk.green(`✓ Set ${opts.key} in environment ${opts.envId}`));
+            }
           }
         } catch (err) {
           if (opts.json) {
@@ -222,6 +267,65 @@ export function envCommand(): Command {
           console.log(JSON.stringify({ ok: true, deleted: opts.key, environment: opts.envId }));
         } else {
           console.log(chalk.green(`✓ Deleted ${opts.key} from environment ${opts.envId}`));
+        }
+      } catch (err) {
+        if (opts.json) {
+          console.log(
+            JSON.stringify({
+              ok: false,
+              error: err instanceof Error ? err.message : "Unknown",
+              code: "API_ERROR"
+            })
+          );
+        } else {
+          console.error(chalk.red(`✗ ${err instanceof Error ? err.message : err}`));
+        }
+        process.exit(1);
+      }
+    });
+
+  // ── daoflow env resolve ─────────────────────────────────
+  cmd
+    .command("resolve")
+    .description("Resolve all 1Password secret references for an environment")
+    .requiredOption("--env-id <id>", "Environment ID")
+    .option("--json", "Output as JSON")
+    .action(async (opts: { envId: string; json?: boolean }) => {
+      try {
+        const trpc = createClient();
+        const data = await trpc.environmentVariables.query({ environmentId: opts.envId });
+
+        const opVars = data.variables.filter((v: { source?: string }) => v.source === "1password");
+
+        if (opVars.length === 0) {
+          if (opts.json) {
+            console.log(JSON.stringify({ ok: true, resolved: 0, variables: [] }));
+          } else {
+            console.log(chalk.dim("No 1Password references found in this environment."));
+          }
+          return;
+        }
+
+        if (opts.json) {
+          console.log(
+            JSON.stringify({
+              ok: true,
+              resolved: opVars.length,
+              variables: opVars.map((v: { key: string; secretRef?: string }) => ({
+                key: v.key,
+                secretRef: v.secretRef,
+                status: "reference_stored"
+              }))
+            })
+          );
+        } else {
+          console.log(chalk.bold(`\n  1Password References (${opVars.length} variables)\n`));
+          for (const v of opVars as { key: string; secretRef?: string }[]) {
+            console.log(
+              `  ${chalk.cyan(v.key)} → ${chalk.magenta(v.secretRef ?? "[no ref]")}  ${chalk.dim("[resolved at deploy time]")}`
+            );
+          }
+          console.log();
         }
       } catch (err) {
         if (opts.json) {

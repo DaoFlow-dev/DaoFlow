@@ -8,11 +8,11 @@ DaoFlow provides **preset token configurations** that give AI agents the exact s
 
 ## Available Presets
 
-| Preset | Scopes | Use Case |
-|--------|--------|----------|
-| `agent:read-only` | `server:read`, `deploy:read`, `service:read`, `env:read`, `logs:read`, `events:read`, `diagnostics:read`, `backup:read` | Monitoring, diagnosis, log analysis |
-| `agent:minimal-write` | All read scopes + `deploy:start`, `deploy:cancel`, `env:write` | CI/CD deploy pipelines |
-| `agent:full` | All scopes including `deploy:rollback`, `backup:run`, `backup:restore`, `volumes:write` | Full autonomous operation |
+| Preset                | Scopes                                                                                                                  | Use Case                            |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
+| `agent:read-only`     | `server:read`, `deploy:read`, `service:read`, `env:read`, `logs:read`, `events:read`, `diagnostics:read`, `backup:read` | Monitoring, diagnosis, log analysis |
+| `agent:minimal-write` | All read scopes + `deploy:start`, `deploy:cancel`, `env:write`                                                          | CI/CD deploy pipelines              |
+| `agent:full`          | All scopes including `deploy:rollback`, `backup:run`, `backup:restore`, `volumes:write`                                 | Full autonomous operation           |
 
 ## Creating Preset Tokens
 

@@ -12,3 +12,4 @@ export * from "./tunnels";
 export * from "./services";
 export * from "./git-providers";
 export * from "./notifications";
+export * from "./secret-providers";

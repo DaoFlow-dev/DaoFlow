@@ -120,11 +120,11 @@ Revoke an active agent token.
 
 ## Preset Definitions
 
-| Preset | Read Scopes | Write Scopes |
-|--------|-------------|--------------|
-| `agent:read-only` | `server:read`, `deploy:read`, `service:read`, `env:read`, `logs:read`, `events:read`, `diagnostics:read`, `backup:read` | — |
-| `agent:minimal-write` | All read scopes | `deploy:start`, `deploy:cancel`, `env:write` |
-| `agent:full` | All read scopes | All write scopes including `deploy:rollback`, `backup:run`, `backup:restore`, `volumes:write` |
+| Preset                | Read Scopes                                                                                                             | Write Scopes                                                                                  |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `agent:read-only`     | `server:read`, `deploy:read`, `service:read`, `env:read`, `logs:read`, `events:read`, `diagnostics:read`, `backup:read` | —                                                                                             |
+| `agent:minimal-write` | All read scopes                                                                                                         | `deploy:start`, `deploy:cancel`, `env:write`                                                  |
+| `agent:full`          | All read scopes                                                                                                         | All write scopes including `deploy:rollback`, `backup:run`, `backup:restore`, `volumes:write` |
 
 ## Error Responses
 

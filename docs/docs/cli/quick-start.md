@@ -132,12 +132,12 @@ daoflow token revoke --id <token-id> --yes
 
 ## Exit Codes
 
-| Code | Meaning |
-|------|---------|
-| `0` | Success |
-| `1` | Error |
-| `2` | Permission denied |
-| `3` | Dry-run completed |
+| Code | Meaning           |
+| ---- | ----------------- |
+| `0`  | Success           |
+| `1`  | Error             |
+| `2`  | Permission denied |
+| `3`  | Dry-run completed |
 
 ## Agent Integration
 

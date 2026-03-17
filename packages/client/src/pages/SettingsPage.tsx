@@ -13,7 +13,7 @@ import {
   TableHeader,
   TableRow
 } from "@/components/ui/table";
-import { Settings, Users, KeyRound, Shield, Bell, HardDrive, GitBranch } from "lucide-react";
+import { Settings, Users, KeyRound, Shield, Bell, HardDrive, GitBranch, Lock } from "lucide-react";
 import GitProvidersTab from "@/components/GitProvidersTab";
 
 export default function SettingsPage() {
@@ -69,6 +69,9 @@ export default function SettingsPage() {
             </TabsTrigger>
             <TabsTrigger value="git" className="gap-1.5">
               <GitBranch size={14} /> Git Providers
+            </TabsTrigger>
+            <TabsTrigger value="secrets" className="gap-1.5">
+              <Lock size={14} /> Secret Providers
             </TabsTrigger>
           </TabsList>
 
@@ -364,6 +367,32 @@ export default function SettingsPage() {
           {/* ── Git Providers ──────────────────────────────── */}
           <TabsContent value="git" className="mt-4">
             <GitProvidersTab />
+          </TabsContent>
+
+          {/* ── Secret Providers (1Password) ───────────────── */}
+          <TabsContent value="secrets" className="mt-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Secret Providers</CardTitle>
+                <CardDescription>
+                  Connect external secret managers (e.g. 1Password) to inject secrets at deployment
+                  time using <code className="text-xs">op://</code> references.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground">
+                  1Password service account integration available. Use the CLI to connect and manage
+                  providers, or configure them here when the UI is ready.
+                </p>
+                <div className="mt-4 rounded-lg border border-dashed p-6 text-center">
+                  <Lock className="mx-auto mb-2 h-8 w-8 text-muted-foreground/50" />
+                  <p className="text-sm font-medium">No secret providers configured</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Add a 1Password service account to get started
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
         </Tabs>
       )}

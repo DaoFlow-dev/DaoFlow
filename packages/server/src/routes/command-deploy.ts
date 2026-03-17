@@ -97,6 +97,8 @@ export const deployRouter = t.router({
         value: z.string().min(1).max(4000),
         isSecret: z.boolean(),
         category: z.enum(["runtime", "build"]),
+        source: z.enum(["inline", "1password"]).optional(),
+        secretRef: z.string().max(500).nullable().optional(),
         branchPattern: z.string().max(120).optional()
       })
     )
