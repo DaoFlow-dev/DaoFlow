@@ -27,7 +27,9 @@ export function projectsCommand(): Command {
         console.log("\n📁 Projects\n");
         for (const p of projects) {
           const proj = p as Record<string, unknown>;
-          console.log(`  • ${String(proj.name ?? "Unnamed")}  (${String(proj.id ?? "")})`);
+          const name = typeof proj.name === "string" ? proj.name : "Unnamed";
+          const id = typeof proj.id === "string" ? proj.id : "";
+          console.log(`  • ${name}  (${id})`);
         }
         console.log("");
       } catch (err) {

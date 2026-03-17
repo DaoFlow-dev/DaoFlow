@@ -15,6 +15,7 @@ const SHELL_META = /[;&|`$(){}[\]<>!\\#~]/;
 const PATH_TRAVERSAL = /\.\.\//;
 
 /** Control characters (except newline, tab) */
+// eslint-disable-next-line no-control-regex
 const CONTROL_CHARS = /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/;
 
 export interface ValidationResult {

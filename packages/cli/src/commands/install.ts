@@ -143,8 +143,8 @@ export function installCommand(): Command {
         }
 
         // Store for later use in generateEnvFile
-        (opts as any)._pgPassword = pgPassword;
-        (opts as any)._temporalPgPassword = temporalPgPassword;
+        opts._pgPassword = pgPassword;
+        opts._temporalPgPassword = temporalPgPassword;
 
         console.error();
         console.error(chalk.bold("Configuration:"));
@@ -212,8 +212,8 @@ export function installCommand(): Command {
         version: VERSION,
         domain,
         port,
-        postgresPassword: (opts as any)._pgPassword,
-        temporalPostgresPassword: (opts as any)._temporalPgPassword
+        postgresPassword: opts._pgPassword,
+        temporalPostgresPassword: opts._temporalPgPassword
       });
       writeFileSync(envPath, envContent, { mode: 0o600 });
       envSpinner?.succeed("Secrets generated and saved to .env");
