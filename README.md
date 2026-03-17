@@ -75,7 +75,7 @@ Requirements: **Bun 1.2+**, **Docker** with Compose v2.
 git clone https://github.com/DaoFlow-dev/DaoFlow.git
 cd DaoFlow
 bun install
-docker compose up -d          # Postgres 17 + Redis 7
+docker compose -f docker-compose.dev.yml up -d
 cp .env.example .env
 bun run db:migrate
 bun run dev
@@ -99,6 +99,8 @@ bun test:unit                 # Vitest
 bun test:e2e                  # Playwright
 bun verify                    # All of the above
 ```
+
+`bun run test:e2e` reuses `docker-compose.dev.yml` for Postgres, Redis, and Temporal, then runs the E2E-specific DB reset/seed setup scripts before Playwright starts the app on the host.
 
 ## Production Build
 

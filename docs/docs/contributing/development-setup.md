@@ -24,7 +24,7 @@ cd DaoFlow
 bun install
 
 # 3. Start infrastructure
-docker compose up -d
+docker compose -f docker-compose.dev.yml up -d
 
 # 4. Run database migrations
 bun run db:migrate
@@ -40,17 +40,17 @@ The dashboard runs on `http://localhost:3000`.
 
 ## Package Scripts
 
-| Script               | Description                     |
-| -------------------- | ------------------------------- |
-| `bun run dev`        | Start dev server (API + client) |
-| `bun run build`      | Production build                |
-| `bun run start`      | Start production server         |
-| `bun run db:migrate` | Run database migrations         |
-| `bun run db:seed`    | Seed demo data                  |
-| `bun run typecheck`  | TypeScript type checking        |
-| `bun run lint`       | ESLint                          |
-| `bun run test`       | Unit tests                      |
-| `bun run test:e2e`   | End-to-end tests (Playwright)   |
+| Script               | Description                                     |
+| -------------------- | ----------------------------------------------- |
+| `bun run dev`        | Start dev server (API + client)                 |
+| `bun run build`      | Production build                                |
+| `bun run start`      | Start production server                         |
+| `bun run db:migrate` | Run database migrations                         |
+| `bun run db:seed`    | Seed demo data                                  |
+| `bun run typecheck`  | TypeScript type checking                        |
+| `bun run lint`       | ESLint                                          |
+| `bun run test`       | Unit tests                                      |
+| `bun run test:e2e`   | End-to-end tests using `docker-compose.dev.yml` |
 
 ## Monorepo Structure
 
@@ -73,7 +73,7 @@ daoflow/
 bun run typecheck
 
 # Run E2E tests
-bunx playwright test
+bun run test:e2e
 
 # Run docs E2E tests
 bunx playwright test --config playwright-docs.config.ts

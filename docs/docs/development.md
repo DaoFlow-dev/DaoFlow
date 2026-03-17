@@ -58,6 +58,14 @@ bun run dev
 
 The DaoFlow server runs at `http://localhost:3000`.
 
+## 4.5 Run E2E Against The Same Dev Stack
+
+Playwright E2E reuses the same `docker-compose.dev.yml` services used for local development. The E2E scripts bring the stack up if needed, reset dedicated E2E databases, push the current schema, seed test data, and then start the app on the host for browser tests.
+
+```bash
+bun run test:e2e
+```
+
 ## 5. Create a Test User
 
 Open `http://localhost:3000` in a browser and sign up with an email and password. The first user gets the `owner` role.
