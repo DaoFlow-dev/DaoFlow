@@ -18,6 +18,8 @@ import { upgradeCommand } from "./commands/upgrade";
 import { uninstallCommand } from "./commands/uninstall";
 import { backupCommand } from "./commands/backup";
 import { tokenCommand } from "./commands/token";
+import { diffCommand } from "./commands/diff";
+import { cancelCommand } from "./commands/cancel";
 
 const program = new Command();
 
@@ -47,5 +49,7 @@ program.addCommand(upgradeCommand());
 program.addCommand(uninstallCommand());
 program.addCommand(backupCommand());
 program.addCommand(tokenCommand());
+program.addCommand(diffCommand());
+program.addCommand(cancelCommand());
 
 program.parse();
