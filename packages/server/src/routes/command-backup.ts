@@ -7,13 +7,7 @@ import {
   deleteDestination,
   testDestinationConnection
 } from "../db/services/destinations";
-import {
-  t,
-  backupRunProcedure,
-  backupRestoreProcedure,
-  getActorContext,
-  throwOnOperationError
-} from "../trpc";
+import { t, backupRunProcedure, backupRestoreProcedure, getActorContext } from "../trpc";
 
 export const backupRouter = t.router({
   triggerBackupRun: backupRunProcedure
