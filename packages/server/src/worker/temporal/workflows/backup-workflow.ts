@@ -25,7 +25,7 @@ import type * as dbActs from "../activities/database-activities";
 import type * as retentionActs from "../activities/retention-activities";
 import type * as notificationActs from "../activities/notification-activities";
 
-// Backup activities (existing)
+// Backup activities (existing + new lock/integrity)
 const {
   resolveBackupPolicy,
   createBackupRun,
@@ -33,7 +33,10 @@ const {
   markBackupRunSucceeded,
   markBackupRunFailed,
   emitBackupEvent,
-  auditBackupAction
+  auditBackupAction,
+  checkBackupLock,
+  verifyBackupIntegrity,
+  checkStorageQuota
 } = proxyActivities<typeof backupActs>({
   startToCloseTimeout: "30 minutes",
   retry: {
@@ -102,6 +105,19 @@ export async function backupCronWorkflow(input: BackupCronWorkflowInput): Promis
       "backup.skipped",
       "Backup skipped",
       `Policy ${policyId} is inactive or missing required configuration`,
+      "info"
+    );
+    return;
+  }
+
+  // Phase 1.5: Check concurrent backup lock
+  const lockCheck = await checkBackupLock(policyId);
+  if (lockCheck.locked) {
+    await emitBackupEvent(
+      policyId,
+      "backup.skipped",
+      "Backup skipped (locked)",
+      `Another backup is already running for this policy (run: ${lockCheck.conflictingRunId})`,
       "info"
     );
     return;
@@ -178,6 +194,22 @@ export async function backupCronWorkflow(input: BackupCronWorkflowInput): Promis
       result = await executeBackupCopy(resolved, runId);
     }
 
+    // Phase 4.5: Verify backup integrity
+    try {
+      const integrity = await verifyBackupIntegrity(resolved, result.artifactPath, result.runId);
+      if (!integrity.verified) {
+        await emitBackupEvent(
+          policyId,
+          "backup.integrity.warning",
+          "Backup integrity check failed",
+          `Integrity check failed for ${result.artifactPath}: ${integrity.error ?? "unknown"}`,
+          "error"
+        );
+      }
+    } catch {
+      // Integrity check is best-effort, don't fail the backup
+    }
+
     // Phase 5: Mark success
     await markBackupRunSucceeded(result.runId, result.artifactPath, result.sizeBytes);
 
@@ -215,6 +247,15 @@ export async function backupCronWorkflow(input: BackupCronWorkflowInput): Promis
       }
     } catch {
       // Retention failure shouldn't fail the backup
+    }
+
+    // Phase 7.5: Check storage quota for destination
+    try {
+      if (resolved.destination.id) {
+        await checkStorageQuota(resolved.destination.id);
+      }
+    } catch {
+      // Quota check is best-effort
     }
 
     // Phase 8: Dispatch "succeeded" notification

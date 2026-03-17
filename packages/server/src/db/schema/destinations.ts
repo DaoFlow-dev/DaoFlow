@@ -1,4 +1,4 @@
-import { index, jsonb, pgTable, text, timestamp, varchar } from "drizzle-orm/pg-core";
+import { index, integer, jsonb, pgTable, text, timestamp, varchar } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 
 /**
@@ -57,6 +57,12 @@ export const backupDestinations = pgTable(
 
     // ── Local filesystem (for dev/testing) ─────────────────
     localPath: text("local_path"),
+
+    // ── Storage Quota ─────────────────────────────────────────
+    /** Maximum allowed storage in bytes (null = unlimited) */
+    quotaBytes: text("quota_bytes"), // text to avoid int overflow on large values
+    /** Warning threshold as percentage (0-100, default 80) */
+    quotaWarningPercent: integer("quota_warning_percent").default(80),
 
     // ── Metadata ───────────────────────────────────────────
     organizationId: varchar("organization_id", { length: 32 }),

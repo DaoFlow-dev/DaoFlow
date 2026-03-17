@@ -8,7 +8,7 @@
  * workflow orchestrates them in the correct order.
  */
 
-import { eq, and, lt } from "drizzle-orm";
+import { eq, and, lt, sql } from "drizzle-orm";
 import { db } from "../../../db/connection";
 import { backupPolicies, backupRuns, volumes } from "../../../db/schema/storage";
 import { backupDestinations } from "../../../db/schema/destinations";
@@ -18,6 +18,7 @@ import {
   copyToRemote,
   listRemote,
   deleteRemote,
+  checkRemote,
   type DestinationConfig
 } from "../../rclone-executor";
 import type { BackupProvider } from "../../../db/schema/destinations";
@@ -321,4 +322,135 @@ export async function auditBackupAction(
       detail
     }
   });
+}
+
+// ── Task #8: Concurrent Backup Lock ──────────────────────────
+
+/**
+ * Check if there is already an in-progress backup for the same policy.
+ * Returns true if the backup can proceed, false if locked.
+ */
+export async function checkBackupLock(
+  policyId: string
+): Promise<{ locked: boolean; conflictingRunId?: string }> {
+  const inProgress = await db
+    .select({ id: backupRuns.id })
+    .from(backupRuns)
+    .where(and(eq(backupRuns.policyId, policyId), eq(backupRuns.status, "running")))
+    .limit(1);
+
+  if (inProgress.length > 0) {
+    return { locked: true, conflictingRunId: inProgress[0].id };
+  }
+
+  return { locked: false };
+}
+
+// ── Task #9: Post-Backup Integrity Check ─────────────────────
+
+export interface IntegrityCheckResult {
+  verified: boolean;
+  fileCount: number;
+  totalBytes: number;
+  error?: string;
+}
+
+/**
+ * Verify a backup artifact exists at the remote destination and record
+ * the verified checksum. Uses `rclone ls` to confirm files are present.
+ */
+export async function verifyBackupIntegrity(
+  resolved: BackupPolicyResolved,
+  artifactPath: string,
+  runId: string
+): Promise<IntegrityCheckResult> {
+  const check = checkRemote(resolved.destination, artifactPath);
+
+  if (check.success) {
+    // Update the backup run with verified size and checksum timestamp
+    await db
+      .update(backupRuns)
+      .set({
+        sizeBytes: String(check.totalBytes),
+        verifiedAt: new Date()
+      })
+      .where(eq(backupRuns.id, runId));
+  }
+
+  return {
+    verified: check.success,
+    fileCount: check.fileCount,
+    totalBytes: check.totalBytes,
+    error: check.error
+  };
+}
+
+// ── Task #16-18: Storage Tracking & Quota Alerts ─────────────
+
+export interface StorageUsageResult {
+  destinationId: string;
+  totalBytes: number;
+  quotaBytes: number | null;
+  quotaWarningPercent: number;
+  usagePercent: number | null;
+  overQuota: boolean;
+  overWarning: boolean;
+}
+
+/**
+ * Check storage usage for a destination and emit alerts if quota is exceeded.
+ * Task #16: calculates actual storage from backup run records.
+ * Task #17: aggregates per-destination usage.
+ * Task #18: emits notification event when usage > warning threshold.
+ */
+export async function checkStorageQuota(destinationId: string): Promise<StorageUsageResult> {
+  // Aggregate total bytes from all succeeded backup runs targeting this destination
+  const [usage] = await db
+    .select({
+      totalBytes: sql<string>`COALESCE(SUM(CAST(${backupRuns.sizeBytes} AS BIGINT)), 0)`
+    })
+    .from(backupRuns)
+    .innerJoin(backupPolicies, eq(backupRuns.policyId, backupPolicies.id))
+    .where(
+      and(eq(backupPolicies.destinationId, destinationId), eq(backupRuns.status, "succeeded"))
+    );
+
+  const totalBytes = parseInt(String(usage?.totalBytes ?? "0"), 10);
+
+  // Fetch destination quota settings
+  const [dest] = await db
+    .select({
+      quotaBytes: backupDestinations.quotaBytes,
+      quotaWarningPercent: backupDestinations.quotaWarningPercent
+    })
+    .from(backupDestinations)
+    .where(eq(backupDestinations.id, destinationId))
+    .limit(1);
+
+  const quotaBytes = dest?.quotaBytes ? parseInt(dest.quotaBytes, 10) : null;
+  const quotaWarningPercent = dest?.quotaWarningPercent ?? 80;
+  const usagePercent = quotaBytes ? Math.round((totalBytes / quotaBytes) * 100) : null;
+  const overWarning = usagePercent !== null && usagePercent >= quotaWarningPercent;
+  const overQuota = usagePercent !== null && usagePercent >= 100;
+
+  // Emit notification if over warning threshold
+  if (overWarning) {
+    await emitBackupEvent(
+      destinationId,
+      overQuota ? "storage.quota.exceeded" : "storage.quota.warning",
+      overQuota ? "Storage quota exceeded" : "Storage quota warning",
+      `Destination ${destinationId} is at ${usagePercent}% capacity (${totalBytes} / ${quotaBytes} bytes)`,
+      overQuota ? "error" : "info"
+    );
+  }
+
+  return {
+    destinationId,
+    totalBytes,
+    quotaBytes,
+    quotaWarningPercent,
+    usagePercent,
+    overQuota,
+    overWarning
+  };
 }

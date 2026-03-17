@@ -462,3 +462,49 @@ export function deleteRemote(dest: DestinationConfig, subPath: string): RcloneRe
     cleanupConfig(configPath);
   }
 }
+
+/**
+ * Verify backup integrity by listing remote and counting files.
+ * Returns success if at least one file exists at the remote path.
+ * For full integrity, compare file count and total size.
+ */
+export function checkRemote(
+  dest: DestinationConfig,
+  subPath: string
+): { success: boolean; fileCount: number; totalBytes: number; error?: string } {
+  const configPath = generateRcloneConfig(dest);
+  try {
+    const useCrypt = dest.encryptionMode === "rclone-crypt";
+    const remotePath = resolveRemotePath(dest, subPath, useCrypt);
+    const result = runRclone(configPath, [
+      "ls",
+      remotePath,
+      `--timeout=${DEFAULT_TIMEOUT}`,
+      `--retries=${DEFAULT_RETRIES}`
+    ]);
+
+    if (!result.success) {
+      return { success: false, fileCount: 0, totalBytes: 0, error: result.error ?? result.output };
+    }
+
+    // Parse `rclone ls` output: each line is "  <size> <path>"
+    let fileCount = 0;
+    let totalBytes = 0;
+    for (const line of result.output.split("\n")) {
+      const match = /^\s*(\d+)\s/.exec(line.trim());
+      if (match) {
+        fileCount++;
+        totalBytes += parseInt(match[1], 10);
+      }
+    }
+
+    return {
+      success: fileCount > 0,
+      fileCount,
+      totalBytes,
+      error: fileCount === 0 ? "No files found at remote path" : undefined
+    };
+  } finally {
+    cleanupConfig(configPath);
+  }
+}

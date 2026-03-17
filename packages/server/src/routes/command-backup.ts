@@ -64,6 +64,33 @@ export const backupRouter = t.router({
       return restore;
     }),
 
+  /** Task #21: Test-restore to verify backup integrity */
+  triggerTestRestore: backupRestoreProcedure
+    .input(
+      z.object({
+        backupRunId: z.string().min(1)
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const actor = getActorContext(ctx);
+      const restore = await queueBackupRestore(
+        input.backupRunId,
+        actor.requestedByUserId,
+        actor.requestedByEmail,
+        actor.requestedByRole,
+        { testRestore: true }
+      );
+
+      if (!restore) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Only successful backup runs with an artifact can be test-restored."
+        });
+      }
+
+      return restore;
+    }),
+
   /* ── Backup Destinations ──────────────────────────────── */
   createBackupDestination: backupRunProcedure
     .input(

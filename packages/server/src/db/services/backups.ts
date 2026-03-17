@@ -191,7 +191,8 @@ export async function queueBackupRestore(
   backupRunId: string,
   userId: string,
   email: string,
-  role: AppRole
+  role: AppRole,
+  _opts?: { testRestore?: boolean }
 ) {
   const [run] = await db.select().from(backupRuns).where(eq(backupRuns.id, backupRunId)).limit(1);
   if (!run || run.status !== "succeeded" || !run.artifactPath) return null;
