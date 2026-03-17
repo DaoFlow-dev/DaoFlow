@@ -6,6 +6,7 @@ This guide covers setting up DaoFlow for local development, testing the CLI, and
 
 - [Bun](https://bun.sh/) v1.3+
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/) for macOS
+- [Temporal CLI](https://docs.temporal.io/cli) — `brew install temporal`
 - Git
 
 ## 1. Clone and Install
@@ -18,28 +19,31 @@ bun install
 
 ## 2. Start Infrastructure
 
-DaoFlow uses Postgres, Redis, and Temporal for local development. All are containerized:
+DaoFlow uses Postgres and Redis (via Docker) plus Temporal (via native CLI):
 
 ```bash
-docker compose -f docker-compose.dev.yml up -d
+# Start Postgres + Redis
+bun run dev:infra
+
+# Start Temporal dev server (separate terminal)
+bun run dev:temporal
 ```
 
 This starts:
 
-| Service               | Port | Description                          |
-| --------------------- | ---- | ------------------------------------ |
-| `postgres`            | 5432 | DaoFlow primary database (pgvector)  |
-| `redis`               | 6379 | Background job queue + SSE streaming |
-| `temporal-postgresql` | —    | Temporal's own Postgres instance     |
-| `temporal`            | 7233 | Temporal workflow engine             |
-| `temporal-ui`         | 8233 | Temporal web dashboard               |
+| Service     | Port | Source       | Description                          |
+| ----------- | ---- | ------------ | ------------------------------------ |
+| `postgres`  | 5432 | Docker       | DaoFlow primary database (pgvector)  |
+| `redis`     | 6379 | Docker       | Background job queue + SSE streaming |
+| `temporal`  | 7233 | CLI (native) | Temporal workflow engine             |
+| Temporal UI | 8233 | CLI (native) | Temporal web dashboard               |
 
-> **Note:** Temporal auto-setup takes 2–3 minutes on first boot (schema migrations). Check with `docker logs daoflow-temporal-1 -f`.
+> **Note:** Temporal runs natively via `temporal server start-dev` with built-in SQLite — no Docker needed. Install with `brew install temporal`.
 
-Verify everything is healthy:
+Or start everything at once:
 
 ```bash
-docker compose -f docker-compose.dev.yml ps
+bun run dev:full
 ```
 
 ## 3. Initialize the Database
@@ -236,9 +240,9 @@ DaoFlow/
 │   ├── client/         # React web UI
 │   ├── cli/            # CLI (uses @trpc/client + bun workspace)
 │   └── shared/         # Shared types and constants
-├── docker-compose.dev.yml   # Local dev: Postgres, Redis, Temporal
+├── docker-compose.dev.yml   # Local dev: Postgres + Redis (Docker)
 ├── docker-compose.yml       # Production: GHCR images + .env secrets
-├── temporal-config/         # Temporal dynamic config
+├── temporal-config/         # Temporal dynamic config (production)
 └── examples/
     ├── nextjs-daoflow-example/          # Sample app (image deploy)
     └── nextjs-docker-compose-example/   # Sample app (compose + local context)
@@ -246,14 +250,16 @@ DaoFlow/
 
 ## Useful Commands
 
-| Command                                                     | Description                        |
-| ----------------------------------------------------------- | ---------------------------------- |
-| `bun install`                                               | Install all workspace dependencies |
-| `bun run dev`                                               | Start DaoFlow dev server           |
-| `bun run db:push`                                           | Push Drizzle schema to Postgres    |
-| `bun run typecheck`                                         | Type-check all packages            |
-| `bun run lint`                                              | Run ESLint across the monorepo     |
-| `bun run test:e2e`                                          | Run Playwright E2E tests           |
-| `docker compose -f docker-compose.dev.yml up -d`            | Start local infrastructure         |
-| `docker compose -f docker-compose.dev.yml down`             | Stop local infrastructure          |
-| `docker compose -f docker-compose.dev.yml logs -f temporal` | Follow Temporal logs               |
+| Command                                         | Description                              |
+| ----------------------------------------------- | ---------------------------------------- |
+| `bun install`                                   | Install all workspace dependencies       |
+| `bun run dev`                                   | Start DaoFlow server + client            |
+| `bun run dev:infra`                             | Start Postgres + Redis (Docker)          |
+| `bun run dev:temporal`                          | Start Temporal CLI dev server            |
+| `bun run dev:full`                              | Start entire stack at once               |
+| `bun run db:push`                               | Push Drizzle schema to Postgres          |
+| `bun run typecheck`                             | Type-check all packages                  |
+| `bun run lint`                                  | Run ESLint across the monorepo           |
+| `bun run test:e2e`                              | Run Playwright E2E tests                 |
+| `bun run test:e2e:worker`                       | Run worker E2E tests (requires Temporal) |
+| `docker compose -f docker-compose.dev.yml down` | Stop Docker infrastructure               |
