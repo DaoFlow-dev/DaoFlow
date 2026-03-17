@@ -17,11 +17,13 @@ const sidebars = {
       type: "category",
       label: "Core Concepts",
       items: [
+        "concepts/index",
         "concepts/architecture",
         "concepts/projects-and-environments",
         "concepts/servers",
         "concepts/deployments",
-        "concepts/services"
+        "concepts/services",
+        "concepts/vision"
       ]
     },
     {
@@ -121,6 +123,17 @@ const sidebars = {
         "contributing/architecture-guide",
         "contributing/testing",
         "contributing/code-style"
+      ]
+    },
+    {
+      type: "category",
+      label: "Comparisons",
+      items: [
+        "comparisons/index",
+        "comparisons/vs-vercel",
+        "comparisons/vs-coolify-dokploy",
+        "comparisons/vs-cloud-providers",
+        "comparisons/vs-kamal"
       ]
     }
   ]
