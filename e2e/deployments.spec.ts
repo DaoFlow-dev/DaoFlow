@@ -19,7 +19,7 @@ test.describe("Deployment lifecycle", () => {
     // Deployment History card should always be visible (or at least the page heading)
     const deploymentHistory = page.getByText("Deployment History");
     const deploymentHeading = page.getByRole("heading", { name: "Deployments" });
-    await expect(deploymentHistory.or(deploymentHeading)).toBeVisible({ timeout: 10_000 });
+    await expect(deploymentHistory.or(deploymentHeading).first()).toBeVisible({ timeout: 10_000 });
 
     // Should show either deployment table, empty state, or loading skeleton
     const hasTable = await page

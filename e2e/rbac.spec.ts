@@ -25,12 +25,12 @@ test.describe("RBAC and agent tokens", () => {
     // Token inventory card should be visible (or at least the tab content area)
     const apiTokensText = page.getByText("API Tokens");
     const tokensTab = page.getByRole("tab", { name: "Tokens" });
-    await expect(apiTokensText.or(tokensTab)).toBeVisible({ timeout: 10_000 });
+    await expect(apiTokensText.or(tokensTab).first()).toBeVisible({ timeout: 10_000 });
 
     // The description text may take time to render
     const description = page.getByText("Scoped API tokens for integrations and agent access.");
     const headingFallback = page.getByRole("heading", { name: "Settings" });
-    await expect(description.or(headingFallback)).toBeVisible({ timeout: 10_000 });
+    await expect(description.or(headingFallback).first()).toBeVisible({ timeout: 10_000 });
 
     // Should show either "No API tokens" empty state or the token table
     const hasTokens = await page
@@ -86,7 +86,7 @@ test.describe("RBAC and agent tokens", () => {
     // Should show "Deployment History" card or at least the page heading
     const deploymentHistory = page.getByText("Deployment History");
     const deploymentHeading = page.getByRole("heading", { name: "Deployments" });
-    await expect(deploymentHistory.or(deploymentHeading)).toBeVisible({ timeout: 10_000 });
+    await expect(deploymentHistory.or(deploymentHeading).first()).toBeVisible({ timeout: 10_000 });
 
     // If deployments exist, verify the table has expected columns
     const hasTable = await page
