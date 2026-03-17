@@ -116,7 +116,7 @@ export async function backupCronWorkflow(input: BackupCronWorkflowInput): Promis
 
     // Dispatch "started" notification
     try {
-      const notification = buildBackupNotification({
+      const notification = await buildBackupNotification({
         eventType: "backup.started",
         policyName: resolved.policyName,
         projectName: resolved.projectName,
@@ -219,7 +219,7 @@ export async function backupCronWorkflow(input: BackupCronWorkflowInput): Promis
 
     // Phase 8: Dispatch "succeeded" notification
     try {
-      const notification = buildBackupNotification({
+      const notification = await buildBackupNotification({
         eventType: "backup.succeeded",
         policyName: resolved.policyName,
         projectName: resolved.projectName,
@@ -261,7 +261,7 @@ export async function backupCronWorkflow(input: BackupCronWorkflowInput): Promis
 
     // Dispatch "failed" notification
     try {
-      const notification = buildBackupNotification({
+      const notification = await buildBackupNotification({
         eventType: "backup.failed",
         policyName: resolved?.policyName ?? policyId,
         projectName: resolved?.projectName,

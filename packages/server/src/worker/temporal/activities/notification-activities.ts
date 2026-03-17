@@ -406,7 +406,7 @@ export async function dispatchNotification(payload: NotificationPayload): Promis
  * Build a notification payload for backup events.
  * Convenience helper used by the backup workflow.
  */
-export function buildBackupNotification(opts: {
+export async function buildBackupNotification(opts: {
   eventType: NotificationPayload["eventType"];
   policyName: string;
   projectName?: string;
@@ -417,7 +417,7 @@ export function buildBackupNotification(opts: {
   durationMs?: number;
   sizeBytes?: number;
   artifactPath?: string;
-}): NotificationPayload {
+}): Promise<NotificationPayload> {
   const severityMap = {
     started: "info" as const,
     succeeded: "success" as const,

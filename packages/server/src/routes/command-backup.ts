@@ -1,6 +1,11 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { queueBackupRestore, triggerBackupRun } from "../db/services/backups";
+import {
+  queueBackupRestore,
+  triggerBackupRun,
+  enableBackupSchedule,
+  disableBackupSchedule
+} from "../db/services/backups";
 import {
   createDestination,
   updateDestination,
@@ -140,5 +145,75 @@ export const backupRouter = t.router({
     .input(z.object({ id: z.string().min(1) }))
     .mutation(async ({ input }) => {
       return testDestinationConnection(input.id);
+    }),
+
+  /* ── Backup Schedule Management ────────────────────────── */
+  enableBackupSchedule: backupRunProcedure
+    .input(
+      z.object({
+        policyId: z.string().min(1),
+        schedule: z.string().min(1)
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const actor = getActorContext(ctx);
+      const result = await enableBackupSchedule(
+        input.policyId,
+        input.schedule,
+        actor.requestedByUserId,
+        actor.requestedByEmail,
+        actor.requestedByRole
+      );
+      if (!result) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Backup policy not found."
+        });
+      }
+      return result;
+    }),
+  disableBackupSchedule: backupRunProcedure
+    .input(
+      z.object({
+        policyId: z.string().min(1)
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const actor = getActorContext(ctx);
+      const result = await disableBackupSchedule(
+        input.policyId,
+        actor.requestedByUserId,
+        actor.requestedByEmail,
+        actor.requestedByRole
+      );
+      if (!result) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Backup policy not found or no active schedule."
+        });
+      }
+      return result;
+    }),
+  triggerBackupNow: backupRunProcedure
+    .input(
+      z.object({
+        policyId: z.string().min(1)
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const actor = getActorContext(ctx);
+      const run = await triggerBackupRun(
+        input.policyId,
+        actor.requestedByUserId,
+        actor.requestedByEmail,
+        actor.requestedByRole
+      );
+      if (!run) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Backup policy not found."
+        });
+      }
+      return run;
     })
 });
