@@ -111,17 +111,15 @@ deployContextRouter.post("/", async (c) => {
     }
 
     // ── Queue deployment ────────────────────────────────────
-    // TODO: In production, this would:
-    //   1. Look up server from DB by serverId
-    //   2. SCP tarball to remote server: scpUpload(target, tarPath, remotePath)
-    //   3. SSH extract: tar -xzf context.tar.gz -C /deploy/<contextId>/
-    //   4. Write compose.yaml to /deploy/<contextId>/compose.yaml
-    //   5. SSH: cd /deploy/<contextId> && docker compose up -d --build
-    //   6. Stream logs to deployment record
-    //   7. Cleanup temp files on both sides
-    //
-    // For now, we acknowledge receipt and return the deployment ID.
-    // The actual deployment worker will be implemented in the worker package.
+    // NOTE: Actual remote execution is handled by the worker package.
+    // This endpoint acknowledges receipt and returns a deployment ID.
+    // The worker picks up queued deployments and:
+    //   1. Looks up server from DB by serverId
+    //   2. SCPs tarball to remote server
+    //   3. SSHs to extract and run `docker compose up -d --build`
+    //   4. Streams logs to the deployment record
+    //   5. Cleans up temp files on both sides
+    // See AGENTS.md §7 "Execution plane" for architecture details.
 
     console.log(
       JSON.stringify({

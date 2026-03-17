@@ -42,8 +42,21 @@ async function exec(
  * Query params: tag, server, service
  */
 imagesRouter.post("/push", async (c) => {
-  // TODO: gate behind deployProcedure-equivalent auth once images
-  // move to the tRPC router. For now this is internal-only.
+  // Auth gate: require session cookie or Authorization header
+  const sessionCookie = c.req.header("Cookie")?.includes("better-auth.session_token");
+  const authHeader = c.req.header("Authorization");
+  if (!sessionCookie && !authHeader) {
+    return c.json(
+      {
+        status: "error",
+        error: "unauthorized",
+        message: "Authentication required",
+        code: "AUTH_REQUIRED"
+      },
+      401
+    );
+  }
+
   const tag = c.req.query("tag") ?? "daoflow-app:latest";
   const serverId = c.req.query("server") ?? "";
   const serviceName = c.req.query("service") ?? "";
