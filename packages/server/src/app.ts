@@ -95,7 +95,7 @@ export function createApp() {
     // Dynamic import to avoid circular deps
     const { db } = await import("./db/connection");
     const { deploymentLogs } = await import("./db/schema/deployments");
-    const { eq } = await import("drizzle-orm");
+    const { eq, and, gt } = await import("drizzle-orm");
 
     const encoder = new TextEncoder();
     const stream = new ReadableStream({
@@ -106,21 +106,18 @@ export function createApp() {
 
         const poll = async () => {
           try {
-            const query = lastId
-              ? db
-                  .select()
-                  .from(deploymentLogs)
-                  .where(eq(deploymentLogs.deploymentId, deploymentId))
-                  .orderBy(deploymentLogs.createdAt)
-                  .limit(100)
-              : db
-                  .select()
-                  .from(deploymentLogs)
-                  .where(eq(deploymentLogs.deploymentId, deploymentId))
-                  .orderBy(deploymentLogs.createdAt)
-                  .limit(100);
+            const baseCondition = eq(deploymentLogs.deploymentId, deploymentId);
+            const condition = lastId
+              ? and(baseCondition, gt(deploymentLogs.id, lastId))
+              : baseCondition;
 
-            const rows = await query;
+            const rows = await db
+              .select()
+              .from(deploymentLogs)
+              .where(condition)
+              .orderBy(deploymentLogs.id)
+              .limit(100);
+
             for (const row of rows) {
               const data = JSON.stringify({
                 id: row.id,

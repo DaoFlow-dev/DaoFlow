@@ -1,39 +1,27 @@
 import { Hono } from "hono";
-import { createWriteStream, mkdirSync, existsSync, statSync } from "node:fs";
+import { statSync } from "node:fs";
 import { unlink } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
 import { auth } from "../auth";
+import { streamBodyToFile } from "./stream-to-file";
+import { dockerLoad, dockerListImages, type DockerImageListEntry } from "../worker/docker-executor";
 
 const imagesRouter = new Hono();
 
 /**
- * Run a shell command asynchronously using Bun.spawn so the server
- * stays responsive while Docker operations complete.
+ * Collect logs from worker-layer Docker functions into a string buffer.
+ * In future this can be connected to the structured event system.
  */
-async function exec(
-  cmd: string[],
-  opts?: { timeout?: number; stdin?: string }
-): Promise<{ stdout: string; stderr: string; exitCode: number }> {
-  const proc = Bun.spawn(cmd, {
-    stdin: opts?.stdin ? new Response(opts.stdin).body! : "ignore",
-    stdout: "pipe",
-    stderr: "pipe"
-  });
-
-  const timeout = opts?.timeout ?? 30_000;
-  const timer = setTimeout(() => proc.kill(), timeout);
-
-  const [stdout, stderr] = await Promise.all([
-    new Response(proc.stdout).text(),
-    new Response(proc.stderr).text()
-  ]);
-
-  const exitCode = await proc.exited;
-  clearTimeout(timer);
-
-  return { stdout, stderr, exitCode };
+function collectLogs(): { logs: string[]; onLog: import("../worker/docker-executor").OnLog } {
+  const logs: string[] = [];
+  return {
+    logs,
+    onLog: (line) => {
+      logs.push(line.message);
+    }
+  };
 }
 
 /**
@@ -62,12 +50,7 @@ imagesRouter.post("/push", async (c) => {
   const serviceName = c.req.query("service") ?? "";
   const uploadId = randomUUID().replace(/-/g, "").slice(0, 16);
 
-  const uploadDir = join(tmpdir(), "daoflow-uploads");
-  if (!existsSync(uploadDir)) {
-    mkdirSync(uploadDir, { recursive: true });
-  }
-
-  const tarPath = join(uploadDir, `${uploadId}.tar.gz`);
+  const tarPath = join(tmpdir(), "daoflow-uploads", `${uploadId}.tar.gz`);
 
   try {
     // Stream request body to disk
@@ -76,43 +59,21 @@ imagesRouter.post("/push", async (c) => {
       return c.json({ status: "error", error: "empty_body", message: "No body" }, 400);
     }
 
-    const writeStream = createWriteStream(tarPath);
-    const reader = body.getReader();
-
-    await new Promise<void>((resolve, reject) => {
-      const pump = async () => {
-        try {
-          while (true) {
-            const { done, value } = (await reader.read()) as { done: boolean; value?: Uint8Array };
-            if (done) {
-              writeStream.end();
-              break;
-            }
-            writeStream.write(value);
-          }
-        } catch (err) {
-          reject(err instanceof Error ? err : new Error(String(err)));
-        }
-      };
-      writeStream.on("finish", resolve);
-      writeStream.on("error", reject);
-      void pump();
-    });
+    await streamBodyToFile(body, tarPath);
 
     const fileSize = statSync(tarPath).size;
     const sizeMB = (fileSize / 1024 / 1024).toFixed(1);
 
-    // Load image into Docker (async — does NOT block the server)
-    const result = await exec(["docker", "load", "-i", tarPath], {
-      timeout: 300_000
-    });
+    // Load image via worker-layer Docker executor (AGENTS.md §7)
+    const { onLog } = collectLogs();
+    const result = await dockerLoad(tarPath, onLog);
 
     if (result.exitCode !== 0) {
       return c.json(
         {
           status: "error",
           error: "docker_load_failed",
-          message: result.stderr || "Failed to load Docker image",
+          message: "Failed to load Docker image",
           uploadId
         },
         500
@@ -148,14 +109,6 @@ imagesRouter.post("/push", async (c) => {
  *
  * List Docker images on the server.
  */
-interface DockerImageInfo {
-  Repository: string;
-  Tag: string;
-  ID: string;
-  CreatedAt: string;
-  Size: string;
-}
-
 imagesRouter.get("/", async (c) => {
   const session = await auth.api.getSession({ headers: c.req.raw.headers });
   if (!session) {
@@ -171,23 +124,9 @@ imagesRouter.get("/", async (c) => {
   }
 
   try {
-    const result = await exec(["docker", "images", "--format", "json"], {
-      timeout: 10_000
-    });
-
-    const images: DockerImageInfo[] = result.stdout
-      .trim()
-      .split("\n")
-      .filter(Boolean)
-      .map((line: string): DockerImageInfo | null => {
-        try {
-          return JSON.parse(line) as DockerImageInfo;
-        } catch {
-          return null;
-        }
-      })
-      .filter((item): item is DockerImageInfo => item !== null);
-
+    const { onLog } = collectLogs();
+    const result = await dockerListImages(onLog);
+    const images: DockerImageListEntry[] = result.images;
     return c.json({ images });
   } catch {
     return c.json({ images: [] });

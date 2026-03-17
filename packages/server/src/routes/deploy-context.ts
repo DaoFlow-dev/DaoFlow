@@ -16,12 +16,13 @@
  */
 
 import { Hono } from "hono";
-import { createWriteStream, mkdirSync, existsSync, statSync } from "node:fs";
+import { existsSync, mkdirSync, statSync } from "node:fs";
 import { auth } from "../auth";
 import { unlink } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
+import { streamBodyToFile } from "./stream-to-file";
 
 export const deployContextRouter = new Hono();
 
@@ -85,28 +86,7 @@ deployContextRouter.post("/", async (c) => {
       return c.json({ ok: false, error: "Empty request body", code: "EMPTY_BODY" }, 400);
     }
 
-    const writeStream = createWriteStream(tarPath);
-    const reader = body.getReader();
-
-    await new Promise<void>((resolve, reject) => {
-      const pump = async () => {
-        try {
-          while (true) {
-            const { done, value } = (await reader.read()) as { done: boolean; value?: Uint8Array };
-            if (done) {
-              writeStream.end();
-              break;
-            }
-            writeStream.write(value);
-          }
-        } catch (err) {
-          reject(err instanceof Error ? err : new Error(String(err)));
-        }
-      };
-      writeStream.on("finish", resolve);
-      writeStream.on("error", reject);
-      void pump();
-    });
+    await streamBodyToFile(body, tarPath);
 
     const fileSize = statSync(tarPath).size;
     const sizeMB = (fileSize / 1024 / 1024).toFixed(1);

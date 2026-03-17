@@ -294,3 +294,60 @@ export async function dockerRemoveContainer(
   await execStreaming("docker", ["stop", containerName], STAGING_DIR, onLog);
   return execStreaming("docker", ["rm", "-f", containerName], STAGING_DIR, onLog);
 }
+
+/**
+ * Load a Docker image from a tarball file.
+ * Equivalent to `docker load -i <tarPath>`.
+ */
+export async function dockerLoad(tarPath: string, onLog: OnLog): Promise<{ exitCode: number }> {
+  onLog({
+    stream: "stdout",
+    message: `Loading image from ${tarPath}`,
+    timestamp: new Date()
+  });
+
+  return execStreaming("docker", ["load", "-i", tarPath], STAGING_DIR, onLog);
+}
+
+/**
+ * List Docker images and return structured JSON output.
+ * Equivalent to `docker images --format json`.
+ */
+export async function dockerListImages(
+  onLog: OnLog
+): Promise<{ exitCode: number; images: DockerImageListEntry[] }> {
+  let rawOutput = "";
+
+  const result = await execStreaming(
+    "docker",
+    ["images", "--format", "json"],
+    STAGING_DIR,
+    (line) => {
+      onLog(line);
+      rawOutput += line.message + "\n";
+    }
+  );
+
+  const images: DockerImageListEntry[] = rawOutput
+    .trim()
+    .split("\n")
+    .filter(Boolean)
+    .map((line) => {
+      try {
+        return JSON.parse(line) as DockerImageListEntry;
+      } catch {
+        return null;
+      }
+    })
+    .filter((item): item is DockerImageListEntry => item !== null);
+
+  return { exitCode: result.exitCode, images };
+}
+
+export interface DockerImageListEntry {
+  Repository: string;
+  Tag: string;
+  ID: string;
+  CreatedAt: string;
+  Size: string;
+}
