@@ -10,17 +10,15 @@ Use `acpx` to run self-reviews through Gemini and Claude Code before committing.
 
 - `acpx` installed globally: `npm install -g acpx@latest`, or use `bunx acpx` directly.
 
-## Review Recent Changes
+## Review Current Change Set
 
-// turbo-all
-
-1. Run Gemini review on recent commits:
+1. Run Gemini review on the current change set:
 
 ```bash
 acpx --approve-reads --timeout 480 gemini exec "Review the current DaoFlow change set for correctness, security, and best practices. Run git status --short, git diff --stat, git diff --cached --stat, git diff, and git diff --cached to inspect changes."
 ```
 
-2. Run Claude Code review on recent commits:
+2. Run Claude Code review on the current change set:
 
 ```bash
 acpx --approve-reads --timeout 480 claude exec "Review the current DaoFlow change set for correctness and security. Run git status --short, git diff --stat, git diff --cached --stat, git diff, and git diff --cached to inspect changes."

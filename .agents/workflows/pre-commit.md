@@ -17,8 +17,6 @@ Use `DAOFLOW_SKIP_PRECOMMIT=1 git commit ...` only for exceptional recovery case
 
 ## Steps
 
-// turbo-all
-
 1. **Format** — auto-fix formatting issues:
 
    ```bash
