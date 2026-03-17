@@ -10,7 +10,13 @@ import { db } from "../connection";
 import { principals, apiTokens } from "../schema/tokens";
 import { auditEntries } from "../schema/audit";
 import type { AppRole } from "@daoflow/shared";
-import { normalizeApiTokenScopes, roleCapabilities } from "@daoflow/shared";
+import {
+  normalizeApiTokenScopes,
+  roleCapabilities,
+  isAgentTokenPreset,
+  getAgentTokenPresetScopes,
+  type AgentTokenPreset
+} from "@daoflow/shared";
 import { newId as id } from "./json-helpers";
 
 /* ──────────────────────── Helpers ──────────────────────── */
@@ -39,7 +45,10 @@ async function hashToken(token: string): Promise<string> {
 export interface CreateAgentInput {
   name: string;
   description?: string;
-  scopes: string[];
+  /** Explicit scope list — used when preset is not provided. */
+  scopes?: string[];
+  /** Named preset — overrides scopes when provided. */
+  preset?: AgentTokenPreset;
   requestedByUserId: string;
   requestedByEmail: string;
   requestedByRole: AppRole;
@@ -64,8 +73,19 @@ export interface RevokeTokenInput {
 /* ──────────────────────── CRUD ──────────────────────── */
 
 export async function createAgentPrincipal(input: CreateAgentInput) {
+  // Resolve scopes: preset takes priority, then explicit scopes
+  let resolvedScopes: string[];
+  let presetUsed: string | undefined;
+
+  if (input.preset && isAgentTokenPreset(input.preset)) {
+    resolvedScopes = [...(getAgentTokenPresetScopes(input.preset) ?? [])];
+    presetUsed = input.preset;
+  } else {
+    resolvedScopes = input.scopes ?? [];
+  }
+
   // Validate scopes — agents can only have scopes from the agent role
-  const validScopes = normalizeApiTokenScopes(input.scopes);
+  const validScopes = normalizeApiTokenScopes(resolvedScopes);
   const agentAllowed = roleCapabilities.agent;
   const filteredScopes = validScopes.filter((s) => (agentAllowed as readonly string[]).includes(s));
 
@@ -96,7 +116,8 @@ export async function createAgentPrincipal(input: CreateAgentInput) {
     metadata: {
       resourceType: "principal",
       resourceId: principalId,
-      scopes: filteredScopes
+      scopes: filteredScopes,
+      ...(presetUsed ? { preset: presetUsed } : {})
     }
   });
 

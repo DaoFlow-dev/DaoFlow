@@ -250,11 +250,16 @@ export const adminRouter = t.router({
   /* ── Agent Management ─────────────────────────────────────── */
   createAgent: adminProcedure
     .input(
-      z.object({
-        name: z.string().min(1).max(80),
-        description: z.string().max(255).optional(),
-        scopes: z.array(z.string()).min(1)
-      })
+      z
+        .object({
+          name: z.string().min(1).max(80),
+          description: z.string().max(255).optional(),
+          scopes: z.array(z.string()).min(1).optional(),
+          preset: z.enum(["agent:read-only", "agent:minimal-write", "agent:full"]).optional()
+        })
+        .refine((d) => d.scopes || d.preset, {
+          message: "Either scopes or preset must be provided"
+        })
     )
     .mutation(async ({ ctx, input }) => {
       const result = await createAgentPrincipal({
