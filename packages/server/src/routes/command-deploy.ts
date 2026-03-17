@@ -1,0 +1,239 @@
+import { z } from "zod";
+import { TRPCError } from "@trpc/server";
+import { createDeploymentRecord } from "../db/services/deployments";
+import { queueComposeRelease } from "../db/services/compose";
+import {
+  completeExecutionJob,
+  dispatchExecutionJob,
+  failExecutionJob
+} from "../db/services/execution";
+import { triggerDeploy } from "../db/services/trigger-deploy";
+import { executeRollback } from "../db/services/execute-rollback";
+import { upsertEnvironmentVariable } from "../db/services/envvars";
+import {
+  t,
+  deployStartProcedure,
+  deployRollbackProcedure,
+  envWriteProcedure,
+  getActorContext,
+  getUpdaterContext,
+  throwOnOperationError
+} from "../trpc";
+
+export const deployRouter = t.router({
+  createDeploymentRecord: deployStartProcedure
+    .input(
+      z.object({
+        projectName: z.string().min(1).max(80),
+        environmentName: z.string().min(1).max(80),
+        serviceName: z.string().min(1).max(80),
+        sourceType: z.enum(["compose", "dockerfile", "image"]),
+        targetServerId: z.string().min(1),
+        commitSha: z.string().regex(/^[a-f0-9]{7,40}$/i),
+        imageTag: z.string().min(1).max(160),
+        steps: z
+          .array(
+            z.object({
+              label: z.string().min(1).max(80),
+              detail: z.string().min(1).max(280)
+            })
+          )
+          .min(1)
+          .max(6)
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const deployment = await createDeploymentRecord({
+        ...input,
+        ...getActorContext(ctx)
+      });
+
+      if (!deployment) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Target server not found."
+        });
+      }
+
+      return deployment;
+    }),
+  queueComposeRelease: deployStartProcedure
+    .input(
+      z.object({
+        composeServiceId: z.string().min(1),
+        commitSha: z.string().regex(/^[a-f0-9]{7,40}$/i),
+        imageTag: z.string().min(1).max(160).optional()
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const deployment = await queueComposeRelease({
+        ...input,
+        ...getActorContext(ctx)
+      });
+
+      if (!deployment) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Compose release target not found."
+        });
+      }
+
+      return deployment;
+    }),
+  upsertEnvironmentVariable: envWriteProcedure
+    .input(
+      z.object({
+        environmentId: z.string().min(1),
+        key: z
+          .string()
+          .regex(/^[A-Z_][A-Z0-9_]*$/)
+          .max(80),
+        value: z.string().min(1).max(4000),
+        isSecret: z.boolean(),
+        category: z.enum(["runtime", "build"]),
+        branchPattern: z.string().max(120).optional()
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const variable = await upsertEnvironmentVariable({
+        ...input,
+        ...getUpdaterContext(ctx)
+      });
+
+      if (!variable) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Environment record not found."
+        });
+      }
+
+      return variable;
+    }),
+  dispatchExecutionJob: deployStartProcedure
+    .input(
+      z.object({
+        jobId: z.string().min(1)
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const actor = getActorContext(ctx);
+      const result = await dispatchExecutionJob(
+        input.jobId,
+        actor.requestedByUserId,
+        actor.requestedByEmail,
+        actor.requestedByRole
+      );
+
+      throwOnOperationError(result, "Execution job");
+      return result.job;
+    }),
+  completeExecutionJob: deployStartProcedure
+    .input(
+      z.object({
+        jobId: z.string().min(1)
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const actor = getActorContext(ctx);
+      const result = await completeExecutionJob(
+        input.jobId,
+        actor.requestedByUserId,
+        actor.requestedByEmail,
+        actor.requestedByRole
+      );
+
+      throwOnOperationError(result, "Execution job");
+      return result.job;
+    }),
+  failExecutionJob: deployStartProcedure
+    .input(
+      z.object({
+        jobId: z.string().min(1),
+        reason: z.string().min(1).max(280).optional()
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const actor = getActorContext(ctx);
+      const result = await failExecutionJob(
+        input.jobId,
+        actor.requestedByUserId,
+        actor.requestedByEmail,
+        actor.requestedByRole,
+        input.reason
+      );
+
+      throwOnOperationError(result, "Execution job");
+      return result.job;
+    }),
+  triggerDeploy: deployStartProcedure
+    .input(
+      z.object({
+        serviceId: z.string().min(1),
+        commitSha: z.string().optional(),
+        imageTag: z.string().optional()
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const result = await triggerDeploy({
+        ...input,
+        ...getActorContext(ctx)
+      });
+      if (result.status === "not_found") {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: `${result.entity ?? "Resource"} not found.`
+        });
+      }
+      if (result.status === "no_server") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "No target server configured for this service or environment."
+        });
+      }
+      if (result.status === "create_failed") {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Failed to create deployment record."
+        });
+      }
+      return result.deployment;
+    }),
+  executeRollback: deployRollbackProcedure
+    .input(
+      z.object({
+        serviceId: z.string().min(1),
+        targetDeploymentId: z.string().min(1)
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const result = await executeRollback({
+        ...input,
+        ...getActorContext(ctx)
+      });
+      if (result.status === "not_found") {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: `${result.entity ?? "Resource"} not found.`
+        });
+      }
+      if (result.status === "invalid_target") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Target deployment is not a successful deployment."
+        });
+      }
+      if (result.status === "outside_retention") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Target deployment is outside the retention window (${result.retention} versions).`
+        });
+      }
+      if (result.status === "create_failed") {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Failed to create rollback deployment."
+        });
+      }
+      return result.deployment;
+    })
+});
