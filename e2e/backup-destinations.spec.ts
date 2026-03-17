@@ -29,7 +29,7 @@ test.describe("Backup destination management (rclone)", () => {
     await expect(page.getByText("Add Backup Destination")).toBeVisible();
 
     // Should have the provider label
-    await expect(page.getByText("Provider")).toBeVisible();
+    await expect(page.getByText("Provider", { exact: true })).toBeVisible();
   });
 
   test("create local destination and verify in table", async ({ page }) => {
