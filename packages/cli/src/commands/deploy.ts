@@ -15,7 +15,7 @@ import { createReadStream, existsSync, readFileSync, statSync, unlinkSync } from
 import { basename, resolve } from "node:path";
 import { createClient } from "../trpc-client";
 import { ApiClient, ApiError } from "../api-client";
-import { loadDaoflowConfig, parseSizeString } from "../config-loader";
+import { loadDaoflowConfig, parseSizeString, type DaoflowConfig } from "../config-loader";
 import { createContextBundle, detectLocalBuildContexts } from "../context-bundler";
 
 export function deployCommand(): Command {
@@ -47,7 +47,7 @@ export function deployCommand(): Command {
         },
         command: Command
       ) => {
-        const isJson = opts.json ?? command.optsWithGlobals().json ?? false;
+        const isJson = opts.json ?? getGlobalJsonFlag(command);
 
         // ── Load config defaults ─────────────────────────────
         const configResult = loadDaoflowConfig();
@@ -175,11 +175,15 @@ interface ComposeDeployOpts {
   prompt: boolean;
   yes?: boolean;
   json?: boolean;
-  config?: ReturnType<typeof loadDaoflowConfig> extends infer R
-    ? R extends { config: infer C }
-      ? C
-      : undefined
-    : undefined;
+  config?: DaoflowConfig;
+}
+
+function getGlobalJsonFlag(command: Command): boolean {
+  return hasJsonFlag(command.optsWithGlobals());
+}
+
+function hasJsonFlag(value: unknown): boolean {
+  return typeof value === "object" && value !== null && "json" in value && value.json === true;
 }
 
 async function handleComposeDeploy(opts: ComposeDeployOpts): Promise<void> {
