@@ -9,7 +9,6 @@ import {
   isAgentTokenPreset,
   listAgentTokenPresets,
   roleCapabilities,
-  type AgentTokenPreset,
   type ApiTokenScope
 } from "@daoflow/shared";
 

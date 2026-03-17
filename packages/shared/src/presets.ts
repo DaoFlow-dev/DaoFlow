@@ -111,7 +111,7 @@ export const agentTokenPresets: Record<AgentTokenPreset, AgentTokenPresetDefinit
     description:
       "Observe infrastructure, read logs, view deployments. Cannot mutate any resources.",
     scopes: readOnlyScopes,
-    lanes: getApiTokenScopeLanes(readOnlyScopes) as ApiTokenScopeLane[]
+    lanes: getApiTokenScopeLanes(readOnlyScopes)
   },
   "agent:minimal-write": {
     name: "agent:minimal-write",
@@ -119,7 +119,7 @@ export const agentTokenPresets: Record<AgentTokenPreset, AgentTokenPresetDefinit
     description:
       "Deploy, rollback, and manage env vars/secrets. Cannot modify servers, volumes, or backups.",
     scopes: minimalWriteScopes,
-    lanes: getApiTokenScopeLanes(minimalWriteScopes) as ApiTokenScopeLane[]
+    lanes: getApiTokenScopeLanes(minimalWriteScopes)
   },
   "agent:full": {
     name: "agent:full",
@@ -127,7 +127,7 @@ export const agentTokenPresets: Record<AgentTokenPreset, AgentTokenPresetDefinit
     description:
       "All operational scopes. Cannot manage members, tokens, terminal access, or policy overrides.",
     scopes: fullAgentScopes,
-    lanes: getApiTokenScopeLanes(fullAgentScopes) as ApiTokenScopeLane[]
+    lanes: getApiTokenScopeLanes(fullAgentScopes)
   }
 };
 
