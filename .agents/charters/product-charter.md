@@ -269,7 +269,7 @@ Suggested base roles:
 - `viewer`
 - `agent`
 
-Base capabilities are documented in [cli-contract.md](/Volumes/QuickMac/DaoFlow-clone-3/.agents/references/cli-contract.md).
+Base capabilities are documented in [cli-contract.md](../references/cli-contract.md).
 
 Rules:
 

@@ -144,9 +144,16 @@ function validateLinks(filePath) {
       continue;
     }
 
-    const resolvedPath = path.isAbsolute(targetPath)
-      ? targetPath
-      : path.resolve(path.dirname(filePath), targetPath);
+    if (path.isAbsolute(targetPath)) {
+      const line = lineNumberFromIndex(content, match.index);
+      addError(
+        relativeFilePath,
+        `line ${line} uses an absolute path "${targetPath}"; use a relative repo path instead`
+      );
+      continue;
+    }
+
+    const resolvedPath = path.resolve(path.dirname(filePath), targetPath);
 
     if (!existsSync(resolvedPath)) {
       const line = lineNumberFromIndex(content, match.index);
