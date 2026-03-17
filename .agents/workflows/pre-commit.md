@@ -33,7 +33,12 @@ Run this workflow **before every `git commit` and `git push`** to ensure code qu
    - Empty output = clean. Any output means type errors that must be fixed.
    - Note: CI uses `tsc -b` (project references mode), which may catch additional issues. If local `--noEmit` passes but CI fails, use `tsc -b packages/shared packages/server packages/client packages/cli` instead.
 
-4. **Stage and commit** — use conventional commits:
+4. **Code Review** — use Gemini MCP (always) and Codex MCP (for large/challenging changes):
+   - **Gemini review** (mandatory for all changes): Use `mcp_gemini-mcp_ask-gemini` to review changed files. Pass the file paths with `@` syntax and ask for a code review focusing on correctness, security, and patterns.
+   - **Codex review** (for large/challenging changes): Use `mcp_codex-mcp_codex` for a deeper review when the changeset is substantial or involves complex logic.
+   - Fix any issues found before proceeding to commit.
+
+5. **Stage and commit** — use conventional commits:
 
    ```bash
    git add -A
@@ -43,13 +48,14 @@ Run this workflow **before every `git commit` and `git push`** to ensure code qu
 
    - Follow conventional commits: `feat`, `fix`, `refactor`, `chore`, `docs`, `test`
 
-5. **Push** to remote:
+6. **Push** to remote:
 
    ```bash
    git push origin main
    ```
 
-6. **Wait for CI** — check GitHub Actions status:
+7. **Wait for CI** — check GitHub Actions status:
+
    ```bash
    sleep 60 && gh run list --limit 2 --json databaseId,status,conclusion,name
    ```
@@ -64,4 +70,5 @@ Run this workflow **before every `git commit` and `git push`** to ensure code qu
 | Format    | `bun run format`                   | No reformatted files    |
 | Lint      | `bun run lint`                     | 0 errors                |
 | Typecheck | `bunx tsc --noEmit`                | Empty output            |
+| Review    | Gemini MCP (+ Codex for big diffs) | No blocking issues      |
 | CI        | `gh run list --limit 2 --json ...` | `conclusion: "success"` |

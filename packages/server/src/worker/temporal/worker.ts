@@ -8,8 +8,11 @@
  */
 
 import { NativeConnection, Worker } from "@temporalio/worker";
-import * as activities from "./activities/deploy-activities";
+import * as deployActivities from "./activities/deploy-activities";
+import * as backupActivities from "./activities/backup-activities";
 import { resolve } from "node:path";
+
+const activities = { ...deployActivities, ...backupActivities };
 
 const TEMPORAL_ADDRESS = process.env.TEMPORAL_ADDRESS ?? "localhost:7233";
 const TEMPORAL_NAMESPACE = process.env.TEMPORAL_NAMESPACE ?? "daoflow";
@@ -40,7 +43,7 @@ export async function startTemporalWorker(): Promise<void> {
     taskQueue: TEMPORAL_TASK_QUEUE,
     workflowsPath: resolve(__dirname, "workflows"),
     activities,
-    maxConcurrentActivityTaskExecutions: 5,
+    maxConcurrentActivityTaskExecutions: 10,
     maxConcurrentWorkflowTaskExecutions: 10
   });
 

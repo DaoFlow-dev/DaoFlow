@@ -7,6 +7,12 @@ import { servers } from "../schema/servers";
 import { users } from "../schema/users";
 import type { AppRole } from "@daoflow/shared";
 import { newId as id, asRecord, readString } from "./json-helpers";
+import {
+  startBackupCronWorkflow,
+  cancelBackupCronWorkflow,
+  startOneOffBackupWorkflow,
+  getBackupCronStatus
+} from "../../worker";
 
 const SEEDED_POLICY_VIEW: Record<
   string,
@@ -361,4 +367,158 @@ export async function listPersistentVolumeInventory(limit = 12) {
     },
     volumes: inventory
   };
+}
+
+// ── Schedule Management ──────────────────────────────────────
+
+/**
+ * Enable a cron schedule for a backup policy via Temporal.
+ */
+export async function enableBackupSchedule(
+  policyId: string,
+  schedule: string,
+  userId: string,
+  email: string,
+  role: AppRole
+) {
+  const [policy] = await db
+    .select()
+    .from(backupPolicies)
+    .where(eq(backupPolicies.id, policyId))
+    .limit(1);
+  if (!policy) return null;
+
+  // Cancel any existing cron workflow first
+  if (policy.temporalWorkflowId) {
+    await cancelBackupCronWorkflow(policyId);
+  }
+
+  // Start the Temporal cron workflow
+  const result = await startBackupCronWorkflow(policyId, schedule);
+
+  // Update the policy record
+  await db
+    .update(backupPolicies)
+    .set({
+      schedule,
+      temporalWorkflowId: result.workflowId,
+      updatedAt: new Date()
+    })
+    .where(eq(backupPolicies.id, policyId));
+
+  await db.insert(auditEntries).values({
+    actorType: "user",
+    actorId: userId,
+    actorEmail: email,
+    actorRole: role,
+    targetResource: `backup-policy/${policyId}`,
+    action: "backup.schedule.enable",
+    inputSummary: `Enabled backup schedule "${schedule}" for policy ${policy.name}`,
+    permissionScope: "backup:run",
+    outcome: "success",
+    metadata: {
+      resourceType: "backup-policy",
+      resourceId: policyId,
+      resourceLabel: policy.name,
+      detail: `Temporal workflow ${result.workflowId} started with cron: ${schedule}`
+    }
+  });
+
+  return { policyId, schedule, workflowId: result.workflowId };
+}
+
+/**
+ * Disable a cron schedule for a backup policy.
+ */
+export async function disableBackupSchedule(
+  policyId: string,
+  userId: string,
+  email: string,
+  role: AppRole
+) {
+  const [policy] = await db
+    .select()
+    .from(backupPolicies)
+    .where(eq(backupPolicies.id, policyId))
+    .limit(1);
+  if (!policy) return null;
+
+  // Cancel the Temporal cron workflow
+  await cancelBackupCronWorkflow(policyId);
+
+  // Clear the schedule from the policy
+  await db
+    .update(backupPolicies)
+    .set({
+      schedule: null,
+      temporalWorkflowId: null,
+      updatedAt: new Date()
+    })
+    .where(eq(backupPolicies.id, policyId));
+
+  await db.insert(auditEntries).values({
+    actorType: "user",
+    actorId: userId,
+    actorEmail: email,
+    actorRole: role,
+    targetResource: `backup-policy/${policyId}`,
+    action: "backup.schedule.disable",
+    inputSummary: `Disabled backup schedule for policy ${policy.name}`,
+    permissionScope: "backup:run",
+    outcome: "success",
+    metadata: {
+      resourceType: "backup-policy",
+      resourceId: policyId,
+      resourceLabel: policy.name,
+      detail: `Temporal workflow cancelled for policy ${policy.name}`
+    }
+  });
+
+  return { policyId, schedule: null };
+}
+
+/**
+ * Trigger a one-off backup run immediately via Temporal.
+ */
+export async function triggerBackupNow(
+  policyId: string,
+  userId: string,
+  email: string,
+  role: AppRole
+) {
+  const [policy] = await db
+    .select()
+    .from(backupPolicies)
+    .where(eq(backupPolicies.id, policyId))
+    .limit(1);
+  if (!policy) return null;
+
+  const result = await startOneOffBackupWorkflow(policyId, userId);
+
+  await db.insert(auditEntries).values({
+    actorType: "user",
+    actorId: userId,
+    actorEmail: email,
+    actorRole: role,
+    targetResource: `backup-policy/${policyId}`,
+    action: "backup.trigger",
+    inputSummary: `Triggered one-off backup for policy ${policy.name}`,
+    permissionScope: "backup:run",
+    outcome: "success",
+    metadata: {
+      resourceType: "backup-policy",
+      resourceId: policyId,
+      resourceLabel: policy.name,
+      detail: `One-off backup workflow ${result.workflowId} started`
+    }
+  });
+
+  return { policyId, workflowId: result.workflowId };
+}
+
+/**
+ * Get backup schedule status for a policy from Temporal.
+ */
+export async function getScheduleStatus(policyId: string) {
+  return getBackupCronStatus(policyId);
 }

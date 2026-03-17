@@ -42,6 +42,19 @@ export const backupDestinations = pgTable(
     oauthToken: text("oauth_token"),
     oauthTokenExpiry: timestamp("oauth_token_expiry"),
 
+    // ── Encryption settings ─────────────────────────────────
+    // "none" = no encryption (default)
+    // "rclone-crypt" = rclone crypt overlay remote (transparent, streaming)
+    // "archive-7z" = pre-upload 7z AES-256 encrypted archive
+    // "archive-zip" = pre-upload zip AES encrypted archive
+    encryptionMode: varchar("encryption_mode", { length: 20 }).default("none").notNull(),
+    // Password for rclone-crypt or archive encryption (encrypted at rest)
+    encryptionPassword: text("encryption_password"),
+    // Salt/password2 for rclone-crypt (optional, stronger encryption)
+    encryptionSalt: text("encryption_salt"),
+    // Filename encryption for rclone-crypt: "standard" | "obfuscate" | "off"
+    filenameEncryption: varchar("filename_encryption", { length: 20 }).default("standard"),
+
     // ── Local filesystem (for dev/testing) ─────────────────
     localPath: text("local_path"),
 

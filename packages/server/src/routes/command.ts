@@ -6,7 +6,13 @@ import {
   createApprovalRequest,
   rejectApprovalRequest
 } from "../db/services/approvals";
-import { queueBackupRestore, triggerBackupRun } from "../db/services/backups";
+import {
+  queueBackupRestore,
+  triggerBackupRun,
+  enableBackupSchedule,
+  disableBackupSchedule,
+  triggerBackupNow
+} from "../db/services/backups";
 import {
   createDestination,
   updateDestination,
@@ -265,6 +271,80 @@ export const commandRouter = t.router({
       }
 
       return run;
+    }),
+  enableBackupSchedule: backupRunProcedure
+    .input(
+      z.object({
+        policyId: z.string().min(1),
+        schedule: z.string().min(1)
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const actor = getActorContext(ctx);
+      const result = await enableBackupSchedule(
+        input.policyId,
+        input.schedule,
+        actor.requestedByUserId,
+        actor.requestedByEmail,
+        actor.requestedByRole
+      );
+
+      if (!result) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Backup policy not found."
+        });
+      }
+
+      return result;
+    }),
+  disableBackupSchedule: backupRunProcedure
+    .input(
+      z.object({
+        policyId: z.string().min(1)
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const actor = getActorContext(ctx);
+      const result = await disableBackupSchedule(
+        input.policyId,
+        actor.requestedByUserId,
+        actor.requestedByEmail,
+        actor.requestedByRole
+      );
+
+      if (!result) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Backup policy not found."
+        });
+      }
+
+      return result;
+    }),
+  triggerBackupNow: backupRunProcedure
+    .input(
+      z.object({
+        policyId: z.string().min(1)
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const actor = getActorContext(ctx);
+      const result = await triggerBackupNow(
+        input.policyId,
+        actor.requestedByUserId,
+        actor.requestedByEmail,
+        actor.requestedByRole
+      );
+
+      if (!result) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Backup policy not found."
+        });
+      }
+
+      return result;
     }),
   queueBackupRestore: backupRestoreProcedure
     .input(

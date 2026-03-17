@@ -40,6 +40,7 @@ export const backupPolicies = pgTable(
       () => backupDestinations.id,
       { onDelete: "set null" }
     ),
+    temporalWorkflowId: varchar("temporal_workflow_id", { length: 100 }),
     status: varchar("status", { length: 20 }).default("active").notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull()

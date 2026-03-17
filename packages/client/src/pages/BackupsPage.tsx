@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { trpc } from "../lib/trpc";
 import { useSession } from "../lib/auth-client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,11 +13,24 @@ import {
   TableHeader,
   TableRow
 } from "@/components/ui/table";
-import { DatabaseBackup, Plus } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { DatabaseBackup, Plus, Clock, PlayCircle, StopCircle } from "lucide-react";
 
 export default function BackupsPage() {
   const session = useSession();
   const backupOverview = trpc.backupOverview.useQuery({}, { enabled: Boolean(session.data) });
+
+  const enableSchedule = trpc.enableBackupSchedule.useMutation({
+    onSuccess: () => backupOverview.refetch()
+  });
+  const disableSchedule = trpc.disableBackupSchedule.useMutation({
+    onSuccess: () => backupOverview.refetch()
+  });
+  const triggerNow = trpc.triggerBackupNow.useMutation({
+    onSuccess: () => backupOverview.refetch()
+  });
+
+  const [cronInputs, setCronInputs] = useState<Record<string, string>>({});
 
   const policies = backupOverview.data?.policies ?? [];
   const runs = backupOverview.data?.runs ?? [];
@@ -27,7 +41,7 @@ export default function BackupsPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Backups</h1>
           <p className="text-sm text-muted-foreground">
-            Manage backup policies, view run history, and restore data.
+            Manage backup policies, schedules, and run history.
           </p>
         </div>
         <Button disabled>
@@ -60,28 +74,100 @@ export default function BackupsPage() {
               </CardHeader>
               <CardContent>
                 <div className="grid gap-3 sm:grid-cols-2">
-                  {policies.map((p) => (
-                    <div key={String(p.id)} className="rounded-lg border p-4">
-                      <div className="flex items-center justify-between gap-2 mb-2">
-                        <p className="text-sm font-semibold">{String(p.serviceName)}</p>
-                        <Badge variant="secondary">{String(p.targetType)}</Badge>
+                  {policies.map((p) => {
+                    const policyId = String(p.id);
+                    const hasSchedule = Boolean(p.scheduleLabel);
+
+                    return (
+                      <div key={policyId} className="rounded-lg border p-4 space-y-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-sm font-semibold">{String(p.serviceName)}</p>
+                          <div className="flex items-center gap-1">
+                            {hasSchedule && (
+                              <Badge variant="default" className="text-xs">
+                                <Clock size={10} className="mr-1" />
+                                {String(p.scheduleLabel)}
+                              </Badge>
+                            )}
+                            <Badge variant="secondary">{String(p.targetType)}</Badge>
+                          </div>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Destination:{" "}
+                          {String(p.storageProvider) === "(none)" ? (
+                            <a href="/destinations" className="underline">
+                              configure
+                            </a>
+                          ) : (
+                            String(p.storageProvider)
+                          )}{" "}
+                          · Retention: {p.retentionCount} backups
+                        </p>
+
+                        {/* Schedule Controls */}
+                        <div className="flex items-center gap-2 pt-1">
+                          {hasSchedule ? (
+                            <>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={disableSchedule.isPending}
+                                onClick={() => disableSchedule.mutate({ policyId })}
+                              >
+                                <StopCircle size={14} className="mr-1" />
+                                Disable
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={triggerNow.isPending}
+                                onClick={() => triggerNow.mutate({ policyId })}
+                              >
+                                <PlayCircle size={14} className="mr-1" />
+                                Run Now
+                              </Button>
+                            </>
+                          ) : (
+                            <>
+                              <Input
+                                placeholder="0 */6 * * *"
+                                className="h-8 w-36 text-xs"
+                                value={cronInputs[policyId] ?? ""}
+                                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                                  setCronInputs((prev) => ({
+                                    ...prev,
+                                    [policyId]: e.target.value
+                                  }))
+                                }
+                              />
+                              <Button
+                                size="sm"
+                                disabled={!cronInputs[policyId]?.trim() || enableSchedule.isPending}
+                                onClick={() =>
+                                  enableSchedule.mutate({
+                                    policyId,
+                                    schedule: (cronInputs[policyId] ?? "").trim()
+                                  })
+                                }
+                              >
+                                <Clock size={14} className="mr-1" />
+                                Enable
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={triggerNow.isPending}
+                                onClick={() => triggerNow.mutate({ policyId })}
+                              >
+                                <PlayCircle size={14} className="mr-1" />
+                                Run Now
+                              </Button>
+                            </>
+                          )}
+                        </div>
                       </div>
-                      <p className="text-xs text-muted-foreground">
-                        Schedule: {String(p.scheduleLabel ?? "manual")} · Destination:{" "}
-                        {String(p.storageProvider) === "(none)" ? (
-                          <a href="/destinations" className="underline">
-                            configure
-                          </a>
-                        ) : (
-                          String(p.storageProvider)
-                        )}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        Retention: {p.retentionCount} backups · Last:{" "}
-                        {p.lastRunAt ? new Date(p.lastRunAt).toLocaleDateString() : "never"}
-                      </p>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </CardContent>
             </Card>

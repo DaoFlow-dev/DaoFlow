@@ -380,5 +380,161 @@ export function backupCommand(): Command {
       }
     });
 
+  // ── backup schedule ───────────────────────────────────────
+  const schedule = backup
+    .command("schedule")
+    .description("Manage backup cron schedules (Temporal-based)");
+
+  schedule
+    .command("enable")
+    .description("Enable a cron schedule for a backup policy")
+    .requiredOption("--policy <id>", "Backup policy ID")
+    .requiredOption("--cron <expression>", 'Cron expression (e.g., "0 */6 * * *")')
+    .option("--json", "Output as JSON")
+    .option("--dry-run", "Preview without executing")
+    .option("-y, --yes", "Skip confirmation")
+    .action(
+      async (opts: {
+        policy: string;
+        cron: string;
+        json?: boolean;
+        dryRun?: boolean;
+        yes?: boolean;
+      }) => {
+        if (opts.dryRun) {
+          console.log(
+            JSON.stringify(
+              {
+                ok: true,
+                dryRun: true,
+                action: "backup.schedule.enable",
+                policyId: opts.policy,
+                schedule: opts.cron,
+                message: `Would enable cron schedule "${opts.cron}" for policy ${opts.policy}`
+              },
+              null,
+              2
+            )
+          );
+          process.exit(3);
+        }
+
+        if (!opts.yes) {
+          console.error(`To enable schedule for policy ${opts.policy}, add --yes`);
+          process.exit(1);
+        }
+
+        try {
+          const trpc = createClient();
+          const result = await trpc.enableBackupSchedule.mutate({
+            policyId: opts.policy,
+            schedule: opts.cron
+          });
+
+          if (opts.json) {
+            console.log(JSON.stringify({ ok: true, ...result }, null, 2));
+          } else {
+            console.log(
+              chalk.green(
+                `✅ Schedule enabled: ${result.schedule} (workflow: ${result.workflowId})`
+              )
+            );
+          }
+        } catch (err) {
+          console.error(
+            JSON.stringify({
+              ok: false,
+              error: err instanceof Error ? err.message : "Unknown error"
+            })
+          );
+          process.exit(1);
+        }
+      }
+    );
+
+  schedule
+    .command("disable")
+    .description("Disable the cron schedule for a backup policy")
+    .requiredOption("--policy <id>", "Backup policy ID")
+    .option("--json", "Output as JSON")
+    .option("-y, --yes", "Skip confirmation")
+    .action(async (opts: { policy: string; json?: boolean; yes?: boolean }) => {
+      if (!opts.yes) {
+        console.error(`To disable schedule for policy ${opts.policy}, add --yes`);
+        process.exit(1);
+      }
+
+      try {
+        const trpc = createClient();
+        const result = await trpc.disableBackupSchedule.mutate({
+          policyId: opts.policy
+        });
+
+        if (opts.json) {
+          console.log(JSON.stringify({ ok: true, ...result }, null, 2));
+        } else {
+          console.log(chalk.green("✅ Schedule disabled"));
+        }
+      } catch (err) {
+        console.error(
+          JSON.stringify({ ok: false, error: err instanceof Error ? err.message : "Unknown error" })
+        );
+        process.exit(1);
+      }
+    });
+
+  // ── backup run ─────────────────────────────────────────────
+  backup
+    .command("run")
+    .description("Trigger a one-off backup immediately via Temporal")
+    .requiredOption("--policy <id>", "Backup policy ID")
+    .option("--json", "Output as JSON")
+    .option("--dry-run", "Preview without executing")
+    .option("-y, --yes", "Skip confirmation")
+    .action(async (opts: { policy: string; json?: boolean; dryRun?: boolean; yes?: boolean }) => {
+      if (opts.dryRun) {
+        console.log(
+          JSON.stringify(
+            {
+              ok: true,
+              dryRun: true,
+              action: "backup.run",
+              policyId: opts.policy,
+              message: `Would trigger one-off backup for policy ${opts.policy}`
+            },
+            null,
+            2
+          )
+        );
+        process.exit(3);
+      }
+
+      if (!opts.yes) {
+        console.error(`To trigger backup for policy ${opts.policy}, add --yes`);
+        process.exit(1);
+      }
+
+      try {
+        const trpc = createClient();
+        const result = await trpc.triggerBackupNow.mutate({
+          policyId: opts.policy
+        });
+
+        if (opts.json) {
+          console.log(JSON.stringify({ ok: true, ...result }, null, 2));
+        } else {
+          console.log(chalk.green(`✅ Backup triggered (workflow: ${result.workflowId})`));
+        }
+      } catch (err) {
+        console.error(
+          JSON.stringify({
+            ok: false,
+            error: err instanceof Error ? err.message : "Unknown error"
+          })
+        );
+        process.exit(1);
+      }
+    });
+
   return backup;
 }

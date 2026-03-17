@@ -9,6 +9,10 @@ export { startTemporalWorker, stopTemporalWorker } from "./temporal/worker";
 export {
   startDeploymentWorkflow,
   getDeploymentWorkflowStatus,
+  startBackupCronWorkflow,
+  cancelBackupCronWorkflow,
+  startOneOffBackupWorkflow,
+  getBackupCronStatus,
   closeTemporalClient
 } from "./temporal/client";
 export type { LogLine, OnLog } from "./docker-executor";
