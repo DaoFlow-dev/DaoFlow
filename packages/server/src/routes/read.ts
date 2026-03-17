@@ -14,6 +14,7 @@ import {
   listBackupRestoreQueue,
   listPersistentVolumeInventory
 } from "../db/services/backups";
+import { listDestinations, getDestination } from "../db/services/destinations";
 import { listComposeDriftReport, listComposeReleaseCatalog } from "../db/services/compose";
 import { listEnvironmentVariableInventory } from "../db/services/envvars";
 import { listExecutionQueue } from "../db/services/execution";
@@ -240,5 +241,17 @@ export const readRouter = t.router({
     .input(z.object({ providerId: z.string().min(1).optional() }))
     .query(async ({ input }) => {
       return listGitInstallations(input.providerId);
+    }),
+  backupDestinations: protectedProcedure.input(limitInput(50)).query(async ({ input }) => {
+    return listDestinations(input.limit ?? 50);
+  }),
+  backupDestination: protectedProcedure
+    .input(z.object({ destinationId: z.string().min(1) }))
+    .query(async ({ input }) => {
+      const dest = await getDestination(input.destinationId);
+      if (!dest) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Destination not found." });
+      }
+      return dest;
     })
 });

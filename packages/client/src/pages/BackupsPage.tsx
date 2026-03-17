@@ -67,8 +67,14 @@ export default function BackupsPage() {
                         <Badge variant="secondary">{String(p.targetType)}</Badge>
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        Schedule: {String(p.scheduleLabel ?? "manual")} · Storage:{" "}
-                        {String(p.storageProvider)}
+                        Schedule: {String(p.scheduleLabel ?? "manual")} · Destination:{" "}
+                        {String(p.storageProvider) === "(none)" ? (
+                          <a href="/destinations" className="underline">
+                            configure
+                          </a>
+                        ) : (
+                          String(p.storageProvider)
+                        )}
                       </p>
                       <p className="text-xs text-muted-foreground">
                         Retention: {p.retentionCount} backups · Last:{" "}

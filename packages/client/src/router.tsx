@@ -6,6 +6,7 @@ import ProjectDetailPage from "./pages/ProjectDetailPage";
 import ServersPage from "./pages/ServersPage";
 import DeploymentsPage from "./pages/DeploymentsPage";
 import BackupsPage from "./pages/BackupsPage";
+import DestinationsPage from "./pages/DestinationsPage";
 import SettingsPage from "./pages/SettingsPage";
 import SetupWizardPage from "./pages/SetupWizardPage";
 import ServiceDetailPage from "./pages/ServiceDetailPage";
@@ -33,6 +34,7 @@ export const router = createBrowserRouter([
       { path: "servers", element: <ServersPage /> },
       { path: "deployments", element: <DeploymentsPage /> },
       { path: "backups", element: <BackupsPage /> },
+      { path: "destinations", element: <DestinationsPage /> },
       { path: "agents", element: <AgentsPage /> },
       { path: "settings", element: <SettingsPage /> },
       { path: "settings/git/callback", element: <GitCallbackPage /> },

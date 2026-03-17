@@ -2,6 +2,7 @@ import { desc, eq, inArray } from "drizzle-orm";
 import { db } from "../connection";
 import { auditEntries } from "../schema/audit";
 import { backupPolicies, backupRestores, backupRuns, volumes } from "../schema/storage";
+import { backupDestinations } from "../schema/destinations";
 import { servers } from "../schema/servers";
 import { users } from "../schema/users";
 import type { AppRole } from "@daoflow/shared";
@@ -14,28 +15,26 @@ const SEEDED_POLICY_VIEW: Record<
     environmentName: string;
     serviceName: string;
     targetType: "volume" | "database";
-    storageProvider: string;
   }
 > = {
   bpol_foundation_volume_daily: {
     projectName: "DaoFlow",
     environmentName: "production-us-west",
     serviceName: "postgres-volume",
-    targetType: "volume",
-    storageProvider: "s3-compatible"
+    targetType: "volume"
   },
   bpol_foundation_db_hourly: {
     projectName: "DaoFlow",
     environmentName: "staging",
     serviceName: "control-plane-db",
-    targetType: "database",
-    storageProvider: "s3-compatible"
+    targetType: "database"
   }
 };
 
 function getPolicyView(
   policy: typeof backupPolicies.$inferSelect,
-  volume?: typeof volumes.$inferSelect
+  volume?: typeof volumes.$inferSelect,
+  destination?: typeof backupDestinations.$inferSelect | null
 ) {
   const seeded = SEEDED_POLICY_VIEW[policy.id];
   const metadata = asRecord(volume?.metadata);
@@ -45,21 +44,23 @@ function getPolicyView(
     environmentName: seeded?.environmentName ?? readString(metadata, "environmentName"),
     serviceName: seeded?.serviceName ?? policy.name,
     targetType: seeded?.targetType ?? ("volume" as const),
-    storageProvider: seeded?.storageProvider ?? "s3-compatible"
+    storageProvider: destination?.provider ?? destination?.name ?? "(none)"
   };
 }
 
 async function loadBackupRelations() {
-  const [policyRows, volumeRows, serverRows] = await Promise.all([
+  const [policyRows, volumeRows, serverRows, destinationRows] = await Promise.all([
     db.select().from(backupPolicies),
     db.select().from(volumes),
-    db.select().from(servers)
+    db.select().from(servers),
+    db.select().from(backupDestinations)
   ]);
 
   return {
     policiesById: new Map(policyRows.map((row) => [row.id, row])),
     volumesById: new Map(volumeRows.map((row) => [row.id, row])),
-    serversById: new Map(serverRows.map((row) => [row.id, row]))
+    serversById: new Map(serverRows.map((row) => [row.id, row])),
+    destinationsById: new Map(destinationRows.map((row) => [row.id, row]))
   };
 }
 
@@ -83,7 +84,10 @@ export async function listBackupOverview(limit = 12) {
     },
     policies: policies.map((policy) => {
       const volume = relations.volumesById.get(policy.volumeId);
-      const view = getPolicyView(policy, volume);
+      const destination = policy.destinationId
+        ? relations.destinationsById.get(policy.destinationId)
+        : null;
+      const view = getPolicyView(policy, volume, destination);
       return {
         id: policy.id,
         projectName: view.projectName,
@@ -295,14 +299,17 @@ export async function listBackupRestoreQueue(limit = 12) {
 }
 
 export async function listPersistentVolumeInventory(limit = 12) {
-  const [volumeRows, policyRows, serverRows] = await Promise.all([
+  const [volumeRows, policyRows, serverRows, destinationRows] = await Promise.all([
     db.select().from(volumes).orderBy(desc(volumes.createdAt)).limit(limit),
     db.select().from(backupPolicies),
-    db.select().from(servers)
+    db.select().from(servers),
+    db.select().from(backupDestinations)
   ]);
 
+  const policiesById = new Map(policyRows.map((policy) => [policy.id, policy]));
   const policyIds = new Set(policyRows.map((policy) => policy.id));
   const serversById = new Map(serverRows.map((server) => [server.id, server]));
+  const destinationsById = new Map(destinationRows.map((d) => [d.id, d]));
 
   const inventory = volumeRows.map((volume) => {
     const metadata = asRecord(volume.metadata);
@@ -314,6 +321,14 @@ export async function listPersistentVolumeInventory(limit = 12) {
     );
     const restoreReadiness = readString(metadata, "restoreReadiness", "untested");
     const server = serversById.get(volume.serverId);
+
+    // Resolve storage provider from destination FK
+    let storageProvider: string | null = null;
+    if (backupPolicyId && policyIds.has(backupPolicyId)) {
+      const policy = policiesById.get(backupPolicyId);
+      const dest = policy?.destinationId ? destinationsById.get(policy.destinationId) : null;
+      storageProvider = dest?.provider ?? dest?.name ?? "(none)";
+    }
 
     return {
       id: volume.id,
@@ -327,7 +342,7 @@ export async function listPersistentVolumeInventory(limit = 12) {
       driver: readString(metadata, "driver", "local"),
       sizeBytes: Number(volume.sizeBytes ?? 0),
       backupPolicyId: backupPolicyId && policyIds.has(backupPolicyId) ? backupPolicyId : null,
-      storageProvider: backupPolicyId && policyIds.has(backupPolicyId) ? "s3-compatible" : null,
+      storageProvider,
       lastBackupAt: readString(metadata, "lastBackupAt") || null,
       lastRestoreTestAt: readString(metadata, "lastRestoreTestAt") || null,
       backupCoverage,

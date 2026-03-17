@@ -2,6 +2,7 @@ import { index, integer, jsonb, pgTable, text, timestamp, varchar } from "drizzl
 import { relations } from "drizzle-orm";
 import { servers } from "./servers";
 import { users } from "./users";
+import { backupDestinations } from "./destinations";
 
 export const volumes = pgTable(
   "volumes",
@@ -34,7 +35,11 @@ export const backupPolicies = pgTable(
       .references(() => volumes.id),
     schedule: varchar("schedule", { length: 60 }), // cron expression
     retentionDays: integer("retention_days").default(30).notNull(),
-    storageTarget: text("storage_target"), // s3://bucket/prefix
+    storageTarget: text("storage_target"), // s3://bucket/prefix (legacy, use destinationId)
+    destinationId: varchar("destination_id", { length: 32 }).references(
+      () => backupDestinations.id,
+      { onDelete: "set null" }
+    ),
     status: varchar("status", { length: 20 }).default("active").notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull()
@@ -102,6 +107,10 @@ export const backupPoliciesRelations = relations(backupPolicies, ({ one, many })
   volume: one(volumes, {
     fields: [backupPolicies.volumeId],
     references: [volumes.id]
+  }),
+  destination: one(backupDestinations, {
+    fields: [backupPolicies.destinationId],
+    references: [backupDestinations.id]
   }),
   runs: many(backupRuns)
 }));

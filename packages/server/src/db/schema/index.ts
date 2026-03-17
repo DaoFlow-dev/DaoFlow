@@ -4,6 +4,7 @@ export * from "./projects";
 export * from "./servers";
 export * from "./deployments";
 export * from "./storage";
+export * from "./destinations";
 export * from "./audit";
 export * from "./tokens";
 export * from "./auth-schema";

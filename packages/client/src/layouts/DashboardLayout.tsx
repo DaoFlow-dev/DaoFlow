@@ -39,6 +39,7 @@ const homeNav = [
   { to: "/servers", label: "Servers", icon: Server },
   { to: "/deployments", label: "Deployments", icon: Rocket },
   { to: "/backups", label: "Backups", icon: DatabaseBackup },
+  { to: "/destinations", label: "Destinations", icon: HardDrive },
   { to: "/agents", label: "Agents", icon: Bot }
 ] as const;
 
@@ -47,8 +48,7 @@ const settingsNav = [
   { to: "/settings/profile", label: "Profile", icon: User },
   { to: "/settings/users", label: "Users", icon: Shield },
   { to: "/settings/ssh-keys", label: "SSH Keys", icon: KeyRound },
-  { to: "/settings/notifications", label: "Notifications", icon: Bell },
-  { to: "/settings/volumes", label: "Volumes", icon: HardDrive }
+  { to: "/settings/notifications", label: "Notifications", icon: Bell }
 ] as const;
 
 function breadcrumbFromPath(pathname: string): string[] {
