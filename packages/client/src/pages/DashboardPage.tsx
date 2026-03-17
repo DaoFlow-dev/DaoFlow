@@ -39,29 +39,29 @@ export default function DashboardPage() {
       label: "Servers",
       value: servers.length,
       icon: Server,
-      color: "text-blue-600",
-      bg: "bg-blue-50"
+      color: "text-blue-400",
+      bg: "bg-blue-500/10"
     },
     {
       label: "Projects",
       value: projects.length,
       icon: FolderKanban,
-      color: "text-purple-600",
-      bg: "bg-purple-50"
+      color: "text-purple-400",
+      bg: "bg-purple-500/10"
     },
     {
       label: "Deployments",
       value: deployments.length,
       icon: Rocket,
-      color: "text-amber-600",
-      bg: "bg-amber-50"
+      color: "text-amber-400",
+      bg: "bg-amber-500/10"
     },
     {
       label: "Services",
       value: totalServices,
       icon: Activity,
-      color: "text-emerald-600",
-      bg: "bg-emerald-50"
+      color: "text-emerald-400",
+      bg: "bg-emerald-500/10"
     }
   ];
 
