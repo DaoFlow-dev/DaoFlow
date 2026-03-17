@@ -17,6 +17,7 @@ import { installCommand } from "./commands/install";
 import { upgradeCommand } from "./commands/upgrade";
 import { uninstallCommand } from "./commands/uninstall";
 import { backupCommand } from "./commands/backup";
+import { tokenCommand } from "./commands/token";
 
 const program = new Command();
 
@@ -45,5 +46,6 @@ program.addCommand(installCommand());
 program.addCommand(upgradeCommand());
 program.addCommand(uninstallCommand());
 program.addCommand(backupCommand());
+program.addCommand(tokenCommand());
 
 program.parse();
