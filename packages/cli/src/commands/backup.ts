@@ -536,5 +536,121 @@ export function backupCommand(): Command {
       }
     });
 
+  // ── backup verify ──────────────────────────────────────────
+  // Task #46: Trigger a test restore to verify backup integrity
+  backup
+    .command("verify")
+    .description("Verify a backup by performing a test restore")
+    .requiredOption("--backup-run-id <id>", "Backup run ID to verify")
+    .option("--json", "Output as JSON")
+    .option("--dry-run", "Preview without executing")
+    .option("-y, --yes", "Skip confirmation")
+    .action(
+      async (opts: { backupRunId: string; json?: boolean; dryRun?: boolean; yes?: boolean }) => {
+        if (opts.dryRun) {
+          console.log(
+            JSON.stringify(
+              {
+                ok: true,
+                dryRun: true,
+                action: "backup.verify",
+                backupRunId: opts.backupRunId,
+                message: "Would trigger a test restore to verify this backup"
+              },
+              null,
+              2
+            )
+          );
+          process.exit(3);
+        }
+
+        if (!opts.yes) {
+          console.error(`To verify backup ${opts.backupRunId}, add --yes`);
+          process.exit(1);
+        }
+
+        try {
+          const trpc = createClient();
+          const result = await trpc.triggerTestRestore.mutate({ backupRunId: opts.backupRunId });
+
+          if (opts.json) {
+            console.log(JSON.stringify({ ok: true, ...result }, null, 2));
+          } else {
+            console.log(chalk.green(`✅ Test restore queued: ${result.id}`));
+            console.log(
+              chalk.dim("  The backup will be downloaded and verified. Check status with:")
+            );
+            console.log(chalk.dim(`  daoflow backup list --json | jq '.runs[]'`));
+          }
+        } catch (err) {
+          console.error(
+            JSON.stringify({
+              ok: false,
+              error: err instanceof Error ? err.message : "Unknown error"
+            })
+          );
+          process.exit(1);
+        }
+      }
+    );
+
+  // ── backup download ───────────────────────────────────────
+  // Task #47: Show download information for a backup artifact
+  backup
+    .command("download")
+    .description("Get download info for a backup artifact")
+    .requiredOption("--backup-run-id <id>", "Backup run ID")
+    .option("--json", "Output as JSON")
+    .action(async (opts: { backupRunId: string; json?: boolean }) => {
+      try {
+        const trpc = createClient();
+        const data = await trpc.backupOverview.query({ limit: 100 });
+        const run = data.runs.find((r: { id: string }) => r.id === opts.backupRunId);
+
+        if (!run) {
+          const error = "Backup run not found";
+          if (opts.json) {
+            console.log(JSON.stringify({ ok: false, error }, null, 2));
+          } else {
+            console.error(chalk.red(`❌ ${error}`));
+          }
+          process.exit(1);
+        }
+
+        // Cast to access fields that may not be typed yet
+        const runData = run as Record<string, unknown>;
+        const info = {
+          ok: true,
+          id: run.id,
+          status: run.status,
+          artifact: run.artifactPath ?? null,
+          size: (runData.sizeBytes as string | null) ?? null,
+          encryption: (runData.encryption as string | null) ?? "none",
+          message:
+            run.status === "succeeded"
+              ? "Use rclone to download from the artifact path"
+              : "Backup has not completed successfully"
+        };
+
+        if (opts.json) {
+          console.log(JSON.stringify(info, null, 2));
+        } else {
+          console.log(chalk.bold("\n📥 Backup Download Info\n"));
+          console.log(`  ID:         ${run.id}`);
+          console.log(`  Status:     ${run.status}`);
+          console.log(`  Artifact:   ${run.artifactPath ?? chalk.dim("none")}`);
+          if (runData.sizeBytes) {
+            console.log(`  Size:       ${(Number(runData.sizeBytes) / 1024 / 1024).toFixed(2)} MB`);
+          }
+          console.log("");
+        }
+      } catch (err) {
+        console.error(
+          JSON.stringify({ ok: false, error: err instanceof Error ? err.message : "Unknown error" })
+        );
+        process.exit(1);
+      }
+    });
+
   return backup;
 }
