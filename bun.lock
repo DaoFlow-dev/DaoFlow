@@ -26,12 +26,15 @@
       },
       "dependencies": {
         "@daoflow/shared": "workspace:*",
+        "@trpc/client": "11.12.0",
+        "@trpc/server": "11.12.0",
         "chalk": "^5.4.1",
         "commander": "^13.1.0",
         "dockerode": "^4.0.6",
         "ora": "^8.2.0",
       },
       "devDependencies": {
+        "@daoflow/server": "workspace:*",
         "@types/dockerode": "^3.3.40",
         "@types/node": "^24.5.2",
         "typescript": "^5.9.2",

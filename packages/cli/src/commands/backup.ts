@@ -11,7 +11,7 @@
 
 import { Command } from "commander";
 import chalk from "chalk";
-import { ApiClient, ApiError } from "../api-client";
+import { createClient } from "../trpc-client";
 
 export function backupCommand(): Command {
   const backup = new Command("backup").description("Manage backup policies and runs");
@@ -24,33 +24,8 @@ export function backupCommand(): Command {
     .option("--limit <n>", "Max runs to show", "12")
     .action(async (opts: { json?: boolean; limit: string }) => {
       try {
-        const client = new ApiClient();
-        const data = await client.get<{
-          summary: {
-            totalPolicies: number;
-            queuedRuns: number;
-            runningRuns: number;
-            succeededRuns: number;
-            failedRuns: number;
-          };
-          policies: Array<{
-            id: string;
-            projectName: string;
-            serviceName: string;
-            targetType: string;
-            scheduleLabel: string;
-            retentionCount: number;
-          }>;
-          runs: Array<{
-            id: string;
-            projectName: string;
-            serviceName: string;
-            status: string;
-            triggerKind: string;
-            requestedBy: string;
-            startedAt: string;
-          }>;
-        }>(`/trpc/backupOverview?input=${encodeURIComponent(JSON.stringify({ limit: Number(opts.limit) }))}`);
+        const trpc = createClient();
+        const data = await trpc.backupOverview.query({ limit: Number(opts.limit) });
 
         if (opts.json) {
           console.log(JSON.stringify({ ok: true, ...data }, null, 2));
@@ -84,11 +59,8 @@ export function backupCommand(): Command {
         }
         console.log("");
       } catch (err) {
-        if (err instanceof ApiError) {
-          console.error(JSON.stringify({ ok: false, error: err.message, code: err.statusCode }));
-          process.exit(err.exitCode);
-        }
-        throw err;
+        console.error(JSON.stringify({ ok: false, error: err instanceof Error ? err.message : "Unknown error" }));
+        process.exit(1);
       }
     });
 
@@ -115,17 +87,14 @@ export function backupCommand(): Command {
       }
 
       try {
-        const client = new ApiClient();
+        const trpc = createClient();
 
         if (!opts.yes) {
           console.error(`To trigger backup for policy ${opts.policyId}, add --yes`);
           process.exit(1);
         }
 
-        const result = await client.post<{ id: string; status: string }>(
-          "/trpc/triggerBackupRun",
-          { policyId: opts.policyId }
-        );
+        const result = await trpc.triggerBackupRun.mutate({ policyId: opts.policyId });
 
         if (opts.json) {
           console.log(JSON.stringify({ ok: true, ...result }, null, 2));
@@ -133,11 +102,8 @@ export function backupCommand(): Command {
           console.log(chalk.green(`✅ Backup run queued: ${result.id}`));
         }
       } catch (err) {
-        if (err instanceof ApiError) {
-          console.error(JSON.stringify({ ok: false, error: err.message, code: err.statusCode }));
-          process.exit(err.exitCode);
-        }
-        throw err;
+        console.error(JSON.stringify({ ok: false, error: err instanceof Error ? err.message : "Unknown error" }));
+        process.exit(1);
       }
     });
 
@@ -164,17 +130,14 @@ export function backupCommand(): Command {
       }
 
       try {
-        const client = new ApiClient();
+        const trpc = createClient();
 
         if (!opts.yes) {
           console.error(`To restore from backup ${opts.backupRunId}, add --yes`);
           process.exit(1);
         }
 
-        const result = await client.post<{ id: string; status: string }>(
-          "/trpc/queueBackupRestore",
-          { backupRunId: opts.backupRunId }
-        );
+        const result = await trpc.queueBackupRestore.mutate({ backupRunId: opts.backupRunId });
 
         if (opts.json) {
           console.log(JSON.stringify({ ok: true, ...result }, null, 2));
@@ -182,11 +145,8 @@ export function backupCommand(): Command {
           console.log(chalk.green(`✅ Restore queued: ${result.id}`));
         }
       } catch (err) {
-        if (err instanceof ApiError) {
-          console.error(JSON.stringify({ ok: false, error: err.message, code: err.statusCode }));
-          process.exit(err.exitCode);
-        }
-        throw err;
+        console.error(JSON.stringify({ ok: false, error: err instanceof Error ? err.message : "Unknown error" }));
+        process.exit(1);
       }
     });
 

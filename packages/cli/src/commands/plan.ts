@@ -1,24 +1,21 @@
 import { Command } from "commander";
 import chalk from "chalk";
-import { ApiClient } from "../api-client";
+import { createClient } from "../trpc-client";
 
 export function planCommand(): Command {
   return new Command("plan")
-    .description("Show deployment plan without executing (dry-run)")
-    .requiredOption("--service <name>", "Service name")
-    .option("--server <id>", "Target server ID")
-    .option("--image <tag>", "Image tag")
+    .description("Preview a deployment plan without executing it")
+    .requiredOption("--service <id>", "Service name or ID")
+    .option("--server <id>", "Target server")
+    .option("--image <tag>", "Image tag to deploy")
     .action(async (opts: { service: string; server?: string; image?: string }) => {
-      const api = new ApiClient();
+      const trpc = createClient();
 
       console.log(chalk.bold("\n  Deployment Plan (dry-run)\n"));
       console.log(chalk.dim("  This plan will NOT be executed.\n"));
 
       // Fetch rollback plans to show current state
-      const data = await api.get<{
-        summary: Record<string, number>;
-        services?: Array<{ serviceName: string; status: string; imageTag: string | null }>;
-      }>(`/trpc/composeReleaseCatalog?input=${encodeURIComponent(JSON.stringify({}))}`);
+      const data = await trpc.composeReleaseCatalog.query({});
 
       const current = data.services?.find((s) => s.serviceName === opts.service);
 
@@ -28,36 +25,29 @@ export function planCommand(): Command {
       console.log();
 
       if (current) {
-        console.log(chalk.dim("  Current state:"));
-        console.log(`    Status: ${current.status}`);
-        console.log(`    Image:  ${current.imageTag ?? "none"}`);
+        console.log(chalk.dim(`  Current state:`));
+        console.log(chalk.dim(`    Status: ${current.status}`));
+        console.log(chalk.dim(`    Image:  ${current.imageTag ?? "unknown"}`));
         console.log();
       }
 
-      console.log(chalk.dim("  Planned steps:"));
-      console.log(`    ${chalk.green("1.")} Pull/load image`);
-      console.log(`    ${chalk.green("2.")} Stop existing container`);
-      console.log(`    ${chalk.green("3.")} Create new container from image`);
-      console.log(`    ${chalk.green("4.")} Start container`);
-      console.log(`    ${chalk.green("5.")} Health check`);
-      console.log(`    ${chalk.green("6.")} Update routing`);
+      console.log(`  ${chalk.bold("Planned steps:")}`);
+      console.log(`    1. Pull/load image`);
+      console.log(`    2. Stop existing container`);
+      console.log(`    3. Create new container from image`);
+      console.log(`    4. Start container`);
+      console.log(`    5. Health check`);
+      console.log(`    6. Update routing`);
       console.log();
 
-      // Check for potential issues
-      console.log(chalk.dim("  Pre-flight checks:"));
+      console.log(`  ${chalk.bold("Pre-flight checks:")}`);
       console.log(`    ${chalk.green("✓")} Service exists in catalog`);
       console.log(`    ${chalk.green("✓")} Image reference valid`);
       console.log(`    ${chalk.yellow("?")} Server reachability (run: daoflow status)`);
       console.log();
 
       console.log(
-        chalk.dim(
-          "  To execute: daoflow deploy --service " +
-            opts.service +
-            " --server " +
-            (opts.server ?? "<id>")
-        )
+        `  To execute: ${chalk.cyan(`daoflow deploy --service ${opts.service} --server <id>`)}\n`
       );
-      console.log();
     });
 }

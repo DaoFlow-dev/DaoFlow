@@ -1,6 +1,6 @@
 import { Command } from "commander";
 import chalk from "chalk";
-import { ApiClient } from "../api-client";
+import { createClient } from "../trpc-client";
 import { getCurrentContext } from "../config";
 
 export function capabilitiesCommand(): Command {
@@ -20,13 +20,10 @@ export function capabilitiesCommand(): Command {
         process.exit(1);
       }
 
-      const api = new ApiClient(ctx);
+      const trpc = createClient(ctx);
 
       try {
-        const viewer = await api.get<{
-          authz: { role: string; capabilities: string[] };
-        }>("/trpc/viewer");
-
+        const viewer = await trpc.viewer.query();
         const caps = viewer.authz.capabilities;
 
         if (isJson) {

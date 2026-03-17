@@ -1,6 +1,6 @@
 import { Command } from "commander";
 import chalk from "chalk";
-import { ApiClient, ApiError } from "../api-client";
+import { createClient } from "../trpc-client";
 import { getCurrentContext, loadConfig } from "../config";
 
 export function statusCommand(): Command {
@@ -23,21 +23,12 @@ export function statusCommand(): Command {
         process.exit(1);
       }
 
-      const api = new ApiClient(ctx);
+      const trpc = createClient(ctx);
 
       try {
         const [servers, health] = await Promise.allSettled([
-          api.get<{
-            summary: { totalServers: number; readyServers: number; attentionServers: number };
-            checks: Array<{
-              serverName: string;
-              serverHost: string;
-              readinessStatus: string;
-              sshReachable: boolean;
-              dockerReachable: boolean;
-            }>;
-          }>("/trpc/serverReadiness"),
-          api.get<{ status: string; timestamp: string }>("/trpc/health")
+          trpc.serverReadiness.query({}),
+          trpc.health.query()
         ]);
 
         const serverData = servers.status === "fulfilled" ? servers.value : null;
@@ -82,15 +73,12 @@ export function statusCommand(): Command {
           console.log();
         }
       } catch (err) {
-        if (err instanceof ApiError) {
-          if (isJson) {
-            console.log(JSON.stringify({ ok: false, error: err.message, code: "API_ERROR" }));
-          } else {
-            console.error(chalk.red(`Error: ${err.message}`));
-          }
-          process.exit(err.exitCode);
+        if (isJson) {
+          console.log(JSON.stringify({ ok: false, error: err instanceof Error ? err.message : "Unknown error", code: "API_ERROR" }));
+        } else {
+          console.error(chalk.red(`Error: ${err instanceof Error ? err.message : err}`));
         }
-        throw err;
+        process.exit(1);
       }
     });
 }

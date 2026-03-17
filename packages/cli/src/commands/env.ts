@@ -1,7 +1,7 @@
 import { Command } from "commander";
 import chalk from "chalk";
 import { writeFileSync, readFileSync, existsSync } from "node:fs";
-import { ApiClient } from "../api-client";
+import { createClient } from "../trpc-client";
 
 export function envCommand(): Command {
   const cmd = new Command("env").description("Manage environment variables");
@@ -12,12 +12,8 @@ export function envCommand(): Command {
     .option("--env-id <id>", "Environment ID")
     .option("--output <path>", "Output file path", ".env")
     .action(async (opts: { envId?: string; output: string }) => {
-      const api = new ApiClient();
-      const data = await api.get<{
-        variables: Array<{ key: string; displayValue: string; isSecret: boolean }>;
-      }>(
-        `/trpc/environmentVariables?input=${encodeURIComponent(JSON.stringify({ environmentId: opts.envId }))}`
-      );
+      const trpc = createClient();
+      const data = await trpc.environmentVariables.query({ environmentId: opts.envId });
 
       const lines = data.variables.map((v) =>
         v.isSecret ? `# ${v.key}=<secret>` : `${v.key}=${v.displayValue}`
@@ -46,8 +42,6 @@ export function envCommand(): Command {
         yes?: boolean;
         dryRun?: boolean;
       }) => {
-        const api = new ApiClient();
-
         if (!existsSync(opts.input)) {
           console.error(chalk.red(`✗ File not found: ${opts.input}`));
           process.exit(1);
@@ -83,16 +77,15 @@ export function envCommand(): Command {
           process.exit(1);
         }
 
+        const trpc = createClient();
         let count = 0;
         for (const v of vars) {
-          await api.post("/trpc/upsertEnvironmentVariable", {
-            json: {
-              environmentId: opts.envId,
-              key: v.key,
-              value: v.value,
-              isSecret: opts.secret ?? false,
-              category: "runtime"
-            }
+          await trpc.upsertEnvironmentVariable.mutate({
+            environmentId: opts.envId,
+            key: v.key,
+            value: v.value,
+            isSecret: opts.secret ?? false,
+            category: "runtime"
           });
           count++;
         }

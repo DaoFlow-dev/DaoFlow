@@ -1,6 +1,7 @@
 import { Command } from "commander";
 import { loadConfig, getCurrentContext } from "../config";
-import { ApiClient } from "../api-client";
+import { createTRPCClient, httpLink } from "@trpc/client";
+import type { AppRouter } from "@daoflow/server/router";
 
 export function doctorCommand(): Command {
   const cmd = new Command("doctor")
@@ -20,11 +21,22 @@ export function doctorCommand(): Command {
         detail: ctx ? `API URL: ${ctx.apiUrl}` : "No context configured. Run: daoflow login <url>"
       });
 
-      // 2. API connectivity
+      // 2. API connectivity — use raw tRPC client (health is public, no auth needed)
       if (ctx) {
         try {
-          const api = new ApiClient(ctx);
-          const health = await api.get<{ status: string; service: string }>("/health");
+          const trpc = createTRPCClient<AppRouter>({
+            links: [
+              httpLink({
+                url: `${ctx.apiUrl.replace(/\/$/, "")}/trpc`,
+                headers() {
+                  return {
+                    Cookie: `better-auth.session_token=${ctx.token}`,
+                  };
+                },
+              }),
+            ],
+          });
+          const health = await trpc.health.query();
           checks.push({
             name: "API connectivity",
             status: health.status === "healthy" ? "ok" : "fail",

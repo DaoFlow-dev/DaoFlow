@@ -1,16 +1,6 @@
 import { Command } from "commander";
 import chalk from "chalk";
-import { ApiClient, ApiError } from "../api-client";
-
-interface RollbackTarget {
-  deploymentId: string;
-  serviceName: string;
-  sourceType: string;
-  commitSha: string | null;
-  imageTag: string | null;
-  concludedAt: string | null;
-  status: string;
-}
+import { createClient } from "../trpc-client";
 
 export function rollbackCommand(): Command {
   return new Command("rollback")
@@ -28,14 +18,12 @@ export function rollbackCommand(): Command {
         yes?: boolean;
         json?: boolean;
       }) => {
-        const api = new ApiClient();
+        const trpc = createClient();
         const isJson = opts.json;
 
         try {
           // Fetch available rollback targets for this service
-          const targets = await api.get<RollbackTarget[]>(
-            `/trpc/rollbackTargets?input=${encodeURIComponent(JSON.stringify({ serviceId: opts.service }))}`
-          );
+          const targets = await trpc.rollbackTargets.query({ serviceId: opts.service });
 
           if (!targets.length) {
             if (isJson) {
@@ -134,15 +122,9 @@ export function rollbackCommand(): Command {
             console.log(chalk.blue(`⟳ Rolling back to ${target.deploymentId.slice(0, 8)}...`));
           }
 
-          const result = await api.post<{
-            id: string;
-            status: string;
-            serviceName: string;
-          }>("/trpc/executeRollback", {
-            json: {
-              serviceId: opts.service,
-              targetDeploymentId: target.deploymentId
-            }
+          const result = await trpc.executeRollback.mutate({
+            serviceId: opts.service,
+            targetDeploymentId: target.deploymentId
           });
 
           if (isJson) {
@@ -153,22 +135,18 @@ export function rollbackCommand(): Command {
             console.log(chalk.dim(`  Service: ${result.serviceName}`));
           }
         } catch (err) {
-          if (err instanceof ApiError) {
-            if (isJson) {
-              console.log(
-                JSON.stringify({
-                  ok: false,
-                  error: err.message,
-                  code: err.statusCode === 403 ? "SCOPE_DENIED" : "API_ERROR",
-                  requiredScope: err.statusCode === 403 ? "deploy:rollback" : undefined
-                })
-              );
-            } else {
-              console.error(chalk.red(`Error: ${err.message}`));
-            }
-            process.exit(err.exitCode);
+          if (isJson) {
+            console.log(
+              JSON.stringify({
+                ok: false,
+                error: err instanceof Error ? err.message : "Unknown error",
+                code: "API_ERROR"
+              })
+            );
+          } else {
+            console.error(chalk.red(`Error: ${err instanceof Error ? err.message : err}`));
           }
-          throw err;
+          process.exit(1);
         }
       }
     );

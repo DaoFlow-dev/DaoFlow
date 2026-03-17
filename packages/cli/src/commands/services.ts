@@ -1,25 +1,14 @@
 import { Command } from "commander";
 import chalk from "chalk";
-import { ApiClient } from "../api-client";
+import { createClient } from "../trpc-client";
 
 export function servicesCommand(): Command {
   return new Command("services")
     .description("List services and their status")
     .option("--json", "Output as JSON")
     .action(async (opts: { json?: boolean }) => {
-      const api = new ApiClient();
-
-      const data = await api.get<{
-        summary: Record<string, number>;
-        services: Array<{
-          id: string;
-          serviceName: string;
-          status: string;
-          environmentName: string;
-          targetServerName: string;
-          imageTag: string | null;
-        }>;
-      }>(`/trpc/composeReleaseCatalog?input=${encodeURIComponent(JSON.stringify({}))}`);
+      const trpc = createClient();
+      const data = await trpc.composeReleaseCatalog.query({});
 
       if (opts.json) {
         console.log(JSON.stringify(data, null, 2));

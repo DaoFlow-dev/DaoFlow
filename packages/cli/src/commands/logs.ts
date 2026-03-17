@@ -1,6 +1,6 @@
 import { Command } from "commander";
 import chalk from "chalk";
-import { ApiClient } from "../api-client";
+import { createClient } from "../trpc-client";
 
 export function logsCommand(): Command {
   return new Command("logs")
@@ -14,8 +14,6 @@ export function logsCommand(): Command {
         service: string | undefined,
         opts: { deployment?: string; follow?: boolean; lines?: string }
       ) => {
-        const api = new ApiClient();
-
         if (opts.follow) {
           // SSE streaming endpoint not yet implemented on the server
           console.error(
@@ -25,15 +23,11 @@ export function logsCommand(): Command {
           );
           process.exit(1);
         } else {
-          // Historical mode
-          const params = new URLSearchParams();
-          if (opts.deployment) params.set("deploymentId", opts.deployment);
-
-          const data = await api.get<{
-            lines: Array<{ createdAt: string; level: string; message: string; stream: string }>;
-          }>(
-            `/trpc/deploymentLogs?input=${encodeURIComponent(JSON.stringify({ deploymentId: opts.deployment, limit: Number(opts.lines) }))}`
-          );
+          const trpc = createClient();
+          const data = await trpc.deploymentLogs.query({
+            deploymentId: opts.deployment,
+            limit: Number(opts.lines),
+          });
 
           for (const line of data.lines) {
             const ts = chalk.dim(line.createdAt.slice(11, 23));
