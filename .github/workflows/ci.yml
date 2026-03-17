@@ -91,6 +91,8 @@ jobs:
         run: bun run test:e2e
         env:
           DATABASE_URL: postgresql://daoflow:daoflow_ci@localhost:5432/daoflow_test
+          PLAYWRIGHT_DATABASE_URL: postgresql://daoflow:daoflow_ci@localhost:5432/daoflow_test
+          PLAYWRIGHT_BOOTSTRAP_DATABASE_URL: postgresql://daoflow:daoflow_ci@localhost:5432/daoflow_test_bootstrap
           REDIS_URL: redis://localhost:6379
           BETTER_AUTH_SECRET: daoflow-ci-secret-long-enough-2026
           BETTER_AUTH_URL: http://127.0.0.1:3000
