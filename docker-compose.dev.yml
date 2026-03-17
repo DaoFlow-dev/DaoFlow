@@ -1,8 +1,14 @@
 # docker-compose.dev.yml — Local development stack
 # Usage: docker compose -f docker-compose.dev.yml up -d
 #
-# Spins up everything DaoFlow needs for local development:
-# Postgres, Redis, and Temporal workflow engine.
+# Spins up the persistence layer DaoFlow needs for local development:
+# Postgres (app DB) and Redis (job queue + SSE).
+#
+# Temporal runs natively via the Temporal CLI instead of Docker:
+#   temporal server start-dev --port 7233 --ui-port 8233 --namespace daoflow
+#
+# Or use the shortcut: bun run dev:temporal
+#
 # The DaoFlow server itself runs via `bun run dev` on the host.
 
 services:
@@ -34,50 +40,6 @@ services:
       timeout: 3s
       retries: 5
 
-  # ── Temporal Stack ─────────────────────────────────────────
-  temporal-postgresql:
-    image: postgres:15-alpine
-    environment:
-      POSTGRES_DB: temporal
-      POSTGRES_USER: temporal
-      POSTGRES_PASSWORD: temporal_dev
-    volumes:
-      - temporal-pgdata:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U temporal"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-
-  temporal:
-    image: temporalio/auto-setup:1.28.1
-    ports:
-      - "7233:7233"
-    environment:
-      - DB=postgres12
-      - DB_PORT=5432
-      - POSTGRES_USER=temporal
-      - POSTGRES_PWD=temporal_dev
-      - POSTGRES_SEEDS=temporal-postgresql
-      - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development-sql.yaml
-      - TEMPORAL_BROADCAST_ADDRESS=0.0.0.0
-    depends_on:
-      temporal-postgresql:
-        condition: service_healthy
-    volumes:
-      - ./temporal-config:/etc/temporal/config/dynamicconfig
-
-  temporal-ui:
-    image: temporalio/ui:2.34.0
-    ports:
-      - "8233:8080"
-    environment:
-      - TEMPORAL_ADDRESS=temporal:7233
-      - TEMPORAL_CORS_ORIGINS=http://localhost:3000
-    depends_on:
-      - temporal
-
 volumes:
   pgdata:
   redisdata:
-  temporal-pgdata:
