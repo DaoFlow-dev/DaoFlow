@@ -12,7 +12,7 @@ export function registerConfigCommand(program: Command) {
     .command("generate-vapid")
     .description("Generate VAPID key pair for Web Push notifications")
     .option("--json", "Output as JSON")
-    .action(async (opts) => {
+    .action((opts: { json?: boolean }) => {
       try {
         // Generate ECDH key pair (P-256 curve, required for VAPID)
         const ecdh = crypto.createECDH("prime256v1");

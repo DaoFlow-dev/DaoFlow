@@ -1,8 +1,8 @@
-import type { PgTransaction } from "drizzle-orm/pg-core";
 import { deployments, deploymentSteps, deploymentLogs } from "../../schema/deployments";
 import { minutesBefore } from "./seed-helpers";
+import type { SeedTransaction } from "./seed-types";
 
-export async function seedDeployments(tx: PgTransaction<any, any, any>) {
+export async function seedDeployments(tx: SeedTransaction) {
   await tx
     .insert(deployments)
     .values([

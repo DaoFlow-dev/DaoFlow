@@ -91,7 +91,7 @@ function parseConfig(content: string, format: "jsonc" | "json" | "yaml" | "toml"
       const result = jsoncParser.parse(content, errors, {
         disallowComments: false,
         allowTrailingComma: true
-      });
+      }) as unknown;
       if (errors.length > 0) {
         throw new Error(`Invalid JSONC: ${errors.length} parse error(s)`);
       }
@@ -102,7 +102,7 @@ function parseConfig(content: string, format: "jsonc" | "json" | "yaml" | "toml"
       return JSON.parse(content) as DaoflowConfig;
 
     case "yaml":
-      return yamlParser.parse(content) as DaoflowConfig;
+      return yamlParser.parse(content) as unknown as DaoflowConfig;
 
     case "toml":
       return tomlParser.parse(content) as unknown as DaoflowConfig;

@@ -168,7 +168,7 @@ export async function createBackupRun(policyId: string, triggeredBy: string): Pr
  * Execute the actual backup copy using rclone.
  * Copies from the volume mount path to the remote destination.
  */
-export async function executeBackupCopy(
+export function executeBackupCopy(
   resolved: BackupPolicyResolved,
   runId: string
 ): Promise<BackupRunResult> {
@@ -197,11 +197,11 @@ export async function executeBackupCopy(
     console.warn(`[backup] Could not estimate backup size for run ${runId}`);
   }
 
-  return {
+  return Promise.resolve({
     runId,
     artifactPath: remotePath,
     sizeBytes
-  };
+  });
 }
 
 /**

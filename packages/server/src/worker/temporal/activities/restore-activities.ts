@@ -121,7 +121,9 @@ export async function resolveRestoreContext(input: RestoreInput): Promise<Restor
     encryptionMode: dest.encryptionMode,
     backupType: policy.backupType ?? "volume",
     databaseEngine: policy.databaseEngine ?? undefined,
-    containerName: undefined // TODO: resolve from volume metadata
+    // containerName is resolved at restore-execution time via `docker ps --filter`
+    // for database engine restores. For volume backups it is not needed.
+    containerName: undefined
   };
 }
 

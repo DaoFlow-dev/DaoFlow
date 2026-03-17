@@ -248,7 +248,7 @@ function buildDockerExecArgs(input: DatabaseDumpInput): {
     }
 
     default:
-      throw new Error(`Unsupported database engine: ${engine}`);
+      throw new Error(`Unsupported database engine: ${String(engine)}`);
   }
 }
 
@@ -258,7 +258,7 @@ function buildDockerExecArgs(input: DatabaseDumpInput): {
  * Stop a Docker container gracefully.
  * Returns the container's previous state for restart.
  */
-export async function stopContainer(containerName: string): Promise<ContainerLifecycleResult> {
+export function stopContainer(containerName: string): Promise<ContainerLifecycleResult> {
   try {
     const state = (
       execFileSync("docker", ["inspect", "--format", "{{.State.Status}}", containerName], {
@@ -274,47 +274,47 @@ export async function stopContainer(containerName: string): Promise<ContainerLif
       });
     }
 
-    return {
+    return Promise.resolve({
       success: true,
       containerName,
       action: "stop",
       previousState: state
-    };
+    });
   } catch (err) {
-    return {
+    return Promise.resolve({
       success: false,
       containerName,
       action: "stop",
       error: err instanceof Error ? err.message : String(err)
-    };
+    });
   }
 }
 
 /**
  * Start a previously stopped Docker container.
  */
-export async function startContainer(containerName: string): Promise<ContainerLifecycleResult> {
+export function startContainer(containerName: string): Promise<ContainerLifecycleResult> {
   try {
     execFileSync("docker", ["start", containerName], {
       timeout: 60_000,
       stdio: ["pipe", "pipe", "pipe"]
     });
 
-    return { success: true, containerName, action: "start" };
+    return Promise.resolve({ success: true, containerName, action: "start" });
   } catch (err) {
-    return {
+    return Promise.resolve({
       success: false,
       containerName,
       action: "start",
       error: err instanceof Error ? err.message : String(err)
-    };
+    });
   }
 }
 
 /**
  * Detect database engine from Docker container image/environment.
  */
-export async function detectDatabaseEngine(containerName: string): Promise<DatabaseEngine | null> {
+export function detectDatabaseEngine(containerName: string): Promise<DatabaseEngine | null> {
   try {
     const image = (
       execFileSync("docker", ["inspect", "--format", "{{.Config.Image}}", containerName], {
@@ -324,13 +324,15 @@ export async function detectDatabaseEngine(containerName: string): Promise<Datab
     ).trim();
 
     const lower = image.toLowerCase();
-    if (lower.includes("postgres") || lower.includes("pgvector")) return "postgres";
-    if (lower.includes("mysql")) return "mysql";
-    if (lower.includes("mariadb")) return "mariadb";
-    if (lower.includes("mongo")) return "mongo";
-    return null;
+    if (lower.includes("postgres") || lower.includes("pgvector")) {
+      return Promise.resolve("postgres");
+    }
+    if (lower.includes("mysql")) return Promise.resolve("mysql");
+    if (lower.includes("mariadb")) return Promise.resolve("mariadb");
+    if (lower.includes("mongo")) return Promise.resolve("mongo");
+    return Promise.resolve(null);
   } catch {
-    return null;
+    return Promise.resolve(null);
   }
 }
 
@@ -344,10 +346,11 @@ export async function computeFileChecksum(filePath: string): Promise<string> {
 /**
  * Clean up a local dump file after successful upload.
  */
-export async function cleanupDumpFile(dumpPath: string): Promise<void> {
+export function cleanupDumpFile(dumpPath: string): Promise<void> {
   try {
     if (existsSync(dumpPath)) unlinkSync(dumpPath);
   } catch {
     /* ignore cleanup errors */
   }
+  return Promise.resolve();
 }

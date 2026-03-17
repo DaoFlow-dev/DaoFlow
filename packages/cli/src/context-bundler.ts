@@ -49,7 +49,7 @@ const DEFAULT_MAX_SIZE = 500 * 1024 * 1024; // 500MB
 /**
  * Create a tar.gz bundle of the build context, respecting .dockerignore.
  */
-export async function createContextBundle(opts: BundleOptions): Promise<BundleResult> {
+export function createContextBundle(opts: BundleOptions): Promise<BundleResult> {
   const contextPath = resolve(opts.contextPath);
   const maxSize = opts.maxSizeBytes ?? DEFAULT_MAX_SIZE;
 
@@ -148,7 +148,7 @@ export async function createContextBundle(opts: BundleOptions): Promise<BundleRe
     });
   } catch (err) {
     throw new Error(
-      `Failed to create context archive: ${err instanceof Error ? err.message : err}`
+      `Failed to create context archive: ${err instanceof Error ? err.message : String(err)}`
     );
   } finally {
     try {
@@ -174,12 +174,12 @@ export async function createContextBundle(opts: BundleOptions): Promise<BundleRe
     );
   }
 
-  return {
+  return Promise.resolve({
     tarPath,
     fileCount: files.length,
     sizeBytes,
     includedOverrides
-  };
+  });
 }
 
 /**

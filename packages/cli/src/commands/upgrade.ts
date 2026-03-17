@@ -4,7 +4,15 @@ import { join } from "path";
 import { execSync } from "child_process";
 import chalk from "chalk";
 import ora from "ora";
+import { getErrorMessage, getExecErrorMessage } from "../command-helpers";
 import { defaultInstallDir, parseEnvFile, fetchComposeYml } from "../templates";
+
+interface UpgradeOptions {
+  dir: string;
+  version?: string;
+  yes?: boolean;
+  json?: boolean;
+}
 
 export function upgradeCommand(): Command {
   return new Command("upgrade")
@@ -13,8 +21,8 @@ export function upgradeCommand(): Command {
     .option("--version <version>", "Target version (default: latest)")
     .option("--yes", "Skip confirmation prompts")
     .option("--json", "Output as structured JSON")
-    .action(async (opts) => {
-      const isJson = opts.json || process.argv.includes("--json");
+    .action(async (opts: UpgradeOptions) => {
+      const isJson = opts.json ?? process.argv.includes("--json");
       const dir = opts.dir;
       const envPath = join(dir, ".env");
       const composePath = join(dir, "docker-compose.yml");
@@ -34,7 +42,7 @@ export function upgradeCommand(): Command {
       const envContent = readFileSync(envPath, "utf-8");
       const env = parseEnvFile(envContent);
       const currentVersion = env.DAOFLOW_VERSION || "unknown";
-      const targetVersion = opts.version || "latest";
+      const targetVersion = opts.version ?? "latest";
 
       if (!opts.yes) {
         console.error(chalk.bold("\n📦 DaoFlow Upgrade\n"));
@@ -75,8 +83,8 @@ export function upgradeCommand(): Command {
         const composeContent = await fetchComposeYml();
         writeFileSync(composePath, composeContent);
         composeSpinner?.succeed("docker-compose.yml updated");
-      } catch (e: any) {
-        composeSpinner?.warn(`Could not fetch latest compose file: ${e.message}`);
+      } catch (error) {
+        composeSpinner?.warn(`Could not fetch latest compose file: ${getErrorMessage(error)}`);
         if (!isJson) console.error(chalk.dim("  Keeping existing docker-compose.yml"));
       }
 
@@ -94,12 +102,18 @@ export function upgradeCommand(): Command {
       try {
         execSync("docker compose up -d --remove-orphans", { cwd: dir, stdio: "pipe" });
         restartSpinner?.succeed("Services restarted");
-      } catch (e: any) {
+      } catch (error) {
         restartSpinner?.fail("Failed to restart services");
         if (isJson) {
-          console.log(JSON.stringify({ ok: false, error: e.message, code: "RESTART_FAILED" }));
+          console.log(
+            JSON.stringify({
+              ok: false,
+              error: getErrorMessage(error),
+              code: "RESTART_FAILED"
+            })
+          );
         } else {
-          console.error(chalk.red(e.stderr?.toString() || e.message));
+          console.error(chalk.red(getExecErrorMessage(error)));
         }
         process.exit(1);
       }

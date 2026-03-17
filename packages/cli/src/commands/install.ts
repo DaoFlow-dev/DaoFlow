@@ -5,9 +5,22 @@ import { execSync } from "child_process";
 import { createInterface } from "readline";
 import chalk from "chalk";
 import ora from "ora";
+import { getErrorMessage, getExecErrorMessage } from "../command-helpers";
 import { fetchComposeYml, generateEnvFile, defaultInstallDir, parseEnvFile } from "../templates";
 
 const VERSION = "0.1.0";
+
+interface InstallOptions {
+  dir: string;
+  domain?: string;
+  port: string;
+  email?: string;
+  password?: string;
+  yes?: boolean;
+  json?: boolean;
+  _pgPassword?: string;
+  _temporalPgPassword?: string;
+}
 
 /**
  * Prompt the user for input (interactive mode).
@@ -54,9 +67,9 @@ export function installCommand(): Command {
     .option("--password <password>", "Admin password for first user")
     .option("--yes", "Skip confirmation prompts")
     .option("--json", "Output as structured JSON")
-    .action(async (opts) => {
-      const isJson = opts.json || process.argv.includes("--json");
-      const isNonInteractive = opts.yes || false;
+    .action(async (opts: InstallOptions) => {
+      const isJson = opts.json ?? process.argv.includes("--json");
+      const isNonInteractive = opts.yes ?? false;
 
       // -- Step 1: Check Docker --
       const spinner = !isJson ? ora("Checking Docker...").start() : null;
@@ -99,7 +112,7 @@ export function installCommand(): Command {
 
       // -- Step 2: Gather config --
       let dir = opts.dir;
-      let domain = opts.domain;
+      let domain = opts.domain ?? "localhost";
       let port = parseInt(opts.port, 10);
       let email = opts.email;
       let password = opts.password;
@@ -162,7 +175,6 @@ export function installCommand(): Command {
         }
       } else {
         // Non-interactive validation
-        if (!domain) domain = "localhost";
         if (!email) {
           const msg = "Admin email is required (--email)";
           if (isJson) console.log(JSON.stringify({ ok: false, error: msg, code: "MISSING_EMAIL" }));
@@ -224,14 +236,13 @@ export function installCommand(): Command {
         const composeContent = await fetchComposeYml();
         writeFileSync(composePath, composeContent);
         composeSpinner?.succeed("docker-compose.yml written");
-      } catch (e: any) {
+      } catch (error) {
         composeSpinner?.fail("Failed to fetch docker-compose.yml");
+        const message = getErrorMessage(error);
         if (isJson) {
-          console.log(
-            JSON.stringify({ ok: false, error: e.message, code: "COMPOSE_FETCH_FAILED" })
-          );
+          console.log(JSON.stringify({ ok: false, error: message, code: "COMPOSE_FETCH_FAILED" }));
         } else {
-          console.error(chalk.red(e.message));
+          console.error(chalk.red(message));
         }
         process.exit(1);
       }
@@ -259,9 +270,9 @@ export function installCommand(): Command {
           stdio: "pipe"
         });
         startSpinner?.succeed("DaoFlow services started");
-      } catch (e: any) {
+      } catch (error) {
         startSpinner?.fail("Failed to start services");
-        const msg = e.stderr?.toString() || e.message;
+        const msg = getExecErrorMessage(error);
         if (isJson) {
           console.log(JSON.stringify({ ok: false, error: msg, code: "START_FAILED" }));
         } else {

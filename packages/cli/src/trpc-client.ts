@@ -5,10 +5,13 @@
  * so every CLI command gets full type-safety without duplicating return types.
  */
 import { createTRPCClient, httpLink, type TRPCClient } from "@trpc/client";
+import type { inferRouterInputs, inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@daoflow/server/router";
 import { getCurrentContext, type DaoFlowContext } from "./config";
 
 export type DaoFlowTRPC = TRPCClient<AppRouter>;
+export type RouterInputs = inferRouterInputs<AppRouter>;
+export type RouterOutputs = inferRouterOutputs<AppRouter>;
 
 /**
  * Create a fully-typed tRPC client configured with the current CLI context.

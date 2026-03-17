@@ -77,7 +77,7 @@ export function createApp() {
 
     const encoder = new TextEncoder();
     const stream = new ReadableStream({
-      async start(controller) {
+      start(controller) {
         let lastId = 0;
         let attempts = 0;
         const MAX_ATTEMPTS = 600; // 10 minutes max

@@ -45,11 +45,13 @@ export function usePushSubscription() {
 
     try {
       const reg = await navigator.serviceWorker.ready;
-      const vapidKey = import.meta.env.VITE_VAPID_PUBLIC_KEY;
+      const envVapidKey = import.meta.env.VITE_VAPID_PUBLIC_KEY;
+      const vapidKey =
+        typeof envVapidKey === "string" && envVapidKey.length > 0 ? envVapidKey : undefined;
 
       const sub = await reg.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: vapidKey || undefined
+        applicationServerKey: vapidKey
       });
 
       setSubscription(sub);

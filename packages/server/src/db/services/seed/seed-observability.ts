@@ -1,9 +1,9 @@
-import type { PgTransaction } from "drizzle-orm/pg-core";
 import { backupPolicies, backupRuns, backupRestores } from "../../schema/storage";
 import { auditEntries, events, approvalRequests } from "../../schema/audit";
 import { daysBefore, hoursBefore, minutesBefore, hoursAfter } from "./seed-helpers";
+import type { SeedTransaction } from "./seed-types";
 
-export async function seedObservability(tx: PgTransaction<any, any, any>) {
+export async function seedObservability(tx: SeedTransaction) {
   await tx
     .insert(backupPolicies)
     .values([

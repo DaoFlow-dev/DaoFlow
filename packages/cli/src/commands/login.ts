@@ -1,6 +1,13 @@
 import { Command } from "commander";
 import chalk from "chalk";
+import { getErrorMessage, isRecord, readString } from "../command-helpers";
 import { setContext } from "../config";
+
+interface LoginResponseBody {
+  token?: string;
+  message?: string;
+  error?: string;
+}
 
 export function loginCommand(): Command {
   return new Command("login")
@@ -50,7 +57,7 @@ export function loginCommand(): Command {
             });
 
             // Extract session cookie from Set-Cookie header
-            const setCookie = res.headers.getSetCookie?.() ?? [];
+            const setCookie: string[] = res.headers.getSetCookie?.() ?? [];
             const sessionCookie = setCookie.find((c: string) =>
               c.startsWith("better-auth.session_token=")
             );
@@ -67,7 +74,15 @@ export function loginCommand(): Command {
               }
             } else {
               // Fallback: check response body for token
-              const body = await res.json().catch(() => null);
+              const rawBody = (await res.json().catch(() => null)) as unknown;
+              const body: LoginResponseBody | null = isRecord(rawBody)
+                ? {
+                    token: readString(rawBody.token),
+                    message: readString(rawBody.message),
+                    error: readString(rawBody.error)
+                  }
+                : null;
+
               if (body?.token) {
                 sessionToken = body.token;
               } else {
@@ -77,8 +92,8 @@ export function loginCommand(): Command {
                 return;
               }
             }
-          } catch (e: any) {
-            console.error(chalk.red(`✗ Sign-in failed: ${e.message}`));
+          } catch (error) {
+            console.error(chalk.red(`✗ Sign-in failed: ${getErrorMessage(error)}`));
             process.exit(1);
             return;
           }

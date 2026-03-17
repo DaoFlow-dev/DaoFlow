@@ -1,11 +1,11 @@
-import type { PgTransaction } from "drizzle-orm/pg-core";
 import { users } from "../../schema/users";
 import { teams, teamMembers } from "../../schema/teams";
 import { principals } from "../../schema/tokens";
 import { apiTokens } from "../../schema/tokens";
 import { daysBefore, hoursBefore, minutesBefore } from "./seed-helpers";
+import type { SeedTransaction } from "./seed-types";
 
-export async function seedUsers(tx: PgTransaction<any, any, any>) {
+export async function seedUsers(tx: SeedTransaction) {
   await tx
     .insert(users)
     .values([

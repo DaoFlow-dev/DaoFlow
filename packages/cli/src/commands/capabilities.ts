@@ -1,6 +1,7 @@
 import { Command } from "commander";
 import chalk from "chalk";
-import { createClient } from "../trpc-client";
+import { getErrorMessage } from "../command-helpers";
+import { createClient, type RouterOutputs } from "../trpc-client";
 import { getCurrentContext } from "../config";
 
 export function capabilitiesCommand(): Command {
@@ -8,7 +9,7 @@ export function capabilitiesCommand(): Command {
     .alias("caps")
     .description("List all granted scopes for the current token")
     .action(async () => {
-      const isJson = capabilitiesCommand().parent?.opts().json;
+      const isJson = capabilitiesCommand().parent?.opts<{ json?: boolean }>().json ?? false;
       const ctx = getCurrentContext();
 
       if (!ctx) {
@@ -23,7 +24,7 @@ export function capabilitiesCommand(): Command {
       const trpc = createClient(ctx);
 
       try {
-        const viewer = await trpc.viewer.query();
+        const viewer: RouterOutputs["viewer"] = await trpc.viewer.query();
         const caps = viewer.authz.capabilities;
 
         if (isJson) {
@@ -61,12 +62,12 @@ export function capabilitiesCommand(): Command {
           console.log(
             JSON.stringify({
               ok: false,
-              error: err instanceof Error ? err.message : "Unknown error",
+              error: getErrorMessage(err),
               code: "API_ERROR"
             })
           );
         } else {
-          console.error(chalk.red(`Error: ${err instanceof Error ? err.message : err}`));
+          console.error(chalk.red(`Error: ${getErrorMessage(err)}`));
         }
         process.exit(1);
       }

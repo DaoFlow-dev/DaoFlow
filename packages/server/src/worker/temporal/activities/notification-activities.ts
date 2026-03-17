@@ -620,7 +620,7 @@ export async function dispatchNotification(payload: NotificationPayload): Promis
  * Build a notification payload for backup events.
  * Convenience helper used by the backup workflow.
  */
-export async function buildBackupNotification(opts: {
+export function buildBackupNotification(opts: {
   eventType: NotificationPayload["eventType"];
   policyName: string;
   projectName?: string;
@@ -658,7 +658,7 @@ export async function buildBackupNotification(opts: {
     fields.push({ name: "Error", value: opts.error.slice(0, 200), inline: false });
   }
 
-  return {
+  return Promise.resolve({
     eventType: opts.eventType,
     title: `Backup ${opts.status}: ${opts.policyName}`,
     message:
@@ -673,5 +673,5 @@ export async function buildBackupNotification(opts: {
     environmentName: opts.environmentName,
     serviceName: opts.serviceName,
     timestamp: new Date().toISOString()
-  };
+  });
 }

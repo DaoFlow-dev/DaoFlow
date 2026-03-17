@@ -1,11 +1,11 @@
-import type { PgTransaction } from "drizzle-orm/pg-core";
 import { encrypt } from "../../crypto";
 import { servers } from "../../schema/servers";
 import { projects, environments, environmentVariables } from "../../schema/projects";
 import { volumes } from "../../schema/storage";
 import { daysBefore, minutesBefore } from "./seed-helpers";
+import type { SeedTransaction } from "./seed-types";
 
-export async function seedInfrastructure(tx: PgTransaction<any, any, any>) {
+export async function seedInfrastructure(tx: SeedTransaction) {
   await tx
     .insert(servers)
     .values({

@@ -10,6 +10,8 @@ jobs:
   lint-typecheck:
     name: Lint, Format & Typecheck
     runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -35,6 +37,8 @@ jobs:
     name: E2E Tests (Docker Compose)
     runs-on: ubuntu-latest
     needs: lint-typecheck
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     services:
       postgres:
         image: pgvector/pgvector:pg17

@@ -417,6 +417,7 @@ async function waitForHealthy(
 /**
  * Clean up staging directory for a deployment.
  */
-export async function cleanupDeploymentStaging(deploymentId: string): Promise<void> {
+export function cleanupDeploymentStaging(deploymentId: string): Promise<void> {
   cleanupStagingDir(deploymentId);
+  return Promise.resolve();
 }

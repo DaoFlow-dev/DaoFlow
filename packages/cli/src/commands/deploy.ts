@@ -161,7 +161,7 @@ export function deployCommand(): Command {
               })
             );
           } else {
-            console.error(chalk.red(`Error: ${err instanceof Error ? err.message : err}`));
+            console.error(chalk.red(`Error: ${err instanceof Error ? err.message : String(err)}`));
           }
           process.exit(1);
         }
@@ -343,7 +343,9 @@ async function handleComposeDeploy(opts: ComposeDeployOpts): Promise<void> {
         })
       );
     } else {
-      console.error(chalk.red(`✗ Deployment failed: ${err instanceof Error ? err.message : err}`));
+      console.error(
+        chalk.red(`✗ Deployment failed: ${err instanceof Error ? err.message : String(err)}`)
+      );
     }
     process.exit(1);
   }

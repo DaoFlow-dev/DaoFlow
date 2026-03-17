@@ -4,7 +4,15 @@ import { join } from "path";
 import { execSync } from "child_process";
 import chalk from "chalk";
 import ora from "ora";
+import { getErrorMessage, getExecErrorMessage } from "../command-helpers";
 import { defaultInstallDir } from "../templates";
+
+interface UninstallOptions {
+  dir: string;
+  removeData?: boolean;
+  yes?: boolean;
+  json?: boolean;
+}
 
 export function uninstallCommand(): Command {
   return new Command("uninstall")
@@ -13,10 +21,10 @@ export function uninstallCommand(): Command {
     .option("--remove-data", "Also remove volumes and database data (destructive)")
     .option("--yes", "Skip confirmation prompts")
     .option("--json", "Output as structured JSON")
-    .action(async (opts) => {
-      const isJson = opts.json || process.argv.includes("--json");
+    .action(async (opts: UninstallOptions) => {
+      const isJson = opts.json ?? process.argv.includes("--json");
       const dir = opts.dir;
-      const removeData = opts.removeData || false;
+      const removeData = opts.removeData ?? false;
 
       // -- Check installation exists --
       if (!existsSync(join(dir, "docker-compose.yml"))) {
@@ -68,12 +76,14 @@ export function uninstallCommand(): Command {
         const downFlags = removeData ? "down -v --remove-orphans" : "down --remove-orphans";
         execSync(`docker compose ${downFlags}`, { cwd: dir, stdio: "pipe" });
         stopSpinner?.succeed("Services stopped");
-      } catch (e: any) {
+      } catch (error) {
         stopSpinner?.fail("Failed to stop services");
         if (isJson) {
-          console.log(JSON.stringify({ ok: false, error: e.message, code: "STOP_FAILED" }));
+          console.log(
+            JSON.stringify({ ok: false, error: getErrorMessage(error), code: "STOP_FAILED" })
+          );
         } else {
-          console.error(chalk.red(e.stderr?.toString() || e.message));
+          console.error(chalk.red(getExecErrorMessage(error)));
         }
         process.exit(1);
       }

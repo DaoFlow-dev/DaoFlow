@@ -9,7 +9,7 @@ export function projectsCommand(): Command {
     .alias("ls")
     .option("--json", "Output as JSON")
     .description("List all projects")
-    .action(async (opts) => {
+    .action(async (opts: { json?: boolean }) => {
       try {
         const trpc = createClient();
         const projects = await trpc.projects.query({ limit: 50 });

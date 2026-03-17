@@ -1,13 +1,14 @@
 import { Command } from "commander";
 import chalk from "chalk";
-import { createClient } from "../trpc-client";
+import { getErrorMessage } from "../command-helpers";
+import { createClient, type RouterOutputs } from "../trpc-client";
 import { getCurrentContext, loadConfig } from "../config";
 
 export function statusCommand(): Command {
   return new Command("status")
     .description("Show current deployment and server status")
     .action(async () => {
-      const parentOpts = statusCommand().parent?.opts() ?? {};
+      const parentOpts = statusCommand().parent?.opts<{ json?: boolean }>() ?? {};
       const isJson = parentOpts.json;
       const config = loadConfig();
       const ctx = getCurrentContext();
@@ -31,8 +32,10 @@ export function statusCommand(): Command {
           trpc.health.query()
         ]);
 
-        const serverData = servers.status === "fulfilled" ? servers.value : null;
-        const healthData = health.status === "fulfilled" ? health.value : null;
+        const serverData: RouterOutputs["serverReadiness"] | null =
+          servers.status === "fulfilled" ? servers.value : null;
+        const healthData: RouterOutputs["health"] | null =
+          health.status === "fulfilled" ? health.value : null;
 
         if (isJson) {
           console.log(
@@ -77,12 +80,12 @@ export function statusCommand(): Command {
           console.log(
             JSON.stringify({
               ok: false,
-              error: err instanceof Error ? err.message : "Unknown error",
+              error: getErrorMessage(err),
               code: "API_ERROR"
             })
           );
         } else {
-          console.error(chalk.red(`Error: ${err instanceof Error ? err.message : err}`));
+          console.error(chalk.red(`Error: ${getErrorMessage(err)}`));
         }
         process.exit(1);
       }

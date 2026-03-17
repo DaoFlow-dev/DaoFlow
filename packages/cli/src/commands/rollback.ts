@@ -144,7 +144,7 @@ export function rollbackCommand(): Command {
               })
             );
           } else {
-            console.error(chalk.red(`Error: ${err instanceof Error ? err.message : err}`));
+            console.error(chalk.red(`Error: ${err instanceof Error ? err.message : String(err)}`));
           }
           process.exit(1);
         }
