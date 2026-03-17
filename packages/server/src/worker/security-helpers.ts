@@ -10,7 +10,6 @@ import { join } from "node:path";
 import { existsSync, unlinkSync, readdirSync } from "node:fs";
 import { db } from "../db/connection";
 import { auditEntries } from "../db/schema/audit";
-import { newId } from "../db/services/json-helpers";
 
 // ── Temp File Cleanup (Task #40) ────────────────────────────
 
@@ -100,7 +99,6 @@ export async function auditEncryptedAccess(params: {
   context?: string;
 }) {
   await db.insert(auditEntries).values({
-    id: newId(),
     organizationId: "org_default",
     actorType: "user",
     actorId: params.actorId,

@@ -46,9 +46,7 @@ export function BackupTimeline() {
             <div className={`w-2.5 h-2.5 rounded-full ${color} shrink-0`} />
 
             {/* Policy name */}
-            <span className="text-sm text-white/80 truncate flex-1">
-              {run.policyName ?? run.policyId}
-            </span>
+            <span className="text-sm text-white/80 truncate flex-1">{run.policyId}</span>
 
             {/* Status badge */}
             <span className="text-xs px-2 py-0.5 rounded-full bg-white/10 text-white/60">
@@ -57,8 +55,8 @@ export function BackupTimeline() {
 
             {/* Duration / time */}
             <span className="text-xs text-white/40 min-w-[80px] text-right">
-              {run.createdAt
-                ? new Date(run.createdAt).toLocaleTimeString([], {
+              {run.startedAt
+                ? new Date(run.startedAt).toLocaleTimeString([], {
                     hour: "2-digit",
                     minute: "2-digit"
                   })
