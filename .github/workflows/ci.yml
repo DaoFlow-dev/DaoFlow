@@ -121,18 +121,12 @@ jobs:
       - name: Start dev Compose stack
         run: sh ./scripts/ensure-dev-compose.sh
 
-      - name: Install Temporal CLI
-        run: |
-          curl --retry 5 --retry-all-errors --retry-delay 2 -fsSL https://temporal.download/cli | sh
-          test -x "$HOME/.temporalio/bin/temporal"
-          "$HOME/.temporalio/bin/temporal" --version
-          echo "$HOME/.temporalio/bin" >> "$GITHUB_PATH"
-
       - name: Start Temporal dev server
         run: |
-          temporal server start-dev \
-            --port 7233 --ui-port 8233 --namespace daoflow \
-            --log-format text &
+          docker run -d --name daoflow-temporal-dev \
+            -p 7233:7233 -p 8233:8233 \
+            temporalio/temporal server start-dev \
+            --ip 0.0.0.0 --namespace daoflow
           timeout 30 bash -c 'until (echo > /dev/tcp/127.0.0.1/7233) >/dev/null 2>&1; do sleep 1; done'
           echo "Temporal dev server started"
 
@@ -162,7 +156,9 @@ jobs:
 
       - name: Stop dev Compose stack
         if: always()
-        run: docker compose -f docker-compose.dev.yml down -v
+        run: |
+          docker rm -f daoflow-temporal-dev || true
+          docker compose -f docker-compose.dev.yml down -v
 
       - name: Upload worker E2E report
         if: always()
