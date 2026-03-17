@@ -88,7 +88,15 @@ jobs:
         run: bunx playwright install --with-deps chromium
 
       - name: Run E2E tests
-        run: bun run test:e2e
+        run: |
+          DATABASE_URL="$PLAYWRIGHT_DATABASE_URL" bun packages/server/src/db/reset.ts
+          DATABASE_URL="$PLAYWRIGHT_DATABASE_URL" bun packages/server/src/db/migration.ts
+          DATABASE_URL="$PLAYWRIGHT_DATABASE_URL" bun packages/server/src/db/services/run-seed.ts
+          DATABASE_URL="$PLAYWRIGHT_DATABASE_URL" bun packages/server/src/db/services/seed-e2e-auth-users.ts
+          PLAYWRIGHT_SKIP_DB_BOOTSTRAP=true bunx playwright test
+          DATABASE_URL="$PLAYWRIGHT_BOOTSTRAP_DATABASE_URL" bun packages/server/src/db/reset.ts
+          DATABASE_URL="$PLAYWRIGHT_BOOTSTRAP_DATABASE_URL" bun packages/server/src/db/migration.ts
+          PLAYWRIGHT_SKIP_DB_BOOTSTRAP=true bunx playwright test --config playwright.bootstrap.config.ts
         env:
           DATABASE_URL: postgresql://daoflow:daoflow_ci@localhost:5432/daoflow_test
           PLAYWRIGHT_DATABASE_URL: postgresql://daoflow:daoflow_ci@localhost:5432/daoflow_test
