@@ -5,13 +5,17 @@
  * event selectors, project/environment filtering, and rich formatting.
  */
 
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { db } from "../../../db/connection";
 import {
   notificationChannels,
   notificationLogs,
+  pushSubscriptions,
+  userNotificationPreferences,
+  projectNotificationOverrides,
   type NotificationEventType
 } from "../../../db/schema/notifications";
+import { newId } from "../../../db/services/json-helpers";
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -153,7 +157,8 @@ async function sendSlackWebhook(
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         attachments: [{ color, blocks }]
-      })
+      }),
+      signal: AbortSignal.timeout(10_000)
     });
 
     return {
@@ -230,7 +235,8 @@ async function sendDiscordWebhook(
       body: JSON.stringify({
         username: "DaoFlow",
         embeds: [embed]
-      })
+      }),
+      signal: AbortSignal.timeout(10_000)
     });
 
     return {
@@ -272,7 +278,8 @@ async function sendGenericWebhook(
         service: payload.serviceName,
         url: payload.url,
         timestamp: payload.timestamp ?? new Date().toISOString()
-      })
+      }),
+      signal: AbortSignal.timeout(10_000)
     });
 
     return {
@@ -348,36 +355,12 @@ async function sendEmailNotification(
   }
 }
 
-// ── Notification Retry with Exponential Backoff (Task #74) ──
-
-/**
- * Retry a notification send with exponential backoff.
- * Used for transient failures (network issues, rate limits).
- */
-export async function retryWithBackoff<T>(
-  fn: () => Promise<T>,
-  maxRetries = 3,
-  baseDelayMs = 1000
-): Promise<T> {
-  let lastError: Error | undefined;
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    try {
-      return await fn();
-    } catch (err) {
-      lastError = err instanceof Error ? err : new Error(String(err));
-      if (attempt < maxRetries) {
-        const delay = baseDelayMs * Math.pow(2, attempt) + Math.random() * 500;
-        await new Promise((resolve) => setTimeout(resolve, delay));
-      }
-    }
-  }
-  throw lastError ?? new Error("retryWithBackoff exhausted all retries");
-}
+// NOTE: Retry logic is handled by Temporal activity retry policies.
+// Do not implement custom retry loops inside Temporal activities.
 
 // ── Web Push Sender (PWA Notifications) ─────────────────────
 
-import { pushSubscriptions } from "../../../db/schema/notifications";
-import { eq as eqPush } from "drizzle-orm";
+// pushSubscriptions, eq already imported at file top
 
 /**
  * Send Web Push notifications to all subscribed users.
@@ -424,12 +407,13 @@ async function sendWebPushNotifications(
           "Content-Type": "application/json",
           TTL: "86400"
         },
-        body: pushPayload
+        body: pushPayload,
+        signal: AbortSignal.timeout(10_000)
       });
 
       if (res.status === 410 || res.status === 404) {
         // Task #75: Dead subscription cleanup — endpoint gone
-        await db.delete(pushSubscriptions).where(eqPush(pushSubscriptions.id, sub.id));
+        await db.delete(pushSubscriptions).where(eq(pushSubscriptions.id, sub.id));
         failed++;
       } else if (res.ok || res.status === 201) {
         sent++;
@@ -437,7 +421,7 @@ async function sendWebPushNotifications(
         await db
           .update(pushSubscriptions)
           .set({ lastPushedAt: new Date() })
-          .where(eqPush(pushSubscriptions.id, sub.id));
+          .where(eq(pushSubscriptions.id, sub.id));
       } else {
         failed++;
       }
@@ -455,11 +439,7 @@ async function sendWebPushNotifications(
 
 // ── Notification Preference Resolution ──────────────────────
 
-import {
-  userNotificationPreferences,
-  projectNotificationOverrides
-} from "../../../db/schema/notifications";
-import { and } from "drizzle-orm";
+// Preferences and overrides are imported at file top
 
 /**
  * Resolve whether a notification should be sent for a user+event+channel combo.
@@ -483,8 +463,8 @@ export async function resolveNotificationPreference(
       .from(projectNotificationOverrides)
       .where(
         and(
-          eqPush(projectNotificationOverrides.projectId, projectId),
-          eqPush(projectNotificationOverrides.userId, userId)
+          eq(projectNotificationOverrides.projectId, projectId),
+          eq(projectNotificationOverrides.userId, userId)
         )
       );
 
@@ -501,7 +481,7 @@ export async function resolveNotificationPreference(
   const userPrefs = await db
     .select()
     .from(userNotificationPreferences)
-    .where(eqPush(userNotificationPreferences.userId, userId));
+    .where(eq(userNotificationPreferences.userId, userId));
 
   for (const pref of userPrefs) {
     if (matchesSelector(eventType, pref.eventType)) {
@@ -604,7 +584,6 @@ export async function dispatchNotification(payload: NotificationPayload): Promis
 
     // 5. Log delivery result
     try {
-      const { newId } = await import("../../../db/services/json-helpers");
       await db.insert(notificationLogs).values({
         id: newId(),
         channelId: channel.id,
@@ -626,12 +605,8 @@ export async function dispatchNotification(payload: NotificationPayload): Promis
     }
   }
 
-  // 6. Send Web Push to all subscribed users (in addition to channel-based dispatch)
-  try {
-    await sendWebPushNotifications(payload);
-  } catch {
-    // Web push is best-effort
-  }
+  // Push notifications are now dispatched via channel loop (case "web_push")
+  // No additional unconditional dispatch needed.
 
   return {
     dispatched: results.length,

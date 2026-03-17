@@ -11,17 +11,15 @@ self.addEventListener("push", (event) => {
   if (!event.data) return;
 
   try {
-    const data = event.data.json() as {
+    const raw: unknown = event.data.json();
+    if (!raw || typeof raw !== "object" || !("title" in raw) || !("body" in raw)) {
+      throw new Error("Invalid push payload");
+    }
+    const data = raw as {
       title: string;
       body: string;
       tag?: string;
-      data?: {
-        url?: string;
-        eventType?: string;
-        severity?: string;
-        project?: string;
-        environment?: string;
-      };
+      data?: { url?: string };
     };
 
     const options: NotificationOptions = {
@@ -51,16 +49,21 @@ self.addEventListener("notificationclick", (event) => {
 
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(async (clients) => {
-      // Focus existing DaoFlow tab if open
+      // Focus existing DaoFlow tab if open (strict origin comparison)
       for (const client of clients) {
-        if (client.url.includes(self.location.origin)) {
-          await client.focus();
-          await client.navigate(url);
-          return;
+        try {
+          const clientOrigin = new URL(client.url).origin;
+          if (clientOrigin === self.location.origin) {
+            await client.focus();
+            await client.navigate(url);
+            return;
+          }
+        } catch {
+          // Invalid URL, skip this client
         }
       }
       // Otherwise open new tab
-      return self.clients.openWindow(url);
+      await self.clients.openWindow(url);
     })
   );
 });

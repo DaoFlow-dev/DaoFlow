@@ -7,7 +7,7 @@
  */
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { existsSync, unlinkSync, readdirSync } from "node:fs";
+import { readdir, unlink } from "node:fs/promises";
 import { db } from "../db/connection";
 import { auditEntries } from "../db/schema/audit";
 
@@ -17,27 +17,36 @@ import { auditEntries } from "../db/schema/audit";
  * Clean up temporary rclone config and archive files.
  * Should be called in a finally block after backup/restore operations.
  */
-export function cleanupTempFiles(patterns: string[] = ["daoflow-rclone-", "daoflow-archive-"]) {
+export async function cleanupTempFiles(
+  patterns: string[] = ["daoflow-rclone-", "daoflow-archive-"]
+): Promise<{ cleaned: number }> {
   const tempDir = tmpdir();
   let cleaned = 0;
 
   try {
-    const files = readdirSync(tempDir);
+    const files = await readdir(tempDir);
     for (const file of files) {
       if (patterns.some((p) => file.startsWith(p))) {
         try {
-          const fullPath = join(tempDir, file);
-          if (existsSync(fullPath)) {
-            unlinkSync(fullPath);
-            cleaned++;
+          await unlink(join(tempDir, file));
+          cleaned++;
+        } catch (err) {
+          // Ignore ENOENT (TOCTOU), log others
+          if (
+            err instanceof Error &&
+            "code" in err &&
+            (err as NodeJS.ErrnoException).code !== "ENOENT"
+          ) {
+            console.warn(`Failed to clean temp file ${file}:`, err.message);
           }
-        } catch {
-          // Ignore individual file errors
         }
       }
     }
-  } catch {
-    // Ignore directory read errors
+  } catch (err) {
+    console.warn(
+      "Failed to read temp directory for cleanup:",
+      err instanceof Error ? err.message : err
+    );
   }
 
   return { cleaned };

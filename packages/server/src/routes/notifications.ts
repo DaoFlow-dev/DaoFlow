@@ -6,7 +6,7 @@
  * plus notification channel CRUD and preference management.
  */
 import { z } from "zod";
-import { eq, and } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 import { t, protectedProcedure } from "../trpc";
 import { db } from "../db/connection";
 import {
@@ -82,8 +82,8 @@ export const notificationRouter = t.router({
     .input(
       z.object({
         name: z.string().min(1).max(100),
-        channelType: z.string(),
-        webhookUrl: z.string().optional(),
+        channelType: z.enum(["slack", "discord", "email", "generic_webhook", "web_push"]),
+        webhookUrl: z.string().url().optional(),
         eventSelectors: z.array(z.string()).default(["*"]),
         enabled: z.boolean().default(true)
       })
@@ -201,7 +201,8 @@ export const notificationRouter = t.router({
   listDeliveryLogs: protectedProcedure
     .input(z.object({ limit: z.number().int().min(1).max(100).default(20) }))
     .query(async ({ input }) => {
-      const { desc } = await import("drizzle-orm");
+      // Note: notificationLogs are channel-scoped (org-level), not user-scoped.
+      // Future: filter by user's channels when channels become user-owned.
       return db
         .select()
         .from(notificationLogs)
