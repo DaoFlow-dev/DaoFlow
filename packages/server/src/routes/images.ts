@@ -4,6 +4,7 @@ import { unlink } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
+import { auth } from "../auth";
 
 const imagesRouter = new Hono();
 
@@ -42,15 +43,14 @@ async function exec(
  * Query params: tag, server, service
  */
 imagesRouter.post("/push", async (c) => {
-  // Auth gate: require session cookie or Authorization header
-  const sessionCookie = c.req.header("Cookie")?.includes("better-auth.session_token");
-  const authHeader = c.req.header("Authorization");
-  if (!sessionCookie && !authHeader) {
+  // Auth gate: validate session via Better Auth (same as tRPC context)
+  const session = await auth.api.getSession({ headers: c.req.raw.headers });
+  if (!session) {
     return c.json(
       {
         status: "error",
         error: "unauthorized",
-        message: "Authentication required",
+        message: "Valid authentication required. Provide a session cookie or Bearer token.",
         code: "AUTH_REQUIRED"
       },
       401

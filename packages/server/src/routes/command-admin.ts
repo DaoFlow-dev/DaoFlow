@@ -260,6 +260,9 @@ export const adminRouter = t.router({
         .refine((d) => d.scopes || d.preset, {
           message: "Either scopes or preset must be provided"
         })
+        .refine((d) => !(d.scopes && d.preset), {
+          message: "Provide either scopes or preset, not both"
+        })
     )
     .mutation(async ({ ctx, input }) => {
       const result = await createAgentPrincipal({
