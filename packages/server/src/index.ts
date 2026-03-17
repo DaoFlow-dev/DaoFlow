@@ -4,8 +4,13 @@ import { fileURLToPath } from "node:url";
 import { serveStatic } from "hono/bun";
 import { DEFAULT_SERVER_PORT } from "@daoflow/shared";
 import { createApp } from "./app";
-import { startWorker, stopWorker } from "./worker";
-import { startTemporalWorker, stopTemporalWorker, closeTemporalClient } from "./worker";
+import {
+  startWorker,
+  stopWorker,
+  startTemporalWorker,
+  stopTemporalWorker,
+  closeTemporalClient
+} from "./worker";
 import { ensureInitialOwnerFromEnv } from "./bootstrap-initial-owner";
 
 const port = Number(process.env.PORT ?? DEFAULT_SERVER_PORT);
@@ -14,7 +19,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 function shouldStartWorker(): boolean {
-  if (process.env.DISABLE_WORKER === "true" || process.env.CI === "true") {
+  if (process.env.DISABLE_WORKER === "true") {
     return false;
   }
   if (!existsSync("/var/run/docker.sock")) {
