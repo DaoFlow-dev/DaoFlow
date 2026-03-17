@@ -2,6 +2,7 @@ import { Command } from "commander";
 import chalk from "chalk";
 import { writeFileSync, readFileSync, existsSync } from "node:fs";
 import { createClient } from "../trpc-client";
+import { upsertEnvFileValue } from "../local-env";
 
 export function envCommand(): Command {
   const cmd = new Command("env").description("Manage environment variables");
@@ -136,29 +137,43 @@ export function envCommand(): Command {
   // ── daoflow env set ──────────────────────────────────────
   cmd
     .command("set")
-    .description("Set an environment variable")
-    .requiredOption("--env-id <id>", "Environment ID")
+    .description("Set an environment variable in DaoFlow or a local .env file")
+    .option("--env-id <id>", "Environment ID (required unless --local)")
     .requiredOption("--key <key>", "Variable key")
     .option("--value <value>", "Variable value (required unless --secret-ref is used)")
     .option("--secret-ref <uri>", "1Password secret reference (op://vault/item/field)")
     .option("--secret", "Mark as secret (encrypted at rest)")
     .option("--category <cat>", "Category: runtime, build, secret", "runtime")
+    .option("--local", "Write to a local .env file instead of the DaoFlow API")
+    .option("--file <path>", "Local .env file path when using --local", ".env")
     .option("--json", "Output as JSON")
     .option("-y, --yes", "Skip confirmation")
     .action(
       async (opts: {
-        envId: string;
+        envId?: string;
         key: string;
         value?: string;
         secretRef?: string;
         secret?: boolean;
         category: string;
+        local?: boolean;
+        file: string;
         json?: boolean;
         yes?: boolean;
       }) => {
         // Validate: must have either --value or --secret-ref
         if (!opts.value && !opts.secretRef) {
           const msg = "Either --value or --secret-ref is required.";
+          if (opts.json) {
+            console.log(JSON.stringify({ ok: false, error: msg, code: "INVALID_INPUT" }));
+          } else {
+            console.error(chalk.red(`✗ ${msg}`));
+          }
+          process.exit(1);
+        }
+
+        if (!opts.local && !opts.envId) {
+          const msg = "Environment ID is required unless --local is used.";
           if (opts.json) {
             console.log(JSON.stringify({ ok: false, error: msg, code: "INVALID_INPUT" }));
           } else {
@@ -178,6 +193,40 @@ export function envCommand(): Command {
           process.exit(1);
         }
 
+        if (opts.local) {
+          try {
+            const storedValue = opts.secretRef ? `[1password:${opts.secretRef}]` : opts.value!;
+            upsertEnvFileValue(opts.file, opts.key, storedValue);
+
+            if (opts.json) {
+              console.log(
+                JSON.stringify({
+                  ok: true,
+                  key: opts.key,
+                  file: opts.file,
+                  source: opts.secretRef ? "1password" : "inline"
+                })
+              );
+            } else {
+              console.log(chalk.green(`✓ Wrote ${opts.key} to ${opts.file}`));
+            }
+          } catch (err) {
+            if (opts.json) {
+              console.log(
+                JSON.stringify({
+                  ok: false,
+                  error: err instanceof Error ? err.message : "Unknown",
+                  code: "FILE_WRITE_FAILED"
+                })
+              );
+            } else {
+              console.error(chalk.red(`✗ ${err instanceof Error ? err.message : String(err)}`));
+            }
+            process.exit(1);
+          }
+          return;
+        }
+
         if (!opts.yes && !opts.json) {
           const source = opts.secretRef ? `(1Password: ${opts.secretRef})` : "";
           console.error(
@@ -191,7 +240,7 @@ export function envCommand(): Command {
         try {
           const trpc = createClient();
           await trpc.upsertEnvironmentVariable.mutate({
-            environmentId: opts.envId,
+            environmentId: opts.envId!,
             key: opts.key,
             value: opts.secretRef ? `[1password:${opts.secretRef}]` : opts.value!,
             isSecret: opts.secret ?? !!opts.secretRef,
@@ -205,7 +254,7 @@ export function envCommand(): Command {
               JSON.stringify({
                 ok: true,
                 key: opts.key,
-                environment: opts.envId,
+                environment: opts.envId!,
                 source: opts.secretRef ? "1password" : "inline",
                 secretRef: opts.secretRef ?? null
               })
@@ -218,7 +267,7 @@ export function envCommand(): Command {
                 )
               );
             } else {
-              console.log(chalk.green(`✓ Set ${opts.key} in environment ${opts.envId}`));
+              console.log(chalk.green(`✓ Set ${opts.key} in environment ${opts.envId!}`));
             }
           }
         } catch (err) {

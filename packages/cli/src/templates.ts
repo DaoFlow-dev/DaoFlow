@@ -78,6 +78,8 @@ export function generateEnvFile(opts: {
   version: string;
   domain: string;
   port: number;
+  initialAdminEmail?: string;
+  initialAdminPassword?: string;
   postgresPassword?: string;
   temporalPostgresPassword?: string;
   authSecret?: string;
@@ -103,6 +105,10 @@ DAOFLOW_VERSION=${opts.version}
 # ── Public URL ────────────────────────────────────────────────
 BETTER_AUTH_URL=${scheme}://${opts.domain}${portSuffix}
 DAOFLOW_PORT=${opts.port}
+
+# ── First-Boot Owner Bootstrap ───────────────────────────────
+DAOFLOW_INITIAL_ADMIN_EMAIL=${opts.initialAdminEmail ?? ""}
+DAOFLOW_INITIAL_ADMIN_PASSWORD=${opts.initialAdminPassword ?? ""}
 
 # ── Database (auto-generated password) ────────────────────────
 POSTGRES_PASSWORD=${pgPass}

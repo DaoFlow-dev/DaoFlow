@@ -2,6 +2,10 @@ import { describe, expect, it } from "vitest";
 import { createApp } from "./app";
 import { resetControlPlaneSeedState } from "./db/services/seed";
 import { resetTestDatabase } from "./test-db";
+import {
+  ensureInitialOwnerFromEnv,
+  resetInitialOwnerBootstrapState
+} from "./bootstrap-initial-owner";
 
 describe("createApp", () => {
   it("serves the health endpoint with security and request metadata", async () => {
@@ -85,5 +89,121 @@ describe("createApp", () => {
     expect(viewerResponse.status).toBe(200);
     expect(viewerBody.user.email).toBe(viewerEmail);
     expect(viewerBody.user.role).toBe("viewer");
+  });
+
+  it("supports CLI browser login handoff", async () => {
+    await resetTestDatabase();
+    resetControlPlaneSeedState();
+    resetInitialOwnerBootstrapState();
+
+    const app = createApp();
+    const ownerEmail = `cli-owner+${Date.now()}@daoflow.local`;
+    const signUpResponse = await app.request("/api/auth/sign-up/email", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Origin: "http://localhost:5173"
+      },
+      body: JSON.stringify({
+        email: ownerEmail,
+        name: "CLI Owner",
+        password: "secret1234"
+      })
+    });
+    const sessionCookie =
+      signUpResponse.headers
+        .getSetCookie?.()
+        .find((cookie) => cookie.startsWith("better-auth.session_token=")) ??
+      signUpResponse.headers.get("set-cookie")?.match(/better-auth\.session_token=[^;]+/)?.[0];
+
+    expect(sessionCookie).toBeTruthy();
+
+    const startResponse = await app.request("/api/v1/cli-auth/start", {
+      method: "POST"
+    });
+    const startBody = (await startResponse.json()) as {
+      ok: boolean;
+      requestId: string;
+      userCode: string;
+    };
+
+    const approveResponse = await app.request("/api/v1/cli-auth/approve", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        Cookie: sessionCookie!
+      },
+      body: JSON.stringify({
+        requestId: startBody.requestId,
+        userCode: startBody.userCode
+      })
+    });
+    const approveBody = (await approveResponse.json()) as {
+      ok: boolean;
+      exchangeCode: string;
+    };
+
+    const exchangeResponse = await app.request("/api/v1/cli-auth/exchange", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        requestId: startBody.requestId,
+        userCode: startBody.userCode,
+        exchangeCode: approveBody.exchangeCode
+      })
+    });
+    const exchangeBody = (await exchangeResponse.json()) as {
+      ok: boolean;
+      token: string;
+    };
+
+    const viewerResponse = await app.request("/trpc/viewer", {
+      headers: {
+        Cookie: `better-auth.session_token=${exchangeBody.token}`
+      }
+    });
+
+    expect(startResponse.status).toBe(200);
+    expect(approveResponse.status).toBe(200);
+    expect(exchangeResponse.status).toBe(200);
+    expect(exchangeBody.token).toBeTruthy();
+    expect(viewerResponse.status).toBe(200);
+  });
+
+  it("bootstraps an initial owner from environment credentials", async () => {
+    await resetTestDatabase();
+    resetControlPlaneSeedState();
+    resetInitialOwnerBootstrapState();
+
+    const email = `bootstrap+${Date.now()}@daoflow.local`;
+    process.env.DAOFLOW_INITIAL_ADMIN_EMAIL = email;
+    process.env.DAOFLOW_INITIAL_ADMIN_PASSWORD = "bootstrap-secret-2026";
+
+    try {
+      await ensureInitialOwnerFromEnv();
+
+      const app = createApp();
+      const signInResponse = await app.request("/api/auth/sign-in/email", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Origin: "http://localhost:5173"
+        },
+        body: JSON.stringify({
+          email,
+          password: "bootstrap-secret-2026"
+        })
+      });
+
+      expect(signInResponse.status).toBe(200);
+      expect(signInResponse.headers.get("set-cookie")).toContain("better-auth.session_token");
+    } finally {
+      delete process.env.DAOFLOW_INITIAL_ADMIN_EMAIL;
+      delete process.env.DAOFLOW_INITIAL_ADMIN_PASSWORD;
+      resetInitialOwnerBootstrapState();
+    }
   });
 });

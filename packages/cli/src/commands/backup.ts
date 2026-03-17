@@ -66,55 +66,6 @@ export function backupCommand(): Command {
       }
     });
 
-  // ── backup run ─────────────────────────────────────────────
-  backup
-    .command("run")
-    .description("Trigger a backup run for a policy")
-    .requiredOption("--policy-id <id>", "Backup policy ID")
-    .option("--json", "Output as JSON")
-    .option("--dry-run", "Preview without executing")
-    .option("-y, --yes", "Skip confirmation")
-    .action(async (opts: { policyId: string; json?: boolean; dryRun?: boolean; yes?: boolean }) => {
-      if (opts.dryRun) {
-        console.log(
-          JSON.stringify(
-            {
-              ok: true,
-              dryRun: true,
-              action: "backup.run",
-              policyId: opts.policyId,
-              message: "Would trigger a backup run for this policy"
-            },
-            null,
-            2
-          )
-        );
-        process.exit(3);
-      }
-
-      try {
-        const trpc = createClient();
-
-        if (!opts.yes) {
-          console.error(`To trigger backup for policy ${opts.policyId}, add --yes`);
-          process.exit(1);
-        }
-
-        const result = await trpc.triggerBackupRun.mutate({ policyId: opts.policyId });
-
-        if (opts.json) {
-          console.log(JSON.stringify({ ok: true, ...result }, null, 2));
-        } else {
-          console.log(chalk.green(`✅ Backup run queued: ${result.id}`));
-        }
-      } catch (err) {
-        console.error(
-          JSON.stringify({ ok: false, error: err instanceof Error ? err.message : "Unknown error" })
-        );
-        process.exit(1);
-      }
-    });
-
   // ── backup restore ─────────────────────────────────────────
   backup
     .command("restore")

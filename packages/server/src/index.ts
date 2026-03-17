@@ -6,6 +6,7 @@ import { DEFAULT_SERVER_PORT } from "@daoflow/shared";
 import { createApp } from "./app";
 import { startWorker, stopWorker } from "./worker";
 import { startTemporalWorker, stopTemporalWorker, closeTemporalClient } from "./worker";
+import { ensureInitialOwnerFromEnv } from "./bootstrap-initial-owner";
 
 const port = Number(process.env.PORT ?? DEFAULT_SERVER_PORT);
 const isProduction = process.env.NODE_ENV === "production";
@@ -66,6 +67,12 @@ function start() {
   });
 
   console.log(`DaoFlow control plane listening on http://localhost:${server.port}`);
+  void ensureInitialOwnerFromEnv().catch((error) => {
+    console.error(
+      "[auth] Initial owner bootstrap failed:",
+      error instanceof Error ? error.message : String(error)
+    );
+  });
 
   // Start the execution worker when Docker is available
   if (shouldStartWorker()) {

@@ -224,6 +224,8 @@ export function installCommand(): Command {
         version: VERSION,
         domain,
         port,
+        initialAdminEmail: email,
+        initialAdminPassword: password,
         postgresPassword: opts._pgPassword,
         temporalPostgresPassword: opts._temporalPgPassword
       });

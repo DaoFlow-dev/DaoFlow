@@ -11,6 +11,8 @@ import { appRouter } from "./router";
 import { imagesRouter } from "./routes/images";
 import { webhooksRouter } from "./routes/webhooks";
 import { deployContextRouter } from "./routes/deploy-context";
+import { cliAuthRouter } from "./routes/cli-auth";
+import { ensureInitialOwnerFromEnv } from "./bootstrap-initial-owner";
 
 type Env = {
   Variables: {
@@ -42,6 +44,10 @@ export function createApp() {
   app.use("*", logger());
 
   // ── Better Auth ───────────────────────────────────────────
+  app.use("/api/auth/*", async (_c, next) => {
+    await ensureInitialOwnerFromEnv();
+    await next();
+  });
   app.all("/api/auth/*", (c) => auth.handler(c.req.raw));
 
   // ── Image push (REST API) ─────────────────────────────────
@@ -49,6 +55,10 @@ export function createApp() {
 
   // ── Deploy context upload (REST API) ──────────────────────
   app.route("/api/v1/deploy", deployContextRouter);
+
+  // ── CLI device/browser auth ───────────────────────────────
+  app.route("/api/v1/cli-auth", cliAuthRouter);
+  app.route("/cli/auth", cliAuthRouter);
 
   // ── Webhooks (GitHub/GitLab) ──────────────────────────────
   app.route("/api/webhooks", webhooksRouter);
