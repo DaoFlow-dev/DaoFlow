@@ -118,6 +118,7 @@ export interface ConfigSnapshot {
   projectName?: string;
   environmentName?: string;
   targetServerName?: string;
+  targetServerHost?: string;
   composeFilePath?: string;
   repoUrl?: string;
   branch?: string;
@@ -127,6 +128,9 @@ export interface ConfigSnapshot {
   volumes?: string[];
   env?: Record<string, string>;
   network?: string;
+  deploymentSource?: string;
+  uploadedComposeFileName?: string;
+  uploadedContextArchiveName?: string;
 }
 
 export function readConfig(deployment: DeploymentRow): ConfigSnapshot {

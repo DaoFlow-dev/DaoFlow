@@ -50,8 +50,8 @@ daoflow deploy --service my-api --dry-run --json
 # Execute deployment
 daoflow deploy --service my-api --commit abc1234 --yes --json
 
-# Deploy with compose
-daoflow deploy --compose ./docker-compose.yaml --server vps1 --yes
+# Preview a direct compose upload path
+daoflow deploy --compose ./docker-compose.yaml --server vps1 --dry-run
 ```
 
 ### Check Status

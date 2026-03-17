@@ -87,11 +87,16 @@ export class ApiClient {
   async streamUpload(
     path: string,
     stream: ReadableStream | NodeJS.ReadableStream,
-    contentLength?: number
+    contentLength?: number,
+    opts?: {
+      headers?: Record<string, string>;
+      contentType?: string;
+    }
   ): Promise<unknown> {
     const headers: Record<string, string> = {
-      Authorization: `Bearer ${this.ctx.token}`,
-      "Content-Type": "application/octet-stream"
+      Cookie: `better-auth.session_token=${this.ctx.token}`,
+      "Content-Type": opts?.contentType ?? "application/octet-stream",
+      ...(opts?.headers ?? {})
     };
     if (contentLength) {
       headers["Content-Length"] = String(contentLength);
@@ -114,7 +119,7 @@ export class ApiClient {
   async sse(path: string, onEvent: (data: string) => void, abort?: AbortSignal): Promise<void> {
     const res = await fetch(`${this.baseUrl}${path}`, {
       headers: {
-        Authorization: `Bearer ${this.ctx.token}`,
+        Cookie: `better-auth.session_token=${this.ctx.token}`,
         Accept: "text/event-stream"
       },
       signal: abort

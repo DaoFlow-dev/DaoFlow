@@ -32,7 +32,7 @@ function shouldStartWorker(): boolean {
 }
 
 function isTemporalEnabled(): boolean {
-  return !!process.env.TEMPORAL_ADDRESS;
+  return process.env.DAOFLOW_ENABLE_TEMPORAL === "true" && !!process.env.TEMPORAL_ADDRESS;
 }
 
 function start() {

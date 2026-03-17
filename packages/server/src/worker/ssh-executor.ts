@@ -20,12 +20,13 @@
  */
 
 import { spawn, type ChildProcess } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import { mkdirSync, existsSync, writeFileSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 import type { OnLog } from "./docker-executor";
 
 const SSH_CONTROL_DIR = process.env.SSH_CONTROL_DIR ?? "/tmp/daoflow-ssh";
-const SSH_KEY_DIR = process.env.SSH_KEY_DIR ?? "/app/.ssh";
+const SSH_KEY_DIR = process.env.SSH_KEY_DIR ?? "/tmp/daoflow-ssh-keys";
 const DEFAULT_SSH_USER = process.env.SSH_USER ?? "root";
 const SSH_CONNECT_TIMEOUT = 10; // seconds
 
@@ -34,6 +35,7 @@ export interface SSHTarget {
   host: string;
   port: number;
   user?: string;
+  privateKey?: string;
   privateKeyPath?: string;
 }
 
@@ -287,6 +289,26 @@ export async function remoteGitClone(
   return { exitCode: result.exitCode };
 }
 
+export async function remoteEnsureDir(
+  target: SSHTarget,
+  remoteDir: string,
+  onLog: OnLog
+): Promise<{ exitCode: number }> {
+  const result = await execRemote(target, `mkdir -p ${shellQuote(remoteDir)}`, onLog);
+  return { exitCode: result.exitCode };
+}
+
+export async function remoteExtractArchive(
+  target: SSHTarget,
+  archivePath: string,
+  destinationDir: string,
+  onLog: OnLog
+): Promise<{ exitCode: number }> {
+  const cmd = `mkdir -p ${shellQuote(destinationDir)} && tar -xzf ${shellQuote(archivePath)} -C ${shellQuote(destinationDir)}`;
+  const result = await execRemote(target, cmd, onLog);
+  return { exitCode: result.exitCode };
+}
+
 export async function remoteCheckContainerHealth(
   target: SSHTarget,
   containerName: string,
@@ -329,7 +351,10 @@ export function writeSSHKey(serverName: string, privateKey: string): string {
   if (!existsSync(SSH_KEY_DIR)) {
     mkdirSync(SSH_KEY_DIR, { recursive: true, mode: 0o700 });
   }
-  const keyPath = join(SSH_KEY_DIR, `${serverName}_id`);
+  const keyPath = join(
+    SSH_KEY_DIR,
+    `${serverName.replace(/[^a-zA-Z0-9_-]/g, "_")}-${randomUUID().slice(0, 8)}_id`
+  );
   writeFileSync(keyPath, privateKey, { mode: 0o600 });
   return keyPath;
 }
@@ -337,8 +362,7 @@ export function writeSSHKey(serverName: string, privateKey: string): string {
 /**
  * Remove an SSH key for a server.
  */
-export function removeSSHKey(serverName: string): void {
-  const keyPath = join(SSH_KEY_DIR, `${serverName}_id`);
+export function removeSSHKey(keyPath: string): void {
   try {
     if (existsSync(keyPath)) unlinkSync(keyPath);
   } catch {

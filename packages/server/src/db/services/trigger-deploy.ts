@@ -6,11 +6,14 @@
  */
 
 import { eq } from "drizzle-orm";
+import { basename, isAbsolute } from "node:path";
 import { db } from "../connection";
 import { services } from "../schema/services";
 import { environments, projects } from "../schema/projects";
 import { createDeploymentRecord, type CreateDeploymentInput } from "./deployments";
+import { dispatchDeploymentExecution } from "./deployment-dispatch";
 import type { AppRole } from "@daoflow/shared";
+import { asRecord, readString } from "./json-helpers";
 
 export interface TriggerDeployInput {
   serviceId: string;
@@ -48,6 +51,11 @@ function stepsForSourceType(sourceType: string): { label: string; detail: string
   }
 }
 
+function normalizeRepositoryPath(path: string, fallback: string): string {
+  if (!path) return fallback;
+  return isAbsolute(path) ? basename(path) : path;
+}
+
 export async function triggerDeploy(input: TriggerDeployInput) {
   // Look up the service
   const [svc] = await db.select().from(services).where(eq(services.id, input.serviceId)).limit(1);
@@ -77,6 +85,36 @@ export async function triggerDeploy(input: TriggerDeployInput) {
     return { status: "no_server" as const };
   }
 
+  const environmentConfig = asRecord(env.config);
+  const buildConfig = asRecord(svc.config);
+
+  const configSnapshot: Record<string, unknown> = {
+    repoUrl: project.repoUrl ?? null,
+    branch: project.defaultBranch ?? readString(asRecord(project.config), "defaultBranch", "main")
+  };
+
+  if (svc.sourceType === "compose") {
+    configSnapshot.composeFilePath = normalizeRepositoryPath(
+      project.composePath ?? readString(environmentConfig, "composeFilePath", "docker-compose.yml"),
+      "docker-compose.yml"
+    );
+    if (svc.composeServiceName) {
+      configSnapshot.composeServiceName = svc.composeServiceName;
+    }
+  }
+
+  if (svc.sourceType === "dockerfile") {
+    configSnapshot.dockerfile = normalizeRepositoryPath(
+      svc.dockerfilePath ?? "Dockerfile",
+      "Dockerfile"
+    );
+    configSnapshot.buildContext = readString(buildConfig, "buildContext", ".");
+  }
+
+  if (svc.port) {
+    configSnapshot.ports = [svc.port];
+  }
+
   const deployInput: CreateDeploymentInput = {
     projectName: project.name,
     environmentName: env.name,
@@ -88,11 +126,13 @@ export async function triggerDeploy(input: TriggerDeployInput) {
     requestedByUserId: input.requestedByUserId,
     requestedByEmail: input.requestedByEmail,
     requestedByRole: input.requestedByRole,
-    steps: stepsForSourceType(svc.sourceType)
+    steps: stepsForSourceType(svc.sourceType),
+    configSnapshot
   };
 
   const deployment = await createDeploymentRecord(deployInput);
   if (!deployment) return { status: "create_failed" as const };
+  await dispatchDeploymentExecution(deployment);
 
   return { status: "ok" as const, deployment };
 }

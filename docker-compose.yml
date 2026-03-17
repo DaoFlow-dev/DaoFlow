@@ -30,6 +30,7 @@ services:
       GIT_WORK_DIR: /app/staging
       SSH_KEY_DIR: /app/.ssh
       DEPLOY_TIMEOUT_MS: ${DEPLOY_TIMEOUT_MS:-600000}
+      DAOFLOW_ENABLE_TEMPORAL: ${DAOFLOW_ENABLE_TEMPORAL:-false}
       TEMPORAL_ADDRESS: temporal:7233
       TEMPORAL_NAMESPACE: ${TEMPORAL_NAMESPACE:-daoflow}
       TEMPORAL_TASK_QUEUE: ${TEMPORAL_TASK_QUEUE:-daoflow-deployments}

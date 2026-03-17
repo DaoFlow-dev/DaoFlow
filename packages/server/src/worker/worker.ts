@@ -16,97 +16,24 @@ import { eq, and, sql as rawSql } from "drizzle-orm";
 import { db } from "../db/connection";
 import { deployments } from "../db/schema/deployments";
 import { auditEntries } from "../db/schema/audit";
-import { cleanupStagingDir } from "./docker-executor";
-import { createLogStreamer } from "./log-streamer";
-import { transitionDeployment, emitEvent, readConfig, type DeploymentRow } from "./step-management";
-import {
-  executeComposeDeployment,
-  executeDockerfileDeployment,
-  executeImageDeployment
-} from "./deploy-strategies";
+import type { DeploymentRow } from "./step-management";
+import { runDeployment } from "./run-deployment";
 
 const POLL_INTERVAL_MS = 5_000;
-const DEPLOY_TIMEOUT_MS = Number(process.env.DEPLOY_TIMEOUT_MS ?? 600_000); // 10 min default
-
 let running = false;
 
 /* ──────────────────────── Deployment Execution ──────────────────────── */
 
 async function executeDeployment(deployment: DeploymentRow): Promise<void> {
-  const config = readConfig(deployment);
-  const { onLog, flush } = createLogStreamer(deployment.id, "worker");
-
-  const projectName = config.projectName ?? deployment.serviceName.replace(/[^a-zA-Z0-9_-]/g, "_");
-  const containerName = `${projectName}-${deployment.serviceName}`.toLowerCase();
-
-  console.log(
-    `[worker] Executing deployment ${deployment.id} for ${deployment.serviceName} (${deployment.sourceType})`
-  );
-
-  // Wrap execution with a timeout (T-26: deployment timeout)
-  const timeoutPromise = new Promise<never>((_, reject) => {
-    setTimeout(
-      () => reject(new Error(`Deployment timed out after ${DEPLOY_TIMEOUT_MS / 1000}s`)),
-      DEPLOY_TIMEOUT_MS
-    );
-  });
-
   try {
-    // ── Phase 1: Prepare ──────────────────────────────────
-    await transitionDeployment(deployment.id, "prepare");
-    await emitEvent(
-      "deployment.prepare.started",
-      deployment,
-      "Deployment preparation started",
-      `Worker began preparing ${deployment.serviceName}`
-    );
-
-    if (deployment.sourceType === "compose") {
-      await Promise.race([
-        executeComposeDeployment(deployment, config, projectName, onLog),
-        timeoutPromise
-      ]);
-    } else if (deployment.sourceType === "dockerfile") {
-      await Promise.race([
-        executeDockerfileDeployment(deployment, config, containerName, onLog),
-        timeoutPromise
-      ]);
-    } else if (deployment.sourceType === "image") {
-      await Promise.race([
-        executeImageDeployment(deployment, config, containerName, onLog),
-        timeoutPromise
-      ]);
-    } else {
-      throw new Error(`Unsupported source type: ${deployment.sourceType}`);
-    }
-
-    // ── Phase 4: Finalize ─────────────────────────────────
-    await transitionDeployment(deployment.id, "completed", "succeeded");
-    await emitEvent(
-      "deployment.succeeded",
-      deployment,
-      "Deployment completed successfully",
-      `${deployment.serviceName} is now running`
-    );
-
+    console.log(`[worker] Executing deployment ${deployment.id} for ${deployment.serviceName}`);
+    await runDeployment(deployment, "execution-worker");
     console.log(`[worker] Deployment ${deployment.id} completed successfully`);
   } catch (err) {
     console.error(
       `[worker] Deployment ${deployment.id} failed:`,
       err instanceof Error ? err.message : String(err)
     );
-
-    await transitionDeployment(deployment.id, "failed", "failed", err);
-    await emitEvent(
-      "deployment.failed",
-      deployment,
-      "Deployment failed",
-      err instanceof Error ? err.message : String(err),
-      "error"
-    );
-  } finally {
-    await flush();
-    cleanupStagingDir(deployment.id);
   }
 }
 

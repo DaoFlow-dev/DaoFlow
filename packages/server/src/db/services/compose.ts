@@ -1,7 +1,9 @@
-import { desc } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
+import { basename, isAbsolute } from "node:path";
 import { db } from "../connection";
 import { createDeploymentRecord } from "./deployments";
-import { environments } from "../schema/projects";
+import { dispatchDeploymentExecution } from "./deployment-dispatch";
+import { environments, projects } from "../schema/projects";
 import type { AppRole } from "@daoflow/shared";
 import { asRecord, readString, readNumber, readStringArray, readRecordArray } from "./json-helpers";
 
@@ -31,6 +33,11 @@ export interface ComposeDriftRecord {
   lastCheckedAt: string;
   recommendedActions: string[];
   diffs: ComposeDriftDiffRecord[];
+}
+
+function normalizeRepositoryPath(path: string, fallback: string): string {
+  if (!path) return fallback;
+  return isAbsolute(path) ? basename(path) : path;
 }
 
 export async function listComposeReleaseCatalog(limit = 24) {
@@ -153,7 +160,21 @@ export async function queueComposeRelease(input: {
   const service = catalog.services.find((candidate) => candidate.id === input.composeServiceId);
   if (!service) return null;
 
-  return createDeploymentRecord({
+  const [environment] = await db
+    .select()
+    .from(environments)
+    .where(eq(environments.id, service.environmentId))
+    .limit(1);
+  if (!environment) return null;
+
+  const [project] = await db
+    .select()
+    .from(projects)
+    .where(eq(projects.id, environment.projectId))
+    .limit(1);
+  if (!project) return null;
+
+  const deployment = await createDeploymentRecord({
     projectName: service.projectName,
     environmentName: service.environmentName,
     serviceName: service.serviceName,
@@ -164,6 +185,15 @@ export async function queueComposeRelease(input: {
     requestedByUserId: input.requestedByUserId,
     requestedByEmail: input.requestedByEmail,
     requestedByRole: input.requestedByRole as AppRole,
+    configSnapshot: {
+      repoUrl: project.repoUrl ?? null,
+      branch: project.defaultBranch ?? "main",
+      composeFilePath: normalizeRepositoryPath(
+        service.composeFilePath || project.composePath || "docker-compose.yml",
+        "docker-compose.yml"
+      ),
+      composeServiceName: service.serviceName
+    },
     steps: [
       {
         label: "Resolve compose diff",
@@ -175,4 +205,11 @@ export async function queueComposeRelease(input: {
       }
     ]
   });
+
+  if (!deployment) {
+    return null;
+  }
+
+  await dispatchDeploymentExecution(deployment);
+  return deployment;
 }

@@ -5,6 +5,7 @@ import {
   cancelDeployment,
   deploymentDiff
 } from "../db/services/deployments";
+import { dispatchDeploymentExecution } from "../db/services/deployment-dispatch";
 import { queueComposeRelease } from "../db/services/compose";
 import {
   completeExecutionJob,
@@ -64,6 +65,7 @@ export const deployRouter = t.router({
         });
       }
 
+      await dispatchDeploymentExecution(deployment);
       return deployment;
     }),
   queueComposeRelease: deployStartProcedure

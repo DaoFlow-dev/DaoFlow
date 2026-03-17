@@ -50,6 +50,8 @@ export function ServerReadiness({
   const [serverHost, setServerHost] = useState("10.0.2.15");
   const [serverRegion, setServerRegion] = useState("us-central-1");
   const [serverSshPort, setServerSshPort] = useState("22");
+  const [serverSshUser, setServerSshUser] = useState("root");
+  const [serverSshPrivateKey, setServerSshPrivateKey] = useState("");
   const [serverKind, setServerKind] = useState<"docker-engine" | "docker-swarm-manager">(
     "docker-engine"
   );
@@ -66,6 +68,8 @@ export function ServerReadiness({
         host: serverHost,
         region: serverRegion,
         sshPort: Number.parseInt(serverSshPort, 10),
+        sshUser: serverSshUser || undefined,
+        sshPrivateKey: serverSshPrivateKey || undefined,
         kind: serverKind
       });
 
@@ -112,6 +116,21 @@ export function ServerReadiness({
               inputMode="numeric"
               value={serverSshPort}
               onChange={(event) => setServerSshPort(event.target.value)}
+            />
+          </label>
+          <label>
+            SSH user
+            <input
+              value={serverSshUser}
+              onChange={(event) => setServerSshUser(event.target.value)}
+            />
+          </label>
+          <label>
+            SSH private key
+            <textarea
+              rows={6}
+              value={serverSshPrivateKey}
+              onChange={(event) => setServerSshPrivateKey(event.target.value)}
             />
           </label>
           <label>

@@ -231,6 +231,51 @@ describe("createApp", () => {
     expect(body.code).toBe("AUTH_REQUIRED");
   });
 
+  it("queues authenticated POST /api/v1/deploy/compose with a real deployment record", async () => {
+    await resetTestDatabase();
+    resetControlPlaneSeedState();
+
+    const app = createApp();
+    const ownerEmail = `deploy-owner+${Date.now()}@daoflow.local`;
+    const signUpResponse = await app.request("/api/auth/sign-up/email", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Origin: "http://localhost:5173"
+      },
+      body: JSON.stringify({
+        email: ownerEmail,
+        name: "Deploy Owner",
+        password: "secret1234"
+      })
+    });
+    const sessionCookie =
+      signUpResponse.headers
+        .getSetCookie?.()
+        .find((cookie) => cookie.startsWith("better-auth.session_token=")) ??
+      signUpResponse.headers.get("set-cookie")?.match(/better-auth\.session_token=[^;]+/)?.[0];
+
+    const response = await app.request("/api/v1/deploy/compose", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Cookie: sessionCookie!
+      },
+      body: JSON.stringify({
+        server: "srv_foundation_1",
+        compose: "services:\n  web:\n    image: nginx:alpine\n"
+      })
+    });
+    const body = (await response.json()) as {
+      ok: boolean;
+      deploymentId: string;
+    };
+
+    expect(response.status).toBe(200);
+    expect(body.ok).toBe(true);
+    expect(body.deploymentId).toEqual(expect.any(String));
+  });
+
   it("rejects unauthenticated GET /api/v1/logs/stream with 401", async () => {
     const app = createApp();
     const response = await app.request("/api/v1/logs/stream/dep-test-123");

@@ -103,6 +103,7 @@ function buildDeploymentView(
 }
 
 export interface CreateDeploymentInput {
+  deploymentId?: string;
   projectName: string;
   environmentName: string;
   serviceName: string;
@@ -114,6 +115,7 @@ export interface CreateDeploymentInput {
   requestedByEmail: string;
   requestedByRole: AppRole;
   steps: readonly { label: string; detail: string }[];
+  configSnapshot?: Record<string, unknown>;
 }
 
 export async function createDeploymentRecord(input: CreateDeploymentInput) {
@@ -124,7 +126,7 @@ export async function createDeploymentRecord(input: CreateDeploymentInput) {
 
   if (!server[0] || !projectEnvironment) return null;
 
-  const deploymentId = id();
+  const deploymentId = input.deploymentId ?? id();
   const now = new Date();
 
   await db.insert(deployments).values({
@@ -142,7 +144,8 @@ export async function createDeploymentRecord(input: CreateDeploymentInput) {
       targetServerName: server[0].name,
       targetServerHost: server[0].host,
       queueName: "docker-ssh",
-      workerHint: `ssh://${server[0].name}/docker-engine`
+      workerHint: `ssh://${server[0].name}/docker-engine`,
+      ...(input.configSnapshot ?? {})
     },
     status: "queued",
     trigger: "user",
@@ -157,7 +160,8 @@ export async function createDeploymentRecord(input: CreateDeploymentInput) {
       deploymentId,
       label: step.label,
       detail: step.detail,
-      status: "pending" as const,
+      status: "completed" as const,
+      completedAt: now,
       sortOrder: index + 1
     }))
   );

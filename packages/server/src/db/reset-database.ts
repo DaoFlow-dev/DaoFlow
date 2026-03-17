@@ -34,6 +34,7 @@ export async function resetDatabaseSchema(connectionString: string) {
 
   try {
     await client.query(`
+      DROP SCHEMA IF EXISTS drizzle CASCADE;
       DROP SCHEMA IF EXISTS public CASCADE;
       CREATE SCHEMA public;
       GRANT ALL ON SCHEMA public TO CURRENT_USER;

@@ -13,7 +13,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 
-const STAGING_DIR = process.env.GIT_WORK_DIR ?? "/app/staging";
+const STAGING_DIR = process.env.GIT_WORK_DIR ?? "/tmp/daoflow-staging";
 
 export type LogLine = {
   stream: "stdout" | "stderr";
@@ -342,6 +342,47 @@ export async function dockerListImages(
     .filter((item): item is DockerImageListEntry => item !== null);
 
   return { exitCode: result.exitCode, images };
+}
+
+export async function detectLocalRuntimeVersions(
+  onLog: OnLog
+): Promise<{ docker?: string; compose?: string }> {
+  const versions: { docker?: string; compose?: string } = {};
+
+  await execStreaming(
+    "docker",
+    ["version", "--format", "{{.Server.Version}}"],
+    STAGING_DIR,
+    (line) => {
+      onLog(line);
+      if (line.stream === "stdout" && line.message.match(/^\d+\.\d+/)) {
+        versions.docker = line.message.trim();
+      }
+    }
+  );
+
+  await execStreaming("docker", ["compose", "version", "--short"], STAGING_DIR, (line) => {
+    onLog(line);
+    if (line.stream === "stdout" && line.message.match(/^\d+\.\d+/)) {
+      versions.compose = line.message.trim();
+    }
+  });
+
+  return versions;
+}
+
+export async function extractTarArchive(
+  tarPath: string,
+  destinationDir: string,
+  onLog: OnLog
+): Promise<{ exitCode: number }> {
+  onLog({
+    stream: "stdout",
+    message: `Extracting ${tarPath} into ${destinationDir}`,
+    timestamp: new Date()
+  });
+
+  return execStreaming("tar", ["-xzf", tarPath, "-C", destinationDir], STAGING_DIR, onLog);
 }
 
 export interface DockerImageListEntry {

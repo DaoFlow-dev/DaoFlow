@@ -22,6 +22,13 @@
       "when": 1773764046086,
       "tag": "0002_auxiliary_surfaces",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1773784638897,
+      "tag": "0003_server_ssh_credentials",
+      "breakpoints": true
     }
   ]
 }

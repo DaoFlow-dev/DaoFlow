@@ -55,7 +55,7 @@ daoflow projects create --name my-web-app --yes
 
 ## Step 3: Deploy
 
-### Docker Compose Deployment
+### Docker Compose Preview
 
 Create a `compose.yaml` for your application:
 
@@ -69,19 +69,17 @@ services:
       - ./html:/usr/share/nginx/html:ro
 ```
 
-Deploy it:
+Preview it:
 
 ```bash
 # Preview the deployment plan (safe, no changes)
 daoflow deploy \
-  --service my-web-app \
   --server my-vps \
   --compose ./compose.yaml \
   --dry-run
 
 # Execute the deployment
 daoflow deploy \
-  --service my-web-app \
   --server my-vps \
   --compose ./compose.yaml \
   --yes

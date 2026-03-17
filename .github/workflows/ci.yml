@@ -155,6 +155,7 @@ jobs:
           ENCRYPTION_KEY: daoflow-ci-encryption-key-32chars00
           TEMPORAL_ADDRESS: localhost:7233
           TEMPORAL_NAMESPACE: daoflow
+          DAOFLOW_ENABLE_TEMPORAL: "true"
           NODE_ENV: production
 
       - name: Stop dev Compose stack

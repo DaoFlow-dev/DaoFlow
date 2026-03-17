@@ -46,6 +46,8 @@ Or start everything at once:
 bun run dev:full
 ```
 
+`bun run dev:full` enables Temporal-backed deployment dispatch automatically for the server process.
+
 ## 3. Initialize the Database
 
 Push the Drizzle schema to Postgres:
@@ -194,11 +196,9 @@ cd examples/nextjs-docker-compose-example
 # Preview the deployment plan
 bun dist/daoflow deploy --compose ./compose.yaml --server my-server --dry-run
 
-# Execute
+# Execute the deployment
 bun dist/daoflow deploy --compose ./compose.yaml --server my-server --yes
 ```
-
-DaoFlow bundles the local directory as tar.gz, uploads it to the server, which SCP's it to your target server and builds remotely.
 
 #### Ignore Files
 

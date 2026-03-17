@@ -18,7 +18,7 @@ daoflow deploy [options]
 | ------------------------- | -------- | ------------------------------------------------------- |
 | `--service <name>`        | Yes      | Service name                                            |
 | `--server <name>`         | Yes      | Target server                                           |
-| `--compose <path>`        | —        | Path to compose.yaml                                    |
+| `--compose <path>`        | —        | Path to compose.yaml for direct Compose deployment      |
 | `--image <ref>`           | —        | Docker image reference                                  |
 | `--env <key=value>`       | —        | Set environment variables (repeatable)                  |
 | `--dry-run`               | —        | Preview plan without executing (exit code 3)            |
@@ -32,19 +32,17 @@ daoflow deploy [options]
 
 ## Examples
 
-### Docker Compose Deployment
+### Docker Compose Preview
 
 ```bash
 # Preview the deployment plan
 daoflow deploy \
-  --service my-app \
   --server production \
   --compose ./compose.yaml \
   --dry-run
 
 # Execute the deployment
 daoflow deploy \
-  --service my-app \
   --server production \
   --compose ./compose.yaml \
   --yes
@@ -108,6 +106,12 @@ daoflow deploy --service my-app --server prod --compose ./compose.yaml --dry-run
 ```
 
 Exit code is `3` for successful dry runs.
+
+## Current Support
+
+- `daoflow deploy --service <id> --yes` deploys an existing DaoFlow service definition.
+- `daoflow deploy --compose ./compose.yaml --server <id> --yes` uploads the Compose file directly.
+- If the Compose file uses local `build.context` paths, the CLI bundles the context, respects `.dockerignore`, uploads it, and the server executes the build remotely.
 
 ## Safety
 

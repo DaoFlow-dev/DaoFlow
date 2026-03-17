@@ -11,7 +11,7 @@
     "dev": "concurrently -k \"bun --env-file .env --filter @daoflow/server dev\" \"bun --filter @daoflow/client dev\"",
     "dev:infra": "docker compose -f docker-compose.dev.yml up -d",
     "dev:temporal": "temporal server start-dev --port 7233 --ui-port 8233 --namespace daoflow",
-    "dev:full": "concurrently -k -n infra,temporal,server,client \"bun run dev:infra\" \"bun run dev:temporal\" \"bun --env-file .env --filter @daoflow/server dev\" \"bun --filter @daoflow/client dev\"",
+    "dev:full": "concurrently -k -n infra,temporal,server,client \"bun run dev:infra\" \"bun run dev:temporal\" \"DAOFLOW_ENABLE_TEMPORAL=true bun --env-file .env --filter @daoflow/server dev\" \"bun --filter @daoflow/client dev\"",
     "build": "bun --filter '*' build",
     "build:client": "bun --filter @daoflow/client build",
     "build:server": "bun --filter @daoflow/server build",

@@ -21,6 +21,17 @@ import {
   ensureStagingDir,
   type OnLog
 } from "./docker-executor";
+import type { ExecutionTarget } from "./execution-target";
+import {
+  remoteCheckContainerHealth,
+  remoteDockerBuild,
+  remoteDockerComposePull,
+  remoteDockerComposeUp,
+  remoteDockerPull,
+  remoteDockerRun,
+  remoteGitClone
+} from "./ssh-executor";
+import { prepareComposeWorkspace } from "./compose-workspace";
 import {
   createStep,
   markStepRunning,
@@ -40,31 +51,44 @@ export async function executeComposeDeployment(
   deployment: DeploymentRow,
   config: ConfigSnapshot,
   projectName: string,
-  onLog: OnLog
+  onLog: OnLog,
+  target: ExecutionTarget
 ): Promise<void> {
   const repoUrl = config.repoUrl ?? "";
   const branch = config.branch ?? "main";
-  const composeFile = config.composeFilePath ?? "docker-compose.yml";
+  const uploadedSource =
+    config.deploymentSource === "uploaded-compose" ||
+    config.deploymentSource === "uploaded-context";
 
   // Step 1: Clone / prepare workspace
-  const cloneStepId = await createStep(deployment.id, "Clone repository", 1);
+  const cloneStepId = await createStep(
+    deployment.id,
+    uploadedSource ? "Prepare uploaded workspace" : "Clone repository",
+    1
+  );
   await markStepRunning(cloneStepId);
 
   let workDir: string;
-  if (repoUrl) {
-    const result = await gitClone(repoUrl, branch, deployment.id, onLog);
-    if (result.exitCode !== 0) {
-      await markStepFailed(cloneStepId, `git clone exited with code ${result.exitCode}`);
-      throw new Error(`git clone failed with exit code ${result.exitCode}`);
+  let composeFile: string;
+  try {
+    if (!uploadedSource && !repoUrl) {
+      throw new Error("Compose deployment requires either a repository URL or uploaded artifacts.");
     }
-    workDir = result.workDir;
-  } else {
-    workDir = ensureStagingDir(deployment.id);
-    onLog({
-      stream: "stdout",
-      message: "No repository URL configured, using staging directory",
-      timestamp: new Date()
-    });
+
+    const workspace = await prepareComposeWorkspace(
+      deployment.id,
+      config,
+      branch,
+      repoUrl,
+      target,
+      onLog
+    );
+    workDir = workspace.workDir;
+    composeFile = workspace.composeFile;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    await markStepFailed(cloneStepId, message);
+    throw error;
   }
   await markStepComplete(cloneStepId, `Workspace ready at ${workDir}`);
 
@@ -72,7 +96,10 @@ export async function executeComposeDeployment(
   const pullStepId = await createStep(deployment.id, "Pull images", 2);
   await markStepRunning(pullStepId);
 
-  const pullResult = await dockerComposePull(composeFile, projectName, workDir, onLog);
+  const pullResult =
+    target.mode === "remote"
+      ? await remoteDockerComposePull(target.ssh, composeFile, projectName, workDir, onLog)
+      : await dockerComposePull(composeFile, projectName, workDir, onLog);
   if (pullResult.exitCode !== 0) {
     await markStepFailed(pullStepId, `docker compose pull exited with code ${pullResult.exitCode}`);
     throw new Error(`docker compose pull failed with exit code ${pullResult.exitCode}`);
@@ -84,7 +111,10 @@ export async function executeComposeDeployment(
   const deployStepId = await createStep(deployment.id, "Start services", 3);
   await markStepRunning(deployStepId);
 
-  const upResult = await dockerComposeUp(composeFile, projectName, workDir, onLog);
+  const upResult =
+    target.mode === "remote"
+      ? await remoteDockerComposeUp(target.ssh, composeFile, projectName, workDir, onLog)
+      : await dockerComposeUp(composeFile, projectName, workDir, onLog);
   if (upResult.exitCode !== 0) {
     await markStepFailed(deployStepId, `docker compose up exited with code ${upResult.exitCode}`);
     throw new Error(`docker compose up failed with exit code ${upResult.exitCode}`);
@@ -103,7 +133,8 @@ export async function executeDockerfileDeployment(
   deployment: DeploymentRow,
   config: ConfigSnapshot,
   containerName: string,
-  onLog: OnLog
+  onLog: OnLog,
+  target: ExecutionTarget
 ): Promise<void> {
   const repoUrl = config.repoUrl ?? "";
   const branch = config.branch ?? "main";
@@ -121,22 +152,29 @@ export async function executeDockerfileDeployment(
     throw new Error("Dockerfile deployment requires a repository URL");
   }
 
-  const cloneResult = await gitClone(repoUrl, branch, deployment.id, onLog);
+  const workDir = target.mode === "remote" ? target.remoteWorkDir : ensureStagingDir(deployment.id);
+  const cloneResult =
+    target.mode === "remote"
+      ? await remoteGitClone(target.ssh, repoUrl, branch, workDir, onLog)
+      : await gitClone(repoUrl, branch, deployment.id, onLog);
   if (cloneResult.exitCode !== 0) {
     await markStepFailed(cloneStepId, `git clone exited with code ${cloneResult.exitCode}`);
     throw new Error(`git clone failed with exit code ${cloneResult.exitCode}`);
   }
-  await markStepComplete(cloneStepId, `Repository cloned to ${cloneResult.workDir}`);
+  await markStepComplete(cloneStepId, `Repository cloned to ${workDir}`);
 
   // Step 2: Build
   const buildStepId = await createStep(deployment.id, "Build image", 2);
   await markStepRunning(buildStepId);
   await transitionDeployment(deployment.id, "deploy");
 
-  const absoluteContext = `${cloneResult.workDir}/${buildContext}`.replace("//", "/");
-  const absoluteDockerfile = `${cloneResult.workDir}/${dockerfile}`.replace("//", "/");
+  const absoluteContext = `${workDir}/${buildContext}`.replace("//", "/");
+  const absoluteDockerfile = `${workDir}/${dockerfile}`.replace("//", "/");
 
-  const buildResult = await dockerBuild(absoluteContext, absoluteDockerfile, tag, onLog);
+  const buildResult =
+    target.mode === "remote"
+      ? await remoteDockerBuild(target.ssh, absoluteContext, absoluteDockerfile, tag, onLog)
+      : await dockerBuild(absoluteContext, absoluteDockerfile, tag, onLog);
   if (buildResult.exitCode !== 0) {
     await markStepFailed(buildStepId, `docker build exited with code ${buildResult.exitCode}`);
     throw new Error(`docker build failed with exit code ${buildResult.exitCode}`);
@@ -147,17 +185,31 @@ export async function executeDockerfileDeployment(
   const runStepId = await createStep(deployment.id, "Start container", 3);
   await markStepRunning(runStepId);
 
-  const runResult = await dockerRun(
-    tag,
-    containerName,
-    {
-      ports: config.ports ?? [],
-      volumes: config.volumes ?? [],
-      env: config.env ?? {},
-      network: config.network
-    },
-    onLog
-  );
+  const runResult =
+    target.mode === "remote"
+      ? await remoteDockerRun(
+          target.ssh,
+          tag,
+          containerName,
+          {
+            ports: config.ports ?? [],
+            volumes: config.volumes ?? [],
+            env: config.env ?? {},
+            network: config.network
+          },
+          onLog
+        )
+      : await dockerRun(
+          tag,
+          containerName,
+          {
+            ports: config.ports ?? [],
+            volumes: config.volumes ?? [],
+            env: config.env ?? {},
+            network: config.network
+          },
+          onLog
+        );
   if (runResult.exitCode !== 0) {
     await markStepFailed(runStepId, `docker run exited with code ${runResult.exitCode}`);
     throw new Error(`docker run failed with exit code ${runResult.exitCode}`);
@@ -171,7 +223,7 @@ export async function executeDockerfileDeployment(
   await markStepComplete(runStepId, `Container ${containerName} started`);
 
   // Step 4: Health check
-  await waitForHealthy(deployment, containerName, onLog);
+  await waitForHealthy(deployment, containerName, onLog, target);
 }
 
 /* ──────────────────────── Image ──────────────────────── */
@@ -180,7 +232,8 @@ export async function executeImageDeployment(
   deployment: DeploymentRow,
   config: ConfigSnapshot,
   containerName: string,
-  onLog: OnLog
+  onLog: OnLog,
+  target: ExecutionTarget
 ): Promise<void> {
   const tag = deployment.imageTag ?? "";
   if (!tag) {
@@ -191,7 +244,10 @@ export async function executeImageDeployment(
   const pullStepId = await createStep(deployment.id, "Pull image", 1);
   await markStepRunning(pullStepId);
 
-  const pullResult = await dockerPull(tag, onLog);
+  const pullResult =
+    target.mode === "remote"
+      ? await remoteDockerPull(target.ssh, tag, onLog)
+      : await dockerPull(tag, onLog);
   if (pullResult.exitCode !== 0) {
     await markStepFailed(pullStepId, `docker pull exited with code ${pullResult.exitCode}`);
     throw new Error(`docker pull failed with exit code ${pullResult.exitCode}`);
@@ -203,17 +259,31 @@ export async function executeImageDeployment(
   const runStepId = await createStep(deployment.id, "Start container", 2);
   await markStepRunning(runStepId);
 
-  const runResult = await dockerRun(
-    tag,
-    containerName,
-    {
-      ports: config.ports ?? [],
-      volumes: config.volumes ?? [],
-      env: config.env ?? {},
-      network: config.network
-    },
-    onLog
-  );
+  const runResult =
+    target.mode === "remote"
+      ? await remoteDockerRun(
+          target.ssh,
+          tag,
+          containerName,
+          {
+            ports: config.ports ?? [],
+            volumes: config.volumes ?? [],
+            env: config.env ?? {},
+            network: config.network
+          },
+          onLog
+        )
+      : await dockerRun(
+          tag,
+          containerName,
+          {
+            ports: config.ports ?? [],
+            volumes: config.volumes ?? [],
+            env: config.env ?? {},
+            network: config.network
+          },
+          onLog
+        );
   if (runResult.exitCode !== 0) {
     await markStepFailed(runStepId, `docker run exited with code ${runResult.exitCode}`);
     throw new Error(`docker run failed with exit code ${runResult.exitCode}`);
@@ -227,7 +297,7 @@ export async function executeImageDeployment(
   await markStepComplete(runStepId, `Container ${containerName} started`);
 
   // Step 3: Health check
-  await waitForHealthy(deployment, containerName, onLog);
+  await waitForHealthy(deployment, containerName, onLog, target);
 }
 
 /* ──────────────────────── Health Check ──────────────────────── */
@@ -235,14 +305,18 @@ export async function executeImageDeployment(
 async function waitForHealthy(
   deployment: DeploymentRow,
   containerName: string,
-  onLog: OnLog
+  onLog: OnLog,
+  target: ExecutionTarget
 ): Promise<void> {
   const healthStepId = await createStep(deployment.id, "Health check", 10);
   await markStepRunning(healthStepId);
 
   const start = Date.now();
   while (Date.now() - start < HEALTH_CHECK_TIMEOUT_MS) {
-    const healthy = await checkContainerHealth(containerName, onLog);
+    const healthy =
+      target.mode === "remote"
+        ? await remoteCheckContainerHealth(target.ssh, containerName, onLog)
+        : await checkContainerHealth(containerName, onLog);
     if (healthy) {
       await markStepComplete(healthStepId, `Container ${containerName} is healthy`);
       return;

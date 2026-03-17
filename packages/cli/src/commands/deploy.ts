@@ -5,23 +5,16 @@
  *   deploy → command lane, deploy:start
  *
  * Supports two modes:
- *   1. Service deploy: --service <id> (existing behavior)
- *   2. Compose deploy: --compose <path> (new: bundles local context)
- *
- * When --compose is used with a local build context, the CLI:
- *   1. Detects services with build.context: .
- *   2. Prompts for confirmation (unless --no-prompt)
- *   3. Bundles context as tar.gz (respects .dockerignore + .daoflowignore)
- *   4. Uploads to DaoFlow server via POST /api/v1/deploy/context
- *   5. Server SCP's context to target server, builds remotely
+ *   1. Service deploy: --service <id> (working path)
+ *   2. Compose deploy: --compose <path> (direct upload or context bundle)
  */
 
 import { Command } from "commander";
 import chalk from "chalk";
-import { createReadStream, readFileSync, statSync, existsSync, unlinkSync } from "node:fs";
-import { resolve } from "node:path";
+import { createReadStream, existsSync, readFileSync, statSync, unlinkSync } from "node:fs";
+import { basename, resolve } from "node:path";
 import { createClient } from "../trpc-client";
-import { getCurrentContext } from "../config";
+import { ApiClient, ApiError } from "../api-client";
 import { loadDaoflowConfig, parseSizeString } from "../config-loader";
 import { createContextBundle, detectLocalBuildContexts } from "../context-bundler";
 
@@ -39,19 +32,22 @@ export function deployCommand(): Command {
     .option("-y, --yes", "Skip confirmation prompt")
     .option("--json", "Output as JSON")
     .action(
-      async (opts: {
-        service?: string;
-        compose?: string;
-        context?: string;
-        server?: string;
-        commit?: string;
-        image?: string;
-        dryRun?: boolean;
-        prompt?: boolean;
-        yes?: boolean;
-        json?: boolean;
-      }) => {
-        const isJson = opts.json;
+      async (
+        opts: {
+          service?: string;
+          compose?: string;
+          context?: string;
+          server?: string;
+          commit?: string;
+          image?: string;
+          dryRun?: boolean;
+          prompt?: boolean;
+          yes?: boolean;
+          json?: boolean;
+        },
+        command: Command
+      ) => {
+        const isJson = opts.json ?? command.optsWithGlobals().json ?? false;
 
         // ── Load config defaults ─────────────────────────────
         const configResult = loadDaoflowConfig();
@@ -326,9 +322,9 @@ async function handleComposeDeploy(opts: ComposeDeployOpts): Promise<void> {
   // ── Execute compose deploy ───────────────────────────────
   try {
     if (hasLocalContext) {
-      await executeContextDeploy(resolvedCompose, resolvedContext, opts);
+      await executeContextDeploy(resolvedCompose, resolvedContext, composeContent, opts);
     } else {
-      await executeRemoteComposeDeploy(resolvedCompose, opts);
+      await executeRemoteComposeDeploy(composeContent, opts);
     }
   } catch (err) {
     if (opts.json) {
@@ -348,129 +344,117 @@ async function handleComposeDeploy(opts: ComposeDeployOpts): Promise<void> {
   }
 }
 
-async function executeContextDeploy(
-  composePath: string,
+function executeContextDeploy(
+  _composePath: string,
   contextPath: string,
+  composeContent: string,
   opts: ComposeDeployOpts
 ): Promise<void> {
-  const cfg = opts.config as Record<string, unknown> | undefined;
-  const isJson = opts.json;
+  return uploadContextBundle(contextPath, composeContent, opts);
+}
 
-  // Step 1: Bundle context
-  if (!isJson) console.log(chalk.blue("⟳ Bundling build context..."));
+function executeRemoteComposeDeploy(
+  composeContent: string,
+  opts: ComposeDeployOpts
+): Promise<void> {
+  const api = new ApiClient();
+  return api
+    .post<{
+      ok: boolean;
+      deploymentId: string;
+    }>("/api/v1/deploy/compose", {
+      server: opts.serverId,
+      compose: composeContent,
+      project: deriveProjectName(opts.composePath, composeContent)
+    })
+    .then((response) => {
+      renderQueuedDeployment(response.deploymentId, opts);
+    })
+    .catch((error) => {
+      throw normalizeDeployError(error);
+    });
+}
 
+async function uploadContextBundle(
+  contextPath: string,
+  composeContent: string,
+  opts: ComposeDeployOpts
+): Promise<void> {
   const bundle = createContextBundle({
     contextPath,
-    extraIgnore: cfg?.ignore as string[] | undefined,
-    extraInclude: cfg?.include as string[] | undefined,
-    maxSizeBytes: cfg?.maxContextSize ? parseSizeString(cfg.maxContextSize as string) : undefined
+    extraIgnore: (opts.config as Record<string, unknown>)?.ignore as string[] | undefined,
+    extraInclude: (opts.config as Record<string, unknown>)?.include as string[] | undefined,
+    maxSizeBytes: (opts.config as Record<string, unknown>)?.maxContextSize
+      ? parseSizeString((opts.config as Record<string, unknown>).maxContextSize as string)
+      : undefined
   });
 
-  const sizeMB = (bundle.sizeBytes / 1024 / 1024).toFixed(1);
-  if (!isJson) {
-    console.log(chalk.green(`✓ Bundled ${bundle.fileCount} files (${sizeMB}MB)`));
-    if (bundle.includedOverrides.length > 0) {
-      console.log(
-        chalk.yellow(`  ⚠ Included override files: ${bundle.includedOverrides.join(", ")}`)
-      );
-    }
-  }
+  const api = new ApiClient();
 
-  // Step 2: Upload context to DaoFlow server
-  if (!isJson) console.log(chalk.blue("⟳ Uploading context to DaoFlow..."));
-
-  const ctx = getCurrentContext();
-  if (!ctx) throw new Error("Not logged in. Run: daoflow login");
-
-  const composeContent = readFileSync(composePath, "utf-8");
-  const fileSize = statSync(bundle.tarPath).size;
-  const stream = createReadStream(bundle.tarPath);
-
-  const headers: Record<string, string> = {
-    Cookie: `better-auth.session_token=${ctx.token}`,
-    "Content-Type": "application/gzip",
-    "Content-Length": String(fileSize),
-    "X-DaoFlow-Server": opts.serverId ?? "",
-    "X-DaoFlow-Compose": Buffer.from(composeContent).toString("base64")
-  };
-
-  if (cfg?.project) headers["X-DaoFlow-Project"] = cfg.project as string;
-
-  const res = await fetch(`${ctx.apiUrl.replace(/\/$/, "")}/api/v1/deploy/context`, {
-    method: "POST",
-    headers,
-    body: stream as unknown as BodyInit,
-    duplex: "half"
-  } as RequestInit & { duplex: string });
-
-  // Cleanup temp tar
   try {
-    unlinkSync(bundle.tarPath);
-  } catch {
-    /* best-effort */
-  }
+    const response = (await api.streamUpload(
+      "/api/v1/deploy",
+      createReadStream(bundle.tarPath),
+      statSync(bundle.tarPath).size,
+      {
+        contentType: "application/gzip",
+        headers: {
+          "X-DaoFlow-Server": opts.serverId ?? "",
+          "X-DaoFlow-Compose": Buffer.from(composeContent, "utf8").toString("base64"),
+          "X-DaoFlow-Project": deriveProjectName(opts.composePath, composeContent)
+        }
+      }
+    )) as { ok: boolean; deploymentId: string };
 
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`Upload failed (${res.status}): ${body}`);
-  }
-
-  const result = (await res.json()) as {
-    ok: boolean;
-    deploymentId?: string;
-    contextId?: string;
-    error?: string;
-  };
-
-  if (isJson) {
-    console.log(JSON.stringify(result));
-  } else {
-    console.log(chalk.green("✓ Context uploaded and deployment queued"));
-    if (result.deploymentId) console.log(chalk.dim(`  Deployment ID: ${result.deploymentId}`));
-    if (result.contextId) console.log(chalk.dim(`  Context ID:    ${result.contextId}`));
+    renderQueuedDeployment(response.deploymentId, opts);
+  } catch (error) {
+    throw normalizeDeployError(error);
+  } finally {
+    try {
+      unlinkSync(bundle.tarPath);
+    } catch {
+      /* best-effort */
+    }
   }
 }
 
-async function executeRemoteComposeDeploy(
-  composePath: string,
-  opts: ComposeDeployOpts
-): Promise<void> {
-  const isJson = opts.json;
-  if (!isJson) console.log(chalk.blue("⟳ Deploying compose (pre-built images)..."));
-
-  const ctx = getCurrentContext();
-  if (!ctx) throw new Error("Not logged in. Run: daoflow login");
-
-  const composeContent = readFileSync(composePath, "utf-8");
-
-  const headers: Record<string, string> = {
-    Cookie: `better-auth.session_token=${ctx.token}`,
-    "Content-Type": "application/json"
-  };
-
-  const res = await fetch(`${ctx.apiUrl.replace(/\/$/, "")}/api/v1/deploy/compose`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({
-      server: opts.serverId,
-      compose: composeContent,
-      project: (opts.config as Record<string, unknown>)?.project
-    })
-  });
-
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`Deploy failed (${res.status}): ${body}`);
+function deriveProjectName(composePath: string, composeContent: string): string {
+  const namedMatch = composeContent.match(/^\s*name\s*:\s*["']?([^"'#\n]+)["']?\s*$/m);
+  if (namedMatch?.[1]) {
+    return namedMatch[1].trim();
   }
 
-  const result = (await res.json()) as { ok: boolean; deploymentId?: string; error?: string };
+  const fileName = basename(composePath).replace(/\.(ya?ml)$/i, "");
+  return fileName || "uploaded-compose";
+}
 
-  if (isJson) {
-    console.log(JSON.stringify(result));
-  } else {
-    console.log(chalk.green("✓ Compose deployment queued"));
-    if (result.deploymentId) console.log(chalk.dim(`  Deployment ID: ${result.deploymentId}`));
+function normalizeDeployError(error: unknown): Error {
+  if (error instanceof ApiError) {
+    try {
+      const body = JSON.parse(error.body) as { error?: string };
+      return new Error(body.error ?? error.message);
+    } catch {
+      return new Error(error.body || error.message);
+    }
   }
+
+  return error instanceof Error ? error : new Error(String(error));
+}
+
+function renderQueuedDeployment(deploymentId: string, opts: ComposeDeployOpts): void {
+  if (opts.json) {
+    console.log(
+      JSON.stringify({
+        ok: true,
+        deploymentId
+      })
+    );
+    return;
+  }
+
+  console.log(chalk.green("✓ Deployment queued"));
+  console.log(chalk.dim(`  ID: ${deploymentId}`));
+  console.log(chalk.dim(`  Server: ${opts.serverId}`));
 }
 
 function estimateContextSize(contextPath: string, cfg?: Record<string, unknown>): string {

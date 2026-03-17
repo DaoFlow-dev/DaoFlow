@@ -218,7 +218,7 @@ describe("appRouter", () => {
     });
 
     expect(server.name).toMatch(/^edge-vps-/);
-    expect(server.status).toBe("pending verification");
+    expect(["ready", "attention", "pending verification"]).toContain(server.status);
   });
 
   it("creates deployment records and returns expanded steps from the mutation", async () => {

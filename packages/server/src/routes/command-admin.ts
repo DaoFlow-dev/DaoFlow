@@ -39,6 +39,8 @@ export const adminRouter = t.router({
         host: z.string().min(1).max(120),
         region: z.string().min(1).max(60),
         sshPort: z.number().int().min(1).max(65535),
+        sshUser: z.string().min(1).max(80).optional(),
+        sshPrivateKey: z.string().min(1).max(20_000).optional(),
         kind: z.enum(["docker-engine", "docker-swarm-manager"])
       })
     )

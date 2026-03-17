@@ -13,6 +13,7 @@ import { db } from "../connection";
 import { deployments } from "../schema/deployments";
 import { services } from "../schema/services";
 import { createDeploymentRecord, type CreateDeploymentInput } from "./deployments";
+import { dispatchDeploymentExecution } from "./deployment-dispatch";
 import { asRecord, readString } from "./json-helpers";
 import type { AppRole } from "@daoflow/shared";
 
@@ -128,6 +129,7 @@ export async function executeRollback(input: ExecuteRollbackInput) {
 
   const deployment = await createDeploymentRecord(deployInput);
   if (!deployment) return { status: "create_failed" as const };
+  await dispatchDeploymentExecution(deployment);
 
   return { status: "ok" as const, deployment };
 }

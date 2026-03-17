@@ -37,6 +37,7 @@ export default defineConfig({
       TEMPORAL_ADDRESS: process.env.TEMPORAL_ADDRESS ?? "localhost:7233",
       TEMPORAL_NAMESPACE: process.env.TEMPORAL_NAMESPACE ?? "daoflow",
       TEMPORAL_TASK_QUEUE: "daoflow-deployments",
+      DAOFLOW_ENABLE_TEMPORAL: "true",
       NODE_ENV: "production"
       // NOTE: DISABLE_WORKER is intentionally NOT set
     },

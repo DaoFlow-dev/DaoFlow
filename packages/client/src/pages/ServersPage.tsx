@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
@@ -30,7 +31,9 @@ export default function ServersPage() {
     name: "",
     host: "",
     region: "",
-    sshPort: "22"
+    sshPort: "22",
+    sshUser: "root",
+    sshPrivateKey: ""
   });
 
   const canManageServers = Boolean(viewer.data?.authz.capabilities.includes("server:write"));
@@ -38,11 +41,16 @@ export default function ServersPage() {
   const registerServer = trpc.registerServer.useMutation({
     onSuccess: async (server) => {
       await utils.serverReadiness.invalidate();
-      setFeedback(
-        `Registered ${server.name}. Connectivity checks will appear on the next refresh.`
-      );
+      setFeedback(`Registered ${server.name}. Current readiness: ${server.status}.`);
       setDialogOpen(false);
-      setForm({ name: "", host: "", region: "", sshPort: "22" });
+      setForm({
+        name: "",
+        host: "",
+        region: "",
+        sshPort: "22",
+        sshUser: "root",
+        sshPrivateKey: ""
+      });
     },
     onError: (error) =>
       setFeedback(isTRPCClientError(error) ? error.message : "Unable to register the server.")
@@ -83,6 +91,8 @@ export default function ServersPage() {
                     host: form.host.trim(),
                     region: form.region.trim() || "default",
                     sshPort: Number.parseInt(form.sshPort, 10) || 22,
+                    sshUser: form.sshUser.trim() || undefined,
+                    sshPrivateKey: form.sshPrivateKey.trim() || undefined,
                     kind: "docker-engine"
                   });
                 }}
@@ -134,6 +144,29 @@ export default function ServersPage() {
                       }
                     />
                   </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="server-ssh-user">SSH User</Label>
+                  <Input
+                    id="server-ssh-user"
+                    value={form.sshUser}
+                    onChange={(event) =>
+                      setForm((current) => ({ ...current, sshUser: event.target.value }))
+                    }
+                    placeholder="root"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="server-ssh-key">SSH Private Key</Label>
+                  <Textarea
+                    id="server-ssh-key"
+                    value={form.sshPrivateKey}
+                    onChange={(event) =>
+                      setForm((current) => ({ ...current, sshPrivateKey: event.target.value }))
+                    }
+                    placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"
+                    rows={8}
+                  />
                 </div>
                 <DialogFooter>
                   <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>

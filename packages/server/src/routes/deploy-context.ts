@@ -1,63 +1,138 @@
-/**
- * deploy-context.ts — Hono route for local context deployment.
- *
- * Receives a tar.gz build context from the CLI, stores it temporarily,
- * SCP's it to the target server, and triggers a remote Docker Compose build.
- *
- * NOT tRPC — binary streams don't fit tRPC well.
- *
- * Flow:
- *   CLI → POST /api/v1/deploy/context (tar.gz body)
- *      → server saves tar.gz to temp dir
- *      → SCP tar.gz to target server
- *      → SSH extract + docker compose up --build
- *      → stream logs to deployment record
- *      → cleanup temp files
- */
-
-import { Hono } from "hono";
-import { existsSync, mkdirSync, statSync } from "node:fs";
-import { auth } from "../auth";
-import { unlink } from "node:fs/promises";
+import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { tmpdir } from "node:os";
-import { randomUUID } from "node:crypto";
+import { Hono, type Context } from "hono";
+import { hasAllScopes, normalizeAppRole, roleCapabilities, type AppRole } from "@daoflow/shared";
+import { auth } from "../auth";
+import { ensureControlPlaneReady } from "../db/services/seed";
+import { ensureDirectDeploymentScope } from "../db/services/direct-deployments";
+import { createDeploymentRecord } from "../db/services/deployments";
+import { dispatchDeploymentExecution } from "../db/services/deployment-dispatch";
+import { newId as id } from "../db/services/json-helpers";
+import { cleanupStagingDir, ensureStagingDir } from "../worker/docker-executor";
 import { streamBodyToFile } from "./stream-to-file";
 
 export const deployContextRouter = new Hono();
 
-/**
- * POST /
- *
- * Receives a tar.gz build context and triggers a compose deployment on the target server.
- *
- * Headers:
- *   Content-Type: application/gzip
- *   X-DaoFlow-Server: server ID
- *   X-DaoFlow-Compose: base64-encoded compose.yaml content
- *   X-DaoFlow-Project: (optional) project ID
- *   Cookie: better-auth.session_token=...
- */
-deployContextRouter.post("/", async (c) => {
+interface DeployActor {
+  userId: string;
+  email: string;
+  role: AppRole;
+}
+
+function readErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function deriveStackName(composeContent: string, fallback: string): string {
+  const namedMatch = composeContent.match(/^\s*name\s*:\s*["']?([^"'#\n]+)["']?\s*$/m);
+  if (namedMatch?.[1]) {
+    return namedMatch[1].trim();
+  }
+
+  const firstServiceMatch = composeContent.match(/^\s{2}([a-zA-Z0-9._-]+)\s*:\s*$/m);
+  if (firstServiceMatch?.[1]) {
+    return firstServiceMatch[1].trim();
+  }
+
+  return fallback;
+}
+
+async function requireDeployActor(c: Context) {
   const session = await auth.api.getSession({ headers: c.req.raw.headers });
   if (!session) {
     return c.json(
       {
         ok: false,
-        error: "Valid authentication required. Provide a session cookie or Bearer token.",
+        error: "Valid authentication required. Provide a session cookie.",
         code: "AUTH_REQUIRED"
       },
       401
     );
   }
 
+  await ensureControlPlaneReady();
+
+  const role = normalizeAppRole((session.user as Record<string, unknown>).role);
+  if (!hasAllScopes(roleCapabilities[role], ["deploy:start"])) {
+    return c.json(
+      {
+        ok: false,
+        error: "Missing required scope(s): deploy:start",
+        code: "SCOPE_DENIED",
+        requiredScope: "deploy:start"
+      },
+      403
+    );
+  }
+
+  return {
+    userId: session.user.id,
+    email: session.user.email,
+    role
+  } satisfies DeployActor;
+}
+
+async function queueUploadedDeployment(input: {
+  deploymentId: string;
+  serverId: string;
+  projectRef?: string;
+  environmentName?: string;
+  composeContent: string;
+  actor: DeployActor;
+  configSnapshot: Record<string, unknown>;
+  steps: readonly { label: string; detail: string }[];
+}) {
+  const derivedName = deriveStackName(input.composeContent, "uploaded-compose");
+  const scope = await ensureDirectDeploymentScope({
+    serverId: input.serverId,
+    projectRef: input.projectRef,
+    projectName: derivedName,
+    environmentName: input.environmentName,
+    serviceName: derivedName,
+    requestedByUserId: input.actor.userId,
+    requestedByEmail: input.actor.email,
+    requestedByRole: input.actor.role
+  });
+
+  const deployment = await createDeploymentRecord({
+    deploymentId: input.deploymentId,
+    projectName: scope.project.name,
+    environmentName: scope.environment.name,
+    serviceName: scope.service.name,
+    sourceType: "compose",
+    targetServerId: input.serverId,
+    commitSha: "",
+    imageTag: "",
+    requestedByUserId: input.actor.userId,
+    requestedByEmail: input.actor.email,
+    requestedByRole: input.actor.role,
+    steps: [...input.steps],
+    configSnapshot: input.configSnapshot
+  });
+
+  if (!deployment) {
+    throw new Error("Failed to create deployment record.");
+  }
+
+  await dispatchDeploymentExecution(deployment);
+
+  return {
+    deployment,
+    scope
+  };
+}
+
+deployContextRouter.post("/", async (c) => {
+  const actor = await requireDeployActor(c);
+  if ("status" in actor) {
+    return actor;
+  }
+
   const serverId = c.req.header("X-DaoFlow-Server") ?? "";
   const composeB64 = c.req.header("X-DaoFlow-Compose") ?? "";
-  const projectId = c.req.header("X-DaoFlow-Project") ?? "";
-  const contextId = `ctx_${randomUUID().replace(/-/g, "").slice(0, 16)}`;
-  const deploymentId = `dep_${randomUUID().replace(/-/g, "").slice(0, 16)}`;
+  const projectRef = c.req.header("X-DaoFlow-Project") ?? undefined;
+  const environmentName = c.req.header("X-DaoFlow-Environment") ?? undefined;
 
-  // ── Validate inputs ────────────────────────────────────────
   if (!serverId) {
     return c.json(
       { ok: false, error: "Missing X-DaoFlow-Server header", code: "MISSING_SERVER" },
@@ -72,138 +147,134 @@ deployContextRouter.post("/", async (c) => {
     );
   }
 
-  // ── Stream body to temp file ────────────────────────────────
-  const uploadDir = join(tmpdir(), "daoflow-contexts");
-  if (!existsSync(uploadDir)) {
-    mkdirSync(uploadDir, { recursive: true });
+  const body = c.req.raw.body;
+  if (!body) {
+    return c.json({ ok: false, error: "No request body provided.", code: "EMPTY_BODY" }, 400);
   }
 
-  const tarPath = join(uploadDir, `${contextId}.tar.gz`);
+  const deploymentId = id();
+  const stageDir = ensureStagingDir(deploymentId);
+  const composeFileName = "compose.yaml";
+  const archiveFileName = "context.tar.gz";
 
   try {
-    const body = c.req.raw.body;
-    if (!body) {
-      return c.json({ ok: false, error: "Empty request body", code: "EMPTY_BODY" }, 400);
-    }
+    const composeContent = Buffer.from(composeB64, "base64").toString("utf8");
+    await writeFile(join(stageDir, composeFileName), composeContent, "utf8");
+    await streamBodyToFile(body, join(stageDir, archiveFileName));
 
-    await streamBodyToFile(body, tarPath);
-
-    const fileSize = statSync(tarPath).size;
-    const sizeMB = (fileSize / 1024 / 1024).toFixed(1);
-
-    // ── Decode compose content ──────────────────────────────
-    let composeContent: string;
-    try {
-      composeContent = Buffer.from(composeB64, "base64").toString("utf-8");
-    } catch {
-      await unlink(tarPath).catch(() => {});
-      return c.json(
-        { ok: false, error: "Invalid X-DaoFlow-Compose base64", code: "INVALID_COMPOSE" },
-        400
-      );
-    }
-
-    // ── Queue deployment ────────────────────────────────────
-    // NOTE: Actual remote execution is handled by the worker package.
-    // This endpoint acknowledges receipt and returns a deployment ID.
-    // The worker picks up queued deployments and:
-    //   1. Looks up server from DB by serverId
-    //   2. SCPs tarball to remote server
-    //   3. SSHs to extract and run `docker compose up -d --build`
-    //   4. Streams logs to the deployment record
-    //   5. Cleans up temp files on both sides
-    // See AGENTS.md §7 "Execution plane" for architecture details.
-
-    console.log(
-      JSON.stringify({
-        level: "info",
-        message: "Context deployment received",
-        contextId,
-        deploymentId,
-        serverId,
-        projectId: projectId || undefined,
-        contextSizeMB: Number(sizeMB),
-        composeLength: composeContent.length
-      })
-    );
-
-    // Cleanup tarball after acknowledgment (in production, this happens after SCP)
-    // For MVP, we keep it around for the worker to pick up
-    // await unlink(tarPath).catch(() => {});
+    const { deployment, scope } = await queueUploadedDeployment({
+      deploymentId,
+      serverId,
+      projectRef,
+      environmentName,
+      composeContent,
+      actor,
+      configSnapshot: {
+        deploymentSource: "uploaded-context",
+        composeFilePath: composeFileName,
+        uploadedComposeFileName: composeFileName,
+        uploadedContextArchiveName: archiveFileName
+      },
+      steps: [
+        {
+          label: "Stage uploaded context",
+          detail: "Store the uploaded build context and compose file in durable staging."
+        },
+        {
+          label: "Queue execution handoff",
+          detail: "Dispatch the uploaded compose workspace to the execution plane."
+        }
+      ]
+    });
 
     return c.json({
       ok: true,
-      deploymentId,
-      contextId,
-      contextSize: fileSize,
-      contextSizeMB: Number(sizeMB),
-      serverId,
-      message: `Context received (${sizeMB}MB). Deployment ${deploymentId} queued.`
+      deploymentId: deployment.id,
+      projectId: scope.project.id,
+      environmentId: scope.environment.id,
+      serviceId: scope.service.id
     });
-  } catch (err) {
-    // Cleanup on error
-    await unlink(tarPath).catch(() => {});
+  } catch (error) {
+    cleanupStagingDir(deploymentId);
     return c.json(
       {
         ok: false,
-        error: "Context upload failed",
-        message: String(err),
-        code: "UPLOAD_FAILED"
+        error: readErrorMessage(error),
+        code: "DEPLOY_CONTEXT_FAILED"
       },
       500
     );
   }
 });
 
-/**
- * POST /compose
- *
- * Deploy a compose file without local context (pre-built images).
- * Server writes compose.yaml to target and runs docker compose up.
- */
 deployContextRouter.post("/compose", async (c) => {
-  const session = await auth.api.getSession({ headers: c.req.raw.headers });
-  if (!session) {
-    return c.json(
-      {
-        ok: false,
-        error: "Valid authentication required. Provide a session cookie or Bearer token.",
-        code: "AUTH_REQUIRED"
-      },
-      401
-    );
+  const actor = await requireDeployActor(c);
+  if ("status" in actor) {
+    return actor;
   }
 
   const body = await c.req.json<{
     server?: string;
     compose?: string;
     project?: string;
+    environment?: string;
   }>();
 
   if (!body.server) {
     return c.json({ ok: false, error: "Missing server field", code: "MISSING_SERVER" }, 400);
   }
+
   if (!body.compose) {
     return c.json({ ok: false, error: "Missing compose field", code: "MISSING_COMPOSE" }, 400);
   }
 
-  const deploymentId = `dep_${randomUUID().replace(/-/g, "").slice(0, 16)}`;
+  const deploymentId = id();
+  const stageDir = ensureStagingDir(deploymentId);
+  const composeFileName = "compose.yaml";
 
-  console.log(
-    JSON.stringify({
-      level: "info",
-      message: "Compose deployment received (no context)",
+  try {
+    await writeFile(join(stageDir, composeFileName), body.compose, "utf8");
+
+    const { deployment, scope } = await queueUploadedDeployment({
       deploymentId,
       serverId: body.server,
-      projectId: body.project || undefined,
-      composeLength: body.compose.length
-    })
-  );
+      projectRef: body.project,
+      environmentName: body.environment,
+      composeContent: body.compose,
+      actor,
+      configSnapshot: {
+        deploymentSource: "uploaded-compose",
+        composeFilePath: composeFileName,
+        uploadedComposeFileName: composeFileName
+      },
+      steps: [
+        {
+          label: "Stage uploaded compose",
+          detail: "Store the uploaded compose file in durable staging."
+        },
+        {
+          label: "Queue execution handoff",
+          detail: "Dispatch the compose deployment to the execution plane."
+        }
+      ]
+    });
 
-  return c.json({
-    ok: true,
-    deploymentId,
-    serverId: body.server,
-    message: `Compose deployment ${deploymentId} queued.`
-  });
+    return c.json({
+      ok: true,
+      deploymentId: deployment.id,
+      projectId: scope.project.id,
+      environmentId: scope.environment.id,
+      serviceId: scope.service.id
+    });
+  } catch (error) {
+    cleanupStagingDir(deploymentId);
+    return c.json(
+      {
+        ok: false,
+        error: readErrorMessage(error),
+        code: "DEPLOY_COMPOSE_FAILED"
+      },
+      500
+    );
+  }
 });

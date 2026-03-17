@@ -25,6 +25,7 @@ import {
   type OnLog
 } from "../../docker-executor";
 import { createLogStreamer } from "../../log-streamer";
+import { runDeployment } from "../../run-deployment";
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -186,6 +187,20 @@ export async function emitDeploymentEvent(
     metadata: { serviceName, actorLabel: "temporal-worker" },
     createdAt: new Date()
   });
+}
+
+export async function runDeploymentActivity(input: DeploymentInfo): Promise<void> {
+  const [deployment] = await db
+    .select()
+    .from(deployments)
+    .where(eq(deployments.id, input.id))
+    .limit(1);
+
+  if (!deployment) {
+    throw new Error(`Deployment ${input.id} not found`);
+  }
+
+  await runDeployment(deployment, "temporal-worker");
 }
 
 /**

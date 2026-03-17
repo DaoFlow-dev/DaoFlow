@@ -1,9 +1,11 @@
 import { desc, eq } from "drizzle-orm";
 import { db } from "../connection";
+import { encrypt } from "../crypto";
 import { auditEntries } from "../schema/audit";
 import { environments, projects } from "../schema/projects";
 import { servers } from "../schema/servers";
 import { services } from "../schema/services";
+import { verifyServerReadiness } from "./server-readiness";
 import { normalizeInventoryStatus, type AppRole } from "@daoflow/shared";
 import {
   newId as id,
@@ -19,6 +21,8 @@ export interface RegisterServerInput {
   host: string;
   region: string;
   sshPort: number;
+  sshUser?: string;
+  sshPrivateKey?: string;
   kind: string;
   requestedByUserId: string;
   requestedByEmail: string;
@@ -41,6 +45,10 @@ export async function registerServer(input: RegisterServerInput) {
       host: input.host,
       region: input.region,
       sshPort: input.sshPort,
+      sshUser: input.sshUser?.trim() || null,
+      sshPrivateKeyEncrypted: input.sshPrivateKey?.trim()
+        ? encrypt(input.sshPrivateKey.trim())
+        : null,
       kind: input.kind,
       status: "pending verification",
       registeredByUserId: input.requestedByUserId,
@@ -67,7 +75,9 @@ export async function registerServer(input: RegisterServerInput) {
     }
   });
 
-  return { status: "ok" as const, server };
+  const verifiedServer = await verifyServerReadiness(server);
+
+  return { status: "ok" as const, server: verifiedServer ?? server };
 }
 
 export async function listServerReadiness(limit = 12) {
@@ -198,6 +208,7 @@ export async function listInfrastructureInventory() {
       kind: server.kind,
       region: server.region ?? "",
       sshPort: server.sshPort,
+      sshUser: server.sshUser ?? "",
       engineVersion: server.dockerVersion ?? "unknown",
       status: normalizeInventoryStatus(server.status),
       lastHeartbeatAt: server.lastCheckedAt?.toISOString() ?? null,

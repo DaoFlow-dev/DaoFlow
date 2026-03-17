@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
 import { CheckCircle, Rocket, Server } from "lucide-react";
 
 type SetupStep = "welcome" | "account" | "server" | "complete";
@@ -27,7 +28,9 @@ export default function SetupWizardPage() {
     name: "",
     host: "",
     sshPort: "22",
-    region: ""
+    region: "",
+    sshUser: "root",
+    sshPrivateKey: ""
   });
   const [feedback, setFeedback] = useState<string | null>(null);
 
@@ -148,6 +151,8 @@ export default function SetupWizardPage() {
                   host: serverForm.host,
                   sshPort: parseInt(serverForm.sshPort) || 22,
                   region: serverForm.region || "default",
+                  sshUser: serverForm.sshUser || undefined,
+                  sshPrivateKey: serverForm.sshPrivateKey || undefined,
                   kind: "docker-engine"
                 });
               }}
@@ -194,6 +199,27 @@ export default function SetupWizardPage() {
                     placeholder="us-west-2"
                   />
                 </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="ssh-user">SSH User</Label>
+                <Input
+                  id="ssh-user"
+                  value={serverForm.sshUser}
+                  onChange={(e) => setServerForm({ ...serverForm, sshUser: e.target.value })}
+                  placeholder="root"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="ssh-private-key">SSH Private Key</Label>
+                <Textarea
+                  id="ssh-private-key"
+                  value={serverForm.sshPrivateKey}
+                  onChange={(e) => setServerForm({ ...serverForm, sshPrivateKey: e.target.value })}
+                  placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"
+                  rows={8}
+                />
               </div>
 
               <Button type="submit" className="w-full" disabled={registerServer.isPending}>
