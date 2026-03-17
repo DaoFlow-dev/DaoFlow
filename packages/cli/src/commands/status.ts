@@ -74,7 +74,13 @@ export function statusCommand(): Command {
         }
       } catch (err) {
         if (isJson) {
-          console.log(JSON.stringify({ ok: false, error: err instanceof Error ? err.message : "Unknown error", code: "API_ERROR" }));
+          console.log(
+            JSON.stringify({
+              ok: false,
+              error: err instanceof Error ? err.message : "Unknown error",
+              code: "API_ERROR"
+            })
+          );
         } else {
           console.error(chalk.red(`Error: ${err instanceof Error ? err.message : err}`));
         }

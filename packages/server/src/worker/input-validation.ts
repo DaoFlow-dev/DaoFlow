@@ -48,7 +48,7 @@ export function validateName(field: string, value: string, maxLen = 80): Validat
     return {
       valid: false,
       field,
-      reason: `${field} must start with alphanumeric and contain only letters, digits, hyphens, underscores, or dots`,
+      reason: `${field} must start with alphanumeric and contain only letters, digits, hyphens, underscores, or dots`
     };
   }
   return { valid: true, field };
@@ -106,7 +106,11 @@ export function validateImageTag(field: string, value: string): ValidationResult
   }
   // Docker image tags: allow registry/repo:tag format
   if (!/^[a-zA-Z0-9][a-zA-Z0-9._\-/:@]+$/.test(value)) {
-    return { valid: false, field, reason: `${field} contains invalid characters for a Docker image reference` };
+    return {
+      valid: false,
+      field,
+      reason: `${field} contains invalid characters for a Docker image reference`
+    };
   }
   return { valid: true, field };
 }
@@ -125,7 +129,7 @@ export function validateEnvKey(field: string, value: string): ValidationResult {
     return {
       valid: false,
       field,
-      reason: `${field} must be uppercase with underscores (e.g. DATABASE_URL)`,
+      reason: `${field} must be uppercase with underscores (e.g. DATABASE_URL)`
     };
   }
   return { valid: true, field };

@@ -105,7 +105,7 @@ export function createApp() {
                 level: row.level,
                 message: row.message,
                 source: row.source,
-                timestamp: row.createdAt,
+                timestamp: row.createdAt
               });
               controller.enqueue(encoder.encode(`data: ${data}\n\n`));
               lastId = row.id;
@@ -124,7 +124,7 @@ export function createApp() {
         };
 
         void poll();
-      },
+      }
     });
 
     return new Response(stream, {
@@ -132,8 +132,8 @@ export function createApp() {
         "Content-Type": "text/event-stream",
         "Cache-Control": "no-cache",
         Connection: "keep-alive",
-        "X-Request-Id": c.get("requestId"),
-      },
+        "X-Request-Id": c.get("requestId")
+      }
     });
   });
 

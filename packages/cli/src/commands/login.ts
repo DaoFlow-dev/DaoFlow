@@ -46,7 +46,7 @@ export function loginCommand(): Command {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ email: opts.email, password: opts.password }),
-              redirect: "manual",
+              redirect: "manual"
             });
 
             // Extract session cookie from Set-Cookie header
@@ -57,9 +57,7 @@ export function loginCommand(): Command {
 
             if (sessionCookie) {
               // Parse cookie value — format: better-auth.session_token=<value>; Path=...
-              const match = sessionCookie.match(
-                /better-auth\.session_token=([^;]+)/
-              );
+              const match = sessionCookie.match(/better-auth\.session_token=([^;]+)/);
               if (match) {
                 sessionToken = decodeURIComponent(match[1]);
               } else {
@@ -85,9 +83,7 @@ export function loginCommand(): Command {
             return;
           }
         } else {
-          console.error(
-            chalk.red("Provide --token or --email/--password to authenticate.")
-          );
+          console.error(chalk.red("Provide --token or --email/--password to authenticate."));
           process.exit(1);
           return;
         }
@@ -96,8 +92,8 @@ export function loginCommand(): Command {
         try {
           const res = await fetch(`${baseUrl}/trpc/viewer`, {
             headers: {
-              Cookie: `better-auth.session_token=${sessionToken}`,
-            },
+              Cookie: `better-auth.session_token=${sessionToken}`
+            }
           });
           if (!res.ok) {
             console.error(chalk.red("✗ Token validation failed — session may be expired"));
@@ -108,9 +104,7 @@ export function loginCommand(): Command {
         }
 
         setContext(context, { apiUrl: baseUrl, token: sessionToken });
-        console.log(
-          chalk.green(`✓ Logged in to ${baseUrl} as context "${context}"`)
-        );
+        console.log(chalk.green(`✓ Logged in to ${baseUrl} as context "${context}"`));
       }
     );
 }

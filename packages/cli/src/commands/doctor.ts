@@ -30,11 +30,11 @@ export function doctorCommand(): Command {
                 url: `${ctx.apiUrl.replace(/\/$/, "")}/trpc`,
                 headers() {
                   return {
-                    Cookie: `better-auth.session_token=${ctx.token}`,
+                    Cookie: `better-auth.session_token=${ctx.token}`
                   };
-                },
-              }),
-            ],
+                }
+              })
+            ]
           });
           const health = await trpc.health.query();
           checks.push({

@@ -26,7 +26,7 @@ export function logsCommand(): Command {
           const trpc = createClient();
           const data = await trpc.deploymentLogs.query({
             deploymentId: opts.deployment,
-            limit: Number(opts.lines),
+            limit: Number(opts.lines)
           });
 
           for (const line of data.lines) {

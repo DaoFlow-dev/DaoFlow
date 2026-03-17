@@ -69,10 +69,7 @@ deployContextRouter.post("/", async (c) => {
   try {
     const body = c.req.raw.body;
     if (!body) {
-      return c.json(
-        { ok: false, error: "Empty request body", code: "EMPTY_BODY" },
-        400
-      );
+      return c.json({ ok: false, error: "Empty request body", code: "EMPTY_BODY" }, 400);
     }
 
     const writeStream = createWriteStream(tarPath);
@@ -135,7 +132,7 @@ deployContextRouter.post("/", async (c) => {
         serverId,
         projectId: projectId || undefined,
         contextSizeMB: Number(sizeMB),
-        composeLength: composeContent.length,
+        composeLength: composeContent.length
       })
     );
 
@@ -150,7 +147,7 @@ deployContextRouter.post("/", async (c) => {
       contextSize: fileSize,
       contextSizeMB: Number(sizeMB),
       serverId,
-      message: `Context received (${sizeMB}MB). Deployment ${deploymentId} queued.`,
+      message: `Context received (${sizeMB}MB). Deployment ${deploymentId} queued.`
     });
   } catch (err) {
     // Cleanup on error
@@ -160,7 +157,7 @@ deployContextRouter.post("/", async (c) => {
         ok: false,
         error: "Context upload failed",
         message: String(err),
-        code: "UPLOAD_FAILED",
+        code: "UPLOAD_FAILED"
       },
       500
     );
@@ -196,7 +193,7 @@ deployContextRouter.post("/compose", async (c) => {
       deploymentId,
       serverId: body.server,
       projectId: body.project || undefined,
-      composeLength: body.compose.length,
+      composeLength: body.compose.length
     })
   );
 
@@ -204,6 +201,6 @@ deployContextRouter.post("/compose", async (c) => {
     ok: true,
     deploymentId,
     serverId: body.server,
-    message: `Compose deployment ${deploymentId} queued.`,
+    message: `Compose deployment ${deploymentId} queued.`
   });
 });

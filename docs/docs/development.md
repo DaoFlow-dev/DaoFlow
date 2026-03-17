@@ -26,13 +26,13 @@ docker compose -f docker-compose.dev.yml up -d
 
 This starts:
 
-| Service              | Port  | Description                          |
-|----------------------|-------|--------------------------------------|
-| `postgres`           | 5432  | DaoFlow primary database (pgvector)  |
-| `redis`              | 6379  | Background job queue + SSE streaming |
-| `temporal-postgresql`| —     | Temporal's own Postgres instance     |
-| `temporal`           | 7233  | Temporal workflow engine             |
-| `temporal-ui`        | 8233  | Temporal web dashboard               |
+| Service               | Port | Description                          |
+| --------------------- | ---- | ------------------------------------ |
+| `postgres`            | 5432 | DaoFlow primary database (pgvector)  |
+| `redis`               | 6379 | Background job queue + SSE streaming |
+| `temporal-postgresql` | —    | Temporal's own Postgres instance     |
+| `temporal`            | 7233 | Temporal workflow engine             |
+| `temporal-ui`         | 8233 | Temporal web dashboard               |
 
 > **Note:** Temporal auto-setup takes 2–3 minutes on first boot (schema migrations). Check with `docker logs daoflow-temporal-1 -f`.
 
@@ -192,14 +192,14 @@ DaoFlow bundles the local directory as tar.gz, uploads it to the server, which S
 
 DaoFlow respects **both** `.dockerignore` and `.daoflowignore`:
 
-| File | Purpose |
-|------|---------|
-| `.dockerignore` | Standard Docker ignore rules (e.g., `node_modules`, `.git`) |
+| File             | Purpose                                                                                                              |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `.dockerignore`  | Standard Docker ignore rules (e.g., `node_modules`, `.git`)                                                          |
 | `.daoflowignore` | DaoFlow-specific overrides — lines starting with `!` force-include files excluded by `.dockerignore` (e.g., `!.env`) |
 
 Both files are applied in order: `.dockerignore` first, then `.daoflowignore` as additive overrides.
 
-#### Configuration (daoflow.config.*)
+#### Configuration (daoflow.config.\*)
 
 Create a `daoflow.config.jsonc` (or `.json`, `.yaml`, `.toml`) for deployment defaults:
 
@@ -210,8 +210,8 @@ Create a `daoflow.config.jsonc` (or `.json`, `.yaml`, `.toml`) for deployment de
   "server": "production",
   "compose": "compose.yaml",
   "context": ".",
-  "include": [".env"],        // force-include (overrides .dockerignore)
-  "maxContextSize": "500mb"   // safety limit
+  "include": [".env"], // force-include (overrides .dockerignore)
+  "maxContextSize": "500mb" // safety limit
 }
 ```
 
@@ -238,14 +238,14 @@ DaoFlow/
 
 ## Useful Commands
 
-| Command | Description |
-|---------|-------------|
-| `bun install` | Install all workspace dependencies |
-| `bun run dev` | Start DaoFlow dev server |
-| `bun run db:push` | Push Drizzle schema to Postgres |
-| `bun run typecheck` | Type-check all packages |
-| `bun run lint` | Run ESLint across the monorepo |
-| `bun run test:e2e` | Run Playwright E2E tests |
-| `docker compose -f docker-compose.dev.yml up -d` | Start local infrastructure |
-| `docker compose -f docker-compose.dev.yml down` | Stop local infrastructure |
-| `docker compose -f docker-compose.dev.yml logs -f temporal` | Follow Temporal logs |
+| Command                                                     | Description                        |
+| ----------------------------------------------------------- | ---------------------------------- |
+| `bun install`                                               | Install all workspace dependencies |
+| `bun run dev`                                               | Start DaoFlow dev server           |
+| `bun run db:push`                                           | Push Drizzle schema to Postgres    |
+| `bun run typecheck`                                         | Type-check all packages            |
+| `bun run lint`                                              | Run ESLint across the monorepo     |
+| `bun run test:e2e`                                          | Run Playwright E2E tests           |
+| `docker compose -f docker-compose.dev.yml up -d`            | Start local infrastructure         |
+| `docker compose -f docker-compose.dev.yml down`             | Stop local infrastructure          |
+| `docker compose -f docker-compose.dev.yml logs -f temporal` | Follow Temporal logs               |

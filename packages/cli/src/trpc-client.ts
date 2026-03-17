@@ -4,11 +4,7 @@
  * Uses `@trpc/client` with the shared `AppRouter` type from `@daoflow/server/router`
  * so every CLI command gets full type-safety without duplicating return types.
  */
-import {
-  createTRPCClient,
-  httpLink,
-  type TRPCClient,
-} from "@trpc/client";
+import { createTRPCClient, httpLink, type TRPCClient } from "@trpc/client";
 import type { AppRouter } from "@daoflow/server/router";
 import { getCurrentContext, type DaoFlowContext } from "./config";
 
@@ -34,10 +30,10 @@ export function createClient(ctx?: DaoFlowContext): DaoFlowTRPC {
         url: `${baseUrl}/trpc`,
         headers() {
           return {
-            Cookie: `better-auth.session_token=${resolved.token}`,
+            Cookie: `better-auth.session_token=${resolved.token}`
           };
-        },
-      }),
-    ],
+        }
+      })
+    ]
   });
 }

@@ -59,15 +59,24 @@ function sshArgs(target: SSHTarget): string[] {
   const keyPath = target.privateKeyPath ?? join(SSH_KEY_DIR, "id_ed25519");
 
   const args = [
-    "-o", "StrictHostKeyChecking=accept-new",
-    "-o", `ConnectTimeout=${SSH_CONNECT_TIMEOUT}`,
-    "-o", `ControlMaster=auto`,
-    "-o", `ControlPath=${controlPath}`,
-    "-o", `ControlPersist=60`,
-    "-o", "BatchMode=yes",
-    "-o", "ServerAliveInterval=15",
-    "-o", "ServerAliveCountMax=3",
-    "-p", String(target.port),
+    "-o",
+    "StrictHostKeyChecking=accept-new",
+    "-o",
+    `ConnectTimeout=${SSH_CONNECT_TIMEOUT}`,
+    "-o",
+    `ControlMaster=auto`,
+    "-o",
+    `ControlPath=${controlPath}`,
+    "-o",
+    `ControlPersist=60`,
+    "-o",
+    "BatchMode=yes",
+    "-o",
+    "ServerAliveInterval=15",
+    "-o",
+    "ServerAliveCountMax=3",
+    "-p",
+    String(target.port)
   ];
 
   if (existsSync(keyPath)) {
@@ -93,14 +102,14 @@ export function execRemote(
     onLog({
       stream: "stdout",
       message: `[ssh] ${target.serverName} → ${remoteCommand.slice(0, 120)}`,
-      timestamp: new Date(),
+      timestamp: new Date()
     });
 
     let child: ChildProcess;
     try {
       child = spawn("ssh", args, {
         stdio: ["ignore", "pipe", "pipe"],
-        env: { ...process.env },
+        env: { ...process.env }
       });
     } catch (err) {
       reject(err instanceof Error ? err : new Error(String(err)));
@@ -149,13 +158,13 @@ export async function testSSHConnection(
     return {
       reachable: result.exitCode === 0,
       latencyMs,
-      error: result.exitCode !== 0 ? `SSH exited with code ${result.exitCode}` : undefined,
+      error: result.exitCode !== 0 ? `SSH exited with code ${result.exitCode}` : undefined
     };
   } catch (err) {
     return {
       reachable: false,
       latencyMs: Date.now() - start,
-      error: err instanceof Error ? err.message : String(err),
+      error: err instanceof Error ? err.message : String(err)
     };
   }
 }
@@ -246,7 +255,8 @@ export async function remoteDockerRun(
   if (options.network) cmd += ` --network ${shellQuote(options.network)}`;
   for (const p of options.ports ?? []) cmd += ` -p ${shellQuote(p)}`;
   for (const v of options.volumes ?? []) cmd += ` -v ${shellQuote(v)}`;
-  for (const [k, val] of Object.entries(options.env ?? {})) cmd += ` -e ${shellQuote(`${k}=${val}`)}`;
+  for (const [k, val] of Object.entries(options.env ?? {}))
+    cmd += ` -e ${shellQuote(`${k}=${val}`)}`;
   cmd += ` ${shellQuote(tag)}`;
 
   const result = await execRemote(target, cmd, onLog);
@@ -354,13 +364,20 @@ export function scpUpload(
     const keyPath = target.privateKeyPath ?? join(SSH_KEY_DIR, "id_ed25519");
 
     const args = [
-      "-o", "StrictHostKeyChecking=accept-new",
-      "-o", `ConnectTimeout=${SSH_CONNECT_TIMEOUT}`,
-      "-o", `ControlMaster=auto`,
-      "-o", `ControlPath=${controlPath}`,
-      "-o", `ControlPersist=60`,
-      "-o", "BatchMode=yes",
-      "-P", String(target.port),
+      "-o",
+      "StrictHostKeyChecking=accept-new",
+      "-o",
+      `ConnectTimeout=${SSH_CONNECT_TIMEOUT}`,
+      "-o",
+      `ControlMaster=auto`,
+      "-o",
+      `ControlPath=${controlPath}`,
+      "-o",
+      `ControlPersist=60`,
+      "-o",
+      "BatchMode=yes",
+      "-P",
+      String(target.port)
     ];
 
     if (existsSync(keyPath)) {
@@ -372,14 +389,14 @@ export function scpUpload(
     onLog({
       stream: "stdout",
       message: `[scp] ${target.serverName} → ${localPath} → ${remotePath}`,
-      timestamp: new Date(),
+      timestamp: new Date()
     });
 
     let child: ChildProcess;
     try {
       child = spawn("scp", args, {
         stdio: ["ignore", "pipe", "pipe"],
-        env: { ...process.env },
+        env: { ...process.env }
       });
     } catch (err) {
       reject(err instanceof Error ? err : new Error(String(err)));

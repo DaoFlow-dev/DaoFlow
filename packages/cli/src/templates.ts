@@ -40,7 +40,7 @@ export async function fetchComposeYml(): Promise<string> {
   // Try downloading from GitHub first
   try {
     const response = await fetch(COMPOSE_RAW_URL, {
-      signal: AbortSignal.timeout(10_000), // 10s timeout
+      signal: AbortSignal.timeout(10_000) // 10s timeout
     });
     if (response.ok) {
       const content = await response.text();
@@ -59,7 +59,7 @@ export async function fetchComposeYml(): Promise<string> {
 
   throw new Error(
     "Could not fetch docker-compose.yml from GitHub and no embedded copy available.\n" +
-    `Try downloading manually: curl -fsSL ${COMPOSE_RAW_URL} -o docker-compose.yml`
+      `Try downloading manually: curl -fsSL ${COMPOSE_RAW_URL} -o docker-compose.yml`
   );
 }
 

@@ -14,15 +14,8 @@
   "dockerfile": "Dockerfile",
 
   // Context bundling overrides
-  "ignore": [
-    "*.log",
-    ".vscode/",
-    "coverage/"
-  ],
-  "include": [
-    ".env",
-    ".env.production"
-  ],
+  "ignore": ["*.log", ".vscode/", "coverage/"],
+  "include": [".env", ".env.production"],
 
   // Safety limit for context upload
   "maxContextSize": "500mb",

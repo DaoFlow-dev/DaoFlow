@@ -12,11 +12,19 @@
  * build context to the daemon — we just ship it to the DaoFlow server instead.
  */
 
-import { readdirSync, readFileSync, statSync, existsSync, createWriteStream } from "node:fs";
+import {
+  readdirSync,
+  readFileSync,
+  statSync,
+  existsSync,
+  writeFileSync,
+  unlinkSync
+} from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { execSync } from "node:child_process";
 import dockerignore from "@balena/dockerignore";
+import { parse as parseYaml } from "yaml";
 
 export interface BundleResult {
   tarPath: string;
@@ -65,11 +73,14 @@ export async function createContextBundle(opts: BundleOptions): Promise<BundleRe
   let daoflowIncludes: string[] = [];
   if (existsSync(daoflowIgnorePath)) {
     const content = readFileSync(daoflowIgnorePath, "utf-8");
-    const lines = content.split("\n").map(l => l.trim()).filter(l => l && !l.startsWith("#"));
+    const lines = content
+      .split("\n")
+      .map((l) => l.trim())
+      .filter((l) => l && !l.startsWith("#"));
     // Lines starting with ! are force-includes (override .dockerignore)
-    daoflowIncludes = lines.filter(l => l.startsWith("!")).map(l => l.slice(1));
+    daoflowIncludes = lines.filter((l) => l.startsWith("!")).map((l) => l.slice(1));
     // Non-! lines are extra ignores
-    const extraIgnores = lines.filter(l => !l.startsWith("!"));
+    const extraIgnores = lines.filter((l) => !l.startsWith("!"));
     if (extraIgnores.length) ig.add(extraIgnores);
   }
 
@@ -97,7 +108,7 @@ export async function createContextBundle(opts: BundleOptions): Promise<BundleRe
         walk(fullPath);
       } else if (entry.isFile() || entry.isSymbolicLink()) {
         const ignored = ig.ignores(relPath);
-        const forceIncluded = daoflowIncludes.some(pattern => {
+        const forceIncluded = daoflowIncludes.some((pattern) => {
           // Simple glob matching: support exact match and * wildcard
           if (pattern === relPath) return true;
           if (pattern.startsWith("*.")) {
@@ -128,29 +139,38 @@ export async function createContextBundle(opts: BundleOptions): Promise<BundleRe
 
   // Write file list to temp file for tar --files-from
   const fileListPath = join(tmpdir(), `daoflow-filelist-${Date.now()}.txt`);
-  const { writeFileSync: writeSync } = await import("node:fs");
-  writeSync(fileListPath, files.join("\n") + "\n");
+  writeFileSync(fileListPath, files.join("\n") + "\n");
 
   try {
     execSync(`tar -czf ${tarPath} -C ${contextPath} --files-from=${fileListPath}`, {
       stdio: "pipe",
-      maxBuffer: 10 * 1024 * 1024, // 10MB for stderr
+      maxBuffer: 10 * 1024 * 1024 // 10MB for stderr
     });
   } catch (err) {
-    throw new Error(`Failed to create context archive: ${err instanceof Error ? err.message : err}`);
+    throw new Error(
+      `Failed to create context archive: ${err instanceof Error ? err.message : err}`
+    );
   } finally {
-    try { execSync(`rm -f ${fileListPath}`); } catch { /* best-effort */ }
+    try {
+      unlinkSync(fileListPath);
+    } catch {
+      /* best-effort */
+    }
   }
 
   const sizeBytes = statSync(tarPath).size;
 
   if (sizeBytes > maxSize) {
-    try { execSync(`rm -f ${tarPath}`); } catch { /* best-effort */ }
+    try {
+      unlinkSync(tarPath);
+    } catch {
+      /* best-effort */
+    }
     const sizeMB = (sizeBytes / 1024 / 1024).toFixed(1);
     const maxMB = (maxSize / 1024 / 1024).toFixed(0);
     throw new Error(
       `Context too large: ${sizeMB}MB exceeds ${maxMB}MB limit. ` +
-      `Add entries to .dockerignore to reduce context size.`
+        `Add entries to .dockerignore to reduce context size.`
     );
   }
 
@@ -158,7 +178,7 @@ export async function createContextBundle(opts: BundleOptions): Promise<BundleRe
     tarPath,
     fileCount: files.length,
     sizeBytes,
-    includedOverrides,
+    includedOverrides
   };
 }
 
@@ -169,8 +189,7 @@ export async function createContextBundle(opts: BundleOptions): Promise<BundleRe
 export function detectLocalBuildContexts(
   composeContent: string
 ): { serviceName: string; context: string; dockerfile?: string }[] {
-  const { parse } = require("yaml");
-  const doc = parse(composeContent);
+  const doc = parseYaml(composeContent) as Record<string, unknown> | null;
   const results: { serviceName: string; context: string; dockerfile?: string }[] = [];
 
   if (!doc?.services) return results;
@@ -186,7 +205,7 @@ export function detectLocalBuildContexts(
         results.push({
           serviceName: name,
           context: build.context,
-          dockerfile: typeof build.dockerfile === "string" ? build.dockerfile : undefined,
+          dockerfile: typeof build.dockerfile === "string" ? build.dockerfile : undefined
         });
       }
     }

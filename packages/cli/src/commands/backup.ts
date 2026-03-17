@@ -59,7 +59,9 @@ export function backupCommand(): Command {
         }
         console.log("");
       } catch (err) {
-        console.error(JSON.stringify({ ok: false, error: err instanceof Error ? err.message : "Unknown error" }));
+        console.error(
+          JSON.stringify({ ok: false, error: err instanceof Error ? err.message : "Unknown error" })
+        );
         process.exit(1);
       }
     });
@@ -75,13 +77,17 @@ export function backupCommand(): Command {
     .action(async (opts: { policyId: string; json?: boolean; dryRun?: boolean; yes?: boolean }) => {
       if (opts.dryRun) {
         console.log(
-          JSON.stringify({
-            ok: true,
-            dryRun: true,
-            action: "backup.run",
-            policyId: opts.policyId,
-            message: "Would trigger a backup run for this policy"
-          }, null, 2)
+          JSON.stringify(
+            {
+              ok: true,
+              dryRun: true,
+              action: "backup.run",
+              policyId: opts.policyId,
+              message: "Would trigger a backup run for this policy"
+            },
+            null,
+            2
+          )
         );
         process.exit(3);
       }
@@ -102,7 +108,9 @@ export function backupCommand(): Command {
           console.log(chalk.green(`✅ Backup run queued: ${result.id}`));
         }
       } catch (err) {
-        console.error(JSON.stringify({ ok: false, error: err instanceof Error ? err.message : "Unknown error" }));
+        console.error(
+          JSON.stringify({ ok: false, error: err instanceof Error ? err.message : "Unknown error" })
+        );
         process.exit(1);
       }
     });
@@ -115,40 +123,51 @@ export function backupCommand(): Command {
     .option("--json", "Output as JSON")
     .option("--dry-run", "Preview without executing")
     .option("-y, --yes", "Skip confirmation")
-    .action(async (opts: { backupRunId: string; json?: boolean; dryRun?: boolean; yes?: boolean }) => {
-      if (opts.dryRun) {
-        console.log(
-          JSON.stringify({
-            ok: true,
-            dryRun: true,
-            action: "backup.restore",
-            backupRunId: opts.backupRunId,
-            message: "Would queue a restore from this backup run"
-          }, null, 2)
-        );
-        process.exit(3);
-      }
+    .action(
+      async (opts: { backupRunId: string; json?: boolean; dryRun?: boolean; yes?: boolean }) => {
+        if (opts.dryRun) {
+          console.log(
+            JSON.stringify(
+              {
+                ok: true,
+                dryRun: true,
+                action: "backup.restore",
+                backupRunId: opts.backupRunId,
+                message: "Would queue a restore from this backup run"
+              },
+              null,
+              2
+            )
+          );
+          process.exit(3);
+        }
 
-      try {
-        const trpc = createClient();
+        try {
+          const trpc = createClient();
 
-        if (!opts.yes) {
-          console.error(`To restore from backup ${opts.backupRunId}, add --yes`);
+          if (!opts.yes) {
+            console.error(`To restore from backup ${opts.backupRunId}, add --yes`);
+            process.exit(1);
+          }
+
+          const result = await trpc.queueBackupRestore.mutate({ backupRunId: opts.backupRunId });
+
+          if (opts.json) {
+            console.log(JSON.stringify({ ok: true, ...result }, null, 2));
+          } else {
+            console.log(chalk.green(`✅ Restore queued: ${result.id}`));
+          }
+        } catch (err) {
+          console.error(
+            JSON.stringify({
+              ok: false,
+              error: err instanceof Error ? err.message : "Unknown error"
+            })
+          );
           process.exit(1);
         }
-
-        const result = await trpc.queueBackupRestore.mutate({ backupRunId: opts.backupRunId });
-
-        if (opts.json) {
-          console.log(JSON.stringify({ ok: true, ...result }, null, 2));
-        } else {
-          console.log(chalk.green(`✅ Restore queued: ${result.id}`));
-        }
-      } catch (err) {
-        console.error(JSON.stringify({ ok: false, error: err instanceof Error ? err.message : "Unknown error" }));
-        process.exit(1);
       }
-    });
+    );
 
   return backup;
 }

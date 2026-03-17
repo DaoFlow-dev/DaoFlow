@@ -24,11 +24,11 @@ daoflow deploy --compose ./compose.yaml --server my-server --yes
 
 This example includes DaoFlow config files in **three formats** — use whichever you prefer:
 
-| File | Format | Status |
-|------|--------|--------|
+| File                   | Format                | Status      |
+| ---------------------- | --------------------- | ----------- |
 | `daoflow.config.jsonc` | JSONC (with comments) | **Primary** |
-| `daoflow.config.yaml` | YAML | Alternative |
-| `daoflow.config.toml` | TOML | Alternative |
+| `daoflow.config.yaml`  | YAML                  | Alternative |
+| `daoflow.config.toml`  | TOML                  | Alternative |
 
 > **Note:** Only keep one config file in your project. DaoFlow loads the first one found (JSONC → JSON → YAML → TOML).
 

@@ -213,7 +213,7 @@ export function installCommand(): Command {
         domain,
         port,
         postgresPassword: (opts as any)._pgPassword,
-        temporalPostgresPassword: (opts as any)._temporalPgPassword,
+        temporalPostgresPassword: (opts as any)._temporalPgPassword
       });
       writeFileSync(envPath, envContent, { mode: 0o600 });
       envSpinner?.succeed("Secrets generated and saved to .env");
@@ -227,7 +227,9 @@ export function installCommand(): Command {
       } catch (e: any) {
         composeSpinner?.fail("Failed to fetch docker-compose.yml");
         if (isJson) {
-          console.log(JSON.stringify({ ok: false, error: e.message, code: "COMPOSE_FETCH_FAILED" }));
+          console.log(
+            JSON.stringify({ ok: false, error: e.message, code: "COMPOSE_FETCH_FAILED" })
+          );
         } else {
           console.error(chalk.red(e.message));
         }

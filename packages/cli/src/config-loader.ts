@@ -9,6 +9,9 @@
 
 import { existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
+import * as jsoncParser from "jsonc-parser";
+import * as yamlParser from "yaml";
+import * as tomlParser from "smol-toml";
 
 export interface DaoflowConfig {
   /** JSON Schema URL for IDE autocompletion */
@@ -41,7 +44,7 @@ const CONFIG_FILES = [
   "daoflow.config.json",
   "daoflow.config.yaml",
   "daoflow.config.yml",
-  "daoflow.config.toml",
+  "daoflow.config.toml"
 ] as const;
 
 export interface ConfigLoadResult {
@@ -84,11 +87,10 @@ function detectFormat(filename: string): "jsonc" | "json" | "yaml" | "toml" {
 function parseConfig(content: string, format: "jsonc" | "json" | "yaml" | "toml"): DaoflowConfig {
   switch (format) {
     case "jsonc": {
-      const { parse } = require("jsonc-parser");
-      const errors: unknown[] = [];
-      const result = parse(content, errors, {
+      const errors: jsoncParser.ParseError[] = [];
+      const result = jsoncParser.parse(content, errors, {
         disallowComments: false,
-        allowTrailingComma: true,
+        allowTrailingComma: true
       });
       if (errors.length > 0) {
         throw new Error(`Invalid JSONC: ${errors.length} parse error(s)`);
@@ -99,15 +101,11 @@ function parseConfig(content: string, format: "jsonc" | "json" | "yaml" | "toml"
     case "json":
       return JSON.parse(content) as DaoflowConfig;
 
-    case "yaml": {
-      const { parse } = require("yaml");
-      return parse(content) as DaoflowConfig;
-    }
+    case "yaml":
+      return yamlParser.parse(content) as DaoflowConfig;
 
-    case "toml": {
-      const { parse } = require("smol-toml");
-      return parse(content) as DaoflowConfig;
-    }
+    case "toml":
+      return tomlParser.parse(content) as unknown as DaoflowConfig;
   }
 }
 
@@ -126,7 +124,7 @@ export function parseSizeString(size: string): number {
     kb: 1024,
     mb: 1024 * 1024,
     gb: 1024 * 1024 * 1024,
-    tb: 1024 * 1024 * 1024 * 1024,
+    tb: 1024 * 1024 * 1024 * 1024
   };
 
   return Math.floor(value * multipliers[unit]);

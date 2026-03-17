@@ -18,7 +18,7 @@
 
 import { Command } from "commander";
 import chalk from "chalk";
-import { createReadStream, readFileSync, statSync, existsSync } from "node:fs";
+import { createReadStream, readFileSync, statSync, existsSync, unlinkSync } from "node:fs";
 import { resolve } from "node:path";
 import { createClient } from "../trpc-client";
 import { getCurrentContext } from "../config";
@@ -76,7 +76,7 @@ export function deployCommand(): Command {
             prompt: opts.prompt !== false,
             yes: opts.yes,
             json: isJson,
-            config: cfg,
+            config: cfg
           });
           return;
         }
@@ -180,7 +180,9 @@ interface ComposeDeployOpts {
   yes?: boolean;
   json?: boolean;
   config?: ReturnType<typeof loadDaoflowConfig> extends infer R
-    ? R extends { config: infer C } ? C : undefined
+    ? R extends { config: infer C }
+      ? C
+      : undefined
     : undefined;
 }
 
@@ -199,7 +201,7 @@ async function handleComposeDeploy(opts: ComposeDeployOpts): Promise<void> {
   const localContexts = detectLocalBuildContexts(composeContent);
 
   const hasLocalContext = localContexts.some(
-    c => c.context === "." || c.context.startsWith("./") || !c.context.includes(":")
+    (c) => c.context === "." || c.context.startsWith("./") || !c.context.includes(":")
   );
 
   if (!opts.serverId) {
@@ -225,7 +227,7 @@ async function handleComposeDeploy(opts: ComposeDeployOpts): Promise<void> {
           hasLocalContext ? "SCP context to target server" : null,
           "docker compose up -d --build",
           "health check"
-        ].filter(Boolean),
+        ].filter(Boolean)
       }
     };
 
@@ -238,18 +240,22 @@ async function handleComposeDeploy(opts: ComposeDeployOpts): Promise<void> {
           extraInclude: (opts.config as Record<string, unknown>)?.include as string[] | undefined,
           maxSizeBytes: (opts.config as Record<string, unknown>)?.maxContextSize
             ? parseSizeString((opts.config as Record<string, unknown>).maxContextSize as string)
-            : undefined,
+            : undefined
         });
 
         const sizeMB = (bundle.sizeBytes / 1024 / 1024).toFixed(1);
         (plan.plan as Record<string, unknown>).contextBundle = {
           fileCount: bundle.fileCount,
           size: `${sizeMB}MB`,
-          includedOverrides: bundle.includedOverrides,
+          includedOverrides: bundle.includedOverrides
         };
 
         // Cleanup temp tar
-        try { require("node:fs").unlinkSync(bundle.tarPath); } catch { /* best-effort */ }
+        try {
+          unlinkSync(bundle.tarPath);
+        } catch {
+          /* best-effort */
+        }
       } catch (err) {
         (plan.plan as Record<string, unknown>).contextBundleError =
           err instanceof Error ? err.message : String(err);
@@ -263,17 +269,22 @@ async function handleComposeDeploy(opts: ComposeDeployOpts): Promise<void> {
       console.log(`  Compose:  ${opts.composePath}`);
       console.log(`  Context:  ${opts.contextPath}`);
       console.log(`  Server:   ${opts.serverId}`);
-      console.log(`  Upload:   ${hasLocalContext ? chalk.yellow("yes (local build context)") : chalk.green("no (pre-built images)")}`);
+      console.log(
+        `  Upload:   ${hasLocalContext ? chalk.yellow("yes (local build context)") : chalk.green("no (pre-built images)")}`
+      );
 
       if (localContexts.length > 0) {
         console.log(chalk.bold("\n  Local Build Contexts:"));
         for (const ctx of localContexts) {
-          console.log(`    ${chalk.cyan(ctx.serviceName)}  context=${ctx.context}  dockerfile=${ctx.dockerfile ?? "Dockerfile"}`);
+          console.log(
+            `    ${chalk.cyan(ctx.serviceName)}  context=${ctx.context}  dockerfile=${ctx.dockerfile ?? "Dockerfile"}`
+          );
         }
       }
 
       const bundleInfo = (plan.plan as Record<string, unknown>).contextBundle as
-        { fileCount: number; size: string; includedOverrides: string[] } | undefined;
+        | { fileCount: number; size: string; includedOverrides: string[] }
+        | undefined;
       if (bundleInfo) {
         console.log(chalk.bold("\n  Context Bundle:"));
         console.log(`    Files:     ${bundleInfo.fileCount}`);
@@ -294,12 +305,15 @@ async function handleComposeDeploy(opts: ComposeDeployOpts): Promise<void> {
 
   // ── Interactive prompt ───────────────────────────────────
   if (hasLocalContext && opts.prompt && !opts.yes) {
-    const sizeMB = await estimateContextSize(resolvedContext, opts.config as Record<string, unknown> | undefined);
+    const sizeMB = await estimateContextSize(
+      resolvedContext,
+      opts.config as Record<string, unknown> | undefined
+    );
     console.log(
       chalk.yellow(
         `\n⚠  ${localContexts.length} service(s) use local build context (${sizeMB}).\n` +
-        `   Context will be bundled, uploaded to DaoFlow, and built on server ${opts.serverId}.\n` +
-        `   Pass --yes to confirm, or --dry-run to preview.\n`
+          `   Context will be bundled, uploaded to DaoFlow, and built on server ${opts.serverId}.\n` +
+          `   Pass --yes to confirm, or --dry-run to preview.\n`
       )
     );
     process.exit(1);
@@ -321,11 +335,13 @@ async function handleComposeDeploy(opts: ComposeDeployOpts): Promise<void> {
     }
   } catch (err) {
     if (opts.json) {
-      console.log(JSON.stringify({
-        ok: false,
-        error: err instanceof Error ? err.message : "Unknown error",
-        code: "DEPLOY_ERROR"
-      }));
+      console.log(
+        JSON.stringify({
+          ok: false,
+          error: err instanceof Error ? err.message : "Unknown error",
+          code: "DEPLOY_ERROR"
+        })
+      );
     } else {
       console.error(chalk.red(`✗ Deployment failed: ${err instanceof Error ? err.message : err}`));
     }
@@ -348,16 +364,16 @@ async function executeContextDeploy(
     contextPath,
     extraIgnore: cfg?.ignore as string[] | undefined,
     extraInclude: cfg?.include as string[] | undefined,
-    maxSizeBytes: cfg?.maxContextSize
-      ? parseSizeString(cfg.maxContextSize as string)
-      : undefined,
+    maxSizeBytes: cfg?.maxContextSize ? parseSizeString(cfg.maxContextSize as string) : undefined
   });
 
   const sizeMB = (bundle.sizeBytes / 1024 / 1024).toFixed(1);
   if (!isJson) {
     console.log(chalk.green(`✓ Bundled ${bundle.fileCount} files (${sizeMB}MB)`));
     if (bundle.includedOverrides.length > 0) {
-      console.log(chalk.yellow(`  ⚠ Included override files: ${bundle.includedOverrides.join(", ")}`));
+      console.log(
+        chalk.yellow(`  ⚠ Included override files: ${bundle.includedOverrides.join(", ")}`)
+      );
     }
   }
 
@@ -376,7 +392,7 @@ async function executeContextDeploy(
     "Content-Type": "application/gzip",
     "Content-Length": String(fileSize),
     "X-DaoFlow-Server": opts.serverId ?? "",
-    "X-DaoFlow-Compose": Buffer.from(composeContent).toString("base64"),
+    "X-DaoFlow-Compose": Buffer.from(composeContent).toString("base64")
   };
 
   if (cfg?.project) headers["X-DaoFlow-Project"] = cfg.project as string;
@@ -385,18 +401,22 @@ async function executeContextDeploy(
     method: "POST",
     headers,
     body: stream as unknown as BodyInit,
-    duplex: "half",
+    duplex: "half"
   } as RequestInit & { duplex: string });
 
   // Cleanup temp tar
-  try { require("node:fs").unlinkSync(bundle.tarPath); } catch { /* best-effort */ }
+  try {
+    unlinkSync(bundle.tarPath);
+  } catch {
+    /* best-effort */
+  }
 
   if (!res.ok) {
     const body = await res.text();
     throw new Error(`Upload failed (${res.status}): ${body}`);
   }
 
-  const result = await res.json() as {
+  const result = (await res.json()) as {
     ok: boolean;
     deploymentId?: string;
     contextId?: string;
@@ -426,7 +446,7 @@ async function executeRemoteComposeDeploy(
 
   const headers: Record<string, string> = {
     Cookie: `better-auth.session_token=${ctx.token}`,
-    "Content-Type": "application/json",
+    "Content-Type": "application/json"
   };
 
   const res = await fetch(`${ctx.apiUrl.replace(/\/$/, "")}/api/v1/deploy/compose`, {
@@ -435,8 +455,8 @@ async function executeRemoteComposeDeploy(
     body: JSON.stringify({
       server: opts.serverId,
       compose: composeContent,
-      project: (opts.config as Record<string, unknown>)?.project,
-    }),
+      project: (opts.config as Record<string, unknown>)?.project
+    })
   });
 
   if (!res.ok) {
@@ -444,7 +464,7 @@ async function executeRemoteComposeDeploy(
     throw new Error(`Deploy failed (${res.status}): ${body}`);
   }
 
-  const result = await res.json() as { ok: boolean; deploymentId?: string; error?: string };
+  const result = (await res.json()) as { ok: boolean; deploymentId?: string; error?: string };
 
   if (isJson) {
     console.log(JSON.stringify(result));
@@ -462,10 +482,14 @@ async function estimateContextSize(
     const bundle = await createContextBundle({
       contextPath,
       extraIgnore: cfg?.ignore as string[] | undefined,
-      extraInclude: cfg?.include as string[] | undefined,
+      extraInclude: cfg?.include as string[] | undefined
     });
     const sizeMB = (bundle.sizeBytes / 1024 / 1024).toFixed(1);
-    try { require("node:fs").unlinkSync(bundle.tarPath); } catch { /* best-effort */ }
+    try {
+      unlinkSync(bundle.tarPath);
+    } catch {
+      /* best-effort */
+    }
     return `${sizeMB}MB, ${bundle.fileCount} files`;
   } catch {
     return "unknown size";
