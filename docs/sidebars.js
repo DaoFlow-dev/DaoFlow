@@ -9,7 +9,8 @@ const sidebars = {
         "getting-started/index",
         "getting-started/installation",
         "getting-started/first-deployment",
-        "getting-started/configuration"
+        "getting-started/configuration",
+        "development"
       ]
     },
     {
