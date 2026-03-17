@@ -368,7 +368,7 @@ export function backupCommand(): Command {
         const result = await trpc.deleteBackupDestination.mutate({ id: opts.id });
 
         if (opts.json) {
-          console.log(JSON.stringify({ ok: true, ...result }, null, 2));
+          console.log(JSON.stringify(result, null, 2));
         } else {
           console.log(chalk.green(`✅ Destination deleted`));
         }

@@ -146,7 +146,10 @@ export default function DestinationsPage() {
               {/* Provider */}
               <div className="grid gap-1.5">
                 <Label>Provider</Label>
-                <Select value={provider} onValueChange={(v) => setProvider(v as ProviderKey)}>
+                <Select
+                  value={provider}
+                  onValueChange={(v: string) => setProvider(v as ProviderKey)}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Select provider" />
                   </SelectTrigger>
@@ -247,7 +250,9 @@ export default function DestinationsPage() {
                     placeholder="Paste the JSON token from rclone authorize..."
                     rows={4}
                     value={rcloneConfig}
-                    onChange={(e) => setRcloneConfig(e.target.value)}
+                    onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
+                      setRcloneConfig(e.target.value)
+                    }
                   />
                   <p className="text-xs text-muted-foreground">
                     Run <code>rclone authorize "{provider === "gdrive" ? "drive" : provider}"</code>{" "}
@@ -266,7 +271,9 @@ export default function DestinationsPage() {
                       placeholder={"[remote]\ntype = sftp\nhost = backup.example.com\nuser = admin"}
                       rows={4}
                       value={rcloneConfig}
-                      onChange={(e) => setRcloneConfig(e.target.value)}
+                      onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
+                        setRcloneConfig(e.target.value)
+                      }
                     />
                   </div>
                   <div className="grid gap-1.5">
