@@ -17,6 +17,13 @@ test.describe("Temporal workflow execution", () => {
     await signInAsOwner(page);
 
     const suffix = Date.now().toString();
+    const server = await trpcRequest<{ id: string }>(page, "registerServer", {
+      name: `worker-local-${suffix}`,
+      host: "127.0.0.1",
+      region: "local",
+      sshPort: 22,
+      kind: "docker-engine"
+    });
 
     // Create project → environment → service
     const project = await trpcRequest<{ id: string }>(page, "createProject", {
@@ -27,7 +34,7 @@ test.describe("Temporal workflow execution", () => {
     const environment = await trpcRequest<{ id: string }>(page, "createEnvironment", {
       projectId: project.id,
       name: `worker-env-${suffix}`,
-      targetServerId: "srv_foundation_1"
+      targetServerId: server.id
     });
 
     const service = await trpcRequest<{ id: string; name: string }>(page, "createService", {
@@ -37,7 +44,7 @@ test.describe("Temporal workflow execution", () => {
       sourceType: "image",
       imageReference: "nginx:alpine",
       port: "8080",
-      targetServerId: "srv_foundation_1"
+      targetServerId: server.id
     });
 
     // Trigger a real deployment — worker picks it up via Temporal
