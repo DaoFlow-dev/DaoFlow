@@ -291,4 +291,117 @@ describe("appRouter", () => {
     expect(token.name).toEqual(expect.any(String));
     expect(token).not.toHaveProperty("label");
   });
+
+  // ─── RBAC enforcement tests ─────────────────────────────────
+
+  it("viewer cannot create agents (admin-only route)", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-rbac-viewer-agent",
+      session: makeSession("viewer")
+    });
+
+    await expect(
+      caller.createAgent({
+        name: "test-agent",
+        preset: "agent:read-only"
+      })
+    ).rejects.toMatchObject({ code: "FORBIDDEN" } satisfies Partial<TRPCError>);
+  });
+
+  it("developer cannot create agents (admin-only route)", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-rbac-dev-agent",
+      session: makeSession("developer")
+    });
+
+    await expect(
+      caller.createAgent({
+        name: "test-agent",
+        preset: "agent:read-only"
+      })
+    ).rejects.toMatchObject({ code: "FORBIDDEN" } satisfies Partial<TRPCError>);
+  });
+
+  it("admin can create agent with preset (full end-to-end)", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-admin-create-agent",
+      session: makeSession("admin")
+    });
+
+    const agent = await caller.createAgent({
+      name: `preset-agent-${Date.now().toString(36)}`,
+      preset: "agent:read-only"
+    });
+
+    expect(agent.name).toContain("preset-agent-");
+    expect(agent.type).toBe("agent");
+    expect(agent.status).toBe("active");
+    // Verify scopes were resolved from preset
+    const scopeList = (agent.defaultScopes ?? "").split(",").filter(Boolean);
+    expect(scopeList).toContain("server:read");
+    expect(scopeList).toContain("deploy:read");
+    expect(scopeList).toContain("logs:read");
+    // Read-only preset should not have write scopes
+    expect(scopeList).not.toContain("deploy:start");
+    expect(scopeList).not.toContain("env:write");
+  });
+
+  it("admin can create agent with minimal-write preset", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-admin-minwrite",
+      session: makeSession("admin")
+    });
+
+    const agent = await caller.createAgent({
+      name: `minwrite-agent-${Date.now().toString(36)}`,
+      preset: "agent:minimal-write"
+    });
+
+    const scopeList = (agent.defaultScopes ?? "").split(",").filter(Boolean);
+    // Has read scopes
+    expect(scopeList).toContain("server:read");
+    expect(scopeList).toContain("logs:read");
+    // Has write scopes
+    expect(scopeList).toContain("deploy:start");
+    expect(scopeList).toContain("env:write");
+    // But not server:write (that's full-only)
+    expect(scopeList).not.toContain("server:write");
+  });
+
+  it("admin can create agent with full preset", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-admin-full",
+      session: makeSession("admin")
+    });
+
+    const agent = await caller.createAgent({
+      name: `full-agent-${Date.now().toString(36)}`,
+      preset: "agent:full"
+    });
+
+    const scopeList = (agent.defaultScopes ?? "").split(",").filter(Boolean);
+    expect(scopeList).toContain("server:write");
+    expect(scopeList).toContain("backup:run");
+    expect(scopeList).toContain("backup:restore");
+    // But not admin-only
+    expect(scopeList).not.toContain("terminal:open");
+    expect(scopeList).not.toContain("tokens:manage");
+  });
+
+  it("viewer cannot register a server (admin-only route)", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-rbac-viewer-server",
+      session: makeSession("viewer")
+    });
+
+    await expect(
+      caller.registerServer({
+        name: "forbidden-server",
+        host: "10.0.0.1",
+        region: "us-test",
+        sshPort: 22,
+        kind: "docker-engine"
+      })
+    ).rejects.toMatchObject({ code: "FORBIDDEN" } satisfies Partial<TRPCError>);
+  });
 });
