@@ -5,6 +5,7 @@ const PLAYWRIGHT_BOOTSTRAP_DATABASE_URL =
   process.env.PLAYWRIGHT_DATABASE_URL ??
   process.env.DATABASE_URL ??
   "postgresql://daoflow:daoflow_dev@localhost:5432/daoflow_e2e_bootstrap";
+const SKIP_DB_BOOTSTRAP = process.env.PLAYWRIGHT_SKIP_DB_BOOTSTRAP === "true";
 
 export default defineConfig({
   testDir: "./e2e",
@@ -17,7 +18,9 @@ export default defineConfig({
     trace: "on-first-retry"
   },
   webServer: {
-    command: "bun run db:reset && bun run db:migrate && bun run build && bun run start",
+    command: SKIP_DB_BOOTSTRAP
+      ? "bun run build && bun run start"
+      : "bun run db:reset && bun run db:migrate && bun run build && bun run start",
     env: {
       DATABASE_URL: PLAYWRIGHT_BOOTSTRAP_DATABASE_URL,
       REDIS_URL: process.env.REDIS_URL ?? "redis://localhost:6379",
