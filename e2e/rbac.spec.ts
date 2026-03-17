@@ -32,16 +32,10 @@ test.describe("RBAC and agent tokens", () => {
     const headingFallback = page.getByRole("heading", { name: "Settings" });
     await expect(description.or(headingFallback).first()).toBeVisible({ timeout: 10_000 });
 
-    // Should show either "No API tokens" empty state or the token table
-    const hasTokens = await page
-      .locator("table")
-      .isVisible()
-      .catch(() => false);
-    const hasEmptyState = await page
-      .getByText("No API tokens created yet.")
-      .isVisible()
-      .catch(() => false);
-    expect(hasTokens || hasEmptyState).toBeTruthy();
+    // Wait for either the populated token table or the empty state.
+    const tokenTable = page.locator("table");
+    const emptyState = page.getByText("No API tokens created yet.");
+    await expect(tokenTable.or(emptyState).first()).toBeVisible({ timeout: 10_000 });
   });
 
   test("owner sees full audit trail", async ({ page }) => {

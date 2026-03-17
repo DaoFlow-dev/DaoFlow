@@ -30,7 +30,8 @@ import {
   HardDrive,
   ChevronsUpDown,
   Hexagon,
-  Bot
+  Bot,
+  Radio
 } from "lucide-react";
 
 const homeNav = [
@@ -40,15 +41,16 @@ const homeNav = [
   { to: "/deployments", label: "Deployments", icon: Rocket },
   { to: "/backups", label: "Backups", icon: DatabaseBackup },
   { to: "/destinations", label: "Destinations", icon: HardDrive },
+  { to: "/notifications", label: "Notifications", icon: Radio },
   { to: "/agents", label: "Agents", icon: Bot }
 ] as const;
 
 const settingsNav = [
-  { to: "/settings", label: "General", icon: Settings },
-  { to: "/settings/profile", label: "Profile", icon: User },
-  { to: "/settings/users", label: "Users", icon: Shield },
-  { to: "/settings/ssh-keys", label: "SSH Keys", icon: KeyRound },
-  { to: "/settings/notifications", label: "Notifications", icon: Bell }
+  { to: "/settings", label: "General", icon: Settings, tab: null },
+  { to: "/settings?tab=users", label: "Users", icon: User, tab: "users" },
+  { to: "/settings?tab=tokens", label: "Tokens", icon: KeyRound, tab: "tokens" },
+  { to: "/settings?tab=security", label: "Security", icon: Shield, tab: "security" },
+  { to: "/settings?tab=notifications", label: "Notifications", icon: Bell, tab: "notifications" }
 ] as const;
 
 function breadcrumbFromPath(pathname: string): string[] {
@@ -81,6 +83,20 @@ export function DashboardLayout() {
   }
 
   const userInitial = session.data.user.name?.charAt(0).toUpperCase() ?? "U";
+
+  function isSettingsItemActive(tab: string | null) {
+    if (location.pathname !== "/settings") {
+      return false;
+    }
+
+    const params = new URLSearchParams(location.search);
+    const currentTab = params.get("tab");
+    if (tab === null) {
+      return currentTab === null || currentTab === "general";
+    }
+
+    return currentTab === tab;
+  }
 
   return (
     <div className={`layout${collapsed ? " layout--collapsed" : ""}`}>
@@ -122,9 +138,9 @@ export function DashboardLayout() {
             <NavLink
               key={item.to}
               to={item.to}
-              end
-              className={({ isActive }) =>
-                `sidebar__link${isActive ? " sidebar__link--active" : ""}`
+              end={item.tab === null}
+              className={() =>
+                `sidebar__link${isSettingsItemActive(item.tab) ? " sidebar__link--active" : ""}`
               }
               title={collapsed ? item.label : undefined}
             >

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { trpc } from "../lib/trpc";
 import { useSession } from "../lib/auth-client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -80,12 +80,11 @@ export default function DeploymentsPage() {
                 {deployments.map((d) => {
                   const id = String(d.id);
                   const isExpanded = expandedId === id;
-                  const isSuccessful = d.status === "healthy";
+                  const isSuccessful = d.status === "healthy" && typeof d.serviceId === "string";
 
                   return (
-                    <>
+                    <Fragment key={id}>
                       <TableRow
-                        key={id}
                         className="cursor-pointer hover:bg-muted/50"
                         onClick={() => toggleExpand(id)}
                       >
@@ -121,8 +120,7 @@ export default function DeploymentsPage() {
                               size="sm"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                // Use serviceName to find service for rollback
-                                setRollbackServiceId(String(d.serviceName ?? ""));
+                                setRollbackServiceId(String(d.serviceId));
                               }}
                             >
                               <RotateCcw size={14} className="mr-1" />
@@ -132,13 +130,13 @@ export default function DeploymentsPage() {
                         </TableCell>
                       </TableRow>
                       {isExpanded && (
-                        <TableRow key={`${id}-logs`}>
+                        <TableRow>
                           <TableCell colSpan={6} className="p-0">
                             <DeploymentLogViewer deploymentId={id} />
                           </TableCell>
                         </TableRow>
                       )}
-                    </>
+                    </Fragment>
                   );
                 })}
               </TableBody>
@@ -146,8 +144,6 @@ export default function DeploymentsPage() {
           )}
         </CardContent>
       </Card>
-
-      {/* Rollback dialog — uses serviceName as serviceId lookup */}
       {rollbackServiceId && (
         <DeploymentRollbackDialog
           serviceId={rollbackServiceId}

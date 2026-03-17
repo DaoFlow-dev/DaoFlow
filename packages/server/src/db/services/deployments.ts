@@ -4,7 +4,8 @@ import { auditEntries, events } from "../schema/audit";
 import { deploymentLogs, deployments, deploymentSteps } from "../schema/deployments";
 import { environments, projects } from "../schema/projects";
 import { servers } from "../schema/servers";
-import type { AppRole } from "@daoflow/shared";
+import { services } from "../schema/services";
+import { normalizeDeploymentStatus, type AppRole } from "@daoflow/shared";
 import {
   newId as id,
   asRecord,
@@ -21,25 +22,6 @@ export type DeploymentStatus =
   | "completed"
   | "failed";
 export type DeploymentSourceType = "compose" | "dockerfile" | "image";
-
-function normalizeStatus(
-  status: string,
-  conclusion: string | null
-): "healthy" | "failed" | "running" | "queued" {
-  if (status === "failed" || conclusion === "failed") {
-    return "failed";
-  }
-
-  if (status === "completed" && conclusion === "succeeded") {
-    return "healthy";
-  }
-
-  if (status === "deploy" || status === "prepare" || status === "finalize") {
-    return "running";
-  }
-
-  return "queued";
-}
 
 async function loadProjectEnvironmentByNames(projectName: string, environmentName: string) {
   const [project] = await db.select().from(projects).where(eq(projects.name, projectName)).limit(1);
@@ -60,7 +42,8 @@ async function buildDeploymentIndex(deploymentRows: (typeof deployments.$inferSe
     return {
       projectById: new Map<string, typeof projects.$inferSelect>(),
       environmentById: new Map<string, typeof environments.$inferSelect>(),
-      serverById: new Map<string, typeof servers.$inferSelect>()
+      serverById: new Map<string, typeof servers.$inferSelect>(),
+      serviceByKey: new Map<string, typeof services.$inferSelect>()
     };
   }
 
@@ -68,16 +51,20 @@ async function buildDeploymentIndex(deploymentRows: (typeof deployments.$inferSe
   const environmentIds = [...new Set(deploymentRows.map((row) => row.environmentId))];
   const serverIds = [...new Set(deploymentRows.map((row) => row.targetServerId))];
 
-  const [projectRows, environmentRows, serverRows] = await Promise.all([
+  const [projectRows, environmentRows, serverRows, serviceRows] = await Promise.all([
     db.select().from(projects).where(inArray(projects.id, projectIds)),
     db.select().from(environments).where(inArray(environments.id, environmentIds)),
-    db.select().from(servers).where(inArray(servers.id, serverIds))
+    db.select().from(servers).where(inArray(servers.id, serverIds)),
+    db.select().from(services).where(inArray(services.environmentId, environmentIds))
   ]);
 
   return {
     projectById: new Map(projectRows.map((row) => [row.id, row])),
     environmentById: new Map(environmentRows.map((row) => [row.id, row])),
-    serverById: new Map(serverRows.map((row) => [row.id, row]))
+    serverById: new Map(serverRows.map((row) => [row.id, row])),
+    serviceByKey: new Map(
+      serviceRows.map((row) => [`${row.projectId}:${row.environmentId}:${row.name}`, row] as const)
+    )
   };
 }
 
@@ -86,14 +73,16 @@ function buildDeploymentView(
   project: typeof projects.$inferSelect | undefined,
   environment: typeof environments.$inferSelect | undefined,
   server: typeof servers.$inferSelect | undefined,
+  service: typeof services.$inferSelect | undefined,
   steps: (typeof deploymentSteps.$inferSelect)[]
 ) {
   const snapshot = asRecord(deployment.configSnapshot);
-  const status = normalizeStatus(deployment.status, deployment.conclusion);
+  const status = normalizeDeploymentStatus(deployment.status, deployment.conclusion);
 
   return {
     ...deployment,
     status,
+    serviceId: service?.id ?? null,
     projectName: project?.name ?? readString(snapshot, "projectName", deployment.projectId),
     environmentName:
       environment?.name ?? readString(snapshot, "environmentName", deployment.environmentId),
@@ -233,12 +222,44 @@ export async function getDeploymentRecord(deploymentId: string) {
     index.projectById.get(rows[0].projectId),
     index.environmentById.get(rows[0].environmentId),
     index.serverById.get(rows[0].targetServerId),
+    index.serviceByKey.get(`${rows[0].projectId}:${rows[0].environmentId}:${rows[0].serviceName}`),
     steps
   );
 }
 
 export async function listDeploymentRecords(status?: string, limit = 20) {
-  const rows = await db.select().from(deployments).orderBy(desc(deployments.createdAt)).limit(100);
+  const baseQuery = db.select().from(deployments);
+  const rows = status
+    ? await (() => {
+        switch (status) {
+          case "healthy":
+            return baseQuery
+              .where(
+                and(eq(deployments.status, "completed"), eq(deployments.conclusion, "succeeded"))
+              )
+              .orderBy(desc(deployments.createdAt))
+              .limit(limit);
+          case "failed":
+            return baseQuery
+              .where(sql`${deployments.status} = 'failed' or ${deployments.conclusion} = 'failed'`)
+              .orderBy(desc(deployments.createdAt))
+              .limit(limit);
+          case "running":
+            return baseQuery
+              .where(sql`${deployments.status} in ('prepare', 'deploy', 'finalize', 'running')`)
+              .orderBy(desc(deployments.createdAt))
+              .limit(limit);
+          default:
+            return baseQuery
+              .where(
+                sql`${deployments.status} not in ('failed', 'completed', 'prepare', 'deploy', 'finalize', 'running')
+                    and coalesce(${deployments.conclusion}, '') <> 'failed'`
+              )
+              .orderBy(desc(deployments.createdAt))
+              .limit(limit);
+        }
+      })()
+    : await baseQuery.orderBy(desc(deployments.createdAt)).limit(limit);
   if (rows.length === 0) return [];
   const index = await buildDeploymentIndex(rows);
 
@@ -266,12 +287,14 @@ export async function listDeploymentRecords(status?: string, limit = 20) {
       index.projectById.get(deployment.projectId),
       index.environmentById.get(deployment.environmentId),
       index.serverById.get(deployment.targetServerId),
+      index.serviceByKey.get(
+        `${deployment.projectId}:${deployment.environmentId}:${deployment.serviceName}`
+      ),
       stepsByDeploymentId.get(deployment.id) ?? []
     )
   );
 
-  const filtered = status ? mapped.filter((deployment) => deployment.status === status) : mapped;
-  return filtered.slice(0, limit);
+  return status ? mapped.filter((deployment) => deployment.status === status) : mapped;
 }
 
 export async function listDeploymentLogs(deploymentId?: string, limit = 18) {
@@ -351,7 +374,7 @@ export async function listDeploymentInsights(limit = 6) {
         index.environmentById.get(deployment.environmentId)?.name ??
         readString(snapshot, "environmentName", deployment.environmentId),
       serviceName: deployment.serviceName,
-      status: normalizeStatus(deployment.status, deployment.conclusion),
+      status: normalizeDeploymentStatus(deployment.status, deployment.conclusion),
       summary: readString(insight, "summary", `Deployment ${deployment.id} failed.`),
       suspectedRootCause: readString(
         insight,
@@ -392,7 +415,7 @@ export async function listDeploymentRollbackPlans(limit = 6) {
   return rows.map((deployment) => {
     const snapshot = asRecord(deployment.configSnapshot);
     const rollbackPlan = asRecord(snapshot.rollbackPlan);
-    const currentStatus = normalizeStatus(deployment.status, deployment.conclusion);
+    const currentStatus = normalizeDeploymentStatus(deployment.status, deployment.conclusion);
 
     if (Object.keys(rollbackPlan).length > 0) {
       return {
@@ -475,7 +498,7 @@ export async function cancelDeployment(input: CancelDeploymentInput) {
 
   if (!deployment) return { status: "not-found" as const };
 
-  const currentStatus = normalizeStatus(deployment.status, deployment.conclusion);
+  const currentStatus = normalizeDeploymentStatus(deployment.status, deployment.conclusion);
   if (currentStatus !== "queued" && currentStatus !== "running") {
     return { status: "invalid-state" as const, currentStatus };
   }

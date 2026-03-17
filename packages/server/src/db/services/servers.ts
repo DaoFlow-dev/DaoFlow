@@ -3,7 +3,8 @@ import { db } from "../connection";
 import { auditEntries } from "../schema/audit";
 import { environments, projects } from "../schema/projects";
 import { servers } from "../schema/servers";
-import type { AppRole } from "@daoflow/shared";
+import { services } from "../schema/services";
+import { normalizeInventoryStatus, type AppRole } from "@daoflow/shared";
 import {
   newId as id,
   asRecord,
@@ -143,14 +144,17 @@ export async function listServerReadiness(limit = 12) {
 }
 
 export async function listInfrastructureInventory() {
-  const [serverRows, projectRows, envRows] = await Promise.all([
+  const [serverRows, projectRows, envRows, serviceRows] = await Promise.all([
     db.select().from(servers).orderBy(desc(servers.createdAt)),
     db.select().from(projects).orderBy(desc(projects.createdAt)),
-    db.select().from(environments).orderBy(desc(environments.createdAt))
+    db.select().from(environments).orderBy(desc(environments.createdAt)),
+    db.select().from(services).orderBy(desc(services.createdAt))
   ]);
 
   const environmentsByProject = new Map<string, typeof envRows>();
   const environmentCountByServer = new Map<string, number>();
+  const serviceCountByProject = new Map<string, number>();
+  const serviceCountByEnvironment = new Map<string, number>();
 
   for (const environment of envRows) {
     const projectEnvironments = environmentsByProject.get(environment.projectId) ?? [];
@@ -167,11 +171,23 @@ export async function listInfrastructureInventory() {
     }
   }
 
+  for (const service of serviceRows) {
+    serviceCountByProject.set(
+      service.projectId,
+      (serviceCountByProject.get(service.projectId) ?? 0) + 1
+    );
+    serviceCountByEnvironment.set(
+      service.environmentId,
+      (serviceCountByEnvironment.get(service.environmentId) ?? 0) + 1
+    );
+  }
+
   return {
     summary: {
       totalServers: serverRows.length,
       totalProjects: projectRows.length,
       totalEnvironments: envRows.length,
+      totalServices: serviceRows.length,
       healthyServers: serverRows.filter((server) => server.status === "ready").length
     },
     servers: serverRows.map((server) => ({
@@ -183,18 +199,14 @@ export async function listInfrastructureInventory() {
       region: server.region ?? "",
       sshPort: server.sshPort,
       engineVersion: server.dockerVersion ?? "unknown",
-      status: server.status === "ready" ? "healthy" : server.status,
+      status: normalizeInventoryStatus(server.status),
       lastHeartbeatAt: server.lastCheckedAt?.toISOString() ?? null,
       environmentCount: environmentCountByServer.get(server.id) ?? 0
     })),
     projects: projectRows.map((project) => {
       const config = asRecord(project.config);
       const projectEnvironments = environmentsByProject.get(project.id) ?? [];
-      const derivedServiceCount = projectEnvironments.reduce((sum, environment) => {
-        const envConfig = asRecord(environment.config);
-        const count = readNumber(envConfig, "serviceCount", 0) ?? 0;
-        return sum + count;
-      }, 0);
+      const derivedServiceCount = serviceCountByProject.get(project.id) ?? 0;
 
       return {
         id: project.id,
@@ -219,7 +231,7 @@ export async function listInfrastructureInventory() {
         targetServerName: readString(config, "targetServerName"),
         networkName: readString(config, "networkName"),
         composeFilePath: readString(config, "composeFilePath"),
-        serviceCount: readNumber(config, "serviceCount", 0) ?? 0,
+        serviceCount: serviceCountByEnvironment.get(environment.id) ?? 0,
         status: environment.status
       };
     })

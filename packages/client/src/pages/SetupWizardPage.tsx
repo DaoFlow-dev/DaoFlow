@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import { useSession } from "../lib/auth-client";
 import { trpc } from "../lib/trpc";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,7 +13,16 @@ type SetupStep = "welcome" | "account" | "server" | "complete";
 
 export default function SetupWizardPage() {
   const session = useSession();
-  const [step, setStep] = useState<SetupStep>("welcome");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedStep = searchParams.get("step");
+  const initialStep: SetupStep =
+    requestedStep === "account" ||
+    requestedStep === "server" ||
+    requestedStep === "complete" ||
+    requestedStep === "welcome"
+      ? requestedStep
+      : "welcome";
+  const [step, setStep] = useState<SetupStep>(initialStep);
   const [serverForm, setServerForm] = useState({
     name: "",
     host: "",
@@ -21,13 +31,33 @@ export default function SetupWizardPage() {
   });
   const [feedback, setFeedback] = useState<string | null>(null);
 
+  function updateStep(nextStep: SetupStep) {
+    setStep(nextStep);
+    const next = new URLSearchParams(searchParams);
+    if (nextStep === "welcome") {
+      next.delete("step");
+    } else {
+      next.set("step", nextStep);
+    }
+    setSearchParams(next, { replace: true });
+  }
+
   const registerServer = trpc.registerServer.useMutation({
     onSuccess: () => {
       setFeedback(null);
-      setStep("complete");
+      updateStep("complete");
     },
     onError: (err) => setFeedback(err.message)
   });
+
+  useEffect(() => {
+    if (!session.isPending && !session.data && (step === "server" || step === "complete")) {
+      setStep("account");
+      const next = new URLSearchParams(searchParams);
+      next.set("step", "account");
+      setSearchParams(next, { replace: true });
+    }
+  }, [searchParams, session.isPending, session.data, setSearchParams, step]);
 
   if (step === "welcome") {
     return (
@@ -44,11 +74,11 @@ export default function SetupWizardPage() {
           </CardHeader>
           <CardContent>
             {session.data ? (
-              <Button size="lg" onClick={() => setStep("server")}>
+              <Button size="lg" onClick={() => updateStep("server")}>
                 Continue to Server Setup →
               </Button>
             ) : (
-              <Button size="lg" onClick={() => setStep("account")}>
+              <Button size="lg" onClick={() => updateStep("account")}>
                 Create Your Account →
               </Button>
             )}
@@ -68,15 +98,19 @@ export default function SetupWizardPage() {
             </Badge>
             <CardTitle>Create Owner Account</CardTitle>
             <CardDescription>
-              Sign up using the form above. Your first account will be the platform owner.
+              Create or sign in to your owner account before registering the first server.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              After signing up, this wizard will guide you through server registration.
+              Your first authenticated account becomes the platform owner. After login you will
+              return directly to server setup.
             </p>
+            <Link to="/login?returnTo=%2Fsetup%3Fstep%3Dserver" className="inline-block">
+              <Button>Go to Sign In / Sign Up →</Button>
+            </Link>
             {session.data && (
-              <Button onClick={() => setStep("server")}>Continue to Server Setup →</Button>
+              <Button onClick={() => updateStep("server")}>Continue to Server Setup →</Button>
             )}
           </CardContent>
         </Card>
@@ -186,9 +220,9 @@ export default function SetupWizardPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <a href="/" className="inline-block">
+          <Link to="/" className="inline-block">
             <Button size="lg">Go to Dashboard</Button>
-          </a>
+          </Link>
         </CardContent>
       </Card>
     </main>

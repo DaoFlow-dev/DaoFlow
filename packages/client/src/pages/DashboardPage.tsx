@@ -29,6 +29,10 @@ export default function DashboardPage() {
   const projects = infra.data?.projects ?? [];
   const deployments = recentDeployments.data ?? [];
   const checks = serverReadiness.data?.checks ?? [];
+  const totalServices =
+    infra.data?.summary && "totalServices" in infra.data.summary
+      ? Number(infra.data.summary.totalServices ?? 0)
+      : projects.reduce((sum, project) => sum + Number(project.serviceCount ?? 0), 0);
 
   const stats = [
     {
@@ -54,7 +58,7 @@ export default function DashboardPage() {
     },
     {
       label: "Services",
-      value: infra.data?.environments?.length ?? 0,
+      value: totalServices,
       icon: Activity,
       color: "text-emerald-600",
       bg: "bg-emerald-50"

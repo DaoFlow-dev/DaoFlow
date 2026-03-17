@@ -1,3 +1,9 @@
+import {
+  normalizeInventoryStatus,
+  normalizeServerReadinessStatus,
+  type StatusTone
+} from "@daoflow/shared";
+
 /**
  * tone-utils.ts
  *
@@ -5,22 +11,8 @@
  * dashboard components. Extracted from App.tsx for reusability.
  */
 
-export type StatusTone = "healthy" | "failed" | "running" | "queued";
-
 export function getInventoryTone(status: string): StatusTone {
-  if (status === "healthy") {
-    return "healthy";
-  }
-
-  if (status === "failed" || status === "offline") {
-    return "failed";
-  }
-
-  if (status === "running" || status === "degraded") {
-    return "running";
-  }
-
-  return "queued";
+  return normalizeInventoryStatus(status);
 }
 
 export function getExecutionJobTone(status: string): StatusTone {
@@ -94,15 +86,7 @@ export function getLogTone(stream: string): StatusTone {
 }
 
 export function getServerReadinessTone(status: string): StatusTone {
-  if (status === "ready") {
-    return "healthy";
-  }
-
-  if (status === "attention") {
-    return "running";
-  }
-
-  return "failed";
+  return normalizeServerReadinessStatus(status);
 }
 
 export function getPersistentVolumeTone(coverage: string, restoreReadiness: string): StatusTone {

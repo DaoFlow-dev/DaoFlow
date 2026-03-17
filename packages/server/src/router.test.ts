@@ -114,6 +114,7 @@ describe("appRouter", () => {
 
     expect(deployment.projectId).toEqual(expect.any(String));
     expect(deployment.projectName).toEqual(expect.any(String));
+    expect(deployment.serviceId === null || typeof deployment.serviceId === "string").toBe(true);
     expect(Array.isArray(deployment.steps)).toBe(true);
 
     const details = await caller.deploymentDetails({
@@ -228,6 +229,8 @@ describe("appRouter", () => {
     const inventory = await caller.infrastructureInventory();
     const server = inventory.servers[0];
 
+    expect(inventory.summary.totalServices).toBeGreaterThanOrEqual(0);
+
     if (!server) {
       return;
     }
@@ -255,6 +258,43 @@ describe("appRouter", () => {
     expect(deployment.serviceName).toBe("edge-worker");
     expect(deployment.projectId).toEqual(expect.any(String));
     expect(deployment.steps).toHaveLength(2);
+  });
+
+  it("creates notification channels and stores user notification preferences", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-notifications",
+      session: makeSession("admin")
+    });
+    const channelName = `Ops ${Date.now().toString(36)}`;
+
+    const created = await caller.createChannel({
+      name: channelName,
+      channelType: "email",
+      email: "ops@daoflow.local",
+      eventSelectors: ["deploy.*"],
+      enabled: true
+    });
+
+    expect(created.id).toEqual(expect.any(String));
+
+    const channels = await caller.listChannels();
+    expect(channels.some((channel) => channel.name === channelName)).toBe(true);
+
+    await caller.setUserPreference({
+      eventType: "deploy.*",
+      channelType: "email",
+      enabled: false
+    });
+
+    const preferences = await caller.getUserPreferences();
+    expect(
+      preferences.some(
+        (preference) =>
+          preference.eventType === "deploy.*" &&
+          preference.channelType === "email" &&
+          preference.enabled === false
+      )
+    ).toBe(true);
   });
 
   it("returns execution queue jobs without queue-specific metadata", async () => {
