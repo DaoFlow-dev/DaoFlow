@@ -79,8 +79,8 @@ jobs:
         env:
           DATABASE_URL: postgresql://daoflow:daoflow_ci@localhost:5432/daoflow_test
 
-      - name: Push DB schema
-        run: bun run db:push:ci
+      - name: Run database migrations
+        run: bun run db:migrate
         env:
           DATABASE_URL: postgresql://daoflow:daoflow_ci@localhost:5432/daoflow_test
 

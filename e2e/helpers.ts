@@ -1,101 +1,78 @@
 import { expect, type Page } from "@playwright/test";
-
-/**
- * Shared owner credentials used across all E2E test files.
- * The first call to signUpOwner() creates this user (gets "owner" role).
- * All subsequent tests call signInAsOwner() to reuse them.
- */
-export const OWNER_EMAIL = "e2e-owner@daoflow.local";
-export const OWNER_PASSWORD = "owner-e2e-pass-2026";
-export const OWNER_NAME = "E2E Owner";
+import { e2eAdminUser, type E2EAuthUser } from "../packages/server/src/testing/e2e-auth-users";
 
 /** Auth operations can be slow in CI — use a generous timeout. */
 const AUTH_TIMEOUT = 30_000;
 
-type AuthResponse = {
-  ok: boolean;
-  status: number;
-  payload: unknown;
-};
-
-async function authRequest(
-  page: Page,
-  pathname: "/api/auth/sign-up/email" | "/api/auth/sign-in/email",
-  payload: Record<string, unknown>
-): Promise<AuthResponse> {
-  const response = await page.context().request.post(pathname, {
-    data: payload,
-    headers: { "Content-Type": "application/json" }
-  });
-
-  const result = (await response.json().catch(() => null)) as unknown;
-
-  return {
-    ok: response.ok(),
-    status: response.status(),
-    payload: result
-  };
-}
-
 async function expectSignedIn(page: Page) {
-  const response = await page.context().request.get("/api/auth/get-session");
-  const payload = (await response.json().catch(() => null)) as {
-    user?: {
-      email?: string;
-    };
-  } | null;
-
-  expect(response.ok()).toBe(true);
-  expect(payload?.user?.email).toBe(OWNER_EMAIL);
-
-  await page.goto("/");
   await expect(page).not.toHaveURL(/\/login(?:\?|$)/, { timeout: AUTH_TIMEOUT });
+  await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible({
+    timeout: AUTH_TIMEOUT
+  });
 }
 
 const QUERY_PROCEDURES = new Set(["environmentVariables"]);
 
-/** Sign up the shared owner account. Call this ONCE (in global-setup). */
-export async function signUpOwner(page: Page) {
-  const signUp = await authRequest(page, "/api/auth/sign-up/email", {
-    name: OWNER_NAME,
-    email: OWNER_EMAIL,
-    password: OWNER_PASSWORD
-  });
+async function openSignInForm(page: Page) {
+  await page.goto("/login");
+  await page
+    .getByRole("tab", { name: "Sign in" })
+    .click()
+    .catch(() => undefined);
+}
 
-  if (signUp.ok) {
-    await expectSignedIn(page);
-    return;
-  }
+async function openSignUpForm(page: Page) {
+  await page.goto("/login");
+  await page.getByRole("tab", { name: "Sign up" }).click();
+}
 
-  const message = JSON.stringify(signUp.payload).toLowerCase();
-  if (!message.includes("exists")) {
-    throw new Error(`Owner sign-up failed (${signUp.status}): ${JSON.stringify(signUp.payload)}`);
-  }
-
-  const signIn = await authRequest(page, "/api/auth/sign-in/email", {
-    email: OWNER_EMAIL,
-    password: OWNER_PASSWORD
-  });
-
-  if (!signIn.ok) {
-    throw new Error(`Owner sign-in failed (${signIn.status}): ${JSON.stringify(signIn.payload)}`);
-  }
-
+export async function signInWithEmailPassword(
+  page: Page,
+  user: Pick<E2EAuthUser, "email" | "password">
+) {
+  await openSignInForm(page);
+  await page.getByLabel("Email").fill(user.email);
+  await page.getByLabel("Password").fill(user.password);
+  await page.getByRole("button", { name: "Sign in" }).click();
   await expectSignedIn(page);
 }
 
-/** Sign in as the shared owner. Call this in every other test file. */
-export async function signInAsOwner(page: Page) {
-  const signIn = await authRequest(page, "/api/auth/sign-in/email", {
-    email: OWNER_EMAIL,
-    password: OWNER_PASSWORD
-  });
+export async function signInAsAdmin(page: Page) {
+  await signInWithEmailPassword(page, e2eAdminUser);
+}
 
-  if (!signIn.ok) {
-    throw new Error(`Owner sign-in failed (${signIn.status}): ${JSON.stringify(signIn.payload)}`);
+// Compatibility alias while the suite transitions away from owner-named helpers.
+export const signInAsOwner = signInAsAdmin;
+
+export async function signUpWithEmailPassword(
+  page: Page,
+  user: Pick<E2EAuthUser, "name" | "email" | "password">
+) {
+  await openSignUpForm(page);
+  await page.getByLabel("Name").fill(user.name);
+  await page.getByLabel("Email").fill(user.email);
+  await page.getByLabel("Password").fill(user.password);
+  await page.getByRole("button", { name: "Create account" }).click();
+  await expectSignedIn(page);
+}
+
+export async function signOut(page: Page) {
+  await page.locator(".sidebar__user-card").click();
+  await page.getByRole("menuitem", { name: "Sign out" }).click();
+  await expect(page).toHaveURL(/\/login/, { timeout: AUTH_TIMEOUT });
+}
+
+export async function getCurrentSession(page: Page) {
+  const response = await page.context().request.get("http://127.0.0.1:3000/api/auth/get-session");
+
+  if (!response.ok()) {
+    throw new Error(`get-session failed (${response.status()}): ${await response.text()}`);
   }
 
-  await expectSignedIn(page);
+  return (await response.json()) as {
+    session: { id: string };
+    user: { id: string; email: string; role?: string | null; name?: string | null };
+  };
 }
 
 type TrpcEnvelope<T> =

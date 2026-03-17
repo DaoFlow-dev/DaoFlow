@@ -1,10 +1,10 @@
 import { defineConfig, devices } from "@playwright/test";
 
-const PLAYWRIGHT_DATABASE_URL =
+const PLAYWRIGHT_BOOTSTRAP_DATABASE_URL =
+  process.env.PLAYWRIGHT_BOOTSTRAP_DATABASE_URL ??
   process.env.PLAYWRIGHT_DATABASE_URL ??
   process.env.DATABASE_URL ??
-  "postgresql://daoflow:daoflow_dev@localhost:5432/daoflow_e2e";
-const SKIP_DB_BOOTSTRAP = process.env.PLAYWRIGHT_SKIP_DB_BOOTSTRAP === "true";
+  "postgresql://daoflow:daoflow_dev@localhost:5432/daoflow_e2e_bootstrap";
 
 export default defineConfig({
   testDir: "./e2e",
@@ -17,11 +17,9 @@ export default defineConfig({
     trace: "on-first-retry"
   },
   webServer: {
-    command: SKIP_DB_BOOTSTRAP
-      ? "bun run build && bun run start"
-      : "bun run db:rebuild && bun run db:seed:e2e-auth && bun run build && bun run start",
+    command: "bun run db:reset && bun run db:migrate && bun run build && bun run start",
     env: {
-      DATABASE_URL: PLAYWRIGHT_DATABASE_URL,
+      DATABASE_URL: PLAYWRIGHT_BOOTSTRAP_DATABASE_URL,
       REDIS_URL: process.env.REDIS_URL ?? "redis://localhost:6379",
       BETTER_AUTH_SECRET:
         process.env.BETTER_AUTH_SECRET ?? "daoflow-e2e-secret-with-enough-entropy-2026",
@@ -38,7 +36,7 @@ export default defineConfig({
     {
       name: "chromium",
       use: { ...devices["Desktop Chrome"] },
-      testIgnore: [/auth-bootstrap\.spec\.ts/, /docs\.spec\.ts/]
+      testMatch: /auth-bootstrap\.spec\.ts/
     }
   ]
 });

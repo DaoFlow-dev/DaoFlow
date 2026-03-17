@@ -1,29 +1,23 @@
-CREATE TABLE "backup_destinations" (
+CREATE TABLE "tunnel_routes" (
+	"id" varchar(32) PRIMARY KEY NOT NULL,
+	"tunnel_id" varchar(32) NOT NULL,
+	"hostname" varchar(255) NOT NULL,
+	"service" varchar(255) NOT NULL,
+	"path" varchar(255),
+	"status" varchar(20) DEFAULT 'active' NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "tunnels" (
 	"id" varchar(32) PRIMARY KEY NOT NULL,
 	"name" varchar(100) NOT NULL,
-	"provider" varchar(30) NOT NULL,
-	"access_key" text,
-	"secret_access_key" text,
-	"bucket" text,
-	"region" varchar(40),
-	"endpoint" text,
-	"s3_provider" varchar(40),
-	"rclone_type" varchar(30),
-	"rclone_config" text,
-	"rclone_remote_path" text,
-	"oauth_token" text,
-	"oauth_token_expiry" timestamp,
-	"encryption_mode" varchar(20) DEFAULT 'none' NOT NULL,
-	"encryption_password" text,
-	"encryption_salt" text,
-	"filename_encryption" varchar(20) DEFAULT 'standard',
-	"local_path" text,
-	"quota_bytes" text,
-	"quota_warning_percent" integer DEFAULT 80,
-	"organization_id" varchar(32),
-	"last_tested_at" timestamp,
-	"last_test_result" varchar(20),
-	"metadata" jsonb DEFAULT '{}'::jsonb NOT NULL,
+	"team_id" varchar(32) NOT NULL,
+	"tunnel_id" varchar(80),
+	"credentials_encrypted" text,
+	"domain" varchar(255),
+	"status" varchar(20) DEFAULT 'inactive' NOT NULL,
+	"config" jsonb DEFAULT '{}'::jsonb NOT NULL,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL
 );
@@ -100,26 +94,15 @@ CREATE TABLE "secret_providers" (
 	"updated_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-ALTER TABLE "environment_variables" ADD COLUMN "source" varchar(20) DEFAULT 'inline' NOT NULL;--> statement-breakpoint
-ALTER TABLE "environment_variables" ADD COLUMN "secret_ref" text;--> statement-breakpoint
-ALTER TABLE "servers" ADD COLUMN "ssh_key_id" varchar(64);--> statement-breakpoint
-ALTER TABLE "servers" ADD COLUMN "compose_version" varchar(40);--> statement-breakpoint
-ALTER TABLE "backup_policies" ADD COLUMN "backup_type" varchar(20) DEFAULT 'volume' NOT NULL;--> statement-breakpoint
-ALTER TABLE "backup_policies" ADD COLUMN "database_engine" varchar(20);--> statement-breakpoint
-ALTER TABLE "backup_policies" ADD COLUMN "turn_off" integer DEFAULT 0 NOT NULL;--> statement-breakpoint
-ALTER TABLE "backup_policies" ADD COLUMN "retention_daily" integer DEFAULT 7;--> statement-breakpoint
-ALTER TABLE "backup_policies" ADD COLUMN "retention_weekly" integer DEFAULT 4;--> statement-breakpoint
-ALTER TABLE "backup_policies" ADD COLUMN "retention_monthly" integer DEFAULT 12;--> statement-breakpoint
-ALTER TABLE "backup_policies" ADD COLUMN "max_backups" integer DEFAULT 100;--> statement-breakpoint
-ALTER TABLE "backup_policies" ADD COLUMN "destination_id" varchar(32);--> statement-breakpoint
-ALTER TABLE "backup_policies" ADD COLUMN "temporal_workflow_id" varchar(100);--> statement-breakpoint
-ALTER TABLE "backup_runs" ADD COLUMN "checksum" varchar(128);--> statement-breakpoint
-ALTER TABLE "backup_runs" ADD COLUMN "verified_at" timestamp;--> statement-breakpoint
+ALTER TABLE "tunnel_routes" ADD CONSTRAINT "tunnel_routes_tunnel_id_tunnels_id_fk" FOREIGN KEY ("tunnel_id") REFERENCES "public"."tunnels"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "tunnels" ADD CONSTRAINT "tunnels_team_id_teams_id_fk" FOREIGN KEY ("team_id") REFERENCES "public"."teams"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "notification_logs" ADD CONSTRAINT "notification_logs_channel_id_notification_channels_id_fk" FOREIGN KEY ("channel_id") REFERENCES "public"."notification_channels"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "secret_providers" ADD CONSTRAINT "secret_providers_team_id_teams_id_fk" FOREIGN KEY ("team_id") REFERENCES "public"."teams"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "secret_providers" ADD CONSTRAINT "secret_providers_created_by_user_id_users_id_fk" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-CREATE INDEX "backup_destinations_provider_idx" ON "backup_destinations" USING btree ("provider");--> statement-breakpoint
-CREATE INDEX "backup_destinations_org_idx" ON "backup_destinations" USING btree ("organization_id");--> statement-breakpoint
+CREATE INDEX "tunnel_routes_tunnel_id_idx" ON "tunnel_routes" USING btree ("tunnel_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "tunnel_routes_hostname_idx" ON "tunnel_routes" USING btree ("hostname");--> statement-breakpoint
+CREATE UNIQUE INDEX "tunnels_name_team_idx" ON "tunnels" USING btree ("name","team_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "tunnels_tunnel_id_idx" ON "tunnels" USING btree ("tunnel_id");--> statement-breakpoint
 CREATE INDEX "notification_channels_type_idx" ON "notification_channels" USING btree ("channel_type");--> statement-breakpoint
 CREATE INDEX "notification_channels_enabled_idx" ON "notification_channels" USING btree ("enabled");--> statement-breakpoint
 CREATE INDEX "notification_logs_channel_id_idx" ON "notification_logs" USING btree ("channel_id");--> statement-breakpoint
@@ -132,5 +115,4 @@ CREATE INDEX "push_subscriptions_endpoint_idx" ON "push_subscriptions" USING btr
 CREATE INDEX "user_notification_prefs_user_id_idx" ON "user_notification_preferences" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX "user_notification_prefs_channel_type_idx" ON "user_notification_preferences" USING btree ("channel_type");--> statement-breakpoint
 CREATE INDEX "secret_providers_team_id_idx" ON "secret_providers" USING btree ("team_id");--> statement-breakpoint
-CREATE INDEX "secret_providers_type_idx" ON "secret_providers" USING btree ("type");--> statement-breakpoint
-ALTER TABLE "backup_policies" ADD CONSTRAINT "backup_policies_destination_id_backup_destinations_id_fk" FOREIGN KEY ("destination_id") REFERENCES "public"."backup_destinations"("id") ON DELETE set null ON UPDATE no action;
+CREATE INDEX "secret_providers_type_idx" ON "secret_providers" USING btree ("type");
