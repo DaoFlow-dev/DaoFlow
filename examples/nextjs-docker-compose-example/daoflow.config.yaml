@@ -1,0 +1,30 @@
+# DaoFlow project configuration (YAML format)
+# Alternative to daoflow.config.jsonc — use whichever you prefer.
+
+# Project identity
+project: nextjs-compose-example
+server: my-server
+environment: production
+
+# Compose deployment settings
+compose: compose.yaml
+context: "."
+dockerfile: Dockerfile
+
+# Context bundling overrides
+ignore:
+  - "*.log"
+  - ".vscode/"
+  - "coverage/"
+
+include:
+  - ".env"
+  - ".env.production"
+
+# Safety limit for context upload
+maxContextSize: 500mb
+
+# Build-time environment variables
+env:
+  NODE_ENV: production
+  NEXT_TELEMETRY_DISABLED: "1"

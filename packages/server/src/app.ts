@@ -10,6 +10,7 @@ import { createRequestId } from "./request-id";
 import { appRouter } from "./router";
 import { imagesRouter } from "./routes/images";
 import { webhooksRouter } from "./routes/webhooks";
+import { deployContextRouter } from "./routes/deploy-context";
 
 type Env = {
   Variables: {
@@ -45,6 +46,9 @@ export function createApp() {
 
   // ── Image push (REST API) ─────────────────────────────────
   app.route("/api/v1/images", imagesRouter);
+
+  // ── Deploy context upload (REST API) ──────────────────────
+  app.route("/api/v1/deploy", deployContextRouter);
 
   // ── Webhooks (GitHub/GitLab) ──────────────────────────────
   app.route("/api/webhooks", webhooksRouter);

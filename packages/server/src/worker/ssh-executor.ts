@@ -336,6 +336,73 @@ export function removeSSHKey(serverName: string): void {
   }
 }
 
+/**
+ * Upload a file to a remote server via SCP.
+ * Uses the same SSH key and connection options as execRemote.
+ */
+export function scpUpload(
+  target: SSHTarget,
+  localPath: string,
+  remotePath: string,
+  onLog: OnLog
+): Promise<{ exitCode: number; signal: string | null }> {
+  return new Promise((resolve, reject) => {
+    ensureControlDir();
+
+    const controlPath = join(SSH_CONTROL_DIR, `%h-%p-%r`);
+    const user = target.user ?? DEFAULT_SSH_USER;
+    const keyPath = target.privateKeyPath ?? join(SSH_KEY_DIR, "id_ed25519");
+
+    const args = [
+      "-o", "StrictHostKeyChecking=accept-new",
+      "-o", `ConnectTimeout=${SSH_CONNECT_TIMEOUT}`,
+      "-o", `ControlMaster=auto`,
+      "-o", `ControlPath=${controlPath}`,
+      "-o", `ControlPersist=60`,
+      "-o", "BatchMode=yes",
+      "-P", String(target.port),
+    ];
+
+    if (existsSync(keyPath)) {
+      args.push("-i", keyPath);
+    }
+
+    args.push(localPath, `${user}@${target.host}:${remotePath}`);
+
+    onLog({
+      stream: "stdout",
+      message: `[scp] ${target.serverName} → ${localPath} → ${remotePath}`,
+      timestamp: new Date(),
+    });
+
+    let child: ChildProcess;
+    try {
+      child = spawn("scp", args, {
+        stdio: ["ignore", "pipe", "pipe"],
+        env: { ...process.env },
+      });
+    } catch (err) {
+      reject(err instanceof Error ? err : new Error(String(err)));
+      return;
+    }
+
+    child.stderr?.on("data", (data: Buffer) => {
+      const text = data.toString("utf-8").trimEnd();
+      if (text.length > 0) {
+        onLog({ stream: "stderr", message: text, timestamp: new Date() });
+      }
+    });
+
+    child.on("close", (code, signal) => {
+      resolve({ exitCode: code ?? 1, signal: signal ?? null });
+    });
+
+    child.on("error", (err) => {
+      reject(err);
+    });
+  });
+}
+
 // ── Helpers ──────────────────────────────────────────────────────
 
 /**

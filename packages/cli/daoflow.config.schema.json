@@ -1,0 +1,73 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/DaoFlow-dev/DaoFlow/main/packages/cli/daoflow.config.schema.json",
+  "title": "DaoFlow Configuration",
+  "description": "Configuration for DaoFlow CLI deployments. Supports .jsonc, .json, .yaml, .yml, and .toml formats.",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "JSON Schema URL for IDE autocompletion."
+    },
+    "project": {
+      "type": "string",
+      "description": "Project ID or name. Used to associate this directory with a DaoFlow project.",
+      "examples": ["my-app", "proj_abc123"]
+    },
+    "server": {
+      "type": "string",
+      "description": "Default target server ID for deployments.",
+      "examples": ["production", "staging-vps"]
+    },
+    "environment": {
+      "type": "string",
+      "description": "Default environment for deployments.",
+      "enum": ["production", "staging", "development", "preview"],
+      "default": "production"
+    },
+    "compose": {
+      "type": "string",
+      "description": "Path to Docker Compose file, relative to the config file.",
+      "default": "compose.yaml",
+      "examples": ["compose.yaml", "docker-compose.yml", "infra/compose.prod.yaml"]
+    },
+    "context": {
+      "type": "string",
+      "description": "Docker build context path, relative to the config file. When set to '.', the entire directory is bundled and uploaded.",
+      "default": ".",
+      "examples": [".", "./app", "./services/web"]
+    },
+    "dockerfile": {
+      "type": "string",
+      "description": "Dockerfile path, relative to the build context.",
+      "default": "Dockerfile",
+      "examples": ["Dockerfile", "Dockerfile.prod", "docker/Dockerfile"]
+    },
+    "ignore": {
+      "type": "array",
+      "description": "Extra patterns to ignore when bundling context. Added to .dockerignore rules.",
+      "items": { "type": "string" },
+      "examples": [["*.log", "tmp/", ".vscode/"]]
+    },
+    "include": {
+      "type": "array",
+      "description": "Force-include patterns that override .dockerignore. Use for files needed at build time but normally excluded (e.g., .env).",
+      "items": { "type": "string" },
+      "examples": [[".env", ".env.production"]]
+    },
+    "maxContextSize": {
+      "type": "string",
+      "description": "Maximum context bundle size. Deployment fails if context exceeds this limit.",
+      "default": "500mb",
+      "pattern": "^\\d+(\\.\\d+)?\\s*(b|kb|mb|gb|tb)$",
+      "examples": ["500mb", "1gb", "256mb"]
+    },
+    "env": {
+      "type": "object",
+      "description": "Build-time environment variables passed to Docker build.",
+      "additionalProperties": { "type": "string" },
+      "examples": [{ "NODE_ENV": "production", "NEXT_TELEMETRY_DISABLED": "1" }]
+    }
+  },
+  "additionalProperties": false
+}

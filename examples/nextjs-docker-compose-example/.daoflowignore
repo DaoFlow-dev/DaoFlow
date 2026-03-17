@@ -1,0 +1,7 @@
+# DaoFlow-specific overrides for .dockerignore
+# Lines starting with ! force-include files that .dockerignore would exclude.
+# This is useful for .env files needed during Docker build.
+
+# Include .env files needed at build time
+!.env
+!.env.production

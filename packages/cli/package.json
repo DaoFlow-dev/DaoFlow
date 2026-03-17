@@ -17,13 +17,17 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@balena/dockerignore": "1.0.2",
     "@daoflow/shared": "workspace:*",
     "@trpc/client": "11.12.0",
     "@trpc/server": "11.12.0",
     "chalk": "^5.4.1",
     "commander": "^13.1.0",
     "dockerode": "^4.0.6",
-    "ora": "^8.2.0"
+    "jsonc-parser": "3.3.1",
+    "ora": "^8.2.0",
+    "smol-toml": "1.6.0",
+    "yaml": "2.8.2"
   },
   "devDependencies": {
     "@daoflow/server": "workspace:*",

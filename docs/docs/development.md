@@ -165,12 +165,57 @@ docker run -p 3001:3000 nextjs-daoflow-example
 ### Deploy via CLI (to local DaoFlow)
 
 ```bash
-# Dry-run first
+# Service deploy (dry-run first)
 bun dist/daoflow deploy --service nextjs-example --dry-run --json
 
 # When ready (requires deploy:start scope)
 bun dist/daoflow deploy --service nextjs-example --yes
 ```
+
+### Compose Deploy with Local Context
+
+For projects using Docker Compose with `build.context: .`, use the compose deploy flow:
+
+```bash
+cd examples/nextjs-docker-compose-example
+
+# Preview the deployment plan
+bun dist/daoflow deploy --compose ./compose.yaml --server my-server --dry-run
+
+# Execute
+bun dist/daoflow deploy --compose ./compose.yaml --server my-server --yes
+```
+
+DaoFlow bundles the local directory as tar.gz, uploads it to the server, which SCP's it to your target server and builds remotely.
+
+#### Ignore Files
+
+DaoFlow respects **both** `.dockerignore` and `.daoflowignore`:
+
+| File | Purpose |
+|------|---------|
+| `.dockerignore` | Standard Docker ignore rules (e.g., `node_modules`, `.git`) |
+| `.daoflowignore` | DaoFlow-specific overrides — lines starting with `!` force-include files excluded by `.dockerignore` (e.g., `!.env`) |
+
+Both files are applied in order: `.dockerignore` first, then `.daoflowignore` as additive overrides.
+
+#### Configuration (daoflow.config.*)
+
+Create a `daoflow.config.jsonc` (or `.json`, `.yaml`, `.toml`) for deployment defaults:
+
+```jsonc
+{
+  "$schema": "https://raw.githubusercontent.com/DaoFlow-dev/DaoFlow/main/packages/cli/daoflow.config.schema.json",
+  "project": "my-app",
+  "server": "production",
+  "compose": "compose.yaml",
+  "context": ".",
+  "include": [".env"],        // force-include (overrides .dockerignore)
+  "maxContextSize": "500mb"   // safety limit
+}
+```
+
+See `examples/nextjs-docker-compose-example/` for full samples in JSONC, YAML, and TOML.
 
 ---
 
@@ -187,7 +232,8 @@ DaoFlow/
 ├── docker-compose.yml       # Production: GHCR images + .env secrets
 ├── temporal-config/         # Temporal dynamic config
 └── examples/
-    └── nextjs-daoflow-example/  # Sample Next.js app
+    ├── nextjs-daoflow-example/          # Sample app (image deploy)
+    └── nextjs-docker-compose-example/   # Sample app (compose + local context)
 ```
 
 ## Useful Commands
