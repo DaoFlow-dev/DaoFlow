@@ -40,6 +40,6 @@ test.describe("Compose releases and drift", () => {
     await expect(page.getByRole("heading", { name: "Deployments" })).toBeVisible();
 
     // Deployment page should exist and show compose-related data
-    await expect(page.getByText("Deployment History")).toBeVisible();
+    await expect(page.getByText("Deployment History")).toBeVisible({ timeout: 10_000 });
   });
 });

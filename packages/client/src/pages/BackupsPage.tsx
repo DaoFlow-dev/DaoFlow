@@ -36,7 +36,7 @@ export default function BackupsPage() {
   const runs = backupOverview.data?.runs ?? [];
 
   return (
-    <main className="shell space-y-6">
+    <main className="shell space-y-6" data-testid="backup-overview">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Backups</h1>

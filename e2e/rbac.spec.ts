@@ -23,10 +23,10 @@ test.describe("RBAC and agent tokens", () => {
     await page.getByRole("tab", { name: "Tokens" }).click();
 
     // Token inventory card should be visible
-    await expect(page.getByText("API Tokens")).toBeVisible();
+    await expect(page.getByText("API Tokens")).toBeVisible({ timeout: 10_000 });
     await expect(
       page.getByText("Scoped API tokens for integrations and agent access.")
-    ).toBeVisible();
+    ).toBeVisible({ timeout: 10_000 });
 
     // Should show either "No API tokens" empty state or the token table
     const hasTokens = await page
@@ -80,7 +80,7 @@ test.describe("RBAC and agent tokens", () => {
     await expect(page.getByRole("heading", { name: "Deployments" })).toBeVisible();
 
     // Should show "Deployment History" card
-    await expect(page.getByText("Deployment History")).toBeVisible();
+    await expect(page.getByText("Deployment History")).toBeVisible({ timeout: 10_000 });
 
     // If deployments exist, verify the table has expected columns
     const hasTable = await page

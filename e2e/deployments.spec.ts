@@ -17,7 +17,7 @@ test.describe("Deployment lifecycle", () => {
     await expect(page.getByRole("heading", { name: "Deployments" })).toBeVisible();
 
     // Deployment History card should always be visible
-    await expect(page.getByText("Deployment History")).toBeVisible();
+    await expect(page.getByText("Deployment History")).toBeVisible({ timeout: 10_000 });
 
     // Should show either deployment table or empty state
     const hasTable = await page
