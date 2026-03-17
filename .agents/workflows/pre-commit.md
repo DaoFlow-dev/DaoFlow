@@ -1,5 +1,5 @@
 ---
-description: Run format, lint, typecheck, and optionally build before committing and pushing code changes
+description: Run format, tests, lint, typecheck, and acpx review before committing and pushing code changes
 ---
 
 # Pre-Commit Workflow
@@ -16,7 +16,15 @@ Run this workflow **before every `git commit` and `git push`** to ensure code qu
    bun run format
    ```
 
-2. **Lint** — check for code quality issues (must be **0 errors**; warnings are acceptable):
+2. **Tests** — run the local test suite required before commit/push:
+
+   ```bash
+   bun run test:unit
+   ```
+
+   - If the change affects a broader surface area, also run any issue-specific tests needed for confidence.
+
+3. **Lint** — check for code quality issues (must be **0 errors**; warnings are acceptable):
 
    ```bash
    bun run lint 2>&1 | grep -E "(error|✖)" | tail -5
@@ -24,7 +32,7 @@ Run this workflow **before every `git commit` and `git push`** to ensure code qu
 
    - If there are errors, fix them before proceeding.
 
-3. **Typecheck** — run type checking across all packages:
+4. **Typecheck** — run type checking across all packages:
 
    ```bash
    bunx tsc --noEmit
@@ -33,12 +41,17 @@ Run this workflow **before every `git commit` and `git push`** to ensure code qu
    - Empty output = clean. Any output means type errors that must be fixed.
    - Note: CI uses `tsc -b` (project references mode), which may catch additional issues. If local `--noEmit` passes but CI fails, use `tsc -b packages/shared packages/server packages/client packages/cli` instead.
 
-4. **Code Review** — use Gemini MCP (always) and Codex MCP (for large/challenging changes):
-   - **Gemini review** (mandatory for all changes): Use `mcp_gemini-mcp_ask-gemini` to review changed files. Pass the file paths with `@` syntax and ask for a code review focusing on correctness, security, and patterns.
-   - **Codex review** (for large/challenging changes): Use `mcp_codex-mcp_codex` for a deeper review when the changeset is substantial or involves complex logic.
-   - Fix any issues found before proceeding to commit.
+5. **Code Review** — run the ACPX review workflow before commit:
 
-5. **Stage and commit** — use conventional commits:
+   ```bash
+   acpx --approve-reads --timeout 120 gemini exec "Review the last 3 git commits for correctness, security, and best practices. Run git log -3 --oneline and git diff HEAD~3 to see changes."
+   acpx --approve-reads --timeout 120 codex exec "Review the last 3 git commits for correctness and security. Run git log -3 --oneline and git diff HEAD~3 to see changes."
+   ```
+
+   - Follow `.agents/workflows/acpx-review.md`.
+   - Fix blocking issues found in review before proceeding to commit.
+
+6. **Stage and commit** — use conventional commits:
 
    ```bash
    git add -A
@@ -48,13 +61,13 @@ Run this workflow **before every `git commit` and `git push`** to ensure code qu
 
    - Follow conventional commits: `feat`, `fix`, `refactor`, `chore`, `docs`, `test`
 
-6. **Push** to remote:
+7. **Push** to remote:
 
    ```bash
    git push origin main
    ```
 
-7. **Wait for CI** — check GitHub Actions status:
+8. **Wait for CI** — check GitHub Actions status:
 
    ```bash
    sleep 60 && gh run list --limit 2 --json databaseId,status,conclusion,name
@@ -65,10 +78,11 @@ Run this workflow **before every `git commit` and `git push`** to ensure code qu
 
 ## Quick Reference
 
-| Gate      | Command                            | Pass Criteria           |
-| --------- | ---------------------------------- | ----------------------- |
-| Format    | `bun run format`                   | No reformatted files    |
-| Lint      | `bun run lint`                     | 0 errors                |
-| Typecheck | `bunx tsc --noEmit`                | Empty output            |
-| Review    | Gemini MCP (+ Codex for big diffs) | No blocking issues      |
-| CI        | `gh run list --limit 2 --json ...` | `conclusion: "success"` |
+| Gate      | Command                            | Pass Criteria              |
+| --------- | ---------------------------------- | -------------------------- |
+| Format    | `bun run format`                   | Formatting applied cleanly |
+| Tests     | `bun run test:unit`                | Tests pass                 |
+| Lint      | `bun run lint`                     | 0 errors                   |
+| Typecheck | `bunx tsc --noEmit`                | Empty output               |
+| Review    | `acpx` Gemini + Codex review       | No blocking issues         |
+| CI        | `gh run list --limit 2 --json ...` | `conclusion: "success"`    |
