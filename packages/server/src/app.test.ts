@@ -206,4 +206,37 @@ describe("createApp", () => {
       resetInitialOwnerBootstrapState();
     }
   });
+
+  it("rejects unauthenticated GET /api/v1/images with 401", async () => {
+    const app = createApp();
+    const response = await app.request("/api/v1/images");
+    const body = (await response.json()) as { code: string };
+
+    expect(response.status).toBe(401);
+    expect(body.code).toBe("AUTH_REQUIRED");
+  });
+
+  it("rejects unauthenticated POST /api/v1/deploy/compose with 401", async () => {
+    const app = createApp();
+    const response = await app.request("/api/v1/deploy/compose", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ server: "test", compose: "version: '3'" })
+    });
+    const body = (await response.json()) as { code: string };
+
+    expect(response.status).toBe(401);
+    expect(body.code).toBe("AUTH_REQUIRED");
+  });
+
+  it("rejects unauthenticated GET /api/v1/logs/stream with 401", async () => {
+    const app = createApp();
+    const response = await app.request("/api/v1/logs/stream/dep-test-123");
+    const body = (await response.json()) as { code: string };
+
+    expect(response.status).toBe(401);
+    expect(body.code).toBe("AUTH_REQUIRED");
+  });
 });

@@ -157,6 +157,19 @@ interface DockerImageInfo {
 }
 
 imagesRouter.get("/", async (c) => {
+  const session = await auth.api.getSession({ headers: c.req.raw.headers });
+  if (!session) {
+    return c.json(
+      {
+        status: "error",
+        error: "unauthorized",
+        message: "Valid authentication required. Provide a session cookie or Bearer token.",
+        code: "AUTH_REQUIRED"
+      },
+      401
+    );
+  }
+
   try {
     const result = await exec(["docker", "images", "--format", "json"], {
       timeout: 10_000

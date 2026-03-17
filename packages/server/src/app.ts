@@ -75,6 +75,18 @@ export function createApp() {
 
   // ── SSE Log Streaming (T-15) ──────────────────────────────
   app.get("/api/v1/logs/stream/:deploymentId", async (c) => {
+    const session = await auth.api.getSession({ headers: c.req.raw.headers });
+    if (!session) {
+      return c.json(
+        {
+          ok: false,
+          error: "Valid authentication required. Provide a session cookie or Bearer token.",
+          code: "AUTH_REQUIRED"
+        },
+        401
+      );
+    }
+
     const deploymentId = c.req.param("deploymentId");
     if (!deploymentId) {
       return c.json({ ok: false, error: "Missing deploymentId" }, 400);

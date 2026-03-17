@@ -17,6 +17,7 @@
 
 import { Hono } from "hono";
 import { createWriteStream, mkdirSync, existsSync, statSync } from "node:fs";
+import { auth } from "../auth";
 import { unlink } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -37,6 +38,18 @@ export const deployContextRouter = new Hono();
  *   Cookie: better-auth.session_token=...
  */
 deployContextRouter.post("/", async (c) => {
+  const session = await auth.api.getSession({ headers: c.req.raw.headers });
+  if (!session) {
+    return c.json(
+      {
+        ok: false,
+        error: "Valid authentication required. Provide a session cookie or Bearer token.",
+        code: "AUTH_REQUIRED"
+      },
+      401
+    );
+  }
+
   const serverId = c.req.header("X-DaoFlow-Server") ?? "";
   const composeB64 = c.req.header("X-DaoFlow-Compose") ?? "";
   const projectId = c.req.header("X-DaoFlow-Project") ?? "";
@@ -169,6 +182,18 @@ deployContextRouter.post("/", async (c) => {
  * Server writes compose.yaml to target and runs docker compose up.
  */
 deployContextRouter.post("/compose", async (c) => {
+  const session = await auth.api.getSession({ headers: c.req.raw.headers });
+  if (!session) {
+    return c.json(
+      {
+        ok: false,
+        error: "Valid authentication required. Provide a session cookie or Bearer token.",
+        code: "AUTH_REQUIRED"
+      },
+      401
+    );
+  }
+
   const body = await c.req.json<{
     server?: string;
     compose?: string;
