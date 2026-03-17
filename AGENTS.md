@@ -501,7 +501,35 @@ If a feature increases system complexity, it must clearly improve at least one o
 
 If it does not, defer it.
 
-## 18. Immediate Next Work
+## 18. Pre-Commit Quality Gates
+
+Every agent and contributor must run these checks before every commit and push. No exceptions.
+
+### Required Steps (in order)
+
+1. `bun run format` — auto-fix formatting
+2. `bun run lint` — must produce 0 errors (warnings acceptable)
+3. `bunx tsc --noEmit` — must produce empty output (no type errors)
+4. `git add -A && git commit -m "type(scope): description"` — use conventional commits
+5. `git push origin main`
+6. `gh run list --limit 2 --json databaseId,status,conclusion,name` — verify CI passes
+
+### CI Failure Protocol
+
+If CI fails after push:
+
+1. Run `gh run view <RUN_ID> --log-failed 2>&1 | tail -30` to identify the failure
+2. Fix the issue locally
+3. Repeat from step 1 above
+4. Do not move on until both `CI` and `Build & Push Docker Image` show `success`
+
+### Notes
+
+- CI uses `tsc -b packages/shared packages/server packages/client packages/cli` (project references mode), which may catch issues that `tsc --noEmit` misses
+- The full pre-commit workflow is documented in `.agents/workflows/pre-commit.md`
+- All workflow steps are tagged `turbo-all` for agent auto-execution
+
+## 19. Immediate Next Work
 
 Contributors starting from this repository should focus on:
 
@@ -511,13 +539,13 @@ Contributors starting from this repository should focus on:
 4. Defining the execution worker boundary before writing deployment code
 5. Keeping MVP constrained to Docker Engine plus Compose
 
-## 19. Final Rule
+## 20. Final Rule
 
 DaoFlow should be opinionated, transparent, and safe.
 
 The winning version of this product is not the one with the most features. It is the one a small team can trust to run production workloads on their own servers, while also letting external AI systems observe, explain, and assist without being able to casually break everything.
 
-## 20. Agent-First CLI Design
+## 21. Agent-First CLI Design
 
 The CLI is the primary interface for AI agents. It must be designed for non-human operators from the start.
 
@@ -584,7 +612,7 @@ The CLI is the primary interface for AI agents. It must be designed for non-huma
 | `backup run`     | command  | `backup:run`                         | yes      |
 | `backup restore` | command  | `backup:restore`, `approvals:create` | yes      |
 
-## 21. E2E Implementation Roadmap
+## 22. E2E Implementation Roadmap
 
 Detailed tasks grouped by milestone. Each task should be independently testable end-to-end.
 
