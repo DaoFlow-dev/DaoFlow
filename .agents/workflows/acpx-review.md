@@ -16,11 +16,13 @@ Use `acpx` to run self-reviews through Gemini and Codex agents before committing
 // turbo-all
 
 1. Run Gemini review on recent commits:
+
 ```bash
 acpx --approve-reads --timeout 120 gemini exec "Review the last 3 git commits for correctness, security, and best practices. Run git log -3 --oneline and git diff HEAD~3 to see changes."
 ```
 
 2. Run Codex review on recent commits:
+
 ```bash
 acpx --approve-reads --timeout 120 codex exec "Review the last 3 git commits for correctness and security. Run git log -3 --oneline and git diff HEAD~3 to see changes."
 ```
@@ -34,13 +36,13 @@ acpx --approve-reads --timeout 120 codex exec "Review <file_path> for correctnes
 
 ## Key Flags
 
-| Flag | Purpose |
-|------|---------|
+| Flag              | Purpose                                              |
+| ----------------- | ---------------------------------------------------- |
 | `--approve-reads` | Auto-approve read/search requests, prompt for writes |
-| `--approve-all` | Auto-approve all permission requests |
-| `--timeout <s>` | Max time to wait for response (default: 120s) |
-| `--format text` | Output format: text, json, quiet |
-| `exec` | One-shot prompt without saved session |
+| `--approve-all`   | Auto-approve all permission requests                 |
+| `--timeout <s>`   | Max time to wait for response (default: 120s)        |
+| `--format text`   | Output format: text, json, quiet                     |
+| `exec`            | One-shot prompt without saved session                |
 
 ## Available Agents
 
