@@ -49,6 +49,7 @@ Run this workflow **before every `git commit` and `git push`** to ensure code qu
    ```
 
    - Follow `.agents/workflows/acpx-review.md`.
+   - If `acpx` is not available globally, use `bunx acpx` instead.
    - Fix blocking issues found in review before proceeding to commit.
 
 6. **Stage and commit** — use conventional commits:

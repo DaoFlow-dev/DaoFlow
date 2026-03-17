@@ -8,8 +8,7 @@ Use `acpx` to run self-reviews through Gemini and Codex agents before committing
 
 ## Prerequisites
 
-- `acpx` installed globally: `npm install -g acpx@latest`
-- Located at: `/Users/catlab/.bun/bin/acpx`
+- `acpx` installed globally: `npm install -g acpx@latest`, or use `bunx acpx` directly.
 
 ## Review Recent Changes
 
