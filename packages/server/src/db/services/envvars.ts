@@ -168,3 +168,62 @@ export async function listEnvironmentVariableInventory(environmentId?: string, l
     variables
   };
 }
+
+// ─── Delete ─────────────────────────────────────────────────
+
+export interface DeleteEnvironmentVariableInput {
+  environmentId: string;
+  key: string;
+  deletedByUserId: string;
+  deletedByEmail: string;
+  deletedByRole: AppRole;
+}
+
+export async function deleteEnvironmentVariable(input: DeleteEnvironmentVariableInput) {
+  const env = await db
+    .select()
+    .from(environments)
+    .where(eq(environments.id, input.environmentId))
+    .limit(1);
+  if (!env[0]) return null;
+
+  const [existing] = await db
+    .select()
+    .from(environmentVariables)
+    .where(
+      and(
+        eq(environmentVariables.environmentId, input.environmentId),
+        eq(environmentVariables.key, input.key)
+      )
+    )
+    .limit(1);
+
+  if (!existing) return null;
+
+  await db.delete(environmentVariables).where(eq(environmentVariables.id, existing.id));
+
+  await db.insert(auditEntries).values({
+    actorType: "user",
+    actorId: input.deletedByUserId,
+    actorEmail: input.deletedByEmail,
+    actorRole: input.deletedByRole,
+    targetResource: `env-var/${input.environmentId}/${input.key}`,
+    action: "envvar.delete",
+    inputSummary: `Deleted ${input.key} from ${env[0].name}.`,
+    permissionScope: "env:write",
+    outcome: "success",
+    metadata: {
+      resourceType: "env-var",
+      resourceId: `${input.environmentId}/${input.key}`,
+      resourceLabel: `${input.key}@${env[0].name}`,
+      detail: `Deleted ${input.key} from ${env[0].name}.`
+    }
+  });
+
+  return {
+    key: input.key,
+    environmentId: input.environmentId,
+    environmentName: env[0].name,
+    status: "deleted" as const
+  };
+}

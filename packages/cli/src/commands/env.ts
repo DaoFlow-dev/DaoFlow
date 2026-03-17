@@ -94,5 +94,150 @@ export function envCommand(): Command {
       }
     );
 
+  // ── daoflow env list ──────────────────────────────────────
+  cmd
+    .command("list")
+    .description("List environment variables")
+    .option("--env-id <id>", "Environment ID")
+    .option("--json", "Output as JSON")
+    .action(async (opts: { envId?: string; json?: boolean }) => {
+      try {
+        const trpc = createClient();
+        const data = await trpc.environmentVariables.query({ environmentId: opts.envId });
+
+        if (opts.json) {
+          console.log(JSON.stringify({ ok: true, ...data }));
+          return;
+        }
+
+        console.log(chalk.bold(`\n  Environment Variables (${data.summary.totalVariables})\n`));
+        for (const v of data.variables) {
+          const value = v.isSecret ? chalk.red("***secret***") : chalk.dim(v.displayValue);
+          const cat = chalk.dim(`[${v.category}]`);
+          console.log(`  ${chalk.cyan(v.key)} = ${value}  ${cat}`);
+        }
+        console.log();
+      } catch (err) {
+        if (opts.json) {
+          console.log(
+            JSON.stringify({
+              ok: false,
+              error: err instanceof Error ? err.message : "Unknown",
+              code: "API_ERROR"
+            })
+          );
+        } else {
+          console.error(chalk.red(`✗ ${err instanceof Error ? err.message : err}`));
+        }
+        process.exit(1);
+      }
+    });
+
+  // ── daoflow env set ──────────────────────────────────────
+  cmd
+    .command("set")
+    .description("Set an environment variable")
+    .requiredOption("--env-id <id>", "Environment ID")
+    .requiredOption("--key <key>", "Variable key")
+    .requiredOption("--value <value>", "Variable value")
+    .option("--secret", "Mark as secret (encrypted at rest)")
+    .option("--category <cat>", "Category: runtime, build, secret", "runtime")
+    .option("--json", "Output as JSON")
+    .option("-y, --yes", "Skip confirmation")
+    .action(
+      async (opts: {
+        envId: string;
+        key: string;
+        value: string;
+        secret?: boolean;
+        category: string;
+        json?: boolean;
+        yes?: boolean;
+      }) => {
+        if (!opts.yes && !opts.json) {
+          console.error(
+            chalk.yellow(`Set ${opts.key} in environment ${opts.envId}. Pass --yes to confirm.`)
+          );
+          process.exit(1);
+        }
+
+        try {
+          const trpc = createClient();
+          await trpc.upsertEnvironmentVariable.mutate({
+            environmentId: opts.envId,
+            key: opts.key,
+            value: opts.value,
+            isSecret: opts.secret ?? false,
+            category: opts.category as "runtime" | "build"
+          });
+
+          if (opts.json) {
+            console.log(JSON.stringify({ ok: true, key: opts.key, environment: opts.envId }));
+          } else {
+            console.log(chalk.green(`✓ Set ${opts.key} in environment ${opts.envId}`));
+          }
+        } catch (err) {
+          if (opts.json) {
+            console.log(
+              JSON.stringify({
+                ok: false,
+                error: err instanceof Error ? err.message : "Unknown",
+                code: "API_ERROR"
+              })
+            );
+          } else {
+            console.error(chalk.red(`✗ ${err instanceof Error ? err.message : err}`));
+          }
+          process.exit(1);
+        }
+      }
+    );
+
+  // ── daoflow env delete ───────────────────────────────────
+  cmd
+    .command("delete")
+    .description("Delete an environment variable")
+    .requiredOption("--env-id <id>", "Environment ID")
+    .requiredOption("--key <key>", "Variable key to delete")
+    .option("--json", "Output as JSON")
+    .option("-y, --yes", "Skip confirmation")
+    .action(async (opts: { envId: string; key: string; json?: boolean; yes?: boolean }) => {
+      if (!opts.yes && !opts.json) {
+        console.error(
+          chalk.yellow(
+            `Destructive: delete ${opts.key} from environment ${opts.envId}. Pass --yes.`
+          )
+        );
+        process.exit(1);
+      }
+
+      try {
+        const trpc = createClient();
+        await trpc.deleteEnvironmentVariable.mutate({
+          environmentId: opts.envId,
+          key: opts.key
+        });
+
+        if (opts.json) {
+          console.log(JSON.stringify({ ok: true, deleted: opts.key, environment: opts.envId }));
+        } else {
+          console.log(chalk.green(`✓ Deleted ${opts.key} from environment ${opts.envId}`));
+        }
+      } catch (err) {
+        if (opts.json) {
+          console.log(
+            JSON.stringify({
+              ok: false,
+              error: err instanceof Error ? err.message : "Unknown",
+              code: "API_ERROR"
+            })
+          );
+        } else {
+          console.error(chalk.red(`✗ ${err instanceof Error ? err.message : err}`));
+        }
+        process.exit(1);
+      }
+    });
+
   return cmd;
 }

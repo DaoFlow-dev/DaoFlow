@@ -1,6 +1,10 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { createDeploymentRecord } from "../db/services/deployments";
+import {
+  createDeploymentRecord,
+  cancelDeployment,
+  deploymentDiff
+} from "../db/services/deployments";
 import { queueComposeRelease } from "../db/services/compose";
 import {
   completeExecutionJob,
@@ -9,15 +13,17 @@ import {
 } from "../db/services/execution";
 import { triggerDeploy } from "../db/services/trigger-deploy";
 import { executeRollback } from "../db/services/execute-rollback";
-import { upsertEnvironmentVariable } from "../db/services/envvars";
+import { upsertEnvironmentVariable, deleteEnvironmentVariable } from "../db/services/envvars";
 import {
   t,
   deployStartProcedure,
+  deployCancelProcedure,
   deployRollbackProcedure,
   envWriteProcedure,
   getActorContext,
   getUpdaterContext,
-  throwOnOperationError
+  throwOnOperationError,
+  protectedProcedure
 } from "../trpc";
 
 export const deployRouter = t.router({
@@ -235,5 +241,82 @@ export const deployRouter = t.router({
         });
       }
       return result.deployment;
+    }),
+  deleteEnvironmentVariable: envWriteProcedure
+    .input(
+      z.object({
+        environmentId: z.string().min(1),
+        key: z
+          .string()
+          .regex(/^[A-Z_][A-Z0-9_]*$/)
+          .max(80)
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const result = await deleteEnvironmentVariable({
+        environmentId: input.environmentId,
+        key: input.key,
+        deletedByUserId: ctx.session.user.id,
+        deletedByEmail: ctx.session.user.email,
+        deletedByRole: ctx.session.user.role
+      });
+
+      if (!result) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: `Environment variable '${input.key}' not found in environment '${input.environmentId}'.`
+        });
+      }
+
+      return result;
+    }),
+  cancelDeployment: deployCancelProcedure
+    .input(
+      z.object({
+        deploymentId: z.string().min(1)
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const result = await cancelDeployment({
+        deploymentId: input.deploymentId,
+        cancelledByUserId: ctx.session.user.id,
+        cancelledByEmail: ctx.session.user.email,
+        cancelledByRole: ctx.session.user.role
+      });
+
+      if (result.status === "not-found") {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Deployment not found."
+        });
+      }
+
+      if (result.status === "invalid-state") {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: `Deployment is already ${result.currentStatus}; only queued or running deployments can be cancelled.`
+        });
+      }
+
+      return result;
+    }),
+  deploymentDiff: protectedProcedure
+    .input(
+      z.object({
+        deploymentIdA: z.string().min(1),
+        deploymentIdB: z.string().min(1)
+      })
+    )
+    .query(async ({ input }) => {
+      const diff = await deploymentDiff(input.deploymentIdA, input.deploymentIdB);
+
+      if (!diff) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "One or both deployments not found."
+        });
+      }
+
+      return diff;
     })
 });

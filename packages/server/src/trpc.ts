@@ -98,6 +98,7 @@ const ALL_INCL_AGENT = ["owner", "admin", "operator", "developer", "agent"] as c
 export const serverWriteProcedure = scopedProcedure(ADMIN_ONLY, ["server:write"]);
 export const deployStartProcedure = scopedProcedure(ALL_WRITE, ["deploy:start"]);
 export const deployRollbackProcedure = scopedProcedure(ALL_WRITE, ["deploy:rollback"]);
+export const deployCancelProcedure = scopedProcedure(ALL_WRITE, ["deploy:cancel"]);
 export const envWriteProcedure = scopedProcedure(ALL_WRITE, ["env:write"]);
 export const serviceUpdateProcedure = scopedProcedure(ALL_WRITE, ["service:update"]);
 export const backupRunProcedure = scopedProcedure(ALL_OPS, ["backup:run"]);

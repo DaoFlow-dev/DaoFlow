@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { registerServer } from "../db/services/servers";
+import { registerServer, deleteServer } from "../db/services/servers";
 import {
   createProject,
   updateProject,
@@ -55,6 +55,30 @@ export const adminRouter = t.router({
       }
 
       return result.server;
+    }),
+
+  deleteServer: serverWriteProcedure
+    .input(z.object({ serverId: z.string().min(1) }))
+    .mutation(async ({ ctx, input }) => {
+      const result = await deleteServer({
+        serverId: input.serverId,
+        deletedByUserId: ctx.session.user.id,
+        deletedByEmail: ctx.session.user.email,
+        deletedByRole: ctx.session.user.role
+      });
+
+      if (result.status === "not-found") {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Server not found." });
+      }
+
+      if (result.status === "has-dependencies") {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: result.message
+        });
+      }
+
+      return { deleted: true, serverName: result.serverName };
     }),
 
   /* ── Project CRUD ──────────────────────────────────────────── */

@@ -225,3 +225,54 @@ export async function listInfrastructureInventory() {
     })
   };
 }
+
+// ─── Delete server ──────────────────────────────────────────
+
+export interface DeleteServerInput {
+  serverId: string;
+  deletedByUserId: string;
+  deletedByEmail: string;
+  deletedByRole: AppRole;
+}
+
+export async function deleteServer(input: DeleteServerInput) {
+  const [server] = await db.select().from(servers).where(eq(servers.id, input.serverId)).limit(1);
+  if (!server) return { status: "not-found" as const };
+
+  // Check for active environments targeting this server
+  const envRows = await db.select().from(environments);
+  const activeEnvs = envRows.filter((env) => {
+    const config = asRecord(env.config);
+    return readString(config, "targetServerId") === input.serverId;
+  });
+
+  if (activeEnvs.length > 0) {
+    return {
+      status: "has-dependencies" as const,
+      count: activeEnvs.length,
+      message: `Server '${server.name}' has ${activeEnvs.length} active environment(s). Remove or reassign them first.`
+    };
+  }
+
+  await db.delete(servers).where(eq(servers.id, input.serverId));
+
+  await db.insert(auditEntries).values({
+    actorType: "user",
+    actorId: input.deletedByUserId,
+    actorEmail: input.deletedByEmail,
+    actorRole: input.deletedByRole,
+    targetResource: `server/${input.serverId}`,
+    action: "server.delete",
+    inputSummary: `Deleted server ${server.name} (${server.host}).`,
+    permissionScope: "server:write",
+    outcome: "success",
+    metadata: {
+      resourceType: "server",
+      resourceId: input.serverId,
+      resourceLabel: server.name,
+      detail: `Deleted server ${server.name} at ${server.host}.`
+    }
+  });
+
+  return { status: "deleted" as const, serverId: input.serverId, serverName: server.name };
+}

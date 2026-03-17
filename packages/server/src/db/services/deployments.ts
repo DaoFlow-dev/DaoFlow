@@ -456,3 +456,111 @@ export async function listDeploymentRollbackPlans(limit = 6) {
     };
   });
 }
+
+// ─── Cancel deployment ──────────────────────────────────────
+
+export interface CancelDeploymentInput {
+  deploymentId: string;
+  cancelledByUserId: string;
+  cancelledByEmail: string;
+  cancelledByRole: AppRole;
+}
+
+export async function cancelDeployment(input: CancelDeploymentInput) {
+  const [deployment] = await db
+    .select()
+    .from(deployments)
+    .where(eq(deployments.id, input.deploymentId))
+    .limit(1);
+
+  if (!deployment) return { status: "not-found" as const };
+
+  const currentStatus = normalizeStatus(deployment.status, deployment.conclusion);
+  if (currentStatus !== "queued" && currentStatus !== "running") {
+    return { status: "invalid-state" as const, currentStatus };
+  }
+
+  await db
+    .update(deployments)
+    .set({
+      status: "failed",
+      conclusion: "cancelled",
+      error: { reason: "Cancelled by user", cancelledBy: input.cancelledByEmail },
+      concludedAt: new Date(),
+      updatedAt: new Date()
+    })
+    .where(eq(deployments.id, input.deploymentId));
+
+  await db.insert(auditEntries).values({
+    actorType: "user",
+    actorId: input.cancelledByUserId,
+    actorEmail: input.cancelledByEmail,
+    actorRole: input.cancelledByRole,
+    targetResource: `deployment/${input.deploymentId}`,
+    action: "deployment.cancel",
+    inputSummary: `Cancelled deployment ${input.deploymentId}.`,
+    permissionScope: "deploy:cancel",
+    outcome: "success",
+    metadata: {
+      resourceType: "deployment",
+      resourceId: input.deploymentId,
+      detail: `Cancelled deployment from ${currentStatus} state.`
+    }
+  });
+
+  await db.insert(events).values({
+    kind: "deployment.cancelled",
+    resourceType: "deployment",
+    resourceId: input.deploymentId,
+    summary: "Deployment cancelled by user.",
+    detail: `${input.cancelledByEmail} cancelled a ${currentStatus} deployment.`,
+    severity: "warning",
+    metadata: { previousStatus: currentStatus, cancelledBy: input.cancelledByEmail },
+    createdAt: new Date()
+  });
+
+  return { status: "cancelled" as const, deploymentId: input.deploymentId };
+}
+
+// ─── Deployment diff ────────────────────────────────────────
+
+export async function deploymentDiff(deploymentIdA: string, deploymentIdB: string) {
+  const [a, b] = await Promise.all([
+    getDeploymentRecord(deploymentIdA),
+    getDeploymentRecord(deploymentIdB)
+  ]);
+
+  if (!a || !b) return null;
+
+  return {
+    a: {
+      id: a.id,
+      serviceName: a.serviceName,
+      status: a.status,
+      commitSha: a.commitSha,
+      imageTag: a.imageTag,
+      sourceType: a.sourceType,
+      createdAt: a.createdAt,
+      finishedAt: a.finishedAt,
+      stepCount: a.steps.length
+    },
+    b: {
+      id: b.id,
+      serviceName: b.serviceName,
+      status: b.status,
+      commitSha: b.commitSha,
+      imageTag: b.imageTag,
+      sourceType: b.sourceType,
+      createdAt: b.createdAt,
+      finishedAt: b.finishedAt,
+      stepCount: b.steps.length
+    },
+    diffs: {
+      sameService: a.serviceName === b.serviceName,
+      commitChanged: a.commitSha !== b.commitSha,
+      imageChanged: a.imageTag !== b.imageTag,
+      sourceTypeChanged: a.sourceType !== b.sourceType,
+      statusChanged: a.status !== b.status
+    }
+  };
+}
