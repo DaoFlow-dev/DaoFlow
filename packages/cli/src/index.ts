@@ -20,6 +20,7 @@ import { backupCommand } from "./commands/backup";
 import { tokenCommand } from "./commands/token";
 import { diffCommand } from "./commands/diff";
 import { cancelCommand } from "./commands/cancel";
+import { registerConfigCommand } from "./commands/config";
 
 const program = new Command();
 
@@ -51,5 +52,6 @@ program.addCommand(backupCommand());
 program.addCommand(tokenCommand());
 program.addCommand(diffCommand());
 program.addCommand(cancelCommand());
+registerConfigCommand(program);
 
 program.parse();

@@ -12,7 +12,9 @@ import { listAuditTrail, listOperationsTimeline } from "../db/services/audit";
 import {
   listBackupOverview,
   listBackupRestoreQueue,
-  listPersistentVolumeInventory
+  listPersistentVolumeInventory,
+  listBackupMetrics,
+  backupDiagnosis
 } from "../db/services/backups";
 import { listDestinations, getDestination } from "../db/services/destinations";
 import { listComposeDriftReport, listComposeReleaseCatalog } from "../db/services/compose";
@@ -253,5 +255,17 @@ export const readRouter = t.router({
         throw new TRPCError({ code: "NOT_FOUND", message: "Destination not found." });
       }
       return dest;
+    }),
+  backupMetrics: protectedProcedure.query(async () => {
+    return listBackupMetrics();
+  }),
+  backupDiagnosis: protectedProcedure
+    .input(z.object({ runId: z.string().min(1) }))
+    .query(async ({ input }) => {
+      const result = await backupDiagnosis(input.runId);
+      if (!result) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Backup run not found." });
+      }
+      return result;
     })
 });

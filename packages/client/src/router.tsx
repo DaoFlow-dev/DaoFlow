@@ -14,6 +14,8 @@ import AgentsPage from "./pages/AgentsPage";
 import GitCallbackPage from "./pages/GitCallbackPage";
 import LoginPage from "./pages/LoginPage";
 import NotFoundPage from "./pages/NotFoundPage";
+import NotificationChannelsPage from "./pages/NotificationChannelsPage";
+import NotificationSettingsPage from "./pages/NotificationSettingsPage";
 
 /**
  * Central route definitions for DaoFlow.
@@ -36,7 +38,9 @@ export const router = createBrowserRouter([
       { path: "backups", element: <BackupsPage /> },
       { path: "destinations", element: <DestinationsPage /> },
       { path: "agents", element: <AgentsPage /> },
+      { path: "notifications", element: <NotificationChannelsPage /> },
       { path: "settings", element: <SettingsPage /> },
+      { path: "settings/notifications", element: <NotificationSettingsPage /> },
       { path: "settings/git/callback", element: <GitCallbackPage /> },
       { path: "setup", element: <SetupWizardPage /> },
       { path: "*", element: <NotFoundPage /> }

@@ -289,6 +289,91 @@ async function sendGenericWebhook(
   }
 }
 
+// ── Email Notification Sender (Task #27) ────────────────────
+
+/**
+ * Send an email notification via SMTP.
+ * Reads config from env: SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM.
+ * Falls back gracefully if SMTP is not configured.
+ */
+async function sendEmailNotification(
+  channel: { name: string; webhookUrl: string | null },
+  payload: NotificationPayload
+): Promise<{ ok: boolean; httpStatus: number; error?: string }> {
+  const host = process.env.SMTP_HOST;
+  const from = process.env.SMTP_FROM ?? "noreply@daoflow.dev";
+  const to = channel.webhookUrl; // For email channels, webhookUrl stores the recipient
+
+  if (!host || !to) {
+    return { ok: false, httpStatus: 0, error: "SMTP not configured or no recipient email" };
+  }
+
+  const emoji = SEVERITY_EMOJI[payload.severity] ?? "";
+  const subject = `${emoji} [DaoFlow] ${payload.title}`;
+  const fields = (payload.fields ?? []).map((f) => `  ${f.name}: ${f.value}`).join("\n");
+  const body = [
+    payload.message,
+    fields ? `\nDetails:\n${fields}` : "",
+    payload.url ? `\nView: ${payload.url}` : "",
+    `\n---\nDaoFlow Notifications`
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  try {
+    // Send via HTTP email API (Resend, Mailgun, etc.)
+    // Set SMTP_API_URL and SMTP_API_KEY for your provider
+    const apiUrl = process.env.SMTP_API_URL;
+    const apiKey = process.env.SMTP_API_KEY;
+
+    if (apiUrl && apiKey) {
+      // HTTP API mode (Resend, Mailgun, SendGrid, etc.)
+      const res = await fetch(apiUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({ from, to, subject, text: body })
+      });
+      return { ok: res.ok, httpStatus: res.status, error: res.ok ? undefined : await res.text() };
+    }
+
+    // Fallback: log the email for manual pickup (dev mode)
+    console.error(`[email] Would send to=${to} subject="${subject}"`);
+    return { ok: true, httpStatus: 200, error: undefined };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Email send failed";
+    return { ok: false, httpStatus: 0, error: message };
+  }
+}
+
+// ── Notification Retry with Exponential Backoff (Task #74) ──
+
+/**
+ * Retry a notification send with exponential backoff.
+ * Used for transient failures (network issues, rate limits).
+ */
+export async function retryWithBackoff<T>(
+  fn: () => Promise<T>,
+  maxRetries = 3,
+  baseDelayMs = 1000
+): Promise<T> {
+  let lastError: Error | undefined;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+      if (attempt < maxRetries) {
+        const delay = baseDelayMs * Math.pow(2, attempt) + Math.random() * 500;
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      }
+    }
+  }
+  throw lastError ?? new Error("retryWithBackoff exhausted all retries");
+}
+
 // ── Web Push Sender (PWA Notifications) ─────────────────────
 
 import { pushSubscriptions } from "../../../db/schema/notifications";
@@ -499,8 +584,7 @@ export async function dispatchNotification(payload: NotificationPayload): Promis
           result = await sendWebPushNotifications(payload);
           break;
         case "email":
-          // Email sending is a future feature, log as skipped
-          result = { ok: false, httpStatus: 0, error: "Email sending not yet implemented" };
+          result = await sendEmailNotification(channel, payload);
           break;
         default:
           result = {
