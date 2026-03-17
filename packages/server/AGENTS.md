@@ -35,3 +35,6 @@
 - Prefer Drizzle query builder over raw SQL.
 - Log errors with structured JSON (Hono logger middleware).
 - No floating promises — always `await` or `void` async calls.
+- Prefer small modules over large route/service files.
+- Split hand-written server files before they grow past ~300 lines.
+- Do not add new hand-written files above 500 lines unless the user explicitly asks for it or the file is generated.
