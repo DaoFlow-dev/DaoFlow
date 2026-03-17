@@ -29,6 +29,8 @@ export default defineConfig({
   webServer: {
     command: "bun run db:rebuild && bun run db:seed:e2e-auth && bun run build && bun run start",
     env: {
+      PATH: process.env.PATH ?? "",
+      HOME: process.env.HOME ?? "",
       DATABASE_URL: DB_URL,
       REDIS_URL: process.env.REDIS_URL ?? "redis://localhost:6379",
       BETTER_AUTH_SECRET: process.env.BETTER_AUTH_SECRET ?? "daoflow-e2e-worker-secret-2026",

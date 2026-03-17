@@ -17,13 +17,24 @@ test.describe("Temporal workflow execution", () => {
     await signInAsOwner(page);
 
     const suffix = Date.now().toString();
-    const server = await trpcRequest<{ id: string }>(page, "registerServer", {
-      name: `worker-local-${suffix}`,
-      host: "127.0.0.1",
-      region: "local",
-      sshPort: 22,
-      kind: "docker-engine"
-    });
+    const inventory = await trpcRequest<{
+      servers: {
+        id: string;
+        host: string;
+      }[];
+    }>(page, "infrastructureInventory");
+    const existingLocalServer = inventory.servers.find(
+      (server) => server.host === "127.0.0.1" || server.host === "localhost"
+    );
+    const server =
+      existingLocalServer ??
+      (await trpcRequest<{ id: string }>(page, "registerServer", {
+        name: `worker-local-${suffix}`,
+        host: "127.0.0.1",
+        region: "local",
+        sshPort: 22,
+        kind: "docker-engine"
+      }));
 
     // Create project → environment → service
     const project = await trpcRequest<{ id: string }>(page, "createProject", {
@@ -62,9 +73,8 @@ test.describe("Temporal workflow execution", () => {
     // Verify the deployment appears in the table
     await expect(page.getByText(service.name)).toBeVisible({ timeout: 30_000 });
 
-    // Wait for terminal status (succeeded or failed — both prove the worker ran)
-    const terminalStatus = page.getByText("healthy").or(page.getByText("failed"));
-    await expect(terminalStatus.first()).toBeVisible({ timeout: 90_000 });
+    // Wait for terminal status
+    await expect(page.getByText("healthy").first()).toBeVisible({ timeout: 90_000 });
   });
 
   test("deployment logs stream in real time via SSE", async ({ page }) => {

@@ -10,7 +10,7 @@
   },
   "scripts": {
     "dev": "bun --watch src/index.ts",
-    "build": "tsup src/index.ts --format esm --platform node --target node22 --out-dir dist --clean",
+    "build": "tsup src/index.ts --format esm --platform node --target node22 --out-dir dist --clean && mkdir -p dist/workflows && cp -R src/worker/temporal/workflows/. dist/workflows",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --coverage"
   },

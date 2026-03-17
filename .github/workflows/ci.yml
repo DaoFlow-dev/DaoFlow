@@ -131,7 +131,7 @@ jobs:
           temporal server start-dev \
             --port 7233 --ui-port 8233 --namespace daoflow \
             --log-format text &
-          sleep 5
+          timeout 30 bash -c 'until (echo > /dev/tcp/127.0.0.1/7233) >/dev/null 2>&1; do sleep 1; done'
           echo "Temporal dev server started"
 
       - name: Build
