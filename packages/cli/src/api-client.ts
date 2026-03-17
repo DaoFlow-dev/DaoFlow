@@ -19,7 +19,7 @@ export class ApiClient {
 
   private headers(extra?: Record<string, string>): Record<string, string> {
     return {
-      Authorization: `Bearer ${this.ctx.token}`,
+      Cookie: `better-auth.session_token=${this.ctx.token}`,
       "Content-Type": "application/json",
       ...extra
     };
