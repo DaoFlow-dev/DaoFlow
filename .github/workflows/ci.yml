@@ -89,14 +89,19 @@ jobs:
 
       - name: Run E2E tests
         run: |
-          DATABASE_URL="$PLAYWRIGHT_DATABASE_URL" bun packages/server/src/db/reset.ts
-          DATABASE_URL="$PLAYWRIGHT_DATABASE_URL" bun packages/server/src/db/migration.ts
-          DATABASE_URL="$PLAYWRIGHT_DATABASE_URL" bun packages/server/src/db/services/run-seed.ts
-          DATABASE_URL="$PLAYWRIGHT_DATABASE_URL" bun packages/server/src/db/services/seed-e2e-auth-users.ts
-          PLAYWRIGHT_SKIP_DB_BOOTSTRAP=true bunx playwright test
-          DATABASE_URL="$PLAYWRIGHT_BOOTSTRAP_DATABASE_URL" bun packages/server/src/db/reset.ts
-          DATABASE_URL="$PLAYWRIGHT_BOOTSTRAP_DATABASE_URL" bun packages/server/src/db/migration.ts
-          PLAYWRIGHT_SKIP_DB_BOOTSTRAP=true bunx playwright test --config playwright.bootstrap.config.ts
+          set -euxo pipefail
+          {
+            echo "PLAYWRIGHT_DATABASE_URL=$PLAYWRIGHT_DATABASE_URL"
+            echo "PLAYWRIGHT_BOOTSTRAP_DATABASE_URL=$PLAYWRIGHT_BOOTSTRAP_DATABASE_URL"
+            DATABASE_URL="$PLAYWRIGHT_DATABASE_URL" bun packages/server/src/db/reset.ts
+            DATABASE_URL="$PLAYWRIGHT_DATABASE_URL" bun packages/server/src/db/migration.ts
+            DATABASE_URL="$PLAYWRIGHT_DATABASE_URL" bun packages/server/src/db/services/run-seed.ts
+            DATABASE_URL="$PLAYWRIGHT_DATABASE_URL" bun packages/server/src/db/services/seed-e2e-auth-users.ts
+            PLAYWRIGHT_SKIP_DB_BOOTSTRAP=true bunx playwright test
+            DATABASE_URL="$PLAYWRIGHT_BOOTSTRAP_DATABASE_URL" bun packages/server/src/db/reset.ts
+            DATABASE_URL="$PLAYWRIGHT_BOOTSTRAP_DATABASE_URL" bun packages/server/src/db/migration.ts
+            PLAYWRIGHT_SKIP_DB_BOOTSTRAP=true bunx playwright test --config playwright.bootstrap.config.ts
+          } 2>&1 | tee e2e-ci.log
         env:
           DATABASE_URL: postgresql://daoflow:daoflow_ci@localhost:5432/daoflow_test
           PLAYWRIGHT_DATABASE_URL: postgresql://daoflow:daoflow_ci@localhost:5432/daoflow_test
@@ -115,4 +120,12 @@ jobs:
         with:
           name: playwright-report
           path: playwright-report
+          if-no-files-found: ignore
+
+      - name: Upload E2E debug log
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: e2e-ci-log
+          path: e2e-ci.log
           if-no-files-found: ignore
