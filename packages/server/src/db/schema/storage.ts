@@ -33,8 +33,19 @@ export const backupPolicies = pgTable(
     volumeId: varchar("volume_id", { length: 32 })
       .notNull()
       .references(() => volumes.id),
+    // "volume" = raw volume tar, "database" = logical dump (pg_dump/mysqldump/mongodump)
+    backupType: varchar("backup_type", { length: 20 }).default("volume").notNull(),
+    // Optional: database engine hint when backupType="database" (postgres, mysql, mariadb, mongo)
+    databaseEngine: varchar("database_engine", { length: 20 }),
+    // If true, stop the container before backing up for data consistency
+    turnOff: integer("turn_off").default(0).notNull(), // 0=false, 1=true (boolean via int)
     schedule: varchar("schedule", { length: 60 }), // cron expression
     retentionDays: integer("retention_days").default(30).notNull(),
+    // ── GFS Retention (Grandfather-Father-Son) ──
+    retentionDaily: integer("retention_daily").default(7),
+    retentionWeekly: integer("retention_weekly").default(4),
+    retentionMonthly: integer("retention_monthly").default(12),
+    maxBackups: integer("max_backups").default(100), // hard cap safety net
     storageTarget: text("storage_target"), // s3://bucket/prefix (legacy, use destinationId)
     destinationId: varchar("destination_id", { length: 32 }).references(
       () => backupDestinations.id,
@@ -58,6 +69,10 @@ export const backupRuns = pgTable(
     status: varchar("status", { length: 20 }).default("queued").notNull(), // queued | running | succeeded | failed
     artifactPath: text("artifact_path"),
     sizeBytes: text("size_bytes"),
+    // SHA-256 checksum of the backup artifact for integrity verification
+    checksum: varchar("checksum", { length: 128 }),
+    // When this backup was last verified via test-restore
+    verifiedAt: timestamp("verified_at"),
     triggeredByUserId: text("triggered_by_user_id").references(() => users.id, {
       onDelete: "set null"
     }),

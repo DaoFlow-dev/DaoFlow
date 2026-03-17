@@ -34,6 +34,21 @@ export interface BackupPolicyResolved {
   serverId: string;
   serverName: string;
   retentionDays: number;
+  // ── New fields for enhanced workflow ──
+  backupType: string; // "volume" | "database"
+  databaseEngine?: string; // "postgres" | "mysql" | "mariadb" | "mongo"
+  turnOff: boolean; // stop container before backup
+  retentionDaily: number | null;
+  retentionWeekly: number | null;
+  retentionMonthly: number | null;
+  maxBackups: number | null;
+  containerName?: string; // Docker container name for stop/start
+  projectName?: string; // for notification context
+  environmentName?: string; // for notification context
+  serviceName?: string; // for notification context
+  databaseName?: string; // for database dumps
+  databaseUser?: string; // for database dumps
+  databasePassword?: string; // for database dumps
   destination: DestinationConfig;
 }
 
@@ -77,6 +92,12 @@ export async function resolveBackupPolicy(policyId: string): Promise<BackupPolic
 
   if (!dest) return null;
 
+  // Parse volume metadata for additional context
+  const volumeMeta =
+    volume.metadata && typeof volume.metadata === "object"
+      ? (volume.metadata as Record<string, unknown>)
+      : {};
+
   return {
     policyId: policy.id,
     policyName: policy.name,
@@ -86,6 +107,24 @@ export async function resolveBackupPolicy(policyId: string): Promise<BackupPolic
     serverId: server.id,
     serverName: server.name,
     retentionDays: policy.retentionDays,
+    // New fields
+    backupType: policy.backupType ?? "volume",
+    databaseEngine: policy.databaseEngine ?? undefined,
+    turnOff: policy.turnOff === 1,
+    retentionDaily: policy.retentionDaily,
+    retentionWeekly: policy.retentionWeekly,
+    retentionMonthly: policy.retentionMonthly,
+    maxBackups: policy.maxBackups,
+    containerName:
+      typeof volumeMeta.containerName === "string" ? volumeMeta.containerName : undefined,
+    projectName: typeof volumeMeta.projectName === "string" ? volumeMeta.projectName : undefined,
+    environmentName:
+      typeof volumeMeta.environmentName === "string" ? volumeMeta.environmentName : undefined,
+    serviceName: typeof volumeMeta.serviceName === "string" ? volumeMeta.serviceName : undefined,
+    databaseName: typeof volumeMeta.databaseName === "string" ? volumeMeta.databaseName : undefined,
+    databaseUser: typeof volumeMeta.databaseUser === "string" ? volumeMeta.databaseUser : undefined,
+    databasePassword:
+      typeof volumeMeta.databasePassword === "string" ? volumeMeta.databasePassword : undefined,
     destination: {
       id: dest.id,
       provider: dest.provider as BackupProvider,

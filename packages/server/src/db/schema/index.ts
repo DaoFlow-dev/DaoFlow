@@ -11,3 +11,4 @@ export * from "./auth-schema";
 export * from "./tunnels";
 export * from "./services";
 export * from "./git-providers";
+export * from "./notifications";

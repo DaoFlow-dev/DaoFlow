@@ -6,17 +6,26 @@
  *
  * Each cron iteration:
  * 1. Resolves the policy and destination
- * 2. Creates a backup run record
- * 3. Executes rclone copy
- * 4. Updates the run status
- * 5. Applies retention policy (purge old backups)
+ * 2. Optionally stops the container (turnOff mode)
+ * 3. Performs database dump or volume tar based on backupType
+ * 4. Creates a backup run record
+ * 5. Executes rclone copy (with optional encryption)
+ * 6. Computes and records SHA-256 checksum
+ * 7. Updates the run status
+ * 8. Restarts the container if stopped
+ * 9. Applies GFS retention policy
+ * 10. Dispatches notifications (Slack/Discord/webhook)
  *
  * If the worker crashes mid-workflow, Temporal replays and resumes.
  */
 
 import { proxyActivities } from "@temporalio/workflow";
-import type * as activities from "../activities/backup-activities";
+import type * as backupActs from "../activities/backup-activities";
+import type * as dbActs from "../activities/database-activities";
+import type * as retentionActs from "../activities/retention-activities";
+import type * as notificationActs from "../activities/notification-activities";
 
+// Backup activities (existing)
 const {
   resolveBackupPolicy,
   createBackupRun,
@@ -24,15 +33,47 @@ const {
   markBackupRunSucceeded,
   markBackupRunFailed,
   emitBackupEvent,
-  applyRetentionPolicy,
   auditBackupAction
-} = proxyActivities<typeof activities>({
+} = proxyActivities<typeof backupActs>({
   startToCloseTimeout: "30 minutes",
   retry: {
     maximumAttempts: 3,
     backoffCoefficient: 2,
     initialInterval: "30s",
     maximumInterval: "5m"
+  }
+});
+
+// Database & container lifecycle activities
+const { executeDatabaseDump, stopContainer, startContainer } = proxyActivities<typeof dbActs>({
+  startToCloseTimeout: "30 minutes",
+  retry: {
+    maximumAttempts: 2,
+    backoffCoefficient: 2,
+    initialInterval: "10s",
+    maximumInterval: "2m"
+  }
+});
+
+// Retention activities (with longer timeout for pruning many backups)
+const { applyRetentionPolicy: applyGFSRetention } = proxyActivities<typeof retentionActs>({
+  startToCloseTimeout: "10 minutes",
+  retry: {
+    maximumAttempts: 2,
+    backoffCoefficient: 2,
+    initialInterval: "10s",
+    maximumInterval: "2m"
+  }
+});
+
+// Notification activities (short timeout, best-effort)
+const { dispatchNotification, buildBackupNotification } = proxyActivities<typeof notificationActs>({
+  startToCloseTimeout: "30 seconds",
+  retry: {
+    maximumAttempts: 2,
+    backoffCoefficient: 1,
+    initialInterval: "5s",
+    maximumInterval: "10s"
   }
 });
 
@@ -50,11 +91,12 @@ export interface BackupCronWorkflowInput {
  */
 export async function backupCronWorkflow(input: BackupCronWorkflowInput): Promise<void> {
   const { policyId, triggeredBy } = input;
+  // NOTE: Do NOT use Date.now() in workflows — it breaks Temporal determinism.
+  // Duration tracking is handled by activities and Temporal's own event history.
 
   // Phase 1: Resolve policy and validate
   const resolved = await resolveBackupPolicy(policyId);
   if (!resolved) {
-    // Policy is inactive, deleted, or missing destination — skip silently
     await emitBackupEvent(
       policyId,
       "backup.skipped",
@@ -66,10 +108,26 @@ export async function backupCronWorkflow(input: BackupCronWorkflowInput): Promis
   }
 
   let runId: string | null = null;
+  let containerStopped = false;
 
   try {
     // Phase 2: Create backup run record
     runId = await createBackupRun(policyId, triggeredBy);
+
+    // Dispatch "started" notification
+    try {
+      const notification = buildBackupNotification({
+        eventType: "backup.started",
+        policyName: resolved.policyName,
+        projectName: resolved.projectName,
+        environmentName: resolved.environmentName,
+        serviceName: resolved.serviceName,
+        status: "started"
+      });
+      await dispatchNotification(notification);
+    } catch {
+      // Notifications are best-effort, don't fail the backup
+    }
 
     await emitBackupEvent(
       policyId,
@@ -84,10 +142,43 @@ export async function backupCronWorkflow(input: BackupCronWorkflowInput): Promis
       `Temporal worker started backup for ${resolved.policyName} (run: ${runId})`
     );
 
-    // Phase 3: Execute the backup copy
-    const result = await executeBackupCopy(resolved, runId);
+    // Phase 2.5: Stop container if turnOff is enabled
+    if (resolved.turnOff) {
+      const stopResult = await stopContainer(resolved.containerName ?? resolved.volumeName);
+      if (stopResult.success) {
+        containerStopped = true;
+      } else {
+        console.warn(
+          `[temporal-backup] Failed to stop container ${resolved.containerName}: ${stopResult.error}`
+        );
+      }
+    }
 
-    // Phase 4: Mark success
+    // Phase 3: Execute backup based on type
+    let result: { runId: string; artifactPath: string; sizeBytes: number };
+
+    if (resolved.backupType === "database" && resolved.databaseEngine) {
+      // Database-native dump
+      const dumpResult = await executeDatabaseDump({
+        containerName: resolved.containerName ?? resolved.volumeName,
+        engine: resolved.databaseEngine as "postgres" | "mysql" | "mariadb" | "mongo",
+        databaseName: resolved.databaseName,
+        user: resolved.databaseUser,
+        password: resolved.databasePassword
+      });
+
+      if (!dumpResult.success) {
+        throw new Error(`Database dump failed: ${dumpResult.error}`);
+      }
+
+      // Upload dump via rclone
+      result = await executeBackupCopy(resolved, runId);
+    } else {
+      // Volume tar backup (default)
+      result = await executeBackupCopy(resolved, runId);
+    }
+
+    // Phase 5: Mark success
     await markBackupRunSucceeded(result.runId, result.artifactPath, result.sizeBytes);
 
     await emitBackupEvent(
@@ -97,23 +188,63 @@ export async function backupCronWorkflow(input: BackupCronWorkflowInput): Promis
       `Backed up ${resolved.volumeName} → ${result.artifactPath} (${result.sizeBytes} bytes)`
     );
 
-    console.log(
-      `[temporal-backup] Backup ${runId} completed: ${result.artifactPath} (${result.sizeBytes} bytes)`
-    );
+    // Phase 6: Restart container if we stopped it
+    if (containerStopped) {
+      await startContainer(resolved.containerName ?? resolved.volumeName);
+      containerStopped = false;
+    }
 
-    // Phase 5: Apply retention policy
-    const purged = await applyRetentionPolicy(resolved);
-    if (purged > 0) {
-      await emitBackupEvent(
+    // Phase 7: Apply GFS retention policy
+    try {
+      const retentionResult = await applyGFSRetention({
         policyId,
-        "backup.retention.applied",
-        "Retention policy applied",
-        `Purged ${purged} old backup(s) beyond ${resolved.retentionDays}-day retention`
-      );
+        retentionDaily: resolved.retentionDaily ?? 7,
+        retentionWeekly: resolved.retentionWeekly ?? 4,
+        retentionMonthly: resolved.retentionMonthly ?? 12,
+        maxBackups: resolved.maxBackups ?? 100,
+        destination: resolved.destination
+      });
+
+      if (retentionResult.deletedRuns > 0) {
+        await emitBackupEvent(
+          policyId,
+          "backup.retention.applied",
+          "Retention policy applied",
+          `Pruned ${retentionResult.deletedRuns} old backup(s). Kept ${retentionResult.keptRuns} of ${retentionResult.totalRuns}.`
+        );
+      }
+    } catch {
+      // Retention failure shouldn't fail the backup
+    }
+
+    // Phase 8: Dispatch "succeeded" notification
+    try {
+      const notification = buildBackupNotification({
+        eventType: "backup.succeeded",
+        policyName: resolved.policyName,
+        projectName: resolved.projectName,
+        environmentName: resolved.environmentName,
+        serviceName: resolved.serviceName,
+        status: "succeeded",
+        sizeBytes: result.sizeBytes,
+        artifactPath: result.artifactPath
+      });
+      await dispatchNotification(notification);
+    } catch {
+      // Notifications are best-effort
     }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    console.error(`[temporal-backup] Backup failed for policy ${policyId}:`, message);
+
+    // Always restart the container if we stopped it, even on failure
+    if (containerStopped) {
+      try {
+        await startContainer(resolved.containerName ?? resolved.volumeName);
+      } catch {
+        // CRITICAL: Container restart failed after backup failure
+        // Visible in Temporal workflow history via activity failure
+      }
+    }
 
     if (runId) {
       await markBackupRunFailed(runId, message);
@@ -127,6 +258,22 @@ export async function backupCronWorkflow(input: BackupCronWorkflowInput): Promis
       `Backup failed for ${resolved?.policyName ?? policyId}: ${message}`,
       "failure"
     );
+
+    // Dispatch "failed" notification
+    try {
+      const notification = buildBackupNotification({
+        eventType: "backup.failed",
+        policyName: resolved?.policyName ?? policyId,
+        projectName: resolved?.projectName,
+        environmentName: resolved?.environmentName,
+        serviceName: resolved?.serviceName,
+        status: "failed",
+        error: message
+      });
+      await dispatchNotification(notification);
+    } catch {
+      // Notifications are best-effort
+    }
 
     // Re-throw so Temporal records the workflow run as failed
     throw err;

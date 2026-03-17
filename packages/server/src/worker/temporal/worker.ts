@@ -10,9 +10,18 @@
 import { NativeConnection, Worker } from "@temporalio/worker";
 import * as deployActivities from "./activities/deploy-activities";
 import * as backupActivities from "./activities/backup-activities";
+import * as databaseActivities from "./activities/database-activities";
+import * as retentionActivities from "./activities/retention-activities";
+import * as notificationActivities from "./activities/notification-activities";
 import { resolve } from "node:path";
 
-const activities = { ...deployActivities, ...backupActivities };
+const activities = {
+  ...deployActivities,
+  ...backupActivities,
+  ...databaseActivities,
+  ...retentionActivities,
+  ...notificationActivities
+};
 
 const TEMPORAL_ADDRESS = process.env.TEMPORAL_ADDRESS ?? "localhost:7233";
 const TEMPORAL_NAMESPACE = process.env.TEMPORAL_NAMESPACE ?? "daoflow";
