@@ -1,14 +1,19 @@
 /**
  * Task #69: React hook for Web Push subscription management.
  * Handles permission request, subscribe/unsubscribe, status check, server sync.
+ * Uses tRPC client for proper type-safe server communication.
  */
 import { useState, useCallback, useEffect } from "react";
+import { trpc } from "../lib/trpc";
 
 export type PushStatus = "unsupported" | "denied" | "default" | "granted" | "subscribed";
 
 export function usePushSubscription() {
   const [status, setStatus] = useState<PushStatus>("unsupported");
   const [subscription, setSubscription] = useState<PushSubscription | null>(null);
+
+  const subscribeMutation = trpc.subscribePush.useMutation();
+  const unsubscribeMutation = trpc.unsubscribePush.useMutation();
 
   useEffect(() => {
     if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
@@ -57,20 +62,21 @@ export function usePushSubscription() {
       setSubscription(sub);
       setStatus("subscribed");
 
-      // Sync with server
-      try {
-        await fetch("/trpc/subscribePush", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ subscription: sub.toJSON() })
-        });
-      } catch {
-        console.error("[push] Failed to sync subscription with server");
-      }
+      // Sync with server via tRPC
+      const subJson = sub.toJSON();
+      await subscribeMutation.mutateAsync({
+        subscription: {
+          endpoint: sub.endpoint,
+          keys: {
+            p256dh: subJson.keys?.p256dh ?? "",
+            auth: subJson.keys?.auth ?? ""
+          }
+        }
+      });
     } catch (err) {
       console.error("[push] Subscribe failed:", err);
     }
-  }, []);
+  }, [subscribeMutation]);
 
   const unsubscribe = useCallback(async () => {
     if (!subscription) return;
@@ -78,23 +84,15 @@ export function usePushSubscription() {
     try {
       await subscription.unsubscribe();
 
-      // Notify server
-      try {
-        await fetch("/trpc/unsubscribePush", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ endpoint: subscription.endpoint })
-        });
-      } catch {
-        console.error("[push] Failed to sync unsubscription with server");
-      }
+      // Notify server via tRPC
+      await unsubscribeMutation.mutateAsync({ endpoint: subscription.endpoint });
 
       setSubscription(null);
       setStatus("granted");
     } catch (err) {
       console.error("[push] Unsubscribe failed:", err);
     }
-  }, [subscription]);
+  }, [subscription, unsubscribeMutation]);
 
   return { status, subscription, subscribe, unsubscribe };
 }

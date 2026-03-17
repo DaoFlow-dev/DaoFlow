@@ -360,12 +360,17 @@ async function sendEmailNotification(
 
 // ── Web Push Sender (PWA Notifications) ─────────────────────
 
-// pushSubscriptions, eq already imported at file top
+import webpush from "web-push";
 
 /**
  * Send Web Push notifications to all subscribed users.
- * Uses the Web Push protocol via fetch (no external library needed for basic push).
+ * Uses the web-push library for proper VAPID signing and encryption.
  * Handles dead subscriptions (410 Gone) by deleting them.
+ *
+ * Required env vars:
+ * - VAPID_PUBLIC_KEY  — Base64-encoded VAPID public key
+ * - VAPID_PRIVATE_KEY — Base64-encoded VAPID private key
+ * - VAPID_SUBJECT     — mailto: or https: URI identifying the sender
  *
  * Task #61: Web Push sender with VAPID
  * Task #75: Dead subscription cleanup
@@ -373,6 +378,16 @@ async function sendEmailNotification(
 async function sendWebPushNotifications(
   payload: NotificationPayload
 ): Promise<{ ok: boolean; httpStatus: number; error?: string }> {
+  const vapidPublicKey = process.env.VAPID_PUBLIC_KEY;
+  const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY;
+  const vapidSubject = process.env.VAPID_SUBJECT ?? "mailto:admin@daoflow.dev";
+
+  if (!vapidPublicKey || !vapidPrivateKey) {
+    return { ok: false, httpStatus: 0, error: "VAPID keys not configured — web push disabled" };
+  }
+
+  webpush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey);
+
   const emoji = SEVERITY_EMOJI[payload.severity] ?? "";
 
   // Get all push subscriptions
@@ -385,47 +400,47 @@ async function sendWebPushNotifications(
   let sent = 0;
   let failed = 0;
 
+  const pushPayload = JSON.stringify({
+    title: `${emoji} ${payload.title}`,
+    body: payload.message,
+    tag: payload.eventType,
+    data: {
+      url: payload.url,
+      eventType: payload.eventType,
+      severity: payload.severity,
+      project: payload.projectName,
+      environment: payload.environmentName
+    }
+  });
+
   for (const sub of subscriptions) {
     try {
-      const pushPayload = JSON.stringify({
-        title: `${emoji} ${payload.title}`,
-        body: payload.message,
-        tag: payload.eventType,
-        data: {
-          url: payload.url,
-          eventType: payload.eventType,
-          severity: payload.severity,
-          project: payload.projectName,
-          environment: payload.environmentName
-        }
-      });
-
-      // Simple push via fetch (VAPID signing would use web-push library in production)
-      const res = await fetch(sub.endpoint, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          TTL: "86400"
+      await webpush.sendNotification(
+        {
+          endpoint: sub.endpoint,
+          keys: {
+            p256dh: sub.p256dh,
+            auth: sub.auth
+          }
         },
-        body: pushPayload,
-        signal: AbortSignal.timeout(10_000)
-      });
-
-      if (res.status === 410 || res.status === 404) {
-        // Task #75: Dead subscription cleanup — endpoint gone
+        pushPayload,
+        { TTL: 86400 }
+      );
+      sent++;
+      // Update last pushed timestamp
+      await db
+        .update(pushSubscriptions)
+        .set({ lastPushedAt: new Date() })
+        .where(eq(pushSubscriptions.id, sub.id));
+    } catch (err) {
+      // Dead subscription cleanup — 410 Gone or 404 Not Found
+      const statusCode =
+        err && typeof err === "object" && "statusCode" in err
+          ? (err as { statusCode: number }).statusCode
+          : 0;
+      if (statusCode === 410 || statusCode === 404) {
         await db.delete(pushSubscriptions).where(eq(pushSubscriptions.id, sub.id));
-        failed++;
-      } else if (res.ok || res.status === 201) {
-        sent++;
-        // Update last pushed timestamp
-        await db
-          .update(pushSubscriptions)
-          .set({ lastPushedAt: new Date() })
-          .where(eq(pushSubscriptions.id, sub.id));
-      } else {
-        failed++;
       }
-    } catch {
       failed++;
     }
   }

@@ -54,8 +54,15 @@ export const notificationRouter = t.router({
 
   unsubscribePush: protectedProcedure
     .input(z.object({ endpoint: z.string() }))
-    .mutation(async ({ input }) => {
-      await db.delete(pushSubscriptions).where(eq(pushSubscriptions.endpoint, input.endpoint));
+    .mutation(async ({ ctx, input }) => {
+      await db
+        .delete(pushSubscriptions)
+        .where(
+          and(
+            eq(pushSubscriptions.endpoint, input.endpoint),
+            eq(pushSubscriptions.userId, ctx.session.user.id)
+          )
+        );
       return { ok: true };
     }),
 
@@ -73,6 +80,8 @@ export const notificationRouter = t.router({
   }),
 
   // ── Notification Channel CRUD ─────────────────────────────
+  // TODO: Add admin/operator role gating when RBAC middleware is available.
+  // Currently channels are org-wide config — any authenticated user can manage them.
 
   listChannels: protectedProcedure.query(async () => {
     return db.select().from(notificationChannels);
@@ -106,6 +115,38 @@ export const notificationRouter = t.router({
     .input(z.object({ id: z.string() }))
     .mutation(async ({ input }) => {
       await db.delete(notificationChannels).where(eq(notificationChannels.id, input.id));
+      return { ok: true };
+    }),
+
+  updateChannel: protectedProcedure
+    .input(
+      z.object({
+        id: z.string(),
+        name: z.string().min(1).max(100).optional(),
+        webhookUrl: z.string().url().optional().nullable(),
+        eventSelectors: z.array(z.string()).optional(),
+        enabled: z.boolean().optional()
+      })
+    )
+    .mutation(async ({ input }) => {
+      const { id, ...updates } = input;
+      const setValues: Record<string, unknown> = { updatedAt: new Date() };
+      if (updates.name !== undefined) setValues.name = updates.name;
+      if (updates.webhookUrl !== undefined) setValues.webhookUrl = updates.webhookUrl;
+      if (updates.eventSelectors !== undefined) setValues.eventSelectors = updates.eventSelectors;
+      if (updates.enabled !== undefined) setValues.enabled = updates.enabled;
+
+      await db.update(notificationChannels).set(setValues).where(eq(notificationChannels.id, id));
+      return { ok: true };
+    }),
+
+  toggleChannel: protectedProcedure
+    .input(z.object({ id: z.string(), enabled: z.boolean() }))
+    .mutation(async ({ input }) => {
+      await db
+        .update(notificationChannels)
+        .set({ enabled: input.enabled, updatedAt: new Date() })
+        .where(eq(notificationChannels.id, input.id));
       return { ok: true };
     }),
 

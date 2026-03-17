@@ -25,8 +25,8 @@ self.addEventListener("push", (event) => {
     const options: NotificationOptions = {
       body: data.body,
       tag: data.tag ?? "daoflow",
-      icon: "/icons/icon-192.png",
-      badge: "/icons/icon-192.png",
+      icon: "/icons/icon-192.svg",
+      badge: "/icons/icon-192.svg",
       data: data.data
     };
 

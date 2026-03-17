@@ -1,17 +1,43 @@
 /**
  * Task #68: Notification dashboard widget — recent notifications,
  * delivery success rate, filter by channel type.
+ * Wired to tRPC listDeliveryLogs for live stats.
  */
-
-const MOCK_STATS = {
-  delivered: 142,
-  failed: 3,
-  channels: { slack: 80, discord: 35, email: 15, push: 12, webhook: 3 }
-};
+import { trpc } from "../../lib/trpc";
+import { useSession } from "../../lib/auth-client";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export function NotificationDashboard() {
-  const total = MOCK_STATS.delivered + MOCK_STATS.failed;
-  const rate = total > 0 ? Math.round((MOCK_STATS.delivered / total) * 100) : 100;
+  const session = useSession();
+  const logsQuery = trpc.listDeliveryLogs.useQuery(
+    { limit: 100 },
+    { enabled: Boolean(session.data) }
+  );
+
+  const logs = logsQuery.data ?? [];
+
+  // Compute stats from real data
+  const delivered = logs.filter((l) => l.status === "delivered").length;
+  const failed = logs.filter((l) => l.status === "failed").length;
+  const total = delivered + failed;
+  const rate = total > 0 ? Math.round((delivered / total) * 100) : 100;
+
+  // Channel breakdown (count by channelId — ideally we'd join channel names)
+  const channelCounts = new Map<string, number>();
+  for (const log of logs) {
+    if (log.status === "delivered") {
+      channelCounts.set(log.channelId, (channelCounts.get(log.channelId) ?? 0) + 1);
+    }
+  }
+  const channelEntries = Array.from(channelCounts.entries()).sort((a, b) => b[1] - a[1]);
+
+  if (logsQuery.isLoading) {
+    return (
+      <div className="card p-6" data-testid="notification-dashboard-widget">
+        <Skeleton className="h-24 w-full" />
+      </div>
+    );
+  }
 
   return (
     <div className="card p-6" data-testid="notification-dashboard-widget">
@@ -25,30 +51,34 @@ export function NotificationDashboard() {
           <div className="text-xs text-white/40 mt-1">delivery rate</div>
         </div>
         <div className="text-center">
-          <div className="text-2xl font-bold text-white">{MOCK_STATS.delivered}</div>
+          <div className="text-2xl font-bold text-white">{delivered}</div>
           <div className="text-xs text-white/40 mt-1">delivered</div>
         </div>
         <div className="text-center">
-          <div className="text-2xl font-bold text-red-400">{MOCK_STATS.failed}</div>
+          <div className="text-2xl font-bold text-red-400">{failed}</div>
           <div className="text-xs text-white/40 mt-1">failed</div>
         </div>
       </div>
 
       {/* Channel breakdown */}
-      <div className="space-y-2">
-        {Object.entries(MOCK_STATS.channels).map(([channel, count]) => (
-          <div key={channel} className="flex items-center gap-2">
-            <span className="text-xs text-white/50 w-16">{channel}</span>
-            <div className="flex-1 bg-white/5 rounded-full h-1.5">
-              <div
-                className="bg-blue-500 h-full rounded-full transition-all"
-                style={{ width: `${(count / MOCK_STATS.delivered) * 100}%` }}
-              />
+      {channelEntries.length > 0 ? (
+        <div className="space-y-2">
+          {channelEntries.map(([channelId, count]) => (
+            <div key={channelId} className="flex items-center gap-2">
+              <span className="text-xs text-white/50 w-20 truncate">{channelId}</span>
+              <div className="flex-1 bg-white/5 rounded-full h-1.5">
+                <div
+                  className="bg-blue-500 h-full rounded-full transition-all"
+                  style={{ width: `${(count / Math.max(delivered, 1)) * 100}%` }}
+                />
+              </div>
+              <span className="text-xs text-white/40 w-8 text-right">{count}</span>
             </div>
-            <span className="text-xs text-white/40 w-8 text-right">{count}</span>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      ) : (
+        <p className="text-xs text-white/30 text-center">No delivery data yet</p>
+      )}
     </div>
   );
 }
