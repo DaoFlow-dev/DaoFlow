@@ -122,7 +122,11 @@ cliAuthRouter.post("/approve", async (c) => {
 
   if (!exchangeCode) {
     return c.json(
-      { ok: false, error: "CLI auth approval did not produce an exchange code", code: "INTERNAL_ERROR" },
+      {
+        ok: false,
+        error: "CLI auth approval did not produce an exchange code",
+        code: "INTERNAL_ERROR"
+      },
       500
     );
   }
