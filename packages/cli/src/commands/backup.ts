@@ -523,7 +523,7 @@ export function backupCommand(): Command {
         if (opts.json) {
           console.log(JSON.stringify({ ok: true, ...result }, null, 2));
         } else {
-          console.log(chalk.green(`✅ Backup triggered (workflow: ${result.workflowId})`));
+          console.log(chalk.green(`✅ Backup triggered (run: ${result.id})`));
         }
       } catch (err) {
         console.error(
