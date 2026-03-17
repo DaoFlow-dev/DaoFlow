@@ -74,12 +74,10 @@ export async function createSecretProvider(input: CreateSecretProviderInput) {
     actorType: "user",
     actorId: input.createdByUserId,
     actorEmail: input.createdByEmail,
+    targetResource: `secret_provider/${id}`,
     action: "secret_provider.create",
-    resourceType: "secret_provider",
-    resourceId: id,
     inputSummary: JSON.stringify({ name: input.name, type: input.type }),
-    outcome: "success",
-    teamId: input.teamId
+    outcome: "success"
   });
 
   return provider;
@@ -117,12 +115,10 @@ export async function deleteSecretProvider(
       actorType: "user",
       actorId,
       actorEmail,
+      targetResource: `secret_provider/${providerId}`,
       action: "secret_provider.delete",
-      resourceType: "secret_provider",
-      resourceId: providerId,
       inputSummary: JSON.stringify({ name: deleted.name }),
-      outcome: "success",
-      teamId
+      outcome: "success"
     });
   }
 
