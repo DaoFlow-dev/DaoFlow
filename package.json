@@ -7,7 +7,7 @@
     "packages/*"
   ],
   "scripts": {
-    "prepare": "sh ./scripts/install-git-hooks.sh",
+    "prepare": "if [ -f ./scripts/install-git-hooks.sh ]; then sh ./scripts/install-git-hooks.sh; fi",
     "dev": "concurrently -k \"bun --filter @daoflow/server dev\" \"bun --filter @daoflow/client dev\"",
     "build": "bun --filter '*' build",
     "build:client": "bun --filter @daoflow/client build",
