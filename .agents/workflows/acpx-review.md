@@ -1,10 +1,10 @@
 ---
-description: Run code review using acpx (Gemini and Codex agents) before committing
+description: Run code review using acpx (Gemini and Claude Code agents) before committing
 ---
 
 # Code Review via acpx
 
-Use `acpx` to run self-reviews through Gemini and Codex agents before committing.
+Use `acpx` to run self-reviews through Gemini and Claude Code before committing.
 
 ## Prerequisites
 
@@ -17,31 +17,33 @@ Use `acpx` to run self-reviews through Gemini and Codex agents before committing
 1. Run Gemini review on recent commits:
 
 ```bash
-acpx --approve-reads --timeout 120 gemini exec "Review the last 3 git commits for correctness, security, and best practices. Run git log -3 --oneline and git diff HEAD~3 to see changes."
+acpx --approve-reads --timeout 480 gemini exec "Review the current DaoFlow change set for correctness, security, and best practices. Run git status --short, git diff --stat, git diff --cached --stat, git diff, and git diff --cached to inspect changes."
 ```
 
-2. Run Codex review on recent commits:
+2. Run Claude Code review on recent commits:
 
 ```bash
-acpx --approve-reads --timeout 120 codex exec "Review the last 3 git commits for correctness and security. Run git log -3 --oneline and git diff HEAD~3 to see changes."
+acpx --approve-reads --timeout 480 claude exec "Review the current DaoFlow change set for correctness and security. Run git status --short, git diff --stat, git diff --cached --stat, git diff, and git diff --cached to inspect changes."
 ```
+
+3. If you are intentionally reviewing already-committed work instead of the current diff, adapt the prompt to target that exact commit range.
 
 ## Review Specific Files
 
 ```bash
-acpx --approve-reads --timeout 120 gemini exec "Review <file_path> for correctness, security, and best practices."
-acpx --approve-reads --timeout 120 codex exec "Review <file_path> for correctness and security."
+acpx --approve-reads --timeout 480 gemini exec "Review <file_path> for correctness, security, and best practices."
+acpx --approve-reads --timeout 480 claude exec "Review <file_path> for correctness and security."
 ```
 
 ## Key Flags
 
-| Flag              | Purpose                                              |
-| ----------------- | ---------------------------------------------------- |
-| `--approve-reads` | Auto-approve read/search requests, prompt for writes |
-| `--approve-all`   | Auto-approve all permission requests                 |
-| `--timeout <s>`   | Max time to wait for response (default: 120s)        |
-| `--format text`   | Output format: text, json, quiet                     |
-| `exec`            | One-shot prompt without saved session                |
+| Flag              | Purpose                                                      |
+| ----------------- | ------------------------------------------------------------ |
+| `--approve-reads` | Auto-approve read/search requests, prompt for writes         |
+| `--approve-all`   | Auto-approve all permission requests                         |
+| `--timeout <s>`   | Max time to wait for response; use `480` for DaoFlow reviews |
+| `--format text`   | Output format: text, json, quiet                             |
+| `exec`            | One-shot prompt without saved session                        |
 
 ## Available Agents
 
@@ -51,5 +53,5 @@ acpx --approve-reads --timeout 120 codex exec "Review <file_path> for correctnes
 
 - `--approve-reads` goes on the parent `acpx` command, NOT on the subcommand
 - `exec` runs a one-shot prompt without creating a persistent session
-- Both Gemini and Codex can read files and run git commands to inspect changes
+- Both Gemini and Claude Code can read files and run git commands to inspect the active diff
 - Use this before every significant commit for self-review

@@ -1,0 +1,7 @@
+interface:
+  display_name: "GitHub Issue Loop"
+  short_description: "Run DaoFlow issue and PR workflows"
+  default_prompt: "Use $github-issue-loop to drive a DaoFlow GitHub issue or PR through gh, durable comments, validation, and status updates."
+
+policy:
+  allow_implicit_invocation: true

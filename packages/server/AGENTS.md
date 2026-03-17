@@ -1,5 +1,9 @@
 # @daoflow/server — Agent Rules
 
+## Scope
+
+This file holds server-local rules. For schema, migration, and seed work, use [server-schema-change](../../.agents/skills/server-schema-change/SKILL.md).
+
 ## Build & Test
 
 - Run `bun run typecheck` before committing.

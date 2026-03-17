@@ -20,6 +20,7 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "skills:check": "node ./scripts/check-skills.mjs",
     "test": "bun run verify",
     "test:unit": "bun --filter @daoflow/server test",
     "test:e2e": "bun run test:e2e:main && bun run test:e2e:bootstrap",

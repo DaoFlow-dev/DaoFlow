@@ -1,0 +1,7 @@
+interface:
+  display_name: "Validation Gates"
+  short_description: "Run DaoFlow pre-commit validation"
+  default_prompt: "Use $validation-gates to validate DaoFlow changes before commit or push."
+
+policy:
+  allow_implicit_invocation: true

@@ -44,24 +44,31 @@ Use `DAOFLOW_SKIP_PRECOMMIT=1 git commit ...` only for exceptional recovery case
 4. **Typecheck** — run type checking across all packages:
 
    ```bash
-   bunx tsc --noEmit
+   bun run typecheck
    ```
 
-   - Empty output = clean. Any output means type errors that must be fixed.
-   - Note: CI uses `tsc -b` (project references mode), which may catch additional issues. If local `--noEmit` passes but CI fails, use `tsc -b packages/shared packages/server packages/client packages/cli` instead.
+   - Any output means type errors that must be fixed.
 
-5. **Code Review** — run the ACPX review workflow before commit:
+5. **Skills & Instructions** — when the diff touches `AGENTS.md`, `.agents/`, or `.codex/skills/`, validate the instruction surface:
 
    ```bash
-   acpx --approve-reads --timeout 120 gemini exec "Review the last 3 git commits for correctness, security, and best practices. Run git log -3 --oneline and git diff HEAD~3 to see changes."
-   acpx --approve-reads --timeout 120 codex exec "Review the last 3 git commits for correctness and security. Run git log -3 --oneline and git diff HEAD~3 to see changes."
+   bun run skills:check
+   ```
+
+   - This checks skill frontmatter, repo-local skill metadata, and markdown links in the instruction surface.
+
+6. **Code Review** — run the ACPX review workflow before commit:
+
+   ```bash
+   acpx --approve-reads --timeout 480 gemini exec "Review the current DaoFlow change set for correctness, security, and best practices. Run git status --short, git diff --stat, git diff --cached --stat, git diff, and git diff --cached to inspect changes."
+   acpx --approve-reads --timeout 480 claude exec "Review the current DaoFlow change set for correctness and security. Run git status --short, git diff --stat, git diff --cached --stat, git diff, and git diff --cached to inspect changes."
    ```
 
    - Follow `.agents/workflows/acpx-review.md`.
    - If `acpx` is not available globally, use `bunx acpx` instead.
    - Fix blocking issues found in review before proceeding to commit.
 
-6. **Stage and commit** — use conventional commits:
+7. **Stage and commit** — use conventional commits:
 
    ```bash
    git add -A
@@ -71,13 +78,13 @@ Use `DAOFLOW_SKIP_PRECOMMIT=1 git commit ...` only for exceptional recovery case
 
    - Follow conventional commits: `feat`, `fix`, `refactor`, `chore`, `docs`, `test`
 
-7. **Push** to remote:
+8. **Push** to remote:
 
    ```bash
    git push origin main
    ```
 
-8. **Wait for CI** — check GitHub Actions status:
+9. **Wait for CI** — check GitHub Actions status:
 
    ```bash
    sleep 60 && gh run list --limit 2 --json databaseId,status,conclusion,name
@@ -93,6 +100,7 @@ Use `DAOFLOW_SKIP_PRECOMMIT=1 git commit ...` only for exceptional recovery case
 | Format    | `bun run format`                   | Formatting applied cleanly |
 | Tests     | `bun run test:unit`                | Tests pass                 |
 | Lint      | `bun run lint`                     | 0 errors                   |
-| Typecheck | `bunx tsc --noEmit`                | Empty output               |
-| Review    | `acpx` Gemini + Codex review       | No blocking issues         |
+| Typecheck | `bun run typecheck`                | Clean typecheck            |
+| Skills    | `bun run skills:check`             | Instruction checks pass    |
+| Review    | `acpx` Gemini + Claude review      | No blocking issues         |
 | CI        | `gh run list --limit 2 --json ...` | `conclusion: "success"`    |

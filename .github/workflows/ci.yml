@@ -34,6 +34,9 @@ jobs:
       - name: Typecheck
         run: bun run typecheck
 
+      - name: Check agent instructions and skills
+        run: bun run skills:check
+
   e2e:
     name: E2E Tests (Docker Compose)
     runs-on: ubuntu-latest

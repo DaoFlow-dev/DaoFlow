@@ -1,0 +1,7 @@
+interface:
+  display_name: "Server Schema Change"
+  short_description: "Change DaoFlow server schema safely"
+  default_prompt: "Use $server-schema-change to make a DaoFlow schema, migration, or seed change without breaking migration discipline or persistence safety."
+
+policy:
+  allow_implicit_invocation: true

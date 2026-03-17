@@ -1,0 +1,7 @@
+interface:
+  display_name: "CLI Contract Change"
+  short_description: "Change DaoFlow CLI command contracts"
+  default_prompt: "Use $cli-contract-change to update a DaoFlow CLI command while preserving its JSON contract, scopes, and mutation safety."
+
+policy:
+  allow_implicit_invocation: true

@@ -1,0 +1,7 @@
+interface:
+  display_name: "ACPX Review"
+  short_description: "Run DaoFlow Gemini and Claude review"
+  default_prompt: "Use $acpx-review to self-review DaoFlow changes with Gemini and Claude Code before commit."
+
+policy:
+  allow_implicit_invocation: true
