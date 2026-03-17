@@ -258,7 +258,13 @@ export const deployRouter = t.router({
         key: input.key,
         deletedByUserId: ctx.session.user.id,
         deletedByEmail: ctx.session.user.email,
-        deletedByRole: ctx.session.user.role
+        deletedByRole: (ctx.session.user.role ?? "viewer") as
+          | "viewer"
+          | "owner"
+          | "admin"
+          | "operator"
+          | "developer"
+          | "agent"
       });
 
       if (!result) {
@@ -281,7 +287,13 @@ export const deployRouter = t.router({
         deploymentId: input.deploymentId,
         cancelledByUserId: ctx.session.user.id,
         cancelledByEmail: ctx.session.user.email,
-        cancelledByRole: ctx.session.user.role
+        cancelledByRole: (ctx.session.user.role ?? "viewer") as
+          | "viewer"
+          | "owner"
+          | "admin"
+          | "operator"
+          | "developer"
+          | "agent"
       });
 
       if (result.status === "not-found") {

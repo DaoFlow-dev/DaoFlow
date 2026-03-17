@@ -105,3 +105,88 @@ export const notificationLogsRelations = relations(notificationLogs, ({ one }) =
     references: [notificationChannels.id]
   })
 }));
+
+// ── Push Subscriptions Table (Web Push / PWA) ───────────────
+// Task #60: Stores VAPID push subscriptions per user/browser
+
+export const pushSubscriptions = pgTable(
+  "push_subscriptions",
+  {
+    id: varchar("id", { length: 32 }).primaryKey(),
+    userId: text("user_id").notNull(),
+    /** Web Push endpoint URL */
+    endpoint: text("endpoint").notNull(),
+    /** VAPID p256dh key */
+    p256dh: text("p256dh").notNull(),
+    /** VAPID auth secret */
+    auth: text("auth").notNull(),
+    /** User-agent / browser label for UI display */
+    userAgent: text("user_agent"),
+    /** When the last push was sent successfully */
+    lastPushedAt: timestamp("last_pushed_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull()
+  },
+  (table) => [
+    index("push_subscriptions_user_id_idx").on(table.userId),
+    index("push_subscriptions_endpoint_idx").on(table.endpoint)
+  ]
+);
+
+// ── User Notification Preferences ───────────────────────────
+// Task #64: Top-level user defaults for which events/channels are enabled
+
+export const userNotificationPreferences = pgTable(
+  "user_notification_preferences",
+  {
+    id: varchar("id", { length: 32 }).primaryKey(),
+    userId: text("user_id").notNull(),
+    /**
+     * Channel type this preference applies to: web_push, slack, discord, email, webhook
+     * Use "*" for all channels
+     */
+    channelType: varchar("channel_type", { length: 20 }).notNull(),
+    /**
+     * Event type this preference applies to: backup.failed, deploy.*, etc.
+     * Supports wildcards
+     */
+    eventType: varchar("event_type", { length: 60 }).notNull(),
+    /** Whether this event+channel combination is enabled */
+    enabled: boolean("enabled").default(true).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull()
+  },
+  (table) => [
+    index("user_notification_prefs_user_id_idx").on(table.userId),
+    index("user_notification_prefs_channel_type_idx").on(table.channelType)
+  ]
+);
+
+// ── Project Notification Overrides ──────────────────────────
+// Task #65: Project-level overrides that cascade over user defaults
+
+export const projectNotificationOverrides = pgTable(
+  "project_notification_overrides",
+  {
+    id: varchar("id", { length: 32 }).primaryKey(),
+    /** Project this override applies to */
+    projectId: varchar("project_id", { length: 32 }).notNull(),
+    /** User who set this override (or null for project-wide default) */
+    userId: text("user_id"),
+    /**
+     * Channel type: web_push, slack, discord, email, webhook, *
+     */
+    channelType: varchar("channel_type", { length: 20 }).notNull(),
+    /**
+     * Event type with wildcard support: backup.*, deploy.failed, etc.
+     */
+    eventType: varchar("event_type", { length: 60 }).notNull(),
+    /** Override value: true = force enable, false = force disable */
+    enabled: boolean("enabled").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull()
+  },
+  (table) => [
+    index("project_notification_overrides_project_id_idx").on(table.projectId),
+    index("project_notification_overrides_user_id_idx").on(table.userId)
+  ]
+);

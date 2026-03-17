@@ -64,7 +64,13 @@ export const adminRouter = t.router({
         serverId: input.serverId,
         deletedByUserId: ctx.session.user.id,
         deletedByEmail: ctx.session.user.email,
-        deletedByRole: ctx.session.user.role
+        deletedByRole: (ctx.session.user.role ?? "viewer") as
+          | "viewer"
+          | "owner"
+          | "admin"
+          | "operator"
+          | "developer"
+          | "agent"
       });
 
       if (result.status === "not-found") {

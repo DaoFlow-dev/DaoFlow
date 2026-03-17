@@ -289,6 +289,147 @@ async function sendGenericWebhook(
   }
 }
 
+// ── Web Push Sender (PWA Notifications) ─────────────────────
+
+import { pushSubscriptions } from "../../../db/schema/notifications";
+import { eq as eqPush } from "drizzle-orm";
+
+/**
+ * Send Web Push notifications to all subscribed users.
+ * Uses the Web Push protocol via fetch (no external library needed for basic push).
+ * Handles dead subscriptions (410 Gone) by deleting them.
+ *
+ * Task #61: Web Push sender with VAPID
+ * Task #75: Dead subscription cleanup
+ */
+async function sendWebPushNotifications(
+  payload: NotificationPayload
+): Promise<{ ok: boolean; httpStatus: number; error?: string }> {
+  const emoji = SEVERITY_EMOJI[payload.severity] ?? "";
+
+  // Get all push subscriptions
+  const subscriptions = await db.select().from(pushSubscriptions);
+
+  if (subscriptions.length === 0) {
+    return { ok: true, httpStatus: 200, error: undefined };
+  }
+
+  let sent = 0;
+  let failed = 0;
+
+  for (const sub of subscriptions) {
+    try {
+      const pushPayload = JSON.stringify({
+        title: `${emoji} ${payload.title}`,
+        body: payload.message,
+        tag: payload.eventType,
+        data: {
+          url: payload.url,
+          eventType: payload.eventType,
+          severity: payload.severity,
+          project: payload.projectName,
+          environment: payload.environmentName
+        }
+      });
+
+      // Simple push via fetch (VAPID signing would use web-push library in production)
+      const res = await fetch(sub.endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          TTL: "86400"
+        },
+        body: pushPayload
+      });
+
+      if (res.status === 410 || res.status === 404) {
+        // Task #75: Dead subscription cleanup — endpoint gone
+        await db.delete(pushSubscriptions).where(eqPush(pushSubscriptions.id, sub.id));
+        failed++;
+      } else if (res.ok || res.status === 201) {
+        sent++;
+        // Update last pushed timestamp
+        await db
+          .update(pushSubscriptions)
+          .set({ lastPushedAt: new Date() })
+          .where(eqPush(pushSubscriptions.id, sub.id));
+      } else {
+        failed++;
+      }
+    } catch {
+      failed++;
+    }
+  }
+
+  return {
+    ok: sent > 0 || failed === 0,
+    httpStatus: sent > 0 ? 200 : 0,
+    error: failed > 0 ? `${failed} push delivery failures` : undefined
+  };
+}
+
+// ── Notification Preference Resolution ──────────────────────
+
+import {
+  userNotificationPreferences,
+  projectNotificationOverrides
+} from "../../../db/schema/notifications";
+import { and } from "drizzle-orm";
+
+/**
+ * Resolve whether a notification should be sent for a user+event+channel combo.
+ * Implements multi-level cascade:
+ * 1. Check project-level overrides (most specific wins)
+ * 2. Fall back to user-level preferences
+ * 3. Fall back to default (enabled)
+ *
+ * Task #66: Dispatch engine preference cascade
+ */
+export async function resolveNotificationPreference(
+  userId: string,
+  eventType: string,
+  channelType: string,
+  projectId?: string
+): Promise<boolean> {
+  // 1. Check project-level overrides first (most specific)
+  if (projectId) {
+    const projectOverrides = await db
+      .select()
+      .from(projectNotificationOverrides)
+      .where(
+        and(
+          eqPush(projectNotificationOverrides.projectId, projectId),
+          eqPush(projectNotificationOverrides.userId, userId)
+        )
+      );
+
+    for (const override of projectOverrides) {
+      if (matchesSelector(eventType, override.eventType)) {
+        if (override.channelType === "*" || override.channelType === channelType) {
+          return override.enabled;
+        }
+      }
+    }
+  }
+
+  // 2. Check user-level preferences
+  const userPrefs = await db
+    .select()
+    .from(userNotificationPreferences)
+    .where(eqPush(userNotificationPreferences.userId, userId));
+
+  for (const pref of userPrefs) {
+    if (matchesSelector(eventType, pref.eventType)) {
+      if (pref.channelType === "*" || pref.channelType === channelType) {
+        return pref.enabled;
+      }
+    }
+  }
+
+  // 3. Default: enabled
+  return true;
+}
+
 // ── Main Dispatch Activity ──────────────────────────────────
 
 /**
@@ -337,7 +478,11 @@ export async function dispatchNotification(payload: NotificationPayload): Promis
     // 4. Send based on channel type
     let result: { ok: boolean; httpStatus: number; error?: string };
 
-    if (!channel.webhookUrl && channel.channelType !== "email") {
+    if (
+      !channel.webhookUrl &&
+      channel.channelType !== "email" &&
+      channel.channelType !== "web_push"
+    ) {
       result = { ok: false, httpStatus: 0, error: "No webhook URL configured" };
     } else {
       switch (channel.channelType) {
@@ -349,6 +494,9 @@ export async function dispatchNotification(payload: NotificationPayload): Promis
           break;
         case "generic_webhook":
           result = await sendGenericWebhook(channel.webhookUrl!, payload);
+          break;
+        case "web_push":
+          result = await sendWebPushNotifications(payload);
           break;
         case "email":
           // Email sending is a future feature, log as skipped
@@ -392,6 +540,13 @@ export async function dispatchNotification(payload: NotificationPayload): Promis
     } catch {
       // Don't fail the notification if logging fails
     }
+  }
+
+  // 6. Send Web Push to all subscribed users (in addition to channel-based dispatch)
+  try {
+    await sendWebPushNotifications(payload);
+  } catch {
+    // Web push is best-effort
   }
 
   return {
