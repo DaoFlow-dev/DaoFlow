@@ -6,6 +6,7 @@ import {
   getErrorMessage,
   resolveCommandJsonOption
 } from "../command-helpers";
+import { printDeploymentPlan } from "../deployment-plan-output";
 import { createClient } from "../trpc-client";
 
 export function planCommand(): Command {
@@ -35,46 +36,7 @@ export function planCommand(): Command {
             return;
           }
 
-          console.log(chalk.bold("\n  Deployment Plan (dry-run)\n"));
-          console.log(chalk.dim("  This plan will NOT be executed.\n"));
-          console.log(`  ${chalk.bold("Service:")}   ${plan.service.name}`);
-          console.log(`  ${chalk.bold("Project:")}   ${plan.service.projectName}`);
-          console.log(`  ${chalk.bold("Env:")}       ${plan.service.environmentName}`);
-          console.log(`  ${chalk.bold("Server:")}    ${plan.target.serverName ?? "unassigned"}`);
-          console.log(
-            `  ${chalk.bold("Image:")}     ${plan.target.imageTag ?? "derived at runtime"}`
-          );
-          console.log(
-            `  ${chalk.bold("Ready:")}     ${plan.isReady ? chalk.green("yes") : chalk.red("no")}`
-          );
-          console.log();
-
-          if (plan.currentDeployment) {
-            console.log(chalk.dim(`  Current state:`));
-            console.log(chalk.dim(`    Status: ${plan.currentDeployment.statusLabel}`));
-            console.log(chalk.dim(`    Image:  ${plan.currentDeployment.imageTag ?? "unknown"}`));
-            console.log();
-          }
-
-          console.log(`  ${chalk.bold("Planned steps:")}`);
-          for (const [index, step] of plan.steps.entries()) {
-            console.log(`    ${index + 1}. ${step}`);
-          }
-          console.log();
-
-          console.log(`  ${chalk.bold("Pre-flight checks:")}`);
-          for (const check of plan.preflightChecks) {
-            const icon =
-              check.status === "ok"
-                ? chalk.green("✓")
-                : check.status === "warn"
-                  ? chalk.yellow("!")
-                  : chalk.red("✗");
-            console.log(`    ${icon} ${check.detail}`);
-          }
-          console.log();
-
-          console.log(`  To execute: ${chalk.cyan(plan.executeCommand)}\n`);
+          printDeploymentPlan(plan, { subtitle: "This plan will NOT be executed." });
         } catch (error) {
           if (isJson) {
             emitJsonError(getErrorMessage(error), "API_ERROR");

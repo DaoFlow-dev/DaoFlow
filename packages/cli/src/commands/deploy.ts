@@ -23,6 +23,7 @@ import {
   getErrorMessage,
   resolveCommandJsonOption
 } from "../command-helpers";
+import { previewServiceDeploy } from "../service-deploy-preview";
 
 export function deployCommand(): Command {
   return new Command("deploy")
@@ -100,32 +101,24 @@ export function deployCommand(): Command {
         }
 
         if (opts.dryRun) {
-          const plan = {
-            serviceId,
-            commitSha: opts.commit ?? null,
-            imageTag: opts.image ?? null,
-            steps: [
-              "resolve service + environment",
-              "pull/build image",
-              "create network + volumes",
-              "start containers",
-              "health check"
-            ]
-          };
-
-          if (isJson) {
-            emitJsonSuccess({ dryRun: true, plan });
-          } else {
-            console.log(chalk.bold("\n  Deployment Plan (dry-run)\n"));
-            console.log(`  Service ID: ${serviceId}`);
-            if (opts.commit) console.log(`  Commit:     ${opts.commit}`);
-            if (opts.image) console.log(`  Image:      ${opts.image}`);
-            console.log(`  Steps:`);
-            for (const step of plan.steps) {
-              console.log(`    ${chalk.dim("→")} ${step}`);
+          try {
+            const trpc = createClient();
+            await previewServiceDeploy(trpc, {
+              serviceId,
+              serverId,
+              imageTag: opts.image,
+              json: isJson
+            });
+          } catch (err) {
+            if (isJson) {
+              emitJsonError(getErrorMessage(err), "API_ERROR");
+            } else {
+              console.error(chalk.red(`✗ ${err instanceof Error ? err.message : String(err)}`));
             }
-            console.log();
+            process.exit(1);
+            return;
           }
+
           process.exit(3); // dry-run exit code per AGENTS.md §12
         }
 

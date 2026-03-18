@@ -86,24 +86,38 @@ daoflow deploy \
 
 ## Dry Run
 
-When using `--dry-run`, the CLI outputs the deployment plan without executing it:
+When using `--dry-run` with `--service`, the CLI calls the real planning-lane deployment planner and returns that server-side preview without executing anything:
 
 ```bash
-daoflow deploy --service my-app --server prod --compose ./compose.yaml --dry-run --json
+daoflow deploy --service my-app --server prod --dry-run --json
 ```
 
 ```json
 {
   "ok": true,
-  "dryRun": true,
-  "plan": {
-    "service": "my-app",
-    "server": "prod",
-    "sourceType": "compose",
-    "steps": ["pull", "create-volume", "start", "health-check"]
+  "data": {
+    "dryRun": true,
+    "plan": {
+      "isReady": true,
+      "service": {
+        "name": "my-app",
+        "projectName": "Acme",
+        "environmentName": "production"
+      },
+      "target": {
+        "serverName": "prod",
+        "imageTag": "ghcr.io/acme/my-app:stable"
+      },
+      "currentDeployment": null,
+      "preflightChecks": [{ "status": "ok", "detail": "Resolved target server." }],
+      "steps": ["Freeze runtime spec", "Dispatch execution"],
+      "executeCommand": "daoflow deploy --service svc_123 --server prod --yes"
+    }
   }
 }
 ```
+
+When using `--dry-run` with `--compose`, the CLI still performs a local preview of context bundling and upload steps because there is not yet a dedicated server-side compose planning route.
 
 Exit code is `3` for successful dry runs.
 

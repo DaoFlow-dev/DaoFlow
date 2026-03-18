@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { Command } from "commander";
+import { deployCommand } from "./commands/deploy";
 import { diffCommand } from "./commands/diff";
 import { doctorCommand } from "./commands/doctor";
 import { envCommand } from "./commands/env";
@@ -24,6 +25,10 @@ describe("CLI JSON option coverage", () => {
 
   test("doctor declares --json", () => {
     expect(hasLongOption(doctorCommand(), "--json")).toBe(true);
+  });
+
+  test("deploy declares --json", () => {
+    expect(hasLongOption(deployCommand(), "--json")).toBe(true);
   });
 
   test("logs declares --json", () => {
