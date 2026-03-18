@@ -69,6 +69,6 @@ Credentials are stored in `~/.daoflow/config.json`:
 }
 ```
 
-The CLI also honors `DAOFLOW_URL` and `DAOFLOW_TOKEN` as an auth fallback for non-interactive automation.
+The CLI also honors `DAOFLOW_URL` and `DAOFLOW_TOKEN` as an auth fallback for non-interactive automation. Both variables must be set together; partial overrides fail closed so automation cannot accidentally fall back to a saved local context.
 
 > **Security note:** The config file should be readable only by your user. The CLI creates it with `0600` permissions and the config directory with `0700`.

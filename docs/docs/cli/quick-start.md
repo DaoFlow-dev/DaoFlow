@@ -30,7 +30,7 @@ daoflow login --url https://your-daoflow.example.com --sso
 # Or password login
 daoflow login --url http://localhost:3000 --email owner@daoflow.local --password secret1234
 
-# Or set env vars directly (for agents and CI)
+# Or set env vars directly (for agents and CI; set both together)
 export DAOFLOW_TOKEN="dfl_your_token_here"
 export DAOFLOW_URL="https://your-daoflow.example.com"
 ```

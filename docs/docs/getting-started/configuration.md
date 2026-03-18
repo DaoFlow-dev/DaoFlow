@@ -74,7 +74,7 @@ The CLI stores its configuration in `~/.daoflow/config.json`:
 }
 ```
 
-The CLI also supports `DAOFLOW_URL` and `DAOFLOW_TOKEN` as environment-based auth for CI and agent workflows.
+The CLI also supports `DAOFLOW_URL` and `DAOFLOW_TOKEN` as environment-based auth for CI and agent workflows. Set both together; if either one is missing, the CLI now fails closed instead of silently falling back to the saved config context.
 
 ### Setting CLI Defaults
 

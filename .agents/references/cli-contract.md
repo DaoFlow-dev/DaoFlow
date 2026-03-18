@@ -21,6 +21,8 @@ This file holds the detailed CLI contract, scope map, and agent-facing command r
 - `daoflow login --token <value>` must accept both Better Auth session tokens and DaoFlow API tokens
 - When the stored token starts with `dfl_`, the CLI must send `Authorization: Bearer <token>`
 - Otherwise the CLI must send `Cookie: better-auth.session_token=<token>`
+- Environment-based auth override requires both `DAOFLOW_URL` and `DAOFLOW_TOKEN`; partial overrides must fail closed
+- `daoflow login --json` must never block on stdin; if SSO requires manual completion it must return a structured error payload instead
 - `daoflow whoami --json` success shape:
   - `{ "ok": true, "data": { "principal": { "id": string, "email": string, "name": string | null, "type": "user" | "service" | "agent", "linkedUserId": string | null }, "role": string, "scopes": string[], "authMethod": "session" | "api-token", "token": { "id": string, "name": string, "prefix": string, "expiresAt": string | null, "scopes": string[] } | null, "session": { "id": string, "expiresAt": string } | null } }`
 - `daoflow capabilities --json` success shape:

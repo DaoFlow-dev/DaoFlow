@@ -119,7 +119,7 @@ export function upgradeCommand(): Command {
       }
 
       // -- Step 5: Wait for health --
-      const port = parseInt(env.PORT || "3000", 10);
+      const port = parseInt(env.DAOFLOW_PORT || env.PORT || "3000", 10);
       const healthSpinner = !isJson ? ora("Waiting for health check...").start() : null;
       let healthy = false;
       for (let i = 0; i < 20; i++) {

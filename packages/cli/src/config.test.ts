@@ -101,4 +101,18 @@ describe("CLI auth config", () => {
       authMethod: "api-token"
     });
   });
+
+  test("getCurrentContext fails closed when only one auth env var is set", () => {
+    setContext("default", {
+      apiUrl: "https://stored.example.com",
+      token: "session_token_123"
+    });
+
+    process.env.DAOFLOW_URL = "https://env.example.com";
+    delete process.env.DAOFLOW_TOKEN;
+
+    expect(() => getCurrentContext()).toThrow(
+      "DAOFLOW_URL and DAOFLOW_TOKEN must both be set when using environment-based CLI auth."
+    );
+  });
 });

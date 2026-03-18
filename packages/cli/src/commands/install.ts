@@ -25,6 +25,14 @@ interface InstallOptions {
 
 type InitialAdminCredentialSource = "none" | "flags" | "env" | "mixed";
 
+interface ExistingInstallState {
+  env: Record<string, string>;
+  version: string;
+  domain?: string;
+  port?: number;
+  scheme?: "http" | "https";
+}
+
 /**
  * Prompt the user for input (interactive mode).
  */
@@ -79,6 +87,63 @@ export const installRuntime: InstallRuntime = {
     })
 };
 
+function emitInstallError(isJson: boolean, error: string, code: string): void {
+  if (isJson) {
+    console.log(JSON.stringify({ ok: false, error, code }));
+  } else {
+    console.error(chalk.red(error));
+  }
+}
+
+function parsePort(raw: string): number | null {
+  if (!/^\d+$/.test(raw.trim())) {
+    return null;
+  }
+
+  const port = Number(raw);
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    return null;
+  }
+
+  return port;
+}
+
+function readExistingInstall(dir: string): ExistingInstallState | null {
+  const envPath = join(dir, ".env");
+  if (!existsSync(envPath)) {
+    return null;
+  }
+
+  const env = parseEnvFile(readFileSync(envPath, "utf-8"));
+  const existingUrl = env.BETTER_AUTH_URL?.trim();
+  let domain: string | undefined;
+  let port: number | undefined;
+  let scheme: "http" | "https" | undefined;
+
+  if (existingUrl) {
+    try {
+      const parsedUrl = new URL(existingUrl);
+      domain = parsedUrl.hostname;
+      scheme = parsedUrl.protocol === "http:" ? "http" : "https";
+      port =
+        parsePort(parsedUrl.port || (parsedUrl.protocol === "https:" ? "443" : "80")) ?? undefined;
+    } catch {
+      domain = undefined;
+      port = parsePort(env.DAOFLOW_PORT ?? "") ?? undefined;
+    }
+  } else {
+    port = parsePort(env.DAOFLOW_PORT ?? "") ?? undefined;
+  }
+
+  return {
+    env,
+    version: env.DAOFLOW_VERSION || "unknown",
+    domain,
+    port,
+    scheme
+  };
+}
+
 export function resolveInitialAdminCredentials(
   options: Pick<InstallOptions, "email" | "password">,
   env: NodeJS.ProcessEnv = process.env
@@ -129,6 +194,8 @@ export function installCommand(): Command {
     .action(async (opts: InstallOptions, command: Command) => {
       const isJson = resolveCommandJsonOption(command, opts.json);
       const isNonInteractive = opts.yes ?? false;
+      const hasExplicitDomain = command.getOptionValueSource("domain") === "cli";
+      const hasExplicitPort = command.getOptionValueSource("port") === "cli";
 
       // -- Step 1: Check Docker --
       const spinner = !isJson ? ora("Checking Docker...").start() : null;
@@ -172,10 +239,21 @@ export function installCommand(): Command {
       // -- Step 2: Gather config --
       let dir = opts.dir;
       let domain = opts.domain ?? "localhost";
-      let port = parseInt(opts.port, 10);
+      let port = parsePort(opts.port);
+      let scheme: "http" | "https" = domain === "localhost" ? "http" : "https";
+      if (port === null) {
+        emitInstallError(
+          isJson,
+          `Invalid port "${opts.port}". Use an integer between 1 and 65535.`,
+          "INVALID_PORT"
+        );
+        process.exit(1);
+      }
       const initialAdmin = resolveInitialAdminCredentials(opts);
       let email = initialAdmin.email;
       let password = initialAdmin.password;
+      let existingInstall: ExistingInstallState | null = null;
+      let databasePasswordMode = "auto-generated";
 
       if (!isNonInteractive) {
         console.error(chalk.bold("\n🚀 DaoFlow Installer\n"));
@@ -184,9 +262,32 @@ export function installCommand(): Command {
         );
 
         dir = await installRuntime.prompt("Install directory", dir);
+        existingInstall = readExistingInstall(dir);
+
+        if (existingInstall) {
+          domain = hasExplicitDomain ? domain : (existingInstall.domain ?? domain);
+          port = hasExplicitPort ? port : (existingInstall.port ?? port);
+          scheme = existingInstall.scheme ?? scheme;
+          const existingEmail =
+            existingInstall.env.DAOFLOW_INITIAL_ADMIN_EMAIL?.trim() || undefined;
+          const existingPassword =
+            existingInstall.env.DAOFLOW_INITIAL_ADMIN_PASSWORD?.trim() || undefined;
+          email = email ?? existingEmail;
+          password = password ?? existingPassword;
+          databasePasswordMode = "preserved";
+        }
+
         domain = await installRuntime.prompt("Domain name", domain || "localhost");
         const portStr = await installRuntime.prompt("HTTP port", String(port));
-        port = parseInt(portStr, 10);
+        port = parsePort(portStr);
+        if (port === null) {
+          emitInstallError(
+            isJson,
+            `Invalid port "${portStr}". Use an integer between 1 and 65535.`,
+            "INVALID_PORT"
+          );
+          process.exit(1);
+        }
         email = await installRuntime.prompt("Admin email", email);
         if (password) {
           console.error(chalk.dim("Admin password already provided via flag or environment."));
@@ -199,29 +300,41 @@ export function installCommand(): Command {
           process.exit(1);
         }
 
-        // Password generation choice
-        const pwChoice = await installRuntime.prompt(
-          "Database passwords — auto-generate or enter manually? (auto/manual)",
-          "auto"
-        );
-
-        let pgPassword: string | undefined;
-        let temporalPgPassword: string | undefined;
-
-        if (pwChoice.toLowerCase() === "manual") {
-          pgPassword = await installRuntime.prompt("Postgres password (daoflow DB)");
-          temporalPgPassword = await installRuntime.prompt("Postgres password (temporal DB)");
-          if (!pgPassword || !temporalPgPassword) {
-            console.error(chalk.red("Both database passwords are required."));
-            process.exit(1);
-          }
+        if (existingInstall) {
+          console.error(
+            chalk.yellow(`\nExisting DaoFlow installation found (v${existingInstall.version}).`)
+          );
+          console.error(
+            chalk.dim(
+              "Current secrets and settings will be preserved unless you explicitly override them."
+            )
+          );
         } else {
-          console.error(chalk.dim("  Secure passwords will be auto-generated."));
-        }
+          // Password generation choice
+          const pwChoice = await installRuntime.prompt(
+            "Database passwords — auto-generate or enter manually? (auto/manual)",
+            "auto"
+          );
 
-        // Store for later use in generateEnvFile
-        opts._pgPassword = pgPassword;
-        opts._temporalPgPassword = temporalPgPassword;
+          let pgPassword: string | undefined;
+          let temporalPgPassword: string | undefined;
+
+          if (pwChoice.toLowerCase() === "manual") {
+            pgPassword = await installRuntime.prompt("Postgres password (daoflow DB)");
+            temporalPgPassword = await installRuntime.prompt("Postgres password (temporal DB)");
+            if (!pgPassword || !temporalPgPassword) {
+              console.error(chalk.red("Both database passwords are required."));
+              process.exit(1);
+            }
+            databasePasswordMode = "manual";
+          } else {
+            console.error(chalk.dim("  Secure passwords will be auto-generated."));
+          }
+
+          // Store for later use in generateEnvFile
+          opts._pgPassword = pgPassword;
+          opts._temporalPgPassword = temporalPgPassword;
+        }
 
         console.error();
         console.error(chalk.bold("Configuration:"));
@@ -229,7 +342,7 @@ export function installCommand(): Command {
         console.error(`  Domain:        ${chalk.cyan(domain)}`);
         console.error(`  Port:          ${chalk.cyan(String(port))}`);
         console.error(`  Admin:         ${chalk.cyan(email)}`);
-        console.error(`  DB Passwords:  ${chalk.cyan(pgPassword ? "manual" : "auto-generated")}`);
+        console.error(`  DB Passwords:  ${chalk.cyan(databasePasswordMode)}`);
         console.error();
 
         const confirm = await installRuntime.prompt("Proceed? (y/N)", "y");
@@ -238,18 +351,35 @@ export function installCommand(): Command {
           process.exit(0);
         }
       } else {
+        existingInstall = readExistingInstall(dir);
+        if (existingInstall) {
+          domain = hasExplicitDomain ? domain : (existingInstall.domain ?? domain);
+          port = hasExplicitPort ? port : (existingInstall.port ?? port);
+          scheme = existingInstall.scheme ?? scheme;
+          const existingEmail =
+            existingInstall.env.DAOFLOW_INITIAL_ADMIN_EMAIL?.trim() || undefined;
+          const existingPassword =
+            existingInstall.env.DAOFLOW_INITIAL_ADMIN_PASSWORD?.trim() || undefined;
+          email = email ?? existingEmail;
+          password = password ?? existingPassword;
+          if (!isJson) {
+            console.error(
+              chalk.yellow(
+                `Existing DaoFlow installation found (v${existingInstall.version}); preserving current secrets and settings unless explicitly overridden.`
+              )
+            );
+          }
+        }
+
         // Non-interactive validation
         if (!email) {
           const msg = `Admin email is required (--email or ${INITIAL_ADMIN_EMAIL_ENV})`;
-          if (isJson) console.log(JSON.stringify({ ok: false, error: msg, code: "MISSING_EMAIL" }));
-          else console.error(chalk.red(msg));
+          emitInstallError(isJson, msg, "MISSING_EMAIL");
           process.exit(1);
         }
         if (!password) {
           const msg = `Admin password is required (--password or ${INITIAL_ADMIN_PASSWORD_ENV})`;
-          if (isJson)
-            console.log(JSON.stringify({ ok: false, error: msg, code: "MISSING_PASSWORD" }));
-          else console.error(chalk.red(msg));
+          emitInstallError(isJson, msg, "MISSING_PASSWORD");
           process.exit(1);
         }
       }
@@ -257,27 +387,6 @@ export function installCommand(): Command {
       // -- Step 3: Check for existing install --
       const envPath = join(dir, ".env");
       const composePath = join(dir, "docker-compose.yml");
-
-      if (existsSync(envPath)) {
-        const existing = parseEnvFile(readFileSync(envPath, "utf-8"));
-        const existingVersion = existing.DAOFLOW_VERSION || "unknown";
-
-        if (!isNonInteractive) {
-          console.error(
-            chalk.yellow(`\nExisting DaoFlow installation found (v${existingVersion}).`)
-          );
-          const overwrite = await installRuntime.prompt(
-            "Overwrite? This will regenerate secrets. (y/N)",
-            "n"
-          );
-          if (overwrite.toLowerCase() !== "y") {
-            console.error(chalk.dim("Use 'daoflow upgrade' to update to a new version instead."));
-            process.exit(0);
-          }
-        } else {
-          console.error(chalk.yellow(`Overwriting existing installation (v${existingVersion}).`));
-        }
-      }
 
       // -- Step 4: Create directory --
       const dirSpinner = !isJson ? ora("Creating installation directory...").start() : null;
@@ -291,10 +400,15 @@ export function installCommand(): Command {
         version: CLI_VERSION,
         domain,
         port,
+        scheme,
         initialAdminEmail: email,
         initialAdminPassword: password,
-        postgresPassword: opts._pgPassword,
-        temporalPostgresPassword: opts._temporalPgPassword
+        postgresPassword: opts._pgPassword ?? existingInstall?.env.POSTGRES_PASSWORD,
+        temporalPostgresPassword:
+          opts._temporalPgPassword ?? existingInstall?.env.TEMPORAL_POSTGRES_PASSWORD,
+        authSecret: existingInstall?.env.BETTER_AUTH_SECRET,
+        encryptionKey: existingInstall?.env.ENCRYPTION_KEY,
+        preservedEnv: existingInstall?.env
       });
       writeFileSync(envPath, envContent, { mode: 0o600 });
       envSpinner?.succeed("Secrets generated and saved to .env");
@@ -373,7 +487,6 @@ export function installCommand(): Command {
       }
 
       // -- Step 10: Output --
-      const scheme = domain === "localhost" ? "http" : "https";
       const url = `${scheme}://${domain}${port !== (scheme === "https" ? 443 : 80) ? `:${port}` : ""}`;
 
       if (isJson) {

@@ -87,6 +87,6 @@ The CLI stores configuration in `~/.daoflow/config.json`:
 }
 ```
 
-For automation, `DAOFLOW_URL` and `DAOFLOW_TOKEN` can provide a runtime auth context without writing a config file.
+For automation, `DAOFLOW_URL` and `DAOFLOW_TOKEN` can provide a runtime auth context without writing a config file. Set both together; a partial override is treated as an error.
 
 For fresh server installs, `DAOFLOW_INITIAL_ADMIN_EMAIL` and `DAOFLOW_INITIAL_ADMIN_PASSWORD` can preseed the first owner account that `daoflow install` writes into the generated `.env`.

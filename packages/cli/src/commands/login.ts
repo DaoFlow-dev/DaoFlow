@@ -70,9 +70,14 @@ export const loginRuntime: LoginRuntime = {
   tryOpenBrowser
 };
 
-function emitLoginError(isJson: boolean, error: string, code: string): void {
+function emitLoginError(
+  isJson: boolean,
+  error: string,
+  code: string,
+  extra?: Record<string, unknown>
+): void {
   if (isJson) {
-    console.log(JSON.stringify({ ok: false, error, code }));
+    console.log(JSON.stringify({ ...(extra ?? {}), ok: false, error, code }));
   } else {
     console.error(chalk.red(`✗ ${error}`));
   }
@@ -279,13 +284,26 @@ export function loginCommand(): Command {
                   exchangeCode
                 );
               } else {
-                if (!isJson) {
-                  console.error(
-                    chalk.yellow(
-                      "Browser login was not approved in time. Paste the one-time CLI code shown in the browser."
-                    )
+                if (isJson) {
+                  emitLoginError(
+                    isJson,
+                    "Browser login was not approved in time; manual CLI code entry is required.",
+                    "SSO_MANUAL_CODE_REQUIRED",
+                    {
+                      verificationUri: device.verificationUri,
+                      userCode: device.userCode,
+                      requestId: device.requestId,
+                      expiresAt: device.expiresAt
+                    }
                   );
+                  process.exit(1);
+                  return;
                 }
+                console.error(
+                  chalk.yellow(
+                    "Browser login was not approved in time. Paste the one-time CLI code shown in the browser."
+                  )
+                );
                 const pastedCode = await loginRuntime.prompt("CLI code: ");
                 sessionToken = await exchangeSsoCode(
                   baseUrl,
@@ -295,15 +313,28 @@ export function loginCommand(): Command {
                 );
               }
             } else {
-              if (!isJson) {
-                console.error(chalk.yellow("No browser could be opened automatically for SSO."));
-                console.error(chalk.yellow(`Open this URL manually: ${device.verificationUri}`));
-                console.error(
-                  chalk.dim(
-                    "After you approve the CLI session in the browser, paste the one-time CLI code shown on the page."
-                  )
+              if (isJson) {
+                emitLoginError(
+                  isJson,
+                  "SSO requires manual browser completion because no browser could be opened automatically.",
+                  "SSO_MANUAL_CODE_REQUIRED",
+                  {
+                    verificationUri: device.verificationUri,
+                    userCode: device.userCode,
+                    requestId: device.requestId,
+                    expiresAt: device.expiresAt
+                  }
                 );
+                process.exit(1);
+                return;
               }
+              console.error(chalk.yellow("No browser could be opened automatically for SSO."));
+              console.error(chalk.yellow(`Open this URL manually: ${device.verificationUri}`));
+              console.error(
+                chalk.dim(
+                  "After you approve the CLI session in the browser, paste the one-time CLI code shown on the page."
+                )
+              );
               const pastedCode = await loginRuntime.prompt("Paste the one-time CLI code: ");
               sessionToken = await exchangeSsoCode(
                 baseUrl,

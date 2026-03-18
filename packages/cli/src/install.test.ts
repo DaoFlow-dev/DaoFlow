@@ -1,11 +1,11 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { Command } from "commander";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { installCommand, installRuntime, resolveInitialAdminCredentials } from "./commands/install";
 import { captureCommandExecution } from "./login-test-helpers";
-import { parseEnvFile } from "./templates";
+import { generateEnvFile, parseEnvFile } from "./templates";
 
 const originalInitialAdminEmail = process.env.DAOFLOW_INITIAL_ADMIN_EMAIL;
 const originalInitialAdminPassword = process.env.DAOFLOW_INITIAL_ADMIN_PASSWORD;
@@ -139,6 +139,89 @@ describe("install command", () => {
       ok: false,
       error: "Admin email is required (--email or DAOFLOW_INITIAL_ADMIN_EMAIL)",
       code: "MISSING_EMAIL"
+    });
+  });
+
+  test("preserves existing secrets and settings when re-running install in place", async () => {
+    writeFileSync(
+      join(installDir, ".env"),
+      `${generateEnvFile({
+        version: "0.2.0",
+        domain: "deploy.example.com",
+        port: 8080,
+        scheme: "http",
+        initialAdminEmail: "existing-owner@example.com",
+        initialAdminPassword: "existing-owner-secret",
+        postgresPassword: "pg-existing-secret",
+        temporalPostgresPassword: "temporal-existing-secret",
+        authSecret: "auth-existing-secret",
+        encryptionKey: "enc-existing-secret"
+      })}
+SMTP_HOST=smtp.example.com
+DEPLOY_TIMEOUT_MS=900000
+`
+    );
+
+    installRuntime.fetch = (url: string) => {
+      expect(url).toBe("http://127.0.0.1:8080/trpc/health");
+      return Promise.resolve(new Response(JSON.stringify({ ok: true }), { status: 200 }));
+    };
+
+    const program = new Command().name("daoflow");
+    program.addCommand(installCommand());
+
+    const result = await captureCommandExecution(async () => {
+      await program.parseAsync([
+        "node",
+        "daoflow",
+        "install",
+        "--dir",
+        installDir,
+        "--yes",
+        "--json"
+      ]);
+    });
+
+    expect(result.exitCode).toBe(0);
+    const envFile = parseEnvFile(readFileSync(join(installDir, ".env"), "utf8"));
+    expect(envFile.BETTER_AUTH_URL).toBe("http://deploy.example.com:8080");
+    expect(envFile.DAOFLOW_PORT).toBe("8080");
+    expect(envFile.DAOFLOW_INITIAL_ADMIN_EMAIL).toBe("existing-owner@example.com");
+    expect(envFile.DAOFLOW_INITIAL_ADMIN_PASSWORD).toBe("existing-owner-secret");
+    expect(envFile.POSTGRES_PASSWORD).toBe("pg-existing-secret");
+    expect(envFile.TEMPORAL_POSTGRES_PASSWORD).toBe("temporal-existing-secret");
+    expect(envFile.BETTER_AUTH_SECRET).toBe("auth-existing-secret");
+    expect(envFile.ENCRYPTION_KEY).toBe("enc-existing-secret");
+    expect(envFile.SMTP_HOST).toBe("smtp.example.com");
+    expect(envFile.DEPLOY_TIMEOUT_MS).toBe("900000");
+  });
+
+  test("returns a structured error when the install port is invalid", async () => {
+    process.env.DAOFLOW_INITIAL_ADMIN_EMAIL = "owner@example.com";
+    process.env.DAOFLOW_INITIAL_ADMIN_PASSWORD = "env-secret-123";
+
+    const program = new Command().name("daoflow");
+    program.addCommand(installCommand());
+
+    const result = await captureCommandExecution(async () => {
+      await program.parseAsync([
+        "node",
+        "daoflow",
+        "install",
+        "--dir",
+        installDir,
+        "--port",
+        "abc",
+        "--yes",
+        "--json"
+      ]);
+    });
+
+    expect(result.exitCode).toBe(1);
+    expect(JSON.parse(result.logs[0])).toEqual({
+      ok: false,
+      error: 'Invalid port "abc". Use an integer between 1 and 65535.',
+      code: "INVALID_PORT"
     });
   });
 });

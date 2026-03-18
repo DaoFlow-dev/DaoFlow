@@ -287,4 +287,71 @@ describe("login command", () => {
     ).toBe(true);
     expect(fetchMock).toHaveBeenCalledTimes(4);
   });
+
+  test("returns structured JSON instead of prompting when SSO needs manual completion", async () => {
+    const fetchMock = mock((input: string | URL | Request): Promise<Response> => {
+      const url =
+        typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+
+      if (url.endsWith("/health")) {
+        return Promise.resolve(
+          new Response(JSON.stringify({ status: "healthy" }), { status: 200 })
+        );
+      }
+
+      if (url.endsWith("/api/v1/cli-auth/start")) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              ok: true,
+              requestId: "req_123",
+              userCode: "ABCD-EFGH",
+              verificationUri:
+                "https://deploy.example.com/cli/auth/device?requestId=req_123&userCode=ABCD-EFGH",
+              intervalSeconds: 1,
+              expiresAt: "2099-01-01T00:00:00.000Z"
+            }),
+            { status: 200 }
+          )
+        );
+      }
+
+      throw new Error(`Unexpected fetch ${url}`);
+    });
+
+    loginRuntime.fetch = fetchMock as unknown as typeof loginRuntime.fetch;
+    loginRuntime.tryOpenBrowser = () => false;
+    loginRuntime.prompt = () => {
+      throw new Error("prompt should not be used in JSON mode");
+    };
+
+    const program = new Command().name("daoflow");
+    program.addCommand(loginCommand());
+
+    const result = await captureCommandExecution(async () => {
+      await program.parseAsync([
+        "node",
+        "daoflow",
+        "login",
+        "--url",
+        "https://deploy.example.com",
+        "--sso",
+        "--json"
+      ]);
+    });
+
+    expect(result.exitCode).toBe(1);
+    expect(result.errors).toEqual([]);
+    expect(JSON.parse(result.logs[0])).toEqual({
+      ok: false,
+      error:
+        "SSO requires manual browser completion because no browser could be opened automatically.",
+      code: "SSO_MANUAL_CODE_REQUIRED",
+      verificationUri:
+        "https://deploy.example.com/cli/auth/device?requestId=req_123&userCode=ABCD-EFGH",
+      userCode: "ABCD-EFGH",
+      requestId: "req_123",
+      expiresAt: "2099-01-01T00:00:00.000Z"
+    });
+  });
 });

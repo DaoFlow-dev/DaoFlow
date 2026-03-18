@@ -79,10 +79,18 @@ export function saveConfig(config: DaoFlowConfig): void {
 }
 
 export function getCurrentContext(): DaoFlowContext | null {
-  if (process.env.DAOFLOW_URL && process.env.DAOFLOW_TOKEN) {
+  const envUrl = process.env.DAOFLOW_URL;
+  const envToken = process.env.DAOFLOW_TOKEN;
+  if (envUrl || envToken) {
+    if (!envUrl || !envToken) {
+      throw new Error(
+        "DAOFLOW_URL and DAOFLOW_TOKEN must both be set when using environment-based CLI auth."
+      );
+    }
+
     return normalizeContext({
-      apiUrl: process.env.DAOFLOW_URL.replace(/\/$/, ""),
-      token: process.env.DAOFLOW_TOKEN
+      apiUrl: envUrl.replace(/\/$/, ""),
+      token: envToken
     });
   }
 
