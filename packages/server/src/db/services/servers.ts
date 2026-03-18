@@ -211,6 +211,7 @@ export async function listInfrastructureInventory() {
       sshUser: server.sshUser ?? "",
       engineVersion: server.dockerVersion ?? "unknown",
       status: normalizeInventoryStatus(server.status),
+      statusTone: normalizeInventoryStatus(server.status),
       lastHeartbeatAt: server.lastCheckedAt?.toISOString() ?? null,
       environmentCount: environmentCountByServer.get(server.id) ?? 0
     })),
@@ -229,7 +230,10 @@ export async function listInfrastructureInventory() {
         environmentCount:
           readNumber(config, "environmentCount", projectEnvironments.length) ??
           projectEnvironments.length,
-        latestDeploymentStatus: readString(config, "latestDeploymentStatus", "healthy")
+        latestDeploymentStatus: readString(config, "latestDeploymentStatus", "healthy"),
+        statusTone: normalizeInventoryStatus(
+          readString(config, "latestDeploymentStatus", "healthy")
+        )
       };
     }),
     environments: envRows.map((environment) => {
@@ -243,7 +247,8 @@ export async function listInfrastructureInventory() {
         networkName: readString(config, "networkName"),
         composeFilePath: readString(config, "composeFilePath"),
         serviceCount: serviceCountByEnvironment.get(environment.id) ?? 0,
-        status: environment.status
+        status: environment.status,
+        statusTone: normalizeInventoryStatus(environment.status)
       };
     })
   };

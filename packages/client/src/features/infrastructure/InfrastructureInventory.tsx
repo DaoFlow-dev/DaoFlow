@@ -8,6 +8,7 @@ interface ServerItem {
   region: string;
   sshPort: number;
   status: string;
+  statusTone?: string;
   engineVersion: string;
   environmentCount: number;
   lastHeartbeatAt: string | null;
@@ -21,6 +22,7 @@ interface ProjectItem {
   serviceCount: number;
   environmentCount: number;
   latestDeploymentStatus: string;
+  statusTone?: string;
 }
 
 interface EnvironmentItem {
@@ -32,6 +34,7 @@ interface EnvironmentItem {
   networkName: string;
   composeFilePath: string;
   serviceCount: number;
+  statusTone?: string;
 }
 
 interface InventoryData {
@@ -92,34 +95,36 @@ export function InfrastructureInventory({
                 <h3>Servers</h3>
               </div>
               <div className="inventory-list">
-                {infrastructureInventory.data.servers.map((server) => (
-                  <article
-                    className="token-card"
-                    data-testid={`server-card-${server.id}`}
-                    key={server.id}
-                  >
-                    <div className="token-card__top">
-                      <div>
-                        <p className="roadmap-item__lane">{server.kind}</p>
-                        <h3>{server.name}</h3>
+                {infrastructureInventory.data.servers.map((server) => {
+                  const statusTone = server.statusTone ?? getInventoryTone(server.status);
+
+                  return (
+                    <article
+                      className="token-card"
+                      data-testid={`server-card-${server.id}`}
+                      key={server.id}
+                    >
+                      <div className="token-card__top">
+                        <div>
+                          <p className="roadmap-item__lane">{server.kind}</p>
+                          <h3>{server.name}</h3>
+                        </div>
+                        <span className={`deployment-status deployment-status--${statusTone}`}>
+                          {server.status}
+                        </span>
                       </div>
-                      <span
-                        className={`deployment-status deployment-status--${getInventoryTone(server.status)}`}
-                      >
-                        {server.status}
-                      </span>
-                    </div>
-                    <p className="deployment-card__meta">
-                      {server.host} · {server.region} · SSH {server.sshPort}
-                    </p>
-                    <p className="deployment-card__meta">
-                      {server.engineVersion} · {server.environmentCount} attached environments
-                    </p>
-                    <p className="deployment-card__meta">
-                      Last heartbeat: {server.lastHeartbeatAt ?? "No heartbeat recorded"}
-                    </p>
-                  </article>
-                ))}
+                      <p className="deployment-card__meta">
+                        {server.host} · {server.region} · SSH {server.sshPort}
+                      </p>
+                      <p className="deployment-card__meta">
+                        {server.engineVersion} · {server.environmentCount} attached environments
+                      </p>
+                      <p className="deployment-card__meta">
+                        Last heartbeat: {server.lastHeartbeatAt ?? "No heartbeat recorded"}
+                      </p>
+                    </article>
+                  );
+                })}
               </div>
             </div>
 
@@ -129,29 +134,32 @@ export function InfrastructureInventory({
                 <h3>Projects</h3>
               </div>
               <div className="inventory-list">
-                {infrastructureInventory.data.projects.map((project) => (
-                  <article
-                    className="token-card"
-                    data-testid={`project-card-${project.id}`}
-                    key={project.id}
-                  >
-                    <div className="token-card__top">
-                      <div>
-                        <p className="roadmap-item__lane">{project.defaultBranch}</p>
-                        <h3>{project.name}</h3>
+                {infrastructureInventory.data.projects.map((project) => {
+                  const statusTone =
+                    project.statusTone ?? getInventoryTone(project.latestDeploymentStatus);
+
+                  return (
+                    <article
+                      className="token-card"
+                      data-testid={`project-card-${project.id}`}
+                      key={project.id}
+                    >
+                      <div className="token-card__top">
+                        <div>
+                          <p className="roadmap-item__lane">{project.defaultBranch}</p>
+                          <h3>{project.name}</h3>
+                        </div>
+                        <span className={`deployment-status deployment-status--${statusTone}`}>
+                          {project.latestDeploymentStatus}
+                        </span>
                       </div>
-                      <span
-                        className={`deployment-status deployment-status--${getInventoryTone(project.latestDeploymentStatus)}`}
-                      >
-                        {project.latestDeploymentStatus}
-                      </span>
-                    </div>
-                    <p className="deployment-card__meta">{project.repositoryUrl}</p>
-                    <p className="deployment-card__meta">
-                      {project.serviceCount} services · {project.environmentCount} environments
-                    </p>
-                  </article>
-                ))}
+                      <p className="deployment-card__meta">{project.repositoryUrl}</p>
+                      <p className="deployment-card__meta">
+                        {project.serviceCount} services · {project.environmentCount} environments
+                      </p>
+                    </article>
+                  );
+                })}
               </div>
             </div>
 
@@ -161,32 +169,34 @@ export function InfrastructureInventory({
                 <h3>Environments</h3>
               </div>
               <div className="inventory-list">
-                {infrastructureInventory.data.environments.map((environment) => (
-                  <article
-                    className="timeline-event"
-                    data-testid={`environment-card-${environment.id}`}
-                    key={environment.id}
-                  >
-                    <div className="timeline-event__top">
-                      <div>
-                        <p className="roadmap-item__lane">{environment.projectName}</p>
-                        <h3>{environment.name}</h3>
+                {infrastructureInventory.data.environments.map((environment) => {
+                  const statusTone = environment.statusTone ?? getInventoryTone(environment.status);
+
+                  return (
+                    <article
+                      className="timeline-event"
+                      data-testid={`environment-card-${environment.id}`}
+                      key={environment.id}
+                    >
+                      <div className="timeline-event__top">
+                        <div>
+                          <p className="roadmap-item__lane">{environment.projectName}</p>
+                          <h3>{environment.name}</h3>
+                        </div>
+                        <span className={`deployment-status deployment-status--${statusTone}`}>
+                          {environment.status}
+                        </span>
                       </div>
-                      <span
-                        className={`deployment-status deployment-status--${getInventoryTone(environment.status)}`}
-                      >
-                        {environment.status}
-                      </span>
-                    </div>
-                    <p className="deployment-card__meta">
-                      {environment.targetServerName} · Network {environment.networkName}
-                    </p>
-                    <p className="deployment-card__meta">{environment.composeFilePath}</p>
-                    <p className="deployment-card__meta">
-                      {environment.serviceCount} Compose services
-                    </p>
-                  </article>
-                ))}
+                      <p className="deployment-card__meta">
+                        {environment.targetServerName} · Network {environment.networkName}
+                      </p>
+                      <p className="deployment-card__meta">{environment.composeFilePath}</p>
+                      <p className="deployment-card__meta">
+                        {environment.serviceCount} Compose services
+                      </p>
+                    </article>
+                  );
+                })}
               </div>
             </div>
           </div>

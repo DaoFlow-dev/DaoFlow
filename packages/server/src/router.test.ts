@@ -413,6 +413,31 @@ describe("appRouter", () => {
     expect(variable.displayValue).toEqual(expect.any(String));
   });
 
+  it("returns infrastructure inventory entries with normalized status tones", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-inventory-status-tones",
+      session: makeSession("viewer")
+    });
+    const response = await caller.infrastructureInventory();
+
+    expect(response.summary.totalServers).toBeGreaterThanOrEqual(0);
+
+    const server = response.servers[0];
+    if (server) {
+      expect(server.statusTone).toEqual(expect.any(String));
+    }
+
+    const project = response.projects[0];
+    if (project) {
+      expect(project.statusTone).toEqual(expect.any(String));
+    }
+
+    const environment = response.environments[0];
+    if (environment) {
+      expect(environment.statusTone).toEqual(expect.any(String));
+    }
+  });
+
   it("registers a server with the async service layer return shape", async () => {
     const caller = appRouter.createCaller({
       requestId: "test-register-server",
