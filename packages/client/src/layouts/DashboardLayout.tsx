@@ -6,6 +6,8 @@ import { useSession, authClient } from "../lib/auth-client";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
+import { KeyboardShortcutsDialog } from "@/components/KeyboardShortcutsDialog";
+import { CommandPalette } from "@/components/CommandPalette";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -230,6 +232,9 @@ export function DashboardLayout() {
               </span>
             ))}
           </nav>
+          <div className="flex items-center gap-1">
+            <KeyboardShortcutsDialog />
+          </div>
         </header>
 
         <div className="page-content">
@@ -237,6 +242,7 @@ export function DashboardLayout() {
             <Outlet />
           </ErrorBoundary>
         </div>
+        <CommandPalette />
       </section>
     </div>
   );

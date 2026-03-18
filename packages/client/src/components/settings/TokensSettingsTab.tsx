@@ -18,6 +18,19 @@ interface Token {
   lanes: string[];
   status: string;
   createdAt: string;
+  expiresAt?: string | null;
+}
+
+function expiryLabel(expiresAt: string): {
+  text: string;
+  variant: "default" | "destructive" | "secondary";
+} {
+  const ms = new Date(expiresAt).getTime() - Date.now();
+  if (ms <= 0) return { text: "Expired", variant: "destructive" };
+  const days = Math.ceil(ms / 86_400_000);
+  if (days <= 7) return { text: `${days}d left`, variant: "destructive" };
+  if (days <= 30) return { text: `${days}d left`, variant: "secondary" };
+  return { text: `${days}d left`, variant: "default" };
 }
 
 interface TokenSummary {
@@ -107,6 +120,15 @@ export function TokensSettingsTab({ isLoading, tokens, summary }: TokensSettings
                       </TableCell>
                       <TableCell className="text-muted-foreground">
                         {new Date(t.createdAt).toLocaleDateString()}
+                        {t.expiresAt &&
+                          (() => {
+                            const expiry = expiryLabel(t.expiresAt);
+                            return (
+                              <Badge variant={expiry.variant} className="ml-2 text-[10px]">
+                                {expiry.text}
+                              </Badge>
+                            );
+                          })()}
                       </TableCell>
                     </TableRow>
                   ))}
