@@ -7,6 +7,7 @@ interface ApprovalRequest {
   id: string;
   actionType: string;
   status: string;
+  statusTone?: string;
   riskLevel: string;
   resourceLabel: string;
   reason: string | null;
@@ -128,69 +129,72 @@ export function ApprovalQueue({
           </div>
 
           <div className="approval-list">
-            {approvalQueue.data.requests.map((request) => (
-              <article
-                className="token-card"
-                data-testid={`approval-request-${request.id}`}
-                key={request.id}
-              >
-                <div className="token-card__top">
-                  <div>
-                    <p className="roadmap-item__lane">
-                      {request.requestedBy} · {request.requestedByRole}
-                    </p>
-                    <h3>{request.actionType}</h3>
+            {approvalQueue.data.requests.map((request) => {
+              const statusTone =
+                request.statusTone ?? getApprovalTone(request.status, request.riskLevel);
+
+              return (
+                <article
+                  className="token-card"
+                  data-testid={`approval-request-${request.id}`}
+                  key={request.id}
+                >
+                  <div className="token-card__top">
+                    <div>
+                      <p className="roadmap-item__lane">
+                        {request.requestedBy} · {request.requestedByRole}
+                      </p>
+                      <h3>{request.actionType}</h3>
+                    </div>
+                    <span className={`deployment-status deployment-status--${statusTone}`}>
+                      {request.status}
+                    </span>
                   </div>
-                  <span
-                    className={`deployment-status deployment-status--${getApprovalTone(request.status, request.riskLevel)}`}
-                  >
-                    {request.status}
-                  </span>
-                </div>
-                <p className="deployment-card__meta">
-                  {request.resourceLabel} · Risk: {request.riskLevel}
-                </p>
-                <p className="deployment-card__meta">{request.reason}</p>
-                <p className="deployment-card__meta">{request.commandSummary}</p>
-                <p className="deployment-card__meta">
-                  Requested: {request.requestedAt} · Expires: {request.expiresAt}
-                </p>
-                {request.decidedBy ? (
                   <p className="deployment-card__meta">
-                    Decision: {request.decidedBy} · {request.decidedAt}
+                    {request.resourceLabel} · Risk: {request.riskLevel}
                   </p>
-                ) : null}
-                <ul className="deployment-card__steps">
-                  {request.recommendedChecks.map((check) => (
-                    <li key={check}>{check}</li>
-                  ))}
-                </ul>
-                {canOperateExecutionJobs && request.status === "pending" ? (
-                  <div className="job-actions">
-                    <button
-                      className="action-button"
-                      disabled={approvalMutationPending}
-                      onClick={() => {
-                        void handleApproveApproval(request.id, request.resourceLabel);
-                      }}
-                      type="button"
-                    >
-                      {approvalMutationPending ? "Applying..." : "Approve"}
-                    </button>
-                    <button
-                      className="action-button action-button--muted"
-                      disabled={approvalMutationPending}
-                      onClick={() => {
-                        void handleRejectApproval(request.id, request.resourceLabel);
-                      }}
-                      type="button"
-                    >
-                      {approvalMutationPending ? "Applying..." : "Reject"}
-                    </button>
-                  </div>
-                ) : null}
-              </article>
-            ))}
+                  <p className="deployment-card__meta">{request.reason}</p>
+                  <p className="deployment-card__meta">{request.commandSummary}</p>
+                  <p className="deployment-card__meta">
+                    Requested: {request.requestedAt} · Expires: {request.expiresAt}
+                  </p>
+                  {request.decidedBy ? (
+                    <p className="deployment-card__meta">
+                      Decision: {request.decidedBy} · {request.decidedAt}
+                    </p>
+                  ) : null}
+                  <ul className="deployment-card__steps">
+                    {request.recommendedChecks.map((check) => (
+                      <li key={check}>{check}</li>
+                    ))}
+                  </ul>
+                  {canOperateExecutionJobs && request.status === "pending" ? (
+                    <div className="job-actions">
+                      <button
+                        className="action-button"
+                        disabled={approvalMutationPending}
+                        onClick={() => {
+                          void handleApproveApproval(request.id, request.resourceLabel);
+                        }}
+                        type="button"
+                      >
+                        {approvalMutationPending ? "Applying..." : "Approve"}
+                      </button>
+                      <button
+                        className="action-button action-button--muted"
+                        disabled={approvalMutationPending}
+                        onClick={() => {
+                          void handleRejectApproval(request.id, request.resourceLabel);
+                        }}
+                        type="button"
+                      >
+                        {approvalMutationPending ? "Applying..." : "Reject"}
+                      </button>
+                    </div>
+                  ) : null}
+                </article>
+              );
+            })}
           </div>
         </>
       ) : (

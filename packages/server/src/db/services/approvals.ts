@@ -29,6 +29,18 @@ export type CreateApprovalRequestInput =
       requestedByRole: AppRole;
     };
 
+function getApprovalStatusTone(status: string, riskLevel: "medium" | "elevated" | "critical") {
+  if (status === "approved") {
+    return "healthy" as const;
+  }
+
+  if (status === "rejected") {
+    return "failed" as const;
+  }
+
+  return riskLevel === "critical" ? "failed" : ("running" as const);
+}
+
 async function resolveApprovalPresentation(input: CreateApprovalRequestInput) {
   if (input.actionType === "compose-release") {
     const catalog = await listComposeReleaseCatalog(100);
@@ -83,11 +95,16 @@ async function resolveApprovalPresentation(input: CreateApprovalRequestInput) {
 
 function enrichApproval(request: typeof approvalRequests.$inferSelect) {
   const summary = asRecord(request.inputSummary);
+  const riskLevel = readString(summary, "riskLevel", "medium") as
+    | "medium"
+    | "elevated"
+    | "critical";
   return {
     ...request,
     requestedBy: request.requestedByEmail ?? "",
     resourceLabel: readString(summary, "resourceLabel", request.targetResource),
-    riskLevel: readString(summary, "riskLevel", "medium") as "medium" | "elevated" | "critical",
+    riskLevel,
+    statusTone: getApprovalStatusTone(request.status, riskLevel),
     commandSummary: readString(summary, "commandSummary", request.reason ?? ""),
     requestedAt: readString(summary, "requestedAt", request.createdAt.toISOString()),
     expiresAt: readString(summary, "expiresAt", ""),

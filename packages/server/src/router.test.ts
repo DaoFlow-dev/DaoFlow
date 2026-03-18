@@ -601,6 +601,7 @@ describe("appRouter", () => {
 
     expect(request.targetResource).toEqual(expect.any(String));
     expect(request.resourceLabel).toEqual(expect.any(String));
+    expect(request.statusTone).toEqual(expect.any(String));
   });
 
   it("returns token inventory entries keyed by name", async () => {
