@@ -81,10 +81,6 @@ export default function DeploymentsPage() {
                 {deployments.map((d) => {
                   const id = String(d.id);
                   const isExpanded = expandedId === id;
-                  const statusTone =
-                    typeof d.statusTone === "string" ? d.statusTone : String(d.status);
-                  const statusLabel =
-                    typeof d.statusLabel === "string" ? d.statusLabel : String(d.status);
                   const lifecycleStatus =
                     typeof d.lifecycleStatus === "string" ? d.lifecycleStatus : String(d.status);
                   const isSuccessful = d.canRollback === true && typeof d.serviceId === "string";
@@ -111,8 +107,8 @@ export default function DeploymentsPage() {
                         </TableCell>
                         <TableCell>
                           <div className="flex flex-col gap-1">
-                            <Badge variant={getBadgeVariantFromTone(statusTone)}>
-                              {statusLabel}
+                            <Badge variant={getBadgeVariantFromTone(d.statusTone)}>
+                              {d.statusLabel}
                             </Badge>
                             <span className="text-xs text-muted-foreground">
                               Lifecycle: {lifecycleStatus}
