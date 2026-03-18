@@ -16,7 +16,7 @@ import {
   DialogTitle,
   DialogTrigger
 } from "@/components/ui/dialog";
-import { FolderKanban, Plus, Search } from "lucide-react";
+import { FolderKanban, Plus, Search, Loader2 } from "lucide-react";
 import { getInventoryBadgeVariant } from "../lib/tone-utils";
 
 export default function ProjectsPage() {
@@ -111,7 +111,13 @@ export default function ProjectsPage() {
                   Cancel
                 </Button>
                 <Button type="submit" disabled={!newProject.name || createProject.isPending}>
-                  {createProject.isPending ? "Creating…" : "Create Project"}
+                  {createProject.isPending ? (
+                    <>
+                      <Loader2 size={14} className="mr-1 animate-spin" /> Creating…
+                    </>
+                  ) : (
+                    "Create Project"
+                  )}
                 </Button>
               </div>
               {createProject.error && (

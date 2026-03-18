@@ -217,20 +217,30 @@ export function DashboardLayout() {
       <section className="layout__content">
         <header className="topbar">
           <nav className="topbar__breadcrumb" aria-label="Breadcrumb">
-            {crumbs.map((crumb, i) => (
-              <span key={crumb}>
-                {i > 0 && <span className="topbar__breadcrumb-sep">/</span>}
-                <span
-                  className={
-                    i === crumbs.length - 1
-                      ? "topbar__breadcrumb-current"
-                      : "topbar__breadcrumb-item"
-                  }
-                >
-                  {crumb}
+            {crumbs.map((crumb, i) => {
+              const path =
+                "/" +
+                crumbs
+                  .slice(0, i + 1)
+                  .map((c) => c.toLowerCase())
+                  .join("/");
+              const isLast = i === crumbs.length - 1;
+              return (
+                <span key={crumb}>
+                  {i > 0 && <span className="topbar__breadcrumb-sep">/</span>}
+                  {isLast ? (
+                    <span className="topbar__breadcrumb-current">{crumb}</span>
+                  ) : (
+                    <button
+                      className="topbar__breadcrumb-item hover:underline"
+                      onClick={() => void navigate(path === "/dashboard" ? "/" : path)}
+                    >
+                      {crumb}
+                    </button>
+                  )}
                 </span>
-              </span>
-            ))}
+              );
+            })}
           </nav>
           <div className="flex items-center gap-1">
             <KeyboardShortcutsDialog />
