@@ -4,11 +4,11 @@ interface RollbackPlan {
   environmentName: string;
   serviceName: string;
   currentStatus: string;
-  currentStatusTone?: string;
-  currentStatusLabel?: string;
+  currentStatusTone: string;
+  currentStatusLabel: string;
   isAvailable: boolean;
-  planStatusTone?: string;
-  planStatusLabel?: string;
+  planStatusTone: string;
+  planStatusLabel: string;
   reason: string;
   targetDeploymentId: string;
   targetCommitSha: string;
@@ -38,12 +38,6 @@ export function RollbackPlans({
       {session.data && deploymentRollbackPlans.data ? (
         <div className="rollback-plan-list">
           {deploymentRollbackPlans.data.map((plan) => {
-            const planStatusTone =
-              plan.planStatusTone ?? plan.currentStatusTone ?? plan.currentStatus;
-            const planStatusLabel =
-              plan.planStatusLabel ?? plan.currentStatusLabel ?? plan.currentStatus;
-            const currentStatusLabel = plan.currentStatusLabel ?? plan.currentStatus;
-
             return (
               <article
                 className="deployment-card"
@@ -57,12 +51,12 @@ export function RollbackPlans({
                     </p>
                     <h3>{plan.serviceName}</h3>
                   </div>
-                  <span className={`deployment-status deployment-status--${planStatusTone}`}>
-                    {planStatusLabel}
+                  <span className={`deployment-status deployment-status--${plan.planStatusTone}`}>
+                    {plan.planStatusLabel}
                   </span>
                 </div>
                 <p className="deployment-card__meta">{plan.reason}</p>
-                <p className="deployment-card__meta">Current status: {currentStatusLabel}</p>
+                <p className="deployment-card__meta">Current status: {plan.currentStatusLabel}</p>
                 {plan.targetCommitSha ? (
                   <p className="deployment-card__meta">
                     Rollback target: {plan.targetCommitSha} · {plan.targetImageTag}

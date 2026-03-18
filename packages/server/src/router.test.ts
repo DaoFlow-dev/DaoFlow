@@ -271,6 +271,27 @@ describe("appRouter", () => {
     }
   });
 
+  it("returns deployment rollback plans with normalized status metadata", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-deployment-rollback-plans",
+      session: makeSession("viewer")
+    });
+
+    const plans = await caller.deploymentRollbackPlans({});
+
+    expect(Array.isArray(plans)).toBe(true);
+
+    const plan = plans[0];
+    if (!plan) {
+      return;
+    }
+
+    expect(plan.planStatusTone).toEqual(expect.any(String));
+    expect(plan.planStatusLabel).toEqual(expect.any(String));
+    expect(plan.currentStatusTone).toEqual(expect.any(String));
+    expect(plan.currentStatusLabel).toEqual(expect.any(String));
+  });
+
   it("returns a real deployment plan from the planning lane", async () => {
     const caller = appRouter.createCaller({
       requestId: "test-plan",
