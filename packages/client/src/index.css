@@ -616,13 +616,10 @@ body {
   border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
-/* ========= Status card grid ========= */
-.grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.75rem;
-  margin-top: 1rem;
-}
+/* NOTE: Removed rogue .grid rule that collided with Tailwind's grid utility.
+   It forced grid-template-columns: repeat(2, 1fr) on ALL .grid elements,
+   breaking DialogContent and other components.
+   Use Tailwind classes like grid-cols-2 gap-3 mt-4 directly instead. */
 
 /* ========= Section margins ========= */
 .deployments,
