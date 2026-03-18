@@ -1,5 +1,3 @@
-import { getComposeDriftTone } from "../../lib/tone-utils";
-
 interface DriftDiff {
   id: string;
   field: string;
@@ -16,8 +14,8 @@ interface DriftReport {
   targetServerName: string;
   composeFilePath: string;
   status: string;
-  statusLabel?: string;
-  statusTone?: string;
+  statusLabel: string;
+  statusTone: string;
   summary: string;
   impactSummary: string;
   desiredImageReference: string;
@@ -79,74 +77,69 @@ export function ComposeDrift({
           </div>
 
           <div className="compose-drift-list">
-            {composeDriftReport.data.reports.map((report) => {
-              const statusTone = report.statusTone ?? getComposeDriftTone(report.status);
-              const statusLabel = report.statusLabel ?? report.status;
-
-              return (
-                <article
-                  className="token-card"
-                  data-testid={`compose-drift-card-${report.composeServiceId}`}
-                  key={report.composeServiceId}
-                >
-                  <div className="token-card__top">
-                    <div>
-                      <p className="roadmap-item__lane">
-                        {report.environmentName} · {report.projectName}
-                      </p>
-                      <h3>{report.serviceName}</h3>
-                    </div>
-                    <span className={`deployment-status deployment-status--${statusTone}`}>
-                      {statusLabel}
-                    </span>
+            {composeDriftReport.data.reports.map((report) => (
+              <article
+                className="token-card"
+                data-testid={`compose-drift-card-${report.composeServiceId}`}
+                key={report.composeServiceId}
+              >
+                <div className="token-card__top">
+                  <div>
+                    <p className="roadmap-item__lane">
+                      {report.environmentName} · {report.projectName}
+                    </p>
+                    <h3>{report.serviceName}</h3>
                   </div>
-                  <p className="deployment-card__meta">
-                    {report.targetServerName} · {report.composeFilePath}
-                  </p>
-                  <p className="deployment-card__meta">{report.summary}</p>
-                  <p className="deployment-card__meta">
-                    Desired image: {report.desiredImageReference} · Actual image:{" "}
-                    {report.actualImageReference}
-                  </p>
-                  <p className="deployment-card__meta">
-                    Desired replicas: {report.desiredReplicaCount} · Actual replicas:{" "}
-                    {report.actualReplicaCount} · Runtime: {report.actualContainerState}
-                  </p>
-                  {report.diffs.length > 0 ? (
-                    <div className="token-card__chips">
-                      {report.diffs.map((diff) => (
-                        <span className="token-chip" key={diff.id}>
-                          {diff.field}: {diff.desiredValue}
-                          {" -> "}
-                          {diff.actualValue}
-                        </span>
-                      ))}
-                    </div>
-                  ) : null}
-                  <div className="rollback-plan__columns">
-                    <div>
-                      <h4>Impact</h4>
-                      <p className="deployment-card__meta">{report.impactSummary}</p>
-                      {report.diffs.length > 0 ? (
-                        <ul className="deployment-card__steps">
-                          {report.diffs.map((diff) => (
-                            <li key={`${diff.id}-impact`}>{diff.impact}</li>
-                          ))}
-                        </ul>
-                      ) : null}
-                    </div>
-                    <div>
-                      <h4>Safe next actions</h4>
+                  <span className={`deployment-status deployment-status--${report.statusTone}`}>
+                    {report.statusLabel}
+                  </span>
+                </div>
+                <p className="deployment-card__meta">
+                  {report.targetServerName} · {report.composeFilePath}
+                </p>
+                <p className="deployment-card__meta">{report.summary}</p>
+                <p className="deployment-card__meta">
+                  Desired image: {report.desiredImageReference} · Actual image:{" "}
+                  {report.actualImageReference}
+                </p>
+                <p className="deployment-card__meta">
+                  Desired replicas: {report.desiredReplicaCount} · Actual replicas:{" "}
+                  {report.actualReplicaCount} · Runtime: {report.actualContainerState}
+                </p>
+                {report.diffs.length > 0 ? (
+                  <div className="token-card__chips">
+                    {report.diffs.map((diff) => (
+                      <span className="token-chip" key={diff.id}>
+                        {diff.field}: {diff.desiredValue}
+                        {" -> "}
+                        {diff.actualValue}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
+                <div className="rollback-plan__columns">
+                  <div>
+                    <h4>Impact</h4>
+                    <p className="deployment-card__meta">{report.impactSummary}</p>
+                    {report.diffs.length > 0 ? (
                       <ul className="deployment-card__steps">
-                        {report.recommendedActions.map((action) => (
-                          <li key={action}>{action}</li>
+                        {report.diffs.map((diff) => (
+                          <li key={`${diff.id}-impact`}>{diff.impact}</li>
                         ))}
                       </ul>
-                    </div>
+                    ) : null}
                   </div>
-                </article>
-              );
-            })}
+                  <div>
+                    <h4>Safe next actions</h4>
+                    <ul className="deployment-card__steps">
+                      {report.recommendedActions.map((action) => (
+                        <li key={action}>{action}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              </article>
+            ))}
           </div>
         </>
       ) : (
