@@ -380,6 +380,18 @@ body {
   max-width: 1280px;
   width: 100%;
   margin: 0 auto;
+  animation: page-fade-in 0.2s ease-out;
+}
+
+@keyframes page-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* ========= Shell (legacy compat) ========= */

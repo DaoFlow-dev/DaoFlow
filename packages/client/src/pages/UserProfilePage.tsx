@@ -224,6 +224,35 @@ export default function UserProfilePage() {
         </CardContent>
       </Card>
 
+      {/* Active Sessions */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Clock size={16} />
+            Active Sessions
+          </CardTitle>
+          <CardDescription>Manage your active login sessions.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between rounded-lg border p-3">
+            <div>
+              <p className="text-sm font-medium">Current session</p>
+              <p className="text-xs text-muted-foreground">
+                {navigator.userAgent.includes("Chrome")
+                  ? "Chrome"
+                  : navigator.userAgent.includes("Firefox")
+                    ? "Firefox"
+                    : navigator.userAgent.includes("Safari")
+                      ? "Safari"
+                      : "Browser"}{" "}
+                · Last active now
+              </p>
+            </div>
+            <Badge variant="default">Active</Badge>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Account Info (read-only) */}
       <Card>
         <CardHeader>

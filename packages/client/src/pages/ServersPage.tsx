@@ -140,6 +140,9 @@ export default function ServersPage() {
                       {check.latencyMs !== null ? ` · ${check.latencyMs} ms` : ""}
                     </div>
 
+                    {/* Resource usage bars */}
+                    <ResourceBars check={check as Record<string, unknown>} />
+
                     <div className="grid gap-4 sm:grid-cols-2">
                       <div>
                         <p className="mb-2 text-sm font-medium">Issues</p>
@@ -193,6 +196,40 @@ function CapabilityBadge({ ok, label }: { ok: boolean; label: string }) {
         <XCircle size={14} className="text-red-500" />
       )}
       <span>{label}</span>
+    </div>
+  );
+}
+
+function ResourceBars({ check }: { check: Record<string, unknown> }) {
+  const cpuPercent = typeof check.cpuPercent === "number" ? check.cpuPercent : null;
+  const memPercent = typeof check.memPercent === "number" ? check.memPercent : null;
+  const diskPercent = typeof check.diskPercent === "number" ? check.diskPercent : null;
+
+  if (cpuPercent === null && memPercent === null && diskPercent === null) return null;
+
+  return (
+    <div className="grid gap-2 sm:grid-cols-3">
+      {cpuPercent !== null && <UsageBar label="CPU" value={cpuPercent} />}
+      {memPercent !== null && <UsageBar label="Memory" value={memPercent} />}
+      {diskPercent !== null && <UsageBar label="Disk" value={diskPercent} />}
+    </div>
+  );
+}
+
+function UsageBar({ label, value }: { label: string; value: number }) {
+  const color = value >= 85 ? "bg-red-500" : value >= 60 ? "bg-yellow-500" : "bg-emerald-500";
+  return (
+    <div>
+      <div className="flex justify-between text-xs text-muted-foreground mb-1">
+        <span>{label}</span>
+        <span>{value.toFixed(0)}%</span>
+      </div>
+      <div className="h-1.5 w-full rounded-full bg-muted">
+        <div
+          className={`h-full rounded-full ${color}`}
+          style={{ width: `${Math.min(value, 100)}%` }}
+        />
+      </div>
     </div>
   );
 }

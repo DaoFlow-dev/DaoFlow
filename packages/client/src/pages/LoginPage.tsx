@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle, Hexagon, Eye, EyeOff } from "lucide-react";
 import { useEffect } from "react";
+import { SetupStepIndicator } from "@/components/SetupStepIndicator";
 
 function getPasswordStrength(password: string): { score: number; label: string; color: string } {
   let score = 0;
@@ -138,6 +139,13 @@ export default function LoginPage() {
               </TabsContent>
 
               <TabsContent value="sign-up">
+                <SetupStepIndicator
+                  steps={[
+                    { label: "Create Account", completed: false, active: true },
+                    { label: "Configure Server", completed: false, active: false },
+                    { label: "Deploy", completed: false, active: false }
+                  ]}
+                />
                 <form className="login-page__form" onSubmit={(e) => void handleSignUp(e)}>
                   <div className="space-y-2">
                     <Label htmlFor="signup-name">Name</Label>
