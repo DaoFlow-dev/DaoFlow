@@ -17,4 +17,4 @@ claude-review.md
 
 tmp/postiz-research/
 .playwright-mcp/console-2026-*.log
-tsconfig.tsbuildinfo
+*.tsbuildinfo
