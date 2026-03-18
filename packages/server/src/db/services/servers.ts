@@ -6,7 +6,11 @@ import { environments, projects } from "../schema/projects";
 import { servers } from "../schema/servers";
 import { services } from "../schema/services";
 import { verifyServerReadiness } from "./server-readiness";
-import { normalizeInventoryStatus, type AppRole } from "@daoflow/shared";
+import {
+  normalizeInventoryStatus,
+  normalizeServerReadinessStatus,
+  type AppRole
+} from "@daoflow/shared";
 import {
   newId as id,
   asRecord,
@@ -89,13 +93,16 @@ export async function listServerReadiness(limit = 12) {
     const hasSeededCheck = Object.keys(readiness).length > 0;
 
     if (hasSeededCheck) {
+      const readinessStatus = readString(readiness, "readinessStatus", server.status);
+
       return {
         serverId: server.id,
         serverName: server.name,
         serverHost: server.host,
         targetKind: server.kind,
         serverStatus: server.status,
-        readinessStatus: readString(readiness, "readinessStatus", server.status),
+        readinessStatus,
+        statusTone: normalizeServerReadinessStatus(readinessStatus),
         sshPort: server.sshPort,
         sshReachable: readBoolean(readiness, "sshReachable", server.status === "ready"),
         dockerReachable: readBoolean(readiness, "dockerReachable", server.status === "ready"),
@@ -111,13 +118,16 @@ export async function listServerReadiness(limit = 12) {
       };
     }
 
+    const readinessStatus = server.status === "ready" ? "ready" : "attention";
+
     return {
       serverId: server.id,
       serverName: server.name,
       serverHost: server.host,
       targetKind: server.kind,
       serverStatus: server.status,
-      readinessStatus: server.status === "ready" ? "ready" : "attention",
+      readinessStatus,
+      statusTone: normalizeServerReadinessStatus(readinessStatus),
       sshPort: server.sshPort,
       sshReachable: false,
       dockerReachable: false,

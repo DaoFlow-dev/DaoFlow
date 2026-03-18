@@ -439,6 +439,23 @@ describe("appRouter", () => {
     }
   });
 
+  it("returns server readiness checks with normalized status tones", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-server-readiness-status-tones",
+      session: makeSession("viewer")
+    });
+    const response = await caller.serverReadiness({});
+
+    expect(response.summary.totalServers).toBeGreaterThanOrEqual(0);
+
+    const check = response.checks[0];
+    if (!check) {
+      return;
+    }
+
+    expect(check.statusTone).toEqual(expect.any(String));
+  });
+
   it("registers a server with the async service layer return shape", async () => {
     const caller = appRouter.createCaller({
       requestId: "test-register-server",
