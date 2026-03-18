@@ -2,6 +2,7 @@ import { and, eq } from "drizzle-orm";
 import type { AppRole } from "@daoflow/shared";
 import { db } from "../connection";
 import { environments, projects } from "../schema/projects";
+import { servers } from "../schema/servers";
 import { services } from "../schema/services";
 import { createEnvironment, createProject, updateEnvironment } from "./projects";
 import { createService, updateService } from "./services";
@@ -32,6 +33,27 @@ function sanitizeName(value: string, fallback: string): string {
     .replace(/(^-|-$)/g, "");
 
   return cleaned.slice(0, 80) || fallback;
+}
+
+async function resolveServerId(serverRef: string): Promise<string> {
+  const ref = serverRef.trim();
+  if (!ref) throw new Error("Server reference is required.");
+
+  const [byId] = await db
+    .select({ id: servers.id })
+    .from(servers)
+    .where(eq(servers.id, ref))
+    .limit(1);
+  if (byId) return byId.id;
+
+  const [byName] = await db
+    .select({ id: servers.id })
+    .from(servers)
+    .where(eq(servers.name, ref))
+    .limit(1);
+  if (byName) return byName.id;
+
+  throw new Error(`Server "${ref}" not found.`);
 }
 
 function toSlug(value: string): string {
@@ -195,6 +217,8 @@ async function resolveStackService(
 }
 
 export async function ensureDirectDeploymentScope(input: EnsureDirectDeploymentScopeInput) {
+  const resolvedServerId = await resolveServerId(input.serverId);
+
   const projectName = sanitizeName(
     input.projectName ?? input.projectRef ?? "uploaded-compose",
     "uploaded-compose"
@@ -209,11 +233,16 @@ export async function ensureDirectDeploymentScope(input: EnsureDirectDeploymentS
   };
 
   const project = await resolveProject(input.projectRef, projectName, actor);
-  const environment = await resolveEnvironment(project.id, environmentName, input.serverId, actor);
+  const environment = await resolveEnvironment(
+    project.id,
+    environmentName,
+    resolvedServerId,
+    actor
+  );
   const service = await resolveStackService(
     project.id,
     environment.id,
-    input.serverId,
+    resolvedServerId,
     serviceName,
     actor
   );

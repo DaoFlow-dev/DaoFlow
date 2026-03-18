@@ -100,7 +100,7 @@ async function queueUploadedDeployment(input: {
     environmentName: scope.environment.name,
     serviceName: scope.service.name,
     sourceType: "compose",
-    targetServerId: input.serverId,
+    targetServerId: scope.service.targetServerId ?? input.serverId,
     commitSha: "",
     imageTag: "",
     requestedByUserId: input.actor.userId,
