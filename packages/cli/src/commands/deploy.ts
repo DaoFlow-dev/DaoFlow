@@ -27,6 +27,29 @@ import { previewComposeDeploy } from "../compose-deploy-preview";
 import type { ComposeDeployCoreOptions } from "../compose-deploy-types";
 import { previewServiceDeploy } from "../service-deploy-preview";
 
+const DEPLOY_HELP_TEXT = [
+  "",
+  "Target rules:",
+  "  Provide exactly one of --service or --compose.",
+  "  Compose deploys require --server.",
+  "  Executing a deployment also requires --yes.",
+  "",
+  "Required scope:",
+  "  --dry-run: deploy:read",
+  "  execute: deploy:start",
+  "",
+  "Examples:",
+  "  daoflow deploy --service svc_123 --dry-run --json",
+  "  daoflow deploy --service svc_123 --yes",
+  "  daoflow deploy --compose ./compose.yaml --server srv_123 --dry-run --json",
+  "  daoflow deploy --compose ./compose.yaml --server srv_123 --yes",
+  "",
+  "Example JSON shapes:",
+  '  dry-run: { "ok": true, "data": { "dryRun": true, "plan": { ... } } }',
+  '  service execute: { "ok": true, "data": { "id": "dep_123", "serviceName": "api", ... } }',
+  '  compose execute: { "ok": true, "data": { "deploymentId": "dep_123", "serverId": "srv_123" } }'
+].join("\n");
+
 export function deployCommand(): Command {
   return new Command("deploy")
     .description("Deploy a service or compose project")
@@ -40,6 +63,7 @@ export function deployCommand(): Command {
     .option("--no-prompt", "Skip interactive prompts (for CI/agent use)")
     .option("-y, --yes", "Skip confirmation prompt")
     .option("--json", "Output as JSON")
+    .addHelpText("after", DEPLOY_HELP_TEXT)
     .action(
       async (
         opts: {

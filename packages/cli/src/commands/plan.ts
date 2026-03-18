@@ -12,6 +12,24 @@ import {
 import { printDeploymentPlan } from "../deployment-plan-output";
 import { createClient } from "../trpc-client";
 
+const PLAN_HELP_TEXT = [
+  "",
+  "Target rules:",
+  "  Provide exactly one of --service or --compose.",
+  "  Compose planning also requires --server.",
+  "",
+  "Required scope:",
+  "  deploy:read",
+  "",
+  "Examples:",
+  "  daoflow plan --service svc_123",
+  "  daoflow plan --compose ./compose.yaml --server srv_123",
+  "  daoflow plan --compose ./compose.yaml --server srv_123 --json",
+  "",
+  "Example JSON shape:",
+  '  { "ok": true, "data": { "isReady": true, "steps": ["..."], "executeCommand": "..." } }'
+].join("\n");
+
 export function planCommand(): Command {
   return new Command("plan")
     .description("Preview a deployment plan without executing it")
@@ -21,6 +39,7 @@ export function planCommand(): Command {
     .option("--server <id>", "Target server")
     .option("--image <tag>", "Image tag to deploy")
     .option("--json", "Output as JSON")
+    .addHelpText("after", PLAN_HELP_TEXT)
     .action(
       async (
         opts: {

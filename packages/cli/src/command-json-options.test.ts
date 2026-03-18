@@ -18,6 +18,20 @@ function getSubcommand(command: Command, name: string): Command {
   return child as Command;
 }
 
+function renderHelp(command: Command): string {
+  const output: string[] = [];
+  command.configureOutput({
+    writeOut: (str) => {
+      output.push(str);
+    },
+    writeErr: (str) => {
+      output.push(str);
+    }
+  });
+  command.outputHelp();
+  return output.join("");
+}
+
 describe("CLI JSON option coverage", () => {
   test("login declares --json", () => {
     expect(hasLongOption(loginCommand(), "--json")).toBe(true);
@@ -31,12 +45,31 @@ describe("CLI JSON option coverage", () => {
     expect(hasLongOption(deployCommand(), "--json")).toBe(true);
   });
 
+  test("deploy help includes scope, examples, and JSON shapes", () => {
+    const help = renderHelp(deployCommand());
+    expect(help).toContain("Required scope:");
+    expect(help).toContain("--dry-run: deploy:read");
+    expect(help).toContain("execute: deploy:start");
+    expect(help).toContain("Examples:");
+    expect(help).toContain("daoflow deploy --service svc_123 --dry-run --json");
+    expect(help).toContain("Example JSON shapes:");
+  });
+
   test("logs declares --json", () => {
     expect(hasLongOption(logsCommand(), "--json")).toBe(true);
   });
 
   test("plan declares --json", () => {
     expect(hasLongOption(planCommand(), "--json")).toBe(true);
+  });
+
+  test("plan help includes scope, examples, and JSON shape", () => {
+    const help = renderHelp(planCommand());
+    expect(help).toContain("Required scope:");
+    expect(help).toContain("deploy:read");
+    expect(help).toContain("Examples:");
+    expect(help).toContain("daoflow plan --compose ./compose.yaml --server srv_123 --json");
+    expect(help).toContain("Example JSON shape:");
   });
 
   test("diff declares --json", () => {
