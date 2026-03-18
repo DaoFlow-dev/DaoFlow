@@ -1,3 +1,5 @@
+import { getInventoryTone } from "@/lib/tone-utils";
+
 interface TokenItem {
   id: string;
   label: string;
@@ -72,7 +74,7 @@ export function TokenInventory({
                     <h3>{token.label}</h3>
                   </div>
                   <span
-                    className={`deployment-status deployment-status--${token.status === "active" ? "healthy" : token.status === "paused" ? "running" : "failed"}`}
+                    className={`deployment-status deployment-status--${getInventoryTone(token.status)}`}
                   >
                     {token.status}
                   </span>
