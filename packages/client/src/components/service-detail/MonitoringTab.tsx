@@ -1,6 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Cpu, MemoryStick, Network, HardDrive, Activity, Clock, RefreshCw } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Cpu, MemoryStick, Network, HardDrive, Activity, Clock, RefreshCw, Power } from "lucide-react";
 import { useState, useEffect, useCallback, useRef } from "react";
 
 interface MonitoringTabProps {
@@ -37,6 +38,7 @@ export default function MonitoringTab({
   const [netRxHistory, setNetRxHistory] = useState<TimeSeries[]>([]);
   const [netTxHistory, setNetTxHistory] = useState<TimeSeries[]>([]);
   const [isPolling, setIsPolling] = useState(true);
+  const [historyMinutes, setHistoryMinutes] = useState(5);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const fetchStats = useCallback(async () => {
@@ -66,7 +68,34 @@ export default function MonitoringTab({
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
   }, [fetchStats, isPolling]);
+  // Trim history to selected range
+  const maxPoints = historyMinutes * 12; // ~5s polling = 12 pts/min
+  const trimmedCpu = cpuHistory.slice(-maxPoints);
+  const trimmedMem = memHistory.slice(-maxPoints);
+  const trimmedNetRx = netRxHistory.slice(-maxPoints);
+  const trimmedNetTx = netTxHistory.slice(-maxPoints);
 
+  if (!stats && !isPolling) {
+    return (
+      <Card>
+        <CardContent className="flex flex-col items-center justify-center gap-3 py-16">
+          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-muted">
+            <Power size={24} className="text-muted-foreground" />
+          </div>
+          <div className="text-center">
+            <p className="font-medium">Container not running</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              Start the service to see real-time metrics.
+            </p>
+          </div>
+          <Button size="sm" variant="outline" onClick={() => setIsPolling(true)}>
+            <RefreshCw size={14} className="mr-1" />
+            Retry
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
   return (
     <div className="space-y-6">
       {/* Overview Cards */}
@@ -124,11 +153,26 @@ export default function MonitoringTab({
       {/* CPU Chart */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
             <CardTitle className="text-sm flex items-center gap-2">
               <Cpu size={14} />
               CPU Usage %
             </CardTitle>
+            <div className="flex items-center rounded-md border text-xs ml-auto">
+              {([1, 5, 30] as const).map((m) => (
+                <button
+                  key={m}
+                  onClick={() => setHistoryMinutes(m)}
+                  className={`px-2 py-1 transition-colors ${
+                    historyMinutes === m
+                      ? "bg-primary text-primary-foreground"
+                      : "hover:bg-accent"
+                  } ${m === 1 ? "rounded-l-md" : m === 30 ? "rounded-r-md" : ""}`}
+                >
+                  {m}m
+                </button>
+              ))}
+            </div>
             <Badge
               variant={isPolling ? "default" : "secondary"}
               className="cursor-pointer"
@@ -139,7 +183,7 @@ export default function MonitoringTab({
           </div>
         </CardHeader>
         <CardContent>
-          <MiniChart data={cpuHistory} color="#3b82f6" maxY={100} unit="%" />
+          <MiniChart data={trimmedCpu} color="#3b82f6" maxY={100} unit="%" />
         </CardContent>
       </Card>
 
@@ -152,7 +196,7 @@ export default function MonitoringTab({
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <MiniChart data={memHistory} color="#8b5cf6" maxY={100} unit="%" />
+          <MiniChart data={trimmedMem} color="#8b5cf6" maxY={100} unit="%" />
         </CardContent>
       </Card>
 
@@ -168,11 +212,11 @@ export default function MonitoringTab({
           <div className="grid grid-cols-2 gap-4">
             <div>
               <p className="text-xs text-muted-foreground mb-1">Receive (↓)</p>
-              <MiniChart data={netRxHistory} color="#22c55e" unit=" MB" />
+              <MiniChart data={trimmedNetRx} color="#22c55e" unit=" MB" />
             </div>
             <div>
               <p className="text-xs text-muted-foreground mb-1">Transmit (↑)</p>
-              <MiniChart data={netTxHistory} color="#f59e0b" unit=" MB" />
+              <MiniChart data={trimmedNetTx} color="#f59e0b" unit=" MB" />
             </div>
           </div>
         </CardContent>

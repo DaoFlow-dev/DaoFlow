@@ -10,7 +10,8 @@ import {
   Key,
   Shield,
   AlertTriangle,
-  Clock
+  Clock,
+  User
 } from "lucide-react";
 
 interface ActivityTabProps {
@@ -113,8 +114,17 @@ export default function ActivityTab({ serviceId: _serviceId }: ActivityTabProps)
                     <Clock size={12} />
                     {new Date(a.time).toLocaleString()}
                     {a.actor && a.actor !== "system" && (
-                      <span>
-                        by <span className="font-medium">{a.actor}</span>
+                      <span className="flex items-center gap-1">
+                        <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-primary/10 text-[9px] font-bold text-primary">
+                          {a.actor.charAt(0).toUpperCase()}
+                        </span>
+                        <span className="font-medium">{a.actor}</span>
+                      </span>
+                    )}
+                    {a.actor === "system" && (
+                      <span className="flex items-center gap-1">
+                        <User size={12} className="text-muted-foreground" />
+                        system
                       </span>
                     )}
                   </div>

@@ -16,7 +16,10 @@ import {
   Pause,
   Play,
   Loader2,
-  RefreshCw
+  RefreshCw,
+  Trash2,
+  Copy,
+  Check
 } from "lucide-react";
 import { useState, useEffect, useRef, useCallback } from "react";
 
@@ -36,7 +39,9 @@ export default function LogsTab({ serviceId, serviceName }: LogsTabProps) {
   const [isFollowing, setIsFollowing] = useState(true);
   const [tailLines, setTailLines] = useState("200");
   const [searchQuery, setSearchQuery] = useState("");
+  const [streamFilter, setStreamFilter] = useState<"all" | "stdout" | "stderr">("all");
   const [isConnected, setIsConnected] = useState(false);
+  const [copied, setCopied] = useState(false);
   const logEndRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WebSocket | null>(null);
 
@@ -87,9 +92,9 @@ export default function LogsTab({ serviceId, serviceName }: LogsTabProps) {
     }
   }, [logs, isFollowing]);
 
-  const filteredLogs = searchQuery
-    ? logs.filter((l) => l.message.toLowerCase().includes(searchQuery.toLowerCase()))
-    : logs;
+  const filteredLogs = logs
+    .filter((l) => streamFilter === "all" || l.stream === streamFilter)
+    .filter((l) => !searchQuery || l.message.toLowerCase().includes(searchQuery.toLowerCase()));
 
   function handleDownload() {
     const text = filteredLogs.map((l) => `${l.timestamp} [${l.stream}] ${l.message}`).join("\n");
@@ -100,6 +105,14 @@ export default function LogsTab({ serviceId, serviceName }: LogsTabProps) {
     a.download = `${serviceName}-logs-${new Date().toISOString().slice(0, 10)}.log`;
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+  function handleCopy() {
+    const text = filteredLogs.map((l) => `${l.timestamp} [${l.stream}] ${l.message}`).join("\n");
+    void navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
   }
 
   function parseAnsi(text: string): string {
@@ -120,6 +133,23 @@ export default function LogsTab({ serviceId, serviceName }: LogsTabProps) {
             </Badge>
           </CardTitle>
           <div className="flex items-center gap-2">
+            {/* Stream filter */}
+            <div className="flex items-center rounded-md border text-xs">
+              {(["all", "stdout", "stderr"] as const).map((s) => (
+                <button
+                  key={s}
+                  onClick={() => setStreamFilter(s)}
+                  className={`px-2.5 py-1 transition-colors ${
+                    streamFilter === s
+                      ? "bg-primary text-primary-foreground"
+                      : "hover:bg-accent"
+                  } ${s === "all" ? "rounded-l-md" : s === "stderr" ? "rounded-r-md" : ""}`}
+                >
+                  {s === "all" ? "All" : s}
+                </button>
+              ))}
+            </div>
+
             {/* Tail selector */}
             <Select value={tailLines} onValueChange={setTailLines}>
               <SelectTrigger className="w-28 h-8 text-xs">
@@ -162,8 +192,23 @@ export default function LogsTab({ serviceId, serviceName }: LogsTabProps) {
               </Button>
             )}
 
+            {/* Clear */}
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setLogs([])}
+              title="Clear logs"
+            >
+              <Trash2 size={14} />
+            </Button>
+
+            {/* Copy */}
+            <Button size="sm" variant="outline" onClick={handleCopy} title="Copy logs">
+              {copied ? <Check size={14} /> : <Copy size={14} />}
+            </Button>
+
             {/* Download */}
-            <Button size="sm" variant="outline" onClick={handleDownload}>
+            <Button size="sm" variant="outline" onClick={handleDownload} title="Download logs">
               <Download size={14} />
             </Button>
           </div>

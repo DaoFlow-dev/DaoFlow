@@ -4,8 +4,9 @@ import { trpc } from "../lib/trpc";
 import { useSession } from "../lib/auth-client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { CheckCircle2, Server, XCircle } from "lucide-react";
+import { CheckCircle2, Server, XCircle, RefreshCw } from "lucide-react";
 import {
   RegisterServerDialog,
   type RegisterServerFormData
@@ -48,12 +49,23 @@ export default function ServersPage() {
           </p>
         </div>
         {canManageServers ? (
-          <RegisterServerDialog
-            open={dialogOpen}
-            onOpenChange={setDialogOpen}
-            onSubmit={handleRegister}
-            isPending={registerServer.isPending}
-          />
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => void serverReadiness.refetch()}
+              disabled={serverReadiness.isFetching}
+            >
+              <RefreshCw size={14} className={`mr-1 ${serverReadiness.isFetching ? "animate-spin" : ""}`} />
+              Refresh All
+            </Button>
+            <RegisterServerDialog
+              open={dialogOpen}
+              onOpenChange={setDialogOpen}
+              onSubmit={handleRegister}
+              isPending={registerServer.isPending}
+            />
+          </div>
         ) : null}
       </div>
 

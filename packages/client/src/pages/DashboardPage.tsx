@@ -15,8 +15,11 @@ import {
   XCircle,
   Plus,
   Clock,
-  GitBranch
+  GitBranch,
+  Search
 } from "lucide-react";
+import { useState } from "react";
+import { Input } from "@/components/ui/input";
 
 /* ──────────────────────────── helpers ──────────────────────────── */
 
@@ -56,30 +59,43 @@ export default function DashboardPage() {
       value: servers.length,
       icon: Server,
       color: "text-blue-500",
-      bg: "bg-blue-500/10"
+      bg: "bg-blue-500/10",
+      href: "/servers"
     },
     {
       label: "Projects",
       value: projects.length,
       icon: FolderKanban,
       color: "text-purple-500",
-      bg: "bg-purple-500/10"
+      bg: "bg-purple-500/10",
+      href: "/projects"
     },
     {
       label: "Deployments",
       value: deployments.length,
       icon: Rocket,
       color: "text-amber-500",
-      bg: "bg-amber-500/10"
+      bg: "bg-amber-500/10",
+      href: "/deployments"
     },
     {
       label: "Services",
       value: totalServices,
       icon: Activity,
       color: "text-emerald-500",
-      bg: "bg-emerald-500/10"
+      bg: "bg-emerald-500/10",
+      href: "/projects"
     }
   ];
+
+  const [activitySearch, setActivitySearch] = useState("");
+  const filteredDeployments = activitySearch
+    ? deployments.filter((d) =>
+        String(d.serviceName ?? d.projectId ?? "")
+          .toLowerCase()
+          .includes(activitySearch.toLowerCase())
+      )
+    : deployments;
 
   return (
     <main className="shell space-y-6">
@@ -101,10 +117,13 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Stats row */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         {stats.map((s) => (
-          <Card key={s.label}>
+          <Card
+            key={s.label}
+            className="cursor-pointer transition-colors hover:bg-accent/50"
+            onClick={() => void navigate(s.href)}
+          >
             <CardContent className="flex items-center gap-4 p-4">
               <div
                 className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${s.bg}`}
@@ -171,52 +190,79 @@ export default function DashboardPage() {
               ))}
             </div>
           ) : deployments.length === 0 ? (
-            <div className="flex flex-col items-center justify-center gap-2 py-10 text-muted-foreground">
-              <Rocket size={32} />
-              <p className="text-sm">No deployments yet. Deploy your first service!</p>
+            <div className="flex flex-col items-center justify-center gap-3 py-12 text-muted-foreground">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted">
+                <Rocket size={28} />
+              </div>
+              <div className="text-center">
+                <p className="font-medium text-foreground">No deployments yet</p>
+                <p className="text-sm mt-1">Create a project and deploy your first service to see activity here.</p>
+              </div>
+              <Button size="sm" onClick={() => void navigate("/projects")}>
+                <Plus className="mr-1.5 h-4 w-4" />
+                Create Project
+              </Button>
             </div>
           ) : (
-            <div className="space-y-2">
-              {deployments.map((d) => (
-                <div
-                  key={String(d.id)}
-                  className="flex cursor-pointer items-center gap-4 rounded-lg border p-3 transition-colors hover:bg-accent/50"
-                  onClick={() => {
-                    if (d.serviceId) void navigate(`/services/${d.serviceId}`);
-                  }}
-                >
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted">
-                    <Rocket size={16} className={getToneTextClass(d.statusTone)} />
-                  </div>
+            <>
+              {/* Activity search */}
+              <div className="relative mb-3">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder="Filter activity by service name..."
+                  value={activitySearch}
+                  onChange={(e) => setActivitySearch(e.target.value)}
+                  className="h-8 pl-9 text-sm"
+                />
+              </div>
+              <div className="space-y-2">
+                {filteredDeployments.length === 0 ? (
+                  <p className="py-6 text-center text-sm text-muted-foreground">
+                    No matching deployments for &ldquo;{activitySearch}&rdquo;
+                  </p>
+                ) : (
+                  filteredDeployments.map((d) => (
+                    <div
+                      key={String(d.id)}
+                      className="flex cursor-pointer items-center gap-4 rounded-lg border p-3 transition-colors hover:bg-accent/50"
+                      onClick={() => {
+                        if (d.serviceId) void navigate(`/services/${d.serviceId}`);
+                      }}
+                    >
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted">
+                        <Rocket size={16} className={getToneTextClass(d.statusTone)} />
+                      </div>
 
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="truncate text-sm font-medium">
-                        {String(d.serviceName ?? d.projectId ?? "—")}
-                      </span>
-                      <Badge
-                        variant={getBadgeVariantFromTone(d.statusTone)}
-                        className="px-1.5 py-0 text-[10px]"
-                      >
-                        {d.statusLabel}
-                      </Badge>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="truncate text-sm font-medium">
+                            {String(d.serviceName ?? d.projectId ?? "—")}
+                          </span>
+                          <Badge
+                            variant={getBadgeVariantFromTone(d.statusTone)}
+                            className="px-1.5 py-0 text-[10px]"
+                          >
+                            {d.statusLabel}
+                          </Badge>
+                        </div>
+                        <div className="mt-0.5 flex items-center gap-3 text-xs text-muted-foreground">
+                          <span className="flex items-center gap-1">
+                            <GitBranch size={12} />
+                            {String(d.sourceType ?? "docker")}
+                          </span>
+                          {d.createdAt && (
+                            <span className="flex items-center gap-1">
+                              <Clock size={12} />
+                              {formatRelative(d.createdAt)}
+                            </span>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                    <div className="mt-0.5 flex items-center gap-3 text-xs text-muted-foreground">
-                      <span className="flex items-center gap-1">
-                        <GitBranch size={12} />
-                        {String(d.sourceType ?? "docker")}
-                      </span>
-                      {d.createdAt && (
-                        <span className="flex items-center gap-1">
-                          <Clock size={12} />
-                          {formatRelative(d.createdAt)}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
+                  ))
+                )}
+              </div>
+            </>
           )}
         </CardContent>
       </Card>
