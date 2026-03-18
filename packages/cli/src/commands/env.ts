@@ -1,6 +1,7 @@
 import { Command } from "commander";
 import chalk from "chalk";
 import { writeFileSync, readFileSync, existsSync } from "node:fs";
+import { resolveCommandJsonOption } from "../command-helpers";
 import { createClient } from "../trpc-client";
 import { upsertEnvFileValue } from "../local-env";
 
@@ -101,12 +102,14 @@ export function envCommand(): Command {
     .description("List environment variables")
     .option("--env-id <id>", "Environment ID")
     .option("--json", "Output as JSON")
-    .action(async (opts: { envId?: string; json?: boolean }) => {
+    .action(async (opts: { envId?: string; json?: boolean }, command: Command) => {
+      const isJson = resolveCommandJsonOption(command, opts.json);
+
       try {
         const trpc = createClient();
         const data = await trpc.environmentVariables.query({ environmentId: opts.envId });
 
-        if (opts.json) {
+        if (isJson) {
           console.log(JSON.stringify({ ok: true, ...data }));
           return;
         }
@@ -119,7 +122,7 @@ export function envCommand(): Command {
         }
         console.log();
       } catch (err) {
-        if (opts.json) {
+        if (isJson) {
           console.log(
             JSON.stringify({
               ok: false,
@@ -149,22 +152,27 @@ export function envCommand(): Command {
     .option("--json", "Output as JSON")
     .option("-y, --yes", "Skip confirmation")
     .action(
-      async (opts: {
-        envId?: string;
-        key: string;
-        value?: string;
-        secretRef?: string;
-        secret?: boolean;
-        category: string;
-        local?: boolean;
-        file: string;
-        json?: boolean;
-        yes?: boolean;
-      }) => {
+      async (
+        opts: {
+          envId?: string;
+          key: string;
+          value?: string;
+          secretRef?: string;
+          secret?: boolean;
+          category: string;
+          local?: boolean;
+          file: string;
+          json?: boolean;
+          yes?: boolean;
+        },
+        command: Command
+      ) => {
+        const isJson = resolveCommandJsonOption(command, opts.json);
+
         // Validate: must have either --value or --secret-ref
         if (!opts.value && !opts.secretRef) {
           const msg = "Either --value or --secret-ref is required.";
-          if (opts.json) {
+          if (isJson) {
             console.log(JSON.stringify({ ok: false, error: msg, code: "INVALID_INPUT" }));
           } else {
             console.error(chalk.red(`✗ ${msg}`));
@@ -174,7 +182,7 @@ export function envCommand(): Command {
 
         if (!opts.local && !opts.envId) {
           const msg = "Environment ID is required unless --local is used.";
-          if (opts.json) {
+          if (isJson) {
             console.log(JSON.stringify({ ok: false, error: msg, code: "INVALID_INPUT" }));
           } else {
             console.error(chalk.red(`✗ ${msg}`));
@@ -185,7 +193,7 @@ export function envCommand(): Command {
         // Validate op:// URI format
         if (opts.secretRef && !/^op:\/\/[^/]+\/[^/]+\/[^/]+$/.test(opts.secretRef)) {
           const msg = `Invalid secret reference: ${opts.secretRef}. Expected format: op://vault/item/field`;
-          if (opts.json) {
+          if (isJson) {
             console.log(JSON.stringify({ ok: false, error: msg, code: "INVALID_SECRET_REF" }));
           } else {
             console.error(chalk.red(`✗ ${msg}`));
@@ -198,7 +206,7 @@ export function envCommand(): Command {
             const storedValue = opts.secretRef ? `[1password:${opts.secretRef}]` : opts.value!;
             upsertEnvFileValue(opts.file, opts.key, storedValue);
 
-            if (opts.json) {
+            if (isJson) {
               console.log(
                 JSON.stringify({
                   ok: true,
@@ -211,7 +219,7 @@ export function envCommand(): Command {
               console.log(chalk.green(`✓ Wrote ${opts.key} to ${opts.file}`));
             }
           } catch (err) {
-            if (opts.json) {
+            if (isJson) {
               console.log(
                 JSON.stringify({
                   ok: false,
@@ -227,7 +235,7 @@ export function envCommand(): Command {
           return;
         }
 
-        if (!opts.yes && !opts.json) {
+        if (!opts.yes && !isJson) {
           const source = opts.secretRef ? `(1Password: ${opts.secretRef})` : "";
           console.error(
             chalk.yellow(
@@ -249,7 +257,7 @@ export function envCommand(): Command {
             secretRef: opts.secretRef ?? null
           });
 
-          if (opts.json) {
+          if (isJson) {
             console.log(
               JSON.stringify({
                 ok: true,
@@ -271,7 +279,7 @@ export function envCommand(): Command {
             }
           }
         } catch (err) {
-          if (opts.json) {
+          if (isJson) {
             console.log(
               JSON.stringify({
                 ok: false,
@@ -295,43 +303,50 @@ export function envCommand(): Command {
     .requiredOption("--key <key>", "Variable key to delete")
     .option("--json", "Output as JSON")
     .option("-y, --yes", "Skip confirmation")
-    .action(async (opts: { envId: string; key: string; json?: boolean; yes?: boolean }) => {
-      if (!opts.yes && !opts.json) {
-        console.error(
-          chalk.yellow(
-            `Destructive: delete ${opts.key} from environment ${opts.envId}. Pass --yes.`
-          )
-        );
-        process.exit(1);
-      }
+    .action(
+      async (
+        opts: { envId: string; key: string; json?: boolean; yes?: boolean },
+        command: Command
+      ) => {
+        const isJson = resolveCommandJsonOption(command, opts.json);
 
-      try {
-        const trpc = createClient();
-        await trpc.deleteEnvironmentVariable.mutate({
-          environmentId: opts.envId,
-          key: opts.key
-        });
-
-        if (opts.json) {
-          console.log(JSON.stringify({ ok: true, deleted: opts.key, environment: opts.envId }));
-        } else {
-          console.log(chalk.green(`✓ Deleted ${opts.key} from environment ${opts.envId}`));
-        }
-      } catch (err) {
-        if (opts.json) {
-          console.log(
-            JSON.stringify({
-              ok: false,
-              error: err instanceof Error ? err.message : "Unknown",
-              code: "API_ERROR"
-            })
+        if (!opts.yes && !isJson) {
+          console.error(
+            chalk.yellow(
+              `Destructive: delete ${opts.key} from environment ${opts.envId}. Pass --yes.`
+            )
           );
-        } else {
-          console.error(chalk.red(`✗ ${err instanceof Error ? err.message : String(err)}`));
+          process.exit(1);
         }
-        process.exit(1);
+
+        try {
+          const trpc = createClient();
+          await trpc.deleteEnvironmentVariable.mutate({
+            environmentId: opts.envId,
+            key: opts.key
+          });
+
+          if (isJson) {
+            console.log(JSON.stringify({ ok: true, deleted: opts.key, environment: opts.envId }));
+          } else {
+            console.log(chalk.green(`✓ Deleted ${opts.key} from environment ${opts.envId}`));
+          }
+        } catch (err) {
+          if (isJson) {
+            console.log(
+              JSON.stringify({
+                ok: false,
+                error: err instanceof Error ? err.message : "Unknown",
+                code: "API_ERROR"
+              })
+            );
+          } else {
+            console.error(chalk.red(`✗ ${err instanceof Error ? err.message : String(err)}`));
+          }
+          process.exit(1);
+        }
       }
-    });
+    );
 
   // ── daoflow env resolve ─────────────────────────────────
   cmd
@@ -339,13 +354,15 @@ export function envCommand(): Command {
     .description("Resolve all 1Password secret references for an environment")
     .requiredOption("--env-id <id>", "Environment ID")
     .option("--json", "Output as JSON")
-    .action(async (opts: { envId: string; json?: boolean }) => {
+    .action(async (opts: { envId: string; json?: boolean }, command: Command) => {
+      const isJson = resolveCommandJsonOption(command, opts.json);
+
       try {
         const trpc = createClient();
         const data = await trpc.resolveEnvironmentSecrets.query({ environmentId: opts.envId });
 
         if (data.variables.length === 0) {
-          if (opts.json) {
+          if (isJson) {
             console.log(JSON.stringify({ ok: true, resolved: 0, variables: [] }));
           } else {
             console.log(chalk.dim("No 1Password references found in this environment."));
@@ -353,7 +370,7 @@ export function envCommand(): Command {
           return;
         }
 
-        if (opts.json) {
+        if (isJson) {
           console.log(
             JSON.stringify({
               ok: true,
@@ -383,7 +400,7 @@ export function envCommand(): Command {
           console.log();
         }
       } catch (err) {
-        if (opts.json) {
+        if (isJson) {
           console.log(
             JSON.stringify({
               ok: false,

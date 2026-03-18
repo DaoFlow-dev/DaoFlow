@@ -7,6 +7,7 @@
 
 import { Command } from "commander";
 import chalk from "chalk";
+import { resolveCommandJsonOption } from "../command-helpers";
 import { createClient } from "../trpc-client";
 
 export function cancelCommand(): Command {
@@ -15,46 +16,52 @@ export function cancelCommand(): Command {
     .requiredOption("--deployment <id>", "Deployment ID to cancel")
     .option("--json", "Output as JSON")
     .option("-y, --yes", "Skip confirmation prompt")
-    .action(async (opts: { deployment: string; json?: boolean; yes?: boolean }) => {
-      if (!opts.yes && !opts.json) {
-        console.error(
-          chalk.yellow(`Destructive: cancel deployment ${opts.deployment}. Pass --yes to confirm.`)
-        );
-        process.exit(1);
-      }
+    .action(
+      async (opts: { deployment: string; json?: boolean; yes?: boolean }, command: Command) => {
+        const isJson = resolveCommandJsonOption(command, opts.json);
 
-      try {
-        const trpc = createClient();
-
-        if (!opts.json) {
-          console.log(chalk.blue(`⟳ Cancelling deployment ${opts.deployment}...`));
-        }
-
-        const result = await trpc.cancelDeployment.mutate({
-          deploymentId: opts.deployment
-        });
-
-        if (opts.json) {
-          console.log(JSON.stringify({ ok: true, ...result }));
-        } else {
-          console.log(chalk.green(`✓ Deployment ${opts.deployment} cancelled`));
-        }
-      } catch (err) {
-        const message = err instanceof Error ? err.message : "Unknown error";
-        const isConflict = message.includes("already");
-
-        if (opts.json) {
-          console.log(
-            JSON.stringify({
-              ok: false,
-              error: message,
-              code: isConflict ? "CONFLICT" : "API_ERROR"
-            })
+        if (!opts.yes && !isJson) {
+          console.error(
+            chalk.yellow(
+              `Destructive: cancel deployment ${opts.deployment}. Pass --yes to confirm.`
+            )
           );
-        } else {
-          console.error(chalk.red(`✗ ${message}`));
+          process.exit(1);
         }
-        process.exit(isConflict ? 1 : 1);
+
+        try {
+          const trpc = createClient();
+
+          if (!isJson) {
+            console.log(chalk.blue(`⟳ Cancelling deployment ${opts.deployment}...`));
+          }
+
+          const result = await trpc.cancelDeployment.mutate({
+            deploymentId: opts.deployment
+          });
+
+          if (isJson) {
+            console.log(JSON.stringify({ ok: true, ...result }));
+          } else {
+            console.log(chalk.green(`✓ Deployment ${opts.deployment} cancelled`));
+          }
+        } catch (err) {
+          const message = err instanceof Error ? err.message : "Unknown error";
+          const isConflict = message.includes("already");
+
+          if (isJson) {
+            console.log(
+              JSON.stringify({
+                ok: false,
+                error: message,
+                code: isConflict ? "CONFLICT" : "API_ERROR"
+              })
+            );
+          } else {
+            console.error(chalk.red(`✗ ${message}`));
+          }
+          process.exit(isConflict ? 1 : 1);
+        }
       }
-    });
+    );
 }

@@ -1,3 +1,5 @@
+import type { Command } from "commander";
+
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
@@ -22,4 +24,21 @@ export function getExecErrorMessage(error: unknown): string {
   }
 
   return getErrorMessage(error);
+}
+
+export function readCommandBooleanOption(command: Command, optionName: string): boolean {
+  const options = command.optsWithGlobals();
+  return isRecord(options) && options[optionName] === true;
+}
+
+export function resolveCommandBooleanOption(
+  command: Command,
+  optionName: string,
+  localValue?: boolean
+): boolean {
+  return localValue ?? readCommandBooleanOption(command, optionName);
+}
+
+export function resolveCommandJsonOption(command: Command, localValue?: boolean): boolean {
+  return resolveCommandBooleanOption(command, "json", localValue);
 }

@@ -1,5 +1,6 @@
 import { Command } from "commander";
 import chalk from "chalk";
+import { resolveCommandJsonOption } from "../command-helpers";
 import { createClient } from "../trpc-client";
 
 export function rollbackCommand(): Command {
@@ -11,15 +12,18 @@ export function rollbackCommand(): Command {
     .option("-y, --yes", "Skip confirmation prompt")
     .option("--json", "Output as JSON")
     .action(
-      async (opts: {
-        service: string;
-        target?: string;
-        dryRun?: boolean;
-        yes?: boolean;
-        json?: boolean;
-      }) => {
+      async (
+        opts: {
+          service: string;
+          target?: string;
+          dryRun?: boolean;
+          yes?: boolean;
+          json?: boolean;
+        },
+        command: Command
+      ) => {
         const trpc = createClient();
-        const isJson = opts.json;
+        const isJson = resolveCommandJsonOption(command, opts.json);
 
         try {
           // Fetch available rollback targets for this service

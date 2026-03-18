@@ -4,6 +4,7 @@
  */
 import { Command } from "commander";
 import * as crypto from "node:crypto";
+import { resolveCommandJsonOption } from "../command-helpers";
 
 export function registerConfigCommand(program: Command) {
   const config = program.command("config").description("Configuration management utilities");
@@ -12,7 +13,9 @@ export function registerConfigCommand(program: Command) {
     .command("generate-vapid")
     .description("Generate VAPID key pair for Web Push notifications")
     .option("--json", "Output as JSON")
-    .action((opts: { json?: boolean }) => {
+    .action((opts: { json?: boolean }, command: Command) => {
+      const isJson = resolveCommandJsonOption(command, opts.json);
+
       try {
         // Generate ECDH key pair (P-256 curve, required for VAPID)
         const ecdh = crypto.createECDH("prime256v1");
@@ -21,7 +24,7 @@ export function registerConfigCommand(program: Command) {
         const publicKey = ecdh.getPublicKey("base64url");
         const privateKey = ecdh.getPrivateKey("base64url");
 
-        if (opts.json) {
+        if (isJson) {
           console.log(
             JSON.stringify(
               {
@@ -50,7 +53,7 @@ export function registerConfigCommand(program: Command) {
         }
       } catch (err) {
         const message = err instanceof Error ? err.message : "Failed to generate VAPID keys";
-        if (opts.json) {
+        if (isJson) {
           console.log(JSON.stringify({ ok: false, error: message }));
         } else {
           console.error(`Error: ${message}`);

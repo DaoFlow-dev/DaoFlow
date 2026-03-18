@@ -5,7 +5,7 @@ import { execSync } from "child_process";
 import { createInterface } from "readline";
 import chalk from "chalk";
 import ora from "ora";
-import { getErrorMessage, getExecErrorMessage } from "../command-helpers";
+import { getErrorMessage, getExecErrorMessage, resolveCommandJsonOption } from "../command-helpers";
 import { fetchComposeYml, generateEnvFile, defaultInstallDir, parseEnvFile } from "../templates";
 
 const VERSION = "0.1.0";
@@ -67,8 +67,8 @@ export function installCommand(): Command {
     .option("--password <password>", "Admin password for first user")
     .option("--yes", "Skip confirmation prompts")
     .option("--json", "Output as structured JSON")
-    .action(async (opts: InstallOptions) => {
-      const isJson = opts.json ?? process.argv.includes("--json");
+    .action(async (opts: InstallOptions, command: Command) => {
+      const isJson = resolveCommandJsonOption(command, opts.json);
       const isNonInteractive = opts.yes ?? false;
 
       // -- Step 1: Check Docker --

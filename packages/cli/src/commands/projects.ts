@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { resolveCommandJsonOption } from "../command-helpers";
 import { createClient } from "../trpc-client";
 
 export function projectsCommand(): Command {
@@ -9,12 +10,14 @@ export function projectsCommand(): Command {
     .alias("ls")
     .option("--json", "Output as JSON")
     .description("List all projects")
-    .action(async (opts: { json?: boolean }) => {
+    .action(async (opts: { json?: boolean }, command: Command) => {
+      const isJson = resolveCommandJsonOption(command, opts.json);
+
       try {
         const trpc = createClient();
         const projects = await trpc.projects.query({ limit: 50 });
 
-        if (opts.json) {
+        if (isJson) {
           console.log(JSON.stringify(projects, null, 2));
           return;
         }

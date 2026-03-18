@@ -1,16 +1,18 @@
 import { Command } from "commander";
 import chalk from "chalk";
+import { resolveCommandJsonOption } from "../command-helpers";
 import { createClient } from "../trpc-client";
 
 export function servicesCommand(): Command {
   return new Command("services")
     .description("List services and their status")
     .option("--json", "Output as JSON")
-    .action(async (opts: { json?: boolean }) => {
+    .action(async (opts: { json?: boolean }, command: Command) => {
+      const isJson = resolveCommandJsonOption(command, opts.json);
       const trpc = createClient();
       const data = await trpc.composeReleaseCatalog.query({});
 
-      if (opts.json) {
+      if (isJson) {
         console.log(JSON.stringify(data, null, 2));
         return;
       }

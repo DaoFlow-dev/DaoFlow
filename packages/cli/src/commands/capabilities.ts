@@ -1,6 +1,6 @@
 import { Command } from "commander";
 import chalk from "chalk";
-import { getErrorMessage } from "../command-helpers";
+import { getErrorMessage, resolveCommandJsonOption } from "../command-helpers";
 import { createClient, type RouterOutputs } from "../trpc-client";
 import { getCurrentContext } from "../config";
 
@@ -8,8 +8,9 @@ export function capabilitiesCommand(): Command {
   return new Command("capabilities")
     .alias("caps")
     .description("List all granted scopes for the current token")
-    .action(async () => {
-      const isJson = capabilitiesCommand().parent?.opts<{ json?: boolean }>().json ?? false;
+    .option("--json", "Output as JSON")
+    .action(async (opts: { json?: boolean }, command: Command) => {
+      const isJson = resolveCommandJsonOption(command, opts.json);
       const ctx = getCurrentContext();
 
       if (!ctx) {

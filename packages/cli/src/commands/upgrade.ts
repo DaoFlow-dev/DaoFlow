@@ -4,7 +4,7 @@ import { join } from "path";
 import { execSync } from "child_process";
 import chalk from "chalk";
 import ora from "ora";
-import { getErrorMessage, getExecErrorMessage } from "../command-helpers";
+import { getErrorMessage, getExecErrorMessage, resolveCommandJsonOption } from "../command-helpers";
 import { defaultInstallDir, parseEnvFile, fetchComposeYml } from "../templates";
 
 interface UpgradeOptions {
@@ -21,8 +21,8 @@ export function upgradeCommand(): Command {
     .option("--version <version>", "Target version (default: latest)")
     .option("--yes", "Skip confirmation prompts")
     .option("--json", "Output as structured JSON")
-    .action(async (opts: UpgradeOptions) => {
-      const isJson = opts.json ?? process.argv.includes("--json");
+    .action(async (opts: UpgradeOptions, command: Command) => {
+      const isJson = resolveCommandJsonOption(command, opts.json);
       const dir = opts.dir;
       const envPath = join(dir, ".env");
       const composePath = join(dir, "docker-compose.yml");

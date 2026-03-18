@@ -11,6 +11,7 @@
 
 import { Command } from "commander";
 import chalk from "chalk";
+import { resolveCommandJsonOption } from "../command-helpers";
 import { createClient } from "../trpc-client";
 
 export function backupCommand(): Command {
@@ -22,12 +23,14 @@ export function backupCommand(): Command {
     .description("List backup policies and recent runs")
     .option("--json", "Output as JSON")
     .option("--limit <n>", "Max runs to show", "12")
-    .action(async (opts: { json?: boolean; limit: string }) => {
+    .action(async (opts: { json?: boolean; limit: string }, command: Command) => {
+      const isJson = resolveCommandJsonOption(command, opts.json);
+
       try {
         const trpc = createClient();
         const data = await trpc.backupOverview.query({ limit: Number(opts.limit) });
 
-        if (opts.json) {
+        if (isJson) {
           console.log(JSON.stringify({ ok: true, ...data }, null, 2));
           return;
         }
@@ -75,7 +78,12 @@ export function backupCommand(): Command {
     .option("--dry-run", "Preview without executing")
     .option("-y, --yes", "Skip confirmation")
     .action(
-      async (opts: { backupRunId: string; json?: boolean; dryRun?: boolean; yes?: boolean }) => {
+      async (
+        opts: { backupRunId: string; json?: boolean; dryRun?: boolean; yes?: boolean },
+        command: Command
+      ) => {
+        const isJson = resolveCommandJsonOption(command, opts.json);
+
         if (opts.dryRun) {
           console.log(
             JSON.stringify(
@@ -103,7 +111,7 @@ export function backupCommand(): Command {
 
           const result = await trpc.queueBackupRestore.mutate({ backupRunId: opts.backupRunId });
 
-          if (opts.json) {
+          if (isJson) {
             console.log(JSON.stringify({ ok: true, ...result }, null, 2));
           } else {
             console.log(chalk.green(`✅ Restore queued: ${result.id}`));
@@ -125,12 +133,14 @@ export function backupCommand(): Command {
     .command("destinations")
     .description("List backup destinations")
     .option("--json", "Output as JSON")
-    .action(async (opts: { json?: boolean }) => {
+    .action(async (opts: { json?: boolean }, command: Command) => {
+      const isJson = resolveCommandJsonOption(command, opts.json);
+
       try {
         const trpc = createClient();
         const data = await trpc.backupDestinations.query({});
 
-        if (opts.json) {
+        if (isJson) {
           console.log(JSON.stringify({ ok: true, destinations: data }, null, 2));
           return;
         }
@@ -192,22 +202,27 @@ export function backupCommand(): Command {
     .option("--dry-run", "Preview without executing")
     .option("-y, --yes", "Skip confirmation")
     .action(
-      async (opts: {
-        name: string;
-        provider: string;
-        accessKey?: string;
-        secretKey?: string;
-        bucket?: string;
-        region?: string;
-        endpoint?: string;
-        s3Provider?: string;
-        localPath?: string;
-        rcloneConfig?: string;
-        rcloneRemotePath?: string;
-        json?: boolean;
-        dryRun?: boolean;
-        yes?: boolean;
-      }) => {
+      async (
+        opts: {
+          name: string;
+          provider: string;
+          accessKey?: string;
+          secretKey?: string;
+          bucket?: string;
+          region?: string;
+          endpoint?: string;
+          s3Provider?: string;
+          localPath?: string;
+          rcloneConfig?: string;
+          rcloneRemotePath?: string;
+          json?: boolean;
+          dryRun?: boolean;
+          yes?: boolean;
+        },
+        command: Command
+      ) => {
+        const isJson = resolveCommandJsonOption(command, opts.json);
+
         if (opts.dryRun) {
           console.log(
             JSON.stringify(
@@ -254,7 +269,7 @@ export function backupCommand(): Command {
             rcloneRemotePath: opts.rcloneRemotePath
           });
 
-          if (opts.json) {
+          if (isJson) {
             console.log(JSON.stringify({ ok: true, ...result }, null, 2));
           } else {
             console.log(chalk.green(`✅ Destination created: ${result.id}`));
@@ -277,12 +292,14 @@ export function backupCommand(): Command {
     .description("Test connectivity to a backup destination")
     .requiredOption("--id <id>", "Destination ID")
     .option("--json", "Output as JSON")
-    .action(async (opts: { id: string; json?: boolean }) => {
+    .action(async (opts: { id: string; json?: boolean }, command: Command) => {
+      const isJson = resolveCommandJsonOption(command, opts.json);
+
       try {
         const trpc = createClient();
         const result = await trpc.testBackupDestination.mutate({ id: opts.id });
 
-        if (opts.json) {
+        if (isJson) {
           console.log(JSON.stringify({ ok: result.success, error: result.error ?? null }, null, 2));
           return;
         }
@@ -308,7 +325,9 @@ export function backupCommand(): Command {
     .requiredOption("--id <id>", "Destination ID")
     .option("--json", "Output as JSON")
     .option("-y, --yes", "Skip confirmation")
-    .action(async (opts: { id: string; json?: boolean; yes?: boolean }) => {
+    .action(async (opts: { id: string; json?: boolean; yes?: boolean }, command: Command) => {
+      const isJson = resolveCommandJsonOption(command, opts.json);
+
       if (!opts.yes) {
         console.error(`To delete destination ${opts.id}, add --yes`);
         process.exit(1);
@@ -318,7 +337,7 @@ export function backupCommand(): Command {
         const trpc = createClient();
         const result = await trpc.deleteBackupDestination.mutate({ id: opts.id });
 
-        if (opts.json) {
+        if (isJson) {
           console.log(JSON.stringify(result, null, 2));
         } else {
           console.log(chalk.green(`✅ Destination deleted`));
@@ -345,13 +364,18 @@ export function backupCommand(): Command {
     .option("--dry-run", "Preview without executing")
     .option("-y, --yes", "Skip confirmation")
     .action(
-      async (opts: {
-        policy: string;
-        cron: string;
-        json?: boolean;
-        dryRun?: boolean;
-        yes?: boolean;
-      }) => {
+      async (
+        opts: {
+          policy: string;
+          cron: string;
+          json?: boolean;
+          dryRun?: boolean;
+          yes?: boolean;
+        },
+        command: Command
+      ) => {
+        const isJson = resolveCommandJsonOption(command, opts.json);
+
         if (opts.dryRun) {
           console.log(
             JSON.stringify(
@@ -382,7 +406,7 @@ export function backupCommand(): Command {
             schedule: opts.cron
           });
 
-          if (opts.json) {
+          if (isJson) {
             console.log(JSON.stringify({ ok: true, ...result }, null, 2));
           } else {
             console.log(
@@ -409,7 +433,9 @@ export function backupCommand(): Command {
     .requiredOption("--policy <id>", "Backup policy ID")
     .option("--json", "Output as JSON")
     .option("-y, --yes", "Skip confirmation")
-    .action(async (opts: { policy: string; json?: boolean; yes?: boolean }) => {
+    .action(async (opts: { policy: string; json?: boolean; yes?: boolean }, command: Command) => {
+      const isJson = resolveCommandJsonOption(command, opts.json);
+
       if (!opts.yes) {
         console.error(`To disable schedule for policy ${opts.policy}, add --yes`);
         process.exit(1);
@@ -421,7 +447,7 @@ export function backupCommand(): Command {
           policyId: opts.policy
         });
 
-        if (opts.json) {
+        if (isJson) {
           console.log(JSON.stringify({ ok: true, ...result }, null, 2));
         } else {
           console.log(chalk.green("✅ Schedule disabled"));
@@ -442,50 +468,57 @@ export function backupCommand(): Command {
     .option("--json", "Output as JSON")
     .option("--dry-run", "Preview without executing")
     .option("-y, --yes", "Skip confirmation")
-    .action(async (opts: { policy: string; json?: boolean; dryRun?: boolean; yes?: boolean }) => {
-      if (opts.dryRun) {
-        console.log(
-          JSON.stringify(
-            {
-              ok: true,
-              dryRun: true,
-              action: "backup.run",
-              policyId: opts.policy,
-              message: `Would trigger one-off backup for policy ${opts.policy}`
-            },
-            null,
-            2
-          )
-        );
-        process.exit(3);
-      }
+    .action(
+      async (
+        opts: { policy: string; json?: boolean; dryRun?: boolean; yes?: boolean },
+        command: Command
+      ) => {
+        const isJson = resolveCommandJsonOption(command, opts.json);
 
-      if (!opts.yes) {
-        console.error(`To trigger backup for policy ${opts.policy}, add --yes`);
-        process.exit(1);
-      }
-
-      try {
-        const trpc = createClient();
-        const result = await trpc.triggerBackupNow.mutate({
-          policyId: opts.policy
-        });
-
-        if (opts.json) {
-          console.log(JSON.stringify({ ok: true, ...result }, null, 2));
-        } else {
-          console.log(chalk.green(`✅ Backup triggered (run: ${result.id})`));
+        if (opts.dryRun) {
+          console.log(
+            JSON.stringify(
+              {
+                ok: true,
+                dryRun: true,
+                action: "backup.run",
+                policyId: opts.policy,
+                message: `Would trigger one-off backup for policy ${opts.policy}`
+              },
+              null,
+              2
+            )
+          );
+          process.exit(3);
         }
-      } catch (err) {
-        console.error(
-          JSON.stringify({
-            ok: false,
-            error: err instanceof Error ? err.message : "Unknown error"
-          })
-        );
-        process.exit(1);
+
+        if (!opts.yes) {
+          console.error(`To trigger backup for policy ${opts.policy}, add --yes`);
+          process.exit(1);
+        }
+
+        try {
+          const trpc = createClient();
+          const result = await trpc.triggerBackupNow.mutate({
+            policyId: opts.policy
+          });
+
+          if (isJson) {
+            console.log(JSON.stringify({ ok: true, ...result }, null, 2));
+          } else {
+            console.log(chalk.green(`✅ Backup triggered (run: ${result.id})`));
+          }
+        } catch (err) {
+          console.error(
+            JSON.stringify({
+              ok: false,
+              error: err instanceof Error ? err.message : "Unknown error"
+            })
+          );
+          process.exit(1);
+        }
       }
-    });
+    );
 
   // ── backup verify ──────────────────────────────────────────
   // Task #46: Trigger a test restore to verify backup integrity
@@ -497,7 +530,12 @@ export function backupCommand(): Command {
     .option("--dry-run", "Preview without executing")
     .option("-y, --yes", "Skip confirmation")
     .action(
-      async (opts: { backupRunId: string; json?: boolean; dryRun?: boolean; yes?: boolean }) => {
+      async (
+        opts: { backupRunId: string; json?: boolean; dryRun?: boolean; yes?: boolean },
+        command: Command
+      ) => {
+        const isJson = resolveCommandJsonOption(command, opts.json);
+
         if (opts.dryRun) {
           console.log(
             JSON.stringify(
@@ -524,7 +562,7 @@ export function backupCommand(): Command {
           const trpc = createClient();
           const result = await trpc.triggerTestRestore.mutate({ backupRunId: opts.backupRunId });
 
-          if (opts.json) {
+          if (isJson) {
             console.log(JSON.stringify({ ok: true, ...result }, null, 2));
           } else {
             console.log(chalk.green(`✅ Test restore queued: ${result.id}`));
@@ -552,7 +590,9 @@ export function backupCommand(): Command {
     .description("Get download info for a backup artifact")
     .requiredOption("--backup-run-id <id>", "Backup run ID")
     .option("--json", "Output as JSON")
-    .action(async (opts: { backupRunId: string; json?: boolean }) => {
+    .action(async (opts: { backupRunId: string; json?: boolean }, command: Command) => {
+      const isJson = resolveCommandJsonOption(command, opts.json);
+
       try {
         const trpc = createClient();
         const data = await trpc.backupOverview.query({ limit: 100 });
@@ -560,7 +600,7 @@ export function backupCommand(): Command {
 
         if (!run) {
           const error = "Backup run not found";
-          if (opts.json) {
+          if (isJson) {
             console.log(JSON.stringify({ ok: false, error }, null, 2));
           } else {
             console.error(chalk.red(`❌ ${error}`));
@@ -583,7 +623,7 @@ export function backupCommand(): Command {
               : "Backup has not completed successfully"
         };
 
-        if (opts.json) {
+        if (isJson) {
           console.log(JSON.stringify(info, null, 2));
         } else {
           console.log(chalk.bold("\n📥 Backup Download Info\n"));

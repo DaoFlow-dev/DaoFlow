@@ -12,6 +12,7 @@
 
 import { Command } from "commander";
 import chalk from "chalk";
+import { resolveCommandJsonOption } from "../command-helpers";
 import { createClient } from "../trpc-client";
 
 // ── Inline preset definitions (mirrored from @daoflow/shared for CLI use)
@@ -101,7 +102,8 @@ export function tokenCommand(): Command {
     .command("presets")
     .description("List available agent token presets")
     .option("--json", "Output as JSON")
-    .action((opts: { json?: boolean }) => {
+    .action((opts: { json?: boolean }, command: Command) => {
+      const isJson = resolveCommandJsonOption(command, opts.json);
       const presetList = PRESET_NAMES.map((name) => ({
         name,
         label: PRESETS[name].label,
@@ -110,7 +112,7 @@ export function tokenCommand(): Command {
         scopeCount: PRESETS[name].scopes.length
       }));
 
-      if (opts.json) {
+      if (isJson) {
         console.log(JSON.stringify({ ok: true, presets: presetList }));
         return;
       }
@@ -140,16 +142,19 @@ export function tokenCommand(): Command {
     .option("--json", "Output as JSON")
     .option("-y, --yes", "Skip confirmation prompt")
     .action(
-      async (opts: {
-        name: string;
-        preset?: string;
-        scopes?: string;
-        description?: string;
-        expires?: number;
-        json?: boolean;
-        yes?: boolean;
-      }) => {
-        const isJson = opts.json;
+      async (
+        opts: {
+          name: string;
+          preset?: string;
+          scopes?: string;
+          description?: string;
+          expires?: number;
+          json?: boolean;
+          yes?: boolean;
+        },
+        command: Command
+      ) => {
+        const isJson = resolveCommandJsonOption(command, opts.json);
 
         // Validate preset name
         if (opts.preset && !PRESET_NAMES.includes(opts.preset as PresetName)) {
@@ -282,12 +287,14 @@ export function tokenCommand(): Command {
     .command("list")
     .description("List agent tokens")
     .option("--json", "Output as JSON")
-    .action(async (opts: { json?: boolean }) => {
+    .action(async (opts: { json?: boolean }, command: Command) => {
+      const isJson = resolveCommandJsonOption(command, opts.json);
+
       try {
         const trpc = createClient();
         const inventory = await trpc.agentTokenInventory.query();
 
-        if (opts.json) {
+        if (isJson) {
           console.log(JSON.stringify({ ok: true, ...inventory }));
           return;
         }
@@ -308,7 +315,7 @@ export function tokenCommand(): Command {
         }
         console.log();
       } catch (err) {
-        if (opts.json) {
+        if (isJson) {
           console.log(
             JSON.stringify({
               ok: false,
@@ -330,8 +337,10 @@ export function tokenCommand(): Command {
     .requiredOption("--id <tokenId>", "Token ID to revoke")
     .option("--json", "Output as JSON")
     .option("-y, --yes", "Skip confirmation prompt")
-    .action(async (opts: { id: string; json?: boolean; yes?: boolean }) => {
-      if (!opts.yes && !opts.json) {
+    .action(async (opts: { id: string; json?: boolean; yes?: boolean }, command: Command) => {
+      const isJson = resolveCommandJsonOption(command, opts.json);
+
+      if (!opts.yes && !isJson) {
         console.error(
           chalk.yellow(`Destructive operation — revoking token ${opts.id}. Pass --yes to confirm.`)
         );
@@ -342,13 +351,13 @@ export function tokenCommand(): Command {
         const trpc = createClient();
         const result = await trpc.revokeAgentToken.mutate({ tokenId: opts.id });
 
-        if (opts.json) {
+        if (isJson) {
           console.log(JSON.stringify({ ok: true, ...result }));
         } else {
           console.log(chalk.green(`✓ Token ${opts.id} revoked`));
         }
       } catch (err) {
-        if (opts.json) {
+        if (isJson) {
           console.log(
             JSON.stringify({
               ok: false,

@@ -4,7 +4,7 @@ import { join } from "path";
 import { execSync } from "child_process";
 import chalk from "chalk";
 import ora from "ora";
-import { getErrorMessage, getExecErrorMessage } from "../command-helpers";
+import { getErrorMessage, getExecErrorMessage, resolveCommandJsonOption } from "../command-helpers";
 import { defaultInstallDir } from "../templates";
 
 interface UninstallOptions {
@@ -21,8 +21,8 @@ export function uninstallCommand(): Command {
     .option("--remove-data", "Also remove volumes and database data (destructive)")
     .option("--yes", "Skip confirmation prompts")
     .option("--json", "Output as structured JSON")
-    .action(async (opts: UninstallOptions) => {
-      const isJson = opts.json ?? process.argv.includes("--json");
+    .action(async (opts: UninstallOptions, command: Command) => {
+      const isJson = resolveCommandJsonOption(command, opts.json);
       const dir = opts.dir;
       const removeData = opts.removeData ?? false;
 

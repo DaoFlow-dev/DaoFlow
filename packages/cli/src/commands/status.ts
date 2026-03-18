@@ -1,15 +1,15 @@
 import { Command } from "commander";
 import chalk from "chalk";
-import { getErrorMessage } from "../command-helpers";
+import { getErrorMessage, resolveCommandJsonOption } from "../command-helpers";
 import { createClient, type RouterOutputs } from "../trpc-client";
 import { getCurrentContext, loadConfig } from "../config";
 
 export function statusCommand(): Command {
   return new Command("status")
     .description("Show current deployment and server status")
-    .action(async () => {
-      const parentOpts = statusCommand().parent?.opts<{ json?: boolean }>() ?? {};
-      const isJson = parentOpts.json;
+    .option("--json", "Output as JSON")
+    .action(async (opts: { json?: boolean }, command: Command) => {
+      const isJson = resolveCommandJsonOption(command, opts.json);
       const config = loadConfig();
       const ctx = getCurrentContext();
 

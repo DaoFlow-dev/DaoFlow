@@ -10,6 +10,7 @@
 
 import { Command } from "commander";
 import chalk from "chalk";
+import { resolveCommandJsonOption } from "../command-helpers";
 import { createClient } from "../trpc-client";
 
 export function diffCommand(): Command {
@@ -18,7 +19,9 @@ export function diffCommand(): Command {
     .requiredOption("--a <id>", "First deployment ID (baseline)")
     .requiredOption("--b <id>", "Second deployment ID (comparison)")
     .option("--json", "Output as JSON")
-    .action(async (opts: { a: string; b: string; json?: boolean }) => {
+    .action(async (opts: { a: string; b: string; json?: boolean }, command: Command) => {
+      const isJson = resolveCommandJsonOption(command, opts.json);
+
       try {
         const trpc = createClient();
         const result = await trpc.deploymentDiff.query({
@@ -26,7 +29,7 @@ export function diffCommand(): Command {
           deploymentIdB: opts.b
         });
 
-        if (opts.json) {
+        if (isJson) {
           console.log(JSON.stringify({ ok: true, diff: result }));
           return;
         }
@@ -82,7 +85,7 @@ export function diffCommand(): Command {
         }
         console.log();
       } catch (err) {
-        if (opts.json) {
+        if (isJson) {
           console.log(
             JSON.stringify({
               ok: false,

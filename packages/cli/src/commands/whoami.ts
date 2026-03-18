@@ -1,14 +1,15 @@
 import { Command } from "commander";
 import chalk from "chalk";
-import { getErrorMessage } from "../command-helpers";
+import { getErrorMessage, resolveCommandJsonOption } from "../command-helpers";
 import { createClient, type RouterOutputs } from "../trpc-client";
 import { getCurrentContext } from "../config";
 
 export function whoamiCommand(): Command {
   return new Command("whoami")
     .description("Show current principal, role, and scopes")
-    .action(async () => {
-      const isJson = whoamiCommand().parent?.opts<{ json?: boolean }>().json ?? false;
+    .option("--json", "Output as JSON")
+    .action(async (opts: { json?: boolean }, command: Command) => {
+      const isJson = resolveCommandJsonOption(command, opts.json);
       const ctx = getCurrentContext();
 
       if (!ctx) {

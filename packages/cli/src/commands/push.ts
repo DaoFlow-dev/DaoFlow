@@ -5,6 +5,7 @@ import { createReadStream, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ApiClient } from "../api-client";
+import { resolveCommandJsonOption } from "../command-helpers";
 
 export function pushCommand(): Command {
   return new Command("push")
@@ -18,17 +19,20 @@ export function pushCommand(): Command {
     .option("-y, --yes", "Skip confirmation prompt")
     .option("--json", "Output as JSON")
     .action(
-      async (opts: {
-        tag: string;
-        dockerfile: string;
-        context: string;
-        server?: string;
-        service?: string;
-        skipBuild?: boolean;
-        yes?: boolean;
-        json?: boolean;
-      }) => {
-        const isJson = opts.json;
+      async (
+        opts: {
+          tag: string;
+          dockerfile: string;
+          context: string;
+          server?: string;
+          service?: string;
+          skipBuild?: boolean;
+          yes?: boolean;
+          json?: boolean;
+        },
+        command: Command
+      ) => {
+        const isJson = resolveCommandJsonOption(command, opts.json);
 
         if (!opts.yes) {
           console.error(

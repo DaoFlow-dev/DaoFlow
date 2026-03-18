@@ -17,6 +17,7 @@ import { createClient } from "../trpc-client";
 import { ApiClient, ApiError } from "../api-client";
 import { loadDaoflowConfig, parseSizeString, type DaoflowConfig } from "../config-loader";
 import { createContextBundle, detectLocalBuildContexts } from "../context-bundler";
+import { resolveCommandJsonOption } from "../command-helpers";
 
 export function deployCommand(): Command {
   return new Command("deploy")
@@ -47,7 +48,7 @@ export function deployCommand(): Command {
         },
         command: Command
       ) => {
-        const isJson = opts.json ?? getGlobalJsonFlag(command);
+        const isJson = resolveCommandJsonOption(command, opts.json);
 
         // ── Load config defaults ─────────────────────────────
         const configResult = loadDaoflowConfig();
@@ -176,14 +177,6 @@ interface ComposeDeployOpts {
   yes?: boolean;
   json?: boolean;
   config?: DaoflowConfig;
-}
-
-function getGlobalJsonFlag(command: Command): boolean {
-  return hasJsonFlag(command.optsWithGlobals());
-}
-
-function hasJsonFlag(value: unknown): boolean {
-  return typeof value === "object" && value !== null && "json" in value && value.json === true;
 }
 
 async function handleComposeDeploy(opts: ComposeDeployOpts): Promise<void> {

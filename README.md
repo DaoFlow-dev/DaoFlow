@@ -95,7 +95,7 @@ Auth notes:
 ```bash
 bun lint                      # ESLint
 bun typecheck                 # TypeScript
-bun test:unit                 # Vitest
+bun test:unit                 # Unit tests
 bun test:e2e                  # Playwright
 bun verify                    # All of the above
 ```

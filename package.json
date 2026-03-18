@@ -22,7 +22,7 @@
     "format:check": "prettier --check .",
     "skills:check": "node ./scripts/check-skills.mjs",
     "test": "bun run verify",
-    "test:unit": "bun --filter @daoflow/server test",
+    "test:unit": "bun --filter @daoflow/server test && bun --filter @daoflow/cli test",
     "test:e2e": "bun run test:e2e:main && bun run test:e2e:bootstrap",
     "test:e2e:main": "sh ./scripts/run-e2e-main.sh",
     "test:e2e:bootstrap": "sh ./scripts/run-e2e-bootstrap.sh",
