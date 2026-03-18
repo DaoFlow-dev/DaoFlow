@@ -9,6 +9,7 @@ import { createDeploymentRecord } from "../db/services/deployments";
 import { dispatchDeploymentExecution } from "../db/services/deployment-dispatch";
 import { newId as id } from "../db/services/json-helpers";
 import { cleanupStagingDir, ensureStagingDir } from "../worker/docker-executor";
+import { persistUploadedArtifacts } from "../worker/uploaded-artifacts";
 import { streamBodyToFile } from "./stream-to-file";
 
 export const deployContextRouter = new Hono();
@@ -161,6 +162,11 @@ deployContextRouter.post("/", async (c) => {
     const composeContent = Buffer.from(composeB64, "base64").toString("utf8");
     await writeFile(join(stageDir, composeFileName), composeContent, "utf8");
     await streamBodyToFile(body, join(stageDir, archiveFileName));
+    const { artifactId } = await persistUploadedArtifacts({
+      sourceDir: stageDir,
+      composeFileName,
+      contextArchiveName: archiveFileName
+    });
 
     const { deployment, scope } = await queueUploadedDeployment({
       deploymentId,
@@ -173,7 +179,8 @@ deployContextRouter.post("/", async (c) => {
         deploymentSource: "uploaded-context",
         composeFilePath: composeFileName,
         uploadedComposeFileName: composeFileName,
-        uploadedContextArchiveName: archiveFileName
+        uploadedContextArchiveName: archiveFileName,
+        uploadedArtifactId: artifactId
       },
       steps: [
         {
@@ -234,6 +241,10 @@ deployContextRouter.post("/compose", async (c) => {
 
   try {
     await writeFile(join(stageDir, composeFileName), body.compose, "utf8");
+    const { artifactId } = await persistUploadedArtifacts({
+      sourceDir: stageDir,
+      composeFileName
+    });
 
     const { deployment, scope } = await queueUploadedDeployment({
       deploymentId,
@@ -245,7 +256,8 @@ deployContextRouter.post("/compose", async (c) => {
       configSnapshot: {
         deploymentSource: "uploaded-compose",
         composeFilePath: composeFileName,
-        uploadedComposeFileName: composeFileName
+        uploadedComposeFileName: composeFileName,
+        uploadedArtifactId: artifactId
       },
       steps: [
         {

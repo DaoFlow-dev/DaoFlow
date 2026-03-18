@@ -105,6 +105,78 @@ describe("prepareComposeWorkspace", () => {
     );
   });
 
+  it("restores replayed uploaded artifacts into a fresh staging directory", async () => {
+    const restoreUploadedArtifacts = vi.fn(({ destinationDir }: { destinationDir: string }) => {
+      writeFileSync(
+        join(destinationDir, "compose.yaml"),
+        [
+          "services:",
+          "  app:",
+          "    image: nginx:alpine",
+          "    env_file:",
+          "      - ./config/runtime.env"
+        ].join("\n")
+      );
+      writeFileSync(join(destinationDir, "context.tar.gz"), "placeholder archive");
+      mkdirSync(join(destinationDir, "config"), { recursive: true });
+      writeFileSync(join(destinationDir, ".env"), "FROM_RESTORED=1\n");
+      writeFileSync(join(destinationDir, "config", "runtime.env"), "API_TOKEN=secret\n");
+      return { restoredFiles: ["compose.yaml", "context.tar.gz"] };
+    });
+
+    vi.doMock("./docker-executor", () => ({
+      createTarArchive: vi.fn(),
+      ensureStagingDir: vi.fn(() => stageDir),
+      extractTarArchive: vi.fn(() => ({ exitCode: 0 })),
+      getStagingArchivePath: vi.fn(),
+      gitClone: vi.fn()
+    }));
+
+    vi.doMock("./ssh-executor", () => ({
+      remoteEnsureDir: vi.fn(),
+      remoteExtractArchive: vi.fn(),
+      scpUpload: vi.fn()
+    }));
+
+    vi.doMock("./checkout-source", () => ({
+      resolveCheckoutSpec: vi.fn()
+    }));
+
+    vi.doMock("./uploaded-artifacts", () => ({
+      restoreUploadedArtifacts
+    }));
+
+    const { prepareComposeWorkspace } = await import("./compose-workspace");
+
+    const workspace = await prepareComposeWorkspace(
+      "deploy_replay",
+      {
+        deploymentSource: "uploaded-context",
+        uploadedArtifactId: "0123456789abcdef0123456789abcdef",
+        uploadedComposeFileName: "compose.yaml",
+        uploadedContextArchiveName: "context.tar.gz"
+      },
+      { mode: "local" },
+      () => {}
+    );
+
+    expect(restoreUploadedArtifacts).toHaveBeenCalledWith({
+      artifactId: "0123456789abcdef0123456789abcdef",
+      destinationDir: stageDir
+    });
+    expect(workspace.composeEnv.payloadEntries.map((entry) => entry.key)).toEqual([
+      "FROM_RESTORED"
+    ]);
+    expect(workspace.composeInputs.manifest.entries).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "service-env-file",
+          path: ".daoflow.compose.inputs/config__runtime.env"
+        })
+      ])
+    );
+  });
+
   it("renders git-backed compose deployments through the frozen compose manifest", async () => {
     mkdirSync(join(stageDir, "ops", "config"), { recursive: true });
     writeFileSync(join(stageDir, "ops", ".env"), "ROOT_ONLY=1\n");

@@ -505,6 +505,104 @@ describe("project source persistence", () => {
     expect(rollback.deployment.configSnapshot).not.toHaveProperty("temporalRunId");
   });
 
+  it("preserves uploaded artifact replay references when creating a rollback deployment", async () => {
+    const project = await createProject({
+      name: `Uploaded Rollback ${Date.now()}`,
+      teamId: "team_foundation",
+      requestedByUserId: "user_foundation_owner",
+      requestedByEmail: "owner@daoflow.local",
+      requestedByRole: "owner"
+    });
+
+    expect(project.status).toBe("ok");
+    if (project.status !== "ok") {
+      throw new Error("Failed to create uploaded rollback project.");
+    }
+
+    const environment = await createEnvironment({
+      projectId: project.project.id,
+      name: "production",
+      targetServerId: "srv_foundation_1",
+      requestedByUserId: "user_foundation_owner",
+      requestedByEmail: "owner@daoflow.local",
+      requestedByRole: "owner"
+    });
+    expect(environment.status).toBe("ok");
+    if (environment.status !== "ok") {
+      throw new Error("Failed to create uploaded rollback environment.");
+    }
+
+    const service = await createService({
+      name: "uploaded-service",
+      projectId: project.project.id,
+      environmentId: environment.environment.id,
+      sourceType: "compose",
+      targetServerId: "srv_foundation_1",
+      requestedByUserId: "user_foundation_owner",
+      requestedByEmail: "owner@daoflow.local",
+      requestedByRole: "owner"
+    });
+    expect(service.status).toBe("ok");
+    if (service.status !== "ok") {
+      throw new Error("Failed to create uploaded rollback service.");
+    }
+
+    const targetDeploymentId = `depup_${Date.now()}`.slice(0, 32);
+    await db.insert(deployments).values({
+      id: targetDeploymentId,
+      projectId: project.project.id,
+      environmentId: environment.environment.id,
+      targetServerId: "srv_foundation_1",
+      serviceName: "uploaded-service",
+      sourceType: "compose",
+      commitSha: "",
+      imageTag: "",
+      configSnapshot: {
+        projectName: project.project.name,
+        environmentName: environment.environment.name,
+        deploymentSource: "uploaded-context",
+        composeFilePath: "compose.yaml",
+        uploadedComposeFileName: "compose.yaml",
+        uploadedContextArchiveName: "context.tar.gz",
+        uploadedArtifactId: "0123456789abcdef0123456789abcdef",
+        temporalWorkflowId: "workflow-old",
+        temporalRunId: "run-old"
+      },
+      status: "completed",
+      conclusion: "succeeded",
+      trigger: "user",
+      requestedByUserId: "user_foundation_owner",
+      requestedByEmail: "owner@daoflow.local",
+      requestedByRole: "owner",
+      createdAt: new Date(Date.now() - 5 * 60_000),
+      concludedAt: new Date(Date.now() - 4 * 60_000),
+      updatedAt: new Date(Date.now() - 4 * 60_000)
+    });
+
+    const rollback = await executeRollback({
+      serviceId: service.service.id,
+      targetDeploymentId,
+      requestedByUserId: "user_foundation_owner",
+      requestedByEmail: "owner@daoflow.local",
+      requestedByRole: "owner"
+    });
+
+    expect(rollback.status).toBe("ok");
+    if (rollback.status !== "ok") {
+      throw new Error("Failed to execute uploaded rollback fixture.");
+    }
+
+    expect(rollback.deployment.configSnapshot).toMatchObject({
+      deploymentSource: "uploaded-context",
+      composeFilePath: "compose.yaml",
+      uploadedComposeFileName: "compose.yaml",
+      uploadedContextArchiveName: "context.tar.gz",
+      uploadedArtifactId: "0123456789abcdef0123456789abcdef"
+    });
+    expect(rollback.deployment.configSnapshot).not.toHaveProperty("temporalWorkflowId");
+    expect(rollback.deployment.configSnapshot).not.toHaveProperty("temporalRunId");
+  });
+
   it("rejects provider-linked projects when the configured branch is not accessible", async () => {
     const providerId = `gitprov_${Date.now()}`.slice(0, 32);
     const installationId = `gitinst_${Date.now()}`.slice(0, 32);

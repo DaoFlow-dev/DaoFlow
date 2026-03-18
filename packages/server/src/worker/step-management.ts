@@ -139,6 +139,7 @@ export interface ConfigSnapshot extends Record<string, unknown> {
   repositoryPreparation?: RepositoryPreparationConfig;
   uploadedComposeFileName?: string;
   uploadedContextArchiveName?: string;
+  uploadedArtifactId?: string;
   composeEnv?: ComposeEnvEvidence;
   composeInputs?: ComposeInputManifest;
 }

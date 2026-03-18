@@ -12,6 +12,7 @@ import type { ExecutionTarget } from "./execution-target";
 import { remoteEnsureDir, remoteExtractArchive, scpUpload } from "./ssh-executor";
 import type { ConfigSnapshot } from "./step-management";
 import { resolveCheckoutSpec } from "./checkout-source";
+import { restoreUploadedArtifacts } from "./uploaded-artifacts";
 import {
   buildComposeEnvArtifact,
   buildMaterializedComposeEnvEvidence,
@@ -254,6 +255,12 @@ export async function prepareComposeWorkspace(
   }
 
   const localStageDir = ensureStagingDir(deploymentId);
+  if (config.uploadedArtifactId) {
+    await restoreUploadedArtifacts({
+      artifactId: config.uploadedArtifactId,
+      destinationDir: localStageDir
+    });
+  }
   const composeFile = basename(resolveUploadedComposeFile(config));
   const contextArchive = resolveUploadedArchive(config);
 
