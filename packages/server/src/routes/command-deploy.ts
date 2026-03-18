@@ -233,6 +233,12 @@ export const deployRouter = t.router({
           message: "Failed to create deployment record."
         });
       }
+      if (result.status === "invalid_source") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: result.message
+        });
+      }
       return result.deployment;
     }),
   executeRollback: deployRollbackProcedure

@@ -19,6 +19,7 @@ import { dispatchDeploymentExecution } from "./deployment-dispatch";
 import type { AppRole } from "@daoflow/shared";
 import { asRecord, readString } from "./json-helpers";
 import { buildComposeSourceSnapshot, buildRepositorySourceSnapshot } from "./deployment-source";
+import { revalidateProjectSourceForExecution } from "./project-source-execution-validation";
 
 export interface TriggerDeployInput {
   serviceId: string;
@@ -89,6 +90,17 @@ export async function triggerDeploy(input: TriggerDeployInput) {
 
   if (!targetServerId) {
     return { status: "no_server" as const };
+  }
+
+  if (svc.sourceType === "compose") {
+    const sourceValidation = await revalidateProjectSourceForExecution({
+      project,
+      environment: env
+    });
+
+    if (sourceValidation.status === "invalid_source") {
+      return sourceValidation;
+    }
   }
 
   const buildConfig = asRecord(svc.config);

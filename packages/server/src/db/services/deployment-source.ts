@@ -42,6 +42,16 @@ function resolveProjectBranch(project: ProjectRow): string {
   return project.defaultBranch ?? readString(asRecord(project.config), "defaultBranch", "main");
 }
 
+export function resolveComposeFilePath(input: ComposeSourceSnapshotInput): string {
+  const environmentConfig = asRecord(input.environment?.config);
+
+  return normalizeRepositoryPath(
+    input.project.composePath ??
+      readString(environmentConfig, "composeFilePath", "docker-compose.yml"),
+    "docker-compose.yml"
+  );
+}
+
 export function buildRepositorySourceSnapshot(project: ProjectRow): ConfigSnapshot {
   const hasRepositorySource =
     Boolean(project.repoUrl) ||
@@ -60,16 +70,9 @@ export function buildRepositorySourceSnapshot(project: ProjectRow): ConfigSnapsh
 }
 
 export function buildComposeSourceSnapshot(input: ComposeSourceSnapshotInput): ConfigSnapshot {
-  const environmentConfig = asRecord(input.environment?.config);
-  const composeFilePath = normalizeRepositoryPath(
-    input.project.composePath ??
-      readString(environmentConfig, "composeFilePath", "docker-compose.yml"),
-    "docker-compose.yml"
-  );
-
   return {
     ...buildRepositorySourceSnapshot(input.project),
-    composeFilePath,
+    composeFilePath: resolveComposeFilePath(input),
     ...(input.composeServiceName ? { composeServiceName: input.composeServiceName } : {})
   };
 }

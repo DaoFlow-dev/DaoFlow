@@ -9,7 +9,7 @@
 
 import { Hono } from "hono";
 import { createHmac, timingSafeEqual } from "crypto";
-import { eq, and } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { db } from "../db/connection";
 import { gitProviders } from "../db/schema/git-providers";
 import { projects } from "../db/schema/projects";
@@ -56,6 +56,53 @@ interface WebhookDeployFailure {
   serviceId: string;
   status: string;
   entity?: string;
+  message?: string;
+}
+
+type WebhookTarget = {
+  project: typeof projects.$inferSelect;
+  provider: typeof gitProviders.$inferSelect;
+};
+
+async function listWebhookTargets(input: {
+  repoFullName: string;
+  providerType: "github" | "gitlab";
+}): Promise<WebhookTarget[]> {
+  const matchingProjects = await db
+    .select()
+    .from(projects)
+    .where(and(eq(projects.repoFullName, input.repoFullName), eq(projects.autoDeploy, true)));
+
+  const providerIds = [
+    ...new Set(
+      matchingProjects
+        .map((project) => project.gitProviderId)
+        .filter((providerId): providerId is string => Boolean(providerId))
+    )
+  ];
+
+  if (providerIds.length === 0) {
+    return [];
+  }
+
+  const providerRows = await db
+    .select()
+    .from(gitProviders)
+    .where(inArray(gitProviders.id, providerIds));
+  const providerById = new Map(providerRows.map((provider) => [provider.id, provider]));
+
+  return matchingProjects.flatMap((project) => {
+    if (!project.gitProviderId) {
+      return [];
+    }
+
+    const provider = providerById.get(project.gitProviderId);
+    if (!provider || provider.type !== input.providerType) {
+      return [];
+    }
+
+    return [{ project, provider }];
+  });
 }
 
 async function triggerWebhookDeploys(input: {
@@ -88,7 +135,8 @@ async function triggerWebhookDeploys(input: {
     failures.push({
       serviceId: service.id,
       status: result.status,
-      entity: result.status === "not_found" ? result.entity : undefined
+      entity: result.status === "not_found" ? result.entity : undefined,
+      message: result.status === "invalid_source" ? result.message : undefined
     });
   }
 
@@ -125,33 +173,21 @@ webhooksRouter.post("/github", async (c) => {
       return c.json({ ok: false, error: "Missing repository" }, 400);
     }
 
-    // Find matching auto-deploy projects
-    const matchingProjects = await db
-      .select()
-      .from(projects)
-      .where(and(eq(projects.repoFullName, repoFullName), eq(projects.autoDeploy, true)));
+    const matchingTargets = await listWebhookTargets({
+      repoFullName,
+      providerType: "github"
+    });
 
-    if (matchingProjects.length === 0) {
+    if (matchingTargets.length === 0) {
       return c.json({ ok: true, skipped: true, reason: "no matching projects" });
     }
 
     // Validate signature against git provider webhook secret
-    let signatureValid = false;
-    for (const project of matchingProjects) {
-      if (!project.gitProviderId) continue;
-      const [provider] = await db
-        .select()
-        .from(gitProviders)
-        .where(eq(gitProviders.id, project.gitProviderId))
-        .limit(1);
-      if (
-        provider?.webhookSecret &&
-        verifyGitHubSignature(rawBody, signature, provider.webhookSecret)
-      ) {
-        signatureValid = true;
-        break;
-      }
-    }
+    const signatureValid = matchingTargets.some(
+      ({ provider }) =>
+        Boolean(provider.webhookSecret) &&
+        verifyGitHubSignature(rawBody, signature, provider.webhookSecret!)
+    );
 
     if (!signatureValid) {
       return c.json({ ok: false, error: "Invalid signature" }, 401);
@@ -162,7 +198,7 @@ webhooksRouter.post("/github", async (c) => {
 
     const deployments = [];
     const failedTargets: WebhookDeployFailure[] = [];
-    for (const project of matchingProjects) {
+    for (const { project } of matchingTargets) {
       const targetBranch = project.autoDeployBranch || project.defaultBranch || "main";
       if (branch !== targetBranch) continue;
 
@@ -239,29 +275,20 @@ webhooksRouter.post("/gitlab", async (c) => {
       return c.json({ ok: false, error: "Missing project" }, 400);
     }
 
-    const matchingProjects = await db
-      .select()
-      .from(projects)
-      .where(and(eq(projects.repoFullName, repoFullName), eq(projects.autoDeploy, true)));
+    const matchingTargets = await listWebhookTargets({
+      repoFullName,
+      providerType: "gitlab"
+    });
 
-    if (matchingProjects.length === 0) {
+    if (matchingTargets.length === 0) {
       return c.json({ ok: true, skipped: true, reason: "no matching projects" });
     }
 
     // Validate token
-    let tokenValid = false;
-    for (const project of matchingProjects) {
-      if (!project.gitProviderId) continue;
-      const [provider] = await db
-        .select()
-        .from(gitProviders)
-        .where(eq(gitProviders.id, project.gitProviderId))
-        .limit(1);
-      if (provider?.webhookSecret && verifyGitLabToken(token, provider.webhookSecret)) {
-        tokenValid = true;
-        break;
-      }
-    }
+    const tokenValid = matchingTargets.some(
+      ({ provider }) =>
+        Boolean(provider.webhookSecret) && verifyGitLabToken(token, provider.webhookSecret!)
+    );
 
     if (!tokenValid) {
       return c.json({ ok: false, error: "Invalid token" }, 401);
@@ -272,7 +299,7 @@ webhooksRouter.post("/gitlab", async (c) => {
 
     const deployments = [];
     const failedTargets: WebhookDeployFailure[] = [];
-    for (const project of matchingProjects) {
+    for (const { project } of matchingTargets) {
       const targetBranch = project.autoDeployBranch || project.defaultBranch || "main";
       if (branch !== targetBranch) continue;
 

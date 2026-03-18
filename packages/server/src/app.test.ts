@@ -1,13 +1,15 @@
-import { createHmac } from "node:crypto";
+import { createHmac, generateKeyPairSync } from "node:crypto";
 import { eq } from "drizzle-orm";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createApp } from "./app";
 import { ensureControlPlaneReady, resetControlPlaneSeedState } from "./db/services/seed";
 import { createAgentPrincipal, generateAgentToken } from "./db/services/agents";
 import { db } from "./db/connection";
 import { deployments } from "./db/schema/deployments";
-import { gitProviders } from "./db/schema/git-providers";
+import { gitInstallations, gitProviders } from "./db/schema/git-providers";
 import { projects } from "./db/schema/projects";
+import { encrypt } from "./db/crypto";
+import { encodeGitInstallationPermissions } from "./db/services/git-providers";
 import { createEnvironment, createProject } from "./db/services/projects";
 import { createService } from "./db/services/services";
 import { resetTestDatabase } from "./test-db";
@@ -16,7 +18,108 @@ import {
   resetInitialOwnerBootstrapState
 } from "./bootstrap-initial-owner";
 
+function toRequestUrl(input: string | URL | Request): string {
+  if (typeof input === "string") {
+    return input;
+  }
+
+  if (input instanceof URL) {
+    return input.toString();
+  }
+
+  return input.url;
+}
+
+function mockGitHubSourceFetch(input: {
+  repoFullName: string;
+  installationId: string;
+  branch?: string;
+  composePath?: string;
+}) {
+  const branch = input.branch ?? "main";
+  const composePath = input.composePath ?? "docker-compose.yml";
+  const encodedComposePath = encodeURIComponent(composePath);
+
+  return (request: string | URL | Request) => {
+    const url = toRequestUrl(request);
+
+    if (url.endsWith(`/app/installations/${input.installationId}/access_tokens`)) {
+      return Promise.resolve(
+        new Response(JSON.stringify({ token: "ghs_webhook_validation" }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" }
+        })
+      );
+    }
+
+    if (url.endsWith(`/repos/${input.repoFullName}`)) {
+      return Promise.resolve(new Response(JSON.stringify({ id: 1 }), { status: 200 }));
+    }
+
+    if (url.endsWith(`/repos/${input.repoFullName}/branches/${encodeURIComponent(branch)}`)) {
+      return Promise.resolve(new Response(JSON.stringify({ name: branch }), { status: 200 }));
+    }
+
+    if (
+      url.includes(
+        `/repos/${input.repoFullName}/contents/${encodedComposePath}?ref=${encodeURIComponent(branch)}`
+      )
+    ) {
+      return Promise.resolve(new Response(JSON.stringify({ path: composePath }), { status: 200 }));
+    }
+
+    throw new Error(`Unexpected fetch request: ${url}`);
+  };
+}
+
+function mockGitLabSourceFetch(input: {
+  repoFullName: string;
+  branch?: string;
+  composePath?: string;
+  projectId: number;
+}) {
+  const branch = input.branch ?? "main";
+  const composePath = input.composePath ?? "docker-compose.yml";
+  const encodedRepoFullName = encodeURIComponent(input.repoFullName);
+  const encodedProjectId = encodeURIComponent(String(input.projectId));
+  const encodedBranch = encodeURIComponent(branch);
+  const encodedComposePath = encodeURIComponent(composePath);
+
+  return (request: string | URL | Request) => {
+    const url = toRequestUrl(request);
+
+    if (url.endsWith(`/projects/${encodedRepoFullName}`)) {
+      return Promise.resolve(
+        new Response(JSON.stringify({ id: input.projectId }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" }
+        })
+      );
+    }
+
+    if (url.endsWith(`/projects/${encodedProjectId}/repository/branches/${encodedBranch}`)) {
+      return Promise.resolve(new Response(JSON.stringify({ name: branch }), { status: 200 }));
+    }
+
+    if (
+      url.includes(
+        `/projects/${encodedProjectId}/repository/files/${encodedComposePath}?ref=${encodedBranch}`
+      )
+    ) {
+      return Promise.resolve(
+        new Response(JSON.stringify({ file_path: composePath }), { status: 200 })
+      );
+    }
+
+    throw new Error(`Unexpected fetch request: ${url}`);
+  };
+}
+
 describe("createApp", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("serves the health endpoint with security and request metadata", async () => {
     const app = createApp();
     const response = await app.request("/health");
@@ -345,6 +448,10 @@ describe("createApp", () => {
     await ensureControlPlaneReady();
 
     const suffix = Date.now();
+    const { privateKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
+    const privateKeyPem = privateKey.export({ format: "pem", type: "pkcs1" }).toString();
+    const providerId = `gitprov_gh_${suffix}`.slice(0, 32);
+    const installationId = `gitinst_gh_${suffix}`.slice(0, 32);
     const projectResult = await createProject({
       name: `Webhook GitHub ${suffix}`,
       repoUrl: "https://github.com/example/webhook-app",
@@ -386,20 +493,42 @@ describe("createApp", () => {
     }
 
     await db.insert(gitProviders).values({
-      id: "gitprov_webhook_gh",
+      id: providerId,
       type: "github",
       name: `Webhook GitHub ${suffix}`,
+      appId: "123456",
+      privateKeyEncrypted: encrypt(privateKeyPem),
       webhookSecret: "github-webhook-secret",
       status: "active",
       updatedAt: new Date()
     });
+
+    await db.insert(gitInstallations).values({
+      id: installationId,
+      providerId,
+      installationId: "701",
+      accountName: "example",
+      accountType: "organization",
+      repositorySelection: "selected",
+      status: "active",
+      installedByUserId: "user_foundation_owner",
+      updatedAt: new Date()
+    });
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(
+      mockGitHubSourceFetch({
+        repoFullName: "example/webhook-app",
+        installationId: "701"
+      })
+    );
 
     await db
       .update(projects)
       .set({
         repoFullName: "example/webhook-app",
         sourceType: "compose",
-        gitProviderId: "gitprov_webhook_gh",
+        gitProviderId: providerId,
+        gitInstallationId: installationId,
         autoDeploy: true,
         autoDeployBranch: "main",
         defaultBranch: "main",
@@ -457,6 +586,10 @@ describe("createApp", () => {
     await ensureControlPlaneReady();
 
     const suffix = Date.now();
+    const { privateKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
+    const privateKeyPem = privateKey.export({ format: "pem", type: "pkcs1" }).toString();
+    const providerId = `gitprov_gd_${suffix}`.slice(0, 32);
+    const installationId = `gitinst_gd_${suffix}`.slice(0, 32);
     const projectResult = await createProject({
       name: `Webhook Drift ${suffix}`,
       repoUrl: "https://github.com/example/webhook-drift",
@@ -498,20 +631,42 @@ describe("createApp", () => {
     }
 
     await db.insert(gitProviders).values({
-      id: "gitprov_webhook_drift",
+      id: providerId,
       type: "github",
       name: `Webhook Drift ${suffix}`,
+      appId: "123456",
+      privateKeyEncrypted: encrypt(privateKeyPem),
       webhookSecret: "github-webhook-drift-secret",
       status: "active",
       updatedAt: new Date()
     });
+
+    await db.insert(gitInstallations).values({
+      id: installationId,
+      providerId,
+      installationId: "702",
+      accountName: "example",
+      accountType: "organization",
+      repositorySelection: "selected",
+      status: "active",
+      installedByUserId: "user_foundation_owner",
+      updatedAt: new Date()
+    });
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(
+      mockGitHubSourceFetch({
+        repoFullName: "example/webhook-drift",
+        installationId: "702"
+      })
+    );
 
     await db
       .update(projects)
       .set({
         repoFullName: "example/webhook-drift",
         sourceType: "dockerfile",
-        gitProviderId: "gitprov_webhook_drift",
+        gitProviderId: providerId,
+        gitInstallationId: installationId,
         autoDeploy: true,
         autoDeployBranch: "main",
         defaultBranch: "main",
@@ -566,6 +721,8 @@ describe("createApp", () => {
     await ensureControlPlaneReady();
 
     const suffix = Date.now();
+    const providerId = `gitprov_gl_${suffix}`.slice(0, 32);
+    const installationId = `gitinst_gl_${suffix}`.slice(0, 32);
     const projectResult = await createProject({
       name: `Webhook GitLab ${suffix}`,
       repoUrl: "https://gitlab.com/example/webhook-app",
@@ -607,7 +764,7 @@ describe("createApp", () => {
     }
 
     await db.insert(gitProviders).values({
-      id: "gitprov_webhook_gl",
+      id: providerId,
       type: "gitlab",
       name: `Webhook GitLab ${suffix}`,
       webhookSecret: "gitlab-webhook-secret",
@@ -615,12 +772,33 @@ describe("createApp", () => {
       updatedAt: new Date()
     });
 
+    await db.insert(gitInstallations).values({
+      id: installationId,
+      providerId,
+      installationId: "703",
+      accountName: "example",
+      accountType: "group",
+      repositorySelection: "all",
+      permissions: encodeGitInstallationPermissions({ accessToken: "glpat-webhook-app" }),
+      status: "active",
+      installedByUserId: "user_foundation_owner",
+      updatedAt: new Date()
+    });
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(
+      mockGitLabSourceFetch({
+        repoFullName: "example/webhook-app",
+        projectId: 703
+      })
+    );
+
     await db
       .update(projects)
       .set({
         repoFullName: "example/webhook-app",
         sourceType: "compose",
-        gitProviderId: "gitprov_webhook_gl",
+        gitProviderId: providerId,
+        gitInstallationId: installationId,
         autoDeploy: true,
         autoDeployBranch: "main",
         defaultBranch: "main",
@@ -666,6 +844,240 @@ describe("createApp", () => {
           requestedByRole: "agent"
         })
       ])
+    );
+  });
+
+  it("isolates webhook auto-deploy targets by provider type when repo paths overlap", async () => {
+    await resetTestDatabase();
+    resetControlPlaneSeedState();
+    await ensureControlPlaneReady();
+
+    const suffix = Date.now();
+    const sharedRepoFullName = "example/overlap-app";
+    const { privateKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
+    const privateKeyPem = privateKey.export({ format: "pem", type: "pkcs1" }).toString();
+
+    const githubProject = await createProject({
+      name: `Overlap GitHub ${suffix}`,
+      repoUrl: `https://github.com/${sharedRepoFullName}`,
+      teamId: "team_foundation",
+      requestedByUserId: "user_foundation_owner",
+      requestedByEmail: "owner@daoflow.local",
+      requestedByRole: "owner"
+    });
+    expect(githubProject.status).toBe("ok");
+    if (githubProject.status !== "ok") {
+      throw new Error("Failed to create overlapping GitHub webhook project fixture.");
+    }
+
+    const githubEnvironment = await createEnvironment({
+      projectId: githubProject.project.id,
+      name: "production",
+      targetServerId: "srv_foundation_1",
+      requestedByUserId: "user_foundation_owner",
+      requestedByEmail: "owner@daoflow.local",
+      requestedByRole: "owner"
+    });
+    expect(githubEnvironment.status).toBe("ok");
+    if (githubEnvironment.status !== "ok") {
+      throw new Error("Failed to create overlapping GitHub webhook environment fixture.");
+    }
+
+    const githubService = await createService({
+      name: "github-runtime",
+      projectId: githubProject.project.id,
+      environmentId: githubEnvironment.environment.id,
+      sourceType: "compose",
+      requestedByUserId: "user_foundation_owner",
+      requestedByEmail: "owner@daoflow.local",
+      requestedByRole: "owner"
+    });
+    expect(githubService.status).toBe("ok");
+    if (githubService.status !== "ok") {
+      throw new Error("Failed to create overlapping GitHub webhook service fixture.");
+    }
+
+    const gitlabProject = await createProject({
+      name: `Overlap GitLab ${suffix}`,
+      repoUrl: `https://gitlab.com/${sharedRepoFullName}`,
+      teamId: "team_foundation",
+      requestedByUserId: "user_foundation_owner",
+      requestedByEmail: "owner@daoflow.local",
+      requestedByRole: "owner"
+    });
+    expect(gitlabProject.status).toBe("ok");
+    if (gitlabProject.status !== "ok") {
+      throw new Error("Failed to create overlapping GitLab webhook project fixture.");
+    }
+
+    const gitlabEnvironment = await createEnvironment({
+      projectId: gitlabProject.project.id,
+      name: "production",
+      targetServerId: "srv_foundation_1",
+      requestedByUserId: "user_foundation_owner",
+      requestedByEmail: "owner@daoflow.local",
+      requestedByRole: "owner"
+    });
+    expect(gitlabEnvironment.status).toBe("ok");
+    if (gitlabEnvironment.status !== "ok") {
+      throw new Error("Failed to create overlapping GitLab webhook environment fixture.");
+    }
+
+    const gitlabService = await createService({
+      name: "gitlab-runtime",
+      projectId: gitlabProject.project.id,
+      environmentId: gitlabEnvironment.environment.id,
+      sourceType: "compose",
+      requestedByUserId: "user_foundation_owner",
+      requestedByEmail: "owner@daoflow.local",
+      requestedByRole: "owner"
+    });
+    expect(gitlabService.status).toBe("ok");
+    if (gitlabService.status !== "ok") {
+      throw new Error("Failed to create overlapping GitLab webhook service fixture.");
+    }
+
+    const githubProviderId = `gitprov_ovgh_${suffix}`.slice(0, 32);
+    const githubInstallationId = `gitinst_ovgh_${suffix}`.slice(0, 32);
+    const gitlabProviderId = `gitprov_ovgl_${suffix}`.slice(0, 32);
+    const gitlabInstallationId = `gitinst_ovgl_${suffix}`.slice(0, 32);
+
+    await db.insert(gitProviders).values([
+      {
+        id: githubProviderId,
+        type: "github",
+        name: `Overlap GitHub ${suffix}`,
+        appId: "123456",
+        privateKeyEncrypted: encrypt(privateKeyPem),
+        webhookSecret: "overlap-github-webhook-secret",
+        status: "active",
+        updatedAt: new Date()
+      },
+      {
+        id: gitlabProviderId,
+        type: "gitlab",
+        name: `Overlap GitLab ${suffix}`,
+        webhookSecret: "overlap-gitlab-webhook-secret",
+        status: "active",
+        updatedAt: new Date()
+      }
+    ]);
+
+    await db.insert(gitInstallations).values([
+      {
+        id: githubInstallationId,
+        providerId: githubProviderId,
+        installationId: "704",
+        accountName: "example",
+        accountType: "organization",
+        repositorySelection: "selected",
+        status: "active",
+        installedByUserId: "user_foundation_owner",
+        updatedAt: new Date()
+      },
+      {
+        id: gitlabInstallationId,
+        providerId: gitlabProviderId,
+        installationId: "705",
+        accountName: "example",
+        accountType: "group",
+        repositorySelection: "all",
+        permissions: encodeGitInstallationPermissions({ accessToken: "glpat-overlap-app" }),
+        status: "active",
+        installedByUserId: "user_foundation_owner",
+        updatedAt: new Date()
+      }
+    ]);
+
+    const githubFetch = mockGitHubSourceFetch({
+      repoFullName: sharedRepoFullName,
+      installationId: "704"
+    });
+    const gitlabFetch = mockGitLabSourceFetch({
+      repoFullName: sharedRepoFullName,
+      projectId: 705
+    });
+
+    vi.spyOn(globalThis, "fetch").mockImplementation((request) => {
+      const url = toRequestUrl(request);
+      if (url.startsWith("https://api.github.com/")) {
+        return githubFetch(request);
+      }
+
+      if (url.startsWith("https://gitlab.com/api/v4/")) {
+        return gitlabFetch(request);
+      }
+
+      throw new Error(`Unexpected fetch request: ${url}`);
+    });
+
+    await db
+      .update(projects)
+      .set({
+        repoFullName: sharedRepoFullName,
+        sourceType: "compose",
+        gitProviderId: githubProviderId,
+        gitInstallationId: githubInstallationId,
+        autoDeploy: true,
+        autoDeployBranch: "main",
+        defaultBranch: "main",
+        updatedAt: new Date()
+      })
+      .where(eq(projects.id, githubProject.project.id));
+
+    await db
+      .update(projects)
+      .set({
+        repoFullName: sharedRepoFullName,
+        sourceType: "compose",
+        gitProviderId: gitlabProviderId,
+        gitInstallationId: gitlabInstallationId,
+        autoDeploy: true,
+        autoDeployBranch: "main",
+        defaultBranch: "main",
+        updatedAt: new Date()
+      })
+      .where(eq(projects.id, gitlabProject.project.id));
+
+    const githubCommitSha = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+    const githubPayload = JSON.stringify({
+      ref: "refs/heads/main",
+      after: githubCommitSha,
+      repository: { full_name: sharedRepoFullName },
+      sender: { login: "octocat" }
+    });
+    const githubSignature =
+      "sha256=" +
+      createHmac("sha256", "overlap-github-webhook-secret").update(githubPayload).digest("hex");
+
+    const app = createApp();
+    const githubResponse = await app.request("/api/webhooks/github", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-GitHub-Event": "push",
+        "X-Hub-Signature-256": githubSignature
+      },
+      body: githubPayload
+    });
+    const githubBody = (await githubResponse.json()) as { ok: boolean; deployments: number };
+
+    expect(githubResponse.status).toBe(200);
+    expect(githubBody.ok).toBe(true);
+    expect(githubBody.deployments).toBe(1);
+
+    const githubQueued = await db
+      .select()
+      .from(deployments)
+      .where(eq(deployments.commitSha, githubCommitSha));
+
+    expect(githubQueued).toHaveLength(1);
+    expect(githubQueued[0]).toEqual(
+      expect.objectContaining({
+        serviceName: "github-runtime",
+        requestedByEmail: "octocat",
+        requestedByRole: "agent"
+      })
     );
   });
 
