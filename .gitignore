@@ -20,3 +20,4 @@ claude-review.md
 tmp/postiz-research/
 .playwright-mcp/console-2026-*.log
 *.tsbuildinfo
+*.tsbuildinfo

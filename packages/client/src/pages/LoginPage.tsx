@@ -179,24 +179,25 @@ export default function LoginPage() {
                         {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                       </button>
                     </div>
-                    {password.length > 0 && (() => {
-                      const strength = getPasswordStrength(password);
-                      return (
-                        <div className="space-y-1">
-                          <div className="flex gap-1">
-                            {[1, 2, 3, 4, 5].map((i) => (
-                              <div
-                                key={i}
-                                className={`h-1 flex-1 rounded-full transition-colors ${
-                                  i <= strength.score ? strength.color : "bg-muted"
-                                }`}
-                              />
-                            ))}
+                    {password.length > 0 &&
+                      (() => {
+                        const strength = getPasswordStrength(password);
+                        return (
+                          <div className="space-y-1">
+                            <div className="flex gap-1">
+                              {[1, 2, 3, 4, 5].map((i) => (
+                                <div
+                                  key={i}
+                                  className={`h-1 flex-1 rounded-full transition-colors ${
+                                    i <= strength.score ? strength.color : "bg-muted"
+                                  }`}
+                                />
+                              ))}
+                            </div>
+                            <p className="text-xs text-muted-foreground">{strength.label}</p>
                           </div>
-                          <p className="text-xs text-muted-foreground">{strength.label}</p>
-                        </div>
-                      );
-                    })()}
+                        );
+                      })()}
                   </div>
                   <Button type="submit" className="w-full" disabled={loading}>
                     {loading ? "Creating account…" : "Create account"}
