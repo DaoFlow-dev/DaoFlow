@@ -1,8 +1,9 @@
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowDownUp, FileText } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { ArrowDownUp, FileText, Save, Wrench } from "lucide-react";
 import { trpc } from "@/lib/trpc";
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EnvVarTable } from "./EnvVarTable";
 import { RawEnvEditor } from "./RawEnvEditor";
@@ -28,6 +29,12 @@ export default function EnvironmentTab({
 }: EnvironmentTabProps) {
   const [mode, setMode] = useState<"table" | "raw">("table");
   const [rawText, setRawText] = useState("");
+  const [buildArgs, setBuildArgs] = useState("");
+  const [buildSecrets, setBuildSecrets] = useState("");
+  const [savedBuildArgs, setSavedBuildArgs] = useState("");
+  const [savedBuildSecrets, setSavedBuildSecrets] = useState("");
+
+  const hasUnsavedChanges = buildArgs !== savedBuildArgs || buildSecrets !== savedBuildSecrets;
 
   const envQuery = trpc.environmentVariables.useQuery(
     { environmentId: environmentId, limit: 100 },
@@ -68,6 +75,31 @@ export default function EnvironmentTab({
       }
     }
   }
+
+  function handleSaveBuildConfig() {
+    setSavedBuildArgs(buildArgs);
+    setSavedBuildSecrets(buildSecrets);
+  }
+
+  // Cmd+S keyboard shortcut
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "s") {
+        e.preventDefault();
+        if (mode === "raw") {
+          handleSaveRaw();
+        } else if (hasUnsavedChanges) {
+          handleSaveBuildConfig();
+        }
+      }
+    },
+    [mode, rawText, hasUnsavedChanges, buildArgs, buildSecrets]
+  );
+
+  useEffect(() => {
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [handleKeyDown]);
 
   if (envQuery.isLoading) {
     return (
@@ -136,6 +168,67 @@ export default function EnvironmentTab({
           isPending={upsertMutation.isPending}
         />
       )}
+
+      {/* Build Args & Secrets (Dokploy pattern) */}
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Wrench size={14} />
+              Build Configuration
+            </CardTitle>
+            {hasUnsavedChanges && (
+              <Badge variant="outline" className="text-xs text-amber-500 border-amber-500">
+                Unsaved changes
+              </Badge>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <label className="text-sm font-medium mb-1.5 block">Build-time Arguments</label>
+            <p className="text-xs text-muted-foreground mb-2">
+              Arguments available only at build-time (ARG in Dockerfile). One per line: KEY=value
+            </p>
+            <textarea
+              className="w-full min-h-[80px] rounded-md border bg-background px-3 py-2 text-sm font-mono placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-y"
+              placeholder={"NPM_TOKEN=xyz\nNODE_ENV=production"}
+              value={buildArgs}
+              onChange={(e) => setBuildArgs(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="text-sm font-medium mb-1.5 block">Build-time Secrets</label>
+            <p className="text-xs text-muted-foreground mb-2">
+              Secrets available only at build-time via --mount=type=secret. Never stored in image layers.
+            </p>
+            <textarea
+              className="w-full min-h-[80px] rounded-md border bg-background px-3 py-2 text-sm font-mono placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-y"
+              placeholder={"DB_PASSWORD=secret123\nAPI_KEY=sk-..."}
+              value={buildSecrets}
+              onChange={(e) => setBuildSecrets(e.target.value)}
+            />
+          </div>
+          {hasUnsavedChanges && (
+            <div className="flex justify-end gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  setBuildArgs(savedBuildArgs);
+                  setBuildSecrets(savedBuildSecrets);
+                }}
+              >
+                Cancel
+              </Button>
+              <Button size="sm" onClick={handleSaveBuildConfig}>
+                <Save size={14} className="mr-1" />
+                Save (⌘S)
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
