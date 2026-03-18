@@ -1,7 +1,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Power, Trash2 } from "lucide-react";
+import { Power, Trash2, Send } from "lucide-react";
 import { labelChannelType } from "@/lib/notification-config";
 
 interface Channel {
@@ -19,8 +19,10 @@ interface ChannelCardListProps {
   channels: Channel[];
   onToggle: (id: string, enabled: boolean) => void;
   onDelete: (id: string) => void;
+  onTest?: (id: string) => void;
   isTogglePending: boolean;
   isDeletePending: boolean;
+  isTestPending?: boolean;
 }
 
 function readText(value: unknown, fallback = "") {
@@ -31,8 +33,10 @@ export function ChannelCardList({
   channels,
   onToggle,
   onDelete,
+  onTest,
   isTogglePending,
-  isDeletePending
+  isDeletePending,
+  isTestPending
 }: ChannelCardListProps) {
   return (
     <div className="grid gap-4">
@@ -56,6 +60,18 @@ export function ChannelCardList({
                 <Badge variant={channel.enabled ? "default" : "secondary"}>
                   {channel.enabled ? "Enabled" : "Disabled"}
                 </Badge>
+                {onTest && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => onTest(readText(channel.id, "channel"))}
+                    disabled={isTestPending}
+                    title="Send test notification"
+                  >
+                    <Send size={14} className="mr-1" />
+                    Test
+                  </Button>
+                )}
                 <Button
                   variant="ghost"
                   size="sm"

@@ -14,8 +14,8 @@ import {
   TableRow
 } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
-import { DatabaseBackup, Plus, Clock, PlayCircle, StopCircle } from "lucide-react";
-import { getBackupOperationBadgeVariant } from "../lib/tone-utils";
+import { DatabaseBackup, Plus, Clock, PlayCircle, StopCircle, RotateCcw } from "lucide-react";
+import { getBackupOperationBadgeVariant, formatBytes } from "../lib/tone-utils";
 
 export default function BackupsPage() {
   const session = useSession();
@@ -186,8 +186,10 @@ export default function BackupsPage() {
                     <TableRow>
                       <TableHead>Service</TableHead>
                       <TableHead>Status</TableHead>
+                      <TableHead>Size</TableHead>
                       <TableHead>Trigger</TableHead>
                       <TableHead>Finished</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -201,11 +203,29 @@ export default function BackupsPage() {
                             {String(r.status)}
                           </Badge>
                         </TableCell>
+                        <TableCell className="text-muted-foreground font-mono text-xs">
+                          {(r as Record<string, unknown>).sizeBytes
+                            ? formatBytes(Number((r as Record<string, unknown>).sizeBytes))
+                            : "—"}
+                        </TableCell>
                         <TableCell className="text-muted-foreground">
                           {String(r.triggerKind)}
                         </TableCell>
                         <TableCell className="text-muted-foreground">
                           {r.finishedAt ? new Date(r.finishedAt).toLocaleString() : "—"}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {String(r.status) === "succeeded" && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled
+                              title="Restore from this backup"
+                            >
+                              <RotateCcw size={14} className="mr-1" />
+                              Restore
+                            </Button>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))}
