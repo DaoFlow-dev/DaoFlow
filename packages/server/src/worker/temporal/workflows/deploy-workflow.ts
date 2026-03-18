@@ -10,6 +10,7 @@
 
 import { proxyActivities, ApplicationFailure } from "@temporalio/workflow";
 import type * as activities from "../activities/deploy-activities";
+import type { DeploymentWorkflowInput } from "../../deployment-workflow-input";
 
 const { runDeploymentActivity, cleanupDeploymentStaging } = proxyActivities<typeof activities>({
   startToCloseTimeout: "15 minutes",
@@ -20,15 +21,6 @@ const { runDeploymentActivity, cleanupDeploymentStaging } = proxyActivities<type
     maximumInterval: "2m"
   }
 });
-
-export interface DeploymentWorkflowInput {
-  id: string;
-  serviceName: string;
-  sourceType: string;
-  imageTag: string | null;
-  commitSha: string | null;
-  configSnapshot: unknown;
-}
 
 /**
  * Main deployment workflow.

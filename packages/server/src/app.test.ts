@@ -1,7 +1,15 @@
+import { createHmac } from "node:crypto";
+import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 import { createApp } from "./app";
 import { ensureControlPlaneReady, resetControlPlaneSeedState } from "./db/services/seed";
 import { createAgentPrincipal, generateAgentToken } from "./db/services/agents";
+import { db } from "./db/connection";
+import { deployments } from "./db/schema/deployments";
+import { gitProviders } from "./db/schema/git-providers";
+import { projects } from "./db/schema/projects";
+import { createEnvironment, createProject } from "./db/services/projects";
+import { createService } from "./db/services/services";
 import { resetTestDatabase } from "./test-db";
 import {
   ensureInitialOwnerFromEnv,
@@ -329,6 +337,336 @@ describe("createApp", () => {
     expect(response.status).toBe(200);
     expect(body.ok).toBe(true);
     expect(body.deploymentId).toEqual(expect.any(String));
+  });
+
+  it("queues executable deployments for GitHub webhook auto-deploy targets", async () => {
+    await resetTestDatabase();
+    resetControlPlaneSeedState();
+    await ensureControlPlaneReady();
+
+    const suffix = Date.now();
+    const projectResult = await createProject({
+      name: `Webhook GitHub ${suffix}`,
+      repoUrl: "https://github.com/example/webhook-app",
+      teamId: "team_foundation",
+      requestedByUserId: "user_foundation_owner",
+      requestedByEmail: "owner@daoflow.local",
+      requestedByRole: "owner"
+    });
+    expect(projectResult.status).toBe("ok");
+    if (projectResult.status !== "ok") {
+      throw new Error("Failed to create webhook project fixture.");
+    }
+
+    const environmentResult = await createEnvironment({
+      projectId: projectResult.project.id,
+      name: "production",
+      targetServerId: "srv_foundation_1",
+      requestedByUserId: "user_foundation_owner",
+      requestedByEmail: "owner@daoflow.local",
+      requestedByRole: "owner"
+    });
+    expect(environmentResult.status).toBe("ok");
+    if (environmentResult.status !== "ok") {
+      throw new Error("Failed to create webhook environment fixture.");
+    }
+
+    const serviceResult = await createService({
+      name: "control-plane",
+      projectId: projectResult.project.id,
+      environmentId: environmentResult.environment.id,
+      sourceType: "compose",
+      requestedByUserId: "user_foundation_owner",
+      requestedByEmail: "owner@daoflow.local",
+      requestedByRole: "owner"
+    });
+    expect(serviceResult.status).toBe("ok");
+    if (serviceResult.status !== "ok") {
+      throw new Error("Failed to create webhook service fixture.");
+    }
+
+    await db.insert(gitProviders).values({
+      id: "gitprov_webhook_gh",
+      type: "github",
+      name: `Webhook GitHub ${suffix}`,
+      webhookSecret: "github-webhook-secret",
+      status: "active",
+      updatedAt: new Date()
+    });
+
+    await db
+      .update(projects)
+      .set({
+        repoFullName: "example/webhook-app",
+        sourceType: "compose",
+        gitProviderId: "gitprov_webhook_gh",
+        autoDeploy: true,
+        autoDeployBranch: "main",
+        defaultBranch: "main",
+        updatedAt: new Date()
+      })
+      .where(eq(projects.id, projectResult.project.id));
+
+    const payload = JSON.stringify({
+      ref: "refs/heads/main",
+      after: "abcdef1234567890abcdef1234567890abcdef12",
+      repository: { full_name: "example/webhook-app" },
+      sender: { login: "octocat" }
+    });
+    const signature =
+      "sha256=" + createHmac("sha256", "github-webhook-secret").update(payload).digest("hex");
+
+    const app = createApp();
+    const response = await app.request("/api/webhooks/github", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-GitHub-Event": "push",
+        "X-Hub-Signature-256": signature
+      },
+      body: payload
+    });
+    const body = (await response.json()) as { ok: boolean; deployments: number };
+
+    expect(response.status).toBe(200);
+    expect(body.ok).toBe(true);
+    expect(body.deployments).toBe(1);
+
+    const queued = await db
+      .select()
+      .from(deployments)
+      .where(eq(deployments.serviceName, "control-plane"));
+
+    expect(queued).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          targetServerId: "srv_foundation_1",
+          trigger: "webhook",
+          commitSha: "abcdef1234567890abcdef1234567890abcdef12",
+          requestedByUserId: null,
+          requestedByEmail: "octocat",
+          requestedByRole: "agent"
+        })
+      ])
+    );
+  });
+
+  it("still queues webhook deployments when project sourceType drifts from service sourceType", async () => {
+    await resetTestDatabase();
+    resetControlPlaneSeedState();
+    await ensureControlPlaneReady();
+
+    const suffix = Date.now();
+    const projectResult = await createProject({
+      name: `Webhook Drift ${suffix}`,
+      repoUrl: "https://github.com/example/webhook-drift",
+      teamId: "team_foundation",
+      requestedByUserId: "user_foundation_owner",
+      requestedByEmail: "owner@daoflow.local",
+      requestedByRole: "owner"
+    });
+    expect(projectResult.status).toBe("ok");
+    if (projectResult.status !== "ok") {
+      throw new Error("Failed to create webhook drift project fixture.");
+    }
+
+    const environmentResult = await createEnvironment({
+      projectId: projectResult.project.id,
+      name: "production",
+      targetServerId: "srv_foundation_1",
+      requestedByUserId: "user_foundation_owner",
+      requestedByEmail: "owner@daoflow.local",
+      requestedByRole: "owner"
+    });
+    expect(environmentResult.status).toBe("ok");
+    if (environmentResult.status !== "ok") {
+      throw new Error("Failed to create webhook drift environment fixture.");
+    }
+
+    const serviceResult = await createService({
+      name: "drifted-compose-service",
+      projectId: projectResult.project.id,
+      environmentId: environmentResult.environment.id,
+      sourceType: "compose",
+      requestedByUserId: "user_foundation_owner",
+      requestedByEmail: "owner@daoflow.local",
+      requestedByRole: "owner"
+    });
+    expect(serviceResult.status).toBe("ok");
+    if (serviceResult.status !== "ok") {
+      throw new Error("Failed to create webhook drift service fixture.");
+    }
+
+    await db.insert(gitProviders).values({
+      id: "gitprov_webhook_drift",
+      type: "github",
+      name: `Webhook Drift ${suffix}`,
+      webhookSecret: "github-webhook-drift-secret",
+      status: "active",
+      updatedAt: new Date()
+    });
+
+    await db
+      .update(projects)
+      .set({
+        repoFullName: "example/webhook-drift",
+        sourceType: "dockerfile",
+        gitProviderId: "gitprov_webhook_drift",
+        autoDeploy: true,
+        autoDeployBranch: "main",
+        defaultBranch: "main",
+        updatedAt: new Date()
+      })
+      .where(eq(projects.id, projectResult.project.id));
+
+    const payload = JSON.stringify({
+      ref: "refs/heads/main",
+      after: "fedcba0987654321fedcba0987654321fedcba09",
+      repository: { full_name: "example/webhook-drift" },
+      sender: { login: "octocat" }
+    });
+    const signature =
+      "sha256=" + createHmac("sha256", "github-webhook-drift-secret").update(payload).digest("hex");
+
+    const app = createApp();
+    const response = await app.request("/api/webhooks/github", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-GitHub-Event": "push",
+        "X-Hub-Signature-256": signature
+      },
+      body: payload
+    });
+    const body = (await response.json()) as { ok: boolean; deployments: number };
+
+    expect(response.status).toBe(200);
+    expect(body.ok).toBe(true);
+    expect(body.deployments).toBe(1);
+
+    const queued = await db
+      .select()
+      .from(deployments)
+      .where(eq(deployments.serviceName, "drifted-compose-service"));
+
+    expect(queued).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          targetServerId: "srv_foundation_1",
+          trigger: "webhook",
+          commitSha: "fedcba0987654321fedcba0987654321fedcba09"
+        })
+      ])
+    );
+  });
+
+  it("queues executable deployments for GitLab webhook auto-deploy targets", async () => {
+    await resetTestDatabase();
+    resetControlPlaneSeedState();
+    await ensureControlPlaneReady();
+
+    const suffix = Date.now();
+    const projectResult = await createProject({
+      name: `Webhook GitLab ${suffix}`,
+      repoUrl: "https://gitlab.com/example/webhook-app",
+      teamId: "team_foundation",
+      requestedByUserId: "user_foundation_owner",
+      requestedByEmail: "owner@daoflow.local",
+      requestedByRole: "owner"
+    });
+    expect(projectResult.status).toBe("ok");
+    if (projectResult.status !== "ok") {
+      throw new Error("Failed to create GitLab webhook project fixture.");
+    }
+
+    const environmentResult = await createEnvironment({
+      projectId: projectResult.project.id,
+      name: "production",
+      targetServerId: "srv_foundation_1",
+      requestedByUserId: "user_foundation_owner",
+      requestedByEmail: "owner@daoflow.local",
+      requestedByRole: "owner"
+    });
+    expect(environmentResult.status).toBe("ok");
+    if (environmentResult.status !== "ok") {
+      throw new Error("Failed to create GitLab webhook environment fixture.");
+    }
+
+    const serviceResult = await createService({
+      name: "agent-runtime",
+      projectId: projectResult.project.id,
+      environmentId: environmentResult.environment.id,
+      sourceType: "compose",
+      requestedByUserId: "user_foundation_owner",
+      requestedByEmail: "owner@daoflow.local",
+      requestedByRole: "owner"
+    });
+    expect(serviceResult.status).toBe("ok");
+    if (serviceResult.status !== "ok") {
+      throw new Error("Failed to create GitLab webhook service fixture.");
+    }
+
+    await db.insert(gitProviders).values({
+      id: "gitprov_webhook_gl",
+      type: "gitlab",
+      name: `Webhook GitLab ${suffix}`,
+      webhookSecret: "gitlab-webhook-secret",
+      status: "active",
+      updatedAt: new Date()
+    });
+
+    await db
+      .update(projects)
+      .set({
+        repoFullName: "example/webhook-app",
+        sourceType: "compose",
+        gitProviderId: "gitprov_webhook_gl",
+        autoDeploy: true,
+        autoDeployBranch: "main",
+        defaultBranch: "main",
+        updatedAt: new Date()
+      })
+      .where(eq(projects.id, projectResult.project.id));
+
+    const payload = JSON.stringify({
+      ref: "refs/heads/main",
+      after: "1234567890abcdef1234567890abcdef12345678",
+      project: { path_with_namespace: "example/webhook-app" },
+      user_name: "gitlab-bot"
+    });
+
+    const app = createApp();
+    const response = await app.request("/api/webhooks/gitlab", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-GitLab-Token": "gitlab-webhook-secret"
+      },
+      body: payload
+    });
+    const body = (await response.json()) as { ok: boolean; deployments: number };
+
+    expect(response.status).toBe(200);
+    expect(body.ok).toBe(true);
+    expect(body.deployments).toBe(1);
+
+    const queued = await db
+      .select()
+      .from(deployments)
+      .where(eq(deployments.serviceName, "agent-runtime"));
+
+    expect(queued).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          targetServerId: "srv_foundation_1",
+          trigger: "webhook",
+          commitSha: "1234567890abcdef1234567890abcdef12345678",
+          requestedByUserId: null,
+          requestedByEmail: "gitlab-bot",
+          requestedByRole: "agent"
+        })
+      ])
+    );
   });
 
   it("rejects unauthenticated GET /api/v1/logs/stream with 401", async () => {

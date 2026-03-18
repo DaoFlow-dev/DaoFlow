@@ -13,7 +13,8 @@ import { eq, and } from "drizzle-orm";
 import { db } from "../db/connection";
 import { gitProviders } from "../db/schema/git-providers";
 import { projects } from "../db/schema/projects";
-import { createDeploymentRecord } from "../db/services/deployments";
+import { services } from "../db/schema/services";
+import { triggerDeploy } from "../db/services/trigger-deploy";
 import { auditEntries } from "../db/schema/audit";
 
 /* ──────────────────────── HMAC Validation ──────────────────────── */
@@ -49,6 +50,52 @@ interface GitLabPushEvent {
   after?: string;
   project?: { path_with_namespace?: string };
   user_name?: string;
+}
+
+interface WebhookDeployFailure {
+  serviceId: string;
+  status: string;
+  entity?: string;
+}
+
+async function triggerWebhookDeploys(input: {
+  projectId: string;
+  commitSha: string;
+  requestedByEmail: string;
+}) {
+  const matchingServices = await db
+    .select({ id: services.id })
+    .from(services)
+    .where(eq(services.projectId, input.projectId));
+
+  const queuedDeployments = [];
+  const failures: WebhookDeployFailure[] = [];
+  for (const service of matchingServices) {
+    const result = await triggerDeploy({
+      serviceId: service.id,
+      commitSha: input.commitSha,
+      requestedByUserId: null,
+      requestedByEmail: input.requestedByEmail,
+      requestedByRole: "agent",
+      trigger: "webhook"
+    });
+
+    if (result.status === "ok" && result.deployment) {
+      queuedDeployments.push(result.deployment);
+      continue;
+    }
+
+    failures.push({
+      serviceId: service.id,
+      status: result.status,
+      entity: result.status === "not_found" ? result.entity : undefined
+    });
+  }
+
+  return {
+    deployments: queuedDeployments,
+    failures
+  };
 }
 
 /* ──────────────────────── Routes ──────────────────────── */
@@ -114,30 +161,31 @@ webhooksRouter.post("/github", async (c) => {
     const commitSha = payload.after ?? "";
 
     const deployments = [];
+    const failedTargets: WebhookDeployFailure[] = [];
     for (const project of matchingProjects) {
       const targetBranch = project.autoDeployBranch || project.defaultBranch || "main";
       if (branch !== targetBranch) continue;
 
-      const deployment = await createDeploymentRecord({
-        projectName: project.name,
-        environmentName: "production",
-        serviceName: project.name,
-        sourceType: project.sourceType as "compose" | "dockerfile" | "image",
-        targetServerId: "",
+      const projectResult = await triggerWebhookDeploys({
+        projectId: project.id,
         commitSha,
-        imageTag: "",
-        requestedByUserId: "",
-        requestedByEmail: payload.sender?.login ?? "github-webhook",
-        requestedByRole: "agent",
-        steps: [
-          { label: "Webhook received", detail: `Push to ${branch} by ${payload.sender?.login}` },
-          { label: "Clone repository", detail: `${repoFullName}@${commitSha.slice(0, 7)}` },
-          { label: "Build", detail: `Source: ${project.sourceType}` },
-          { label: "Deploy", detail: "Starting containers" },
-          { label: "Health check", detail: "Verifying deployment" }
-        ]
+        requestedByEmail: payload.sender?.login ?? "github-webhook"
       });
-      if (deployment) deployments.push(deployment);
+      deployments.push(...projectResult.deployments);
+      failedTargets.push(...projectResult.failures);
+    }
+
+    if (failedTargets.length > 0) {
+      console.warn(
+        JSON.stringify({
+          level: "warn",
+          message: "GitHub webhook auto-deploy skipped one or more targets",
+          repoFullName,
+          branch,
+          commitSha,
+          failedTargets
+        })
+      );
     }
 
     await db.insert(auditEntries).values({
@@ -147,15 +195,23 @@ webhooksRouter.post("/github", async (c) => {
       actorRole: "agent",
       targetResource: `webhook/github/${repoFullName}`,
       action: "webhook.push",
-      inputSummary: `Push to ${branch} (${commitSha.slice(0, 7)}) → ${deployments.length} deployments`,
+      inputSummary: `Push to ${branch} (${commitSha.slice(0, 7)}) → ${deployments.length} deployments, ${failedTargets.length} failures`,
       permissionScope: "deploy:start",
       outcome: "success",
-      metadata: { repoFullName, branch, commitSha, deploymentCount: deployments.length }
+      metadata: {
+        repoFullName,
+        branch,
+        commitSha,
+        deploymentCount: deployments.length,
+        failedTargetCount: failedTargets.length,
+        failedTargets
+      }
     });
 
     return c.json({
       ok: true,
       deployments: deployments.length,
+      failedTargets: failedTargets.length,
       branch,
       commit: commitSha.slice(0, 7)
     });
@@ -215,30 +271,31 @@ webhooksRouter.post("/gitlab", async (c) => {
     const commitSha = payload.after ?? "";
 
     const deployments = [];
+    const failedTargets: WebhookDeployFailure[] = [];
     for (const project of matchingProjects) {
       const targetBranch = project.autoDeployBranch || project.defaultBranch || "main";
       if (branch !== targetBranch) continue;
 
-      const deployment = await createDeploymentRecord({
-        projectName: project.name,
-        environmentName: "production",
-        serviceName: project.name,
-        sourceType: project.sourceType as "compose" | "dockerfile" | "image",
-        targetServerId: "",
+      const projectResult = await triggerWebhookDeploys({
+        projectId: project.id,
         commitSha,
-        imageTag: "",
-        requestedByUserId: "",
-        requestedByEmail: payload.user_name ?? "gitlab-webhook",
-        requestedByRole: "agent",
-        steps: [
-          { label: "Webhook received", detail: `Push to ${branch} by ${payload.user_name}` },
-          { label: "Clone repository", detail: `${repoFullName}@${commitSha.slice(0, 7)}` },
-          { label: "Build", detail: `Source: ${project.sourceType}` },
-          { label: "Deploy", detail: "Starting containers" },
-          { label: "Health check", detail: "Verifying deployment" }
-        ]
+        requestedByEmail: payload.user_name ?? "gitlab-webhook"
       });
-      if (deployment) deployments.push(deployment);
+      deployments.push(...projectResult.deployments);
+      failedTargets.push(...projectResult.failures);
+    }
+
+    if (failedTargets.length > 0) {
+      console.warn(
+        JSON.stringify({
+          level: "warn",
+          message: "GitLab webhook auto-deploy skipped one or more targets",
+          repoFullName,
+          branch,
+          commitSha,
+          failedTargets
+        })
+      );
     }
 
     await db.insert(auditEntries).values({
@@ -248,15 +305,23 @@ webhooksRouter.post("/gitlab", async (c) => {
       actorRole: "agent",
       targetResource: `webhook/gitlab/${repoFullName}`,
       action: "webhook.push",
-      inputSummary: `Push to ${branch} (${commitSha.slice(0, 7)}) → ${deployments.length} deployments`,
+      inputSummary: `Push to ${branch} (${commitSha.slice(0, 7)}) → ${deployments.length} deployments, ${failedTargets.length} failures`,
       permissionScope: "deploy:start",
       outcome: "success",
-      metadata: { repoFullName, branch, commitSha, deploymentCount: deployments.length }
+      metadata: {
+        repoFullName,
+        branch,
+        commitSha,
+        deploymentCount: deployments.length,
+        failedTargetCount: failedTargets.length,
+        failedTargets
+      }
     });
 
     return c.json({
       ok: true,
       deployments: deployments.length,
+      failedTargets: failedTargets.length,
       branch,
       commit: commitSha.slice(0, 7)
     });

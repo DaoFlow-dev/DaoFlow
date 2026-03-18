@@ -10,7 +10,11 @@ import { basename, isAbsolute } from "node:path";
 import { db } from "../connection";
 import { services } from "../schema/services";
 import { environments, projects } from "../schema/projects";
-import { createDeploymentRecord, type CreateDeploymentInput } from "./deployments";
+import {
+  createDeploymentRecord,
+  type CreateDeploymentInput,
+  type DeploymentTrigger
+} from "./deployments";
 import { dispatchDeploymentExecution } from "./deployment-dispatch";
 import type { AppRole } from "@daoflow/shared";
 import { asRecord, readString } from "./json-helpers";
@@ -19,9 +23,10 @@ export interface TriggerDeployInput {
   serviceId: string;
   commitSha?: string;
   imageTag?: string;
-  requestedByUserId: string;
-  requestedByEmail: string;
-  requestedByRole: AppRole;
+  requestedByUserId?: string | null;
+  requestedByEmail?: string | null;
+  requestedByRole?: AppRole | null;
+  trigger?: DeploymentTrigger;
 }
 
 /** Generate deployment steps based on sourceType. */
@@ -123,9 +128,10 @@ export async function triggerDeploy(input: TriggerDeployInput) {
     targetServerId,
     commitSha: input.commitSha ?? "",
     imageTag: input.imageTag ?? svc.imageReference ?? "",
-    requestedByUserId: input.requestedByUserId,
-    requestedByEmail: input.requestedByEmail,
-    requestedByRole: input.requestedByRole,
+    requestedByUserId: input.requestedByUserId ?? null,
+    requestedByEmail: input.requestedByEmail ?? null,
+    requestedByRole: input.requestedByRole ?? null,
+    trigger: input.trigger ?? "user",
     steps: stepsForSourceType(svc.sourceType),
     configSnapshot
   };

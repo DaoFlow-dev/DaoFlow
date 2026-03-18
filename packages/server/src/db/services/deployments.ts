@@ -26,6 +26,7 @@ import {
 
 export type DeploymentStatus = DeploymentLifecycleStatus;
 export type DeploymentSourceType = "compose" | "dockerfile" | "image";
+export type DeploymentTrigger = (typeof deployments.$inferSelect)["trigger"];
 
 async function loadProjectEnvironmentByNames(projectName: string, environmentName: string) {
   const [project] = await db.select().from(projects).where(eq(projects.name, projectName)).limit(1);
@@ -123,9 +124,10 @@ export interface CreateDeploymentInput {
   targetServerId: string;
   commitSha: string;
   imageTag: string;
-  requestedByUserId: string;
-  requestedByEmail: string;
-  requestedByRole: AppRole;
+  requestedByUserId?: string | null;
+  requestedByEmail?: string | null;
+  requestedByRole?: AppRole | null;
+  trigger?: DeploymentTrigger;
   steps: readonly { label: string; detail: string }[];
   configSnapshot?: Record<string, unknown>;
 }
@@ -160,12 +162,19 @@ export async function createDeploymentRecord(input: CreateDeploymentInput) {
       ...(input.configSnapshot ?? {})
     },
     status: "queued",
-    trigger: "user",
-    requestedByUserId: input.requestedByUserId,
-    requestedByEmail: input.requestedByEmail,
-    requestedByRole: input.requestedByRole,
+    trigger: input.trigger ?? "user",
+    requestedByUserId: input.requestedByUserId ?? null,
+    requestedByEmail: input.requestedByEmail ?? null,
+    requestedByRole: input.requestedByRole ?? null,
     updatedAt: now
   });
+
+  const actorType = input.requestedByUserId ? "user" : "system";
+  const actorId =
+    input.requestedByUserId ??
+    (input.trigger === "webhook"
+      ? `webhook:${input.requestedByEmail ?? "unknown"}`
+      : "system:deployment");
 
   await db.insert(deploymentSteps).values(
     input.steps.map((step, index) => ({
@@ -179,10 +188,10 @@ export async function createDeploymentRecord(input: CreateDeploymentInput) {
   );
 
   await db.insert(auditEntries).values({
-    actorType: "user",
-    actorId: input.requestedByUserId,
-    actorEmail: input.requestedByEmail,
-    actorRole: input.requestedByRole,
+    actorType,
+    actorId,
+    actorEmail: input.requestedByEmail ?? null,
+    actorRole: input.requestedByRole ?? null,
     targetResource: `deployment/${deploymentId}`,
     action: "deployment.create",
     inputSummary: `Queued ${input.serviceName} for ${input.environmentName}.`,

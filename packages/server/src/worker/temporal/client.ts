@@ -7,6 +7,7 @@
  */
 
 import { Connection, Client } from "@temporalio/client";
+import type { DeploymentWorkflowInput } from "../deployment-workflow-input";
 
 let client: Client | null = null;
 
@@ -30,14 +31,9 @@ export async function getTemporalClient(): Promise<Client> {
  *
  * Returns the workflow run ID for tracking in the Temporal UI.
  */
-export async function startDeploymentWorkflow(input: {
-  id: string;
-  serviceName: string;
-  sourceType: string;
-  imageTag: string | null;
-  commitSha: string | null;
-  configSnapshot: unknown;
-}): Promise<{ workflowId: string; runId: string }> {
+export async function startDeploymentWorkflow(
+  input: DeploymentWorkflowInput
+): Promise<{ workflowId: string; runId: string }> {
   const tc = await getTemporalClient();
 
   const handle = await tc.workflow.start("deploymentWorkflow", {
