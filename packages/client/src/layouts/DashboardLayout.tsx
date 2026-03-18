@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { NavLink, Navigate, Outlet, useLocation } from "react-router-dom";
+import { NavLink, Navigate, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import { useTheme } from "../components/ThemeProvider";
 import { useSession, authClient } from "../lib/auth-client";
@@ -67,6 +67,7 @@ function breadcrumbFromPath(pathname: string): string[] {
 export function DashboardLayout() {
   const session = useSession();
   const location = useLocation();
+  const navigate = useNavigate();
   const [collapsed, setCollapsed] = useState(false);
   const themeCtx = useTheme();
   const crumbs = breadcrumbFromPath(location.pathname);
@@ -192,6 +193,13 @@ export function DashboardLayout() {
                 <p className="font-medium">{session.data.user.name}</p>
                 <p className="text-xs text-muted-foreground">{session.data.user.email}</p>
               </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() => void navigate("/profile")}
+              >
+                <User size={14} />
+                Profile Settings
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 onClick={() => void authClient.signOut()}

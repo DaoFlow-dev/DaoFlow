@@ -18,6 +18,7 @@ const GitCallbackPage = lazy(() => import("./pages/GitCallbackPage"));
 const LoginPage = lazy(() => import("./pages/LoginPage"));
 const NotFoundPage = lazy(() => import("./pages/NotFoundPage"));
 const NotificationChannelsPage = lazy(() => import("./pages/NotificationChannelsPage"));
+const UserProfilePage = lazy(() => import("./pages/UserProfilePage"));
 
 function routeElement(Component: ComponentType) {
   return (
@@ -52,6 +53,7 @@ export const router = createBrowserRouter([
       { path: "notifications", element: routeElement(NotificationChannelsPage) },
       { path: "settings", element: routeElement(SettingsPage) },
       { path: "settings/git/callback", element: routeElement(GitCallbackPage) },
+      { path: "profile", element: routeElement(UserProfilePage) },
       { path: "*", element: routeElement(NotFoundPage) }
     ]
   }
