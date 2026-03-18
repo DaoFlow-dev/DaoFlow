@@ -11,7 +11,12 @@
 
 import { Command } from "commander";
 import chalk from "chalk";
-import { resolveCommandJsonOption } from "../command-helpers";
+import {
+  emitJsonError,
+  emitJsonSuccess,
+  getErrorMessage,
+  resolveCommandJsonOption
+} from "../command-helpers";
 import { createClient } from "../trpc-client";
 
 export function backupCommand(): Command {
@@ -31,7 +36,7 @@ export function backupCommand(): Command {
         const data = await trpc.backupOverview.query({ limit: Number(opts.limit) });
 
         if (isJson) {
-          console.log(JSON.stringify({ ok: true, ...data }, null, 2));
+          emitJsonSuccess(data);
           return;
         }
 
@@ -62,9 +67,7 @@ export function backupCommand(): Command {
         }
         console.log("");
       } catch (err) {
-        console.error(
-          JSON.stringify({ ok: false, error: err instanceof Error ? err.message : "Unknown error" })
-        );
+        emitJsonError(getErrorMessage(err), "API_ERROR");
         process.exit(1);
       }
     });
@@ -85,19 +88,12 @@ export function backupCommand(): Command {
         const isJson = resolveCommandJsonOption(command, opts.json);
 
         if (opts.dryRun) {
-          console.log(
-            JSON.stringify(
-              {
-                ok: true,
-                dryRun: true,
-                action: "backup.restore",
-                backupRunId: opts.backupRunId,
-                message: "Would queue a restore from this backup run"
-              },
-              null,
-              2
-            )
-          );
+          emitJsonSuccess({
+            dryRun: true,
+            action: "backup.restore",
+            backupRunId: opts.backupRunId,
+            message: "Would queue a restore from this backup run"
+          });
           process.exit(3);
         }
 
@@ -105,24 +101,25 @@ export function backupCommand(): Command {
           const trpc = createClient();
 
           if (!opts.yes) {
-            console.error(`To restore from backup ${opts.backupRunId}, add --yes`);
+            const error = `To restore from backup ${opts.backupRunId}, add --yes`;
+            if (isJson) {
+              emitJsonError(error, "CONFIRMATION_REQUIRED");
+            } else {
+              console.error(error);
+            }
             process.exit(1);
+            return;
           }
 
           const result = await trpc.queueBackupRestore.mutate({ backupRunId: opts.backupRunId });
 
           if (isJson) {
-            console.log(JSON.stringify({ ok: true, ...result }, null, 2));
+            emitJsonSuccess(result);
           } else {
             console.log(chalk.green(`✅ Restore queued: ${result.id}`));
           }
         } catch (err) {
-          console.error(
-            JSON.stringify({
-              ok: false,
-              error: err instanceof Error ? err.message : "Unknown error"
-            })
-          );
+          emitJsonError(getErrorMessage(err), "API_ERROR");
           process.exit(1);
         }
       }
@@ -141,7 +138,7 @@ export function backupCommand(): Command {
         const data = await trpc.backupDestinations.query({});
 
         if (isJson) {
-          console.log(JSON.stringify({ ok: true, destinations: data }, null, 2));
+          emitJsonSuccess({ destinations: data });
           return;
         }
 
@@ -169,9 +166,7 @@ export function backupCommand(): Command {
         }
         console.log("");
       } catch (err) {
-        console.error(
-          JSON.stringify({ ok: false, error: err instanceof Error ? err.message : "Unknown error" })
-        );
+        emitJsonError(getErrorMessage(err), "API_ERROR");
         process.exit(1);
       }
     });
@@ -224,26 +219,25 @@ export function backupCommand(): Command {
         const isJson = resolveCommandJsonOption(command, opts.json);
 
         if (opts.dryRun) {
-          console.log(
-            JSON.stringify(
-              {
-                ok: true,
-                dryRun: true,
-                action: "destination.create",
-                name: opts.name,
-                provider: opts.provider,
-                message: `Would create backup destination "${opts.name}" (${opts.provider})`
-              },
-              null,
-              2
-            )
-          );
+          emitJsonSuccess({
+            dryRun: true,
+            action: "destination.create",
+            name: opts.name,
+            provider: opts.provider,
+            message: `Would create backup destination "${opts.name}" (${opts.provider})`
+          });
           process.exit(3);
         }
 
         if (!opts.yes) {
-          console.error(`To create destination "${opts.name}", add --yes`);
+          const error = `To create destination "${opts.name}", add --yes`;
+          if (isJson) {
+            emitJsonError(error, "CONFIRMATION_REQUIRED");
+          } else {
+            console.error(error);
+          }
           process.exit(1);
+          return;
         }
 
         try {
@@ -270,17 +264,12 @@ export function backupCommand(): Command {
           });
 
           if (isJson) {
-            console.log(JSON.stringify({ ok: true, ...result }, null, 2));
+            emitJsonSuccess(result);
           } else {
             console.log(chalk.green(`✅ Destination created: ${result.id}`));
           }
         } catch (err) {
-          console.error(
-            JSON.stringify({
-              ok: false,
-              error: err instanceof Error ? err.message : "Unknown error"
-            })
-          );
+          emitJsonError(getErrorMessage(err), "API_ERROR");
           process.exit(1);
         }
       }
@@ -300,8 +289,13 @@ export function backupCommand(): Command {
         const result = await trpc.testBackupDestination.mutate({ id: opts.id });
 
         if (isJson) {
-          console.log(JSON.stringify({ ok: result.success, error: result.error ?? null }, null, 2));
-          return;
+          if (result.success) {
+            emitJsonSuccess({ success: true, error: null });
+            return;
+          }
+
+          emitJsonError(result.error ?? "Connection failed", "DESTINATION_TEST_FAILED");
+          process.exit(1);
         }
 
         if (result.success) {
@@ -311,9 +305,7 @@ export function backupCommand(): Command {
           process.exit(1);
         }
       } catch (err) {
-        console.error(
-          JSON.stringify({ ok: false, error: err instanceof Error ? err.message : "Unknown error" })
-        );
+        emitJsonError(getErrorMessage(err), "API_ERROR");
         process.exit(1);
       }
     });
@@ -329,8 +321,14 @@ export function backupCommand(): Command {
       const isJson = resolveCommandJsonOption(command, opts.json);
 
       if (!opts.yes) {
-        console.error(`To delete destination ${opts.id}, add --yes`);
+        const error = `To delete destination ${opts.id}, add --yes`;
+        if (isJson) {
+          emitJsonError(error, "CONFIRMATION_REQUIRED");
+        } else {
+          console.error(error);
+        }
         process.exit(1);
+        return;
       }
 
       try {
@@ -338,14 +336,12 @@ export function backupCommand(): Command {
         const result = await trpc.deleteBackupDestination.mutate({ id: opts.id });
 
         if (isJson) {
-          console.log(JSON.stringify(result, null, 2));
+          emitJsonSuccess(result);
         } else {
           console.log(chalk.green(`✅ Destination deleted`));
         }
       } catch (err) {
-        console.error(
-          JSON.stringify({ ok: false, error: err instanceof Error ? err.message : "Unknown error" })
-        );
+        emitJsonError(getErrorMessage(err), "API_ERROR");
         process.exit(1);
       }
     });
@@ -377,26 +373,25 @@ export function backupCommand(): Command {
         const isJson = resolveCommandJsonOption(command, opts.json);
 
         if (opts.dryRun) {
-          console.log(
-            JSON.stringify(
-              {
-                ok: true,
-                dryRun: true,
-                action: "backup.schedule.enable",
-                policyId: opts.policy,
-                schedule: opts.cron,
-                message: `Would enable cron schedule "${opts.cron}" for policy ${opts.policy}`
-              },
-              null,
-              2
-            )
-          );
+          emitJsonSuccess({
+            dryRun: true,
+            action: "backup.schedule.enable",
+            policyId: opts.policy,
+            schedule: opts.cron,
+            message: `Would enable cron schedule "${opts.cron}" for policy ${opts.policy}`
+          });
           process.exit(3);
         }
 
         if (!opts.yes) {
-          console.error(`To enable schedule for policy ${opts.policy}, add --yes`);
+          const error = `To enable schedule for policy ${opts.policy}, add --yes`;
+          if (isJson) {
+            emitJsonError(error, "CONFIRMATION_REQUIRED");
+          } else {
+            console.error(error);
+          }
           process.exit(1);
+          return;
         }
 
         try {
@@ -407,7 +402,7 @@ export function backupCommand(): Command {
           });
 
           if (isJson) {
-            console.log(JSON.stringify({ ok: true, ...result }, null, 2));
+            emitJsonSuccess(result);
           } else {
             console.log(
               chalk.green(
@@ -416,12 +411,7 @@ export function backupCommand(): Command {
             );
           }
         } catch (err) {
-          console.error(
-            JSON.stringify({
-              ok: false,
-              error: err instanceof Error ? err.message : "Unknown error"
-            })
-          );
+          emitJsonError(getErrorMessage(err), "API_ERROR");
           process.exit(1);
         }
       }
@@ -437,8 +427,14 @@ export function backupCommand(): Command {
       const isJson = resolveCommandJsonOption(command, opts.json);
 
       if (!opts.yes) {
-        console.error(`To disable schedule for policy ${opts.policy}, add --yes`);
+        const error = `To disable schedule for policy ${opts.policy}, add --yes`;
+        if (isJson) {
+          emitJsonError(error, "CONFIRMATION_REQUIRED");
+        } else {
+          console.error(error);
+        }
         process.exit(1);
+        return;
       }
 
       try {
@@ -448,14 +444,12 @@ export function backupCommand(): Command {
         });
 
         if (isJson) {
-          console.log(JSON.stringify({ ok: true, ...result }, null, 2));
+          emitJsonSuccess(result);
         } else {
           console.log(chalk.green("✅ Schedule disabled"));
         }
       } catch (err) {
-        console.error(
-          JSON.stringify({ ok: false, error: err instanceof Error ? err.message : "Unknown error" })
-        );
+        emitJsonError(getErrorMessage(err), "API_ERROR");
         process.exit(1);
       }
     });
@@ -476,25 +470,24 @@ export function backupCommand(): Command {
         const isJson = resolveCommandJsonOption(command, opts.json);
 
         if (opts.dryRun) {
-          console.log(
-            JSON.stringify(
-              {
-                ok: true,
-                dryRun: true,
-                action: "backup.run",
-                policyId: opts.policy,
-                message: `Would trigger one-off backup for policy ${opts.policy}`
-              },
-              null,
-              2
-            )
-          );
+          emitJsonSuccess({
+            dryRun: true,
+            action: "backup.run",
+            policyId: opts.policy,
+            message: `Would trigger one-off backup for policy ${opts.policy}`
+          });
           process.exit(3);
         }
 
         if (!opts.yes) {
-          console.error(`To trigger backup for policy ${opts.policy}, add --yes`);
+          const error = `To trigger backup for policy ${opts.policy}, add --yes`;
+          if (isJson) {
+            emitJsonError(error, "CONFIRMATION_REQUIRED");
+          } else {
+            console.error(error);
+          }
           process.exit(1);
+          return;
         }
 
         try {
@@ -504,17 +497,12 @@ export function backupCommand(): Command {
           });
 
           if (isJson) {
-            console.log(JSON.stringify({ ok: true, ...result }, null, 2));
+            emitJsonSuccess(result);
           } else {
             console.log(chalk.green(`✅ Backup triggered (run: ${result.id})`));
           }
         } catch (err) {
-          console.error(
-            JSON.stringify({
-              ok: false,
-              error: err instanceof Error ? err.message : "Unknown error"
-            })
-          );
+          emitJsonError(getErrorMessage(err), "API_ERROR");
           process.exit(1);
         }
       }
@@ -537,25 +525,24 @@ export function backupCommand(): Command {
         const isJson = resolveCommandJsonOption(command, opts.json);
 
         if (opts.dryRun) {
-          console.log(
-            JSON.stringify(
-              {
-                ok: true,
-                dryRun: true,
-                action: "backup.verify",
-                backupRunId: opts.backupRunId,
-                message: "Would trigger a test restore to verify this backup"
-              },
-              null,
-              2
-            )
-          );
+          emitJsonSuccess({
+            dryRun: true,
+            action: "backup.verify",
+            backupRunId: opts.backupRunId,
+            message: "Would trigger a test restore to verify this backup"
+          });
           process.exit(3);
         }
 
         if (!opts.yes) {
-          console.error(`To verify backup ${opts.backupRunId}, add --yes`);
+          const error = `To verify backup ${opts.backupRunId}, add --yes`;
+          if (isJson) {
+            emitJsonError(error, "CONFIRMATION_REQUIRED");
+          } else {
+            console.error(error);
+          }
           process.exit(1);
+          return;
         }
 
         try {
@@ -563,7 +550,7 @@ export function backupCommand(): Command {
           const result = await trpc.triggerTestRestore.mutate({ backupRunId: opts.backupRunId });
 
           if (isJson) {
-            console.log(JSON.stringify({ ok: true, ...result }, null, 2));
+            emitJsonSuccess(result);
           } else {
             console.log(chalk.green(`✅ Test restore queued: ${result.id}`));
             console.log(
@@ -572,12 +559,7 @@ export function backupCommand(): Command {
             console.log(chalk.dim(`  daoflow backup list --json | jq '.runs[]'`));
           }
         } catch (err) {
-          console.error(
-            JSON.stringify({
-              ok: false,
-              error: err instanceof Error ? err.message : "Unknown error"
-            })
-          );
+          emitJsonError(getErrorMessage(err), "API_ERROR");
           process.exit(1);
         }
       }
@@ -601,17 +583,17 @@ export function backupCommand(): Command {
         if (!run) {
           const error = "Backup run not found";
           if (isJson) {
-            console.log(JSON.stringify({ ok: false, error }, null, 2));
+            emitJsonError(error, "NOT_FOUND");
           } else {
             console.error(chalk.red(`❌ ${error}`));
           }
           process.exit(1);
+          return;
         }
 
         // Cast to access fields that may not be typed yet
         const runData = run as Record<string, unknown>;
         const info = {
-          ok: true,
           id: run.id,
           status: run.status,
           artifact: run.artifactPath ?? null,
@@ -624,7 +606,7 @@ export function backupCommand(): Command {
         };
 
         if (isJson) {
-          console.log(JSON.stringify(info, null, 2));
+          emitJsonSuccess(info);
         } else {
           console.log(chalk.bold("\n📥 Backup Download Info\n"));
           console.log(`  ID:         ${run.id}`);
@@ -636,9 +618,7 @@ export function backupCommand(): Command {
           console.log("");
         }
       } catch (err) {
-        console.error(
-          JSON.stringify({ ok: false, error: err instanceof Error ? err.message : "Unknown error" })
-        );
+        emitJsonError(getErrorMessage(err), "API_ERROR");
         process.exit(1);
       }
     });
