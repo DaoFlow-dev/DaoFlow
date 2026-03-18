@@ -76,10 +76,17 @@ The CLI stores configuration in `~/.daoflow/config.json`:
 
 ```json
 {
-  "apiUrl": "http://localhost:3000",
-  "token": "dfl_abc123...",
-  "defaultProject": "my-web-app",
-  "defaultEnvironment": "production",
-  "defaultServer": "my-vps"
+  "currentContext": "default",
+  "contexts": {
+    "default": {
+      "apiUrl": "http://localhost:3000",
+      "token": "dfl_abc123...",
+      "authMethod": "api-token"
+    }
+  }
 }
 ```
+
+For automation, `DAOFLOW_URL` and `DAOFLOW_TOKEN` can provide a runtime auth context without writing a config file.
+
+For fresh server installs, `DAOFLOW_INITIAL_ADMIN_EMAIL` and `DAOFLOW_INITIAL_ADMIN_PASSWORD` can preseed the first owner account that `daoflow install` writes into the generated `.env`.

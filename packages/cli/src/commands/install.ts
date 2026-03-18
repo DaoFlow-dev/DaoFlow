@@ -8,6 +8,8 @@ import ora from "ora";
 import { getErrorMessage, getExecErrorMessage, resolveCommandJsonOption } from "../command-helpers";
 import { fetchComposeYml, generateEnvFile, defaultInstallDir, parseEnvFile } from "../templates";
 import { CLI_VERSION } from "../version";
+const INITIAL_ADMIN_EMAIL_ENV = "DAOFLOW_INITIAL_ADMIN_EMAIL";
+const INITIAL_ADMIN_PASSWORD_ENV = "DAOFLOW_INITIAL_ADMIN_PASSWORD";
 
 interface InstallOptions {
   dir: string;
@@ -20,6 +22,8 @@ interface InstallOptions {
   _pgPassword?: string;
   _temporalPgPassword?: string;
 }
+
+type InitialAdminCredentialSource = "none" | "flags" | "env" | "mixed";
 
 /**
  * Prompt the user for input (interactive mode).
@@ -54,6 +58,56 @@ function checkDocker(): { available: boolean; compose: boolean; version?: string
   }
 }
 
+interface InstallRuntime {
+  checkDocker(this: void): { available: boolean; compose: boolean; version?: string };
+  exec(this: void, command: string, options?: Parameters<typeof execSync>[1]): string | Buffer;
+  fetch(this: void, url: string): Promise<Response>;
+  fetchComposeYml(this: void): Promise<string>;
+  prompt(this: void, question: string, defaultValue?: string): Promise<string>;
+  sleep(this: void, ms: number): Promise<void>;
+}
+
+export const installRuntime: InstallRuntime = {
+  checkDocker,
+  exec: (command, options) => execSync(command, options),
+  fetch: (url) => globalThis.fetch(url),
+  fetchComposeYml,
+  prompt,
+  sleep: (ms) =>
+    new Promise((resolve) => {
+      setTimeout(resolve, ms);
+    })
+};
+
+export function resolveInitialAdminCredentials(
+  options: Pick<InstallOptions, "email" | "password">,
+  env: NodeJS.ProcessEnv = process.env
+): {
+  email: string | undefined;
+  password: string | undefined;
+  source: InitialAdminCredentialSource;
+} {
+  const optionEmail = options.email?.trim() || undefined;
+  const optionPassword = options.password?.trim() || undefined;
+  const envEmail = env[INITIAL_ADMIN_EMAIL_ENV]?.trim() || undefined;
+  const envPassword = env[INITIAL_ADMIN_PASSWORD_ENV]?.trim() || undefined;
+  const emailFromEnv = !optionEmail && !!envEmail;
+  const passwordFromEnv = !optionPassword && !!envPassword;
+
+  let source: InitialAdminCredentialSource = "none";
+  if (optionEmail || optionPassword) {
+    source = emailFromEnv || passwordFromEnv ? "mixed" : "flags";
+  } else if (envEmail || envPassword) {
+    source = "env";
+  }
+
+  return {
+    email: optionEmail ?? envEmail,
+    password: optionPassword ?? envPassword,
+    source
+  };
+}
+
 export function installCommand(): Command {
   return new Command("install")
     .description(
@@ -62,8 +116,14 @@ export function installCommand(): Command {
     .option("--dir <path>", "Installation directory", defaultInstallDir())
     .option("--domain <hostname>", "Public domain (e.g., deploy.example.com)")
     .option("--port <number>", "HTTP port", "3000")
-    .option("--email <email>", "Admin email for first user")
-    .option("--password <password>", "Admin password for first user")
+    .option(
+      "--email <email>",
+      `Admin email for first user (defaults to ${INITIAL_ADMIN_EMAIL_ENV})`
+    )
+    .option(
+      "--password <password>",
+      `Admin password for first user (defaults to ${INITIAL_ADMIN_PASSWORD_ENV})`
+    )
     .option("--yes", "Skip confirmation prompts")
     .option("--json", "Output as structured JSON")
     .action(async (opts: InstallOptions, command: Command) => {
@@ -72,7 +132,7 @@ export function installCommand(): Command {
 
       // -- Step 1: Check Docker --
       const spinner = !isJson ? ora("Checking Docker...").start() : null;
-      const docker = checkDocker();
+      const docker = installRuntime.checkDocker();
 
       if (!docker.available) {
         spinner?.fail("Docker is not installed");
@@ -113,8 +173,9 @@ export function installCommand(): Command {
       let dir = opts.dir;
       let domain = opts.domain ?? "localhost";
       let port = parseInt(opts.port, 10);
-      let email = opts.email;
-      let password = opts.password;
+      const initialAdmin = resolveInitialAdminCredentials(opts);
+      let email = initialAdmin.email;
+      let password = initialAdmin.password;
 
       if (!isNonInteractive) {
         console.error(chalk.bold("\n🚀 DaoFlow Installer\n"));
@@ -122,12 +183,16 @@ export function installCommand(): Command {
           chalk.dim("This will create a production DaoFlow instance on this server.\n")
         );
 
-        dir = await prompt("Install directory", dir);
-        domain = await prompt("Domain name", domain || "localhost");
-        const portStr = await prompt("HTTP port", String(port));
+        dir = await installRuntime.prompt("Install directory", dir);
+        domain = await installRuntime.prompt("Domain name", domain || "localhost");
+        const portStr = await installRuntime.prompt("HTTP port", String(port));
         port = parseInt(portStr, 10);
-        email = await prompt("Admin email", email);
-        password = await prompt("Admin password", password);
+        email = await installRuntime.prompt("Admin email", email);
+        if (password) {
+          console.error(chalk.dim("Admin password already provided via flag or environment."));
+        } else {
+          password = await installRuntime.prompt("Admin password");
+        }
 
         if (!email || !password) {
           console.error(chalk.red("Email and password are required for the admin account."));
@@ -135,7 +200,7 @@ export function installCommand(): Command {
         }
 
         // Password generation choice
-        const pwChoice = await prompt(
+        const pwChoice = await installRuntime.prompt(
           "Database passwords — auto-generate or enter manually? (auto/manual)",
           "auto"
         );
@@ -144,8 +209,8 @@ export function installCommand(): Command {
         let temporalPgPassword: string | undefined;
 
         if (pwChoice.toLowerCase() === "manual") {
-          pgPassword = await prompt("Postgres password (daoflow DB)");
-          temporalPgPassword = await prompt("Postgres password (temporal DB)");
+          pgPassword = await installRuntime.prompt("Postgres password (daoflow DB)");
+          temporalPgPassword = await installRuntime.prompt("Postgres password (temporal DB)");
           if (!pgPassword || !temporalPgPassword) {
             console.error(chalk.red("Both database passwords are required."));
             process.exit(1);
@@ -167,7 +232,7 @@ export function installCommand(): Command {
         console.error(`  DB Passwords:  ${chalk.cyan(pgPassword ? "manual" : "auto-generated")}`);
         console.error();
 
-        const confirm = await prompt("Proceed? (y/N)", "y");
+        const confirm = await installRuntime.prompt("Proceed? (y/N)", "y");
         if (confirm.toLowerCase() !== "y") {
           console.error(chalk.yellow("Cancelled."));
           process.exit(0);
@@ -175,13 +240,13 @@ export function installCommand(): Command {
       } else {
         // Non-interactive validation
         if (!email) {
-          const msg = "Admin email is required (--email)";
+          const msg = `Admin email is required (--email or ${INITIAL_ADMIN_EMAIL_ENV})`;
           if (isJson) console.log(JSON.stringify({ ok: false, error: msg, code: "MISSING_EMAIL" }));
           else console.error(chalk.red(msg));
           process.exit(1);
         }
         if (!password) {
-          const msg = "Admin password is required (--password)";
+          const msg = `Admin password is required (--password or ${INITIAL_ADMIN_PASSWORD_ENV})`;
           if (isJson)
             console.log(JSON.stringify({ ok: false, error: msg, code: "MISSING_PASSWORD" }));
           else console.error(chalk.red(msg));
@@ -201,7 +266,10 @@ export function installCommand(): Command {
           console.error(
             chalk.yellow(`\nExisting DaoFlow installation found (v${existingVersion}).`)
           );
-          const overwrite = await prompt("Overwrite? This will regenerate secrets. (y/N)", "n");
+          const overwrite = await installRuntime.prompt(
+            "Overwrite? This will regenerate secrets. (y/N)",
+            "n"
+          );
           if (overwrite.toLowerCase() !== "y") {
             console.error(chalk.dim("Use 'daoflow upgrade' to update to a new version instead."));
             process.exit(0);
@@ -234,7 +302,7 @@ export function installCommand(): Command {
       // -- Step 6: Fetch docker-compose.yml --
       const composeSpinner = !isJson ? ora("Fetching docker-compose.yml...").start() : null;
       try {
-        const composeContent = await fetchComposeYml();
+        const composeContent = await installRuntime.fetchComposeYml();
         writeFileSync(composePath, composeContent);
         composeSpinner?.succeed("docker-compose.yml written");
       } catch (error) {
@@ -253,7 +321,7 @@ export function installCommand(): Command {
         ? ora("Pulling Docker images (this may take a minute)...").start()
         : null;
       try {
-        execSync("docker compose pull", {
+        installRuntime.exec("docker compose pull", {
           cwd: dir,
           stdio: "pipe",
           env: { ...process.env, ...parseEnvFile(readFileSync(envPath, "utf-8")) }
@@ -266,7 +334,7 @@ export function installCommand(): Command {
       // -- Step 8: Start services --
       const startSpinner = !isJson ? ora("Starting DaoFlow services...").start() : null;
       try {
-        execSync("docker compose up -d", {
+        installRuntime.exec("docker compose up -d", {
           cwd: dir,
           stdio: "pipe"
         });
@@ -287,7 +355,7 @@ export function installCommand(): Command {
       let healthy = false;
       for (let i = 0; i < 30; i++) {
         try {
-          const resp = await fetch(`http://127.0.0.1:${port}/trpc/health`);
+          const resp = await installRuntime.fetch(`http://127.0.0.1:${port}/trpc/health`);
           if (resp.ok) {
             healthy = true;
             break;
@@ -295,7 +363,7 @@ export function installCommand(): Command {
         } catch {
           // Not ready yet
         }
-        await new Promise((r) => setTimeout(r, 2000));
+        await installRuntime.sleep(2000);
       }
 
       if (healthy) {
@@ -330,7 +398,7 @@ export function installCommand(): Command {
         console.error(`  Version:    ${chalk.dim(CLI_VERSION)}`);
         console.error();
         console.error(chalk.bold("Next steps:"));
-        console.error(`  1. Open ${chalk.cyan(url)} and create your admin account`);
+        console.error(`  1. Open ${chalk.cyan(url)} and sign in as ${chalk.cyan(email ?? "")}`);
         console.error(`  2. Register your first server`);
         console.error(`  3. Deploy your first application`);
         console.error();

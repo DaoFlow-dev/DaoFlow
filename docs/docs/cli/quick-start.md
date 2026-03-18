@@ -21,22 +21,38 @@ cd packages/cli && bun run build && bun link
 ## Authenticate
 
 ```bash
-# Interactive login
-daoflow login
+# Browser/device-code login
+daoflow login --url https://your-daoflow.example.com --sso
 
-# Or set token directly (for agents)
+# If the CLI cannot open a browser, it prints the verification URL
+# and prompts for the one-time CLI code after you approve the session.
+
+# Or password login
+daoflow login --url http://localhost:3000 --email owner@daoflow.local --password secret1234
+
+# Or set env vars directly (for agents and CI)
 export DAOFLOW_TOKEN="dfl_your_token_here"
 export DAOFLOW_URL="https://your-daoflow.example.com"
+```
+
+## Bootstrap a Fresh Install
+
+```bash
+# Let daoflow install seed the first owner into the generated .env
+export DAOFLOW_INITIAL_ADMIN_EMAIL="owner@your-daoflow.example.com"
+export DAOFLOW_INITIAL_ADMIN_PASSWORD="replace-this-secret"
+
+daoflow install --dir /opt/daoflow --yes
 ```
 
 ## Check Your Identity
 
 ```bash
 daoflow whoami --json
-# → { "ok": true, "user": { "email": "...", "role": "owner" } }
+# → { "ok": true, "data": { "principal": { "email": "..." }, "role": "owner", "authMethod": "api-token" } }
 
 daoflow capabilities --json
-# → { "ok": true, "scopes": ["server:read", "deploy:start", ...] }
+# → { "ok": true, "data": { "scopes": ["server:read", "deploy:start", ...] } }
 ```
 
 ## Common Workflows

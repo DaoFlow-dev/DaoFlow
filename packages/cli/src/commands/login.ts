@@ -9,6 +9,7 @@ import {
 } from "../command-helpers";
 import { setContext } from "../config";
 import { tryOpenBrowser } from "../browser";
+import { buildAuthHeaders } from "../auth-headers";
 
 interface LoginResponseBody {
   token?: string;
@@ -55,6 +56,20 @@ function sleep(ms: number): Promise<void> {
   });
 }
 
+interface LoginRuntime {
+  fetch(this: void, input: string | URL | Request, init?: RequestInit): Promise<Response>;
+  prompt(this: void, question: string): Promise<string>;
+  sleep(this: void, ms: number): Promise<void>;
+  tryOpenBrowser(this: void, url: string): boolean;
+}
+
+export const loginRuntime: LoginRuntime = {
+  fetch: (input, init) => globalThis.fetch(input, init),
+  prompt,
+  sleep,
+  tryOpenBrowser
+};
+
 function emitLoginError(isJson: boolean, error: string, code: string): void {
   if (isJson) {
     console.log(JSON.stringify({ ok: false, error, code }));
@@ -64,7 +79,7 @@ function emitLoginError(isJson: boolean, error: string, code: string): void {
 }
 
 async function startSsoFlow(baseUrl: string): Promise<DeviceStartResponse> {
-  const res = await fetch(`${baseUrl}/api/v1/cli-auth/start`, {
+  const res = await loginRuntime.fetch(`${baseUrl}/api/v1/cli-auth/start`, {
     method: "POST",
     headers: { "Content-Type": "application/json" }
   });
@@ -82,7 +97,7 @@ async function exchangeSsoCode(
   userCode: string,
   exchangeCode: string
 ): Promise<string> {
-  const res = await fetch(`${baseUrl}/api/v1/cli-auth/exchange`, {
+  const res = await loginRuntime.fetch(`${baseUrl}/api/v1/cli-auth/exchange`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ requestId, userCode, exchangeCode })
@@ -106,7 +121,7 @@ async function pollSsoCode(
   const expiresAt = new Date(expiresAtIso).getTime();
 
   while (Date.now() < expiresAt) {
-    const res = await fetch(
+    const res = await loginRuntime.fetch(
       `${baseUrl}/api/v1/cli-auth/status?requestId=${encodeURIComponent(requestId)}&userCode=${encodeURIComponent(userCode)}`
     );
 
@@ -119,12 +134,51 @@ async function pollSsoCode(
       return body.exchangeCode;
     }
 
-    await sleep(intervalSeconds * 1000);
+    await loginRuntime.sleep(intervalSeconds * 1000);
   }
 
   return null;
 }
 
+async function validateCredential(
+  baseUrl: string,
+  token: string
+): Promise<{
+  ok: boolean;
+  authMethod: "session" | "api-token";
+  principalEmail: string | null;
+  role: string | null;
+}> {
+  const res = await loginRuntime.fetch(`${baseUrl}/trpc/viewer`, {
+    headers: buildAuthHeaders(token)
+  });
+
+  if (!res.ok) {
+    return {
+      ok: false,
+      authMethod: token.startsWith("dfl_") ? "api-token" : "session",
+      principalEmail: null,
+      role: null
+    };
+  }
+
+  const payload = (await res.json().catch(() => null)) as {
+    result?: {
+      data?: {
+        principal?: { email?: string | null };
+        authz?: { authMethod?: "session" | "api-token"; role?: string | null };
+      };
+    };
+  } | null;
+  const data = payload?.result?.data;
+
+  return {
+    ok: true,
+    authMethod: data?.authz?.authMethod ?? (token.startsWith("dfl_") ? "api-token" : "session"),
+    principalEmail: data?.principal?.email ?? null,
+    role: data?.authz?.role ?? null
+  };
+}
 export function loginCommand(): Command {
   return new Command("login")
     .description("Authenticate with a DaoFlow server")
@@ -153,7 +207,7 @@ export function loginCommand(): Command {
         const baseUrl = url.replace(/\/$/, "");
 
         try {
-          const res = await fetch(`${baseUrl}/health`);
+          const res = await loginRuntime.fetch(`${baseUrl}/health`);
           if (!res.ok) {
             emitLoginError(isJson, `Server returned ${res.status}`, "SERVER_ERROR");
             process.exit(1);
@@ -189,15 +243,26 @@ export function loginCommand(): Command {
           sessionToken = opts.token;
         } else if (opts.sso) {
           authMode = "sso";
-          console.error(chalk.dim("Starting browser sign-in..."));
+          if (!isJson) {
+            console.error(chalk.dim("Starting browser sign-in..."));
+          }
 
           try {
             const device = await startSsoFlow(baseUrl);
-            const opened = tryOpenBrowser(device.verificationUri);
+            const opened = loginRuntime.tryOpenBrowser(device.verificationUri);
 
-            console.error(chalk.dim(`User code: ${device.userCode}`));
+            if (!isJson) {
+              console.error(chalk.dim(`Verification URL: ${device.verificationUri}`));
+              console.error(chalk.dim(`User code: ${device.userCode}`));
+            }
             if (opened) {
-              console.error(chalk.dim(`Opened ${device.verificationUri}`));
+              if (!isJson) {
+                console.error(
+                  chalk.dim(
+                    "Opened a browser window. If it did not appear, open the verification URL manually."
+                  )
+                );
+              }
               const exchangeCode = await pollSsoCode(
                 baseUrl,
                 device.requestId,
@@ -214,12 +279,14 @@ export function loginCommand(): Command {
                   exchangeCode
                 );
               } else {
-                console.error(
-                  chalk.yellow(
-                    "Browser login was not approved in time. Paste the one-time CLI code shown in the browser."
-                  )
-                );
-                const pastedCode = await prompt("CLI code: ");
+                if (!isJson) {
+                  console.error(
+                    chalk.yellow(
+                      "Browser login was not approved in time. Paste the one-time CLI code shown in the browser."
+                    )
+                  );
+                }
+                const pastedCode = await loginRuntime.prompt("CLI code: ");
                 sessionToken = await exchangeSsoCode(
                   baseUrl,
                   device.requestId,
@@ -228,9 +295,16 @@ export function loginCommand(): Command {
                 );
               }
             } else {
-              console.error(chalk.yellow("No browser could be opened for SSO."));
-              console.error(chalk.yellow(`Open this URL manually: ${device.verificationUri}`));
-              const pastedCode = await prompt("Paste the one-time CLI code: ");
+              if (!isJson) {
+                console.error(chalk.yellow("No browser could be opened automatically for SSO."));
+                console.error(chalk.yellow(`Open this URL manually: ${device.verificationUri}`));
+                console.error(
+                  chalk.dim(
+                    "After you approve the CLI session in the browser, paste the one-time CLI code shown on the page."
+                  )
+                );
+              }
+              const pastedCode = await loginRuntime.prompt("Paste the one-time CLI code: ");
               sessionToken = await exchangeSsoCode(
                 baseUrl,
                 device.requestId,
@@ -250,7 +324,7 @@ export function loginCommand(): Command {
           }
 
           try {
-            const res = await fetch(`${baseUrl}/api/auth/sign-in/email`, {
+            const res = await loginRuntime.fetch(`${baseUrl}/api/auth/sign-in/email`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ email: opts.email, password: opts.password }),
@@ -306,29 +380,37 @@ export function loginCommand(): Command {
         }
 
         let validated = true;
+        let validatedAuthMethod: "session" | "api-token" = sessionToken.startsWith("dfl_")
+          ? "api-token"
+          : "session";
+        let validatedPrincipalEmail: string | null = null;
+        let validatedRole: string | null = null;
         try {
-          const res = await fetch(`${baseUrl}/trpc/viewer`, {
-            headers: {
-              Cookie: `better-auth.session_token=${sessionToken}`
-            }
-          });
-          if (!res.ok) {
+          const validation = await validateCredential(baseUrl, sessionToken);
+          if (!validation.ok) {
             emitLoginError(
               isJson,
-              "Token validation failed — session may be expired",
+              "Credential validation failed — token or session may be expired",
               "TOKEN_VALIDATION_FAILED"
             );
             process.exit(1);
             return;
           }
+          validatedAuthMethod = validation.authMethod;
+          validatedPrincipalEmail = validation.principalEmail;
+          validatedRole = validation.role;
         } catch {
           validated = false;
           if (!isJson) {
-            console.error(chalk.yellow("⚠ Could not validate session — saving anyway"));
+            console.error(chalk.yellow("Could not validate credential live; saving anyway."));
           }
         }
 
-        setContext(context, { apiUrl: baseUrl, token: sessionToken });
+        setContext(context, {
+          apiUrl: baseUrl,
+          token: sessionToken,
+          authMethod: validatedAuthMethod
+        });
 
         if (isJson) {
           console.log(
@@ -338,14 +420,23 @@ export function loginCommand(): Command {
                 apiUrl: baseUrl,
                 context,
                 authMode,
-                validated
+                validated,
+                authMethod: validatedAuthMethod,
+                principalEmail: validatedPrincipalEmail,
+                role: validatedRole
               }
             })
           );
           return;
         }
 
-        console.log(chalk.green(`✓ Logged in to ${baseUrl} as context "${context}"`));
+        const identitySuffix =
+          validatedPrincipalEmail && validatedRole
+            ? ` (${validatedPrincipalEmail}, ${validatedRole}, ${validatedAuthMethod})`
+            : ` (${validatedAuthMethod})`;
+        console.log(
+          chalk.green(`Logged in to ${baseUrl} as context "${context}"${identitySuffix}`)
+        );
       }
     );
 }
