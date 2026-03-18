@@ -20,6 +20,7 @@ interface BackupRun {
   targetType: string;
   triggerKind: string;
   status: string;
+  statusTone?: string;
   requestedBy: string;
   artifactPath: string | null;
 }
@@ -30,6 +31,7 @@ interface RestoreRequest {
   environmentName: string;
   targetType: string;
   status: string;
+  statusTone?: string;
   destinationServerName: string;
   restorePath: string | null;
   sourceArtifactPath: string | null;
@@ -218,60 +220,66 @@ export function BackupCatalog({
           </div>
 
           <div className="backup-run-list">
-            {backupOverview.data.runs.map((run) => (
-              <article className="timeline-event" data-testid={`backup-run-${run.id}`} key={run.id}>
-                <div className="timeline-event__top">
-                  <div>
-                    <p className="roadmap-item__lane">
-                      {run.environmentName} · {run.triggerKind}
-                    </p>
-                    <h3>{run.serviceName}</h3>
+            {backupOverview.data.runs.map((run) => {
+              const statusTone = run.statusTone ?? getBackupOperationTone(run.status);
+
+              return (
+                <article
+                  className="timeline-event"
+                  data-testid={`backup-run-${run.id}`}
+                  key={run.id}
+                >
+                  <div className="timeline-event__top">
+                    <div>
+                      <p className="roadmap-item__lane">
+                        {run.environmentName} · {run.triggerKind}
+                      </p>
+                      <h3>{run.serviceName}</h3>
+                    </div>
+                    <span className={`deployment-status deployment-status--${statusTone}`}>
+                      {run.status}
+                    </span>
                   </div>
-                  <span
-                    className={`deployment-status deployment-status--${getBackupOperationTone(run.status)}`}
-                  >
-                    {run.status}
-                  </span>
-                </div>
-                <p className="deployment-card__meta">
-                  {run.targetType} backup · Requested by {run.requestedBy}
-                </p>
-                <p className="deployment-card__meta">
-                  {run.artifactPath ??
-                    "Artifact path will be assigned by the future backup worker."}
-                </p>
-                {(canOperateExecutionJobs || canRequestApprovals) &&
-                run.status === "succeeded" &&
-                run.artifactPath ? (
-                  <div className="job-actions">
-                    {canOperateExecutionJobs ? (
-                      <button
-                        className="action-button action-button--muted"
-                        disabled={queueBackupRestore.isPending}
-                        onClick={() => {
-                          void handleQueueBackupRestore(run.id, run.serviceName);
-                        }}
-                        type="button"
-                      >
-                        Queue restore
-                      </button>
-                    ) : null}
-                    {canRequestApprovals ? (
-                      <button
-                        className="action-button"
-                        disabled={requestApproval.isPending}
-                        onClick={() => {
-                          void handleRequestBackupRestoreApproval(run.id, run.serviceName);
-                        }}
-                        type="button"
-                      >
-                        {requestApproval.isPending ? "Requesting..." : "Request approval"}
-                      </button>
-                    ) : null}
-                  </div>
-                ) : null}
-              </article>
-            ))}
+                  <p className="deployment-card__meta">
+                    {run.targetType} backup · Requested by {run.requestedBy}
+                  </p>
+                  <p className="deployment-card__meta">
+                    {run.artifactPath ??
+                      "Artifact path will be assigned by the future backup worker."}
+                  </p>
+                  {(canOperateExecutionJobs || canRequestApprovals) &&
+                  run.status === "succeeded" &&
+                  run.artifactPath ? (
+                    <div className="job-actions">
+                      {canOperateExecutionJobs ? (
+                        <button
+                          className="action-button action-button--muted"
+                          disabled={queueBackupRestore.isPending}
+                          onClick={() => {
+                            void handleQueueBackupRestore(run.id, run.serviceName);
+                          }}
+                          type="button"
+                        >
+                          Queue restore
+                        </button>
+                      ) : null}
+                      {canRequestApprovals ? (
+                        <button
+                          className="action-button"
+                          disabled={requestApproval.isPending}
+                          onClick={() => {
+                            void handleRequestBackupRestoreApproval(run.id, run.serviceName);
+                          }}
+                          type="button"
+                        >
+                          {requestApproval.isPending ? "Requesting..." : "Request approval"}
+                        </button>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </article>
+              );
+            })}
           </div>
 
           {backupRestoreQueue.data ? (
@@ -301,32 +309,34 @@ export function BackupCatalog({
               </div>
 
               <div className="restore-run-list">
-                {backupRestoreQueue.data.requests.map((request) => (
-                  <article
-                    className="timeline-event"
-                    data-testid={`backup-restore-${request.id}`}
-                    key={request.id}
-                  >
-                    <div className="timeline-event__top">
-                      <div>
-                        <p className="roadmap-item__lane">
-                          {request.environmentName} · {request.targetType}
-                        </p>
-                        <h3>{request.serviceName}</h3>
+                {backupRestoreQueue.data.requests.map((request) => {
+                  const statusTone = request.statusTone ?? getBackupOperationTone(request.status);
+
+                  return (
+                    <article
+                      className="timeline-event"
+                      data-testid={`backup-restore-${request.id}`}
+                      key={request.id}
+                    >
+                      <div className="timeline-event__top">
+                        <div>
+                          <p className="roadmap-item__lane">
+                            {request.environmentName} · {request.targetType}
+                          </p>
+                          <h3>{request.serviceName}</h3>
+                        </div>
+                        <span className={`deployment-status deployment-status--${statusTone}`}>
+                          {request.status}
+                        </span>
                       </div>
-                      <span
-                        className={`deployment-status deployment-status--${getBackupOperationTone(request.status)}`}
-                      >
-                        {request.status}
-                      </span>
-                    </div>
-                    <p className="deployment-card__meta">
-                      Restore to {request.destinationServerName}:{request.restorePath}
-                    </p>
-                    <p className="deployment-card__meta">{request.sourceArtifactPath}</p>
-                    <p className="deployment-card__meta">{request.validationSummary}</p>
-                  </article>
-                ))}
+                      <p className="deployment-card__meta">
+                        Restore to {request.destinationServerName}:{request.restorePath}
+                      </p>
+                      <p className="deployment-card__meta">{request.sourceArtifactPath}</p>
+                      <p className="deployment-card__meta">{request.validationSummary}</p>
+                    </article>
+                  );
+                })}
               </div>
             </>
           ) : (

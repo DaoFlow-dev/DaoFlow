@@ -583,6 +583,16 @@ describe("appRouter", () => {
     expect(Array.isArray(overview.policies)).toBe(true);
     expect(Array.isArray(overview.runs)).toBe(true);
     expect(restoreQueue.summary.totalRequests).toBeGreaterThanOrEqual(0);
+
+    const run = overview.runs[0];
+    if (run) {
+      expect(run.statusTone).toEqual(expect.any(String));
+    }
+
+    const request = restoreQueue.requests[0];
+    if (request) {
+      expect(request.statusTone).toEqual(expect.any(String));
+    }
   });
 
   it("returns approval requests keyed by targetResource", async () => {

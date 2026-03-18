@@ -37,6 +37,22 @@ const SEEDED_POLICY_VIEW: Record<
   }
 };
 
+function getBackupOperationStatusTone(status: string) {
+  if (status === "succeeded") {
+    return "healthy" as const;
+  }
+
+  if (status === "failed") {
+    return "failed" as const;
+  }
+
+  if (status === "running") {
+    return "running" as const;
+  }
+
+  return "queued" as const;
+}
+
 function getPolicyView(
   policy: typeof backupPolicies.$inferSelect,
   volume?: typeof volumes.$inferSelect,
@@ -124,6 +140,7 @@ export async function listBackupOverview(limit = 12) {
         serviceName: view?.serviceName ?? "",
         targetType: view?.targetType ?? ("volume" as const),
         status: run.status,
+        statusTone: getBackupOperationStatusTone(run.status),
         triggerKind: run.triggeredByUserId ? ("manual" as const) : ("scheduled" as const),
         requestedBy,
         artifactPath: run.artifactPath,
@@ -298,6 +315,7 @@ export async function listBackupRestoreQueue(limit = 12) {
         restorePath: restore.targetPath,
         validationSummary: restore.error ?? "",
         status: restore.status,
+        statusTone: getBackupOperationStatusTone(restore.status),
         requestedAt: restore.createdAt.toISOString(),
         finishedAt: restore.completedAt?.toISOString() ?? null
       };

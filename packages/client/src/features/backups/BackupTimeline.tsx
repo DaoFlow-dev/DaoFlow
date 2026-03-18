@@ -30,7 +30,8 @@ export function BackupTimeline() {
   return (
     <div className="space-y-2" data-testid="backup-timeline">
       {runs.map((run) => {
-        const tone = getBackupOperationTone(run.status);
+        const tone =
+          typeof run.statusTone === "string" ? run.statusTone : getBackupOperationTone(run.status);
         return (
           <div
             key={run.id}
