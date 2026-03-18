@@ -229,6 +229,8 @@ describe("appRouter", () => {
       return;
     }
 
+    expect(deployment.statusTone).toEqual(expect.any(String));
+    expect(deployment.statusLabel).toEqual(expect.any(String));
     expect(deployment.projectId).toEqual(expect.any(String));
     expect(deployment.projectName).toEqual(expect.any(String));
     expect(deployment.serviceId === null || typeof deployment.serviceId === "string").toBe(true);
