@@ -52,6 +52,7 @@ COPY --from=prod-deps /app/packages/shared/node_modules ./packages/shared/node_m
 COPY --from=build /app/packages/server/dist ./packages/server/dist
 COPY --from=build /app/packages/client/dist ./packages/client/dist
 COPY --from=build /app/packages/shared ./packages/shared
+COPY drizzle ./drizzle
 COPY package.json ./
 COPY packages/server/package.json ./packages/server/package.json
 COPY packages/client/package.json ./packages/client/package.json

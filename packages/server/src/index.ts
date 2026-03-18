@@ -12,6 +12,7 @@ import {
   closeTemporalClient
 } from "./worker";
 import { ensureInitialOwnerFromEnv } from "./bootstrap-initial-owner";
+import { runAutoMigrations } from "./db/auto-migrate";
 
 const port = Number(process.env.PORT ?? DEFAULT_SERVER_PORT);
 const isProduction = process.env.NODE_ENV === "production";
@@ -35,7 +36,7 @@ function isTemporalEnabled(): boolean {
   return process.env.DAOFLOW_ENABLE_TEMPORAL === "true" && !!process.env.TEMPORAL_ADDRESS;
 }
 
-function start() {
+async function start() {
   const app = createApp();
 
   if (isProduction) {
@@ -72,6 +73,18 @@ function start() {
   });
 
   console.log(`DaoFlow control plane listening on http://localhost:${server.port}`);
+
+  // Run database migrations before any DB-dependent code
+  try {
+    await runAutoMigrations();
+  } catch (err) {
+    console.error(
+      "[migrate] Auto-migration failed:",
+      err instanceof Error ? err.message : String(err)
+    );
+    // Continue — the server can still serve health checks
+  }
+
   void ensureInitialOwnerFromEnv().catch((error) => {
     console.error(
       "[auth] Initial owner bootstrap failed:",

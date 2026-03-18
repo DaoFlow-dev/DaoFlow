@@ -300,6 +300,11 @@ export function installCommand(): Command {
           process.exit(1);
         }
 
+        if (password.length < 8) {
+          console.error(chalk.red("Admin password must be at least 8 characters."));
+          process.exit(1);
+        }
+
         if (existingInstall) {
           console.error(
             chalk.yellow(`\nExisting DaoFlow installation found (v${existingInstall.version}).`)
@@ -380,6 +385,14 @@ export function installCommand(): Command {
         if (!password) {
           const msg = `Admin password is required (--password or ${INITIAL_ADMIN_PASSWORD_ENV})`;
           emitInstallError(isJson, msg, "MISSING_PASSWORD");
+          process.exit(1);
+        }
+        if (password.length < 8) {
+          emitInstallError(
+            isJson,
+            "Admin password must be at least 8 characters",
+            "PASSWORD_TOO_SHORT"
+          );
           process.exit(1);
         }
       }
