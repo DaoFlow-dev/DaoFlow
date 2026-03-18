@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Play, Square, RotateCcw, Trash2, Loader2, RefreshCw } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { useState } from "react";
+import { getInventoryBadgeVariant } from "@/lib/tone-utils";
 
 interface ServiceHeaderProps {
   service: {
@@ -14,20 +15,6 @@ interface ServiceHeaderProps {
     projectId: string;
   };
   projectName?: string;
-}
-
-function statusColor(status: string) {
-  switch (status) {
-    case "active":
-    case "healthy":
-    case "running":
-      return "default" as const;
-    case "failed":
-    case "error":
-      return "destructive" as const;
-    default:
-      return "secondary" as const;
-  }
 }
 
 export default function ServiceHeader({ service, projectName }: ServiceHeaderProps) {
@@ -84,7 +71,7 @@ export default function ServiceHeader({ service, projectName }: ServiceHeaderPro
             <h1 className="text-2xl font-semibold">{service.name}</h1>
             <p className="text-sm text-muted-foreground">{service.sourceType} service</p>
           </div>
-          <Badge variant={statusColor(service.status)}>{service.status}</Badge>
+          <Badge variant={getInventoryBadgeVariant(service.status)}>{service.status}</Badge>
         </div>
 
         <div className="flex items-center gap-1.5">

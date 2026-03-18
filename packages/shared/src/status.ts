@@ -195,7 +195,14 @@ export function normalizeInventoryStatus(status: string): StatusTone {
     return StatusTone.Healthy;
   }
 
-  if (status === DeploymentConclusion.Failed || status === "offline" || status === "rejected") {
+  if (
+    status === DeploymentConclusion.Failed ||
+    status === "error" ||
+    status === "offline" ||
+    status === "rejected" ||
+    status === "disconnected" ||
+    status === "deleted"
+  ) {
     return StatusTone.Failed;
   }
 

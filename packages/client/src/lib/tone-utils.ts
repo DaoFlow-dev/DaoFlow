@@ -5,6 +5,8 @@ import {
   type StatusTone
 } from "@daoflow/shared";
 
+export type StatusBadgeVariant = "default" | "secondary" | "destructive" | "outline";
+
 /**
  * tone-utils.ts
  *
@@ -14,6 +16,60 @@ import {
 
 export function getInventoryTone(status: string): StatusTone {
   return normalizeInventoryStatus(status);
+}
+
+export function getBadgeVariantFromTone(tone: string): StatusBadgeVariant {
+  if (tone === "healthy") {
+    return "default";
+  }
+
+  if (tone === "failed") {
+    return "destructive";
+  }
+
+  return "secondary";
+}
+
+export function getToneTextClass(tone: string): string {
+  if (tone === "healthy") {
+    return "text-emerald-500";
+  }
+
+  if (tone === "failed") {
+    return "text-red-500";
+  }
+
+  if (tone === "running") {
+    return "text-amber-500";
+  }
+
+  return "text-zinc-400";
+}
+
+export function getToneDotClass(tone: string, options?: { pulse?: boolean }): string {
+  const pulse = options?.pulse === true && tone === "running" ? " animate-pulse" : "";
+
+  if (tone === "healthy") {
+    return `bg-emerald-500${pulse}`;
+  }
+
+  if (tone === "failed") {
+    return `bg-red-500${pulse}`;
+  }
+
+  if (tone === "running") {
+    return `bg-amber-500${pulse}`;
+  }
+
+  return `bg-zinc-400${pulse}`;
+}
+
+export function getInventoryBadgeVariant(status: string): StatusBadgeVariant {
+  return getBadgeVariantFromTone(getInventoryTone(status));
+}
+
+export function getInventoryDotClass(status: string, options?: { pulse?: boolean }): string {
+  return getToneDotClass(getInventoryTone(status), options);
 }
 
 export function getExecutionJobTone(status: string): StatusTone {

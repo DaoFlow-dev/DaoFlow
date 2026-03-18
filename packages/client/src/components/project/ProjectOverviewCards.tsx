@@ -1,13 +1,21 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Box, Layers, CheckCircle, AlertCircle, Clock } from "lucide-react";
+import { getBadgeVariantFromTone, getInventoryTone } from "@/lib/tone-utils";
 
 interface ProjectOverviewCardsProps {
   serviceCount: number;
   healthyCount: number;
   unhealthyCount: number;
   envCount: number;
-  lastDeploy: { createdAt: string; status: string } | undefined;
+  lastDeploy:
+    | {
+        createdAt: string;
+        status: string;
+        statusTone?: string;
+        statusLabel?: string;
+      }
+    | undefined;
 }
 
 export function ProjectOverviewCards({
@@ -61,8 +69,17 @@ export function ProjectOverviewCards({
           {lastDeploy ? (
             <div>
               <span className="text-sm">{new Date(lastDeploy.createdAt).toLocaleDateString()}</span>
-              <Badge variant="secondary" className="ml-2 text-xs">
-                {lastDeploy.status}
+              <Badge
+                variant={getBadgeVariantFromTone(
+                  typeof lastDeploy.statusTone === "string"
+                    ? lastDeploy.statusTone
+                    : getInventoryTone(lastDeploy.status)
+                )}
+                className="ml-2 text-xs"
+              >
+                {typeof lastDeploy.statusLabel === "string"
+                  ? lastDeploy.statusLabel
+                  : lastDeploy.status}
               </Badge>
             </div>
           ) : (

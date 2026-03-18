@@ -2,6 +2,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useNavigate } from "react-router-dom";
+import { getInventoryBadgeVariant, getInventoryDotClass } from "@/lib/tone-utils";
 
 interface Service {
   id: string;
@@ -63,13 +64,9 @@ export function ProjectServicesList({
               <CardContent className="py-4 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div
-                    className={`w-2 h-2 rounded-full ${
-                      svc.status === "active" || svc.status === "healthy"
-                        ? "bg-green-500"
-                        : svc.status === "failed"
-                          ? "bg-red-500"
-                          : "bg-gray-400"
-                    }`}
+                    className={`h-2 w-2 rounded-full ${getInventoryDotClass(svc.status, {
+                      pulse: svc.status === "running"
+                    })}`}
                   />
                   <div>
                     <p className="font-medium">{svc.name}</p>
@@ -79,17 +76,7 @@ export function ProjectServicesList({
                     </p>
                   </div>
                 </div>
-                <Badge
-                  variant={
-                    svc.status === "active" || svc.status === "healthy"
-                      ? "default"
-                      : svc.status === "failed"
-                        ? "destructive"
-                        : "secondary"
-                  }
-                >
-                  {svc.status}
-                </Badge>
+                <Badge variant={getInventoryBadgeVariant(svc.status)}>{svc.status}</Badge>
               </CardContent>
             </Card>
           ))}

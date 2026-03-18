@@ -16,18 +16,7 @@ import {
 import { Rocket, ChevronDown, ChevronRight, RotateCcw } from "lucide-react";
 import DeploymentLogViewer from "../components/DeploymentLogViewer";
 import DeploymentRollbackDialog from "../components/DeploymentRollbackDialog";
-
-function badgeVariantFromTone(tone: string) {
-  if (tone === "healthy") {
-    return "default" as const;
-  }
-
-  if (tone === "failed") {
-    return "destructive" as const;
-  }
-
-  return "secondary" as const;
-}
+import { getBadgeVariantFromTone } from "@/lib/tone-utils";
 
 export default function DeploymentsPage() {
   const session = useSession();
@@ -122,7 +111,9 @@ export default function DeploymentsPage() {
                         </TableCell>
                         <TableCell>
                           <div className="flex flex-col gap-1">
-                            <Badge variant={badgeVariantFromTone(statusTone)}>{statusLabel}</Badge>
+                            <Badge variant={getBadgeVariantFromTone(statusTone)}>
+                              {statusLabel}
+                            </Badge>
                             <span className="text-xs text-muted-foreground">
                               Lifecycle: {lifecycleStatus}
                             </span>

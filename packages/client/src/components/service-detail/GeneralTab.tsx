@@ -14,6 +14,7 @@ import {
   Square,
   Play
 } from "lucide-react";
+import { getInventoryBadgeVariant, getInventoryDotClass, getInventoryTone } from "@/lib/tone-utils";
 
 interface GeneralTabProps {
   service: {
@@ -34,26 +35,9 @@ interface GeneralTabProps {
   };
 }
 
-/* ── helpers ── */
-
-function statusColor(status: string) {
-  if (status === "active" || status === "healthy" || status === "running") return "bg-emerald-500";
-  if (status === "failed" || status === "error") return "bg-red-500";
-  if (status === "deploying" || status === "building") return "bg-amber-500 animate-pulse";
-  return "bg-zinc-400";
-}
-
-function statusVariant(status: string): "default" | "destructive" | "secondary" {
-  if (status === "active" || status === "healthy" || status === "running") return "default";
-  if (status === "failed" || status === "error") return "destructive";
-  return "secondary";
-}
-
-/* ── component ── */
-
 export default function GeneralTab({ service }: GeneralTabProps) {
-  const isRunning =
-    service.status === "active" || service.status === "healthy" || service.status === "running";
+  const serviceTone = getInventoryTone(service.status);
+  const isRunning = serviceTone === "healthy" || serviceTone === "running";
 
   return (
     <div className="space-y-6">
@@ -99,9 +83,14 @@ export default function GeneralTab({ service }: GeneralTabProps) {
             </div>
             <div className="flex items-center gap-2">
               <span
-                className={`inline-block h-2.5 w-2.5 rounded-full ${statusColor(service.status)}`}
+                className={`inline-block h-2.5 w-2.5 rounded-full ${getInventoryDotClass(
+                  service.status,
+                  {
+                    pulse: serviceTone === "running"
+                  }
+                )}`}
               />
-              <Badge variant={statusVariant(service.status)} className="text-sm">
+              <Badge variant={getInventoryBadgeVariant(service.status)} className="text-sm">
                 {service.status}
               </Badge>
             </div>

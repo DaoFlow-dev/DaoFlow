@@ -10,6 +10,7 @@ import { ProjectOverviewCards } from "@/components/project/ProjectOverviewCards"
 import { ProjectServicesList } from "@/components/project/ProjectServicesList";
 import { ProjectSettingsPanel } from "@/components/project/ProjectSettingsPanel";
 import { ProjectGitCard } from "@/components/project/ProjectGitCard";
+import { getInventoryTone } from "@/lib/tone-utils";
 
 export default function ProjectDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -70,17 +71,23 @@ export default function ProjectDetailPage() {
     ? serviceList.filter((s) => s.environmentId === activeEnv)
     : serviceList;
 
-  const healthyCount = serviceList.filter(
-    (s) => s.status === "active" || s.status === "healthy"
-  ).length;
-  const unhealthyCount = serviceList.filter(
-    (s) => s.status === "failed" || s.status === "error"
-  ).length;
+  const healthyCount = serviceList.filter((s) => {
+    const tone = getInventoryTone(s.status);
+    return tone === "healthy" || tone === "running";
+  }).length;
+  const unhealthyCount = serviceList.filter((s) => getInventoryTone(s.status) === "failed").length;
 
   const projectDeployments = (deployments.data ?? []).filter((d: { serviceName: string }) =>
     serviceList.some((s) => s.name === d.serviceName)
   );
-  const lastDeploy = projectDeployments[0] as { createdAt: string; status: string } | undefined;
+  const lastDeploy = projectDeployments[0] as
+    | {
+        createdAt: string;
+        status: string;
+        statusTone?: string;
+        statusLabel?: string;
+      }
+    | undefined;
 
   return (
     <div className="space-y-6">

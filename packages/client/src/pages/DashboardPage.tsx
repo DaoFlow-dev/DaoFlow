@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { getBadgeVariantFromTone, getInventoryTone, getToneTextClass } from "@/lib/tone-utils";
 import {
   Server,
   FolderKanban,
@@ -27,14 +28,6 @@ function formatRelative(date: string | Date): string {
   const hrs = Math.floor(mins / 60);
   if (hrs < 24) return `${hrs}h ago`;
   return `${Math.floor(hrs / 24)}d ago`;
-}
-
-type StatusVariant = "default" | "secondary" | "destructive" | "outline";
-
-function statusVariant(status: string): StatusVariant {
-  if (status === "healthy" || status === "running") return "default";
-  if (status === "failed") return "destructive";
-  return "secondary";
 }
 
 /* ──────────────────────────── page ──────────────────────────── */
@@ -184,56 +177,56 @@ export default function DashboardPage() {
             </div>
           ) : (
             <div className="space-y-2">
-              {deployments.map((d) => (
-                <div
-                  key={String(d.id)}
-                  className="flex items-center gap-4 rounded-lg border p-3 transition-colors hover:bg-accent/50 cursor-pointer"
-                  onClick={() => {
-                    if (d.serviceId) void navigate(`/services/${d.serviceId}`);
-                  }}
-                >
-                  {/* Status dot */}
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted">
-                    <Rocket
-                      size={16}
-                      className={
-                        d.status === "healthy" || d.status === "running"
-                          ? "text-emerald-500"
-                          : d.status === "failed"
-                            ? "text-red-500"
-                            : "text-amber-500"
-                      }
-                    />
-                  </div>
+              {deployments.map((d) =>
+                (() => {
+                  const statusTone =
+                    typeof d.statusTone === "string"
+                      ? d.statusTone
+                      : getInventoryTone(String(d.status));
+                  const statusLabel =
+                    typeof d.statusLabel === "string" ? d.statusLabel : String(d.status);
 
-                  {/* Info */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium truncate">
-                        {String(d.serviceName ?? d.projectId ?? "—")}
-                      </span>
-                      <Badge
-                        variant={statusVariant(String(d.status))}
-                        className="text-[10px] px-1.5 py-0"
-                      >
-                        {String(d.status)}
-                      </Badge>
+                  return (
+                    <div
+                      key={String(d.id)}
+                      className="flex cursor-pointer items-center gap-4 rounded-lg border p-3 transition-colors hover:bg-accent/50"
+                      onClick={() => {
+                        if (d.serviceId) void navigate(`/services/${d.serviceId}`);
+                      }}
+                    >
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted">
+                        <Rocket size={16} className={getToneTextClass(statusTone)} />
+                      </div>
+
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="truncate text-sm font-medium">
+                            {String(d.serviceName ?? d.projectId ?? "—")}
+                          </span>
+                          <Badge
+                            variant={getBadgeVariantFromTone(statusTone)}
+                            className="px-1.5 py-0 text-[10px]"
+                          >
+                            {statusLabel}
+                          </Badge>
+                        </div>
+                        <div className="mt-0.5 flex items-center gap-3 text-xs text-muted-foreground">
+                          <span className="flex items-center gap-1">
+                            <GitBranch size={12} />
+                            {String(d.sourceType ?? "docker")}
+                          </span>
+                          {d.createdAt && (
+                            <span className="flex items-center gap-1">
+                              <Clock size={12} />
+                              {formatRelative(d.createdAt)}
+                            </span>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-3 text-xs text-muted-foreground mt-0.5">
-                      <span className="flex items-center gap-1">
-                        <GitBranch size={12} />
-                        {String(d.sourceType ?? "docker")}
-                      </span>
-                      {d.createdAt && (
-                        <span className="flex items-center gap-1">
-                          <Clock size={12} />
-                          {formatRelative(d.createdAt)}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
+                  );
+                })()
+              )}
             </div>
           )}
         </CardContent>
