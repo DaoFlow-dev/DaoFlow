@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { useSession } from "@/lib/auth-client";
+import { useSession, authClient } from "@/lib/auth-client";
+import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { User, Mail, Lock, Shield, Key, Clock, Save } from "lucide-react";
+import { User, Mail, Lock, Shield, Key, Clock, Save, Loader2 } from "lucide-react";
 
 export default function UserProfilePage() {
   const session = useSession();
@@ -14,10 +15,43 @@ export default function UserProfilePage() {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
 
   const hasProfileChanges = displayName !== (user?.name ?? "") || email !== (user?.email ?? "");
   const hasPasswordFields = currentPassword && newPassword && confirmPassword;
   const passwordsMatch = newPassword === confirmPassword;
+
+  async function handleSaveProfile() {
+    setIsSaving(true);
+    try {
+      await authClient.updateUser({ name: displayName });
+      toast.success("Profile updated");
+    } catch {
+      toast.error("Failed to update profile");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function handleChangePassword() {
+    if (!passwordsMatch) return;
+    setIsChangingPassword(true);
+    try {
+      await authClient.changePassword({
+        currentPassword,
+        newPassword
+      });
+      toast.success("Password updated");
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+    } catch {
+      toast.error("Failed to change password — check your current password");
+    } finally {
+      setIsChangingPassword(false);
+    }
+  }
 
   if (!user) {
     return (
@@ -72,8 +106,12 @@ export default function UserProfilePage() {
           </div>
           {hasProfileChanges && (
             <div className="flex justify-end">
-              <Button size="sm">
-                <Save size={14} className="mr-1" />
+              <Button size="sm" disabled={isSaving} onClick={handleSaveProfile}>
+                {isSaving ? (
+                  <Loader2 size={14} className="mr-1 animate-spin" />
+                ) : (
+                  <Save size={14} className="mr-1" />
+                )}
                 Save Profile
               </Button>
             </div>
@@ -126,8 +164,16 @@ export default function UserProfilePage() {
           </div>
           {hasPasswordFields && (
             <div className="flex justify-end">
-              <Button size="sm" disabled={!passwordsMatch}>
-                <Lock size={14} className="mr-1" />
+              <Button
+                size="sm"
+                disabled={!passwordsMatch || isChangingPassword}
+                onClick={handleChangePassword}
+              >
+                {isChangingPassword ? (
+                  <Loader2 size={14} className="mr-1 animate-spin" />
+                ) : (
+                  <Lock size={14} className="mr-1" />
+                )}
                 Update Password
               </Button>
             </div>

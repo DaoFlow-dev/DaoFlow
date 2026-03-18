@@ -20,6 +20,7 @@ interface Destination {
   localPath?: string | null;
   rcloneRemotePath?: string | null;
   lastTestResult?: string | null;
+  lastTestedAt?: string | null;
 }
 
 interface DestinationsTableProps {
@@ -75,6 +76,11 @@ export function DestinationsTable({
                     <Badge variant="destructive">Failed</Badge>
                   ) : (
                     <Badge variant="outline">Untested</Badge>
+                  )}
+                  {d.lastTestedAt && (
+                    <span className="ml-1 text-xs text-muted-foreground">
+                      {new Date(d.lastTestedAt).toLocaleDateString()}
+                    </span>
                   )}
                 </TableCell>
                 <TableCell className="text-right space-x-1">
