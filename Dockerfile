@@ -47,6 +47,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Create staging directory for git clones and build contexts
 RUN mkdir -p /app/staging
 COPY --from=prod-deps /app/node_modules ./node_modules
+COPY --from=prod-deps /app/packages/server/node_modules ./packages/server/node_modules
+COPY --from=prod-deps /app/packages/shared/node_modules ./packages/shared/node_modules
 COPY --from=build /app/packages/server/dist ./packages/server/dist
 COPY --from=build /app/packages/client/dist ./packages/client/dist
 COPY --from=build /app/packages/shared ./packages/shared

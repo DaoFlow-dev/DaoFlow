@@ -133,7 +133,7 @@ export default function ServersPage() {
                             {String(check.serverHost)} · SSH {String(check.sshPort)}
                           </CardDescription>
                         </div>
-                        <Badge variant={check.sshReachable ? "success" : "destructive"}>
+                        <Badge variant={check.sshReachable ? "default" : "destructive"}>
                           {check.sshReachable ? "Ready" : "Attention"}
                         </Badge>
                       </div>
