@@ -292,6 +292,25 @@ describe("appRouter", () => {
     expect(plan.currentStatusLabel).toEqual(expect.any(String));
   });
 
+  it("returns deployment insights with normalized status metadata", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-deployment-insights",
+      session: makeSession("viewer")
+    });
+
+    const insights = await caller.deploymentInsights({});
+
+    expect(Array.isArray(insights)).toBe(true);
+
+    const insight = insights[0];
+    if (!insight) {
+      return;
+    }
+
+    expect(insight.statusTone).toEqual(expect.any(String));
+    expect(insight.statusLabel).toEqual(expect.any(String));
+  });
+
   it("returns a real deployment plan from the planning lane", async () => {
     const caller = appRouter.createCaller({
       requestId: "test-plan",

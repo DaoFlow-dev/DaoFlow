@@ -11,8 +11,8 @@ interface InsightItem {
   environmentName: string;
   serviceName: string;
   status: string;
-  statusTone?: string;
-  statusLabel?: string;
+  statusTone: string;
+  statusLabel: string;
   summary: string;
   suspectedRootCause: string;
   safeActions: string[];
@@ -45,52 +45,47 @@ export function DeploymentInsights({
 
       {session.data && deploymentInsights.data ? (
         <div className="insight-list">
-          {deploymentInsights.data.map((insight) => {
-            const statusTone = insight.statusTone ?? insight.status;
-            const statusLabel = insight.statusLabel ?? insight.status;
-
-            return (
-              <article
-                className="timeline-event"
-                data-testid={`deployment-insight-${insight.deploymentId}`}
-                key={insight.deploymentId}
-              >
-                <div className="timeline-event__top">
-                  <div>
-                    <p className="roadmap-item__lane">
-                      {insight.environmentName} · {insight.projectName}
-                    </p>
-                    <h3>{insight.serviceName}</h3>
-                  </div>
-                  <span className={`deployment-status deployment-status--${statusTone}`}>
-                    {statusLabel}
-                  </span>
-                </div>
-                <p className="deployment-card__meta">{insight.summary}</p>
-                <p className="deployment-card__meta">
-                  Suspected root cause: {insight.suspectedRootCause}
-                </p>
-                {insight.healthyBaseline ? (
-                  <p className="deployment-card__meta">
-                    Healthy baseline: {insight.healthyBaseline.commitSha} ·{" "}
-                    {insight.healthyBaseline.imageTag}
+          {deploymentInsights.data.map((insight) => (
+            <article
+              className="timeline-event"
+              data-testid={`deployment-insight-${insight.deploymentId}`}
+              key={insight.deploymentId}
+            >
+              <div className="timeline-event__top">
+                <div>
+                  <p className="roadmap-item__lane">
+                    {insight.environmentName} · {insight.projectName}
                   </p>
-                ) : null}
-                <div className="token-card__chips">
-                  {insight.evidence.map((item) => (
-                    <span className="token-chip" key={item.id}>
-                      {item.kind}:{item.title}
-                    </span>
-                  ))}
+                  <h3>{insight.serviceName}</h3>
                 </div>
-                <ul className="deployment-card__steps">
-                  {insight.safeActions.map((action) => (
-                    <li key={action}>{action}</li>
-                  ))}
-                </ul>
-              </article>
-            );
-          })}
+                <span className={`deployment-status deployment-status--${insight.statusTone}`}>
+                  {insight.statusLabel}
+                </span>
+              </div>
+              <p className="deployment-card__meta">{insight.summary}</p>
+              <p className="deployment-card__meta">
+                Suspected root cause: {insight.suspectedRootCause}
+              </p>
+              {insight.healthyBaseline ? (
+                <p className="deployment-card__meta">
+                  Healthy baseline: {insight.healthyBaseline.commitSha} ·{" "}
+                  {insight.healthyBaseline.imageTag}
+                </p>
+              ) : null}
+              <div className="token-card__chips">
+                {insight.evidence.map((item) => (
+                  <span className="token-chip" key={item.id}>
+                    {item.kind}:{item.title}
+                  </span>
+                ))}
+              </div>
+              <ul className="deployment-card__steps">
+                {insight.safeActions.map((action) => (
+                  <li key={action}>{action}</li>
+                ))}
+              </ul>
+            </article>
+          ))}
         </div>
       ) : (
         <p className="viewer-empty">
