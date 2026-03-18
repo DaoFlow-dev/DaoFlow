@@ -43,6 +43,32 @@ bun run build:mac     # macOS ARM64 → dist/daoflow-darwin-arm64
 
 Built binaries are self-contained (Bun runtime embedded). No Node.js required.
 
+## System requirements for compiled binaries
+
+The Bun-compiled CLI binary has two host-level requirements that must both be met:
+
+1. **CPU with AVX2 support** (or SSE4.2 minimum for the baseline build).
+   KVM/QEMU virtual machines often default to a generic CPU model that lacks AVX.
+   Fix: set the VM CPU type to `host` passthrough so the guest can use the
+   physical CPU's instruction sets.
+
+2. **Swap space on hosts with ≤ 8 GB RAM.**
+   Bun reserves a large virtual address space (~91 GB) at startup and peaks at
+   ~7.4 GB RSS. Without swap the Linux OOM killer will terminate the process
+   before it can run any command.
+
+   ```bash
+   sudo fallocate -l 4G /swapfile
+   sudo chmod 600 /swapfile
+   sudo mkswap /swapfile
+   sudo swapon /swapfile
+   echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+   ```
+
+Both issues must be resolved together — AVX alone won't help if OOM kills the
+process, and swap alone won't help if the CPU faults on an unsupported
+instruction.
+
 ## Scripts
 
 ```bash
