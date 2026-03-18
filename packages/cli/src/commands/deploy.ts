@@ -15,7 +15,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { createClient } from "../trpc-client";
 import { loadDaoflowConfig, type DaoflowConfig } from "../config-loader";
-import { detectLocalBuildContexts } from "../context-bundler";
+import { analyzeComposeInputs } from "../context-bundler";
 import {
   emitJsonError,
   emitJsonSuccess,
@@ -204,6 +204,35 @@ interface ComposeDeployOpts {
   config?: DaoflowConfig;
 }
 
+function buildComposeUploadWarning(input: {
+  buildContextCount: number;
+  envFileCount: number;
+  sizeLabel: string;
+  serverId: string;
+}): string {
+  const parts: string[] = [];
+
+  if (input.buildContextCount > 0) {
+    parts.push(
+      `${input.buildContextCount} service(s) use local build context${
+        input.buildContextCount === 1 ? "" : "s"
+      }`
+    );
+  }
+
+  if (input.envFileCount > 0) {
+    parts.push(
+      `${input.envFileCount} local env_file asset${input.envFileCount === 1 ? "" : "s"} will be frozen`
+    );
+  }
+
+  return (
+    `${parts.join(" and ")} (${input.sizeLabel}). ` +
+    `Context will be bundled, uploaded to DaoFlow, and deployed on server ${input.serverId}. ` +
+    `Pass --yes to confirm, or --dry-run to preview.`
+  );
+}
+
 async function handleComposeDeploy(opts: ComposeDeployOpts): Promise<void> {
   const resolvedCompose = resolve(opts.composePath);
   const resolvedContext = resolve(opts.contextPath);
@@ -220,13 +249,9 @@ async function handleComposeDeploy(opts: ComposeDeployOpts): Promise<void> {
     return;
   }
 
-  // Parse compose and detect local build contexts
+  // Parse compose and detect local inputs that require context artifacting.
   const composeContent = readFileSync(resolvedCompose, "utf-8");
-  const localContexts = detectLocalBuildContexts(composeContent);
-
-  const hasLocalContext = localContexts.some(
-    (c) => c.context === "." || c.context.startsWith("./") || !c.context.includes(":")
-  );
+  const composeInputs = analyzeComposeInputs(composeContent);
 
   if (!opts.serverId) {
     const error = "--server is required for compose deployments.";
@@ -266,22 +291,18 @@ async function handleComposeDeploy(opts: ComposeDeployOpts): Promise<void> {
   }
 
   // ── Interactive prompt ───────────────────────────────────
-  if (hasLocalContext && opts.prompt && !opts.yes) {
+  if (composeInputs.requiresContextUpload && opts.prompt && !opts.yes) {
     const sizeMB = estimateContextSize(resolvedContext, opts.config as Record<string, unknown>);
-    const error =
-      `${localContexts.length} service(s) use local build context (${sizeMB}). ` +
-      `Context will be bundled, uploaded to DaoFlow, and built on server ${opts.serverId}. ` +
-      `Pass --yes to confirm, or --dry-run to preview.`;
+    const error = buildComposeUploadWarning({
+      buildContextCount: composeInputs.localBuildContexts.length,
+      envFileCount: composeInputs.localEnvFiles.length,
+      sizeLabel: sizeMB,
+      serverId: opts.serverId
+    });
     if (opts.json) {
       emitJsonError(error, "CONFIRMATION_REQUIRED");
     } else {
-      console.log(
-        chalk.yellow(
-          `\n⚠  ${localContexts.length} service(s) use local build context (${sizeMB}).\n` +
-            `   Context will be bundled, uploaded to DaoFlow, and built on server ${opts.serverId}.\n` +
-            `   Pass --yes to confirm, or --dry-run to preview.\n`
-        )
-      );
+      console.log(chalk.yellow(`\n⚠  ${error}\n`));
     }
     process.exit(1);
     return;
@@ -300,7 +321,7 @@ async function handleComposeDeploy(opts: ComposeDeployOpts): Promise<void> {
 
   // ── Execute compose deploy ───────────────────────────────
   try {
-    await executeComposeDeploy(composeContent, hasLocalContext, composeOptions);
+    await executeComposeDeploy(composeContent, composeInputs.requiresContextUpload, composeOptions);
   } catch (err) {
     if (opts.json) {
       emitJsonError(getErrorMessage(err), "DEPLOY_ERROR");

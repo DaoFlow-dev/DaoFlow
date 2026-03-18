@@ -20,7 +20,7 @@ import {
   writeFileSync,
   unlinkSync
 } from "node:fs";
-import { join, relative, resolve } from "node:path";
+import { isAbsolute, join, relative, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { execSync } from "node:child_process";
 import dockerignore from "@balena/dockerignore";
@@ -42,6 +42,25 @@ export interface BundleOptions {
   extraInclude?: string[];
   /** Max context size in bytes (default: 500MB) */
   maxSizeBytes?: number;
+}
+
+export interface ComposeBuildContextReference {
+  serviceName: string;
+  context: string;
+  dockerfile?: string;
+}
+
+export interface ComposeEnvFileReference {
+  serviceName: string;
+  path: string;
+  required: boolean;
+  format?: string;
+}
+
+export interface ComposeInputAnalysis {
+  localBuildContexts: ComposeBuildContextReference[];
+  localEnvFiles: ComposeEnvFileReference[];
+  requiresContextUpload: boolean;
 }
 
 const DEFAULT_MAX_SIZE = 500 * 1024 * 1024; // 500MB
@@ -186,30 +205,97 @@ export function createContextBundle(opts: BundleOptions): BundleResult {
  * Parse a compose file and detect services with local build contexts.
  * Returns service names that use `build.context: .` or similar local paths.
  */
-export function detectLocalBuildContexts(
-  composeContent: string
-): { serviceName: string; context: string; dockerfile?: string }[] {
-  const doc = parseYaml(composeContent) as Record<string, unknown> | null;
-  const results: { serviceName: string; context: string; dockerfile?: string }[] = [];
+export function detectLocalBuildContexts(composeContent: string): ComposeBuildContextReference[] {
+  return analyzeComposeInputs(composeContent).localBuildContexts;
+}
 
-  if (!doc?.services) return results;
+export function isLocalComposePath(path: string): boolean {
+  if (isAbsolute(path)) {
+    return false;
+  }
+
+  return path === "." || path.startsWith("./") || path.startsWith("../") || !path.includes(":");
+}
+
+export function analyzeComposeInputs(composeContent: string): ComposeInputAnalysis {
+  const doc = parseYaml(composeContent) as Record<string, unknown> | null;
+  const localBuildContexts: ComposeBuildContextReference[] = [];
+  const localEnvFiles: ComposeEnvFileReference[] = [];
+
+  if (!doc?.services) {
+    return {
+      localBuildContexts,
+      localEnvFiles,
+      requiresContextUpload: false
+    };
+  }
 
   for (const [name, svc] of Object.entries(doc.services)) {
     const service = svc as Record<string, unknown>;
     if (typeof service.build === "string") {
       // build: .
-      results.push({ serviceName: name, context: service.build });
+      if (isLocalComposePath(service.build)) {
+        localBuildContexts.push({ serviceName: name, context: service.build });
+      }
     } else if (service.build && typeof service.build === "object") {
       const build = service.build as Record<string, unknown>;
-      if (typeof build.context === "string") {
-        results.push({
+      if (typeof build.context === "string" && isLocalComposePath(build.context)) {
+        localBuildContexts.push({
           serviceName: name,
           context: build.context,
           dockerfile: typeof build.dockerfile === "string" ? build.dockerfile : undefined
         });
       }
     }
+
+    if (typeof service.env_file === "string") {
+      if (isLocalComposePath(service.env_file)) {
+        localEnvFiles.push({
+          serviceName: name,
+          path: service.env_file,
+          required: true
+        });
+      }
+      continue;
+    }
+
+    if (!Array.isArray(service.env_file)) {
+      continue;
+    }
+
+    for (const entry of service.env_file) {
+      if (typeof entry === "string") {
+        if (isLocalComposePath(entry)) {
+          localEnvFiles.push({
+            serviceName: name,
+            path: entry,
+            required: true
+          });
+        }
+        continue;
+      }
+
+      if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+        continue;
+      }
+
+      const record = entry as Record<string, unknown>;
+      if (typeof record.path !== "string" || !isLocalComposePath(record.path)) {
+        continue;
+      }
+
+      localEnvFiles.push({
+        serviceName: name,
+        path: record.path,
+        required: record.required !== false,
+        format: typeof record.format === "string" ? record.format : undefined
+      });
+    }
   }
 
-  return results;
+  return {
+    localBuildContexts,
+    localEnvFiles,
+    requiresContextUpload: localBuildContexts.length > 0 || localEnvFiles.length > 0
+  };
 }

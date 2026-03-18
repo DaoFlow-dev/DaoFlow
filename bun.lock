@@ -21,7 +21,7 @@
     },
     "packages/cli": {
       "name": "@daoflow/cli",
-      "version": "0.1.0",
+      "version": "0.3.4",
       "bin": {
         "daoflow": "./src/index.ts",
       },
@@ -48,7 +48,7 @@
     },
     "packages/client": {
       "name": "@daoflow/client",
-      "version": "0.1.0",
+      "version": "0.3.4",
       "dependencies": {
         "@base-ui/react": "^1.3.0",
         "@daoflow/server": "workspace:*",
@@ -94,7 +94,7 @@
     },
     "packages/server": {
       "name": "@daoflow/server",
-      "version": "0.1.0",
+      "version": "0.3.4",
       "dependencies": {
         "@1password/sdk": "0.4.0",
         "@daoflow/shared": "workspace:*",
@@ -112,6 +112,7 @@
         "nodemailer": "8.0.2",
         "pg": "8.20.0",
         "web-push": "3.6.7",
+        "yaml": "2.8.2",
         "zod": "^4.1.8",
       },
       "devDependencies": {
@@ -129,7 +130,7 @@
     },
     "packages/shared": {
       "name": "@daoflow/shared",
-      "version": "0.1.0",
+      "version": "0.3.4",
       "dependencies": {
         "zod": "^4.1.8",
       },

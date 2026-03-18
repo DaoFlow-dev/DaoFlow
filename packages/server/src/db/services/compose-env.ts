@@ -12,6 +12,11 @@ import {
   type ComposeEnvMaterializedEntry,
   type ComposeEnvPayloadEntry
 } from "../../compose-env";
+import type {
+  ComposeInputManifest,
+  FrozenComposeEnvFilePayload,
+  FrozenComposeInputsPayload
+} from "../../compose-inputs";
 import { asRecord } from "./json-helpers";
 
 function normalizeComposeEnvCategory(value: string): ComposeEnvVariableCategory {
@@ -27,6 +32,83 @@ export type DeploymentComposeEnvState =
       kind: "materialized";
       entries: ComposeEnvMaterializedEntry[];
     };
+
+export interface DeploymentComposeState {
+  envState: DeploymentComposeEnvState;
+  frozenInputs?: FrozenComposeInputsPayload;
+}
+
+interface SerializedComposeDeploymentState {
+  version: 1;
+  composeEnvEntries: Array<ComposeEnvPayloadEntry | ComposeEnvMaterializedEntry>;
+  frozenInputs?: FrozenComposeInputsPayload;
+}
+
+function parseFrozenEnvFilePayloads(value: unknown): FrozenComposeEnvFilePayload[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.flatMap((entry) => {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+      return [];
+    }
+
+    const record = entry as Record<string, unknown>;
+    if (
+      typeof record.path !== "string" ||
+      typeof record.sourcePath !== "string" ||
+      typeof record.contents !== "string"
+    ) {
+      return [];
+    }
+
+    const services = Array.isArray(record.services)
+      ? record.services.filter((service): service is string => typeof service === "string")
+      : [];
+
+    return [
+      {
+        path: record.path,
+        sourcePath: record.sourcePath,
+        contents: record.contents,
+        services
+      } satisfies FrozenComposeEnvFilePayload
+    ];
+  });
+}
+
+function parseFrozenComposeInputsPayload(value: unknown): FrozenComposeInputsPayload | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+
+  const record = value as Record<string, unknown>;
+  const composeFileRecord =
+    record.composeFile &&
+    typeof record.composeFile === "object" &&
+    !Array.isArray(record.composeFile)
+      ? (record.composeFile as Record<string, unknown>)
+      : null;
+
+  if (
+    !composeFileRecord ||
+    typeof composeFileRecord.path !== "string" ||
+    typeof composeFileRecord.sourcePath !== "string" ||
+    typeof composeFileRecord.contents !== "string"
+  ) {
+    return undefined;
+  }
+
+  return {
+    composeFile: {
+      path: composeFileRecord.path,
+      sourcePath: composeFileRecord.sourcePath,
+      contents: composeFileRecord.contents
+    },
+    envFiles: parseFrozenEnvFilePayloads(record.envFiles)
+  };
+}
 
 export async function resolveComposeDeploymentEnvEntries(input: {
   environmentId: string;
@@ -68,25 +150,52 @@ export async function prepareComposeDeploymentEnvState(input: {
 export function encryptComposeDeploymentEnvEntries(
   entries: ComposeEnvPayloadEntry[] | ComposeEnvMaterializedEntry[]
 ): string {
-  return encrypt(JSON.stringify(entries));
+  return encryptComposeDeploymentState({ envEntries: entries });
 }
 
-export function readDeploymentComposeEnvState(
+export function encryptComposeDeploymentState(input: {
+  envEntries: ComposeEnvPayloadEntry[] | ComposeEnvMaterializedEntry[];
+  frozenInputs?: FrozenComposeInputsPayload;
+}): string {
+  return encrypt(
+    JSON.stringify({
+      version: 1,
+      composeEnvEntries: input.envEntries,
+      ...(input.frozenInputs ? { frozenInputs: input.frozenInputs } : {})
+    } satisfies SerializedComposeDeploymentState)
+  );
+}
+
+export function readDeploymentComposeState(
   envVarsEncrypted: string | null | undefined
-): DeploymentComposeEnvState {
+): DeploymentComposeState {
   if (!envVarsEncrypted) {
-    return { kind: "queued", entries: [] };
+    return { envState: { kind: "queued", entries: [] } };
   }
 
   const parsed = JSON.parse(decrypt(envVarsEncrypted)) as unknown;
-  if (!Array.isArray(parsed)) {
-    return { kind: "queued", entries: [] };
+
+  const encryptedEntries = Array.isArray(parsed)
+    ? parsed
+    : parsed &&
+        typeof parsed === "object" &&
+        !Array.isArray(parsed) &&
+        Array.isArray((parsed as Record<string, unknown>).composeEnvEntries)
+      ? ((parsed as Record<string, unknown>).composeEnvEntries as unknown[])
+      : [];
+  const frozenInputs =
+    parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? parseFrozenComposeInputsPayload((parsed as Record<string, unknown>).frozenInputs)
+      : undefined;
+
+  if (!Array.isArray(encryptedEntries)) {
+    return { envState: { kind: "queued", entries: [] }, frozenInputs };
   }
 
   const materializedEntries: ComposeEnvMaterializedEntry[] = [];
   const queuedEntries: ComposeEnvPayloadEntry[] = [];
 
-  for (const entry of parsed) {
+  for (const entry of encryptedEntries) {
     if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
       continue;
     }
@@ -142,21 +251,33 @@ export function readDeploymentComposeEnvState(
 
   if (materializedEntries.length > 0) {
     return {
-      kind: "materialized",
-      entries: materializedEntries.sort((a, b) => a.key.localeCompare(b.key))
+      envState: {
+        kind: "materialized",
+        entries: materializedEntries.sort((a, b) => a.key.localeCompare(b.key))
+      },
+      frozenInputs
     };
   }
 
   return {
-    kind: "queued",
-    entries: queuedEntries
+    envState: {
+      kind: "queued",
+      entries: queuedEntries
+    },
+    frozenInputs
   };
+}
+
+export function readDeploymentComposeEnvState(
+  envVarsEncrypted: string | null | undefined
+): DeploymentComposeEnvState {
+  return readDeploymentComposeState(envVarsEncrypted).envState;
 }
 
 export function readDeploymentComposeEnvEntries(
   envVarsEncrypted: string | null | undefined
 ): ComposeEnvPayloadEntry[] {
-  const state = readDeploymentComposeEnvState(envVarsEncrypted);
+  const state = readDeploymentComposeState(envVarsEncrypted).envState;
   if (state.kind === "queued") {
     return state.entries;
   }
@@ -181,8 +302,10 @@ export function buildMaterializedDeploymentComposeEnvEvidence(input: {
 
 export async function persistDeploymentComposeEnvState(input: {
   deploymentId: string;
-  envVarsEncrypted: string;
+  envEntries: ComposeEnvPayloadEntry[] | ComposeEnvMaterializedEntry[];
   composeEnv: ComposeEnvEvidence;
+  composeInputs?: ComposeInputManifest;
+  frozenInputs?: FrozenComposeInputsPayload;
 }): Promise<void> {
   const [deployment] = await db
     .select({ configSnapshot: deployments.configSnapshot })
@@ -195,10 +318,14 @@ export async function persistDeploymentComposeEnvState(input: {
   await db
     .update(deployments)
     .set({
-      envVarsEncrypted: input.envVarsEncrypted,
+      envVarsEncrypted: encryptComposeDeploymentState({
+        envEntries: input.envEntries,
+        frozenInputs: input.frozenInputs
+      }),
       configSnapshot: {
         ...snapshot,
-        composeEnv: input.composeEnv
+        composeEnv: input.composeEnv,
+        ...(input.composeInputs ? { composeInputs: input.composeInputs } : {})
       },
       updatedAt: new Date()
     })

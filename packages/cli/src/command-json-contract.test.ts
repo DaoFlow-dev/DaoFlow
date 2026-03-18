@@ -281,4 +281,50 @@ describe("CLI JSON contract", () => {
       code: "INVALID_INPUT"
     });
   });
+
+  test("compose deploy in JSON mode requires confirmation when local env_file assets need upload", async () => {
+    const program = new Command().name("daoflow");
+    program.addCommand(deployCommand());
+
+    const result = await withTempConfigDir(
+      JSON.stringify({ project: "demo" }),
+      async (configDir) => {
+        writeFileSync(
+          join(configDir, "compose.yaml"),
+          [
+            "services:",
+            "  api:",
+            "    image: nginx:alpine",
+            "    env_file:",
+            "      - ./runtime.env"
+          ].join("\n"),
+          "utf8"
+        );
+        writeFileSync(join(configDir, "runtime.env"), "API_TOKEN=secret\n", "utf8");
+
+        return await captureCommandExecution(async () => {
+          await program.parseAsync([
+            "node",
+            "daoflow",
+            "deploy",
+            "--compose",
+            "./compose.yaml",
+            "--server",
+            "srv_123",
+            "--json"
+          ]);
+        });
+      }
+    );
+
+    expect(result.exitCode).toBe(1);
+    expect(result.errors).toEqual([]);
+    expect(result.logs).toHaveLength(1);
+    expect(JSON.parse(result.logs[0])).toEqual({
+      ok: false,
+      error:
+        "1 local env_file asset will be frozen (0.0MB, 3 files). Context will be bundled, uploaded to DaoFlow, and deployed on server srv_123. Pass --yes to confirm, or --dry-run to preview.",
+      code: "CONFIRMATION_REQUIRED"
+    });
+  });
 });

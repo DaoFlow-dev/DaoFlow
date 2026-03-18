@@ -5,7 +5,7 @@ import {
   printComposeDeploymentPlan,
   type ComposeDeploymentPlanPreview
 } from "./compose-deployment-plan-output";
-import { createContextBundle, detectLocalBuildContexts } from "./context-bundler";
+import { analyzeComposeInputs, createContextBundle } from "./context-bundler";
 import { parseSizeString } from "./config-loader";
 import type { ComposeDeployCoreOptions } from "./compose-deploy-types";
 
@@ -42,10 +42,6 @@ function readComposeRepoDefaults(composePath: string): string | undefined {
   return readFileSync(repoDefaultPath, "utf8");
 }
 
-function hasLocalContext(context: string): boolean {
-  return context === "." || context.startsWith("./") || !context.includes(":");
-}
-
 export async function fetchComposeDeploymentPlan(
   trpc: ComposeDeploymentPlanClientLike,
   options: ComposeDeployCoreOptions
@@ -57,12 +53,13 @@ export async function fetchComposeDeploymentPlan(
 
   const composeContent = readFileSync(resolvedCompose, "utf8");
   const repoDefaultContent = readComposeRepoDefaults(resolvedCompose);
-  const buildContexts = detectLocalBuildContexts(composeContent).map((context) => ({
+  const composeInputs = analyzeComposeInputs(composeContent);
+  const buildContexts = composeInputs.localBuildContexts.map((context) => ({
     serviceName: context.serviceName,
     context: context.context,
     dockerfile: context.dockerfile ?? null
   }));
-  const requiresContextUpload = buildContexts.some((context) => hasLocalContext(context.context));
+  const requiresContextUpload = composeInputs.requiresContextUpload;
 
   let contextBundle:
     | {

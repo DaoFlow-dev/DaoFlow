@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fetchComposeDeploymentPlan, previewComposeDeploy } from "./compose-deploy-preview";
@@ -168,6 +168,198 @@ describe("previewComposeDeploy", () => {
         dockerfile: "Dockerfile"
       }
     ]);
+  });
+
+  test("fetchComposeDeploymentPlan requires context upload for local env_file assets", async () => {
+    const contextDir = mkdtempSync(join(tmpdir(), "daoflow-compose-envfile-preview-"));
+    tempDirs.push(contextDir);
+
+    const composePath = join(contextDir, "compose.yaml");
+    writeFileSync(
+      composePath,
+      [
+        "services:",
+        "  api:",
+        "    image: nginx:alpine",
+        "    env_file:",
+        "      - ./config/runtime.env"
+      ].join("\n")
+    );
+    writeFileSync(join(contextDir, ".env"), "HELLO=world\n");
+    writeFileSync(join(contextDir, "app.txt"), "app\n");
+    writeFileSync(join(contextDir, ".dockerignore"), "");
+    writeFileSync(join(contextDir, ".daoflowignore"), "");
+    mkdirSync(join(contextDir, "config"), { recursive: true });
+    writeFileSync(join(contextDir, "config", "runtime.env"), "API_TOKEN=secret\n");
+
+    let receivedInput: Record<string, unknown> | undefined;
+    await fetchComposeDeploymentPlan(
+      {
+        composeDeploymentPlan: {
+          query: (input) => {
+            receivedInput = input;
+            return Promise.resolve({
+              isReady: true,
+              deploymentSource: "uploaded-context",
+              project: { id: null, name: "compose", action: "create" },
+              environment: { id: null, name: "production", action: "create" },
+              service: {
+                id: null,
+                name: "compose",
+                action: "create",
+                sourceType: "compose"
+              },
+              composeEnvPlan: {
+                branch: "main",
+                matchedBranchOverrideCount: 0,
+                composeEnv: {
+                  precedence: ["repo-defaults", "environment-variables"],
+                  counts: {
+                    total: 1,
+                    repoDefaults: 1,
+                    environmentVariables: 0,
+                    runtime: 0,
+                    build: 0,
+                    secrets: 0,
+                    overriddenRepoDefaults: 0
+                  },
+                  warnings: [],
+                  entries: []
+                },
+                interpolation: {
+                  status: "ok",
+                  summary: {
+                    totalReferences: 0,
+                    unresolved: 0,
+                    requiredMissing: 0,
+                    optionalMissing: 0
+                  },
+                  warnings: [],
+                  unresolved: []
+                }
+              },
+              target: {
+                serverId: "srv_123",
+                serverName: "prod-west",
+                serverHost: "203.0.113.10",
+                composePath,
+                contextPath: contextDir,
+                requiresContextUpload: true,
+                localBuildContexts: [],
+                contextBundle: {
+                  fileCount: 4,
+                  sizeBytes: 1024,
+                  includedOverrides: []
+                }
+              },
+              preflightChecks: [{ status: "ok", detail: "Bundle preview ready." }],
+              steps: ["Bundle", "Upload", "Dispatch"],
+              executeCommand: "daoflow deploy --compose ./compose.yaml --server srv_123 --yes"
+            });
+          }
+        }
+      },
+      {
+        composePath,
+        contextPath: contextDir,
+        serverId: "srv_123"
+      }
+    );
+
+    expect(receivedInput).toBeDefined();
+    expect(receivedInput?.requiresContextUpload).toBe(true);
+    expect(receivedInput?.localBuildContexts).toEqual([]);
+  });
+
+  test("fetchComposeDeploymentPlan does not treat absolute env_file paths as bundleable local assets", async () => {
+    const contextDir = mkdtempSync(join(tmpdir(), "daoflow-compose-absolute-envfile-"));
+    tempDirs.push(contextDir);
+
+    const composePath = join(contextDir, "compose.yaml");
+    writeFileSync(
+      composePath,
+      [
+        "services:",
+        "  api:",
+        "    image: nginx:alpine",
+        "    env_file:",
+        "      - /etc/dao/runtime.env"
+      ].join("\n")
+    );
+
+    let receivedInput: Record<string, unknown> | undefined;
+    await fetchComposeDeploymentPlan(
+      {
+        composeDeploymentPlan: {
+          query: (input) => {
+            receivedInput = input;
+            return Promise.resolve({
+              isReady: true,
+              deploymentSource: "uploaded-compose",
+              project: { id: null, name: "compose", action: "create" },
+              environment: { id: null, name: "production", action: "create" },
+              service: {
+                id: null,
+                name: "compose",
+                action: "create",
+                sourceType: "compose"
+              },
+              composeEnvPlan: {
+                branch: "main",
+                matchedBranchOverrideCount: 0,
+                composeEnv: {
+                  precedence: ["repo-defaults", "environment-variables"],
+                  counts: {
+                    total: 0,
+                    repoDefaults: 0,
+                    environmentVariables: 0,
+                    runtime: 0,
+                    build: 0,
+                    secrets: 0,
+                    overriddenRepoDefaults: 0
+                  },
+                  warnings: [],
+                  entries: []
+                },
+                interpolation: {
+                  status: "ok",
+                  summary: {
+                    totalReferences: 0,
+                    unresolved: 0,
+                    requiredMissing: 0,
+                    optionalMissing: 0
+                  },
+                  warnings: [],
+                  unresolved: []
+                }
+              },
+              target: {
+                serverId: "srv_123",
+                serverName: "prod-west",
+                serverHost: "203.0.113.10",
+                composePath,
+                contextPath: contextDir,
+                requiresContextUpload: false,
+                localBuildContexts: [],
+                contextBundle: null
+              },
+              preflightChecks: [{ status: "ok", detail: "Bundle preview ready." }],
+              steps: ["Upload", "Dispatch"],
+              executeCommand: "daoflow deploy --compose ./compose.yaml --server srv_123 --yes"
+            });
+          }
+        }
+      },
+      {
+        composePath,
+        contextPath: contextDir,
+        serverId: "srv_123"
+      }
+    );
+
+    expect(receivedInput).toBeDefined();
+    expect(receivedInput?.requiresContextUpload).toBe(false);
+    expect(receivedInput?.localBuildContexts).toEqual([]);
   });
 
   test("calls the planning lane and emits the dry-run envelope in JSON mode", async () => {

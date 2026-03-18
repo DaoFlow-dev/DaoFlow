@@ -31,6 +31,7 @@
     "nodemailer": "8.0.2",
     "pg": "8.20.0",
     "web-push": "3.6.7",
+    "yaml": "2.8.2",
     "zod": "^4.1.8"
   },
   "devDependencies": {

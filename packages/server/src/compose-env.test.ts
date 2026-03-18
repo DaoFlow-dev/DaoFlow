@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  encryptComposeDeploymentState,
+  readDeploymentComposeState,
   encryptComposeDeploymentEnvEntries,
   readDeploymentComposeEnvState
 } from "./db/services/compose-env";
@@ -218,6 +220,67 @@ bad line
           overrodeRepoDefault: false
         }
       ]
+    });
+  });
+
+  it("preserves frozen compose input payloads inside encrypted deployment state", () => {
+    const encrypted = encryptComposeDeploymentState({
+      envEntries: [
+        {
+          key: "RUNTIME_ONLY",
+          value: "1",
+          category: "runtime",
+          isSecret: false,
+          source: "inline",
+          branchPattern: null
+        }
+      ],
+      frozenInputs: {
+        composeFile: {
+          path: ".daoflow.compose.rendered.yaml",
+          sourcePath: "compose.yaml",
+          contents: "services:\n  api:\n    image: nginx:alpine\n"
+        },
+        envFiles: [
+          {
+            path: ".daoflow.compose.inputs/runtime.env",
+            sourcePath: "./runtime.env",
+            contents: "API_TOKEN=secret\n",
+            services: ["api"]
+          }
+        ]
+      }
+    });
+
+    expect(readDeploymentComposeState(encrypted)).toEqual({
+      envState: {
+        kind: "queued",
+        entries: [
+          {
+            key: "RUNTIME_ONLY",
+            value: "1",
+            category: "runtime",
+            isSecret: false,
+            source: "inline",
+            branchPattern: null
+          }
+        ]
+      },
+      frozenInputs: {
+        composeFile: {
+          path: ".daoflow.compose.rendered.yaml",
+          sourcePath: "compose.yaml",
+          contents: "services:\n  api:\n    image: nginx:alpine\n"
+        },
+        envFiles: [
+          {
+            path: ".daoflow.compose.inputs/runtime.env",
+            sourcePath: "./runtime.env",
+            contents: "API_TOKEN=secret\n",
+            services: ["api"]
+          }
+        ]
+      }
     });
   });
 });

@@ -1,14 +1,23 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { basename, join } from "node:path";
+import { join, relative } from "node:path";
 
 describe("prepareComposeWorkspace", () => {
   let stageDir: string;
 
   beforeEach(() => {
     stageDir = mkdtempSync(join(tmpdir(), "daoflow-compose-workspace-"));
-    writeFileSync(join(stageDir, "compose.yaml"), "services:\n  app:\n    image: nginx:alpine\n");
+    writeFileSync(
+      join(stageDir, "compose.yaml"),
+      [
+        "services:",
+        "  app:",
+        "    image: nginx:alpine",
+        "    env_file:",
+        "      - ./config/runtime.env"
+      ].join("\n")
+    );
     writeFileSync(join(stageDir, "context.tar.gz"), "placeholder archive");
     vi.resetModules();
   });
@@ -19,7 +28,7 @@ describe("prepareComposeWorkspace", () => {
     rmSync(stageDir, { recursive: true, force: true });
   });
 
-  it("extracts uploaded remote context locally before materializing compose env artifacts", async () => {
+  it("extracts uploaded remote context locally and uploads frozen env_file artifacts", async () => {
     const callOrder: string[] = [];
 
     vi.doMock("./docker-executor", () => ({
@@ -27,7 +36,9 @@ describe("prepareComposeWorkspace", () => {
       ensureStagingDir: vi.fn(() => stageDir),
       extractTarArchive: vi.fn((_archivePath: string, destinationDir: string) => {
         callOrder.push("extract-local-context");
+        mkdirSync(join(destinationDir, "config"), { recursive: true });
         writeFileSync(join(destinationDir, ".env"), "FROM_ARCHIVE=1\n");
+        writeFileSync(join(destinationDir, "config", "runtime.env"), "API_TOKEN=secret\n");
         return { exitCode: 0 };
       }),
       getStagingArchivePath: vi.fn(),
@@ -35,17 +46,16 @@ describe("prepareComposeWorkspace", () => {
     }));
 
     vi.doMock("./ssh-executor", () => ({
-      remoteEnsureDir: vi.fn(() => {
-        callOrder.push("remote-ensure");
+      remoteEnsureDir: vi.fn((_ssh: unknown, dir: string) => {
+        callOrder.push(`remote-ensure:${dir}`);
         return { exitCode: 0 };
       }),
       remoteExtractArchive: vi.fn(() => {
         callOrder.push("remote-extract");
         return { exitCode: 0 };
       }),
-      remoteGitClone: vi.fn(),
       scpUpload: vi.fn((_ssh: unknown, localPath: string) => {
-        callOrder.push(`upload:${basename(localPath)}`);
+        callOrder.push(`upload:${relative(stageDir, localPath)}`);
         return { exitCode: 0 };
       })
     }));
@@ -72,41 +82,42 @@ describe("prepareComposeWorkspace", () => {
         },
         remoteWorkDir: "/tmp/daoflow-staging/deploy_123"
       },
-      () => {},
-      {
-        kind: "queued",
-        entries: [
-          {
-            key: "RUNTIME_ONLY",
-            value: "2",
-            category: "runtime",
-            isSecret: false,
-            source: "inline",
-            branchPattern: null
-          }
-        ]
-      }
+      () => {}
     );
 
     expect(callOrder.indexOf("extract-local-context")).toBeGreaterThan(-1);
     expect(callOrder.indexOf("extract-local-context")).toBeLessThan(
       callOrder.indexOf("upload:context.tar.gz")
     );
+    expect(callOrder).toContain("upload:.daoflow.compose.rendered.yaml");
+    expect(callOrder).toContain("upload:.daoflow.compose.inputs/config__runtime.env");
     expect(callOrder).toContain("upload:.daoflow.compose.env");
-    expect(workspace.composeEnv?.composeEnv.counts.repoDefaults).toBe(1);
-    expect(workspace.composeEnv?.payloadEntries.map((entry) => entry.key)).toEqual([
-      "FROM_ARCHIVE",
-      "RUNTIME_ONLY"
-    ]);
+    expect(workspace.composeFile).toBe(".daoflow.compose.rendered.yaml");
+    expect(workspace.composeEnv.composeEnv.counts.repoDefaults).toBe(1);
+    expect(workspace.composeEnv.payloadEntries.map((entry) => entry.key)).toEqual(["FROM_ARCHIVE"]);
+    expect(workspace.composeInputs.manifest.entries).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "service-env-file",
+          path: ".daoflow.compose.inputs/config__runtime.env"
+        })
+      ])
+    );
   });
 
-  it("reads repo defaults from the compose file directory for git-backed deployments", async () => {
-    writeFileSync(join(stageDir, ".env"), "ROOT_ONLY=1\n");
-    mkdirSync(join(stageDir, "ops"), { recursive: true });
-    writeFileSync(join(stageDir, "ops", ".env"), "NESTED_ONLY=1\n");
+  it("renders git-backed compose deployments through the frozen compose manifest", async () => {
+    mkdirSync(join(stageDir, "ops", "config"), { recursive: true });
+    writeFileSync(join(stageDir, "ops", ".env"), "ROOT_ONLY=1\n");
+    writeFileSync(join(stageDir, "ops", "config", "runtime.env"), "RUNTIME_ONLY=1\n");
     writeFileSync(
       join(stageDir, "ops", "compose.yaml"),
-      "services:\n  app:\n    image: nginx:alpine\n"
+      [
+        "services:",
+        "  app:",
+        "    image: nginx:alpine",
+        "    env_file:",
+        "      - ./config/runtime.env"
+      ].join("\n")
     );
 
     vi.doMock("./docker-executor", () => ({
@@ -123,7 +134,6 @@ describe("prepareComposeWorkspace", () => {
     vi.doMock("./ssh-executor", () => ({
       remoteEnsureDir: vi.fn(),
       remoteExtractArchive: vi.fn(),
-      remoteGitClone: vi.fn(),
       scpUpload: vi.fn()
     }));
 
@@ -151,13 +161,22 @@ describe("prepareComposeWorkspace", () => {
         composeFilePath: "ops/compose.yaml"
       },
       { mode: "local" },
-      () => {},
-      {
-        kind: "queued",
-        entries: []
-      }
+      () => {}
     );
 
-    expect(workspace.composeEnv?.payloadEntries.map((entry) => entry.key)).toEqual(["NESTED_ONLY"]);
+    expect(workspace.composeFile).toBe(".daoflow.compose.rendered.yaml");
+    expect(workspace.composeEnv.payloadEntries.map((entry) => entry.key)).toEqual(["ROOT_ONLY"]);
+    expect(workspace.composeInputs.manifest.entries).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "service-env-file",
+          path: ".daoflow.compose.inputs/config__runtime.env",
+          sourcePath: "config/runtime.env"
+        })
+      ])
+    );
+
+    const renderedCompose = readFileSync(join(stageDir, workspace.composeFile), "utf8");
+    expect(renderedCompose).toContain(".daoflow.compose.inputs/config__runtime.env");
   });
 });

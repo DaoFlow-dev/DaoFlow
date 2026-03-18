@@ -8,10 +8,10 @@ import type { ComposeDeployCoreOptions } from "./compose-deploy-types";
 
 export async function executeComposeDeploy(
   composeContent: string,
-  hasLocalContext: boolean,
+  requiresContextUpload: boolean,
   options: ComposeDeployCoreOptions
 ): Promise<void> {
-  if (hasLocalContext) {
+  if (requiresContextUpload) {
     await uploadContextBundle(options.contextPath, composeContent, options);
     return;
   }

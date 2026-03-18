@@ -12,9 +12,8 @@ import { db } from "../db/connection";
 import { deployments } from "../db/schema/deployments";
 import { COMPOSE_ENV_FILE_NAME } from "../compose-env";
 import {
-  encryptComposeDeploymentEnvEntries,
   persistDeploymentComposeEnvState,
-  readDeploymentComposeEnvState
+  readDeploymentComposeState
 } from "../db/services/compose-env";
 import {
   gitClone,
@@ -75,24 +74,25 @@ export async function executeComposeDeployment(
   let workDir: string;
   let composeFile: string;
   let composeEnvFile: string | undefined;
+  const deploymentComposeState = readDeploymentComposeState(deployment.envVarsEncrypted);
   try {
     const workspace = await prepareComposeWorkspace(
       deployment.id,
       config,
       target,
       onLog,
-      readDeploymentComposeEnvState(deployment.envVarsEncrypted)
+      deploymentComposeState
     );
     workDir = workspace.workDir;
     composeFile = workspace.composeFile;
-    if (workspace.composeEnv) {
-      composeEnvFile = COMPOSE_ENV_FILE_NAME;
-      await persistDeploymentComposeEnvState({
-        deploymentId: deployment.id,
-        envVarsEncrypted: encryptComposeDeploymentEnvEntries(workspace.composeEnv.payloadEntries),
-        composeEnv: workspace.composeEnv.composeEnv
-      });
-    }
+    composeEnvFile = COMPOSE_ENV_FILE_NAME;
+    await persistDeploymentComposeEnvState({
+      deploymentId: deployment.id,
+      envEntries: workspace.composeEnv.payloadEntries,
+      composeEnv: workspace.composeEnv.composeEnv,
+      composeInputs: workspace.composeInputs.manifest,
+      frozenInputs: workspace.composeInputs.frozenInputs
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     await markStepFailed(cloneStepId, message);
