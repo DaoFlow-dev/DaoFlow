@@ -94,8 +94,10 @@ const ALL_WRITE = ["owner", "admin", "operator", "developer"] as const;
 const ALL_OPS = ["owner", "admin", "operator"] as const;
 const ADMIN_ONLY = ["owner", "admin"] as const;
 const ALL_INCL_AGENT = ["owner", "admin", "operator", "developer", "agent"] as const;
+const ALL_READERS = ["owner", "admin", "operator", "developer", "viewer", "agent"] as const;
 
 export const serverWriteProcedure = scopedProcedure(ADMIN_ONLY, ["server:write"]);
+export const deployReadProcedure = scopedProcedure(ALL_READERS, ["deploy:read"]);
 export const deployStartProcedure = scopedProcedure(ALL_WRITE, ["deploy:start"]);
 export const deployRollbackProcedure = scopedProcedure(ALL_WRITE, ["deploy:rollback"]);
 export const deployCancelProcedure = scopedProcedure(ALL_WRITE, ["deploy:cancel"]);

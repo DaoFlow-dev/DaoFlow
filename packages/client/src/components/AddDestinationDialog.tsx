@@ -94,10 +94,8 @@ export function AddDestinationDialog({
       endpoint: provider === "s3" ? endpointVal : undefined,
       s3Provider: provider === "s3" ? s3Provider : undefined,
       localPath: provider === "local" ? localPath : undefined,
-      rcloneConfig:
-        provider === "rclone" || provider === "sftp" ? rcloneConfig : undefined,
-      rcloneRemotePath:
-        provider === "rclone" || provider === "sftp" ? rcloneRemotePath : undefined,
+      rcloneConfig: provider === "rclone" || provider === "sftp" ? rcloneConfig : undefined,
+      rcloneRemotePath: provider === "rclone" || provider === "sftp" ? rcloneRemotePath : undefined,
       oauthToken:
         provider === "gdrive" || provider === "onedrive" || provider === "dropbox"
           ? rcloneConfig
@@ -133,10 +131,7 @@ export function AddDestinationDialog({
 
           <div className="grid gap-1.5">
             <Label>Provider</Label>
-            <Select
-              value={provider}
-              onValueChange={(v: string) => setProvider(v as ProviderKey)}
-            >
+            <Select value={provider} onValueChange={(v: string) => setProvider(v as ProviderKey)}>
               <SelectTrigger data-testid="destination-provider-select">
                 <SelectValue placeholder="Select provider" />
               </SelectTrigger>
@@ -150,14 +145,22 @@ export function AddDestinationDialog({
             </Select>
           </div>
 
-          {provider === "s3" && <S3Fields
-            s3Provider={s3Provider} setS3Provider={setS3Provider}
-            accessKey={accessKey} setAccessKey={setAccessKey}
-            secretKey={secretKey} setSecretKey={setSecretKey}
-            bucket={bucket} setBucket={setBucket}
-            region={region} setRegion={setRegion}
-            endpoint={endpointVal} setEndpoint={setEndpointVal}
-          />}
+          {provider === "s3" && (
+            <S3Fields
+              s3Provider={s3Provider}
+              setS3Provider={setS3Provider}
+              accessKey={accessKey}
+              setAccessKey={setAccessKey}
+              secretKey={secretKey}
+              setSecretKey={setSecretKey}
+              bucket={bucket}
+              setBucket={setBucket}
+              region={region}
+              setRegion={setRegion}
+              endpoint={endpointVal}
+              setEndpoint={setEndpointVal}
+            />
+          )}
 
           {provider === "local" && (
             <div className="grid gap-1.5">
@@ -228,19 +231,31 @@ export function AddDestinationDialog({
 }
 
 function S3Fields({
-  s3Provider, setS3Provider,
-  accessKey, setAccessKey,
-  secretKey, setSecretKey,
-  bucket, setBucket,
-  region, setRegion,
-  endpoint, setEndpoint
+  s3Provider,
+  setS3Provider,
+  accessKey,
+  setAccessKey,
+  secretKey,
+  setSecretKey,
+  bucket,
+  setBucket,
+  region,
+  setRegion,
+  endpoint,
+  setEndpoint
 }: {
-  s3Provider: string; setS3Provider: (v: string) => void;
-  accessKey: string; setAccessKey: (v: string) => void;
-  secretKey: string; setSecretKey: (v: string) => void;
-  bucket: string; setBucket: (v: string) => void;
-  region: string; setRegion: (v: string) => void;
-  endpoint: string; setEndpoint: (v: string) => void;
+  s3Provider: string;
+  setS3Provider: (v: string) => void;
+  accessKey: string;
+  setAccessKey: (v: string) => void;
+  secretKey: string;
+  setSecretKey: (v: string) => void;
+  bucket: string;
+  setBucket: (v: string) => void;
+  region: string;
+  setRegion: (v: string) => void;
+  endpoint: string;
+  setEndpoint: (v: string) => void;
 }) {
   return (
     <>
@@ -262,26 +277,47 @@ function S3Fields({
       <div className="grid grid-cols-2 gap-3">
         <div className="grid gap-1.5">
           <Label>Access Key</Label>
-          <Input placeholder="AKIAIOSFODNN7" value={accessKey} onChange={(e) => setAccessKey(e.target.value)} />
+          <Input
+            placeholder="AKIAIOSFODNN7"
+            value={accessKey}
+            onChange={(e) => setAccessKey(e.target.value)}
+          />
         </div>
         <div className="grid gap-1.5">
           <Label>Secret Key</Label>
-          <Input type="password" placeholder="wJalrXUtnFEMI/K7" value={secretKey} onChange={(e) => setSecretKey(e.target.value)} />
+          <Input
+            type="password"
+            placeholder="wJalrXUtnFEMI/K7"
+            value={secretKey}
+            onChange={(e) => setSecretKey(e.target.value)}
+          />
         </div>
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div className="grid gap-1.5">
           <Label>Bucket</Label>
-          <Input placeholder="my-backups" value={bucket} onChange={(e) => setBucket(e.target.value)} />
+          <Input
+            placeholder="my-backups"
+            value={bucket}
+            onChange={(e) => setBucket(e.target.value)}
+          />
         </div>
         <div className="grid gap-1.5">
           <Label>Region</Label>
-          <Input placeholder="us-east-1" value={region} onChange={(e) => setRegion(e.target.value)} />
+          <Input
+            placeholder="us-east-1"
+            value={region}
+            onChange={(e) => setRegion(e.target.value)}
+          />
         </div>
       </div>
       <div className="grid gap-1.5">
         <Label>Endpoint</Label>
-        <Input placeholder="https://s3.amazonaws.com" value={endpoint} onChange={(e) => setEndpoint(e.target.value)} />
+        <Input
+          placeholder="https://s3.amazonaws.com"
+          value={endpoint}
+          onChange={(e) => setEndpoint(e.target.value)}
+        />
       </div>
     </>
   );

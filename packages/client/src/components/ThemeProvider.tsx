@@ -52,11 +52,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     return () => mq.removeEventListener("change", handler);
   }, [theme]);
 
-  return (
-    <ThemeContext value={{ theme, setTheme, resolved }}>
-      {children}
-    </ThemeContext>
-  );
+  return <ThemeContext value={{ theme, setTheme, resolved }}>{children}</ThemeContext>;
 }
 
 export function useTheme() {

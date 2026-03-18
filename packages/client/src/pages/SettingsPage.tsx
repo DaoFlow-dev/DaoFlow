@@ -146,9 +146,7 @@ export default function SettingsPage() {
               <Card>
                 <CardHeader>
                   <CardTitle className="text-base">Persistent Volumes</CardTitle>
-                  <CardDescription>
-                    Manage named volumes and storage configuration.
-                  </CardDescription>
+                  <CardDescription>Manage named volumes and storage configuration.</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <p className="text-sm text-muted-foreground">

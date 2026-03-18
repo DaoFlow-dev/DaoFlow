@@ -33,9 +33,7 @@ export function UsersSettingsTab({ isAdmin, isLoading, principals }: UsersSettin
             <CardTitle className="text-base">Users & Principals</CardTitle>
             {!isAdmin && <Badge variant="secondary">Admin only</Badge>}
           </div>
-          <CardDescription>
-            Team members, service accounts, and agent principals.
-          </CardDescription>
+          <CardDescription>Team members, service accounts, and agent principals.</CardDescription>
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -62,9 +60,7 @@ export function UsersSettingsTab({ isAdmin, isLoading, principals }: UsersSettin
                   <TableRow key={p.id}>
                     <TableCell className="font-medium">{p.name}</TableCell>
                     <TableCell>
-                      <Badge variant={p.type === "agent" ? "outline" : "secondary"}>
-                        {p.type}
-                      </Badge>
+                      <Badge variant={p.type === "agent" ? "outline" : "secondary"}>{p.type}</Badge>
                     </TableCell>
                     <TableCell>
                       <Badge variant={p.status === "active" ? "default" : "destructive"}>

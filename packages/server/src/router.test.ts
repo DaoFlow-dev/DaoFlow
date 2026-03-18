@@ -148,6 +148,64 @@ describe("appRouter", () => {
     expect(Array.isArray(drift.reports)).toBe(true);
   });
 
+  it("returns a real deployment plan from the planning lane", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-plan",
+      session: makeSession("viewer")
+    });
+
+    const services = await caller.services({});
+    const service = services[0];
+
+    if (!service) {
+      return;
+    }
+
+    const plan = await caller.deploymentPlan({
+      service: service.id
+    });
+
+    expect(plan.service.id).toBe(service.id);
+    expect(plan.service.projectName).toEqual(expect.any(String));
+    expect(Array.isArray(plan.steps)).toBe(true);
+    expect(plan.steps.length).toBeGreaterThan(0);
+    expect(Array.isArray(plan.preflightChecks)).toBe(true);
+    expect(plan.executeCommand).toContain("daoflow deploy");
+  });
+
+  it("rejects planning requests that override the configured target server", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-plan-server-mismatch",
+      session: makeSession("viewer")
+    });
+
+    const [serviceList, inventory] = await Promise.all([
+      caller.services({}),
+      caller.infrastructureInventory()
+    ]);
+    const targetableService = serviceList.find(
+      (service) => typeof service.targetServerId === "string" && service.targetServerId.length > 0
+    );
+
+    if (!targetableService) {
+      return;
+    }
+
+    const otherServer = inventory.servers.find(
+      (server) => server.id !== targetableService.targetServerId
+    );
+    if (!otherServer) {
+      return;
+    }
+
+    await expect(
+      caller.deploymentPlan({
+        service: targetableService.id,
+        server: otherServer.id
+      })
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" } satisfies Partial<TRPCError>);
+  });
+
   it("returns deployment logs keyed by level", async () => {
     const caller = appRouter.createCaller({
       requestId: "test-logs",

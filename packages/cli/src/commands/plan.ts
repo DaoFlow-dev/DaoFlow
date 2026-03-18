@@ -1,6 +1,11 @@
 import { Command } from "commander";
 import chalk from "chalk";
-import { getErrorMessage, resolveCommandJsonOption } from "../command-helpers";
+import {
+  emitJsonError,
+  emitJsonSuccess,
+  getErrorMessage,
+  resolveCommandJsonOption
+} from "../command-helpers";
 import { createClient } from "../trpc-client";
 
 export function planCommand(): Command {
@@ -19,73 +24,60 @@ export function planCommand(): Command {
 
         try {
           const trpc = createClient();
-          const data = await trpc.composeReleaseCatalog.query({});
-          const current =
-            data.services?.find((service) => service.serviceName === opts.service) ?? null;
-          const steps = [
-            "Pull/load image",
-            "Stop existing container",
-            "Create new container from image",
-            "Start container",
-            "Health check",
-            "Update routing"
-          ];
-          const preflightChecks = [
-            { status: "ok", detail: "Service exists in catalog" },
-            { status: "ok", detail: "Image reference valid" },
-            { status: "warn", detail: "Server reachability (run: daoflow status)" }
-          ] as const;
-          const plan = {
+          const plan = await trpc.deploymentPlan.query({
             service: opts.service,
-            server: opts.server ?? "default",
-            image: opts.image ?? "latest",
-            current,
-            steps,
-            preflightChecks,
-            executeCommand: `daoflow deploy --service ${opts.service} --server <id>`
-          };
+            server: opts.server,
+            image: opts.image
+          });
 
           if (isJson) {
-            console.log(JSON.stringify({ ok: true, data: plan }));
+            emitJsonSuccess(plan);
             return;
           }
 
           console.log(chalk.bold("\n  Deployment Plan (dry-run)\n"));
           console.log(chalk.dim("  This plan will NOT be executed.\n"));
-          console.log(`  ${chalk.bold("Service:")}   ${plan.service}`);
-          console.log(`  ${chalk.bold("Server:")}    ${plan.server}`);
-          console.log(`  ${chalk.bold("Image:")}     ${plan.image}`);
+          console.log(`  ${chalk.bold("Service:")}   ${plan.service.name}`);
+          console.log(`  ${chalk.bold("Project:")}   ${plan.service.projectName}`);
+          console.log(`  ${chalk.bold("Env:")}       ${plan.service.environmentName}`);
+          console.log(`  ${chalk.bold("Server:")}    ${plan.target.serverName ?? "unassigned"}`);
+          console.log(
+            `  ${chalk.bold("Image:")}     ${plan.target.imageTag ?? "derived at runtime"}`
+          );
+          console.log(
+            `  ${chalk.bold("Ready:")}     ${plan.isReady ? chalk.green("yes") : chalk.red("no")}`
+          );
           console.log();
 
-          if (current) {
+          if (plan.currentDeployment) {
             console.log(chalk.dim(`  Current state:`));
-            console.log(chalk.dim(`    Status: ${current.status}`));
-            console.log(chalk.dim(`    Image:  ${current.imageTag ?? "unknown"}`));
+            console.log(chalk.dim(`    Status: ${plan.currentDeployment.statusLabel}`));
+            console.log(chalk.dim(`    Image:  ${plan.currentDeployment.imageTag ?? "unknown"}`));
             console.log();
           }
 
           console.log(`  ${chalk.bold("Planned steps:")}`);
-          for (const [index, step] of steps.entries()) {
+          for (const [index, step] of plan.steps.entries()) {
             console.log(`    ${index + 1}. ${step}`);
           }
           console.log();
 
           console.log(`  ${chalk.bold("Pre-flight checks:")}`);
-          console.log(`    ${chalk.green("✓")} ${preflightChecks[0].detail}`);
-          console.log(`    ${chalk.green("✓")} ${preflightChecks[1].detail}`);
-          console.log(`    ${chalk.yellow("?")} ${preflightChecks[2].detail}`);
+          for (const check of plan.preflightChecks) {
+            const icon =
+              check.status === "ok"
+                ? chalk.green("✓")
+                : check.status === "warn"
+                  ? chalk.yellow("!")
+                  : chalk.red("✗");
+            console.log(`    ${icon} ${check.detail}`);
+          }
           console.log();
 
           console.log(`  To execute: ${chalk.cyan(plan.executeCommand)}\n`);
         } catch (error) {
           if (isJson) {
-            console.log(
-              JSON.stringify({
-                ok: false,
-                error: getErrorMessage(error),
-                code: "API_ERROR"
-              })
-            );
+            emitJsonError(getErrorMessage(error), "API_ERROR");
           } else {
             console.error(chalk.red(`✗ ${getErrorMessage(error)}`));
           }

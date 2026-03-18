@@ -59,3 +59,16 @@ This file holds the detailed CLI contract, scope map, and agent-facing command r
 | `backup list`    | read     | `backup:read`                        | no       |
 | `backup run`     | command  | `backup:run`                         | yes      |
 | `backup restore` | command  | `backup:restore`, `approvals:create` | yes      |
+
+## Plan Command Contract
+
+- `daoflow plan` is a planning-lane command backed by the control plane, not a local CLI stub
+- Required input: `--service <id|name>`
+- Optional input: `--server <id|name>`, `--image <ref>`, `--json`
+- JSON success shape:
+  - `{ "ok": true, "data": { "isReady": boolean, "service": {...}, "target": {...}, "currentDeployment": {...} | null, "preflightChecks": [{ "status": "ok" | "warn" | "fail", "detail": string }], "steps": string[], "executeCommand": string } }`
+- Human output must show:
+  - service, project, environment, target server, target image
+  - current deployment status when present
+  - ordered planned steps
+  - preflight checks with `ok` / `warn` / `fail`

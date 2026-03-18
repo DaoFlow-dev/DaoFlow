@@ -15,6 +15,11 @@ interface SecuritySettingsTabProps {
   auditEntries: Record<string, unknown>[];
 }
 
+function readCellValue(record: Record<string, unknown>, key: string, fallback = "—") {
+  const value = record[key];
+  return typeof value === "string" && value.length > 0 ? value : fallback;
+}
+
 export function SecuritySettingsTab({ isLoading, auditEntries }: SecuritySettingsTabProps) {
   return (
     <div className="mt-4">
@@ -47,16 +52,17 @@ export function SecuritySettingsTab({ isLoading, auditEntries }: SecuritySetting
               </TableHeader>
               <TableBody>
                 {auditEntries.map((entry, i) => {
-                  const id = String(entry["id"] ?? i);
-                  const action = String(entry["action"] ?? "—");
-                  const actor = String(
-                    entry["actorEmail"] ?? entry["actorId"] ?? "—"
-                  );
-                  const resource = String(entry["resourceType"] ?? "—");
-                  const outcome = String(entry["outcome"] ?? "—");
-                  const created = entry["createdAt"]
-                    ? new Date(String(entry["createdAt"])).toLocaleString()
-                    : "—";
+                  const id = readCellValue(entry, "id", String(i));
+                  const action = readCellValue(entry, "action");
+                  const actor =
+                    readCellValue(entry, "actorEmail", "") ||
+                    readCellValue(entry, "actorId", "") ||
+                    "—";
+                  const resource = readCellValue(entry, "resourceType");
+                  const outcome = readCellValue(entry, "outcome");
+                  const createdAt = entry["createdAt"];
+                  const created =
+                    typeof createdAt === "string" ? new Date(createdAt).toLocaleString() : "—";
                   return (
                     <TableRow key={id}>
                       <TableCell className="font-medium">{action}</TableCell>

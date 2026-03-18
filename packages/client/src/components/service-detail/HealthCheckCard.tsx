@@ -11,9 +11,7 @@ interface HealthCheckCardProps {
 
 export function HealthCheckCard({ healthcheckPath, port }: HealthCheckCardProps) {
   const [hcCommand, setHcCommand] = useState(
-    healthcheckPath
-      ? `curl -f http://localhost:${port ?? "3000"}${healthcheckPath}`
-      : ""
+    healthcheckPath ? `curl -f http://localhost:${port ?? "3000"}${healthcheckPath}` : ""
   );
   const [hcInterval, setHcInterval] = useState("30");
   const [hcTimeout, setHcTimeout] = useState("10");
@@ -68,9 +66,7 @@ export function HealthCheckCard({ healthcheckPath, port }: HealthCheckCardProps)
               />
             </div>
             <div>
-              <label className="text-xs text-muted-foreground block mb-1.5">
-                Start Period (s)
-              </label>
+              <label className="text-xs text-muted-foreground block mb-1.5">Start Period (s)</label>
               <Input
                 value={hcStartPeriod}
                 onChange={(e) => setHcStartPeriod(e.target.value)}
