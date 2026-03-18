@@ -14,8 +14,8 @@ import {
   TableRow
 } from "@/components/ui/table";
 import { Rocket, ChevronDown, ChevronRight, RotateCcw, RefreshCw } from "lucide-react";
-import DeploymentLogViewer from "../components/DeploymentLogViewer";
-import DeploymentRollbackDialog from "../components/DeploymentRollbackDialog";
+import DeploymentLogViewer from "@/components/DeploymentLogViewer";
+import DeploymentRollbackDialog from "@/components/DeploymentRollbackDialog";
 import { getBadgeVariantFromTone } from "@/lib/tone-utils";
 
 function formatRelative(iso: string | Date | null): string {

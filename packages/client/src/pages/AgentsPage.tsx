@@ -1,12 +1,12 @@
 import { useState } from "react";
-import { trpc } from "../lib/trpc";
+import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Bot, Plus, Copy, Check, Key, Shield } from "lucide-react";
-import CreateAgentDialog from "../components/CreateAgentDialog";
-import { getInventoryBadgeVariant } from "../lib/tone-utils";
+import CreateAgentDialog from "@/components/CreateAgentDialog";
+import { getInventoryBadgeVariant } from "@/lib/tone-utils";
 
 export default function AgentsPage() {
   const [showCreate, setShowCreate] = useState(false);
