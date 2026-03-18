@@ -12,6 +12,21 @@ const FOUNDATION_ENVIRONMENT_VARIABLE_IDS: Record<number, string> = {
   1003: "envvar_staging_preview_flag"
 };
 
+function getEnvironmentVariableStatusTone(isSecret: boolean) {
+  return isSecret ? "failed" : "queued";
+}
+
+function getEnvironmentVariableStatusLabel(
+  isSecret: boolean,
+  category: (typeof environmentVariables.$inferSelect)["category"]
+) {
+  if (isSecret) {
+    return "Secret";
+  }
+
+  return `${category.slice(0, 1).toUpperCase()}${category.slice(1)}`;
+}
+
 function getEnvironmentVariableId(row: typeof environmentVariables.$inferSelect) {
   return FOUNDATION_ENVIRONMENT_VARIABLE_IDS[row.id] ?? `envvar_${row.id}`;
 }
@@ -160,6 +175,8 @@ export async function listEnvironmentVariableInventory(environmentId?: string, l
       branchPattern: row.branchPattern,
       source: row.source,
       secretRef: row.secretRef,
+      statusTone: getEnvironmentVariableStatusTone(row.isSecret === "true"),
+      statusLabel: getEnvironmentVariableStatusLabel(row.isSecret === "true", row.category),
       updatedByEmail: updatedByUser?.email ?? "",
       updatedAt: row.updatedAt.toISOString()
     };

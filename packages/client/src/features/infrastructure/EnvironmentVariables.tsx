@@ -19,6 +19,8 @@ interface EnvironmentVariable {
   category: string;
   source: string;
   branchPattern: string | null;
+  statusTone?: string;
+  statusLabel?: string;
   updatedByEmail: string;
 }
 
@@ -204,35 +206,39 @@ export function EnvironmentVariables({
           </div>
 
           <div className="environment-variable-list">
-            {environmentVariables.data.variables.map((variable) => (
-              <article
-                className="token-card"
-                data-testid={`environment-variable-card-${variable.id}`}
-                key={variable.id}
-              >
-                <div className="token-card__top">
-                  <div>
-                    <p className="roadmap-item__lane">
-                      {variable.projectName} / {variable.environmentName}
-                    </p>
-                    <h3>{variable.key}</h3>
+            {environmentVariables.data.variables.map((variable) => {
+              const statusTone = variable.statusTone ?? (variable.isSecret ? "failed" : "queued");
+              const statusLabel =
+                variable.statusLabel ?? (variable.isSecret ? "Secret" : variable.category);
+
+              return (
+                <article
+                  className="token-card"
+                  data-testid={`environment-variable-card-${variable.id}`}
+                  key={variable.id}
+                >
+                  <div className="token-card__top">
+                    <div>
+                      <p className="roadmap-item__lane">
+                        {variable.projectName} / {variable.environmentName}
+                      </p>
+                      <h3>{variable.key}</h3>
+                    </div>
+                    <span className={`deployment-status deployment-status--${statusTone}`}>
+                      {statusLabel}
+                    </span>
                   </div>
-                  <span
-                    className={`deployment-status deployment-status--${variable.isSecret ? "failed" : "queued"}`}
-                  >
-                    {variable.isSecret ? "secret" : variable.category}
-                  </span>
-                </div>
-                <p className="deployment-card__meta">Value: {variable.displayValue}</p>
-                <p className="deployment-card__meta">
-                  Category: {variable.category} · Source: {variable.source}
-                </p>
-                <p className="deployment-card__meta">
-                  Branch pattern: {variable.branchPattern ?? "all branches"}
-                </p>
-                <p className="deployment-card__meta">Updated by {variable.updatedByEmail}</p>
-              </article>
-            ))}
+                  <p className="deployment-card__meta">Value: {variable.displayValue}</p>
+                  <p className="deployment-card__meta">
+                    Category: {variable.category} · Source: {variable.source}
+                  </p>
+                  <p className="deployment-card__meta">
+                    Branch pattern: {variable.branchPattern ?? "all branches"}
+                  </p>
+                  <p className="deployment-card__meta">Updated by {variable.updatedByEmail}</p>
+                </article>
+              );
+            })}
           </div>
         </>
       ) : (
