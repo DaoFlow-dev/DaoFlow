@@ -21,6 +21,7 @@ Use this skill for DaoFlow issue and PR execution through the GitHub CLI.
 - Default integration path is direct commit and push to `main`.
 - Do not create a feature branch unless the user explicitly requests one or the work already lives on a branch or PR.
 - Keep scope tight. If you discover worthwhile extra work, open a follow-up issue instead of broadening the current one.
+- When a feature, contract, operator flow, or user-facing behavior changes, update the relevant docs in the same loop instead of leaving documentation drift behind.
 - Use GitHub comments for durable progress notes.
 - Never declare work ready or push with failing local gates.
 
@@ -43,10 +44,11 @@ If the repo board uses different field names, preserve the meaning above.
 2. Restate scope in one durable progress comment before coding.
 3. Confirm the baseline behavior before changing code.
 4. Implement the smallest change that satisfies the issue.
-5. Run [validation-gates](../validation-gates/SKILL.md) and [acpx-review](../acpx-review/SKILL.md).
-6. Commit and push to `main` by default.
-7. If PR mode is requested or already exists, update the PR and sweep all review feedback before declaring ready.
-8. Update the durable issue or PR comment with validation results and final status.
+5. Update any affected docs, references, help text, or contract docs before validation when the feature behavior changed.
+6. Run [validation-gates](../validation-gates/SKILL.md) and [acpx-review](../acpx-review/SKILL.md).
+7. Commit and push to `main` by default.
+8. If PR mode is requested or already exists, update the PR and sweep all review feedback before declaring ready.
+9. Update the durable issue or PR comment with validation results and final status.
 
 ## Durable Comment Template
 

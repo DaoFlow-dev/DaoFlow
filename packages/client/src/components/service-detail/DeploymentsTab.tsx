@@ -14,12 +14,7 @@ import {
   Timer
 } from "lucide-react";
 import { useState } from "react";
-import {
-  getBadgeVariantFromTone,
-  getDeploymentStepTone,
-  getDeploymentTone,
-  getToneDotClass
-} from "@/lib/tone-utils";
+import { getBadgeVariantFromTone, getDeploymentStepTone, getToneDotClass } from "@/lib/tone-utils";
 
 interface DeploymentsTabProps {
   serviceId: string;
@@ -117,15 +112,17 @@ export default function DeploymentsTab({ serviceId, serviceName }: DeploymentsTa
             (d: {
               id: string;
               status: string;
-              lifecycleStatus?: string;
-              statusLabel?: string;
-              statusTone?: string;
+              lifecycleStatus: string;
+              statusLabel: string;
+              statusTone: string;
               conclusion: string | null;
               commitSha: string | null;
               imageTag: string | null;
               createdAt: string;
-              canCancel?: boolean;
-              canRollback?: boolean;
+              startedAt: string;
+              finishedAt: string | null;
+              canCancel: boolean;
+              canRollback: boolean;
               steps: { label: string; status: string; detail: string | null }[];
               error?: unknown;
               configSnapshot?: unknown;
@@ -144,13 +141,8 @@ export default function DeploymentsTab({ serviceId, serviceName }: DeploymentsTa
                     <div>
                       <div className="flex items-center gap-2">
                         <span className="font-mono text-xs">{d.id.slice(0, 8)}</span>
-                        <Badge
-                          variant={getBadgeVariantFromTone(
-                            d.statusTone ??
-                              getDeploymentTone(d.lifecycleStatus ?? d.status, d.conclusion)
-                          )}
-                        >
-                          {d.statusLabel ?? d.status}
+                        <Badge variant={getBadgeVariantFromTone(d.statusTone)}>
+                          {d.statusLabel}
                         </Badge>
                         {d.conclusion && d.conclusion !== d.status && (
                           <Badge variant="outline">{d.conclusion}</Badge>
@@ -161,7 +153,7 @@ export default function DeploymentsTab({ serviceId, serviceName }: DeploymentsTa
                         {new Date(d.createdAt).toLocaleString()}
                         <span className="flex items-center gap-1">
                           <Timer size={12} />
-                          {formatDuration(d.createdAt, d.conclusion ? d.createdAt : null)}
+                          {formatDuration(d.startedAt, d.finishedAt)}
                         </span>
                         {d.commitSha && (
                           <span className="font-mono">@ {d.commitSha.slice(0, 7)}</span>
