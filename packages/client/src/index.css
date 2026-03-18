@@ -164,13 +164,13 @@ body {
   height: 100vh;
   display: flex;
   flex-direction: column;
-  background: #0d0d12;
-  border-right: 1px solid rgba(255, 255, 255, 0.06);
+  background: var(--sidebar);
+  border-right: 1px solid var(--sidebar-border);
   overflow-y: auto;
   overflow-x: hidden;
   transition: width 0.2s ease;
   scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
+  scrollbar-color: var(--sidebar-accent) transparent;
 }
 
 .sidebar__brand {
@@ -178,20 +178,20 @@ body {
   align-items: center;
   gap: 0.6rem;
   padding: 1rem 0.85rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid var(--sidebar-border);
   min-height: 56px;
 }
 
 .sidebar__logo {
   font-size: 1.35rem;
-  color: #6d9fff;
+  color: var(--sidebar-primary);
   flex-shrink: 0;
 }
 
 .sidebar__title {
   font-size: 1rem;
   font-weight: 700;
-  color: #e4e4e7;
+  color: var(--sidebar-foreground);
   letter-spacing: -0.02em;
   white-space: nowrap;
 }
@@ -202,9 +202,9 @@ body {
   justify-content: center;
   appearance: none;
   background: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--sidebar-border);
   border-radius: 6px;
-  color: #71717a;
+  color: var(--sidebar-accent-foreground);
   cursor: pointer;
   margin: 0.5rem 0.85rem;
   padding: 0.35rem;
@@ -214,8 +214,8 @@ body {
 }
 
 .sidebar__toggle:hover {
-  background: rgba(255, 255, 255, 0.06);
-  color: #e4e4e7;
+  background: var(--sidebar-accent);
+  color: var(--sidebar-foreground);
 }
 
 .sidebar__nav {
@@ -233,7 +233,7 @@ body {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: #52525b;
+  color: var(--sidebar-accent-foreground);
   white-space: nowrap;
   overflow: hidden;
   min-height: 1.1rem;
@@ -246,7 +246,7 @@ body {
   padding: 0.5rem 0.55rem;
   border-radius: 6px;
   font-size: 0.84rem;
-  color: #a1a1aa;
+  color: var(--sidebar-accent-foreground);
   text-decoration: none;
   transition:
     background 0.2s,
@@ -256,13 +256,13 @@ body {
 }
 
 .sidebar__link:hover {
-  background: rgba(255, 255, 255, 0.05);
-  color: #e4e4e7;
+  background: var(--sidebar-accent);
+  color: var(--sidebar-foreground);
 }
 
 .sidebar__link--active {
-  background: rgba(99, 152, 255, 0.1);
-  color: #6d9fff;
+  background: color-mix(in oklch, var(--sidebar-primary) 12%, transparent);
+  color: var(--sidebar-primary);
   font-weight: 600;
 }
 
@@ -274,7 +274,7 @@ body {
 
 .sidebar__footer {
   padding: 0.75rem 0.65rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  border-top: 1px solid var(--sidebar-border);
   margin-top: auto;
 }
 
@@ -288,13 +288,13 @@ body {
   width: 30px;
   height: 30px;
   border-radius: 6px;
-  background: rgba(99, 152, 255, 0.15);
+  background: color-mix(in oklch, var(--sidebar-primary) 15%, transparent);
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 0.75rem;
   font-weight: 700;
-  color: #6d9fff;
+  color: var(--sidebar-primary);
   flex-shrink: 0;
 }
 
@@ -307,7 +307,7 @@ body {
   margin: 0;
   font-size: 0.78rem;
   font-weight: 600;
-  color: #e4e4e7;
+  color: var(--sidebar-foreground);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -316,7 +316,7 @@ body {
 .sidebar__user-email {
   margin: 0;
   font-size: 0.72rem;
-  color: #71717a;
+  color: var(--sidebar-accent-foreground);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -326,7 +326,7 @@ body {
   appearance: none;
   background: transparent;
   border: none;
-  color: #71717a;
+  color: var(--sidebar-accent-foreground);
   cursor: pointer;
   padding: 0.3rem;
   border-radius: 4px;
@@ -347,8 +347,8 @@ body {
   align-items: center;
   padding: 0 1.5rem;
   height: 48px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-  background: #0d0d12;
+  border-bottom: 1px solid var(--border);
+  background: var(--background);
   flex-shrink: 0;
 }
 
@@ -360,16 +360,16 @@ body {
 }
 
 .topbar__breadcrumb-sep {
-  color: #3f3f46;
+  color: var(--muted-foreground);
   margin: 0 0.15rem;
 }
 
 .topbar__breadcrumb-item {
-  color: #71717a;
+  color: var(--muted-foreground);
 }
 
 .topbar__breadcrumb-current {
-  color: #e4e4e7;
+  color: var(--foreground);
   font-weight: 500;
 }
 
