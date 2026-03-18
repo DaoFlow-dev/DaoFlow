@@ -595,11 +595,13 @@ describe("appRouter", () => {
 
     const overview = await caller.backupOverview({});
     const restoreQueue = await caller.backupRestoreQueue({});
+    const persistentVolumes = await caller.persistentVolumes({});
 
     expect(overview.summary.totalPolicies).toBeGreaterThanOrEqual(0);
     expect(Array.isArray(overview.policies)).toBe(true);
     expect(Array.isArray(overview.runs)).toBe(true);
     expect(restoreQueue.summary.totalRequests).toBeGreaterThanOrEqual(0);
+    expect(persistentVolumes.summary.totalVolumes).toBeGreaterThanOrEqual(0);
 
     const run = overview.runs[0];
     if (run) {
@@ -609,6 +611,11 @@ describe("appRouter", () => {
     const request = restoreQueue.requests[0];
     if (request) {
       expect(request.statusTone).toEqual(expect.any(String));
+    }
+
+    const volume = persistentVolumes.volumes[0];
+    if (volume) {
+      expect(volume.statusTone).toEqual(expect.any(String));
     }
   });
 

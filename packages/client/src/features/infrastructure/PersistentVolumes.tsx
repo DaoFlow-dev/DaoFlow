@@ -12,6 +12,7 @@ interface VolumeItem {
   driver: string;
   backupCoverage: string;
   restoreReadiness: string;
+  statusTone?: string;
   backupPolicyId: string | null;
   lastBackupAt: string | null;
   lastRestoreTestAt: string | null;
@@ -67,42 +68,46 @@ export function PersistentVolumes({
           </div>
 
           <div className="persistent-volume-list">
-            {persistentVolumes.data.volumes.map((volume) => (
-              <article
-                className="token-card"
-                data-testid={`persistent-volume-card-${volume.id}`}
-                key={volume.id}
-              >
-                <div className="token-card__top">
-                  <div>
-                    <p className="roadmap-item__lane">
-                      {volume.environmentName} · {volume.projectName}
-                    </p>
-                    <h3>{volume.volumeName}</h3>
+            {persistentVolumes.data.volumes.map((volume) => {
+              const statusTone =
+                volume.statusTone ??
+                getPersistentVolumeTone(volume.backupCoverage, volume.restoreReadiness);
+
+              return (
+                <article
+                  className="token-card"
+                  data-testid={`persistent-volume-card-${volume.id}`}
+                  key={volume.id}
+                >
+                  <div className="token-card__top">
+                    <div>
+                      <p className="roadmap-item__lane">
+                        {volume.environmentName} · {volume.projectName}
+                      </p>
+                      <h3>{volume.volumeName}</h3>
+                    </div>
+                    <span className={`deployment-status deployment-status--${statusTone}`}>
+                      {volume.backupCoverage}
+                    </span>
                   </div>
-                  <span
-                    className={`deployment-status deployment-status--${getPersistentVolumeTone(volume.backupCoverage, volume.restoreReadiness)}`}
-                  >
-                    {volume.backupCoverage}
-                  </span>
-                </div>
-                <p className="deployment-card__meta">
-                  {volume.serviceName} on {volume.targetServerName} ·{" "}
-                  {formatBytes(volume.sizeBytes)}
-                </p>
-                <p className="deployment-card__meta">
-                  Mount path: {volume.mountPath} · Driver: {volume.driver}
-                </p>
-                <p className="deployment-card__meta">
-                  Backup policy: {volume.backupPolicyId ?? "Unmanaged"} · Restore readiness:{" "}
-                  {volume.restoreReadiness}
-                </p>
-                <p className="deployment-card__meta">
-                  Last backup: {volume.lastBackupAt ?? "No snapshot recorded"} · Last restore test:{" "}
-                  {volume.lastRestoreTestAt ?? "Not exercised"}
-                </p>
-              </article>
-            ))}
+                  <p className="deployment-card__meta">
+                    {volume.serviceName} on {volume.targetServerName} ·{" "}
+                    {formatBytes(volume.sizeBytes)}
+                  </p>
+                  <p className="deployment-card__meta">
+                    Mount path: {volume.mountPath} · Driver: {volume.driver}
+                  </p>
+                  <p className="deployment-card__meta">
+                    Backup policy: {volume.backupPolicyId ?? "Unmanaged"} · Restore readiness:{" "}
+                    {volume.restoreReadiness}
+                  </p>
+                  <p className="deployment-card__meta">
+                    Last backup: {volume.lastBackupAt ?? "No snapshot recorded"} · Last restore
+                    test: {volume.lastRestoreTestAt ?? "Not exercised"}
+                  </p>
+                </article>
+              );
+            })}
           </div>
         </>
       ) : (

@@ -53,6 +53,22 @@ function getBackupOperationStatusTone(status: string) {
   return "queued" as const;
 }
 
+function getPersistentVolumeStatusTone(backupCoverage: string, restoreReadiness: string) {
+  if (backupCoverage === "missing") {
+    return "failed" as const;
+  }
+
+  if (
+    backupCoverage === "stale" ||
+    restoreReadiness === "stale" ||
+    restoreReadiness === "untested"
+  ) {
+    return "running" as const;
+  }
+
+  return "healthy" as const;
+}
+
 function getPolicyView(
   policy: typeof backupPolicies.$inferSelect,
   volume?: typeof volumes.$inferSelect,
@@ -371,7 +387,8 @@ export async function listPersistentVolumeInventory(limit = 12) {
       lastBackupAt: readString(metadata, "lastBackupAt") || null,
       lastRestoreTestAt: readString(metadata, "lastRestoreTestAt") || null,
       backupCoverage,
-      restoreReadiness
+      restoreReadiness,
+      statusTone: getPersistentVolumeStatusTone(backupCoverage, restoreReadiness)
     };
   });
 
