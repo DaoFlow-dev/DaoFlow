@@ -100,7 +100,7 @@ export default function SettingsPage() {
               <Lock size={14} /> Secret Providers
             </TabsTrigger>
           </TabsList>
-          <div className="mt-4" role="tabpanel" aria-live="polite">
+          <div className="mt-4 min-h-[400px]" role="tabpanel" aria-live="polite">
             {activeTab === "general" && (
               <GeneralSettingsTab
                 currentRole={currentRole}

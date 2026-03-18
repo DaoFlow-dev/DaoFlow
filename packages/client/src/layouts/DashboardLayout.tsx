@@ -8,6 +8,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { KeyboardShortcutsDialog } from "@/components/KeyboardShortcutsDialog";
 import { CommandPalette } from "@/components/CommandPalette";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -142,59 +143,90 @@ export function DashboardLayout() {
             {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
           </button>
 
-          <nav className="sidebar__nav">
-            <p className="sidebar__group-label">{!collapsed && "Home"}</p>
-            {homeNav.map((item) => (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                end={"end" in item ? item.end : false}
-                className={({ isActive }) =>
-                  `sidebar__link${isActive ? " sidebar__link--active" : ""}`
-                }
-                title={collapsed ? item.label : undefined}
-              >
-                <item.icon size={18} className="sidebar__link-icon" />
-                {!collapsed && <span>{item.label}</span>}
-              </NavLink>
-            ))}
+          <TooltipProvider delayDuration={0}>
+            <nav className="sidebar__nav">
+              <p className="sidebar__group-label">{!collapsed && "Home"}</p>
+              {homeNav.map((item) => {
+                const link = (
+                  <NavLink
+                    key={item.to}
+                    to={item.to}
+                    end={"end" in item ? item.end : false}
+                    className={({ isActive }) =>
+                      `sidebar__link${isActive ? " sidebar__link--active" : ""}`
+                    }
+                  >
+                    <item.icon size={18} className="sidebar__link-icon" />
+                    {!collapsed && <span>{item.label}</span>}
+                  </NavLink>
+                );
+                return collapsed ? (
+                  <Tooltip key={item.to}>
+                    <TooltipTrigger asChild>{link}</TooltipTrigger>
+                    <TooltipContent side="right">{item.label}</TooltipContent>
+                  </Tooltip>
+                ) : (
+                  link
+                );
+              })}
 
-            <Separator className="my-2" />
-            <p className="sidebar__group-label">{!collapsed && "Settings"}</p>
-            {settingsNav.map((item) => (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                end={item.tab === null}
-                className={() =>
-                  `sidebar__link${isSettingsItemActive(item.tab) ? " sidebar__link--active" : ""}`
-                }
-                title={collapsed ? item.label : undefined}
-              >
-                <item.icon size={18} className="sidebar__link-icon" />
-                {!collapsed && <span>{item.label}</span>}
-              </NavLink>
-            ))}
-          </nav>
+              <Separator className="my-2" />
+              <p className="sidebar__group-label">{!collapsed && "Settings"}</p>
+              {settingsNav.map((item) => {
+                const link = (
+                  <NavLink
+                    key={item.to}
+                    to={item.to}
+                    end={item.tab === null}
+                    className={() =>
+                      `sidebar__link${isSettingsItemActive(item.tab) ? " sidebar__link--active" : ""}`
+                    }
+                  >
+                    <item.icon size={18} className="sidebar__link-icon" />
+                    {!collapsed && <span>{item.label}</span>}
+                  </NavLink>
+                );
+                return collapsed ? (
+                  <Tooltip key={item.to}>
+                    <TooltipTrigger asChild>{link}</TooltipTrigger>
+                    <TooltipContent side="right">{item.label}</TooltipContent>
+                  </Tooltip>
+                ) : (
+                  link
+                );
+              })}
+            </nav>
+          </TooltipProvider>
 
           <div className="sidebar__footer">
-            <button
-              className="sidebar__link"
-              onClick={() => {
-                const { resolved, setTheme } = themeCtx;
-                setTheme(resolved === "dark" ? "light" : "dark");
-              }}
-              title={collapsed ? "Toggle theme" : undefined}
-            >
-              {themeCtx.resolved === "dark" ? (
-                <Sun size={18} className="sidebar__link-icon" />
+            {(() => {
+              const btn = (
+                <button
+                  className="sidebar__link"
+                  onClick={() => {
+                    const { resolved, setTheme } = themeCtx;
+                    setTheme(resolved === "dark" ? "light" : "dark");
+                  }}
+                >
+                  {themeCtx.resolved === "dark" ? (
+                    <Sun size={18} className="sidebar__link-icon" />
+                  ) : (
+                    <Moon size={18} className="sidebar__link-icon" />
+                  )}
+                  {!collapsed && (
+                    <span>{themeCtx.resolved === "dark" ? "Light mode" : "Dark mode"}</span>
+                  )}
+                </button>
+              );
+              return collapsed ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>{btn}</TooltipTrigger>
+                  <TooltipContent side="right">Toggle theme</TooltipContent>
+                </Tooltip>
               ) : (
-                <Moon size={18} className="sidebar__link-icon" />
-              )}
-              {!collapsed && (
-                <span>{themeCtx.resolved === "dark" ? "Light mode" : "Dark mode"}</span>
-              )}
-            </button>
+                btn
+              );
+            })()}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button className="sidebar__user-card">

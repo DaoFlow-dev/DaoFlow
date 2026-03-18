@@ -35,7 +35,11 @@ export default function DeploymentLogViewer({ deploymentId }: Props) {
   }
 
   return (
-    <div className="bg-black/90 rounded-md p-3 max-h-72 overflow-y-auto font-mono text-xs leading-relaxed">
+    <div
+      role="log"
+      aria-live="polite"
+      className="bg-black/90 rounded-md p-3 max-h-72 overflow-y-auto font-mono text-xs leading-relaxed"
+    >
       {entries.map((entry, i) => {
         const level = typeof entry.level === "string" ? entry.level : "info";
         const message =
