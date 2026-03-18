@@ -1,26 +1,14 @@
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { trpc } from "../lib/trpc";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  ArrowLeft,
-  Plus,
-  Box,
-  Layers,
-  Settings2,
-  Copy,
-  Trash2,
-  CheckCircle,
-  AlertCircle,
-  Clock,
-  Save
-} from "lucide-react";
+import { ArrowLeft, Plus, Settings2, Copy } from "lucide-react";
 import AddServiceDialog from "../components/AddServiceDialog";
+import { ProjectOverviewCards } from "@/components/project/ProjectOverviewCards";
+import { ProjectServicesList } from "@/components/project/ProjectServicesList";
+import { ProjectSettingsPanel } from "@/components/project/ProjectSettingsPanel";
 
 export default function ProjectDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -77,12 +65,10 @@ export default function ProjectDetailPage() {
     createdAt: string;
   }[];
 
-  // Filter services by active environment
   const filteredServices = activeEnv
     ? serviceList.filter((s) => s.environmentId === activeEnv)
     : serviceList;
 
-  // Counts
   const healthyCount = serviceList.filter(
     (s) => s.status === "active" || s.status === "healthy"
   ).length;
@@ -90,7 +76,6 @@ export default function ProjectDetailPage() {
     (s) => s.status === "failed" || s.status === "error"
   ).length;
 
-  // Last deployment from this project's services
   const projectDeployments = (deployments.data ?? []).filter((d: { serviceName: string }) =>
     serviceList.some((s) => s.name === d.serviceName)
   );
@@ -135,109 +120,24 @@ export default function ProjectDetailPage() {
         </div>
       </div>
 
-      {/* Settings panel (item 47) */}
       {showSettings && (
-        <Card className="border-primary/30">
-          <CardHeader>
-            <CardTitle className="text-sm flex items-center gap-2">
-              <Settings2 size={14} />
-              Project Settings
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <label className="text-xs text-muted-foreground block mb-1.5">Project Name</label>
-              <Input
-                value={editName}
-                onChange={(e) => setEditName(e.target.value)}
-                className="h-8 text-sm max-w-sm"
-              />
-            </div>
-            <div>
-              <label className="text-xs text-muted-foreground block mb-1.5">Description</label>
-              <Input
-                value={editDesc}
-                onChange={(e) => setEditDesc(e.target.value)}
-                className="h-8 text-sm max-w-lg"
-                placeholder="Optional project description"
-              />
-            </div>
-            <div className="flex items-center gap-2">
-              <Button size="sm">
-                <Save size={14} className="mr-1" />
-                Save
-              </Button>
-              <Button
-                size="sm"
-                variant="destructive"
-                title="Delete project — this cannot be undone"
-              >
-                <Trash2 size={14} className="mr-1" />
-                Delete Project
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+        <ProjectSettingsPanel
+          editName={editName}
+          onEditName={setEditName}
+          editDesc={editDesc}
+          onEditDesc={setEditDesc}
+        />
       )}
 
-      {/* Overview dashboard (item 45) */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-              <Box size={14} />
-              Services
-            </div>
-            <span className="text-2xl font-bold">{serviceList.length}</span>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-              <CheckCircle size={14} className="text-green-500" />
-              Healthy
-            </div>
-            <span className="text-2xl font-bold text-green-500">{healthyCount}</span>
-            {unhealthyCount > 0 && (
-              <span className="ml-2 text-sm text-red-400">
-                <AlertCircle size={12} className="inline mr-0.5" />
-                {unhealthyCount} unhealthy
-              </span>
-            )}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-              <Layers size={14} />
-              Environments
-            </div>
-            <span className="text-2xl font-bold">{envList.length}</span>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-              <Clock size={14} />
-              Last Deploy
-            </div>
-            {lastDeploy ? (
-              <div>
-                <span className="text-sm">
-                  {new Date(lastDeploy.createdAt).toLocaleDateString()}
-                </span>
-                <Badge variant="secondary" className="ml-2 text-xs">
-                  {lastDeploy.status}
-                </Badge>
-              </div>
-            ) : (
-              <span className="text-sm text-muted-foreground">Never</span>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+      <ProjectOverviewCards
+        serviceCount={serviceList.length}
+        healthyCount={healthyCount}
+        unhealthyCount={unhealthyCount}
+        envCount={envList.length}
+        lastDeploy={lastDeploy}
+      />
 
-      {/* Environment switcher (item 46) */}
+      {/* Environment switcher */}
       {envList.length > 0 && (
         <div className="flex items-center gap-2">
           <span className="text-sm text-muted-foreground">Environment:</span>
@@ -259,76 +159,13 @@ export default function ProjectDetailPage() {
         </div>
       )}
 
-      {/* Services list */}
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-medium">
-          Services
-          {activeEnv && (
-            <span className="text-sm text-muted-foreground ml-2">
-              ({envList.find((e) => e.id === activeEnv)?.name})
-            </span>
-          )}
-        </h2>
-      </div>
+      <ProjectServicesList
+        services={filteredServices}
+        isLoading={services.isLoading}
+        activeEnv={activeEnv}
+        activeEnvName={envList.find((e) => e.id === activeEnv)?.name}
+      />
 
-      {services.isLoading ? (
-        <div className="space-y-2">
-          <Skeleton className="h-16 w-full" />
-          <Skeleton className="h-16 w-full" />
-        </div>
-      ) : filteredServices.length === 0 ? (
-        <Card>
-          <CardContent className="py-12 text-center text-muted-foreground">
-            {activeEnv
-              ? "No services in this environment."
-              : "No services yet. Add your first Docker or Compose service."}
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {filteredServices.map((svc) => (
-            <Card
-              key={svc.id}
-              className="hover:border-primary/30 transition-colors cursor-pointer"
-              onClick={() => void navigate(`/services/${svc.id}`)}
-            >
-              <CardContent className="py-4 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div
-                    className={`w-2 h-2 rounded-full ${
-                      svc.status === "active" || svc.status === "healthy"
-                        ? "bg-green-500"
-                        : svc.status === "failed"
-                          ? "bg-red-500"
-                          : "bg-gray-400"
-                    }`}
-                  />
-                  <div>
-                    <p className="font-medium">{svc.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {svc.sourceType} ·{" "}
-                      {svc.imageReference || svc.composeServiceName || svc.dockerfilePath || "—"}
-                    </p>
-                  </div>
-                </div>
-                <Badge
-                  variant={
-                    svc.status === "active" || svc.status === "healthy"
-                      ? "default"
-                      : svc.status === "failed"
-                        ? "destructive"
-                        : "secondary"
-                  }
-                >
-                  {svc.status}
-                </Badge>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
-
-      {/* Add Service Dialog */}
       {id && (
         <AddServiceDialog
           open={showAddService}
