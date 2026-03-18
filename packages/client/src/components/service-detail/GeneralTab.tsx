@@ -1,6 +1,19 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Settings2, Globe, Server, Box, Activity, Clock } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
+import {
+  Settings2,
+  Globe,
+  Server,
+  Box,
+  Activity,
+  Clock,
+  Rocket,
+  RefreshCw,
+  Square,
+  Play
+} from "lucide-react";
 
 interface GeneralTabProps {
   service: {
@@ -21,9 +34,61 @@ interface GeneralTabProps {
   };
 }
 
+/* ── helpers ── */
+
+function statusColor(status: string) {
+  if (status === "active" || status === "healthy" || status === "running") return "bg-emerald-500";
+  if (status === "failed" || status === "error") return "bg-red-500";
+  if (status === "deploying" || status === "building") return "bg-amber-500 animate-pulse";
+  return "bg-zinc-400";
+}
+
+function statusVariant(status: string): "default" | "destructive" | "secondary" {
+  if (status === "active" || status === "healthy" || status === "running") return "default";
+  if (status === "failed" || status === "error") return "destructive";
+  return "secondary";
+}
+
+/* ── component ── */
+
 export default function GeneralTab({ service }: GeneralTabProps) {
+  const isRunning =
+    service.status === "active" || service.status === "healthy" || service.status === "running";
+
   return (
     <div className="space-y-6">
+      {/* Deploy Actions */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Deploy Settings</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button size="sm" className="gap-1.5">
+              <Rocket size={14} /> Deploy
+            </Button>
+            <Button size="sm" variant="secondary" className="gap-1.5">
+              <RefreshCw size={14} /> Rebuild
+            </Button>
+            {isRunning ? (
+              <Button size="sm" variant="destructive" className="gap-1.5">
+                <Square size={14} /> Stop
+              </Button>
+            ) : (
+              <Button size="sm" variant="secondary" className="gap-1.5">
+                <Play size={14} /> Start
+              </Button>
+            )}
+
+            {/* Autodeploy toggle */}
+            <div className="flex items-center gap-2 ml-auto rounded-md border px-3 py-1.5">
+              <span className="text-sm font-medium">Auto-deploy</span>
+              <Switch aria-label="Toggle auto-deploy" />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Status Cards Row */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
@@ -32,16 +97,12 @@ export default function GeneralTab({ service }: GeneralTabProps) {
               <Activity size={14} />
               Status
             </div>
-            <Badge
-              variant={
-                service.status === "active" || service.status === "healthy"
-                  ? "default"
-                  : "secondary"
-              }
-              className="text-sm"
-            >
-              {service.status}
-            </Badge>
+            <div className="flex items-center gap-2">
+              <span className={`inline-block h-2.5 w-2.5 rounded-full ${statusColor(service.status)}`} />
+              <Badge variant={statusVariant(service.status)} className="text-sm">
+                {service.status}
+              </Badge>
+            </div>
           </CardContent>
         </Card>
         <Card>
