@@ -1,5 +1,6 @@
 import { Command } from "commander";
 import chalk from "chalk";
+import { getErrorMessage, resolveCommandJsonOption } from "../command-helpers";
 import { createClient } from "../trpc-client";
 
 export function planCommand(): Command {
@@ -8,46 +9,88 @@ export function planCommand(): Command {
     .requiredOption("--service <id>", "Service name or ID")
     .option("--server <id>", "Target server")
     .option("--image <tag>", "Image tag to deploy")
-    .action(async (opts: { service: string; server?: string; image?: string }) => {
-      const trpc = createClient();
+    .option("--json", "Output as JSON")
+    .action(
+      async (
+        opts: { service: string; server?: string; image?: string; json?: boolean },
+        command: Command
+      ) => {
+        const isJson = resolveCommandJsonOption(command, opts.json);
 
-      console.log(chalk.bold("\n  Deployment Plan (dry-run)\n"));
-      console.log(chalk.dim("  This plan will NOT be executed.\n"));
+        try {
+          const trpc = createClient();
+          const data = await trpc.composeReleaseCatalog.query({});
+          const current =
+            data.services?.find((service) => service.serviceName === opts.service) ?? null;
+          const steps = [
+            "Pull/load image",
+            "Stop existing container",
+            "Create new container from image",
+            "Start container",
+            "Health check",
+            "Update routing"
+          ];
+          const preflightChecks = [
+            { status: "ok", detail: "Service exists in catalog" },
+            { status: "ok", detail: "Image reference valid" },
+            { status: "warn", detail: "Server reachability (run: daoflow status)" }
+          ] as const;
+          const plan = {
+            service: opts.service,
+            server: opts.server ?? "default",
+            image: opts.image ?? "latest",
+            current,
+            steps,
+            preflightChecks,
+            executeCommand: `daoflow deploy --service ${opts.service} --server <id>`
+          };
 
-      // Fetch rollback plans to show current state
-      const data = await trpc.composeReleaseCatalog.query({});
+          if (isJson) {
+            console.log(JSON.stringify({ ok: true, data: plan }));
+            return;
+          }
 
-      const current = data.services?.find((s) => s.serviceName === opts.service);
+          console.log(chalk.bold("\n  Deployment Plan (dry-run)\n"));
+          console.log(chalk.dim("  This plan will NOT be executed.\n"));
+          console.log(`  ${chalk.bold("Service:")}   ${plan.service}`);
+          console.log(`  ${chalk.bold("Server:")}    ${plan.server}`);
+          console.log(`  ${chalk.bold("Image:")}     ${plan.image}`);
+          console.log();
 
-      console.log(`  ${chalk.bold("Service:")}   ${opts.service}`);
-      console.log(`  ${chalk.bold("Server:")}    ${opts.server ?? "default"}`);
-      console.log(`  ${chalk.bold("Image:")}     ${opts.image ?? "latest"}`);
-      console.log();
+          if (current) {
+            console.log(chalk.dim(`  Current state:`));
+            console.log(chalk.dim(`    Status: ${current.status}`));
+            console.log(chalk.dim(`    Image:  ${current.imageTag ?? "unknown"}`));
+            console.log();
+          }
 
-      if (current) {
-        console.log(chalk.dim(`  Current state:`));
-        console.log(chalk.dim(`    Status: ${current.status}`));
-        console.log(chalk.dim(`    Image:  ${current.imageTag ?? "unknown"}`));
-        console.log();
+          console.log(`  ${chalk.bold("Planned steps:")}`);
+          for (const [index, step] of steps.entries()) {
+            console.log(`    ${index + 1}. ${step}`);
+          }
+          console.log();
+
+          console.log(`  ${chalk.bold("Pre-flight checks:")}`);
+          console.log(`    ${chalk.green("✓")} ${preflightChecks[0].detail}`);
+          console.log(`    ${chalk.green("✓")} ${preflightChecks[1].detail}`);
+          console.log(`    ${chalk.yellow("?")} ${preflightChecks[2].detail}`);
+          console.log();
+
+          console.log(`  To execute: ${chalk.cyan(plan.executeCommand)}\n`);
+        } catch (error) {
+          if (isJson) {
+            console.log(
+              JSON.stringify({
+                ok: false,
+                error: getErrorMessage(error),
+                code: "API_ERROR"
+              })
+            );
+          } else {
+            console.error(chalk.red(`✗ ${getErrorMessage(error)}`));
+          }
+          process.exit(1);
+        }
       }
-
-      console.log(`  ${chalk.bold("Planned steps:")}`);
-      console.log(`    1. Pull/load image`);
-      console.log(`    2. Stop existing container`);
-      console.log(`    3. Create new container from image`);
-      console.log(`    4. Start container`);
-      console.log(`    5. Health check`);
-      console.log(`    6. Update routing`);
-      console.log();
-
-      console.log(`  ${chalk.bold("Pre-flight checks:")}`);
-      console.log(`    ${chalk.green("✓")} Service exists in catalog`);
-      console.log(`    ${chalk.green("✓")} Image reference valid`);
-      console.log(`    ${chalk.yellow("?")} Server reachability (run: daoflow status)`);
-      console.log();
-
-      console.log(
-        `  To execute: ${chalk.cyan(`daoflow deploy --service ${opts.service} --server <id>`)}\n`
-      );
-    });
+    );
 }

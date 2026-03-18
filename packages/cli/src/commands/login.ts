@@ -1,7 +1,12 @@
 import { Command } from "commander";
 import { createInterface } from "node:readline";
 import chalk from "chalk";
-import { getErrorMessage, isRecord, readString } from "../command-helpers";
+import {
+  getErrorMessage,
+  isRecord,
+  readString,
+  resolveCommandJsonOption
+} from "../command-helpers";
 import { setContext } from "../config";
 import { tryOpenBrowser } from "../browser";
 
@@ -32,6 +37,8 @@ interface DeviceExchangeResponse {
   error?: string;
 }
 
+type LoginAuthMode = "token" | "email-password" | "sso";
+
 function prompt(question: string): Promise<string> {
   const rl = createInterface({ input: process.stdin, output: process.stderr });
   return new Promise((resolve) => {
@@ -46,6 +53,14 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => {
     setTimeout(resolve, ms);
   });
+}
+
+function emitLoginError(isJson: boolean, error: string, code: string): void {
+  if (isJson) {
+    console.log(JSON.stringify({ ok: false, error, code }));
+  } else {
+    console.error(chalk.red(`✗ ${error}`));
+  }
 }
 
 async function startSsoFlow(baseUrl: string): Promise<DeviceStartResponse> {
@@ -119,31 +134,37 @@ export function loginCommand(): Command {
     .option("--password <password>", "Password for sign-in")
     .option("--sso", "Start browser-based CLI sign-in")
     .option("--context <name>", "Context name", "default")
+    .option("--json", "Output as JSON")
     .action(
-      async (opts: {
-        url: string;
-        token?: string;
-        email?: string;
-        password?: string;
-        sso?: boolean;
-        context: string;
-      }) => {
+      async (
+        opts: {
+          url: string;
+          token?: string;
+          email?: string;
+          password?: string;
+          sso?: boolean;
+          context: string;
+          json?: boolean;
+        },
+        command: Command
+      ) => {
+        const isJson = resolveCommandJsonOption(command, opts.json);
         const { url, context } = opts;
         const baseUrl = url.replace(/\/$/, "");
 
-        // Validate server is reachable
         try {
           const res = await fetch(`${baseUrl}/health`);
           if (!res.ok) {
-            console.error(chalk.red(`✗ Server returned ${res.status}`));
+            emitLoginError(isJson, `Server returned ${res.status}`, "SERVER_ERROR");
             process.exit(1);
+            return;
           }
         } catch {
-          console.error(chalk.red(`✗ Cannot reach ${url}`));
+          emitLoginError(isJson, `Cannot reach ${url}`, "SERVER_UNREACHABLE");
           process.exit(1);
+          return;
         }
 
-        let sessionToken: string;
         const authModes = [
           Boolean(opts.token),
           Boolean(opts.email || opts.password),
@@ -151,18 +172,25 @@ export function loginCommand(): Command {
         ].filter(Boolean).length;
 
         if (authModes !== 1) {
-          console.error(
-            chalk.red("Choose exactly one auth mode: --token, --email/--password, or --sso.")
+          emitLoginError(
+            isJson,
+            "Choose exactly one auth mode: --token, --email/--password, or --sso.",
+            "INVALID_AUTH_MODE"
           );
           process.exit(1);
           return;
         }
 
+        let sessionToken: string;
+        let authMode: LoginAuthMode;
+
         if (opts.token) {
-          // Direct token mode — user provides session token
+          authMode = "token";
           sessionToken = opts.token;
         } else if (opts.sso) {
+          authMode = "sso";
           console.error(chalk.dim("Starting browser sign-in..."));
+
           try {
             const device = await startSsoFlow(baseUrl);
             const opened = tryOpenBrowser(device.verificationUri);
@@ -211,13 +239,16 @@ export function loginCommand(): Command {
               );
             }
           } catch (error) {
-            console.error(chalk.red(`✗ SSO login failed: ${getErrorMessage(error)}`));
+            emitLoginError(isJson, `SSO login failed: ${getErrorMessage(error)}`, "AUTH_FAILED");
             process.exit(1);
             return;
           }
         } else if (opts.email && opts.password) {
-          // Email/password sign-in — call Better Auth sign-in API
-          console.error(chalk.dim("Signing in..."));
+          authMode = "email-password";
+          if (!isJson) {
+            console.error(chalk.dim("Signing in..."));
+          }
+
           try {
             const res = await fetch(`${baseUrl}/api/auth/sign-in/email`, {
               method: "POST",
@@ -226,24 +257,21 @@ export function loginCommand(): Command {
               redirect: "manual"
             });
 
-            // Extract session cookie from Set-Cookie header
             const setCookie: string[] = res.headers.getSetCookie?.() ?? [];
-            const sessionCookie = setCookie.find((c: string) =>
-              c.startsWith("better-auth.session_token=")
+            const sessionCookie = setCookie.find((cookie: string) =>
+              cookie.startsWith("better-auth.session_token=")
             );
 
             if (sessionCookie) {
-              // Parse cookie value — format: better-auth.session_token=<value>; Path=...
               const match = sessionCookie.match(/better-auth\.session_token=([^;]+)/);
               if (match) {
                 sessionToken = decodeURIComponent(match[1]);
               } else {
-                console.error(chalk.red("✗ Could not parse session cookie"));
+                emitLoginError(isJson, "Could not parse session cookie", "SESSION_COOKIE_INVALID");
                 process.exit(1);
                 return;
               }
             } else {
-              // Fallback: check response body for token
               const rawBody = (await res.json().catch(() => null)) as unknown;
               const body: LoginResponseBody | null = isRecord(rawBody)
                 ? {
@@ -256,26 +284,28 @@ export function loginCommand(): Command {
               if (body?.token) {
                 sessionToken = body.token;
               } else {
-                const errMsg = body?.message || body?.error || `Status ${res.status}`;
-                console.error(chalk.red(`✗ Sign-in failed: ${errMsg}`));
+                const errorMessage = body?.message || body?.error || `Status ${res.status}`;
+                emitLoginError(isJson, `Sign-in failed: ${errorMessage}`, "AUTH_FAILED");
                 process.exit(1);
                 return;
               }
             }
           } catch (error) {
-            console.error(chalk.red(`✗ Sign-in failed: ${getErrorMessage(error)}`));
+            emitLoginError(isJson, `Sign-in failed: ${getErrorMessage(error)}`, "AUTH_FAILED");
             process.exit(1);
             return;
           }
         } else {
-          console.error(
-            chalk.red("Provide --token, --email/--password, or --sso to authenticate.")
+          emitLoginError(
+            isJson,
+            "Provide --token, --email/--password, or --sso to authenticate.",
+            "INVALID_AUTH_MODE"
           );
           process.exit(1);
           return;
         }
 
-        // Verify the token works
+        let validated = true;
         try {
           const res = await fetch(`${baseUrl}/trpc/viewer`, {
             headers: {
@@ -283,14 +313,38 @@ export function loginCommand(): Command {
             }
           });
           if (!res.ok) {
-            console.error(chalk.red("✗ Token validation failed — session may be expired"));
+            emitLoginError(
+              isJson,
+              "Token validation failed — session may be expired",
+              "TOKEN_VALIDATION_FAILED"
+            );
             process.exit(1);
+            return;
           }
         } catch {
-          console.error(chalk.yellow("⚠ Could not validate session — saving anyway"));
+          validated = false;
+          if (!isJson) {
+            console.error(chalk.yellow("⚠ Could not validate session — saving anyway"));
+          }
         }
 
         setContext(context, { apiUrl: baseUrl, token: sessionToken });
+
+        if (isJson) {
+          console.log(
+            JSON.stringify({
+              ok: true,
+              data: {
+                apiUrl: baseUrl,
+                context,
+                authMode,
+                validated
+              }
+            })
+          );
+          return;
+        }
+
         console.log(chalk.green(`✓ Logged in to ${baseUrl} as context "${context}"`));
       }
     );

@@ -18,7 +18,7 @@ export function projectsCommand(): Command {
         const projects = await trpc.projects.query({ limit: 50 });
 
         if (isJson) {
-          console.log(JSON.stringify(projects, null, 2));
+          console.log(JSON.stringify({ ok: true, data: projects }));
           return;
         }
 
@@ -36,7 +36,20 @@ export function projectsCommand(): Command {
         }
         console.log("");
       } catch (err) {
-        console.error("Error fetching projects:", err instanceof Error ? err.message : String(err));
+        if (isJson) {
+          console.log(
+            JSON.stringify({
+              ok: false,
+              error: err instanceof Error ? err.message : String(err),
+              code: "API_ERROR"
+            })
+          );
+        } else {
+          console.error(
+            "Error fetching projects:",
+            err instanceof Error ? err.message : String(err)
+          );
+        }
         process.exit(1);
       }
     });

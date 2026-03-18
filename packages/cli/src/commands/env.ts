@@ -1,7 +1,7 @@
 import { Command } from "commander";
 import chalk from "chalk";
 import { writeFileSync, readFileSync, existsSync } from "node:fs";
-import { resolveCommandJsonOption } from "../command-helpers";
+import { getErrorMessage, resolveCommandJsonOption } from "../command-helpers";
 import { createClient } from "../trpc-client";
 import { upsertEnvFileValue } from "../local-env";
 
@@ -13,19 +13,47 @@ export function envCommand(): Command {
     .description("Download .env from DaoFlow to local filesystem")
     .option("--env-id <id>", "Environment ID")
     .option("--output <path>", "Output file path", ".env")
-    .action(async (opts: { envId?: string; output: string }) => {
-      const trpc = createClient();
-      const data = await trpc.environmentVariables.query({ environmentId: opts.envId });
+    .option("--json", "Output as JSON")
+    .action(async (opts: { envId?: string; output: string; json?: boolean }, command: Command) => {
+      const isJson = resolveCommandJsonOption(command, opts.json);
 
-      const lines = data.variables.map((v) =>
-        v.isSecret ? `# ${v.key}=<secret>` : `${v.key}=${v.displayValue}`
-      );
+      try {
+        const trpc = createClient();
+        const data = await trpc.environmentVariables.query({ environmentId: opts.envId });
+        const lines = data.variables.map((v) =>
+          v.isSecret ? `# ${v.key}=<secret>` : `${v.key}=${v.displayValue}`
+        );
+        const maskedSecretCount = data.variables.filter((v) => v.isSecret).length;
 
-      writeFileSync(opts.output, lines.join("\n") + "\n");
-      console.log(chalk.green(`✓ Wrote ${data.variables.length} variables to ${opts.output}`));
-      console.log(
-        chalk.dim(`  (${data.variables.filter((v) => v.isSecret).length} secrets masked)`)
-      );
+        writeFileSync(opts.output, lines.join("\n") + "\n");
+
+        if (isJson) {
+          console.log(
+            JSON.stringify({
+              ok: true,
+              data: {
+                environmentId: opts.envId ?? null,
+                output: opts.output,
+                variableCount: data.variables.length,
+                maskedSecretCount
+              }
+            })
+          );
+          return;
+        }
+
+        console.log(chalk.green(`✓ Wrote ${data.variables.length} variables to ${opts.output}`));
+        console.log(chalk.dim(`  (${maskedSecretCount} secrets masked)`));
+      } catch (error) {
+        if (isJson) {
+          console.log(
+            JSON.stringify({ ok: false, error: getErrorMessage(error), code: "API_ERROR" })
+          );
+        } else {
+          console.error(chalk.red(`✗ ${getErrorMessage(error)}`));
+        }
+        process.exit(1);
+      }
     });
 
   cmd
@@ -36,17 +64,30 @@ export function envCommand(): Command {
     .option("--secret", "Mark all variables as secret")
     .option("-y, --yes", "Skip confirmation prompt")
     .option("--dry-run", "Preview what would be pushed")
+    .option("--json", "Output as JSON")
     .action(
-      async (opts: {
-        envId: string;
-        input: string;
-        secret?: boolean;
-        yes?: boolean;
-        dryRun?: boolean;
-      }) => {
+      async (
+        opts: {
+          envId: string;
+          input: string;
+          secret?: boolean;
+          yes?: boolean;
+          dryRun?: boolean;
+          json?: boolean;
+        },
+        command: Command
+      ) => {
+        const isJson = resolveCommandJsonOption(command, opts.json);
+
         if (!existsSync(opts.input)) {
-          console.error(chalk.red(`✗ File not found: ${opts.input}`));
+          const error = `File not found: ${opts.input}`;
+          if (isJson) {
+            console.log(JSON.stringify({ ok: false, error, code: "FILE_NOT_FOUND" }));
+          } else {
+            console.error(chalk.red(`✗ ${error}`));
+          }
           process.exit(1);
+          return;
         }
 
         const content = readFileSync(opts.input, "utf-8");
@@ -63,6 +104,23 @@ export function envCommand(): Command {
         }
 
         if (opts.dryRun) {
+          if (isJson) {
+            console.log(
+              JSON.stringify({
+                ok: true,
+                data: {
+                  dryRun: true,
+                  environmentId: opts.envId,
+                  input: opts.input,
+                  variableCount: vars.length,
+                  keys: vars.map((v) => v.key),
+                  markAsSecret: opts.secret ?? false
+                }
+              })
+            );
+            process.exit(3);
+          }
+
           console.log(chalk.bold(`\n  Dry-run: ${vars.length} variables from ${opts.input}\n`));
           for (const v of vars) {
             console.log(`    ${v.key}=${opts.secret ? "***" : v.value.slice(0, 40)}`);
@@ -71,28 +129,56 @@ export function envCommand(): Command {
         }
 
         if (!opts.yes) {
-          console.error(
-            chalk.yellow(
-              `This will push ${vars.length} variables to environment ${opts.envId}. Pass --yes to confirm.`
-            )
-          );
+          const error = `This will push ${vars.length} variables to environment ${opts.envId}. Pass --yes to confirm.`;
+          if (isJson) {
+            console.log(JSON.stringify({ ok: false, error, code: "CONFIRMATION_REQUIRED" }));
+          } else {
+            console.error(chalk.yellow(error));
+          }
+          process.exit(1);
+          return;
+        }
+
+        try {
+          const trpc = createClient();
+          let count = 0;
+          for (const v of vars) {
+            await trpc.upsertEnvironmentVariable.mutate({
+              environmentId: opts.envId,
+              key: v.key,
+              value: v.value,
+              isSecret: opts.secret ?? false,
+              category: "runtime"
+            });
+            count++;
+          }
+
+          if (isJson) {
+            console.log(
+              JSON.stringify({
+                ok: true,
+                data: {
+                  environmentId: opts.envId,
+                  input: opts.input,
+                  variableCount: count,
+                  markAsSecret: opts.secret ?? false
+                }
+              })
+            );
+            return;
+          }
+
+          console.log(chalk.green(`✓ Pushed ${count} variables to environment ${opts.envId}`));
+        } catch (error) {
+          if (isJson) {
+            console.log(
+              JSON.stringify({ ok: false, error: getErrorMessage(error), code: "API_ERROR" })
+            );
+          } else {
+            console.error(chalk.red(`✗ ${getErrorMessage(error)}`));
+          }
           process.exit(1);
         }
-
-        const trpc = createClient();
-        let count = 0;
-        for (const v of vars) {
-          await trpc.upsertEnvironmentVariable.mutate({
-            environmentId: opts.envId,
-            key: v.key,
-            value: v.value,
-            isSecret: opts.secret ?? false,
-            category: "runtime"
-          });
-          count++;
-        }
-
-        console.log(chalk.green(`✓ Pushed ${count} variables to environment ${opts.envId}`));
       }
     );
 

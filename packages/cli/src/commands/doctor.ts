@@ -1,17 +1,27 @@
-import { Command } from "commander";
-import { loadConfig, getCurrentContext } from "../config";
 import { createTRPCClient, httpLink } from "@trpc/client";
 import type { AppRouter } from "@daoflow/server/router";
+import { Command } from "commander";
+import { getCurrentContext, loadConfig } from "../config";
+import { resolveCommandJsonOption } from "../command-helpers";
+
+interface DoctorCheck {
+  name: string;
+  status: "ok" | "warn" | "fail";
+  detail: string;
+}
 
 export function doctorCommand(): Command {
   const cmd = new Command("doctor")
     .description("Verify DaoFlow setup and connectivity")
-    .action(async () => {
-      console.log("\n🩺 DaoFlow Doctor\n");
+    .option("--json", "Output as JSON")
+    .action(async (opts: { json?: boolean }, command: Command) => {
+      const isJson = resolveCommandJsonOption(command, opts.json);
+      const checks: DoctorCheck[] = [];
 
-      const checks: { name: string; status: "ok" | "warn" | "fail"; detail: string }[] = [];
+      if (!isJson) {
+        console.log("\n🩺 DaoFlow Doctor\n");
+      }
 
-      // 1. Config check
       const config = loadConfig();
       const ctx = getCurrentContext();
 
@@ -21,7 +31,6 @@ export function doctorCommand(): Command {
         detail: ctx ? `API URL: ${ctx.apiUrl}` : "No context configured. Run: daoflow login <url>"
       });
 
-      // 2. API connectivity — use raw tRPC client (health is public, no auth needed)
       if (ctx) {
         try {
           const trpc = createTRPCClient<AppRouter>({
@@ -42,43 +51,65 @@ export function doctorCommand(): Command {
             status: health.status === "healthy" ? "ok" : "fail",
             detail: `Status: ${health.status} | Service: ${health.service}`
           });
-        } catch (apiErr) {
+        } catch (error) {
           checks.push({
             name: "API connectivity",
             status: "fail",
-            detail: `Could not connect: ${apiErr instanceof Error ? apiErr.message : String(apiErr)}`
+            detail: `Could not connect: ${error instanceof Error ? error.message : String(error)}`
           });
         }
       }
 
-      // 3. Auth token
       checks.push({
         name: "Authentication",
         status: ctx?.token ? "ok" : "warn",
         detail: ctx?.token ? "Token configured" : "No token found. Run: daoflow login"
       });
 
-      // 4. Context name
       checks.push({
         name: "Active context",
         status: "ok",
         detail: config.currentContext
       });
 
-      // Print results
+      const failures = checks.filter((check) => check.status === "fail");
+      const warnings = checks.filter((check) => check.status === "warn");
+      const summary = {
+        total: checks.length,
+        ok: checks.filter((check) => check.status === "ok").length,
+        warnings: warnings.length,
+        failures: failures.length
+      };
+
+      if (isJson) {
+        if (failures.length > 0) {
+          console.log(
+            JSON.stringify({
+              ok: false,
+              error: `Found ${failures.length} issue(s)`,
+              code: "DOCTOR_FAILED",
+              data: { checks, summary }
+            })
+          );
+          process.exit(1);
+        }
+
+        console.log(JSON.stringify({ ok: true, data: { checks, summary } }));
+        return;
+      }
+
       const icons = { ok: "✅", warn: "⚠️ ", fail: "❌" };
       for (const check of checks) {
         console.log(`  ${icons[check.status]}  ${check.name}: ${check.detail}`);
       }
 
-      const failures = checks.filter((c) => c.status === "fail");
       console.log("");
       if (failures.length > 0) {
         console.log(`Found ${failures.length} issue(s). Resolve them and re-run daoflow doctor.`);
         process.exit(1);
-      } else {
-        console.log("All checks passed! DaoFlow is ready.");
       }
+
+      console.log("All checks passed! DaoFlow is ready.");
     });
 
   return cmd;
