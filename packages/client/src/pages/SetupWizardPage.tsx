@@ -64,7 +64,7 @@ export default function SetupWizardPage() {
 
   if (step === "welcome") {
     return (
-      <main className="shell flex items-center justify-center" style={{ minHeight: "60vh" }}>
+      <main className="shell flex min-h-[60vh] items-center justify-center">
         <Card className="w-full max-w-lg text-center">
           <CardHeader className="space-y-2 pb-4">
             <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
@@ -93,7 +93,7 @@ export default function SetupWizardPage() {
 
   if (step === "account") {
     return (
-      <main className="shell flex items-center justify-center" style={{ minHeight: "60vh" }}>
+      <main className="shell flex min-h-[60vh] items-center justify-center">
         <Card className="w-full max-w-lg">
           <CardHeader>
             <Badge variant="outline" className="w-fit">
@@ -123,7 +123,7 @@ export default function SetupWizardPage() {
 
   if (step === "server") {
     return (
-      <main className="shell flex items-center justify-center" style={{ minHeight: "60vh" }}>
+      <main className="shell flex min-h-[60vh] items-center justify-center">
         <Card className="w-full max-w-lg">
           <CardHeader>
             <Badge variant="outline" className="w-fit">
@@ -234,7 +234,7 @@ export default function SetupWizardPage() {
 
   // step === "complete"
   return (
-    <main className="shell flex items-center justify-center" style={{ minHeight: "60vh" }}>
+    <main className="shell flex min-h-[60vh] items-center justify-center">
       <Card className="w-full max-w-lg text-center">
         <CardHeader className="space-y-2 pb-4">
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-green-500/10">
