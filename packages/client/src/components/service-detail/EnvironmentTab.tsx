@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowDownUp, FileText, Save, Wrench } from "lucide-react";
+import { ArrowDownUp, FileText, Save, Wrench, Filter } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { useState, useEffect, useCallback } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -32,6 +32,7 @@ export default function EnvironmentTab({
   environmentId
 }: EnvironmentTabProps) {
   const [mode, setMode] = useState<"table" | "raw">("table");
+  const [categoryFilter, setCategoryFilter] = useState<"all" | "runtime" | "build">("all");
   const [rawText, setRawText] = useState("");
   const [buildArgs, setBuildArgs] = useState("");
   const [buildSecrets, setBuildSecrets] = useState("");
@@ -62,6 +63,9 @@ export default function EnvironmentTab({
       source: variable.source,
       category: normalizeCategory(variable.category)
     })) ?? [];
+
+  const filteredVars =
+    categoryFilter === "all" ? vars : vars.filter((v) => v.category === categoryFilter);
 
   const handleSaveRaw = useCallback(() => {
     if (!environmentId) return;
@@ -149,9 +153,24 @@ export default function EnvironmentTab({
       {/* Mode toggle */}
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-medium text-muted-foreground">
-          {vars.length} variable{vars.length !== 1 ? "s" : ""}
+          {filteredVars.length} variable{filteredVars.length !== 1 ? "s" : ""}
+          {categoryFilter !== "all" && <span className="ml-1">({categoryFilter})</span>}
         </h3>
         <div className="flex items-center gap-2">
+          {/* Category filter */}
+          <div className="flex items-center rounded-md border text-xs">
+            {(["all", "runtime", "build"] as const).map((c) => (
+              <button
+                key={c}
+                onClick={() => setCategoryFilter(c)}
+                className={`px-2.5 py-1 transition-colors ${
+                  categoryFilter === c ? "bg-primary text-primary-foreground" : "hover:bg-accent"
+                } ${c === "all" ? "rounded-l-md" : c === "build" ? "rounded-r-md" : ""}`}
+              >
+                {c === "all" ? "All" : c.charAt(0).toUpperCase() + c.slice(1)}
+              </button>
+            ))}
+          </div>
           <Button
             size="sm"
             variant={mode === "table" ? "default" : "outline"}
@@ -173,7 +192,7 @@ export default function EnvironmentTab({
 
       {mode === "table" ? (
         <EnvVarTable
-          vars={vars}
+          vars={filteredVars}
           environmentId={environmentId}
           onUpsert={(data) => upsertMutation.mutate(data)}
           onDelete={(data) => deleteMutation.mutate(data)}
