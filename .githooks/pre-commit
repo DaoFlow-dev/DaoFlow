@@ -11,14 +11,30 @@ if ! command -v bun >/dev/null 2>&1; then
   exit 1
 fi
 
-echo "[pre-commit] bun run format"
-bun run format
+# Collect staged files (excludes deleted files)
+STAGED=$(git diff --cached --name-only --diff-filter=d)
 
-echo "[pre-commit] git add -A"
-git add -A
+if [ -z "$STAGED" ]; then
+  echo "[pre-commit] no staged files, skipping"
+  exit 0
+fi
 
-echo "[pre-commit] bun run lint"
-bun run lint
+# Filter staged files for prettier (all formattable extensions)
+FORMAT_FILES=$(echo "$STAGED" | grep -E '\.(ts|tsx|js|jsx|mjs|cjs|json|css|md|yaml|yml|html)$' || true)
+
+if [ -n "$FORMAT_FILES" ]; then
+  echo "[pre-commit] formatting staged files"
+  echo "$FORMAT_FILES" | xargs npx prettier --write
+  echo "$FORMAT_FILES" | xargs git add
+fi
+
+# Filter staged files for eslint (JS/TS only)
+LINT_FILES=$(echo "$STAGED" | grep -E '\.(ts|tsx|js|jsx|mjs|cjs)$' || true)
+
+if [ -n "$LINT_FILES" ]; then
+  echo "[pre-commit] linting staged files"
+  echo "$LINT_FILES" | xargs npx eslint
+fi
 
 echo "[pre-commit] bun run typecheck"
 bun run typecheck
