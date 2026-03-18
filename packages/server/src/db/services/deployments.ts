@@ -389,6 +389,7 @@ export async function listDeploymentInsights(limit = 6) {
     const snapshot = asRecord(deployment.configSnapshot);
     const insight = asRecord(snapshot.insight);
     const healthyBaseline = asRecord(insight.healthyBaseline);
+    const status = normalizeDeploymentStatus(deployment.status, deployment.conclusion);
 
     return {
       deploymentId: deployment.id,
@@ -399,7 +400,9 @@ export async function listDeploymentInsights(limit = 6) {
         index.environmentById.get(deployment.environmentId)?.name ??
         readString(snapshot, "environmentName", deployment.environmentId),
       serviceName: deployment.serviceName,
-      status: normalizeDeploymentStatus(deployment.status, deployment.conclusion),
+      status,
+      statusTone: getDeploymentStatusTone(deployment.status, deployment.conclusion),
+      statusLabel: formatDeploymentStatusLabel(deployment.status, deployment.conclusion),
       summary: readString(insight, "summary", `Deployment ${deployment.id} failed.`),
       suspectedRootCause: readString(
         insight,
@@ -441,8 +444,15 @@ export async function listDeploymentRollbackPlans(limit = 6) {
     const snapshot = asRecord(deployment.configSnapshot);
     const rollbackPlan = asRecord(snapshot.rollbackPlan);
     const currentStatus = normalizeDeploymentStatus(deployment.status, deployment.conclusion);
+    const currentStatusTone = getDeploymentStatusTone(deployment.status, deployment.conclusion);
+    const currentStatusLabel = formatDeploymentStatusLabel(
+      deployment.status,
+      deployment.conclusion
+    );
 
     if (Object.keys(rollbackPlan).length > 0) {
+      const isAvailable = rollbackPlan.isAvailable !== false;
+
       return {
         deploymentId: deployment.id,
         projectName:
@@ -453,7 +463,11 @@ export async function listDeploymentRollbackPlans(limit = 6) {
           readString(snapshot, "environmentName", deployment.environmentId),
         serviceName: deployment.serviceName,
         currentStatus,
-        isAvailable: rollbackPlan.isAvailable !== false,
+        currentStatusTone,
+        currentStatusLabel,
+        isAvailable,
+        planStatusTone: isAvailable ? DeploymentHealthStatus.Queued : currentStatusTone,
+        planStatusLabel: isAvailable ? "Planned" : currentStatusLabel,
         reason: readString(rollbackPlan, "reason"),
         targetDeploymentId: readString(rollbackPlan, "targetDeploymentId", ""),
         targetCommitSha: readString(rollbackPlan, "targetCommitSha", ""),
@@ -474,7 +488,11 @@ export async function listDeploymentRollbackPlans(limit = 6) {
           readString(snapshot, "environmentName", deployment.environmentId),
         serviceName: deployment.serviceName,
         currentStatus,
+        currentStatusTone,
+        currentStatusLabel,
         isAvailable: false,
+        planStatusTone: currentStatusTone,
+        planStatusLabel: currentStatusLabel,
         reason: "Current deployment is already healthy; rollback is not recommended.",
         targetDeploymentId: "",
         targetCommitSha: "",
@@ -494,7 +512,11 @@ export async function listDeploymentRollbackPlans(limit = 6) {
         readString(snapshot, "environmentName", deployment.environmentId),
       serviceName: deployment.serviceName,
       currentStatus,
+      currentStatusTone,
+      currentStatusLabel,
       isAvailable: false,
+      planStatusTone: currentStatusTone,
+      planStatusLabel: currentStatusLabel,
       reason: "No deterministic rollback target is available yet.",
       targetDeploymentId: "",
       targetCommitSha: "",
