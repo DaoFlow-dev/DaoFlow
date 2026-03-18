@@ -13,6 +13,7 @@ interface ExecutionJob {
   queueName: string;
   workerHint: string;
   status: string;
+  statusTone?: string;
 }
 
 interface ExecutionQueueData {
@@ -33,6 +34,8 @@ interface TimelineEvent {
   serviceName: string;
   resourceId: string;
   detail: string | null;
+  statusLabel?: string;
+  statusTone?: string;
 }
 
 export interface ExecutionHandoffProps {
@@ -140,67 +143,73 @@ export function ExecutionHandoff({
           ) : null}
 
           <div className="queue-list">
-            {executionQueue.data.jobs.map((job) => (
-              <article className="token-card" data-testid={`execution-job-${job.id}`} key={job.id}>
-                <div className="token-card__top">
-                  <div>
-                    <p className="roadmap-item__lane">{job.environmentName}</p>
-                    <h3>{job.serviceName}</h3>
+            {executionQueue.data.jobs.map((job) => {
+              const statusTone = job.statusTone ?? getExecutionJobTone(job.status);
+
+              return (
+                <article
+                  className="token-card"
+                  data-testid={`execution-job-${job.id}`}
+                  key={job.id}
+                >
+                  <div className="token-card__top">
+                    <div>
+                      <p className="roadmap-item__lane">{job.environmentName}</p>
+                      <h3>{job.serviceName}</h3>
+                    </div>
+                    <span className={`deployment-status deployment-status--${statusTone}`}>
+                      {job.status}
+                    </span>
                   </div>
-                  <span
-                    className={`deployment-status deployment-status--${getExecutionJobTone(job.status)}`}
-                  >
-                    {job.status}
-                  </span>
-                </div>
-                <p className="deployment-card__meta">
-                  Queue: {job.queueName} · Worker hint: {job.workerHint}
-                </p>
-                <p className="deployment-card__meta">
-                  {job.projectName} on {job.targetServerName} ({job.targetServerHost})
-                </p>
-                {canOperateExecutionJobs ? (
-                  <div className="job-actions">
-                    {job.status === "pending" ? (
-                      <button
-                        className="action-button"
-                        disabled={mutationPending}
-                        onClick={() => {
-                          void handleDispatchJob(job.id, job.serviceName);
-                        }}
-                        type="button"
-                      >
-                        Dispatch
-                      </button>
-                    ) : null}
-                    {job.status === "dispatched" ? (
-                      <>
+                  <p className="deployment-card__meta">
+                    Queue: {job.queueName} · Worker hint: {job.workerHint}
+                  </p>
+                  <p className="deployment-card__meta">
+                    {job.projectName} on {job.targetServerName} ({job.targetServerHost})
+                  </p>
+                  {canOperateExecutionJobs ? (
+                    <div className="job-actions">
+                      {job.status === "pending" ? (
                         <button
                           className="action-button"
                           disabled={mutationPending}
                           onClick={() => {
-                            void handleCompleteJob(job.id, job.serviceName);
+                            void handleDispatchJob(job.id, job.serviceName);
                           }}
                           type="button"
                         >
-                          Mark healthy
+                          Dispatch
                         </button>
-                        <button
-                          className="action-button action-button--muted"
-                          disabled={mutationPending}
-                          onClick={() => {
-                            void handleFailJob(job.id, job.serviceName);
-                          }}
-                          type="button"
-                        >
-                          Mark failed
-                        </button>
-                      </>
-                    ) : null}
-                  </div>
-                ) : null}
-              </article>
-            ))}
+                      ) : null}
+                      {job.status === "dispatched" ? (
+                        <>
+                          <button
+                            className="action-button"
+                            disabled={mutationPending}
+                            onClick={() => {
+                              void handleCompleteJob(job.id, job.serviceName);
+                            }}
+                            type="button"
+                          >
+                            Mark healthy
+                          </button>
+                          <button
+                            className="action-button action-button--muted"
+                            disabled={mutationPending}
+                            onClick={() => {
+                              void handleFailJob(job.id, job.serviceName);
+                            }}
+                            type="button"
+                          >
+                            Mark failed
+                          </button>
+                        </>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </article>
+              );
+            })}
           </div>
         </>
       ) : (
@@ -216,31 +225,34 @@ export function ExecutionHandoff({
 
       {session.data && operationsTimeline.data ? (
         <div className="timeline-list">
-          {operationsTimeline.data.map((event) => (
-            <article
-              className="timeline-event"
-              data-testid={`timeline-event-${event.id}`}
-              key={event.id}
-            >
-              <div className="timeline-event__top">
-                <div>
-                  <p className="roadmap-item__lane">
-                    {event.resourceType} · {event.kind}
-                  </p>
-                  <h3>{event.summary}</h3>
+          {operationsTimeline.data.map((event) => {
+            const statusTone = event.statusTone ?? getTimelineTone(event.kind);
+            const statusLabel = event.statusLabel ?? getTimelineLifecycle(event.kind);
+
+            return (
+              <article
+                className="timeline-event"
+                data-testid={`timeline-event-${event.id}`}
+                key={event.id}
+              >
+                <div className="timeline-event__top">
+                  <div>
+                    <p className="roadmap-item__lane">
+                      {event.resourceType} · {event.kind}
+                    </p>
+                    <h3>{event.summary}</h3>
+                  </div>
+                  <span className={`deployment-status deployment-status--${statusTone}`}>
+                    {statusLabel}
+                  </span>
                 </div>
-                <span
-                  className={`deployment-status deployment-status--${getTimelineTone(event.kind)}`}
-                >
-                  {getTimelineLifecycle(event.kind)}
-                </span>
-              </div>
-              <p className="deployment-card__meta">
-                {event.serviceName} · {event.resourceId}
-              </p>
-              <p className="deployment-card__meta">{event.detail}</p>
-            </article>
-          ))}
+                <p className="deployment-card__meta">
+                  {event.serviceName} · {event.resourceId}
+                </p>
+                <p className="deployment-card__meta">{event.detail}</p>
+              </article>
+            );
+          })}
         </div>
       ) : (
         <p className="viewer-empty">

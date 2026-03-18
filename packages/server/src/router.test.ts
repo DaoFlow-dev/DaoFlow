@@ -549,6 +549,25 @@ describe("appRouter", () => {
 
     expect(job.targetServerId).toEqual(expect.any(String));
     expect(job.queueName).toEqual(expect.any(String));
+    expect(job.statusTone).toEqual(expect.any(String));
+  });
+
+  it("returns operations timeline entries with normalized lifecycle metadata", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-operations-timeline",
+      session: makeSession("viewer")
+    });
+    const response = await caller.operationsTimeline({});
+
+    expect(Array.isArray(response)).toBe(true);
+
+    const event = response[0];
+    if (!event) {
+      return;
+    }
+
+    expect(event.statusLabel).toEqual(expect.any(String));
+    expect(event.statusTone).toEqual(expect.any(String));
   });
 
   it("returns backup inventory and restore queue with current fields", async () => {

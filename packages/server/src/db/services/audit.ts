@@ -19,6 +19,40 @@ function getAuditStatusTone(action: string) {
   return "queued" as const;
 }
 
+function getTimelineLifecycleLabel(kind: string) {
+  if (kind === "deployment.failed" || kind === "execution.job.failed" || kind === "step.failed") {
+    return "failed" as const;
+  }
+
+  if (
+    kind === "deployment.succeeded" ||
+    kind === "execution.job.completed" ||
+    kind === "step.completed"
+  ) {
+    return "completed" as const;
+  }
+
+  if (kind === "execution.job.dispatched" || kind === "step.running") {
+    return "running" as const;
+  }
+
+  return "queued" as const;
+}
+
+function getTimelineStatusTone(kind: string) {
+  const lifecycle = getTimelineLifecycleLabel(kind);
+
+  if (lifecycle === "failed") {
+    return "failed" as const;
+  }
+
+  if (lifecycle === "completed") {
+    return "healthy" as const;
+  }
+
+  return "queued" as const;
+}
+
 export async function listAuditTrail(limit = 12) {
   const entries = await db
     .select()
@@ -68,6 +102,8 @@ export async function listOperationsTimeline(deploymentId?: string, limit = 12) 
       ...event,
       serviceName: readString(metadata, "serviceName", event.resourceId),
       actorLabel: readString(metadata, "actorLabel"),
+      statusLabel: getTimelineLifecycleLabel(event.kind),
+      statusTone: getTimelineStatusTone(event.kind),
       createdAt: event.createdAt.toISOString()
     };
   });

@@ -16,6 +16,13 @@ function mapExecutionStatus(status: string): ExecutionJobStatus {
   return "pending";
 }
 
+function getExecutionStatusTone(status: ExecutionJobStatus) {
+  if (status === "completed") return "healthy" as const;
+  if (status === "failed") return "failed" as const;
+  if (status === "pending") return "queued" as const;
+  return "running" as const;
+}
+
 async function resolveDisplayContext(deployment: typeof deployments.$inferSelect) {
   const [project, environment, server] = await Promise.all([
     db.select().from(projects).where(eq(projects.id, deployment.projectId)).limit(1),
@@ -50,6 +57,8 @@ export async function listExecutionQueue(status?: string, limit = 12) {
   const jobs = await Promise.all(
     rows.map(async (deployment) => {
       const context = await resolveDisplayContext(deployment);
+      const status = mapExecutionStatus(deployment.status);
+
       return {
         id: deployment.id,
         deploymentId: deployment.id,
@@ -61,7 +70,8 @@ export async function listExecutionQueue(status?: string, limit = 12) {
         projectName: context.projectName,
         queueName: context.queueName,
         workerHint: context.workerHint,
-        status: mapExecutionStatus(deployment.status),
+        status,
+        statusTone: getExecutionStatusTone(status),
         createdAt: deployment.createdAt.toISOString()
       };
     })
