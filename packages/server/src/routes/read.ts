@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
+import { deploymentHealthStatuses, executionJobStatuses } from "@daoflow/shared";
 import {
   getDeploymentRecord,
   listDeploymentInsights,
@@ -97,7 +98,7 @@ export const readRouter = t.router({
       return items.filter((item) => item.lane === input.lane);
     }),
   recentDeployments: protectedProcedure
-    .input(statusLimitInput(["healthy", "failed", "running", "queued"], 50))
+    .input(statusLimitInput(deploymentHealthStatuses, 50))
     .query(async ({ input }) => {
       return listDeploymentRecords(input.status, input.limit ?? 20);
     }),
@@ -129,7 +130,7 @@ export const readRouter = t.router({
       return deployment;
     }),
   executionQueue: protectedProcedure
-    .input(statusLimitInput(["pending", "dispatched", "completed", "failed"], 50))
+    .input(statusLimitInput(executionJobStatuses, 50))
     .query(async ({ input }) => {
       return listExecutionQueue(input.status, input.limit ?? 12);
     }),

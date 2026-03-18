@@ -7,7 +7,10 @@ export const limitInput = (max: number) =>
   });
 
 /** `limitInput` with an optional status filter. */
-export const statusLimitInput = <T extends [string, ...string[]]>(statuses: T, maxLimit: number) =>
+export const statusLimitInput = <T extends readonly [string, ...string[]]>(
+  statuses: T,
+  maxLimit: number
+) =>
   z.object({
     status: z.enum(statuses).optional(),
     limit: z.number().int().min(1).max(maxLimit).optional()

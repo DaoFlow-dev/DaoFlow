@@ -1,4 +1,5 @@
 import {
+  getDeploymentStatusTone,
   normalizeInventoryStatus,
   normalizeServerReadinessStatus,
   type StatusTone
@@ -29,6 +30,10 @@ export function getExecutionJobTone(status: string): StatusTone {
   }
 
   return "running";
+}
+
+export function getDeploymentTone(status: string, conclusion: string | null): StatusTone {
+  return getDeploymentStatusTone(status, conclusion);
 }
 
 export function getTimelineLifecycle(kind: string) {

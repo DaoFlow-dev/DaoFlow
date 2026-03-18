@@ -17,6 +17,18 @@ import { Rocket, ChevronDown, ChevronRight, RotateCcw } from "lucide-react";
 import DeploymentLogViewer from "../components/DeploymentLogViewer";
 import DeploymentRollbackDialog from "../components/DeploymentRollbackDialog";
 
+function badgeVariantFromTone(tone: string) {
+  if (tone === "healthy") {
+    return "default" as const;
+  }
+
+  if (tone === "failed") {
+    return "destructive" as const;
+  }
+
+  return "secondary" as const;
+}
+
 export default function DeploymentsPage() {
   const session = useSession();
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -80,7 +92,17 @@ export default function DeploymentsPage() {
                 {deployments.map((d) => {
                   const id = String(d.id);
                   const isExpanded = expandedId === id;
-                  const isSuccessful = d.status === "healthy" && typeof d.serviceId === "string";
+                  const statusTone =
+                    typeof d.statusTone === "string" ? d.statusTone : String(d.status);
+                  const statusLabel =
+                    typeof d.statusLabel === "string" ? d.statusLabel : String(d.status);
+                  const lifecycleStatus =
+                    typeof d.lifecycleStatus === "string" ? d.lifecycleStatus : String(d.status);
+                  const isSuccessful = d.canRollback === true && typeof d.serviceId === "string";
+                  const actorLabel =
+                    typeof d.requestedByEmail === "string" && d.requestedByEmail.length > 0
+                      ? d.requestedByEmail
+                      : "system";
 
                   return (
                     <Fragment key={id}>
@@ -93,19 +115,18 @@ export default function DeploymentsPage() {
                         </TableCell>
                         <TableCell className="font-medium">
                           {String(d.serviceName ?? d.projectId ?? "—")}
+                          <div className="text-xs font-normal text-muted-foreground">
+                            {String(d.environmentName ?? "unknown environment")} on{" "}
+                            {String(d.targetServerName ?? "unknown server")}
+                          </div>
                         </TableCell>
                         <TableCell>
-                          <Badge
-                            variant={
-                              d.status === "healthy"
-                                ? "default"
-                                : d.status === "failed"
-                                  ? "destructive"
-                                  : "secondary"
-                            }
-                          >
-                            {String(d.status)}
-                          </Badge>
+                          <div className="flex flex-col gap-1">
+                            <Badge variant={badgeVariantFromTone(statusTone)}>{statusLabel}</Badge>
+                            <span className="text-xs text-muted-foreground">
+                              Lifecycle: {lifecycleStatus}
+                            </span>
+                          </div>
                         </TableCell>
                         <TableCell className="text-muted-foreground">
                           {String(d.sourceType ?? "docker")}
@@ -132,7 +153,73 @@ export default function DeploymentsPage() {
                       {isExpanded && (
                         <TableRow>
                           <TableCell colSpan={6} className="p-0">
-                            <DeploymentLogViewer deploymentId={id} />
+                            <div className="space-y-4 bg-muted/20 p-4">
+                              <div className="grid gap-3 md:grid-cols-4">
+                                <div>
+                                  <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                                    Actor
+                                  </p>
+                                  <p className="text-sm font-medium">{actorLabel}</p>
+                                </div>
+                                <div>
+                                  <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                                    Commit
+                                  </p>
+                                  <p className="text-sm font-medium">
+                                    {String(d.commitSha ?? "—")}
+                                  </p>
+                                </div>
+                                <div>
+                                  <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                                    Image
+                                  </p>
+                                  <p className="truncate text-sm font-medium">
+                                    {String(d.imageTag ?? "—")}
+                                  </p>
+                                </div>
+                                <div>
+                                  <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                                    Outcome
+                                  </p>
+                                  <p className="text-sm font-medium">
+                                    {typeof d.conclusion === "string" ? d.conclusion : "pending"}
+                                  </p>
+                                </div>
+                              </div>
+                              {Array.isArray(d.steps) && d.steps.length > 0 ? (
+                                <div className="space-y-2">
+                                  <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                                    Structured steps
+                                  </p>
+                                  <div className="grid gap-2 md:grid-cols-2">
+                                    {d.steps.map((step) => (
+                                      <div
+                                        key={String(step.id)}
+                                        className="rounded-md border bg-background p-3"
+                                      >
+                                        <div className="flex items-center justify-between gap-2">
+                                          <p className="text-sm font-medium">
+                                            {String(step.label)}
+                                          </p>
+                                          <Badge variant="outline">
+                                            {typeof step.status === "string"
+                                              ? step.status
+                                              : "pending"}
+                                          </Badge>
+                                        </div>
+                                        {typeof step.detail === "string" &&
+                                        step.detail.length > 0 ? (
+                                          <p className="mt-1 text-sm text-muted-foreground">
+                                            {step.detail}
+                                          </p>
+                                        ) : null}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              ) : null}
+                              <DeploymentLogViewer deploymentId={id} />
+                            </div>
                           </TableCell>
                         </TableRow>
                       )}

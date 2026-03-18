@@ -5,7 +5,17 @@ import { deploymentLogs, deployments, deploymentSteps } from "../schema/deployme
 import { environments, projects } from "../schema/projects";
 import { servers } from "../schema/servers";
 import { services } from "../schema/services";
-import { normalizeDeploymentStatus, type AppRole } from "@daoflow/shared";
+import {
+  DeploymentConclusion,
+  DeploymentHealthStatus,
+  DeploymentLifecycleStatus,
+  canCancelDeployment,
+  canRollbackDeployment,
+  formatDeploymentStatusLabel,
+  getDeploymentStatusTone,
+  normalizeDeploymentStatus,
+  type AppRole
+} from "@daoflow/shared";
 import {
   newId as id,
   asRecord,
@@ -14,13 +24,7 @@ import {
   readStringArray
 } from "./json-helpers";
 
-export type DeploymentStatus =
-  | "queued"
-  | "prepare"
-  | "deploy"
-  | "finalize"
-  | "completed"
-  | "failed";
+export type DeploymentStatus = DeploymentLifecycleStatus;
 export type DeploymentSourceType = "compose" | "dockerfile" | "image";
 
 async function loadProjectEnvironmentByNames(projectName: string, environmentName: string) {
@@ -78,11 +82,19 @@ function buildDeploymentView(
 ) {
   const snapshot = asRecord(deployment.configSnapshot);
   const status = normalizeDeploymentStatus(deployment.status, deployment.conclusion);
+  const statusLabel = formatDeploymentStatusLabel(deployment.status, deployment.conclusion);
+  const statusTone = getDeploymentStatusTone(deployment.status, deployment.conclusion);
+  const hasServiceTarget = typeof service?.id === "string";
 
   return {
     ...deployment,
+    lifecycleStatus: deployment.status,
     status,
+    statusTone,
+    statusLabel,
     serviceId: service?.id ?? null,
+    canCancel: canCancelDeployment(deployment.status, deployment.conclusion),
+    canRollback: canRollbackDeployment(deployment.status, deployment.conclusion, hasServiceTarget),
     projectName: project?.name ?? readString(snapshot, "projectName", deployment.projectId),
     environmentName:
       environment?.name ?? readString(snapshot, "environmentName", deployment.environmentId),
@@ -236,28 +248,37 @@ export async function listDeploymentRecords(status?: string, limit = 20) {
   const rows = status
     ? await (() => {
         switch (status) {
-          case "healthy":
+          case DeploymentHealthStatus.Healthy:
             return baseQuery
               .where(
-                and(eq(deployments.status, "completed"), eq(deployments.conclusion, "succeeded"))
+                and(
+                  eq(deployments.status, DeploymentLifecycleStatus.Completed),
+                  eq(deployments.conclusion, DeploymentConclusion.Succeeded)
+                )
               )
               .orderBy(desc(deployments.createdAt))
               .limit(limit);
-          case "failed":
+          case DeploymentHealthStatus.Failed:
             return baseQuery
-              .where(sql`${deployments.status} = 'failed' or ${deployments.conclusion} = 'failed'`)
+              .where(
+                sql`${deployments.status} = ${DeploymentLifecycleStatus.Failed}
+                    or ${deployments.conclusion} = ${DeploymentConclusion.Failed}
+                    or ${deployments.conclusion} = ${DeploymentConclusion.Cancelled}`
+              )
               .orderBy(desc(deployments.createdAt))
               .limit(limit);
-          case "running":
+          case DeploymentHealthStatus.Running:
             return baseQuery
-              .where(sql`${deployments.status} in ('prepare', 'deploy', 'finalize', 'running')`)
+              .where(
+                sql`${deployments.status} in (${DeploymentLifecycleStatus.Prepare}, ${DeploymentLifecycleStatus.Deploy}, ${DeploymentLifecycleStatus.Finalize}, ${DeploymentLifecycleStatus.Running})`
+              )
               .orderBy(desc(deployments.createdAt))
               .limit(limit);
           default:
             return baseQuery
               .where(
-                sql`${deployments.status} not in ('failed', 'completed', 'prepare', 'deploy', 'finalize', 'running')
-                    and coalesce(${deployments.conclusion}, '') <> 'failed'`
+                sql`${deployments.status} not in (${DeploymentLifecycleStatus.Failed}, ${DeploymentLifecycleStatus.Completed}, ${DeploymentLifecycleStatus.Prepare}, ${DeploymentLifecycleStatus.Deploy}, ${DeploymentLifecycleStatus.Finalize}, ${DeploymentLifecycleStatus.Running})
+                    and coalesce(${deployments.conclusion}, '') not in (${DeploymentConclusion.Failed}, ${DeploymentConclusion.Cancelled})`
               )
               .orderBy(desc(deployments.createdAt))
               .limit(limit);
@@ -358,7 +379,7 @@ export async function listDeploymentInsights(limit = 6) {
   const rows = await db
     .select()
     .from(deployments)
-    .where(eq(deployments.status, "failed"))
+    .where(eq(deployments.status, DeploymentLifecycleStatus.Failed))
     .orderBy(desc(deployments.createdAt))
     .limit(limit);
 
@@ -442,7 +463,7 @@ export async function listDeploymentRollbackPlans(limit = 6) {
       };
     }
 
-    if (currentStatus === "healthy") {
+    if (currentStatus === DeploymentHealthStatus.Healthy) {
       return {
         deploymentId: deployment.id,
         projectName:
@@ -503,15 +524,18 @@ export async function cancelDeployment(input: CancelDeploymentInput) {
   if (!deployment) return { status: "not-found" as const };
 
   const currentStatus = normalizeDeploymentStatus(deployment.status, deployment.conclusion);
-  if (currentStatus !== "queued" && currentStatus !== "running") {
+  if (
+    currentStatus !== DeploymentHealthStatus.Queued &&
+    currentStatus !== DeploymentHealthStatus.Running
+  ) {
     return { status: "invalid-state" as const, currentStatus };
   }
 
   await db
     .update(deployments)
     .set({
-      status: "failed",
-      conclusion: "cancelled",
+      status: DeploymentLifecycleStatus.Failed,
+      conclusion: DeploymentConclusion.Cancelled,
       error: { reason: "Cancelled by user", cancelledBy: input.cancelledByEmail },
       concludedAt: new Date(),
       updatedAt: new Date()

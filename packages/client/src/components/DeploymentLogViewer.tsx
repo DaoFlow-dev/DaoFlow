@@ -44,10 +44,13 @@ export default function DeploymentLogViewer({ deploymentId }: Props) {
             : typeof entry.detail === "string"
               ? entry.detail
               : "";
-        const timestamp =
-          typeof entry.timestamp === "string" || typeof entry.timestamp === "number"
-            ? new Date(entry.timestamp).toLocaleTimeString()
-            : "";
+        const timestampValue =
+          typeof entry.createdAt === "string" || typeof entry.createdAt === "number"
+            ? entry.createdAt
+            : typeof entry.timestamp === "string" || typeof entry.timestamp === "number"
+              ? entry.timestamp
+              : null;
+        const timestamp = timestampValue ? new Date(timestampValue).toLocaleTimeString() : "";
 
         return (
           <div key={i} className="flex gap-2 hover:bg-white/5 px-1 py-0.5">
