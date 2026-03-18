@@ -10,8 +10,7 @@ import {
   Bell,
   Settings,
   User,
-  Search,
-  Command
+  Search
 } from "lucide-react";
 
 interface PaletteItem {

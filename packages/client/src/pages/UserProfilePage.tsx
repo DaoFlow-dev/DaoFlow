@@ -106,7 +106,7 @@ export default function UserProfilePage() {
           </div>
           {hasProfileChanges && (
             <div className="flex justify-end">
-              <Button size="sm" disabled={isSaving} onClick={handleSaveProfile}>
+              <Button size="sm" disabled={isSaving} onClick={() => void handleSaveProfile()}>
                 {isSaving ? (
                   <Loader2 size={14} className="mr-1 animate-spin" />
                 ) : (
@@ -167,7 +167,7 @@ export default function UserProfilePage() {
               <Button
                 size="sm"
                 disabled={!passwordsMatch || isChangingPassword}
-                onClick={handleChangePassword}
+                onClick={() => void handleChangePassword()}
               >
                 {isChangingPassword ? (
                   <Loader2 size={14} className="mr-1 animate-spin" />
