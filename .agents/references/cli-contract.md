@@ -64,13 +64,21 @@ This file holds the detailed CLI contract, scope map, and agent-facing command r
 ## Plan Command Contract
 
 - `daoflow plan` is a planning-lane command backed by the control plane, not a local CLI stub
-- Required input: `--service <id|name>`
-- Optional input: `--server <id|name>`, `--image <ref>`, `--json`
-- JSON success shape:
+- One target is required:
+  - `--service <id|name>` for registered-service planning through `deploymentPlan`
+  - `--compose <path>` for direct compose planning through `composeDeploymentPlan`
+- Optional input:
+  - Service plan: `--server <id|name>`, `--image <ref>`, `--json`
+  - Compose plan: `--context <path>`, `--server <id|name>`, `--json`
+- JSON service success shape:
   - `{ "ok": true, "data": { "isReady": boolean, "service": {...}, "target": {...}, "currentDeployment": {...} | null, "preflightChecks": [{ "status": "ok" | "warn" | "fail", "detail": string }], "steps": string[], "executeCommand": string } }`
+- JSON compose success shape:
+  - `{ "ok": true, "data": { "isReady": boolean, "deploymentSource": "uploaded-context" | "uploaded-compose", "project": { "id": string | null, "name": string, "action": "reuse" | "create" }, "environment": { "id": string | null, "name": string, "action": "reuse" | "create" }, "service": { "id": string | null, "name": string, "action": "reuse" | "create", "sourceType": "compose" }, "target": { "serverId": string, "serverName": string, "serverHost": string, "composePath": string | null, "contextPath": string | null, "requiresContextUpload": boolean, "localBuildContexts": [{ "serviceName": string, "context": string, "dockerfile": string | null }], "contextBundle": { "fileCount": number, "sizeBytes": number, "includedOverrides": string[] } | null }, "preflightChecks": [{ "status": "ok" | "warn" | "fail", "detail": string }], "steps": string[], "executeCommand": string } }`
 - Human output must show:
-  - service, project, environment, target server, target image
-  - current deployment status when present
+  - service or compose scope, project, environment, target server
+  - target image for service plans
+  - local build-context and bundle details for compose plans
+  - current deployment status when present for service plans
   - ordered planned steps
   - preflight checks with `ok` / `warn` / `fail`
 

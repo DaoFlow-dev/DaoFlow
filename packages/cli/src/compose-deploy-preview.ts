@@ -36,10 +36,10 @@ function hasLocalContext(context: string): boolean {
   return context === "." || context.startsWith("./") || !context.includes(":");
 }
 
-export async function previewComposeDeploy(
+export async function fetchComposeDeploymentPlan(
   trpc: ComposeDeploymentPlanClientLike,
   options: ComposeDeployCoreOptions
-): Promise<void> {
+): Promise<ComposeDeploymentPlanPreview> {
   const resolvedCompose = resolve(options.composePath);
   if (!existsSync(resolvedCompose)) {
     throw new Error(`Compose file not found: ${options.composePath}`);
@@ -90,7 +90,7 @@ export async function previewComposeDeploy(
     }
   }
 
-  const plan = await trpc.composeDeploymentPlan.query({
+  return await trpc.composeDeploymentPlan.query({
     server: options.serverId,
     compose: composeContent,
     composePath: options.composePath,
@@ -100,6 +100,13 @@ export async function previewComposeDeploy(
     contextBundle,
     contextBundleError
   });
+}
+
+export async function previewComposeDeploy(
+  trpc: ComposeDeploymentPlanClientLike,
+  options: ComposeDeployCoreOptions
+): Promise<void> {
+  const plan = await fetchComposeDeploymentPlan(trpc, options);
 
   if (options.json) {
     emitJsonSuccess({ dryRun: true, plan });

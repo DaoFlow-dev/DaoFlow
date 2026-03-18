@@ -16,10 +16,14 @@ daoflow plan [options]
 
 | Flag               | Description                    |
 | ------------------ | ------------------------------ |
-| `--service <name>` | Service to plan for (required) |
+| `--service <name>` | Registered service to plan for |
+| `--compose <path>` | Compose file to plan directly  |
+| `--context <path>` | Build context path             |
 | `--server <name>`  | Target server                  |
 | `--image <ref>`    | Docker image to plan with      |
 | `--json`           | Structured JSON output         |
+
+Provide either `--service` or `--compose`.
 
 ## Required Scope
 
@@ -31,7 +35,13 @@ daoflow plan [options]
 daoflow plan --service svc_123 --server prod --image ghcr.io/acme/api:1.4.2 --json
 ```
 
+```bash
+daoflow plan --compose ./compose.yaml --context . --server prod --json
+```
+
 ## JSON Output
+
+Service plan:
 
 ```json
 {
@@ -85,6 +95,60 @@ daoflow plan --service svc_123 --server prod --image ghcr.io/acme/api:1.4.2 --js
 }
 ```
 
+Compose plan:
+
+```json
+{
+  "ok": true,
+  "data": {
+    "isReady": true,
+    "deploymentSource": "uploaded-context",
+    "project": {
+      "id": null,
+      "name": "preview-stack",
+      "action": "create"
+    },
+    "environment": {
+      "id": null,
+      "name": "production",
+      "action": "create"
+    },
+    "service": {
+      "id": null,
+      "name": "preview-stack",
+      "action": "create",
+      "sourceType": "compose"
+    },
+    "target": {
+      "serverId": "srv_prod",
+      "serverName": "prod",
+      "serverHost": "203.0.113.10",
+      "composePath": "./compose.yaml",
+      "contextPath": ".",
+      "requiresContextUpload": true,
+      "localBuildContexts": [{ "serviceName": "web", "context": ".", "dockerfile": "Dockerfile" }],
+      "contextBundle": {
+        "fileCount": 42,
+        "sizeBytes": 13824,
+        "includedOverrides": [".env"]
+      }
+    },
+    "preflightChecks": [
+      {
+        "status": "ok",
+        "detail": "Target server resolved to prod (203.0.113.10)."
+      }
+    ],
+    "steps": [
+      "Freeze the compose file and local build-context manifest",
+      "Bundle the local build context while respecting .dockerignore rules",
+      "Upload the staged archive and compose file to the DaoFlow control plane"
+    ],
+    "executeCommand": "daoflow deploy --compose ./compose.yaml --server srv_prod --context . --yes"
+  }
+}
+```
+
 ## Agent Usage
 
-The `plan` command is safe for AI agents — it only reads state and generates plans without executing anything. Use it before `deploy --yes` to preview changes.
+The `plan` command is safe for AI agents. For service plans it previews a registered service rollout; for compose plans it inspects local bundle metadata first and then asks the control plane for a non-mutating direct-deploy preview. Use it before `deploy --yes` to preview changes.

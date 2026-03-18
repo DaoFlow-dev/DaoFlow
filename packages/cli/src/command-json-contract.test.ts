@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { Command } from "commander";
 import { envCommand } from "./commands/env";
 import { registerConfigCommand } from "./commands/config";
+import { planCommand } from "./commands/plan";
 import { tokenCommand } from "./commands/token";
 
 class ExitSignal extends Error {
@@ -147,6 +148,76 @@ describe("CLI JSON contract", () => {
       ok: false,
       error: "Destructive operation — revoking token tok_123. Pass --yes to confirm.",
       code: "CONFIRMATION_REQUIRED"
+    });
+  });
+
+  test("plan in JSON mode requires either --service or --compose", async () => {
+    const program = new Command().name("daoflow");
+    program.addCommand(planCommand());
+
+    const result = await captureCommandExecution(async () => {
+      await program.parseAsync(["node", "daoflow", "plan", "--json"]);
+    });
+
+    expect(result.exitCode).toBe(1);
+    expect(result.errors).toEqual([]);
+    expect(result.logs).toHaveLength(1);
+    expect(JSON.parse(result.logs[0])).toEqual({
+      ok: false,
+      error: "Either --service or --compose is required.",
+      code: "INVALID_INPUT"
+    });
+  });
+
+  test("compose plan in JSON mode requires --server", async () => {
+    const program = new Command().name("daoflow");
+    program.addCommand(planCommand());
+
+    const result = await captureCommandExecution(async () => {
+      await program.parseAsync([
+        "node",
+        "daoflow",
+        "plan",
+        "--compose",
+        "./compose.yaml",
+        "--json"
+      ]);
+    });
+
+    expect(result.exitCode).toBe(1);
+    expect(result.errors).toEqual([]);
+    expect(result.logs).toHaveLength(1);
+    expect(JSON.parse(result.logs[0])).toEqual({
+      ok: false,
+      error: "--server is required for compose planning.",
+      code: "INVALID_INPUT"
+    });
+  });
+
+  test("plan in JSON mode rejects explicit service and compose targets together", async () => {
+    const program = new Command().name("daoflow");
+    program.addCommand(planCommand());
+
+    const result = await captureCommandExecution(async () => {
+      await program.parseAsync([
+        "node",
+        "daoflow",
+        "plan",
+        "--service",
+        "svc_123",
+        "--compose",
+        "./compose.yaml",
+        "--json"
+      ]);
+    });
+
+    expect(result.exitCode).toBe(1);
+    expect(result.errors).toEqual([]);
+    expect(result.logs).toHaveLength(1);
+    expect(JSON.parse(result.logs[0])).toEqual({
+      ok: false,
+      error: "Choose either --service or --compose, not both.",
+      code: "INVALID_INPUT"
     });
   });
 });

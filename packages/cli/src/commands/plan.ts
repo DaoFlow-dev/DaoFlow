@@ -1,5 +1,8 @@
 import { Command } from "commander";
 import chalk from "chalk";
+import { fetchComposeDeploymentPlan } from "../compose-deploy-preview";
+import { printComposeDeploymentPlan } from "../compose-deployment-plan-output";
+import { loadDaoflowConfig } from "../config-loader";
 import {
   emitJsonError,
   emitJsonSuccess,
@@ -12,31 +15,113 @@ import { createClient } from "../trpc-client";
 export function planCommand(): Command {
   return new Command("plan")
     .description("Preview a deployment plan without executing it")
-    .requiredOption("--service <id>", "Service name or ID")
+    .option("--service <id>", "Service name or ID")
+    .option("--compose <path>", "Docker Compose file path")
+    .option("--context <path>", "Build context path (default: .)")
     .option("--server <id>", "Target server")
     .option("--image <tag>", "Image tag to deploy")
     .option("--json", "Output as JSON")
     .action(
       async (
-        opts: { service: string; server?: string; image?: string; json?: boolean },
+        opts: {
+          service?: string;
+          compose?: string;
+          context?: string;
+          server?: string;
+          image?: string;
+          json?: boolean;
+        },
         command: Command
       ) => {
         const isJson = resolveCommandJsonOption(command, opts.json);
+        const configResult = loadDaoflowConfig();
+        const cfg = configResult?.config;
+        if (configResult && !isJson) {
+          console.log(chalk.dim(`  Using config: ${configResult.filePath}`));
+        }
+
+        const serviceId = opts.service;
+        const composePath = opts.compose ?? (serviceId ? undefined : cfg?.compose);
+        const contextPath = opts.context ?? cfg?.context ?? ".";
+        const serverId = opts.server ?? cfg?.server;
+
+        if (serviceId && opts.compose) {
+          const error = "Choose either --service or --compose, not both.";
+          if (isJson) {
+            emitJsonError(error, "INVALID_INPUT");
+          } else {
+            console.error(chalk.red(`✗ ${error}`));
+          }
+          process.exit(1);
+          return;
+        }
+
+        if (!serviceId && !composePath) {
+          const error = "Either --service or --compose is required.";
+          if (isJson) {
+            emitJsonError(error, "INVALID_INPUT");
+          } else {
+            console.error(chalk.red(`✗ ${error}`));
+          }
+          process.exit(1);
+          return;
+        }
+
+        if (!serviceId && composePath && !serverId) {
+          const error = "--server is required for compose planning.";
+          if (isJson) {
+            emitJsonError(error, "INVALID_INPUT");
+          } else {
+            console.error(chalk.red(`✗ ${error}`));
+          }
+          process.exit(1);
+          return;
+        }
 
         try {
-          const trpc = createClient();
-          const plan = await trpc.deploymentPlan.query({
-            service: opts.service,
-            server: opts.server,
-            image: opts.image
-          });
+          if (serviceId) {
+            const trpc = createClient();
+            const plan = await trpc.deploymentPlan.query({
+              service: serviceId,
+              server: serverId,
+              image: opts.image
+            });
 
-          if (isJson) {
-            emitJsonSuccess(plan);
+            if (isJson) {
+              emitJsonSuccess(plan);
+              return;
+            }
+
+            printDeploymentPlan(plan, { subtitle: "This plan will NOT be executed." });
             return;
           }
 
-          printDeploymentPlan(plan, { subtitle: "This plan will NOT be executed." });
+          if (composePath) {
+            const composeServerId = serverId;
+            if (!composeServerId) {
+              throw new Error("--server is required for compose planning.");
+            }
+
+            const trpc = createClient();
+            const plan = await fetchComposeDeploymentPlan(trpc, {
+              composePath,
+              contextPath,
+              serverId: composeServerId,
+              json: isJson,
+              config: cfg
+            });
+
+            if (isJson) {
+              emitJsonSuccess(plan);
+              return;
+            }
+
+            printComposeDeploymentPlan(plan, {
+              title: "Compose Deployment Plan",
+              subtitle: "This plan will NOT be executed."
+            });
+            return;
+          }
         } catch (error) {
           if (isJson) {
             emitJsonError(getErrorMessage(error), "API_ERROR");
