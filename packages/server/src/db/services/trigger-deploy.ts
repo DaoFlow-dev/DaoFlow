@@ -18,6 +18,7 @@ import {
 import { dispatchDeploymentExecution } from "./deployment-dispatch";
 import type { AppRole } from "@daoflow/shared";
 import { asRecord, readString } from "./json-helpers";
+import { buildComposeSourceSnapshot, buildRepositorySourceSnapshot } from "./deployment-source";
 
 export interface TriggerDeployInput {
   serviceId: string;
@@ -90,22 +91,19 @@ export async function triggerDeploy(input: TriggerDeployInput) {
     return { status: "no_server" as const };
   }
 
-  const environmentConfig = asRecord(env.config);
   const buildConfig = asRecord(svc.config);
 
-  const configSnapshot: Record<string, unknown> = {
-    repoUrl: project.repoUrl ?? null,
-    branch: project.defaultBranch ?? readString(asRecord(project.config), "defaultBranch", "main")
-  };
+  const configSnapshot: Record<string, unknown> = buildRepositorySourceSnapshot(project);
 
   if (svc.sourceType === "compose") {
-    configSnapshot.composeFilePath = normalizeRepositoryPath(
-      project.composePath ?? readString(environmentConfig, "composeFilePath", "docker-compose.yml"),
-      "docker-compose.yml"
+    Object.assign(
+      configSnapshot,
+      buildComposeSourceSnapshot({
+        project,
+        environment: env,
+        composeServiceName: svc.composeServiceName
+      })
     );
-    if (svc.composeServiceName) {
-      configSnapshot.composeServiceName = svc.composeServiceName;
-    }
   }
 
   if (svc.sourceType === "dockerfile") {

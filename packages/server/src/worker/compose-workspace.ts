@@ -1,8 +1,16 @@
 import { basename, join } from "node:path";
-import { ensureStagingDir, extractTarArchive, gitClone, type OnLog } from "./docker-executor";
+import {
+  createTarArchive,
+  ensureStagingDir,
+  extractTarArchive,
+  getStagingArchivePath,
+  gitClone,
+  type OnLog
+} from "./docker-executor";
 import type { ExecutionTarget } from "./execution-target";
 import { remoteEnsureDir, remoteExtractArchive, remoteGitClone, scpUpload } from "./ssh-executor";
 import type { ConfigSnapshot } from "./step-management";
+import { resolveCheckoutSpec } from "./checkout-source";
 
 interface ComposeWorkspace {
   workDir: string;
@@ -26,14 +34,73 @@ function isUploadedCompose(config: ConfigSnapshot): boolean {
 export async function prepareComposeWorkspace(
   deploymentId: string,
   config: ConfigSnapshot,
-  branch: string,
-  repoUrl: string,
   target: ExecutionTarget,
   onLog: OnLog
 ): Promise<ComposeWorkspace> {
   if (!isUploadedCompose(config)) {
+    const checkout = await resolveCheckoutSpec(config);
+    if (!checkout) {
+      throw new Error(
+        "Compose deployment requires either uploaded artifacts or a repository source definition."
+      );
+    }
+
     if (target.mode === "remote") {
-      const result = await remoteGitClone(target.ssh, repoUrl, branch, target.remoteWorkDir, onLog);
+      if (checkout.requiresLocalMaterialization) {
+        const localClone = await gitClone(checkout.repoUrl, checkout.branch, deploymentId, onLog, {
+          displayLabel: checkout.displayLabel,
+          gitConfig: checkout.gitConfig
+        });
+        if (localClone.exitCode !== 0) {
+          throw new Error(`git clone failed with exit code ${localClone.exitCode}`);
+        }
+
+        const remoteArchivePath = join(target.remoteWorkDir, `${deploymentId}.tar.gz`);
+        const localArchivePath = getStagingArchivePath(deploymentId);
+        const archiveResult = await createTarArchive(localClone.workDir, localArchivePath, onLog);
+        if (archiveResult.exitCode !== 0) {
+          throw new Error(`tar archive creation failed with exit code ${archiveResult.exitCode}`);
+        }
+
+        const ensureDirResult = await remoteEnsureDir(target.ssh, target.remoteWorkDir, onLog);
+        if (ensureDirResult.exitCode !== 0) {
+          throw new Error(`Failed to prepare remote workspace ${target.remoteWorkDir}.`);
+        }
+
+        const uploadArchive = await scpUpload(
+          target.ssh,
+          localArchivePath,
+          remoteArchivePath,
+          onLog
+        );
+        if (uploadArchive.exitCode !== 0) {
+          throw new Error(`Failed to upload repository archive for deployment ${deploymentId}.`);
+        }
+
+        const extractRemote = await remoteExtractArchive(
+          target.ssh,
+          remoteArchivePath,
+          target.remoteWorkDir,
+          onLog
+        );
+        if (extractRemote.exitCode !== 0) {
+          throw new Error(`Failed to extract repository archive for deployment ${deploymentId}.`);
+        }
+
+        return {
+          workDir: target.remoteWorkDir,
+          composeFile: config.composeFilePath ?? "docker-compose.yml"
+        };
+      }
+
+      const result = await remoteGitClone(
+        target.ssh,
+        checkout.repoUrl,
+        checkout.branch,
+        target.remoteWorkDir,
+        onLog,
+        checkout.displayLabel
+      );
       if (result.exitCode !== 0) {
         throw new Error(`git clone failed with exit code ${result.exitCode}`);
       }
@@ -43,7 +110,10 @@ export async function prepareComposeWorkspace(
       };
     }
 
-    const result = await gitClone(repoUrl, branch, deploymentId, onLog);
+    const result = await gitClone(checkout.repoUrl, checkout.branch, deploymentId, onLog, {
+      displayLabel: checkout.displayLabel,
+      gitConfig: checkout.gitConfig
+    });
     if (result.exitCode !== 0) {
       throw new Error(`git clone failed with exit code ${result.exitCode}`);
     }

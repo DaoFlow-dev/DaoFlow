@@ -18,6 +18,7 @@ import { dispatchDeploymentExecution } from "./deployment-dispatch";
 import { asRecord, readString } from "./json-helpers";
 import { resolveServiceForUser } from "./scoped-services";
 import type { AppRole } from "@daoflow/shared";
+import { extractReplayableConfigSnapshot } from "./deployment-source";
 
 const DEFAULT_ROLLBACK_RETENTION = 3;
 
@@ -146,6 +147,7 @@ export async function executeRollback(input: ExecuteRollbackInput) {
     requestedByUserId: input.requestedByUserId,
     requestedByEmail: input.requestedByEmail,
     requestedByRole: input.requestedByRole,
+    configSnapshot: extractReplayableConfigSnapshot(snapshot),
     steps: [
       { label: "Rollback preparation", detail: `Rolling back to deployment ${target.id}` },
       { label: "Restore configuration", detail: "Applying previous deployment config" },

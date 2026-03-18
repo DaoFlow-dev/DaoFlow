@@ -282,8 +282,15 @@ export async function remoteGitClone(
   repoUrl: string,
   branch: string,
   workDir: string,
-  onLog: OnLog
+  onLog: OnLog,
+  displayLabel = repoUrl
 ): Promise<{ exitCode: number }> {
+  onLog({
+    stream: "stdout",
+    message: `Cloning ${displayLabel} (branch: ${branch}) into remote workspace ${workDir}`,
+    timestamp: new Date()
+  });
+
   const cmd = `mkdir -p ${shellQuote(workDir)} && cd ${shellQuote(workDir)} && git clone --depth 1 --branch ${shellQuote(branch)} --single-branch ${shellQuote(repoUrl)} .`;
   const result = await execRemote(target, cmd, onLog);
   return { exitCode: result.exitCode };

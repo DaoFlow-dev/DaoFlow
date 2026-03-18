@@ -114,13 +114,17 @@ export async function emitEvent(
 
 /* ──────────────────────── Config Snapshot ──────────────────────── */
 
-export interface ConfigSnapshot {
+export interface ConfigSnapshot extends Record<string, unknown> {
   projectName?: string;
   environmentName?: string;
   targetServerName?: string;
   targetServerHost?: string;
   composeFilePath?: string;
+  composeServiceName?: string;
   repoUrl?: string;
+  repoFullName?: string;
+  gitProviderId?: string;
+  gitInstallationId?: string;
   branch?: string;
   dockerfile?: string;
   buildContext?: string;

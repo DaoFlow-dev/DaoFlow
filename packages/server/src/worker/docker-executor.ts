@@ -10,7 +10,7 @@
  */
 
 import { spawn, type ChildProcess } from "node:child_process";
-import { existsSync, mkdirSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 const STAGING_DIR = process.env.GIT_WORK_DIR ?? "/tmp/daoflow-staging";
@@ -31,7 +31,8 @@ export function execStreaming(
   command: string,
   args: string[],
   cwd: string,
-  onLog: OnLog
+  onLog: OnLog,
+  envOverrides?: Record<string, string>
 ): Promise<{ exitCode: number; signal: string | null }> {
   return new Promise((resolve, reject) => {
     let child: ChildProcess;
@@ -39,7 +40,7 @@ export function execStreaming(
       child = spawn(command, args, {
         cwd,
         stdio: ["ignore", "pipe", "pipe"],
-        env: { ...process.env, DOCKER_CLI_HINTS: "false" }
+        env: { ...process.env, DOCKER_CLI_HINTS: "false", ...(envOverrides ?? {}) }
       });
     } catch (err) {
       reject(err instanceof Error ? err : new Error(String(err)));
@@ -80,14 +81,45 @@ export function ensureStagingDir(deploymentId: string): string {
   return dir;
 }
 
+export function getStagingArchivePath(deploymentId: string): string {
+  return join(STAGING_DIR, `${deploymentId}.tar.gz`);
+}
+
+function writeGitConfigFile(
+  workDir: string,
+  gitConfig: Array<{ key: string; value: string }>
+): string | null {
+  if (gitConfig.length === 0) {
+    return null;
+  }
+
+  const lines = gitConfig.flatMap(({ key, value }) => {
+    const [section, ...rest] = key.split(".");
+    const configKey = rest.join(".");
+    if (!section || !configKey) {
+      throw new Error(`Unsupported git config key: ${key}`);
+    }
+
+    return [`[${section}]`, `\t${configKey} = ${value}`];
+  });
+
+  const configPath = join(workDir, ".daoflow-gitconfig");
+  writeFileSync(configPath, `${lines.join("\n")}\n`, { mode: 0o600 });
+  return configPath;
+}
+
 /**
  * Clean up staging directory after deployment.
  */
 export function cleanupStagingDir(deploymentId: string): void {
   const dir = join(STAGING_DIR, deploymentId);
+  const archivePath = getStagingArchivePath(deploymentId);
   try {
     if (existsSync(dir)) {
       rmSync(dir, { recursive: true, force: true });
+    }
+    if (existsSync(archivePath)) {
+      rmSync(archivePath, { force: true });
     }
   } catch {
     /* best effort cleanup */
@@ -101,13 +133,19 @@ export async function gitClone(
   repoUrl: string,
   branch: string,
   deploymentId: string,
-  onLog: OnLog
+  onLog: OnLog,
+  options?: {
+    displayLabel?: string;
+    gitConfig?: Array<{ key: string; value: string }>;
+  }
 ): Promise<{ exitCode: number; workDir: string }> {
   const workDir = ensureStagingDir(deploymentId);
+  const displayLabel = options?.displayLabel ?? repoUrl;
+  const gitConfigPath = writeGitConfigFile(workDir, options?.gitConfig ?? []);
 
   onLog({
     stream: "stdout",
-    message: `Cloning ${repoUrl} (branch: ${branch}) into ${workDir}`,
+    message: `Cloning ${displayLabel} (branch: ${branch}) into ${workDir}`,
     timestamp: new Date()
   });
 
@@ -115,7 +153,8 @@ export async function gitClone(
     "git",
     ["clone", "--depth", "1", "--branch", branch, "--single-branch", repoUrl, "."],
     workDir,
-    onLog
+    onLog,
+    gitConfigPath ? { GIT_CONFIG_GLOBAL: gitConfigPath } : undefined
   );
 
   return { exitCode: result.exitCode, workDir };
@@ -383,6 +422,20 @@ export async function extractTarArchive(
   });
 
   return execStreaming("tar", ["-xzf", tarPath, "-C", destinationDir], STAGING_DIR, onLog);
+}
+
+export async function createTarArchive(
+  sourceDir: string,
+  tarPath: string,
+  onLog: OnLog
+): Promise<{ exitCode: number }> {
+  onLog({
+    stream: "stdout",
+    message: `Archiving ${sourceDir} into ${tarPath}`,
+    timestamp: new Date()
+  });
+
+  return execStreaming("tar", ["-czf", tarPath, "-C", sourceDir, "."], STAGING_DIR, onLog);
 }
 
 export interface DockerImageListEntry {

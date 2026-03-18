@@ -97,6 +97,10 @@ export const adminRouter = t.router({
         name: z.string().min(1).max(80),
         description: z.string().max(500).optional(),
         repoUrl: z.string().max(300).optional(),
+        repoFullName: z.string().max(255).optional(),
+        composePath: z.string().max(500).optional(),
+        gitProviderId: z.string().max(32).optional(),
+        gitInstallationId: z.string().max(32).optional(),
         defaultBranch: z.string().max(80).optional(),
         teamId: z.string().min(1).optional()
       })
@@ -131,6 +135,10 @@ export const adminRouter = t.router({
         name: z.string().min(1).max(80).optional(),
         description: z.string().max(500).optional(),
         repoUrl: z.string().max(300).optional(),
+        repoFullName: z.string().max(255).optional(),
+        composePath: z.string().max(500).optional(),
+        gitProviderId: z.string().max(32).optional(),
+        gitInstallationId: z.string().max(32).optional(),
         defaultBranch: z.string().max(80).optional()
       })
     )

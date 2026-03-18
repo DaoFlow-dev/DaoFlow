@@ -3,7 +3,8 @@ import { TRPCError } from "@trpc/server";
 import {
   registerGitProvider,
   deleteGitProvider,
-  createGitInstallation
+  createGitInstallation,
+  encodeGitInstallationPermissions
 } from "../db/services/git-providers";
 import { decrypt } from "../db/crypto";
 import { t, adminProcedure, getActorContext } from "../trpc";
@@ -27,7 +28,7 @@ export const gitRouter = t.router({
         ...input,
         ...getActorContext(ctx)
       });
-      return result.provider;
+      return result.summary;
     }),
 
   deleteGitProvider: adminProcedure
@@ -54,7 +55,7 @@ export const gitRouter = t.router({
         ...input,
         ...getActorContext(ctx)
       });
-      return result.installation;
+      return result.summary;
     }),
 
   exchangeGitLabCode: adminProcedure
@@ -122,7 +123,10 @@ export const gitRouter = t.router({
         installationId: String(userData.id ?? "unknown"),
         accountName: userData.username ?? "unknown",
         accountType: "user",
-        permissions: JSON.stringify({ access_token: tokenData.access_token }),
+        permissions: encodeGitInstallationPermissions({
+          accessToken: tokenData.access_token,
+          tokenType: "bearer"
+        }),
         ...getActorContext(ctx)
       });
 

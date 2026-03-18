@@ -26,7 +26,10 @@ import { listProjects, getProject, listEnvironments } from "../db/services/proje
 import { listServices, listServicesByProject, getService } from "../db/services/services";
 import { listRollbackTargets } from "../db/services/execute-rollback";
 import { listAgentPrincipals } from "../db/services/agents";
-import { listGitProviders, listGitInstallations } from "../db/services/git-providers";
+import {
+  listGitInstallationSummaries,
+  listGitProviderSummaries
+} from "../db/services/git-providers";
 import { t, protectedProcedure, deployReadProcedure } from "../trpc";
 import { limitInput, statusLimitInput } from "../schemas";
 
@@ -238,12 +241,12 @@ export const readRouter = t.router({
     return listAgentPrincipals();
   }),
   gitProviders: protectedProcedure.query(async () => {
-    return listGitProviders();
+    return listGitProviderSummaries();
   }),
   gitInstallations: protectedProcedure
     .input(z.object({ providerId: z.string().min(1).optional() }))
     .query(async ({ input }) => {
-      return listGitInstallations(input.providerId);
+      return listGitInstallationSummaries(input.providerId);
     }),
   backupDestinations: protectedProcedure.input(limitInput(50)).query(async ({ input }) => {
     return listDestinations(input.limit ?? 50);

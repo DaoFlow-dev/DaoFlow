@@ -11,6 +11,10 @@ export interface CreateProjectInput {
   name: string;
   description?: string;
   repoUrl?: string;
+  repoFullName?: string;
+  composePath?: string;
+  gitProviderId?: string;
+  gitInstallationId?: string;
   defaultBranch?: string;
   teamId: string;
   requestedByUserId: string;
@@ -32,6 +36,10 @@ export interface UpdateProjectInput {
   name?: string;
   description?: string;
   repoUrl?: string;
+  repoFullName?: string;
+  composePath?: string;
+  gitProviderId?: string;
+  gitInstallationId?: string;
   defaultBranch?: string;
   requestedByUserId: string;
   requestedByEmail: string;
@@ -85,12 +93,16 @@ export async function createProject(input: CreateProjectInput) {
       name: input.name,
       slug: toSlug(input.name),
       teamId: input.teamId,
+      repoFullName: input.repoFullName ?? null,
       repoUrl: input.repoUrl ?? null,
       sourceType: "compose",
+      composePath: input.composePath ?? null,
+      gitProviderId: input.gitProviderId ?? null,
+      gitInstallationId: input.gitInstallationId ?? null,
+      defaultBranch: input.defaultBranch ?? "main",
       createdByUserId: input.requestedByUserId,
       config: {
         description: input.description ?? "",
-        defaultBranch: input.defaultBranch ?? "main",
         latestDeploymentStatus: "new"
       },
       updatedAt: new Date()
@@ -131,13 +143,17 @@ export async function updateProject(input: UpdateProjectInput) {
   const updates: Partial<typeof projects.$inferInsert> = { updatedAt: new Date() };
   if (input.name !== undefined) updates.name = input.name;
   if (input.repoUrl !== undefined) updates.repoUrl = input.repoUrl;
+  if (input.repoFullName !== undefined) updates.repoFullName = input.repoFullName;
+  if (input.composePath !== undefined) updates.composePath = input.composePath;
+  if (input.gitProviderId !== undefined) updates.gitProviderId = input.gitProviderId;
+  if (input.gitInstallationId !== undefined) updates.gitInstallationId = input.gitInstallationId;
+  if (input.defaultBranch !== undefined) updates.defaultBranch = input.defaultBranch;
   if (input.description !== undefined || input.defaultBranch !== undefined) {
     const existingConfig =
       existing[0].config && typeof existing[0].config === "object" ? existing[0].config : {};
     updates.config = {
       ...existingConfig,
-      ...(input.description !== undefined ? { description: input.description } : {}),
-      ...(input.defaultBranch !== undefined ? { defaultBranch: input.defaultBranch } : {})
+      ...(input.description !== undefined ? { description: input.description } : {})
     };
   }
 

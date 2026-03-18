@@ -10,7 +10,7 @@ import { gitProviders, gitInstallations } from "../schema/git-providers";
 import { auditEntries } from "../schema/audit";
 import type { AppRole } from "@daoflow/shared";
 import { newId as id } from "./json-helpers";
-import { encrypt } from "../crypto";
+import { decrypt, encrypt } from "../crypto";
 
 /* ──────────────────────── Interfaces ──────────────────────── */
 
@@ -39,6 +39,100 @@ export interface CreateInstallationInput {
   requestedByUserId: string;
   requestedByEmail: string;
   requestedByRole: AppRole;
+}
+
+export interface GitProviderSummary {
+  id: string;
+  type: string;
+  name: string;
+  status: string;
+  appId: string | null;
+  clientId: string | null;
+  baseUrl: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface GitInstallationSummary {
+  id: string;
+  providerId: string;
+  installationId: string;
+  accountName: string;
+  accountType: string;
+  repositorySelection: string;
+  status: string;
+  installedByUserId: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+type StoredInstallationPermissions =
+  | { accessTokenEncrypted: string; tokenType?: string }
+  | { access_token: string; token_type?: string };
+
+function toGitProviderSummary(row: typeof gitProviders.$inferSelect): GitProviderSummary {
+  return {
+    id: row.id,
+    type: row.type,
+    name: row.name,
+    status: row.status,
+    appId: row.appId,
+    clientId: row.clientId,
+    baseUrl: row.baseUrl,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt
+  };
+}
+
+function toGitInstallationSummary(
+  row: typeof gitInstallations.$inferSelect
+): GitInstallationSummary {
+  return {
+    id: row.id,
+    providerId: row.providerId,
+    installationId: row.installationId,
+    accountName: row.accountName,
+    accountType: row.accountType,
+    repositorySelection: row.repositorySelection,
+    status: row.status,
+    installedByUserId: row.installedByUserId,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt
+  };
+}
+
+export function encodeGitInstallationPermissions(input: {
+  accessToken: string;
+  tokenType?: string;
+}) {
+  return JSON.stringify({
+    accessTokenEncrypted: encrypt(input.accessToken),
+    tokenType: input.tokenType ?? "bearer"
+  } satisfies StoredInstallationPermissions);
+}
+
+export function readGitInstallationAccessToken(
+  installation: Pick<typeof gitInstallations.$inferSelect, "permissions">
+): string | null {
+  if (!installation.permissions) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(installation.permissions) as StoredInstallationPermissions;
+
+    if ("accessTokenEncrypted" in parsed && typeof parsed.accessTokenEncrypted === "string") {
+      return decrypt(parsed.accessTokenEncrypted);
+    }
+
+    if ("access_token" in parsed && typeof parsed.access_token === "string") {
+      return parsed.access_token;
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
 }
 
 /* ──────────────────────── Git Providers ──────────────────────── */
@@ -80,11 +174,16 @@ export async function registerGitProvider(input: RegisterGitProviderInput) {
     }
   });
 
-  return { status: "ok" as const, provider };
+  return { status: "ok" as const, provider, summary: toGitProviderSummary(provider) };
 }
 
 export async function listGitProviders() {
   return db.select().from(gitProviders).orderBy(desc(gitProviders.createdAt));
+}
+
+export async function listGitProviderSummaries() {
+  const rows = await listGitProviders();
+  return rows.map(toGitProviderSummary);
 }
 
 export async function getGitProvider(providerId: string) {
@@ -92,6 +191,15 @@ export async function getGitProvider(providerId: string) {
     .select()
     .from(gitProviders)
     .where(eq(gitProviders.id, providerId))
+    .limit(1);
+  return row ?? null;
+}
+
+export async function getGitInstallation(installationId: string) {
+  const [row] = await db
+    .select()
+    .from(gitInstallations)
+    .where(eq(gitInstallations.id, installationId))
     .limit(1);
   return row ?? null;
 }
@@ -155,7 +263,11 @@ export async function createGitInstallation(input: CreateInstallationInput) {
     }
   });
 
-  return { status: "ok" as const, installation };
+  return {
+    status: "ok" as const,
+    installation,
+    summary: toGitInstallationSummary(installation)
+  };
 }
 
 export async function listGitInstallations(providerId?: string) {
@@ -166,4 +278,9 @@ export async function listGitInstallations(providerId?: string) {
       .orderBy(desc(gitInstallations.createdAt));
   }
   return query.orderBy(desc(gitInstallations.createdAt));
+}
+
+export async function listGitInstallationSummaries(providerId?: string) {
+  const rows = await listGitInstallations(providerId);
+  return rows.map(toGitInstallationSummary);
 }

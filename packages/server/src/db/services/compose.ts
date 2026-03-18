@@ -1,11 +1,11 @@
 import { desc, eq } from "drizzle-orm";
-import { basename, isAbsolute } from "node:path";
 import { db } from "../connection";
 import { createDeploymentRecord } from "./deployments";
 import { dispatchDeploymentExecution } from "./deployment-dispatch";
 import { environments, projects } from "../schema/projects";
 import type { AppRole } from "@daoflow/shared";
 import { asRecord, readString, readNumber, readStringArray, readRecordArray } from "./json-helpers";
+import { buildComposeSourceSnapshot } from "./deployment-source";
 
 export interface ComposeDriftDiffRecord {
   id: string;
@@ -71,11 +71,6 @@ function getComposeDriftStatusTone(status: ComposeDriftRecord["status"]) {
   }
 
   return "running" as const;
-}
-
-function normalizeRepositoryPath(path: string, fallback: string): string {
-  if (!path) return fallback;
-  return isAbsolute(path) ? basename(path) : path;
 }
 
 export async function listComposeReleaseCatalog(limit = 24) {
@@ -235,15 +230,14 @@ export async function queueComposeRelease(input: {
     requestedByUserId: input.requestedByUserId,
     requestedByEmail: input.requestedByEmail,
     requestedByRole: input.requestedByRole as AppRole,
-    configSnapshot: {
-      repoUrl: project.repoUrl ?? null,
-      branch: project.defaultBranch ?? "main",
-      composeFilePath: normalizeRepositoryPath(
-        service.composeFilePath || project.composePath || "docker-compose.yml",
-        "docker-compose.yml"
-      ),
+    configSnapshot: buildComposeSourceSnapshot({
+      project: {
+        ...project,
+        composePath: service.composeFilePath || project.composePath
+      },
+      environment,
       composeServiceName: service.serviceName
-    },
+    }),
     steps: [
       {
         label: "Resolve compose diff",

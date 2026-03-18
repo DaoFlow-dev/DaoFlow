@@ -54,8 +54,6 @@ export async function executeComposeDeployment(
   onLog: OnLog,
   target: ExecutionTarget
 ): Promise<void> {
-  const repoUrl = config.repoUrl ?? "";
-  const branch = config.branch ?? "main";
   const uploadedSource =
     config.deploymentSource === "uploaded-compose" ||
     config.deploymentSource === "uploaded-context";
@@ -71,18 +69,7 @@ export async function executeComposeDeployment(
   let workDir: string;
   let composeFile: string;
   try {
-    if (!uploadedSource && !repoUrl) {
-      throw new Error("Compose deployment requires either a repository URL or uploaded artifacts.");
-    }
-
-    const workspace = await prepareComposeWorkspace(
-      deployment.id,
-      config,
-      branch,
-      repoUrl,
-      target,
-      onLog
-    );
+    const workspace = await prepareComposeWorkspace(deployment.id, config, target, onLog);
     workDir = workspace.workDir;
     composeFile = workspace.composeFile;
   } catch (error) {
