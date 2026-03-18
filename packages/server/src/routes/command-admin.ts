@@ -125,6 +125,12 @@ export const adminRouter = t.router({
           message: `A project named "${input.name}" already exists.`
         });
       }
+      if (result.status === "invalid_source") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: result.message
+        });
+      }
       return result.project;
     }),
 
@@ -154,6 +160,12 @@ export const adminRouter = t.router({
         throw new TRPCError({
           code: "CONFLICT",
           message: `A project named "${input.name}" already exists.`
+        });
+      }
+      if (result.status === "invalid_source") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: result.message
         });
       }
       return result.project;

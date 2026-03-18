@@ -3,7 +3,12 @@ import { db } from "../connection";
 import { auditEntries } from "../schema/audit";
 import { projects, environments, environmentVariables } from "../schema/projects";
 import type { AppRole } from "@daoflow/shared";
-import { newId as id } from "./json-helpers";
+import { asRecord, newId as id } from "./json-helpers";
+import {
+  mergeProjectSourceReadiness,
+  readProjectSourceReadiness,
+  validateProjectSourceReadiness
+} from "./project-source-readiness";
 
 /* ──────────────────────── Interfaces ──────────────────────── */
 
@@ -85,7 +90,25 @@ export async function createProject(input: CreateProjectInput) {
   const byName = await db.select().from(projects).where(eq(projects.name, input.name)).limit(1);
   if (byName[0]) return { status: "conflict" as const, conflictField: "name" };
 
+  const sourceValidation = await validateProjectSourceReadiness({
+    repoFullName: input.repoFullName,
+    gitProviderId: input.gitProviderId,
+    gitInstallationId: input.gitInstallationId,
+    defaultBranch: input.defaultBranch,
+    composePath: input.composePath
+  });
+  if (sourceValidation.status === "invalid") {
+    return {
+      status: "invalid_source" as const,
+      message: sourceValidation.message
+    };
+  }
+
   const projectId = id();
+  const baseConfig = {
+    description: input.description ?? "",
+    latestDeploymentStatus: "new"
+  };
   const [project] = await db
     .insert(projects)
     .values({
@@ -101,10 +124,10 @@ export async function createProject(input: CreateProjectInput) {
       gitInstallationId: input.gitInstallationId ?? null,
       defaultBranch: input.defaultBranch ?? "main",
       createdByUserId: input.requestedByUserId,
-      config: {
-        description: input.description ?? "",
-        latestDeploymentStatus: "new"
-      },
+      config: mergeProjectSourceReadiness(
+        baseConfig,
+        sourceValidation.status === "ready" ? sourceValidation.readiness : null
+      ),
       updatedAt: new Date()
     })
     .returning();
@@ -140,6 +163,30 @@ export async function updateProject(input: UpdateProjectInput) {
     }
   }
 
+  const sourceFieldsTouched =
+    input.repoFullName !== undefined ||
+    input.gitProviderId !== undefined ||
+    input.gitInstallationId !== undefined ||
+    input.defaultBranch !== undefined ||
+    input.composePath !== undefined;
+
+  const sourceValidation = sourceFieldsTouched
+    ? await validateProjectSourceReadiness({
+        repoFullName: input.repoFullName ?? existing[0].repoFullName,
+        gitProviderId: input.gitProviderId ?? existing[0].gitProviderId,
+        gitInstallationId: input.gitInstallationId ?? existing[0].gitInstallationId,
+        defaultBranch: input.defaultBranch ?? existing[0].defaultBranch,
+        composePath: input.composePath ?? existing[0].composePath
+      })
+    : null;
+
+  if (sourceValidation?.status === "invalid") {
+    return {
+      status: "invalid_source" as const,
+      message: sourceValidation.message
+    };
+  }
+
   const updates: Partial<typeof projects.$inferInsert> = { updatedAt: new Date() };
   if (input.name !== undefined) updates.name = input.name;
   if (input.repoUrl !== undefined) updates.repoUrl = input.repoUrl;
@@ -148,13 +195,24 @@ export async function updateProject(input: UpdateProjectInput) {
   if (input.gitProviderId !== undefined) updates.gitProviderId = input.gitProviderId;
   if (input.gitInstallationId !== undefined) updates.gitInstallationId = input.gitInstallationId;
   if (input.defaultBranch !== undefined) updates.defaultBranch = input.defaultBranch;
-  if (input.description !== undefined || input.defaultBranch !== undefined) {
-    const existingConfig =
-      existing[0].config && typeof existing[0].config === "object" ? existing[0].config : {};
-    updates.config = {
-      ...existingConfig,
-      ...(input.description !== undefined ? { description: input.description } : {})
-    };
+  if (input.description !== undefined || sourceFieldsTouched) {
+    const existingConfig = asRecord(existing[0].config);
+    const nextConfig =
+      input.description !== undefined
+        ? {
+            ...existingConfig,
+            description: input.description
+          }
+        : existingConfig;
+
+    updates.config = mergeProjectSourceReadiness(
+      nextConfig,
+      sourceValidation?.status === "ready"
+        ? sourceValidation.readiness
+        : sourceFieldsTouched
+          ? null
+          : readProjectSourceReadiness(existing[0].config)
+    );
   }
 
   const [project] = await db
@@ -216,7 +274,11 @@ export async function deleteProject(input: DeleteProjectInput) {
 }
 
 export async function listProjects(limit = 50) {
-  return db.select().from(projects).orderBy(desc(projects.createdAt)).limit(limit);
+  const rows = await db.select().from(projects).orderBy(desc(projects.createdAt)).limit(limit);
+  return rows.map((project) => ({
+    ...project,
+    sourceReadiness: readProjectSourceReadiness(project.config)
+  }));
 }
 
 export async function getProject(projectId: string) {
@@ -229,7 +291,11 @@ export async function getProject(projectId: string) {
     .where(eq(environments.projectId, projectId))
     .orderBy(desc(environments.createdAt));
 
-  return { ...project, environments: envRows };
+  return {
+    ...project,
+    environments: envRows,
+    sourceReadiness: readProjectSourceReadiness(project.config)
+  };
 }
 
 /* ──────────────────────── Environment CRUD ──────────────────────── */
