@@ -209,6 +209,26 @@ export function getApprovalTone(status: string, riskLevel: string): StatusTone {
   return riskLevel === "critical" ? "failed" : "running";
 }
 
+export function getBackupOperationTone(status: string): StatusTone {
+  if (status === "succeeded") {
+    return "healthy";
+  }
+
+  if (status === "failed") {
+    return "failed";
+  }
+
+  if (status === "running") {
+    return "running";
+  }
+
+  return "queued";
+}
+
+export function getBackupOperationBadgeVariant(status: string): StatusBadgeVariant {
+  return getBadgeVariantFromTone(getBackupOperationTone(status));
+}
+
 export function formatBytes(bytes: number) {
   if (bytes < 1024) {
     return `${bytes} B`;

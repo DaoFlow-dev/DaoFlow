@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { DatabaseBackup, Plus, Clock, PlayCircle, StopCircle } from "lucide-react";
+import { getBackupOperationBadgeVariant } from "../lib/tone-utils";
 
 export default function BackupsPage() {
   const session = useSession();
@@ -196,15 +197,7 @@ export default function BackupsPage() {
                           {String(r.serviceName ?? r.policyId)}
                         </TableCell>
                         <TableCell>
-                          <Badge
-                            variant={
-                              r.status === "succeeded"
-                                ? "default"
-                                : r.status === "failed"
-                                  ? "destructive"
-                                  : "secondary"
-                            }
-                          >
+                          <Badge variant={getBackupOperationBadgeVariant(String(r.status))}>
                             {String(r.status)}
                           </Badge>
                         </TableCell>

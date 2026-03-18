@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { isTRPCClientError } from "@trpc/client";
 import { trpc } from "../../lib/trpc";
+import { getBackupOperationTone } from "../../lib/tone-utils";
 
 interface BackupPolicy {
   id: string;
@@ -227,7 +228,7 @@ export function BackupCatalog({
                     <h3>{run.serviceName}</h3>
                   </div>
                   <span
-                    className={`deployment-status deployment-status--${run.status === "succeeded" ? "healthy" : run.status === "failed" ? "failed" : run.status === "running" ? "running" : "queued"}`}
+                    className={`deployment-status deployment-status--${getBackupOperationTone(run.status)}`}
                   >
                     {run.status}
                   </span>
@@ -314,7 +315,7 @@ export function BackupCatalog({
                         <h3>{request.serviceName}</h3>
                       </div>
                       <span
-                        className={`deployment-status deployment-status--${request.status === "succeeded" ? "healthy" : request.status === "failed" ? "failed" : request.status === "running" ? "running" : "queued"}`}
+                        className={`deployment-status deployment-status--${getBackupOperationTone(request.status)}`}
                       >
                         {request.status}
                       </span>
