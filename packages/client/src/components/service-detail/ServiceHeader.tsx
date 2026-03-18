@@ -63,6 +63,7 @@ export default function ServiceHeader({ service, projectName }: ServiceHeaderPro
           <Button
             variant="ghost"
             size="icon"
+            aria-label="Back to project"
             onClick={() => void navigate(`/projects/${service.projectId}`)}
           >
             <ArrowLeft size={18} />
@@ -94,6 +95,7 @@ export default function ServiceHeader({ service, projectName }: ServiceHeaderPro
             onClick={() => handleAction("restart")}
             disabled={!!actionInProgress}
             title="Restart"
+            aria-label="Restart service"
           >
             {actionInProgress === "restart" ? (
               <Loader2 size={14} className="animate-spin" />
@@ -107,6 +109,7 @@ export default function ServiceHeader({ service, projectName }: ServiceHeaderPro
             onClick={() => handleAction("stop")}
             disabled={!!actionInProgress}
             title="Stop"
+            aria-label="Stop service"
           >
             <Square size={14} />
           </Button>
@@ -116,6 +119,7 @@ export default function ServiceHeader({ service, projectName }: ServiceHeaderPro
             onClick={() => handleAction("redeploy")}
             disabled={!!actionInProgress}
             title="Redeploy"
+            aria-label="Redeploy service"
           >
             <RotateCcw size={14} />
           </Button>
@@ -125,6 +129,7 @@ export default function ServiceHeader({ service, projectName }: ServiceHeaderPro
             onClick={() => handleAction("delete")}
             disabled={!!actionInProgress}
             title="Delete"
+            aria-label="Delete service"
           >
             <Trash2 size={14} />
           </Button>

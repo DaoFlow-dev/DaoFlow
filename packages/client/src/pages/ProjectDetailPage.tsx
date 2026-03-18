@@ -4,7 +4,18 @@ import { trpc } from "../lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Plus, Settings2, Copy, Check } from "lucide-react";
+import { ArrowLeft, Plus, Settings2, Copy, Check, Trash2 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger
+} from "@/components/ui/alert-dialog";
 import AddServiceDialog from "../components/AddServiceDialog";
 import { ProjectOverviewCards } from "@/components/project/ProjectOverviewCards";
 import { ProjectServicesList } from "@/components/project/ProjectServicesList";
@@ -140,6 +151,29 @@ export default function ProjectDetailPage() {
             <Plus size={14} className="mr-1" />
             Add Service
           </Button>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button size="sm" variant="destructive" aria-label="Delete project">
+                <Trash2 size={14} className="mr-1" />
+                Delete
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete project "{p.name}"?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will permanently delete the project and all its services, environments, and
+                  deployment history. This action cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                  Delete Project
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       </div>
 
