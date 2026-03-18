@@ -47,7 +47,7 @@ export default function DeploymentsPage() {
   }
 
   return (
-    <main className="shell space-y-6">
+    <main className="shell space-y-6" data-testid="deployments-page">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Deployments</h1>
         <p className="text-sm text-muted-foreground">

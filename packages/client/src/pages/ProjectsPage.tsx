@@ -48,7 +48,7 @@ export default function ProjectsPage() {
   });
 
   return (
-    <main className="shell space-y-6">
+    <main className="shell space-y-6" data-testid="projects-page">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Projects</h1>

@@ -98,7 +98,7 @@ export default function DashboardPage() {
     : deployments;
 
   return (
-    <main className="shell space-y-6">
+    <main className="shell space-y-6" data-testid="dashboard-page">
       {/* Header + quick actions */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>

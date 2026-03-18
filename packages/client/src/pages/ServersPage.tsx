@@ -40,7 +40,7 @@ export default function ServersPage() {
   const summary = serverReadiness.data?.summary;
 
   return (
-    <main className="shell space-y-6">
+    <main className="shell space-y-6" data-testid="servers-page">
       <div className="flex items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Servers</h1>

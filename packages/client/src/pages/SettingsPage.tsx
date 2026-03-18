@@ -48,7 +48,7 @@ export default function SettingsPage() {
       : "general";
 
   return (
-    <main className="shell space-y-6">
+    <main className="shell space-y-6" data-testid="settings-page">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Settings</h1>
         <p className="text-sm text-muted-foreground">
@@ -100,74 +100,77 @@ export default function SettingsPage() {
               <Lock size={14} /> Secret Providers
             </TabsTrigger>
           </TabsList>
+          <div className="mt-4" role="tabpanel" aria-live="polite">
+            {activeTab === "general" && (
+              <GeneralSettingsTab
+                currentRole={currentRole}
+                email={viewer.data?.user.email}
+                sessionExpiresAt={viewer.data?.session.expiresAt}
+                caps={caps}
+              />
+            )}
 
-          {activeTab === "general" && (
-            <GeneralSettingsTab
-              currentRole={currentRole}
-              email={viewer.data?.user.email}
-              sessionExpiresAt={viewer.data?.session.expiresAt}
-              caps={caps}
-            />
-          )}
+            {activeTab === "users" && (
+              <UsersSettingsTab
+                isAdmin={isAdmin}
+                isLoading={principals.isLoading}
+                principals={principals.data?.principals ?? []}
+              />
+            )}
 
-          {activeTab === "users" && (
-            <UsersSettingsTab
-              isAdmin={isAdmin}
-              isLoading={principals.isLoading}
-              principals={principals.data?.principals ?? []}
-            />
-          )}
+            {activeTab === "tokens" && (
+              <TokensSettingsTab
+                isLoading={tokens.isLoading}
+                tokens={tokens.data?.tokens ?? []}
+                summary={tokens.data?.summary ?? null}
+              />
+            )}
 
-          {activeTab === "tokens" && (
-            <TokensSettingsTab
-              isLoading={tokens.isLoading}
-              tokens={tokens.data?.tokens ?? []}
-              summary={tokens.data?.summary ?? null}
-            />
-          )}
+            {activeTab === "security" && (
+              <SecuritySettingsTab
+                isLoading={audit.isLoading}
+                auditEntries={
+                  Array.isArray(audit.data) ? (audit.data as Record<string, unknown>[]) : []
+                }
+              />
+            )}
 
-          {activeTab === "security" && (
-            <SecuritySettingsTab
-              isLoading={audit.isLoading}
-              auditEntries={
-                Array.isArray(audit.data) ? (audit.data as Record<string, unknown>[]) : []
-              }
-            />
-          )}
+            {activeTab === "notifications" && (
+              <div className="mt-4">
+                <NotificationPreferencesPanel />
+              </div>
+            )}
 
-          {activeTab === "notifications" && (
-            <div className="mt-4">
-              <NotificationPreferencesPanel />
-            </div>
-          )}
+            {activeTab === "volumes" && (
+              <div className="mt-4">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base">Persistent Volumes</CardTitle>
+                    <CardDescription>
+                      Manage named volumes and storage configuration.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm text-muted-foreground">
+                      Volume management coming in Milestone 8.
+                    </p>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
 
-          {activeTab === "volumes" && (
-            <div className="mt-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">Persistent Volumes</CardTitle>
-                  <CardDescription>Manage named volumes and storage configuration.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-muted-foreground">
-                    Volume management coming in Milestone 8.
-                  </p>
-                </CardContent>
-              </Card>
-            </div>
-          )}
+            {activeTab === "git" && (
+              <div className="mt-4">
+                <GitProvidersTab />
+              </div>
+            )}
 
-          {activeTab === "git" && (
-            <div className="mt-4">
-              <GitProvidersTab />
-            </div>
-          )}
-
-          {activeTab === "secrets" && (
-            <div className="mt-4">
-              <SecretProvidersTab />
-            </div>
-          )}
+            {activeTab === "secrets" && (
+              <div className="mt-4">
+                <SecretProvidersTab />
+              </div>
+            )}
+          </div>
         </Tabs>
       )}
     </main>
