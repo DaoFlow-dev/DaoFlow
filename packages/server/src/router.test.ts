@@ -619,6 +619,7 @@ describe("appRouter", () => {
 
     expect(token.name).toEqual(expect.any(String));
     expect(token.label).toEqual(expect.any(String));
+    expect(token.statusTone).toEqual(expect.any(String));
   });
 
   // ─── RBAC enforcement tests ─────────────────────────────────

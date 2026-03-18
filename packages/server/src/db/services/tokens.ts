@@ -5,6 +5,7 @@ import {
   getApiTokenScopeLanes,
   getEffectiveTokenCapabilities,
   normalizeAppRole,
+  normalizeInventoryStatus,
   type ApiTokenScope
 } from "@daoflow/shared";
 
@@ -36,6 +37,7 @@ export async function listApiTokenInventory() {
       principalName: principal?.name ?? t.principalId,
       tokenPrefix: t.tokenPrefix,
       status: t.status,
+      statusTone: normalizeInventoryStatus(t.status),
       scopes,
       lanes,
       effectiveCapabilities: effective,
