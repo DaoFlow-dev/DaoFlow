@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 import { Command } from "commander";
+import { CLI_VERSION } from "./version";
 import { loginCommand } from "./commands/login";
 import { servicesCommand } from "./commands/services";
 import { deployCommand } from "./commands/deploy";
@@ -27,7 +28,7 @@ const program = new Command();
 program
   .name("daoflow")
   .description("DaoFlow CLI — the agentic platform to host deterministic systems")
-  .version("0.1.0")
+  .version(CLI_VERSION)
   .option("--json", "Output as structured JSON (stdout)")
   .option("-q, --quiet", "Output bare values only")
   .option("--timeout <seconds>", "API request timeout in seconds", "30");

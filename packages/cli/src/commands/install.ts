@@ -7,8 +7,7 @@ import chalk from "chalk";
 import ora from "ora";
 import { getErrorMessage, getExecErrorMessage, resolveCommandJsonOption } from "../command-helpers";
 import { fetchComposeYml, generateEnvFile, defaultInstallDir, parseEnvFile } from "../templates";
-
-const VERSION = "0.1.0";
+import { CLI_VERSION } from "../version";
 
 interface InstallOptions {
   dir: string;
@@ -221,7 +220,7 @@ export function installCommand(): Command {
       // -- Step 5: Generate .env --
       const envSpinner = !isJson ? ora("Generating secrets and configuration...").start() : null;
       const envContent = generateEnvFile({
-        version: VERSION,
+        version: CLI_VERSION,
         domain,
         port,
         initialAdminEmail: email,
@@ -313,7 +312,7 @@ export function installCommand(): Command {
         console.log(
           JSON.stringify({
             ok: true,
-            version: VERSION,
+            version: CLI_VERSION,
             directory: dir,
             domain,
             port,
@@ -328,7 +327,7 @@ export function installCommand(): Command {
         console.error();
         console.error(`  Dashboard:  ${chalk.cyan(url)}`);
         console.error(`  Directory:  ${chalk.dim(dir)}`);
-        console.error(`  Version:    ${chalk.dim(VERSION)}`);
+        console.error(`  Version:    ${chalk.dim(CLI_VERSION)}`);
         console.error();
         console.error(chalk.bold("Next steps:"));
         console.error(`  1. Open ${chalk.cyan(url)} and create your admin account`);
