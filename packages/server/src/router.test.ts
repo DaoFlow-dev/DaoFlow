@@ -393,6 +393,7 @@ describe("appRouter", () => {
     expect(entry.targetResource).toEqual(expect.any(String));
     expect(entry.resourceType).toEqual(expect.any(String));
     expect(entry.resourceId).toEqual(expect.any(String));
+    expect(entry.statusTone).toEqual(expect.any(String));
   });
 
   it("returns environment variable inventory and redacted values", async () => {

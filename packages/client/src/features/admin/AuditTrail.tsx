@@ -8,6 +8,7 @@ interface AuditEntry {
   action: string;
   resourceType: string;
   resourceLabel: string;
+  statusTone?: string;
   detail: string;
 }
 
@@ -57,30 +58,32 @@ export function AuditTrail({ session, auditTrail, auditMessage }: AuditTrailProp
           </div>
 
           <div className="audit-list">
-            {auditTrail.data.entries.map((entry) => (
-              <article
-                className="timeline-event"
-                data-testid={`audit-entry-${entry.id}`}
-                key={entry.id}
-              >
-                <div className="timeline-event__top">
-                  <div>
-                    <p className="roadmap-item__lane">
-                      {entry.actorLabel}
-                      {entry.actorRole ? ` · ${entry.actorRole}` : ` · ${entry.actorType}`}
-                    </p>
-                    <h3>{entry.action}</h3>
+            {auditTrail.data.entries.map((entry) => {
+              const statusTone = entry.statusTone ?? getAuditTone(entry.action);
+
+              return (
+                <article
+                  className="timeline-event"
+                  data-testid={`audit-entry-${entry.id}`}
+                  key={entry.id}
+                >
+                  <div className="timeline-event__top">
+                    <div>
+                      <p className="roadmap-item__lane">
+                        {entry.actorLabel}
+                        {entry.actorRole ? ` · ${entry.actorRole}` : ` · ${entry.actorType}`}
+                      </p>
+                      <h3>{entry.action}</h3>
+                    </div>
+                    <span className={`deployment-status deployment-status--${statusTone}`}>
+                      {entry.resourceType}
+                    </span>
                   </div>
-                  <span
-                    className={`deployment-status deployment-status--${getAuditTone(entry.action)}`}
-                  >
-                    {entry.resourceType}
-                  </span>
-                </div>
-                <p className="deployment-card__meta">{entry.resourceLabel}</p>
-                <p className="deployment-card__meta">{entry.detail}</p>
-              </article>
-            ))}
+                  <p className="deployment-card__meta">{entry.resourceLabel}</p>
+                  <p className="deployment-card__meta">{entry.detail}</p>
+                </article>
+              );
+            })}
           </div>
         </>
       ) : (

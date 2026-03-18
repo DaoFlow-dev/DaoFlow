@@ -3,6 +3,22 @@ import { db } from "../connection";
 import { auditEntries, events } from "../schema/audit";
 import { asRecord, readString } from "./json-helpers";
 
+function getAuditStatusTone(action: string) {
+  if (action === "execution.complete" || action === "approval.approve") {
+    return "healthy" as const;
+  }
+
+  if (action === "execution.fail" || action === "approval.reject") {
+    return "failed" as const;
+  }
+
+  if (action === "execution.dispatch") {
+    return "running" as const;
+  }
+
+  return "queued" as const;
+}
+
 export async function listAuditTrail(limit = 12) {
   const entries = await db
     .select()
@@ -32,6 +48,7 @@ export async function listAuditTrail(limit = 12) {
         resourceType: readString(metadata, "resourceType", resourceType),
         resourceId: readString(metadata, "resourceId", rest.join("/")),
         resourceLabel: readString(metadata, "resourceLabel", entry.targetResource),
+        statusTone: getAuditStatusTone(entry.action),
         detail: readString(metadata, "detail", entry.inputSummary ?? ""),
         createdAt: entry.createdAt.toISOString()
       };
