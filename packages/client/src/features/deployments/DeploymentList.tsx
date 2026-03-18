@@ -21,6 +21,8 @@ interface DeploymentItem {
   imageTag: string | null;
   requestedByEmail: string | null;
   status: string;
+  statusTone?: string;
+  statusLabel?: string;
   steps?: DeploymentStep[];
 }
 
@@ -136,44 +138,49 @@ export function DeploymentList({
 
       {session.data && recentDeployments.data ? (
         <div className="deployment-list">
-          {recentDeployments.data.map((deployment) => (
-            <article
-              className="deployment-card"
-              data-testid={`deployment-card-${deployment.id}`}
-              key={deployment.id}
-            >
-              <div className="deployment-card__top">
-                <div>
-                  <p className="roadmap-item__lane">{deployment.environmentName}</p>
-                  <h3>{deployment.serviceName}</h3>
+          {recentDeployments.data.map((deployment) => {
+            const statusTone = deployment.statusTone ?? deployment.status;
+            const statusLabel = deployment.statusLabel ?? deployment.status;
+
+            return (
+              <article
+                className="deployment-card"
+                data-testid={`deployment-card-${deployment.id}`}
+                key={deployment.id}
+              >
+                <div className="deployment-card__top">
+                  <div>
+                    <p className="roadmap-item__lane">{deployment.environmentName}</p>
+                    <h3>{deployment.serviceName}</h3>
+                  </div>
+                  <span
+                    className={`deployment-status deployment-status--${statusTone}`}
+                    data-testid={`deployment-status-${deployment.id}`}
+                  >
+                    {statusLabel}
+                  </span>
                 </div>
-                <span
-                  className={`deployment-status deployment-status--${deployment.status}`}
-                  data-testid={`deployment-status-${deployment.id}`}
-                >
-                  {deployment.status}
-                </span>
-              </div>
-              <p className="deployment-card__meta">
-                {deployment.projectName} on {deployment.targetServerName} (
-                {deployment.targetServerHost})
-              </p>
-              <p className="deployment-card__meta">
-                Source: {deployment.sourceType} · Commit: {deployment.commitSha} · Image:{" "}
-                {deployment.imageTag}
-              </p>
-              <p className="deployment-card__meta">Requested by {deployment.requestedByEmail}</p>
-              {deployment.steps && deployment.steps.length > 0 && (
-                <ul className="deployment-card__steps">
-                  {deployment.steps.map((step) => (
-                    <li key={step.id}>
-                      <strong>{step.label}</strong>: {step.detail}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </article>
-          ))}
+                <p className="deployment-card__meta">
+                  {deployment.projectName} on {deployment.targetServerName} (
+                  {deployment.targetServerHost})
+                </p>
+                <p className="deployment-card__meta">
+                  Source: {deployment.sourceType} · Commit: {deployment.commitSha} · Image:{" "}
+                  {deployment.imageTag}
+                </p>
+                <p className="deployment-card__meta">Requested by {deployment.requestedByEmail}</p>
+                {deployment.steps && deployment.steps.length > 0 && (
+                  <ul className="deployment-card__steps">
+                    {deployment.steps.map((step) => (
+                      <li key={step.id}>
+                        <strong>{step.label}</strong>: {step.detail}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </article>
+            );
+          })}
         </div>
       ) : (
         <p className="viewer-empty">
