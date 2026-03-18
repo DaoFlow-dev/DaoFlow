@@ -37,9 +37,9 @@ jobs:
           jq --arg v "${{ steps.version.outputs.version }}" '.version = $v' package.json > tmp.json
           mv tmp.json package.json
 
-      # Bun supports cross-compilation — all 4 targets built on one runner
+      # Use baseline to avoid AVX2 — ensures compatibility with all x86_64 CPUs
       - name: Build linux-x64
-        run: bun build packages/cli/src/index.ts --compile --target=bun-linux-x64 --outfile dist/daoflow-linux-x64
+        run: bun build packages/cli/src/index.ts --compile --target=bun-linux-x64-baseline --outfile dist/daoflow-linux-x64
 
       - name: Build linux-arm64
         run: bun build packages/cli/src/index.ts --compile --target=bun-linux-arm64 --outfile dist/daoflow-linux-arm64
