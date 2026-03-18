@@ -62,7 +62,7 @@ export function deployCommand(): Command {
         const configResult = loadDaoflowConfig();
         const cfg = configResult?.config;
         if (configResult && !isJson) {
-          console.log(chalk.dim(`  Using config: ${configResult.filePath}`));
+          console.error(chalk.dim(`  Using config: ${configResult.filePath}`));
         }
 
         // Merge config defaults with CLI flags

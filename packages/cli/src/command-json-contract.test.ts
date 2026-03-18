@@ -1,5 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import { Command } from "commander";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { deployCommand } from "./commands/deploy";
 import { envCommand } from "./commands/env";
 import { registerConfigCommand } from "./commands/config";
 import { planCommand } from "./commands/plan";
@@ -46,6 +50,23 @@ async function captureCommandExecution(
   }
 
   return { logs, errors, exitCode };
+}
+
+async function withTempConfigDir<T>(
+  configContent: string,
+  run: (configDir: string) => Promise<T>
+): Promise<T> {
+  const originalCwd = process.cwd();
+  const configDir = mkdtempSync(join(tmpdir(), "daoflow-cli-config-"));
+
+  try {
+    writeFileSync(join(configDir, "daoflow.config.json"), configContent, "utf8");
+    process.chdir(configDir);
+    return await run(configDir);
+  } finally {
+    process.chdir(originalCwd);
+    rmSync(configDir, { recursive: true, force: true });
+  }
 }
 
 describe("CLI JSON contract", () => {
@@ -217,6 +238,46 @@ describe("CLI JSON contract", () => {
     expect(JSON.parse(result.logs[0])).toEqual({
       ok: false,
       error: "Choose either --service or --compose, not both.",
+      code: "INVALID_INPUT"
+    });
+  });
+
+  test("plan in JSON mode does not pollute stdout when a config file is present", async () => {
+    const program = new Command().name("daoflow");
+    program.addCommand(planCommand());
+
+    const result = await withTempConfigDir(JSON.stringify({ project: "demo" }), async () =>
+      captureCommandExecution(async () => {
+        await program.parseAsync(["node", "daoflow", "plan", "--json"]);
+      })
+    );
+
+    expect(result.exitCode).toBe(1);
+    expect(result.errors).toEqual([]);
+    expect(result.logs).toHaveLength(1);
+    expect(JSON.parse(result.logs[0])).toEqual({
+      ok: false,
+      error: "Either --service or --compose is required.",
+      code: "INVALID_INPUT"
+    });
+  });
+
+  test("deploy in JSON mode does not pollute stdout when a config file is present", async () => {
+    const program = new Command().name("daoflow");
+    program.addCommand(deployCommand());
+
+    const result = await withTempConfigDir(JSON.stringify({ project: "demo" }), async () =>
+      captureCommandExecution(async () => {
+        await program.parseAsync(["node", "daoflow", "deploy", "--json"]);
+      })
+    );
+
+    expect(result.exitCode).toBe(1);
+    expect(result.errors).toEqual([]);
+    expect(result.logs).toHaveLength(1);
+    expect(JSON.parse(result.logs[0])).toEqual({
+      ok: false,
+      error: "Either --service or --compose is required.",
       code: "INVALID_INPUT"
     });
   });
