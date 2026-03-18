@@ -41,6 +41,7 @@ Use these files instead of expanding the root charter:
 - Do not treat DaoFlow as a Kubernetes clone, generic cloud wrapper, or arbitrary shell gateway.
 - Agent safety, auditability, and explicit permissions take priority over convenience shortcuts.
 - Long-running orchestration, log streaming, backups, and restores belong in workers or runner boundaries, not the frontend process.
+- Frontend work should standardize on Tailwind CSS 4 and shadcn/ui, but migration should happen gradually as related surfaces are touched.
 
 ## Code Hygiene
 

@@ -1,7 +1,16 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Cpu, MemoryStick, Network, HardDrive, Activity, Clock, RefreshCw, Power } from "lucide-react";
+import {
+  Cpu,
+  MemoryStick,
+  Network,
+  HardDrive,
+  Activity,
+  Clock,
+  RefreshCw,
+  Power
+} from "lucide-react";
 import { useState, useEffect, useCallback, useRef } from "react";
 
 interface MonitoringTabProps {
@@ -164,9 +173,7 @@ export default function MonitoringTab({
                   key={m}
                   onClick={() => setHistoryMinutes(m)}
                   className={`px-2 py-1 transition-colors ${
-                    historyMinutes === m
-                      ? "bg-primary text-primary-foreground"
-                      : "hover:bg-accent"
+                    historyMinutes === m ? "bg-primary text-primary-foreground" : "hover:bg-accent"
                   } ${m === 1 ? "rounded-l-md" : m === 30 ? "rounded-r-md" : ""}`}
                 >
                   {m}m

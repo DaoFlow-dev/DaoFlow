@@ -196,7 +196,9 @@ export default function DashboardPage() {
               </div>
               <div className="text-center">
                 <p className="font-medium text-foreground">No deployments yet</p>
-                <p className="text-sm mt-1">Create a project and deploy your first service to see activity here.</p>
+                <p className="text-sm mt-1">
+                  Create a project and deploy your first service to see activity here.
+                </p>
               </div>
               <Button size="sm" onClick={() => void navigate("/projects")}>
                 <Plus className="mr-1.5 h-4 w-4" />
@@ -207,7 +209,10 @@ export default function DashboardPage() {
             <>
               {/* Activity search */}
               <div className="relative mb-3">
-                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <Search
+                  size={14}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+                />
                 <Input
                   placeholder="Filter activity by service name..."
                   value={activitySearch}

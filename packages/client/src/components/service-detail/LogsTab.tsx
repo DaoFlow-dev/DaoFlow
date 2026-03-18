@@ -140,9 +140,7 @@ export default function LogsTab({ serviceId, serviceName }: LogsTabProps) {
                   key={s}
                   onClick={() => setStreamFilter(s)}
                   className={`px-2.5 py-1 transition-colors ${
-                    streamFilter === s
-                      ? "bg-primary text-primary-foreground"
-                      : "hover:bg-accent"
+                    streamFilter === s ? "bg-primary text-primary-foreground" : "hover:bg-accent"
                   } ${s === "all" ? "rounded-l-md" : s === "stderr" ? "rounded-r-md" : ""}`}
                 >
                   {s === "all" ? "All" : s}
@@ -193,12 +191,7 @@ export default function LogsTab({ serviceId, serviceName }: LogsTabProps) {
             )}
 
             {/* Clear */}
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setLogs([])}
-              title="Clear logs"
-            >
+            <Button size="sm" variant="outline" onClick={() => setLogs([])} title="Clear logs">
               <Trash2 size={14} />
             </Button>
 

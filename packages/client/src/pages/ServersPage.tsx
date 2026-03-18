@@ -56,7 +56,10 @@ export default function ServersPage() {
               onClick={() => void serverReadiness.refetch()}
               disabled={serverReadiness.isFetching}
             >
-              <RefreshCw size={14} className={`mr-1 ${serverReadiness.isFetching ? "animate-spin" : ""}`} />
+              <RefreshCw
+                size={14}
+                className={`mr-1 ${serverReadiness.isFetching ? "animate-spin" : ""}`}
+              />
               Refresh All
             </Button>
             <RegisterServerDialog

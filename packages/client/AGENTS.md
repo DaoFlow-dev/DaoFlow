@@ -14,10 +14,11 @@
 
 ## Styling
 
-- CSS lives in `src/index.css`. Use CSS class names, not Tailwind utilities in JSX.
-- Follow the existing glassmorphism card pattern for new sections.
-- Status colors use the `StatusCard` component with tone props.
-- Dark mode: use CSS custom properties from `:root` and `.dark` blocks.
+- Tailwind CSS 4 is the default styling system for the client. Prefer utility classes in JSX over adding bespoke feature-level CSS.
+- Use shadcn/ui components and patterns as the primary UI building blocks. Extend existing primitives before introducing one-off wrappers.
+- Keep shared design tokens, theme variables, and Tailwind-driven global styles in `src/index.css`.
+- When shadcn/ui and Tailwind are introduced or updated, preserve `components.json` as the canonical component registry/config.
+- Dark mode and theme tokens should continue to flow through CSS custom properties exposed from the global theme layer.
 
 ## tRPC Usage
 
