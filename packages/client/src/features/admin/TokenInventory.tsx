@@ -1,5 +1,3 @@
-import { getInventoryTone } from "@/lib/tone-utils";
-
 interface TokenItem {
   id: string;
   label: string;
@@ -8,7 +6,7 @@ interface TokenItem {
   principalName: string;
   tokenPrefix: string;
   status: string;
-  statusTone?: string;
+  statusTone: string;
   lanes: string[];
   scopes: string[];
   effectiveCapabilities: string[];
@@ -65,46 +63,38 @@ export function TokenInventory({
           </div>
 
           <div className="token-list">
-            {agentTokenInventory.data.tokens.map((token) => {
-              const statusTone = token.statusTone ?? getInventoryTone(token.status);
-
-              return (
-                <article
-                  className="token-card"
-                  data-testid={`token-card-${token.id}`}
-                  key={token.id}
-                >
-                  <div className="token-card__top">
-                    <div>
-                      <p className="roadmap-item__lane">
-                        {token.principalKind} · {token.principalRole}
-                      </p>
-                      <h3>{token.label}</h3>
-                    </div>
-                    <span className={`deployment-status deployment-status--${statusTone}`}>
-                      {token.status}
+            {agentTokenInventory.data.tokens.map((token) => (
+              <article className="token-card" data-testid={`token-card-${token.id}`} key={token.id}>
+                <div className="token-card__top">
+                  <div>
+                    <p className="roadmap-item__lane">
+                      {token.principalKind} · {token.principalRole}
+                    </p>
+                    <h3>{token.label}</h3>
+                  </div>
+                  <span className={`deployment-status deployment-status--${token.statusTone}`}>
+                    {token.status}
+                  </span>
+                </div>
+                <p className="deployment-card__meta">
+                  {token.principalName} · Prefix {token.tokenPrefix}
+                </p>
+                <p className="deployment-card__meta">
+                  Lanes: {token.lanes.join(", ")} · Effective capabilities:{" "}
+                  {token.effectiveCapabilities.length}
+                </p>
+                <div className="token-card__chips">
+                  {token.scopes.map((scope) => (
+                    <span className="token-chip" key={scope}>
+                      {scope}
                     </span>
-                  </div>
-                  <p className="deployment-card__meta">
-                    {token.principalName} · Prefix {token.tokenPrefix}
-                  </p>
-                  <p className="deployment-card__meta">
-                    Lanes: {token.lanes.join(", ")} · Effective capabilities:{" "}
-                    {token.effectiveCapabilities.length}
-                  </p>
-                  <div className="token-card__chips">
-                    {token.scopes.map((scope) => (
-                      <span className="token-chip" key={scope}>
-                        {scope}
-                      </span>
-                    ))}
-                  </div>
-                  <p className="deployment-card__meta">
-                    Withheld from role by token narrowing: {token.withheldCapabilities.length}
-                  </p>
-                </article>
-              );
-            })}
+                  ))}
+                </div>
+                <p className="deployment-card__meta">
+                  Withheld from role by token narrowing: {token.withheldCapabilities.length}
+                </p>
+              </article>
+            ))}
           </div>
         </>
       ) : (
