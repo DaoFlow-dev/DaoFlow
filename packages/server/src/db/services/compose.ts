@@ -23,6 +23,8 @@ export interface ComposeDriftRecord {
   serviceName: string;
   composeFilePath: string;
   status: "aligned" | "drifted" | "blocked";
+  statusLabel: string;
+  statusTone: "healthy" | "running" | "failed";
   summary: string;
   impactSummary: string;
   desiredImageReference: string;
@@ -45,6 +47,30 @@ function formatReleaseTrackLabel(releaseTrack: string) {
 
 function getReleaseTrackTone(releaseTrack: string) {
   return releaseTrack === "stable" ? "healthy" : "running";
+}
+
+function formatComposeDriftStatusLabel(status: ComposeDriftRecord["status"]) {
+  if (status === "aligned") {
+    return "Aligned";
+  }
+
+  if (status === "blocked") {
+    return "Blocked";
+  }
+
+  return "Review required";
+}
+
+function getComposeDriftStatusTone(status: ComposeDriftRecord["status"]) {
+  if (status === "aligned") {
+    return "healthy" as const;
+  }
+
+  if (status === "blocked") {
+    return "failed" as const;
+  }
+
+  return "running" as const;
 }
 
 function normalizeRepositoryPath(path: string, fallback: string): string {
@@ -125,31 +151,37 @@ export async function listComposeDriftReport(limit = 24): Promise<{
     const config = asRecord(environment.config);
     const driftReports = readRecordArray(config, "composeDriftReports");
 
-    return driftReports.map((report) => ({
-      composeServiceId: readString(report, "composeServiceId"),
-      environmentName: environment.name,
-      projectName: readString(config, "projectName"),
-      targetServerName: readString(config, "targetServerName"),
-      serviceName: readString(report, "serviceName"),
-      composeFilePath: readString(config, "composeFilePath"),
-      status: readString(report, "status", "aligned") as ComposeDriftRecord["status"],
-      summary: readString(report, "summary"),
-      impactSummary: readString(report, "impactSummary"),
-      desiredImageReference: readString(report, "desiredImageReference"),
-      actualImageReference: readString(report, "actualImageReference"),
-      desiredReplicaCount: readNumber(report, "desiredReplicaCount", 0) ?? 0,
-      actualReplicaCount: readNumber(report, "actualReplicaCount", 0) ?? 0,
-      actualContainerState: readString(report, "actualContainerState"),
-      lastCheckedAt: readString(report, "lastCheckedAt"),
-      recommendedActions: readStringArray(report, "recommendedActions"),
-      diffs: readRecordArray(report, "diffs").map((diff) => ({
-        id: readString(diff, "id"),
-        field: readString(diff, "field"),
-        desiredValue: readString(diff, "desiredValue"),
-        actualValue: readString(diff, "actualValue"),
-        impact: readString(diff, "impact")
-      }))
-    }));
+    return driftReports.map((report) => {
+      const status = readString(report, "status", "aligned") as ComposeDriftRecord["status"];
+
+      return {
+        composeServiceId: readString(report, "composeServiceId"),
+        environmentName: environment.name,
+        projectName: readString(config, "projectName"),
+        targetServerName: readString(config, "targetServerName"),
+        serviceName: readString(report, "serviceName"),
+        composeFilePath: readString(config, "composeFilePath"),
+        status,
+        statusLabel: formatComposeDriftStatusLabel(status),
+        statusTone: getComposeDriftStatusTone(status),
+        summary: readString(report, "summary"),
+        impactSummary: readString(report, "impactSummary"),
+        desiredImageReference: readString(report, "desiredImageReference"),
+        actualImageReference: readString(report, "actualImageReference"),
+        desiredReplicaCount: readNumber(report, "desiredReplicaCount", 0) ?? 0,
+        actualReplicaCount: readNumber(report, "actualReplicaCount", 0) ?? 0,
+        actualContainerState: readString(report, "actualContainerState"),
+        lastCheckedAt: readString(report, "lastCheckedAt"),
+        recommendedActions: readStringArray(report, "recommendedActions"),
+        diffs: readRecordArray(report, "diffs").map((diff) => ({
+          id: readString(diff, "id"),
+          field: readString(diff, "field"),
+          desiredValue: readString(diff, "desiredValue"),
+          actualValue: readString(diff, "actualValue"),
+          impact: readString(diff, "impact")
+        }))
+      };
+    });
   });
 
   const sliced = reports.slice(0, limit);

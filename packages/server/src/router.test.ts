@@ -263,6 +263,12 @@ describe("appRouter", () => {
 
     expect(drift.summary.totalServices).toBeGreaterThanOrEqual(0);
     expect(Array.isArray(drift.reports)).toBe(true);
+
+    const report = drift.reports[0];
+    if (report) {
+      expect(report.statusTone).toEqual(expect.any(String));
+      expect(report.statusLabel).toEqual(expect.any(String));
+    }
   });
 
   it("returns a real deployment plan from the planning lane", async () => {
