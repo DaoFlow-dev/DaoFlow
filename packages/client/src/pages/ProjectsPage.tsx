@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { trpc } from "../lib/trpc";
 import { useSession } from "../lib/auth-client";
@@ -23,7 +23,14 @@ export default function ProjectsPage() {
   const session = useSession();
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
+  const [searchInput, setSearchInput] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
+
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  function debounceSearch(value: string) {
+    clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => setSearch(value), 250);
+  }
   const [newProject, setNewProject] = useState({ name: "", description: "", repoUrl: "" });
 
   const projectsQuery = trpc.projects.useQuery({ limit: 50 }, { enabled: Boolean(session.data) });
@@ -135,8 +142,11 @@ export default function ProjectsPage() {
         />
         <Input
           placeholder="Search projects..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          value={searchInput}
+          onChange={(e) => {
+            setSearchInput(e.target.value);
+            debounceSearch(e.target.value);
+          }}
           className="pl-9"
         />
       </div>

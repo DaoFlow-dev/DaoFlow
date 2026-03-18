@@ -4,18 +4,7 @@ import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import {
-  User,
-  Mail,
-  Lock,
-  Shield,
-  Key,
-  Clock,
-  Save,
-  Loader2,
-  Upload,
-  Smartphone
-} from "lucide-react";
+import { User, Mail, Lock, Shield, Key, Clock, Save, Loader2, Smartphone } from "lucide-react";
 
 export default function UserProfilePage() {
   const session = useSession();
