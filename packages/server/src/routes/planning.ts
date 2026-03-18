@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { buildDeploymentPlan } from "../db/services/deployment-plans";
+import { buildRollbackPlan } from "../db/services/rollback-plans";
 import { t, deployReadProcedure } from "../trpc";
 
 export const planningRouter = t.router({
@@ -18,6 +19,27 @@ export const planningRouter = t.router({
           serviceRef: input.service,
           serverRef: input.server,
           imageTag: input.image,
+          requestedByUserId: ctx.session.user.id
+        });
+      } catch (error) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: error instanceof Error ? error.message : String(error)
+        });
+      }
+    }),
+  rollbackPlan: deployReadProcedure
+    .input(
+      z.object({
+        service: z.string().min(1),
+        target: z.string().min(1).optional()
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      try {
+        return await buildRollbackPlan({
+          serviceRef: input.service,
+          targetDeploymentId: input.target,
           requestedByUserId: ctx.session.user.id
         });
       } catch (error) {

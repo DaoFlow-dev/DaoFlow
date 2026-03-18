@@ -11,10 +11,12 @@
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "../connection";
 import { deployments } from "../schema/deployments";
+import { environments, projects } from "../schema/projects";
 import { services } from "../schema/services";
 import { createDeploymentRecord, type CreateDeploymentInput } from "./deployments";
 import { dispatchDeploymentExecution } from "./deployment-dispatch";
 import { asRecord, readString } from "./json-helpers";
+import { resolveServiceForUser } from "./scoped-services";
 import type { AppRole } from "@daoflow/shared";
 
 const DEFAULT_ROLLBACK_RETENTION = 3;
@@ -46,10 +48,9 @@ function getRollbackRetention(svc: typeof services.$inferSelect): number {
 }
 
 /** List successful deployments available as rollback targets. */
-export async function listRollbackTargets(serviceId: string): Promise<RollbackTarget[]> {
-  const [svc] = await db.select().from(services).where(eq(services.id, serviceId)).limit(1);
-  if (!svc) return [];
-
+async function listRollbackTargetsForService(
+  svc: typeof services.$inferSelect
+): Promise<RollbackTarget[]> {
   const retention = getRollbackRetention(svc);
 
   const rows = await db
@@ -57,6 +58,8 @@ export async function listRollbackTargets(serviceId: string): Promise<RollbackTa
     .from(deployments)
     .where(
       and(
+        eq(deployments.projectId, svc.projectId),
+        eq(deployments.environmentId, svc.environmentId),
         eq(deployments.serviceName, svc.name),
         eq(deployments.status, "completed"),
         eq(deployments.conclusion, "succeeded")
@@ -76,12 +79,28 @@ export async function listRollbackTargets(serviceId: string): Promise<RollbackTa
   }));
 }
 
+/** List successful deployments available as rollback targets for the caller's service scope. */
+export async function listRollbackTargets(
+  serviceRef: string,
+  requestedByUserId: string
+): Promise<RollbackTarget[]> {
+  const svc = await resolveServiceForUser(serviceRef, requestedByUserId);
+  return listRollbackTargetsForService(svc);
+}
+
 /** Execute a rollback by creating a new deployment from a previous successful one. */
 export async function executeRollback(input: ExecuteRollbackInput) {
-  // Look up the service
-  const [svc] = await db.select().from(services).where(eq(services.id, input.serviceId)).limit(1);
-
+  const svc = await resolveServiceForUser(input.serviceId, input.requestedByUserId).catch(
+    () => null
+  );
   if (!svc) return { status: "not_found" as const, entity: "service" };
+
+  const [project, environment] = await Promise.all([
+    db.select().from(projects).where(eq(projects.id, svc.projectId)).limit(1),
+    db.select().from(environments).where(eq(environments.id, svc.environmentId)).limit(1)
+  ]);
+  if (!project[0]) return { status: "not_found" as const, entity: "project" };
+  if (!environment[0]) return { status: "not_found" as const, entity: "environment" };
 
   // Look up the target deployment
   const [target] = await db
@@ -92,6 +111,14 @@ export async function executeRollback(input: ExecuteRollbackInput) {
 
   if (!target) return { status: "not_found" as const, entity: "deployment" };
 
+  if (
+    target.projectId !== svc.projectId ||
+    target.environmentId !== svc.environmentId ||
+    target.serviceName !== svc.name
+  ) {
+    return { status: "not_found" as const, entity: "deployment" };
+  }
+
   // Verify the target is a successful deployment
   if (target.status !== "completed" || target.conclusion !== "succeeded") {
     return { status: "invalid_target" as const };
@@ -99,7 +126,7 @@ export async function executeRollback(input: ExecuteRollbackInput) {
 
   // Verify the target is within retention window
   const retention = getRollbackRetention(svc);
-  const targets = await listRollbackTargets(input.serviceId);
+  const targets = await listRollbackTargetsForService(svc);
   const isInWindow = targets.some((t) => t.deploymentId === input.targetDeploymentId);
   if (!isInWindow) {
     return { status: "outside_retention" as const, retention };
@@ -109,8 +136,8 @@ export async function executeRollback(input: ExecuteRollbackInput) {
   const snapshot = asRecord(target.configSnapshot);
 
   const deployInput: CreateDeploymentInput = {
-    projectName: readString(snapshot, "projectName", target.serviceName),
-    environmentName: readString(snapshot, "environmentName", "production"),
+    projectName: readString(snapshot, "projectName", project[0].name),
+    environmentName: readString(snapshot, "environmentName", environment[0].name),
     serviceName: target.serviceName,
     sourceType: target.sourceType as "compose" | "dockerfile" | "image",
     targetServerId: target.targetServerId,

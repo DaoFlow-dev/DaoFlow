@@ -72,3 +72,12 @@ This file holds the detailed CLI contract, scope map, and agent-facing command r
   - current deployment status when present
   - ordered planned steps
   - preflight checks with `ok` / `warn` / `fail`
+
+## Rollback Dry-Run Contract
+
+- `daoflow rollback --dry-run` must use the planning lane, not a locally fabricated preview
+- Dry-run scope: `deploy:read`
+- Execute scope: `deploy:rollback`
+- Target flags: `--target <deployment-id>` and `--to <deployment-id>` must behave identically
+- JSON dry-run shape:
+  - `{ "ok": true, "data": { "dryRun": true, "plan": { "isReady": boolean, "service": {...}, "currentDeployment": {...} | null, "targetDeployment": {...} | null, "availableTargets": [{ "deploymentId": string, "serviceName": string, "sourceType": string, "commitSha": string | null, "imageTag": string | null, "concludedAt": string | null, "status": string }], "preflightChecks": [{ "status": "ok" | "warn" | "fail", "detail": string }], "steps": string[], "executeCommand": string } } }`

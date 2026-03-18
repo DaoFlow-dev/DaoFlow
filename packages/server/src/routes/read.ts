@@ -27,7 +27,7 @@ import { listServices, listServicesByProject, getService } from "../db/services/
 import { listRollbackTargets } from "../db/services/execute-rollback";
 import { listAgentPrincipals } from "../db/services/agents";
 import { listGitProviders, listGitInstallations } from "../db/services/git-providers";
-import { t, protectedProcedure } from "../trpc";
+import { t, protectedProcedure, deployReadProcedure } from "../trpc";
 import { limitInput, statusLimitInput } from "../schemas";
 
 const productPrinciples = [
@@ -229,10 +229,10 @@ export const readRouter = t.router({
     .query(async ({ input }) => {
       return listServicesByProject(input.projectId);
     }),
-  rollbackTargets: protectedProcedure
+  rollbackTargets: deployReadProcedure
     .input(z.object({ serviceId: z.string().min(1) }))
-    .query(async ({ input }) => {
-      return listRollbackTargets(input.serviceId);
+    .query(async ({ ctx, input }) => {
+      return listRollbackTargets(input.serviceId, ctx.session.user.id);
     }),
   agents: protectedProcedure.query(async () => {
     return listAgentPrincipals();

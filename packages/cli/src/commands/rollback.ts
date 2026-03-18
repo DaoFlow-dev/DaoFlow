@@ -13,6 +13,7 @@ export function rollbackCommand(): Command {
     .description("Rollback a service to a previous successful deployment")
     .requiredOption("--service <id>", "Service ID to rollback")
     .option("--target <deployment-id>", "Target deployment ID to rollback to")
+    .option("--to <deployment-id>", "Alias for --target")
     .option("--dry-run", "Show rollback plan without executing")
     .option("-y, --yes", "Skip confirmation prompt")
     .option("--json", "Output as JSON")
@@ -21,6 +22,7 @@ export function rollbackCommand(): Command {
         opts: {
           service: string;
           target?: string;
+          to?: string;
           dryRun?: boolean;
           yes?: boolean;
           json?: boolean;
@@ -31,6 +33,8 @@ export function rollbackCommand(): Command {
         const isJson = resolveCommandJsonOption(command, opts.json);
 
         try {
+          const targetRef = opts.target ?? opts.to;
+
           // Fetch available rollback targets for this service
           const targets = await trpc.rollbackTargets.query({ serviceId: opts.service });
 
@@ -49,7 +53,7 @@ export function rollbackCommand(): Command {
           }
 
           // If no target specified, list available targets
-          if (!opts.target) {
+          if (!targetRef) {
             if (isJson) {
               emitJsonSuccess({ targets });
             } else {
@@ -68,43 +72,56 @@ export function rollbackCommand(): Command {
             return;
           }
 
-          const target = targets.find((t) => t.deploymentId.startsWith(opts.target!));
+          const target = targets.find((t) => t.deploymentId.startsWith(targetRef));
           if (!target) {
             if (isJson) {
               console.log(
                 JSON.stringify({
                   ok: false,
-                  error: `Deployment ${opts.target} not found in rollback targets`,
+                  error: `Deployment ${targetRef} not found in rollback targets`,
                   code: "NOT_FOUND"
                 })
               );
             } else {
-              console.error(chalk.red(`✗ Deployment ${opts.target} not found in rollback targets`));
+              console.error(chalk.red(`✗ Deployment ${targetRef} not found in rollback targets`));
             }
             process.exit(1);
           }
 
           if (opts.dryRun) {
-            const plan = {
-              serviceId: opts.service,
-              targetDeploymentId: target.deploymentId,
-              targetImage: target.imageTag,
-              targetCommit: target.commitSha,
-              steps: [
-                "Rollback preparation",
-                "Restore configuration from target deployment",
-                "Deploy containers with previous config",
-                "Health check"
-              ]
-            };
+            const plan = await trpc.rollbackPlan.query({
+              service: opts.service,
+              target: target.deploymentId
+            });
 
             if (isJson) {
               emitJsonSuccess({ dryRun: true, plan });
             } else {
               console.log(chalk.bold("\n  Rollback Plan (dry-run)\n"));
-              console.log(`  Target:  ${target.deploymentId}`);
-              console.log(`  Image:   ${target.imageTag ?? "—"}`);
-              console.log(`  Commit:  ${target.commitSha ?? "—"}`);
+              console.log(`  Service: ${plan.service.name}`);
+              console.log(`  Project: ${plan.service.projectName}`);
+              console.log(`  Env:     ${plan.service.environmentName}`);
+              console.log(`  Target:  ${plan.targetDeployment?.id ?? "—"}`);
+              console.log(`  Image:   ${plan.targetDeployment?.imageTag ?? "—"}`);
+              console.log(`  Commit:  ${plan.targetDeployment?.commitSha ?? "—"}`);
+              console.log();
+              if (plan.currentDeployment) {
+                console.log(chalk.dim("  Current deployment:"));
+                console.log(
+                  `    ${plan.currentDeployment.id}  ${plan.currentDeployment.statusLabel}`
+                );
+                console.log();
+              }
+              console.log(chalk.dim("  Preflight checks:"));
+              plan.preflightChecks.forEach((check) => {
+                const marker =
+                  check.status === "ok"
+                    ? chalk.green("✓")
+                    : check.status === "warn"
+                      ? chalk.yellow("!")
+                      : chalk.red("✗");
+                console.log(`    ${marker} ${check.detail}`);
+              });
               console.log();
               console.log(chalk.dim("  Steps:"));
               plan.steps.forEach((step, i) => {

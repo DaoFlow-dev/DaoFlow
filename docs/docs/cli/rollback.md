@@ -14,17 +14,19 @@ daoflow rollback [options]
 
 ## Options
 
-| Flag                   | Description                                         |
-| ---------------------- | --------------------------------------------------- |
-| `--service <name>`     | Service to rollback (required)                      |
-| `--to <deployment_id>` | Target deployment ID (default: previous successful) |
-| `--dry-run`            | Preview rollback plan without executing             |
-| `--yes`                | Skip confirmation                                   |
-| `--json`               | Structured JSON output                              |
+| Flag                       | Description                                         |
+| -------------------------- | --------------------------------------------------- |
+| `--service <name>`         | Service to rollback (required)                      |
+| `--target <deployment_id>` | Target deployment ID (default: previous successful) |
+| `--to <deployment_id>`     | Alias for `--target`                                |
+| `--dry-run`                | Preview rollback plan without executing             |
+| `--yes`                    | Skip confirmation                                   |
+| `--json`                   | Structured JSON output                              |
 
 ## Required Scope
 
-`deploy:rollback`
+- `deploy:read` for `--dry-run`
+- `deploy:rollback` for execution
 
 ## Examples
 
@@ -33,10 +35,10 @@ daoflow rollback [options]
 daoflow rollback --service my-app --yes
 
 # Rollback to a specific deployment
-daoflow rollback --service my-app --to dep_abc123 --yes
+daoflow rollback --service my-app --target dep_abc123 --yes
 
 # Preview rollback
-daoflow rollback --service my-app --dry-run --json
+daoflow rollback --service my-app --to dep_abc123 --dry-run --json
 ```
 
 ## JSON Output
@@ -44,9 +46,51 @@ daoflow rollback --service my-app --dry-run --json
 ```json
 {
   "ok": true,
-  "rollbackDeploymentId": "dep_xyz789",
-  "targetDeploymentId": "dep_abc123",
-  "service": "my-app",
-  "status": "queued"
+  "data": {
+    "dryRun": true,
+    "plan": {
+      "isReady": true,
+      "service": {
+        "id": "svc_abc123",
+        "name": "api",
+        "projectName": "Acme",
+        "environmentName": "production"
+      },
+      "currentDeployment": {
+        "id": "dep_current123",
+        "status": "failed",
+        "statusLabel": "Failed"
+      },
+      "targetDeployment": {
+        "id": "dep_abc123",
+        "imageTag": "ghcr.io/acme/api:1.4.1",
+        "commitSha": "abcdef1",
+        "concludedAt": "2026-03-17T19:00:00.000Z"
+      },
+      "availableTargets": [
+        {
+          "deploymentId": "dep_abc123",
+          "serviceName": "api",
+          "sourceType": "compose",
+          "commitSha": "abcdef1",
+          "imageTag": "ghcr.io/acme/api:1.4.1",
+          "concludedAt": "2026-03-17T19:00:00.000Z",
+          "status": "available"
+        }
+      ],
+      "preflightChecks": [
+        {
+          "status": "ok",
+          "detail": "Found 1 successful rollback target within retention."
+        }
+      ],
+      "steps": [
+        "Freeze the current deployment state for api",
+        "Rehydrate runtime inputs from deployment dep_abc123",
+        "Queue a new rollback deployment record with the preserved configuration"
+      ],
+      "executeCommand": "daoflow rollback --service svc_abc123 --target dep_abc123 --yes"
+    }
+  }
 }
 ```

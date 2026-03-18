@@ -8,9 +8,8 @@ import { db } from "../connection";
 import { deployments } from "../schema/deployments";
 import { environments, projects } from "../schema/projects";
 import { servers } from "../schema/servers";
-import { services } from "../schema/services";
 import { asRecord } from "./json-helpers";
-import { resolveTeamIdForUser } from "./teams";
+import { resolveServiceForUser } from "./scoped-services";
 
 type PlanCheckStatus = "ok" | "warn" | "fail";
 type DeploymentPlanSourceType = "compose" | "dockerfile" | "image";
@@ -25,39 +24,6 @@ function normalizeSourceType(value: string): DeploymentPlanSourceType {
   }
 
   return "compose";
-}
-
-async function resolveServiceForTeam(serviceRef: string, teamId: string) {
-  const ref = serviceRef.trim();
-  if (!ref) {
-    throw new Error("Service reference is required.");
-  }
-
-  const [byId] = await db
-    .select({ service: services })
-    .from(services)
-    .innerJoin(projects, eq(projects.id, services.projectId))
-    .where(and(eq(services.id, ref), eq(projects.teamId, teamId)))
-    .limit(1);
-  if (byId) {
-    return byId.service;
-  }
-
-  const matches = await db
-    .select({ service: services })
-    .from(services)
-    .innerJoin(projects, eq(projects.id, services.projectId))
-    .where(and(eq(services.name, ref), eq(projects.teamId, teamId)))
-    .limit(2);
-  if (matches.length > 1) {
-    throw new Error(`Multiple services named "${ref}" exist. Use the service ID instead.`);
-  }
-
-  if (!matches[0]) {
-    throw new Error(`Service "${ref}" not found.`);
-  }
-
-  return matches[0].service;
 }
 
 async function resolveServer(serverRef: string | undefined, fallbackServerId: string | null) {
@@ -142,12 +108,7 @@ export interface BuildDeploymentPlanInput {
 }
 
 export async function buildDeploymentPlan(input: BuildDeploymentPlanInput) {
-  const teamId = await resolveTeamIdForUser(input.requestedByUserId);
-  if (!teamId) {
-    throw new Error("No organization is available for this user.");
-  }
-
-  const service = await resolveServiceForTeam(input.serviceRef, teamId);
+  const service = await resolveServiceForUser(input.serviceRef, input.requestedByUserId);
   const [project, environment] = await Promise.all([
     db.select().from(projects).where(eq(projects.id, service.projectId)).limit(1),
     db.select().from(environments).where(eq(environments.id, service.environmentId)).limit(1)

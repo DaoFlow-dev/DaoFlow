@@ -1,7 +1,13 @@
 import { TRPCError } from "@trpc/server";
 import { describe, expect, it } from "vitest";
 import type { Context } from "./context";
+import { db } from "./db/connection";
+import { deployments } from "./db/schema/deployments";
+import { createEnvironment, createProject } from "./db/services/projects";
+import { createService } from "./db/services/services";
 import { appRouter } from "./router";
+
+let rollbackFixtureCounter = 0;
 
 function makeSession(role: string): NonNullable<Context["session"]> {
   const seededUsers = {
@@ -60,6 +66,117 @@ function makeSession(role: string): NonNullable<Context["session"]> {
       userAgent: null
     }
   } as unknown as NonNullable<Context["session"]>;
+}
+
+async function createRollbackFixture() {
+  rollbackFixtureCounter += 1;
+  const suffix = `${Date.now()}_${rollbackFixtureCounter}`;
+  const projectName = `rollback-fixture-${suffix}`;
+  const environmentName = `preview-${suffix}`;
+  const serviceName = `svc-${suffix}`;
+
+  const projectResult = await createProject({
+    name: projectName,
+    description: "Rollback planning fixture",
+    teamId: "team_foundation",
+    requestedByUserId: "user_foundation_owner",
+    requestedByEmail: "owner@daoflow.local",
+    requestedByRole: "owner"
+  });
+  if (projectResult.status !== "ok") {
+    throw new Error("Failed to create rollback fixture project.");
+  }
+
+  const environmentResult = await createEnvironment({
+    projectId: projectResult.project.id,
+    name: environmentName,
+    targetServerId: "srv_foundation_1",
+    requestedByUserId: "user_foundation_owner",
+    requestedByEmail: "owner@daoflow.local",
+    requestedByRole: "owner"
+  });
+  if (environmentResult.status !== "ok") {
+    throw new Error("Failed to create rollback fixture environment.");
+  }
+
+  const serviceResult = await createService({
+    name: serviceName,
+    projectId: projectResult.project.id,
+    environmentId: environmentResult.environment.id,
+    sourceType: "compose",
+    targetServerId: "srv_foundation_1",
+    requestedByUserId: "user_foundation_owner",
+    requestedByEmail: "owner@daoflow.local",
+    requestedByRole: "owner"
+  });
+  if (serviceResult.status !== "ok") {
+    throw new Error("Failed to create rollback fixture service.");
+  }
+
+  const successDeploymentId = `depok_${suffix}`.slice(0, 32);
+  const failedDeploymentId = `depfail_${suffix}`.slice(0, 32);
+  const successCreatedAt = new Date(Date.now() - 5 * 60 * 1000);
+  const failedCreatedAt = new Date(Date.now() - 60 * 1000);
+
+  await db.insert(deployments).values([
+    {
+      id: successDeploymentId,
+      projectId: projectResult.project.id,
+      environmentId: environmentResult.environment.id,
+      targetServerId: "srv_foundation_1",
+      serviceName,
+      sourceType: "compose",
+      commitSha: "abcdef1",
+      imageTag: "ghcr.io/daoflow/fixture:stable",
+      configSnapshot: {
+        projectName,
+        environmentName,
+        targetServerName: "foundation-vps-1",
+        targetServerHost: "203.0.113.24"
+      },
+      status: "completed",
+      conclusion: "succeeded",
+      trigger: "user",
+      requestedByUserId: "user_foundation_owner",
+      requestedByEmail: "owner@daoflow.local",
+      requestedByRole: "owner",
+      createdAt: successCreatedAt,
+      concludedAt: new Date(successCreatedAt.getTime() + 30_000),
+      updatedAt: new Date(successCreatedAt.getTime() + 30_000)
+    },
+    {
+      id: failedDeploymentId,
+      projectId: projectResult.project.id,
+      environmentId: environmentResult.environment.id,
+      targetServerId: "srv_foundation_1",
+      serviceName,
+      sourceType: "compose",
+      commitSha: "abcdef2",
+      imageTag: "ghcr.io/daoflow/fixture:broken",
+      configSnapshot: {
+        projectName,
+        environmentName,
+        targetServerName: "foundation-vps-1",
+        targetServerHost: "203.0.113.24"
+      },
+      status: "failed",
+      conclusion: "failed",
+      trigger: "user",
+      requestedByUserId: "user_foundation_owner",
+      requestedByEmail: "owner@daoflow.local",
+      requestedByRole: "owner",
+      error: { message: "Fixture failure" },
+      createdAt: failedCreatedAt,
+      concludedAt: new Date(failedCreatedAt.getTime() + 20_000),
+      updatedAt: new Date(failedCreatedAt.getTime() + 20_000)
+    }
+  ]);
+
+  return {
+    serviceId: serviceResult.service.id,
+    successDeploymentId,
+    failedDeploymentId
+  };
 }
 
 describe("appRouter", () => {
@@ -202,6 +319,41 @@ describe("appRouter", () => {
       caller.deploymentPlan({
         service: targetableService.id,
         server: otherServer.id
+      })
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" } satisfies Partial<TRPCError>);
+  });
+
+  it("returns a real rollback plan from the planning lane", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-rollback-plan",
+      session: makeSession("viewer")
+    });
+    const fixture = await createRollbackFixture();
+
+    const plan = await caller.rollbackPlan({
+      service: fixture.serviceId,
+      target: fixture.successDeploymentId
+    });
+
+    expect(plan.service.id).toBe(fixture.serviceId);
+    expect(plan.targetDeployment?.id).toBe(fixture.successDeploymentId);
+    expect(Array.isArray(plan.availableTargets)).toBe(true);
+    expect(Array.isArray(plan.preflightChecks)).toBe(true);
+    expect(Array.isArray(plan.steps)).toBe(true);
+    expect(plan.executeCommand).toContain("daoflow rollback");
+  });
+
+  it("rejects rollback planning targets that are outside the scoped success window", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-rollback-plan-invalid-target",
+      session: makeSession("viewer")
+    });
+    const fixture = await createRollbackFixture();
+
+    await expect(
+      caller.rollbackPlan({
+        service: fixture.serviceId,
+        target: fixture.failedDeploymentId
       })
     ).rejects.toMatchObject({ code: "BAD_REQUEST" } satisfies Partial<TRPCError>);
   });
