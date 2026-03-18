@@ -261,6 +261,8 @@ describe("appRouter", () => {
       expect(service.environmentId).toEqual(expect.any(String));
       expect(service.targetServerId).toEqual(expect.any(String));
       expect(service.projectName).toEqual(expect.any(String));
+      expect(service.releaseTrackTone).toEqual(expect.any(String));
+      expect(service.releaseTrackLabel).toEqual(expect.any(String));
     }
 
     expect(drift.summary.totalServices).toBeGreaterThanOrEqual(0);
