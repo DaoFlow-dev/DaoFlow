@@ -18,7 +18,7 @@ import {
   getErrorMessage,
   resolveCommandJsonOption
 } from "../command-helpers";
-import { createClient } from "../trpc-client";
+import { createClient, type CreateAgentInput } from "../trpc-client";
 
 // ── Inline preset definitions (mirrored from @daoflow/shared for CLI use)
 // We inline these to avoid import issues with the shared package in CLI binary builds.
@@ -230,7 +230,7 @@ export function tokenCommand(): Command {
           if (!isJson) console.log(chalk.blue("⟳ Creating agent..."));
 
           // Step 1: Create agent principal
-          const createInput: Record<string, unknown> = {
+          const createInput: CreateAgentInput = {
             name: opts.name,
             description: opts.description
           };
@@ -240,9 +240,7 @@ export function tokenCommand(): Command {
             createInput.scopes = opts.scopes.split(",").map((s) => s.trim());
           }
 
-          const agent = await trpc.createAgent.mutate(
-            createInput as Parameters<typeof trpc.createAgent.mutate>[0]
-          );
+          const agent = await trpc.createAgent.mutate(createInput);
 
           // Step 2: Generate token
           const tokenResult = await trpc.generateAgentToken.mutate({
@@ -259,19 +257,18 @@ export function tokenCommand(): Command {
                 scopes: (agent.defaultScopes ?? "").split(",").filter(Boolean)
               },
               token: {
-                id: (tokenResult as Record<string, unknown>).id,
-                value: (tokenResult as Record<string, unknown>).tokenValue as string,
-                prefix: (tokenResult as Record<string, unknown>).tokenPrefix as string
+                id: tokenResult.token.id,
+                value: tokenResult.tokenValue,
+                prefix: tokenResult.token.tokenPrefix
               },
               preset: opts.preset ?? null
             });
           } else {
-            const tokenValue = (tokenResult as Record<string, unknown>).tokenValue as string;
             console.log(chalk.green("✓ Agent created and token generated\n"));
             console.log(`  Agent ID:  ${chalk.dim(agent.id)}`);
             console.log(`  Name:      ${agent.name}`);
             if (opts.preset) console.log(`  Preset:    ${chalk.cyan(opts.preset)}`);
-            console.log(`  Token:     ${chalk.yellow(tokenValue)}`);
+            console.log(`  Token:     ${chalk.yellow(tokenResult.tokenValue)}`);
             console.log();
             console.log(chalk.red("  ⚠ Save this token — it will not be shown again."));
             console.log();

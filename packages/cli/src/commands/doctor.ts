@@ -1,8 +1,7 @@
-import { createTRPCClient, httpLink } from "@trpc/client";
-import type { AppRouter } from "@daoflow/server/router";
 import { Command } from "commander";
 import { getCurrentContext, loadConfig } from "../config";
 import { resolveCommandJsonOption } from "../command-helpers";
+import { createClient } from "../trpc-client";
 
 interface DoctorCheck {
   name: string;
@@ -33,18 +32,7 @@ export function doctorCommand(): Command {
 
       if (ctx) {
         try {
-          const trpc = createTRPCClient<AppRouter>({
-            links: [
-              httpLink({
-                url: `${ctx.apiUrl.replace(/\/$/, "")}/trpc`,
-                headers() {
-                  return {
-                    Cookie: `better-auth.session_token=${ctx.token}`
-                  };
-                }
-              })
-            ]
-          });
+          const trpc = createClient(ctx);
           const health = await trpc.health.query();
           checks.push({
             name: "API connectivity",

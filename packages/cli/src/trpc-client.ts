@@ -1,17 +1,14 @@
 /**
  * Typed tRPC client for CLI commands.
  *
- * Uses `@trpc/client` with the shared `AppRouter` type from `@daoflow/server/router`
- * so every CLI command gets full type-safety without duplicating return types.
+ * The CLI keeps a local contract surface instead of importing server package types
+ * so the binary stays decoupled from `@daoflow/server`.
  */
-import { createTRPCClient, httpLink, type TRPCClient } from "@trpc/client";
-import type { inferRouterInputs, inferRouterOutputs } from "@trpc/server";
-import type { AppRouter } from "@daoflow/server/router";
+import { createTRPCClient, httpLink } from "@trpc/client";
 import { getCurrentContext, type DaoFlowContext } from "./config";
+import type { DaoFlowRouterBase, DaoFlowTRPC } from "./trpc-contract";
 
-export type DaoFlowTRPC = TRPCClient<AppRouter>;
-export type RouterInputs = inferRouterInputs<AppRouter>;
-export type RouterOutputs = inferRouterOutputs<AppRouter>;
+export type { CreateAgentInput, RouterOutputs } from "./trpc-contract";
 
 /**
  * Create a fully-typed tRPC client configured with the current CLI context.
@@ -27,7 +24,7 @@ export function createClient(ctx?: DaoFlowContext): DaoFlowTRPC {
 
   const baseUrl = resolved.apiUrl.replace(/\/$/, "");
 
-  return createTRPCClient<AppRouter>({
+  return createTRPCClient<DaoFlowRouterBase>({
     links: [
       httpLink({
         url: `${baseUrl}/trpc`,
@@ -38,5 +35,5 @@ export function createClient(ctx?: DaoFlowContext): DaoFlowTRPC {
         }
       })
     ]
-  });
+  }) as unknown as DaoFlowTRPC;
 }
