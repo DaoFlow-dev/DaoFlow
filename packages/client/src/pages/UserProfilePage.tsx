@@ -4,7 +4,18 @@ import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { User, Mail, Lock, Shield, Key, Clock, Save, Loader2 } from "lucide-react";
+import {
+  User,
+  Mail,
+  Lock,
+  Shield,
+  Key,
+  Clock,
+  Save,
+  Loader2,
+  Upload,
+  Smartphone
+} from "lucide-react";
 
 export default function UserProfilePage() {
   const session = useSession();
@@ -249,6 +260,39 @@ export default function UserProfilePage() {
               </p>
             </div>
             <Badge variant="default">Active</Badge>
+          </div>
+          <div className="mt-4 flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => toast.info("Revoke other sessions coming soon")}
+            >
+              Revoke all other sessions
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Two-Factor Authentication */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Smartphone size={16} />
+            Two-Factor Authentication
+          </CardTitle>
+          <CardDescription>Add an extra layer of security to your account.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between">
+            <div className="space-y-1">
+              <p className="text-sm font-medium">Status: Not enabled</p>
+              <p className="text-xs text-muted-foreground">
+                Use an authenticator app to generate one-time codes.
+              </p>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => toast.info("2FA setup coming soon")}>
+              Enable 2FA
+            </Button>
           </div>
         </CardContent>
       </Card>

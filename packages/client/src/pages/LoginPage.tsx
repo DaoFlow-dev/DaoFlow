@@ -87,7 +87,8 @@ export default function LoginPage() {
           The agentic platform to host deterministic systems — from one prompt to production.
         </p>
 
-        <Card className="login-page__card">
+        <Card className="login-page__card overflow-hidden">
+          <div className="h-1.5 bg-gradient-to-r from-primary via-primary/60 to-primary/20" />
           <CardHeader className="text-center">
             <h2 className="text-xl font-semibold leading-none tracking-tight">Welcome</h2>
             <CardDescription>Sign in to your account or create a new one</CardDescription>
