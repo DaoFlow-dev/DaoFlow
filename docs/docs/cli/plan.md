@@ -6,6 +6,8 @@ sidebar_position: 8
 
 Generate a deployment plan without executing it. This is the primary planning command for AI agents.
 
+For compose-backed plans, DaoFlow now surfaces env precedence, masked provenance, and unresolved Compose interpolation before `deploy --yes`.
+
 ## Usage
 
 ```bash
@@ -60,6 +62,53 @@ Service plan:
       "dockerfilePath": null,
       "composeServiceName": "api",
       "healthcheckPath": "/healthz"
+    },
+    "composeEnvPlan": {
+      "branch": "main",
+      "matchedBranchOverrideCount": 1,
+      "composeEnv": {
+        "precedence": ["repo-defaults", "environment-variables"],
+        "counts": {
+          "total": 3,
+          "repoDefaults": 1,
+          "environmentVariables": 2,
+          "runtime": 1,
+          "build": 1,
+          "secrets": 1,
+          "overriddenRepoDefaults": 1
+        },
+        "warnings": [],
+        "entries": [
+          {
+            "key": "DATABASE_URL",
+            "displayValue": "[secret]",
+            "category": "runtime",
+            "isSecret": true,
+            "source": "inline",
+            "branchPattern": "main",
+            "origin": "environment-variable",
+            "overrodeRepoDefault": false
+          }
+        ]
+      },
+      "interpolation": {
+        "status": "warn",
+        "summary": {
+          "totalReferences": 4,
+          "unresolved": 1,
+          "requiredMissing": 0,
+          "optionalMissing": 1
+        },
+        "warnings": [],
+        "unresolved": [
+          {
+            "key": "OPTIONAL_VALUE",
+            "expression": "$OPTIONAL_VALUE",
+            "severity": "warn",
+            "detail": "Compose interpolation $OPTIONAL_VALUE is unresolved for branch main; Docker Compose will substitute a blank string."
+          }
+        ]
+      }
     },
     "target": {
       "serverId": "srv_123",
@@ -119,6 +168,46 @@ Compose plan:
       "action": "create",
       "sourceType": "compose"
     },
+    "composeEnvPlan": {
+      "branch": "main",
+      "matchedBranchOverrideCount": 0,
+      "composeEnv": {
+        "precedence": ["repo-defaults", "environment-variables"],
+        "counts": {
+          "total": 1,
+          "repoDefaults": 1,
+          "environmentVariables": 0,
+          "runtime": 0,
+          "build": 0,
+          "secrets": 0,
+          "overriddenRepoDefaults": 0
+        },
+        "warnings": [],
+        "entries": [
+          {
+            "key": "IMAGE_TAG",
+            "displayValue": "[repo-default]",
+            "category": "default",
+            "isSecret": false,
+            "source": "repo-default",
+            "branchPattern": null,
+            "origin": "repo-default",
+            "overrodeRepoDefault": false
+          }
+        ]
+      },
+      "interpolation": {
+        "status": "ok",
+        "summary": {
+          "totalReferences": 1,
+          "unresolved": 0,
+          "requiredMissing": 0,
+          "optionalMissing": 0
+        },
+        "warnings": [],
+        "unresolved": []
+      }
+    },
     "target": {
       "serverId": "srv_prod",
       "serverName": "prod",
@@ -151,4 +240,4 @@ Compose plan:
 
 ## Agent Usage
 
-The `plan` command is safe for AI agents. For service plans it previews a registered service rollout; for compose plans it inspects local bundle metadata first and then asks the control plane for a non-mutating direct-deploy preview. Use it before `deploy --yes` to preview changes.
+The `plan` command is safe for AI agents. For service plans it previews a registered service rollout; for compose plans it inspects local bundle metadata and adjacent repo-default `.env` content first, then asks the control plane for a non-mutating direct-deploy preview. Use it before `deploy --yes` to preview changes and catch missing interpolation inputs early.

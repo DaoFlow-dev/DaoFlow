@@ -390,7 +390,7 @@ describe("appRouter", () => {
     });
 
     const services = await caller.services({});
-    const service = services[0];
+    const service = services.find((candidate) => candidate.sourceType === "compose") ?? services[0];
 
     if (!service) {
       return;
@@ -406,6 +406,10 @@ describe("appRouter", () => {
     expect(plan.steps.length).toBeGreaterThan(0);
     expect(Array.isArray(plan.preflightChecks)).toBe(true);
     expect(plan.executeCommand).toContain("daoflow deploy");
+    if (plan.service.sourceType === "compose") {
+      expect(plan.composeEnvPlan).toBeTruthy();
+      expect(plan.composeEnvPlan?.branch).toEqual(expect.any(String));
+    }
   });
 
   it("rejects planning requests that override the configured target server", async () => {

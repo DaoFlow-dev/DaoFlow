@@ -3,8 +3,9 @@ import { TRPCError } from "@trpc/server";
 import { describe, expect, it } from "vitest";
 import type { Context } from "./context";
 import { db } from "./db/connection";
+import { encrypt } from "./db/crypto";
 import { deployments } from "./db/schema/deployments";
-import { projects } from "./db/schema/projects";
+import { environmentVariables, projects } from "./db/schema/projects";
 import { teams } from "./db/schema/teams";
 import { createEnvironment, createProject } from "./db/services/projects";
 import { ensureControlPlaneReady } from "./db/services/seed";
@@ -244,6 +245,109 @@ describe("planning diff surfaces", () => {
       .limit(1);
 
     expect(projectAfter).toBeUndefined();
+  });
+
+  it("surfaces env precedence and unresolved interpolation in direct compose plans", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-compose-plan-env-diagnostics",
+      session: makeSession("viewer")
+    });
+
+    fixtureCounter += 1;
+    const suffix = `${Date.now()}_${fixtureCounter}`;
+    const stackName = `compose-env-plan-${suffix}`;
+
+    const projectResult = await createProject({
+      name: stackName,
+      description: "Compose planning env diagnostics fixture",
+      teamId: "team_foundation",
+      requestedByUserId: "user_foundation_owner",
+      requestedByEmail: "owner@daoflow.local",
+      requestedByRole: "owner"
+    });
+    if (projectResult.status !== "ok") {
+      throw new Error("Failed to create compose env plan fixture project.");
+    }
+
+    const environmentResult = await createEnvironment({
+      projectId: projectResult.project.id,
+      name: "production",
+      targetServerId: "srv_foundation_1",
+      requestedByUserId: "user_foundation_owner",
+      requestedByEmail: "owner@daoflow.local",
+      requestedByRole: "owner"
+    });
+    if (environmentResult.status !== "ok") {
+      throw new Error("Failed to create compose env plan fixture environment.");
+    }
+
+    const serviceResult = await createService({
+      name: stackName,
+      projectId: projectResult.project.id,
+      environmentId: environmentResult.environment.id,
+      sourceType: "compose",
+      targetServerId: "srv_foundation_1",
+      requestedByUserId: "user_foundation_owner",
+      requestedByEmail: "owner@daoflow.local",
+      requestedByRole: "owner"
+    });
+    if (serviceResult.status !== "ok") {
+      throw new Error("Failed to create compose env plan fixture service.");
+    }
+
+    await db.insert(environmentVariables).values({
+      environmentId: environmentResult.environment.id,
+      key: "DATABASE_URL",
+      valueEncrypted: encrypt("postgres://fixture"),
+      isSecret: "true",
+      category: "runtime",
+      branchPattern: "main",
+      updatedByUserId: "user_foundation_owner"
+    });
+
+    const plan = await caller.composeDeploymentPlan({
+      server: "srv_foundation_1",
+      compose: [
+        `name: ${stackName}`,
+        "services:",
+        "  api:",
+        "    image: example/api:${IMAGE_TAG}",
+        "    environment:",
+        "      DATABASE_URL: ${DATABASE_URL?required}",
+        "      OPTIONAL_VALUE: $OPTIONAL_VALUE",
+        "      REQUIRED_VALUE: ${REQUIRED_VALUE?missing}"
+      ].join("\n"),
+      composePath: "./fixtures/compose.yaml",
+      contextPath: ".",
+      repoDefaultContent: "IMAGE_TAG=stable\n",
+      localBuildContexts: [],
+      requiresContextUpload: false
+    });
+
+    expect(plan.project.action).toBe("reuse");
+    expect(plan.environment.action).toBe("reuse");
+    expect(plan.service.action).toBe("reuse");
+    expect(plan.composeEnvPlan.branch).toBe("main");
+    expect(plan.composeEnvPlan.composeEnv.counts).toMatchObject({
+      total: 2,
+      repoDefaults: 1,
+      environmentVariables: 1,
+      secrets: 1
+    });
+    expect(plan.composeEnvPlan.interpolation.status).toBe("fail");
+    expect(plan.composeEnvPlan.interpolation.unresolved).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          expression: "$OPTIONAL_VALUE",
+          severity: "warn"
+        }),
+        expect.objectContaining({
+          expression: "${REQUIRED_VALUE?missing}",
+          severity: "fail"
+        })
+      ])
+    );
+    expect(plan.isReady).toBe(false);
   });
 
   it("returns a scoped config diff from the planning lane", async () => {

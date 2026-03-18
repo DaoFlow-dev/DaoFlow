@@ -3,6 +3,7 @@ import {
   encryptComposeDeploymentEnvEntries,
   readDeploymentComposeEnvState
 } from "./db/services/compose-env";
+import { buildComposeEnvPlanDiagnostics } from "./compose-env-plan";
 import {
   buildComposeEnvArtifact,
   buildQueuedComposeEnvEvidence,
@@ -134,6 +135,58 @@ bad line
         key: "API_TOKEN",
         displayValue: "[secret]"
       })
+    ]);
+  });
+
+  it("reports unresolved compose interpolation during planning", () => {
+    const diagnostics = buildComposeEnvPlanDiagnostics({
+      branch: "preview/pr-42",
+      composeContent: [
+        "services:",
+        "  api:",
+        "    image: example/api:${IMAGE_TAG}",
+        "    environment:",
+        "      DATABASE_URL: ${DATABASE_URL?required}",
+        "      OPTIONAL_VALUE: $OPTIONAL_VALUE",
+        "      FALLBACK_VALUE: ${FALLBACK_VALUE:-default}"
+      ].join("\n"),
+      repoDefaultContent: "IMAGE_TAG=preview-42\n",
+      deploymentEntries: [
+        {
+          key: "DATABASE_URL",
+          value: "postgres://preview",
+          category: "runtime",
+          isSecret: true,
+          source: "inline",
+          branchPattern: "preview/*"
+        }
+      ]
+    });
+
+    expect(diagnostics.composeEnv.counts.total).toBe(2);
+    expect(diagnostics.matchedBranchOverrideCount).toBe(1);
+    expect(diagnostics.interpolation.status).toBe("warn");
+    expect(diagnostics.interpolation.summary.totalReferences).toBe(4);
+    expect(diagnostics.interpolation.summary.optionalMissing).toBe(1);
+    expect(diagnostics.interpolation.summary.requiredMissing).toBe(0);
+    expect(diagnostics.interpolation.unresolved).toEqual([
+      expect.objectContaining({
+        expression: "$OPTIONAL_VALUE",
+        severity: "warn"
+      })
+    ]);
+  });
+
+  it("marks compose interpolation analysis unavailable when compose content is missing", () => {
+    const diagnostics = buildComposeEnvPlanDiagnostics({
+      branch: "main",
+      deploymentEntries: [],
+      warnings: ["Compose source analysis could not read deploy/compose.yaml: unavailable."]
+    });
+
+    expect(diagnostics.interpolation.status).toBe("unavailable");
+    expect(diagnostics.interpolation.warnings).toEqual([
+      "Compose source analysis could not read deploy/compose.yaml: unavailable."
     ]);
   });
 

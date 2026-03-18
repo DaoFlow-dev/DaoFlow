@@ -1,5 +1,5 @@
 import { existsSync, readFileSync, unlinkSync } from "node:fs";
-import { resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { emitJsonSuccess } from "./command-helpers";
 import {
   printComposeDeploymentPlan,
@@ -16,6 +16,7 @@ export interface ComposeDeploymentPlanClientLike {
       compose: string;
       composePath?: string;
       contextPath?: string;
+      repoDefaultContent?: string;
       localBuildContexts: Array<{
         serviceName: string;
         context: string;
@@ -32,6 +33,15 @@ export interface ComposeDeploymentPlanClientLike {
   };
 }
 
+function readComposeRepoDefaults(composePath: string): string | undefined {
+  const repoDefaultPath = join(dirname(composePath), ".env");
+  if (!existsSync(repoDefaultPath)) {
+    return undefined;
+  }
+
+  return readFileSync(repoDefaultPath, "utf8");
+}
+
 function hasLocalContext(context: string): boolean {
   return context === "." || context.startsWith("./") || !context.includes(":");
 }
@@ -46,6 +56,7 @@ export async function fetchComposeDeploymentPlan(
   }
 
   const composeContent = readFileSync(resolvedCompose, "utf8");
+  const repoDefaultContent = readComposeRepoDefaults(resolvedCompose);
   const buildContexts = detectLocalBuildContexts(composeContent).map((context) => ({
     serviceName: context.serviceName,
     context: context.context,
@@ -95,6 +106,7 @@ export async function fetchComposeDeploymentPlan(
     compose: composeContent,
     composePath: options.composePath,
     contextPath: options.contextPath,
+    repoDefaultContent,
     localBuildContexts: buildContexts,
     requiresContextUpload,
     contextBundle,

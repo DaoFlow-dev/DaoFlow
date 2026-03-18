@@ -15,6 +15,7 @@ export const planningRouter = t.router({
         compose: z.string().min(1).max(1_000_000),
         composePath: z.string().min(1).max(500).optional(),
         contextPath: z.string().min(1).max(500).optional(),
+        repoDefaultContent: z.string().max(200_000).optional(),
         localBuildContexts: z
           .array(
             z.object({
@@ -42,6 +43,7 @@ export const planningRouter = t.router({
           composeContent: input.compose,
           composePath: input.composePath,
           contextPath: input.contextPath,
+          repoDefaultContent: input.repoDefaultContent,
           serverRef: input.server,
           localBuildContexts: input.localBuildContexts,
           requiresContextUpload: input.requiresContextUpload,

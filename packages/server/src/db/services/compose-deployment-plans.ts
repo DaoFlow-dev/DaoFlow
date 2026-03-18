@@ -1,8 +1,10 @@
 import { and, eq } from "drizzle-orm";
+import { buildComposeEnvPlanDiagnostics } from "../../compose-env-plan";
 import { db } from "../connection";
 import { environments, projects } from "../schema/projects";
 import { servers } from "../schema/servers";
 import { services } from "../schema/services";
+import { resolveComposeDeploymentEnvEntries } from "./compose-env";
 import { resolveTeamIdForUser } from "./teams";
 
 type PlanCheckStatus = "ok" | "warn" | "fail";
@@ -10,6 +12,60 @@ type ScopeAction = "reuse" | "create";
 
 function makeCheck(status: PlanCheckStatus, detail: string) {
   return { status, detail };
+}
+
+function summarizeComposeEnvPlanDiagnostics(input: {
+  branch: string;
+  diagnostics: ReturnType<typeof buildComposeEnvPlanDiagnostics>;
+}) {
+  const { diagnostics } = input;
+  const variableLabel =
+    diagnostics.composeEnv.counts.environmentVariables === 1 ? "variable" : "variables";
+  const branchScopedLabel =
+    diagnostics.matchedBranchOverrideCount === 1 ? "branch-scoped match" : "branch-scoped matches";
+
+  return `Compose env plan resolved ${diagnostics.composeEnv.counts.total} entries for branch ${input.branch}: ${diagnostics.composeEnv.counts.repoDefaults} repo defaults, ${diagnostics.composeEnv.counts.environmentVariables} DaoFlow-managed ${variableLabel}, ${diagnostics.composeEnv.counts.overriddenRepoDefaults} repo-default overrides, ${diagnostics.matchedBranchOverrideCount} ${branchScopedLabel}.`;
+}
+
+function buildComposeEnvPlanChecks(
+  diagnostics: ReturnType<typeof buildComposeEnvPlanDiagnostics>
+): Array<{ status: PlanCheckStatus; detail: string }> {
+  const checks: Array<{ status: PlanCheckStatus; detail: string }> = [
+    makeCheck("ok", summarizeComposeEnvPlanDiagnostics({ branch: diagnostics.branch, diagnostics }))
+  ];
+
+  for (const warning of diagnostics.interpolation.warnings) {
+    checks.push(makeCheck("warn", warning));
+  }
+
+  for (const issue of diagnostics.interpolation.unresolved) {
+    checks.push(makeCheck(issue.severity, issue.detail));
+  }
+
+  if (diagnostics.interpolation.status === "ok") {
+    checks.push(
+      makeCheck(
+        "ok",
+        `Compose interpolation analysis found ${diagnostics.interpolation.summary.totalReferences} references with no unresolved variables.`
+      )
+    );
+  } else if (diagnostics.interpolation.status === "warn") {
+    checks.push(
+      makeCheck(
+        "warn",
+        `Compose interpolation analysis found ${diagnostics.interpolation.summary.optionalMissing} unresolved optional references.`
+      )
+    );
+  } else if (diagnostics.interpolation.status === "unavailable") {
+    checks.push(
+      makeCheck(
+        "warn",
+        "Compose interpolation analysis is unavailable for this plan; only env precedence diagnostics are shown."
+      )
+    );
+  }
+
+  return checks;
 }
 
 function sanitizeName(value: string, fallback: string): string {
@@ -92,7 +148,12 @@ async function resolveExistingScope(input: {
 
   if (!project) {
     return {
-      project: { id: null, name: input.projectName, action: "create" as const },
+      project: {
+        id: null,
+        name: input.projectName,
+        action: "create" as const,
+        defaultBranch: null as string | null
+      },
       environment: {
         id: null,
         name: input.environmentName,
@@ -122,7 +183,12 @@ async function resolveExistingScope(input: {
 
   if (!environment) {
     return {
-      project: { id: project.id, name: project.name, action: "reuse" as const },
+      project: {
+        id: project.id,
+        name: project.name,
+        action: "reuse" as const,
+        defaultBranch: project.defaultBranch
+      },
       environment: {
         id: null,
         name: input.environmentName,
@@ -155,7 +221,12 @@ async function resolveExistingScope(input: {
     .limit(1);
 
   return {
-    project: { id: project.id, name: project.name, action: "reuse" as const },
+    project: {
+      id: project.id,
+      name: project.name,
+      action: "reuse" as const,
+      defaultBranch: project.defaultBranch
+    },
     environment: {
       id: environment.id,
       name: environment.name,
@@ -223,6 +294,7 @@ export interface ComposeDeploymentPlanInput {
   composeContent: string;
   composePath?: string;
   contextPath?: string;
+  repoDefaultContent?: string;
   serverRef: string;
   localBuildContexts: Array<{
     serviceName: string;
@@ -257,6 +329,19 @@ export async function buildComposeDeploymentPlan(input: ComposeDeploymentPlanInp
     environmentName,
     serviceName
   });
+  const branch = scope.project.defaultBranch ?? "main";
+  const deploymentEntries = scope.environment.id
+    ? await resolveComposeDeploymentEnvEntries({
+        environmentId: scope.environment.id,
+        branch
+      })
+    : [];
+  const composeEnvPlan = buildComposeEnvPlanDiagnostics({
+    branch,
+    composeContent,
+    repoDefaultContent: input.repoDefaultContent,
+    deploymentEntries
+  });
 
   const checks = [
     teamId
@@ -276,6 +361,7 @@ export async function buildComposeDeploymentPlan(input: ComposeDeploymentPlanInp
       ? makeCheck("ok", `Service ${scope.service.name} will be reused.`)
       : makeCheck("warn", `Service ${scope.service.name} will be created during execution.`)
   ];
+  checks.push(...buildComposeEnvPlanChecks(composeEnvPlan));
 
   if (
     scope.environment.currentTargetServerId &&
@@ -345,7 +431,11 @@ export async function buildComposeDeploymentPlan(input: ComposeDeploymentPlanInp
   return {
     isReady: checks.every((check) => check.status !== "fail"),
     deploymentSource,
-    project: scope.project,
+    project: {
+      id: scope.project.id,
+      name: scope.project.name,
+      action: scope.project.action
+    },
     environment: {
       id: scope.environment.id,
       name: scope.environment.name,
@@ -357,6 +447,7 @@ export async function buildComposeDeploymentPlan(input: ComposeDeploymentPlanInp
       action: scope.service.action,
       sourceType: "compose" as const
     },
+    composeEnvPlan,
     target: {
       serverId: resolvedServer.id,
       serverName: resolvedServer.name,

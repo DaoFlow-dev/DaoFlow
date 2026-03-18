@@ -1,14 +1,19 @@
 import { and, desc, eq } from "drizzle-orm";
+import { posix } from "node:path";
 import {
   formatDeploymentStatusLabel,
   getDeploymentStatusTone,
   normalizeDeploymentStatus
 } from "@daoflow/shared";
+import { buildComposeEnvPlanDiagnostics } from "../../compose-env-plan";
 import { db } from "../connection";
 import { deployments } from "../schema/deployments";
 import { environments, projects } from "../schema/projects";
 import { servers } from "../schema/servers";
 import { asRecord } from "./json-helpers";
+import { resolveComposeDeploymentEnvEntries } from "./compose-env";
+import { resolveComposeFilePath } from "./deployment-source";
+import { fetchProjectRepositoryTextFile } from "./project-source-files";
 import { resolveServiceForUser } from "./scoped-services";
 
 type PlanCheckStatus = "ok" | "warn" | "fail";
@@ -16,6 +21,110 @@ type DeploymentPlanSourceType = "compose" | "dockerfile" | "image";
 
 function makeCheck(status: PlanCheckStatus, detail: string) {
   return { status, detail };
+}
+
+function summarizeComposeEnvPlanDiagnostics(input: {
+  branch: string;
+  diagnostics: ReturnType<typeof buildComposeEnvPlanDiagnostics>;
+}) {
+  const { diagnostics } = input;
+  const variableLabel =
+    diagnostics.composeEnv.counts.environmentVariables === 1 ? "variable" : "variables";
+  const branchScopedLabel =
+    diagnostics.matchedBranchOverrideCount === 1 ? "branch-scoped match" : "branch-scoped matches";
+
+  return `Compose env plan resolved ${diagnostics.composeEnv.counts.total} entries for branch ${input.branch}: ${diagnostics.composeEnv.counts.repoDefaults} repo defaults, ${diagnostics.composeEnv.counts.environmentVariables} DaoFlow-managed ${variableLabel}, ${diagnostics.composeEnv.counts.overriddenRepoDefaults} repo-default overrides, ${diagnostics.matchedBranchOverrideCount} ${branchScopedLabel}.`;
+}
+
+function buildComposeEnvPlanChecks(
+  diagnostics: ReturnType<typeof buildComposeEnvPlanDiagnostics>
+): Array<{ status: PlanCheckStatus; detail: string }> {
+  const checks: Array<{ status: PlanCheckStatus; detail: string }> = [
+    makeCheck("ok", summarizeComposeEnvPlanDiagnostics({ branch: diagnostics.branch, diagnostics }))
+  ];
+
+  for (const warning of diagnostics.interpolation.warnings) {
+    checks.push(makeCheck("warn", warning));
+  }
+
+  for (const issue of diagnostics.interpolation.unresolved) {
+    checks.push(makeCheck(issue.severity, issue.detail));
+  }
+
+  if (diagnostics.interpolation.status === "ok") {
+    checks.push(
+      makeCheck(
+        "ok",
+        `Compose interpolation analysis found ${diagnostics.interpolation.summary.totalReferences} references with no unresolved variables.`
+      )
+    );
+  } else if (diagnostics.interpolation.status === "warn") {
+    checks.push(
+      makeCheck(
+        "warn",
+        `Compose interpolation analysis found ${diagnostics.interpolation.summary.optionalMissing} unresolved optional references.`
+      )
+    );
+  } else if (diagnostics.interpolation.status === "unavailable") {
+    checks.push(
+      makeCheck(
+        "warn",
+        "Compose interpolation analysis is unavailable for this plan; only env precedence diagnostics are shown."
+      )
+    );
+  }
+
+  return checks;
+}
+
+function resolveRepoDefaultPath(composeFilePath: string): string {
+  const directory = posix.dirname(composeFilePath);
+  return directory === "." ? ".env" : posix.join(directory, ".env");
+}
+
+async function resolveComposePlanInputs(input: {
+  project: typeof projects.$inferSelect;
+  environment: typeof environments.$inferSelect;
+  branch: string;
+}): Promise<{
+  composeContent: string | null;
+  repoDefaultContent: string | null;
+  warnings: string[];
+}> {
+  const composeFilePath = resolveComposeFilePath({
+    project: input.project,
+    environment: input.environment
+  });
+  const composeFile = await fetchProjectRepositoryTextFile({
+    project: input.project,
+    branch: input.branch,
+    path: composeFilePath
+  });
+
+  if (composeFile.status !== "ok") {
+    return {
+      composeContent: null,
+      repoDefaultContent: null,
+      warnings: [`Compose source analysis could not read ${composeFilePath}: ${composeFile.reason}`]
+    };
+  }
+
+  const repoDefaultFile = await fetchProjectRepositoryTextFile({
+    project: input.project,
+    branch: input.branch,
+    path: resolveRepoDefaultPath(composeFilePath)
+  });
+
+  return {
+    composeContent: composeFile.content,
+    repoDefaultContent: repoDefaultFile.status === "ok" ? repoDefaultFile.content : null,
+    warnings:
+      repoDefaultFile.status === "not_available"
+        ? [
+            `Compose repo-default analysis could not read ${resolveRepoDefaultPath(composeFilePath)}: ${repoDefaultFile.reason}`
+          ]
+        : []
+  };
 }
 
 function normalizeSourceType(value: string): DeploymentPlanSourceType {
@@ -154,6 +263,7 @@ export async function buildDeploymentPlan(input: BuildDeploymentPlanInput) {
     .limit(1);
 
   const sourceType = normalizeSourceType(service.sourceType);
+  let composeEnvPlan: ReturnType<typeof buildComposeEnvPlanDiagnostics> | null = null;
 
   const checks = [
     makeCheck("ok", `Service ${service.name} is registered in ${environment[0].name}.`),
@@ -170,6 +280,28 @@ export async function buildDeploymentPlan(input: BuildDeploymentPlanInput) {
       ? makeCheck("ok", `Deployment input will use ${effectiveImageTag}.`)
       : makeCheck("warn", "No explicit image reference is configured; execution must derive one.")
   ];
+
+  if (sourceType === "compose") {
+    const branch = project[0].defaultBranch ?? "main";
+    const deploymentEntries = await resolveComposeDeploymentEnvEntries({
+      environmentId: environment[0].id,
+      branch
+    });
+    const planInputs = await resolveComposePlanInputs({
+      project: project[0],
+      environment: environment[0],
+      branch
+    });
+
+    composeEnvPlan = buildComposeEnvPlanDiagnostics({
+      branch,
+      composeContent: planInputs.composeContent,
+      repoDefaultContent: planInputs.repoDefaultContent,
+      deploymentEntries,
+      warnings: planInputs.warnings
+    });
+    checks.push(...buildComposeEnvPlanChecks(composeEnvPlan));
+  }
 
   const steps = buildPlanSteps({
     sourceType,
@@ -210,6 +342,7 @@ export async function buildDeploymentPlan(input: BuildDeploymentPlanInput) {
       composeServiceName: service.composeServiceName,
       healthcheckPath: service.healthcheckPath
     },
+    composeEnvPlan,
     target: {
       serverId: resolvedServer?.id ?? null,
       serverName: resolvedServer?.name ?? null,

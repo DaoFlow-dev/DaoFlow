@@ -79,6 +79,46 @@ describe("previewComposeDeploy", () => {
                 action: "create",
                 sourceType: "compose"
               },
+              composeEnvPlan: {
+                branch: "main",
+                matchedBranchOverrideCount: 0,
+                composeEnv: {
+                  precedence: ["repo-defaults", "environment-variables"],
+                  counts: {
+                    total: 1,
+                    repoDefaults: 1,
+                    environmentVariables: 0,
+                    runtime: 0,
+                    build: 0,
+                    secrets: 0,
+                    overriddenRepoDefaults: 0
+                  },
+                  warnings: [],
+                  entries: [
+                    {
+                      key: "HELLO",
+                      displayValue: "[repo-default]",
+                      category: "default",
+                      isSecret: false,
+                      source: "repo-default",
+                      branchPattern: null,
+                      origin: "repo-default",
+                      overrodeRepoDefault: false
+                    }
+                  ]
+                },
+                interpolation: {
+                  status: "ok",
+                  summary: {
+                    totalReferences: 0,
+                    unresolved: 0,
+                    requiredMissing: 0,
+                    optionalMissing: 0
+                  },
+                  warnings: [],
+                  unresolved: []
+                }
+              },
               target: {
                 serverId: "srv_123",
                 serverName: "prod-west",
@@ -117,6 +157,7 @@ describe("previewComposeDeploy", () => {
     expect(receivedInput).toBeDefined();
     expect(receivedInput?.server).toBe("srv_123");
     expect(receivedInput?.requiresContextUpload).toBe(true);
+    expect(receivedInput?.repoDefaultContent).toBe("HELLO=world\n");
     expect(receivedInput?.contextBundle).toMatchObject({
       includedOverrides: [".env"]
     });
@@ -178,6 +219,46 @@ describe("previewComposeDeploy", () => {
                   action: "create",
                   sourceType: "compose"
                 },
+                composeEnvPlan: {
+                  branch: "main",
+                  matchedBranchOverrideCount: 0,
+                  composeEnv: {
+                    precedence: ["repo-defaults", "environment-variables"],
+                    counts: {
+                      total: 1,
+                      repoDefaults: 1,
+                      environmentVariables: 0,
+                      runtime: 0,
+                      build: 0,
+                      secrets: 0,
+                      overriddenRepoDefaults: 0
+                    },
+                    warnings: [],
+                    entries: [
+                      {
+                        key: "HELLO",
+                        displayValue: "[repo-default]",
+                        category: "default",
+                        isSecret: false,
+                        source: "repo-default",
+                        branchPattern: null,
+                        origin: "repo-default",
+                        overrodeRepoDefault: false
+                      }
+                    ]
+                  },
+                  interpolation: {
+                    status: "ok",
+                    summary: {
+                      totalReferences: 0,
+                      unresolved: 0,
+                      requiredMissing: 0,
+                      optionalMissing: 0
+                    },
+                    warnings: [],
+                    unresolved: []
+                  }
+                },
                 target: {
                   serverId: "srv_123",
                   serverName: "prod-west",
@@ -217,6 +298,7 @@ describe("previewComposeDeploy", () => {
     expect(receivedInput).toBeDefined();
     expect(receivedInput?.server).toBe("srv_123");
     expect(receivedInput?.requiresContextUpload).toBe(true);
+    expect(receivedInput?.repoDefaultContent).toBe("HELLO=world\n");
     expect(receivedInput?.contextBundle).toMatchObject({
       includedOverrides: [".env"]
     });
@@ -251,6 +333,46 @@ describe("previewComposeDeploy", () => {
             name: "preview-stack",
             action: "create",
             sourceType: "compose"
+          },
+          composeEnvPlan: {
+            branch: "main",
+            matchedBranchOverrideCount: 0,
+            composeEnv: {
+              precedence: ["repo-defaults", "environment-variables"],
+              counts: {
+                total: 1,
+                repoDefaults: 1,
+                environmentVariables: 0,
+                runtime: 0,
+                build: 0,
+                secrets: 0,
+                overriddenRepoDefaults: 0
+              },
+              warnings: [],
+              entries: [
+                {
+                  key: "HELLO",
+                  displayValue: "[repo-default]",
+                  category: "default",
+                  isSecret: false,
+                  source: "repo-default",
+                  branchPattern: null,
+                  origin: "repo-default",
+                  overrodeRepoDefault: false
+                }
+              ]
+            },
+            interpolation: {
+              status: "ok",
+              summary: {
+                totalReferences: 0,
+                unresolved: 0,
+                requiredMissing: 0,
+                optionalMissing: 0
+              },
+              warnings: [],
+              unresolved: []
+            }
           },
           target: {
             serverId: "srv_123",

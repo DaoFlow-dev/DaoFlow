@@ -18,6 +18,7 @@ POST /trpc/composeDeploymentPlan
     "compose": "name: preview-stack\nservices:\n  web:\n    build:\n      context: .\n",
     "composePath": "./compose.yaml",
     "contextPath": ".",
+    "repoDefaultContent": "IMAGE_TAG=preview-42\n",
     "localBuildContexts": [
       {
         "serviceName": "web",
@@ -61,6 +62,46 @@ POST /trpc/composeDeploymentPlan
           "name": "preview-stack",
           "action": "create",
           "sourceType": "compose"
+        },
+        "composeEnvPlan": {
+          "branch": "main",
+          "matchedBranchOverrideCount": 0,
+          "composeEnv": {
+            "precedence": ["repo-defaults", "environment-variables"],
+            "counts": {
+              "total": 1,
+              "repoDefaults": 1,
+              "environmentVariables": 0,
+              "runtime": 0,
+              "build": 0,
+              "secrets": 0,
+              "overriddenRepoDefaults": 0
+            },
+            "warnings": [],
+            "entries": [
+              {
+                "key": "IMAGE_TAG",
+                "displayValue": "[repo-default]",
+                "category": "default",
+                "isSecret": false,
+                "source": "repo-default",
+                "branchPattern": null,
+                "origin": "repo-default",
+                "overrodeRepoDefault": false
+              }
+            ]
+          },
+          "interpolation": {
+            "status": "ok",
+            "summary": {
+              "totalReferences": 1,
+              "unresolved": 0,
+              "requiredMissing": 0,
+              "optionalMissing": 0
+            },
+            "warnings": [],
+            "unresolved": []
+          }
         },
         "target": {
           "serverId": "srv_abc123",
@@ -107,7 +148,7 @@ POST /trpc/composeDeploymentPlan
 }
 ```
 
-The CLI computes local bundle metadata first, then sends that summary to the control plane so the returned plan can stay non-mutating while still reflecting local build-context upload requirements.
+The CLI computes local bundle metadata and adjacent repo-default `.env` content first, then sends that summary to the control plane so the returned plan can stay non-mutating while still reflecting local build-context upload requirements and Compose env precedence.
 
 ## deploymentPlan
 
@@ -146,6 +187,53 @@ POST /trpc/deploymentPlan
           "dockerfilePath": null,
           "composeServiceName": "api",
           "healthcheckPath": "/healthz"
+        },
+        "composeEnvPlan": {
+          "branch": "main",
+          "matchedBranchOverrideCount": 1,
+          "composeEnv": {
+            "precedence": ["repo-defaults", "environment-variables"],
+            "counts": {
+              "total": 3,
+              "repoDefaults": 1,
+              "environmentVariables": 2,
+              "runtime": 1,
+              "build": 1,
+              "secrets": 1,
+              "overriddenRepoDefaults": 1
+            },
+            "warnings": [],
+            "entries": [
+              {
+                "key": "DATABASE_URL",
+                "displayValue": "[secret]",
+                "category": "runtime",
+                "isSecret": true,
+                "source": "inline",
+                "branchPattern": "main",
+                "origin": "environment-variable",
+                "overrodeRepoDefault": false
+              }
+            ]
+          },
+          "interpolation": {
+            "status": "warn",
+            "summary": {
+              "totalReferences": 4,
+              "unresolved": 1,
+              "requiredMissing": 0,
+              "optionalMissing": 1
+            },
+            "warnings": [],
+            "unresolved": [
+              {
+                "key": "OPTIONAL_VALUE",
+                "expression": "$OPTIONAL_VALUE",
+                "severity": "warn",
+                "detail": "Compose interpolation $OPTIONAL_VALUE is unresolved for branch main; Docker Compose will substitute a blank string."
+              }
+            ]
+          }
         },
         "target": {
           "serverId": "srv_abc123",
@@ -187,7 +275,7 @@ POST /trpc/deploymentPlan
 }
 ```
 
-The current planning surface returns a deterministic preview from registered service, environment, server, and deployment records. It does not execute anything.
+The current planning surface returns a deterministic preview from registered service, environment, server, and deployment records. For compose-backed services it also resolves masked env precedence and attempts interpolation analysis from the tracked GitHub or GitLab compose source. It does not execute anything.
 
 ## rollbackPlan
 

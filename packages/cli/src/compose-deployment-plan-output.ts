@@ -1,4 +1,5 @@
 import chalk from "chalk";
+import { printComposeEnvPlan, type ComposeEnvPlanPreview } from "./compose-env-plan-output";
 
 export interface ComposeDeploymentPlanPreview {
   isReady: boolean;
@@ -19,6 +20,7 @@ export interface ComposeDeploymentPlanPreview {
     action: "reuse" | "create";
     sourceType: "compose";
   };
+  composeEnvPlan: ComposeEnvPlanPreview;
   target: {
     serverId: string;
     serverName: string;
@@ -113,6 +115,8 @@ export function printComposeDeploymentPlan(
     }
     console.log();
   }
+
+  printComposeEnvPlan(plan.composeEnvPlan);
 
   console.log(`  ${chalk.bold("Pre-flight checks:")}`);
   for (const check of plan.preflightChecks) {

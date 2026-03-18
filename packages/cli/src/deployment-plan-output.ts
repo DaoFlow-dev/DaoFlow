@@ -1,4 +1,5 @@
 import chalk from "chalk";
+import { printComposeEnvPlan, type ComposeEnvPlanPreview } from "./compose-env-plan-output";
 
 export interface DeploymentPlanPreview {
   isReady: boolean;
@@ -7,6 +8,7 @@ export interface DeploymentPlanPreview {
     projectName: string;
     environmentName: string;
   };
+  composeEnvPlan?: ComposeEnvPlanPreview | null;
   target: {
     serverName: string | null;
     imageTag: string | null;
@@ -48,6 +50,10 @@ export function printDeploymentPlan(
     console.log(chalk.dim(`    Status: ${plan.currentDeployment.statusLabel}`));
     console.log(chalk.dim(`    Image:  ${plan.currentDeployment.imageTag ?? "unknown"}`));
     console.log();
+  }
+
+  if (plan.composeEnvPlan) {
+    printComposeEnvPlan(plan.composeEnvPlan);
   }
 
   console.log(`  ${chalk.bold("Planned steps:")}`);
