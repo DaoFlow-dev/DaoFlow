@@ -98,7 +98,9 @@ export default function GeneralTab({ service }: GeneralTabProps) {
               Status
             </div>
             <div className="flex items-center gap-2">
-              <span className={`inline-block h-2.5 w-2.5 rounded-full ${statusColor(service.status)}`} />
+              <span
+                className={`inline-block h-2.5 w-2.5 rounded-full ${statusColor(service.status)}`}
+              />
               <Badge variant={statusVariant(service.status)} className="text-sm">
                 {service.status}
               </Badge>

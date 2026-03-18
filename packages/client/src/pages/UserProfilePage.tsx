@@ -3,15 +3,7 @@ import { useSession } from "@/lib/auth-client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import {
-  User,
-  Mail,
-  Lock,
-  Shield,
-  Key,
-  Clock,
-  Save
-} from "lucide-react";
+import { User, Mail, Lock, Shield, Key, Clock, Save } from "lucide-react";
 
 export default function UserProfilePage() {
   const session = useSession();
@@ -203,9 +195,7 @@ export default function UserProfilePage() {
             <div>
               <dt className="text-muted-foreground">Role</dt>
               <dd className="mt-0.5">
-                <Badge variant="outline">
-                  {(user as { role?: string }).role ?? "user"}
-                </Badge>
+                <Badge variant="outline">{(user as { role?: string }).role ?? "user"}</Badge>
               </dd>
             </div>
           </dl>

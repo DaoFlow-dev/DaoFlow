@@ -200,7 +200,8 @@ export default function EnvironmentTab({
           <div>
             <label className="text-sm font-medium mb-1.5 block">Build-time Secrets</label>
             <p className="text-xs text-muted-foreground mb-2">
-              Secrets available only at build-time via --mount=type=secret. Never stored in image layers.
+              Secrets available only at build-time via --mount=type=secret. Never stored in image
+              layers.
             </p>
             <textarea
               className="w-full min-h-[80px] rounded-md border bg-background px-3 py-2 text-sm font-mono placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-y"

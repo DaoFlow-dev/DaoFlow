@@ -45,10 +45,7 @@ export default function DashboardPage() {
   const loggedIn = Boolean(session.data);
 
   const serverReadiness = trpc.serverReadiness.useQuery({}, { enabled: loggedIn });
-  const recentDeployments = trpc.recentDeployments.useQuery(
-    { limit: 10 },
-    { enabled: loggedIn }
-  );
+  const recentDeployments = trpc.recentDeployments.useQuery({ limit: 10 }, { enabled: loggedIn });
   const infra = trpc.infrastructureInventory.useQuery(undefined, { enabled: loggedIn });
 
   const servers = infra.data?.servers ?? [];
@@ -61,10 +58,34 @@ export default function DashboardPage() {
       : projects.reduce((sum, p) => sum + Number(p.serviceCount ?? 0), 0);
 
   const stats = [
-    { label: "Servers", value: servers.length, icon: Server, color: "text-blue-500", bg: "bg-blue-500/10" },
-    { label: "Projects", value: projects.length, icon: FolderKanban, color: "text-purple-500", bg: "bg-purple-500/10" },
-    { label: "Deployments", value: deployments.length, icon: Rocket, color: "text-amber-500", bg: "bg-amber-500/10" },
-    { label: "Services", value: totalServices, icon: Activity, color: "text-emerald-500", bg: "bg-emerald-500/10" }
+    {
+      label: "Servers",
+      value: servers.length,
+      icon: Server,
+      color: "text-blue-500",
+      bg: "bg-blue-500/10"
+    },
+    {
+      label: "Projects",
+      value: projects.length,
+      icon: FolderKanban,
+      color: "text-purple-500",
+      bg: "bg-purple-500/10"
+    },
+    {
+      label: "Deployments",
+      value: deployments.length,
+      icon: Rocket,
+      color: "text-amber-500",
+      bg: "bg-amber-500/10"
+    },
+    {
+      label: "Services",
+      value: totalServices,
+      icon: Activity,
+      color: "text-emerald-500",
+      bg: "bg-emerald-500/10"
+    }
   ];
 
   return (
@@ -92,7 +113,9 @@ export default function DashboardPage() {
         {stats.map((s) => (
           <Card key={s.label}>
             <CardContent className="flex items-center gap-4 p-4">
-              <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${s.bg}`}>
+              <div
+                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${s.bg}`}
+              >
                 <s.icon size={20} className={s.color} />
               </div>
               <div>
@@ -114,7 +137,10 @@ export default function DashboardPage() {
           <CardContent>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {checks.map((s) => (
-                <div key={String(s.serverId)} className="flex items-center gap-3 rounded-lg border p-3">
+                <div
+                  key={String(s.serverId)}
+                  className="flex items-center gap-3 rounded-lg border p-3"
+                >
                   {s.sshReachable ? (
                     <CheckCircle2 size={18} className="text-emerald-500" />
                   ) : (
@@ -168,11 +194,16 @@ export default function DashboardPage() {
                 >
                   {/* Status dot */}
                   <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted">
-                    <Rocket size={16} className={
-                      d.status === "healthy" || d.status === "running" ? "text-emerald-500"
-                        : d.status === "failed" ? "text-red-500"
-                        : "text-amber-500"
-                    } />
+                    <Rocket
+                      size={16}
+                      className={
+                        d.status === "healthy" || d.status === "running"
+                          ? "text-emerald-500"
+                          : d.status === "failed"
+                            ? "text-red-500"
+                            : "text-amber-500"
+                      }
+                    />
                   </div>
 
                   {/* Info */}
@@ -181,7 +212,10 @@ export default function DashboardPage() {
                       <span className="text-sm font-medium truncate">
                         {String(d.serviceName ?? d.projectId ?? "—")}
                       </span>
-                      <Badge variant={statusVariant(String(d.status))} className="text-[10px] px-1.5 py-0">
+                      <Badge
+                        variant={statusVariant(String(d.status))}
+                        className="text-[10px] px-1.5 py-0"
+                      >
                         {String(d.status)}
                       </Badge>
                     </div>

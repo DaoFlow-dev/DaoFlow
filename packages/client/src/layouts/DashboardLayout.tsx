@@ -194,9 +194,7 @@ export function DashboardLayout() {
                 <p className="text-xs text-muted-foreground">{session.data.user.email}</p>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onClick={() => void navigate("/profile")}
-              >
+              <DropdownMenuItem onClick={() => void navigate("/profile")}>
                 <User size={14} />
                 Profile Settings
               </DropdownMenuItem>

@@ -25,9 +25,7 @@ export function ProjectGitCard({ config }: ProjectGitCardProps) {
 
   if (!repoUrl) return null;
 
-  const shortUrl = repoUrl
-    .replace(/^https?:\/\//, "")
-    .replace(/\.git$/, "");
+  const shortUrl = repoUrl.replace(/^https?:\/\//, "").replace(/\.git$/, "");
 
   return (
     <Card>
