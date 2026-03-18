@@ -35,6 +35,18 @@ export interface ComposeDriftRecord {
   diffs: ComposeDriftDiffRecord[];
 }
 
+function formatReleaseTrackLabel(releaseTrack: string) {
+  if (!releaseTrack) {
+    return "Stable";
+  }
+
+  return `${releaseTrack.slice(0, 1).toUpperCase()}${releaseTrack.slice(1)}`;
+}
+
+function getReleaseTrackTone(releaseTrack: string) {
+  return releaseTrack === "stable" ? "healthy" : "running";
+}
+
 function normalizeRepositoryPath(path: string, fallback: string): string {
   if (!path) return fallback;
   return isAbsolute(path) ? basename(path) : path;
@@ -46,27 +58,33 @@ export async function listComposeReleaseCatalog(limit = 24) {
     const config = asRecord(environment.config);
     const composeServices = readRecordArray(config, "composeServices");
 
-    return composeServices.map((service) => ({
-      id: readString(service, "id"),
-      environmentId: environment.id,
-      environmentName: environment.name,
-      projectName: readString(config, "projectName"),
-      targetServerId: readString(config, "targetServerId"),
-      targetServerName: readString(config, "targetServerName"),
-      serviceName: readString(service, "serviceName"),
-      composeFilePath: readString(config, "composeFilePath"),
-      networkName: readString(config, "networkName"),
-      imageReference: readString(service, "imageReference"),
-      imageTag: readString(service, "imageReference"),
-      replicaCount: readNumber(service, "replicaCount", 0) ?? 0,
-      exposedPorts: readStringArray(service, "exposedPorts"),
-      dependencies: readStringArray(service, "dependencies"),
-      volumeMounts: readStringArray(service, "volumeMounts"),
-      healthcheckPath: readString(service, "healthcheckPath") || null,
-      releaseTrack: readString(service, "releaseTrack", "stable"),
-      status: environment.status,
-      createdAt: environment.createdAt.toISOString()
-    }));
+    return composeServices.map((service) => {
+      const releaseTrack = readString(service, "releaseTrack", "stable");
+
+      return {
+        id: readString(service, "id"),
+        environmentId: environment.id,
+        environmentName: environment.name,
+        projectName: readString(config, "projectName"),
+        targetServerId: readString(config, "targetServerId"),
+        targetServerName: readString(config, "targetServerName"),
+        serviceName: readString(service, "serviceName"),
+        composeFilePath: readString(config, "composeFilePath"),
+        networkName: readString(config, "networkName"),
+        imageReference: readString(service, "imageReference"),
+        imageTag: readString(service, "imageReference"),
+        replicaCount: readNumber(service, "replicaCount", 0) ?? 0,
+        exposedPorts: readStringArray(service, "exposedPorts"),
+        dependencies: readStringArray(service, "dependencies"),
+        volumeMounts: readStringArray(service, "volumeMounts"),
+        healthcheckPath: readString(service, "healthcheckPath") || null,
+        releaseTrack,
+        releaseTrackTone: getReleaseTrackTone(releaseTrack),
+        releaseTrackLabel: formatReleaseTrackLabel(releaseTrack),
+        status: environment.status,
+        createdAt: environment.createdAt.toISOString()
+      };
+    });
   });
 
   const sliced = services.slice(0, limit);

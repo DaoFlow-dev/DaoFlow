@@ -18,6 +18,8 @@ interface ComposeService {
   volumeMounts: string[];
   healthcheckPath: string | null;
   releaseTrack: string;
+  releaseTrackTone?: string;
+  releaseTrackLabel?: string;
 }
 
 interface ComposeReleaseCatalogData {
@@ -194,48 +196,51 @@ export function ComposeReleaseCatalog({
           </div>
 
           <div className="compose-release-list">
-            {composeReleaseCatalog.data.services.map((service) => (
-              <article
-                className="token-card"
-                data-testid={`compose-service-card-${service.id}`}
-                key={service.id}
-              >
-                <div className="token-card__top">
-                  <div>
-                    <p className="roadmap-item__lane">
-                      {service.environmentName} · {service.projectName}
-                    </p>
-                    <h3>{service.serviceName}</h3>
+            {composeReleaseCatalog.data.services.map((service) => {
+              const releaseTrackTone = service.releaseTrackTone ?? service.releaseTrack;
+              const releaseTrackLabel = service.releaseTrackLabel ?? service.releaseTrack;
+
+              return (
+                <article
+                  className="token-card"
+                  data-testid={`compose-service-card-${service.id}`}
+                  key={service.id}
+                >
+                  <div className="token-card__top">
+                    <div>
+                      <p className="roadmap-item__lane">
+                        {service.environmentName} · {service.projectName}
+                      </p>
+                      <h3>{service.serviceName}</h3>
+                    </div>
+                    <span className={`deployment-status deployment-status--${releaseTrackTone}`}>
+                      {releaseTrackLabel}
+                    </span>
                   </div>
-                  <span
-                    className={`deployment-status deployment-status--${service.releaseTrack === "stable" ? "healthy" : "running"}`}
-                  >
-                    {service.releaseTrack}
-                  </span>
-                </div>
-                <p className="deployment-card__meta">
-                  {service.targetServerName} · {service.composeFilePath}
-                </p>
-                <p className="deployment-card__meta">
-                  Image: {service.imageReference} · Replicas: {service.replicaCount}
-                </p>
-                <p className="deployment-card__meta">
-                  Ports:{" "}
-                  {service.exposedPorts.length > 0
-                    ? service.exposedPorts.join(", ")
-                    : "internal only"}
-                </p>
-                <p className="deployment-card__meta">
-                  Dependencies:{" "}
-                  {service.dependencies.length > 0 ? service.dependencies.join(", ") : "none"} ·
-                  Network: {service.networkName}
-                </p>
-                <p className="deployment-card__meta">
-                  Volumes: {service.volumeMounts.join(", ")} · Healthcheck:{" "}
-                  {service.healthcheckPath ?? "process-level"}
-                </p>
-              </article>
-            ))}
+                  <p className="deployment-card__meta">
+                    {service.targetServerName} · {service.composeFilePath}
+                  </p>
+                  <p className="deployment-card__meta">
+                    Image: {service.imageReference} · Replicas: {service.replicaCount}
+                  </p>
+                  <p className="deployment-card__meta">
+                    Ports:{" "}
+                    {service.exposedPorts.length > 0
+                      ? service.exposedPorts.join(", ")
+                      : "internal only"}
+                  </p>
+                  <p className="deployment-card__meta">
+                    Dependencies:{" "}
+                    {service.dependencies.length > 0 ? service.dependencies.join(", ") : "none"} ·
+                    Network: {service.networkName}
+                  </p>
+                  <p className="deployment-card__meta">
+                    Volumes: {service.volumeMounts.join(", ")} · Healthcheck:{" "}
+                    {service.healthcheckPath ?? "process-level"}
+                  </p>
+                </article>
+              );
+            })}
           </div>
         </>
       ) : (
