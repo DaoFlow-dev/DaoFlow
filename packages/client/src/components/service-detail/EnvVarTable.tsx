@@ -59,9 +59,7 @@ export function EnvVarTable({
           <Input
             placeholder="KEY"
             value={newKey}
-            onChange={(e) =>
-              setNewKey(e.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, "_"))
-            }
+            onChange={(e) => setNewKey(e.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, "_"))}
             className="h-8 font-mono text-sm flex-1"
           />
           <Input

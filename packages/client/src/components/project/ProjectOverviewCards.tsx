@@ -60,9 +60,7 @@ export function ProjectOverviewCards({
           </div>
           {lastDeploy ? (
             <div>
-              <span className="text-sm">
-                {new Date(lastDeploy.createdAt).toLocaleDateString()}
-              </span>
+              <span className="text-sm">{new Date(lastDeploy.createdAt).toLocaleDateString()}</span>
               <Badge variant="secondary" className="ml-2 text-xs">
                 {lastDeploy.status}
               </Badge>

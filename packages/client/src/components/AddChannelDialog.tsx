@@ -209,9 +209,7 @@ function EventSelectorGrid({
                 <p className="text-sm font-medium">{domain.label}</p>
                 <p className="text-xs text-muted-foreground">{domain.domain}</p>
               </button>
-              <Badge
-                variant={eventSelectors.includes(domain.domain) ? "default" : "secondary"}
-              >
+              <Badge variant={eventSelectors.includes(domain.domain) ? "default" : "secondary"}>
                 {eventSelectors.includes(domain.domain) ? "Enabled" : "Optional"}
               </Badge>
             </div>
@@ -222,9 +220,7 @@ function EventSelectorGrid({
                   type="button"
                   size="sm"
                   variant={eventSelectors.includes(eventType) ? "default" : "outline"}
-                  onClick={() =>
-                    setEventSelectors((current) => toggleSelector(current, eventType))
-                  }
+                  onClick={() => setEventSelectors((current) => toggleSelector(current, eventType))}
                 >
                   {eventType}
                 </Button>

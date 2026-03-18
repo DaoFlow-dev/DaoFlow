@@ -80,9 +80,7 @@ export function RegisterServerDialog({
             <Input
               id="server-name"
               value={form.name}
-              onChange={(event) =>
-                setForm((current) => ({ ...current, name: event.target.value }))
-              }
+              onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
               placeholder="edge-vps-1"
               required
             />
@@ -92,9 +90,7 @@ export function RegisterServerDialog({
             <Input
               id="server-host"
               value={form.host}
-              onChange={(event) =>
-                setForm((current) => ({ ...current, host: event.target.value }))
-              }
+              onChange={(event) => setForm((current) => ({ ...current, host: event.target.value }))}
               placeholder="203.0.113.42"
               required
             />

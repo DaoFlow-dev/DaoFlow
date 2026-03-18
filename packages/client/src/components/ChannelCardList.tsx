@@ -23,6 +23,10 @@ interface ChannelCardListProps {
   isDeletePending: boolean;
 }
 
+function readText(value: unknown, fallback = "") {
+  return typeof value === "string" ? value : fallback;
+}
+
 export function ChannelCardList({
   channels,
   onToggle,
@@ -33,16 +37,18 @@ export function ChannelCardList({
   return (
     <div className="grid gap-4">
       {channels.map((channel) => (
-        <Card key={String(channel.id)}>
+        <Card key={readText(channel.id, "channel")}>
           <CardHeader className="pb-3">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <CardTitle className="text-base">{String(channel.name)}</CardTitle>
+                <CardTitle className="text-base">
+                  {readText(channel.name, "Unnamed channel")}
+                </CardTitle>
                 <CardDescription>
-                  {labelChannelType(String(channel.channelType))}
-                  {channel.email ? ` · ${String(channel.email)}` : ""}
-                  {!channel.email && channel.webhookUrl
-                    ? ` · ${String(channel.webhookUrl)}`
+                  {labelChannelType(readText(channel.channelType))}
+                  {readText(channel.email) ? ` · ${readText(channel.email)}` : ""}
+                  {!readText(channel.email) && readText(channel.webhookUrl)
+                    ? ` · ${readText(channel.webhookUrl)}`
                     : ""}
                 </CardDescription>
               </div>
@@ -53,7 +59,7 @@ export function ChannelCardList({
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => onToggle(String(channel.id), !channel.enabled)}
+                  onClick={() => onToggle(readText(channel.id, "channel"), !channel.enabled)}
                   disabled={isTogglePending}
                 >
                   <Power size={14} />
@@ -61,7 +67,7 @@ export function ChannelCardList({
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => onDelete(String(channel.id))}
+                  onClick={() => onDelete(readText(channel.id, "channel"))}
                   disabled={isDeletePending}
                 >
                   <Trash2 size={14} className="text-destructive" />
@@ -80,7 +86,7 @@ export function ChannelCardList({
               )}
             </div>
             <p className="text-xs text-muted-foreground">
-              Created {new Date(String(channel.createdAt)).toLocaleString()}
+              Created {new Date(readText(channel.createdAt)).toLocaleString()}
             </p>
           </CardContent>
         </Card>
