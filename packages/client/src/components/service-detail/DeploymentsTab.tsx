@@ -3,7 +3,16 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ChevronDown, ChevronRight, Clock, XCircle, GitCompare, RotateCcw } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronRight,
+  Clock,
+  XCircle,
+  GitCompare,
+  RotateCcw,
+  Trash2,
+  Timer
+} from "lucide-react";
 import { useState } from "react";
 import {
   getBadgeVariantFromTone,
@@ -17,8 +26,19 @@ interface DeploymentsTabProps {
   serviceName: string;
 }
 
+function formatDuration(start: string, end?: string | null): string {
+  const ms = (end ? new Date(end).getTime() : Date.now()) - new Date(start).getTime();
+  const secs = Math.floor(ms / 1000);
+  if (secs < 60) return `${secs}s`;
+  const mins = Math.floor(secs / 60);
+  if (mins < 60) return `${mins}m ${secs % 60}s`;
+  const hrs = Math.floor(mins / 60);
+  return `${hrs}h ${mins % 60}m`;
+}
+
 export default function DeploymentsTab({ serviceId, serviceName }: DeploymentsTabProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [hideCompleted, setHideCompleted] = useState(false);
 
   const deployments = trpc.recentDeployments.useQuery({ limit: 50 });
   const rollbackTargets = trpc.rollbackTargets.useQuery({ serviceId });
@@ -32,8 +52,15 @@ export default function DeploymentsTab({ serviceId, serviceName }: DeploymentsTa
   });
 
   // Filter deployments for this service
-  const serviceDeployments =
+  const allServiceDeployments =
     deployments.data?.filter((d: { serviceName: string }) => d.serviceName === serviceName) ?? [];
+  const serviceDeployments = hideCompleted
+    ? allServiceDeployments.filter(
+        (d: { status: string; conclusion: string | null }) =>
+          d.status !== "completed" && d.conclusion !== "success"
+      )
+    : allServiceDeployments;
+  const completedCount = allServiceDeployments.length - serviceDeployments.length;
 
   if (deployments.isLoading) {
     return (
@@ -51,8 +78,20 @@ export default function DeploymentsTab({ serviceId, serviceName }: DeploymentsTa
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-medium text-muted-foreground">
           {serviceDeployments.length} deployment{serviceDeployments.length !== 1 ? "s" : ""}
+          {hideCompleted && completedCount > 0 && (
+            <span className="ml-1 text-xs">({completedCount} hidden)</span>
+          )}
         </h3>
         <div className="flex gap-2">
+          <Button
+            size="sm"
+            variant={hideCompleted ? "default" : "outline"}
+            onClick={() => setHideCompleted(!hideCompleted)}
+            title="Hide completed deployments"
+          >
+            <Trash2 size={14} className="mr-1" />
+            {hideCompleted ? "Show All" : "Hide Completed"}
+          </Button>
           <Button
             size="sm"
             variant="outline"
@@ -120,6 +159,10 @@ export default function DeploymentsTab({ serviceId, serviceName }: DeploymentsTa
                       <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
                         <Clock size={12} />
                         {new Date(d.createdAt).toLocaleString()}
+                        <span className="flex items-center gap-1">
+                          <Timer size={12} />
+                          {formatDuration(d.createdAt, d.conclusion ? d.createdAt : null)}
+                        </span>
                         {d.commitSha && (
                           <span className="font-mono">@ {d.commitSha.slice(0, 7)}</span>
                         )}
