@@ -5,6 +5,7 @@ import { db } from "./db/connection";
 import { users } from "./db/schema/users";
 import { bootstrapOwnerRole, defaultSignupRole } from "@daoflow/shared";
 import { DEFAULT_CLIENT_PORT, DEFAULT_SERVER_PORT } from "@daoflow/shared";
+import { resolveEmailSender } from "./email-transport";
 
 function resolveAuthBaseURL() {
   return process.env.BETTER_AUTH_URL ?? `http://localhost:${DEFAULT_SERVER_PORT}`;
@@ -24,6 +25,7 @@ function resolveAuthSecret() {
 
 const authBaseURL = resolveAuthBaseURL();
 const isHTTPS = authBaseURL.startsWith("https://");
+const emailSender = resolveEmailSender();
 
 export const auth = betterAuth({
   appName: "DaoFlow",
@@ -46,7 +48,9 @@ export const auth = betterAuth({
     usePlural: true
   }),
   emailAndPassword: {
-    enabled: true
+    enabled: true,
+    autoSignIn: true,
+    sendResetPassword: emailSender
   },
   user: {
     additionalFields: {
