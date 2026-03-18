@@ -10,9 +10,10 @@
  */
 
 import { spawn, type ChildProcess } from "node:child_process";
-import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { RepositoryPreparationConfig } from "../repository-preparation";
+import { parseComposeEnvFile } from "../compose-env";
 
 const STAGING_DIR = process.env.GIT_WORK_DIR ?? "/tmp/daoflow-staging";
 
@@ -24,6 +25,21 @@ export type LogLine = {
 
 export type OnLog = (line: LogLine) => void;
 type ExecRunner = typeof execStreaming;
+
+const COMPOSE_ENV_ALLOWLIST = [
+  "PATH",
+  "HOME",
+  "DOCKER_CONFIG",
+  "DOCKER_HOST",
+  "DOCKER_CONTEXT",
+  "DOCKER_CERT_PATH",
+  "DOCKER_TLS_VERIFY",
+  "SSH_AUTH_SOCK",
+  "XDG_RUNTIME_DIR",
+  "TMPDIR",
+  "LANG",
+  "LC_ALL"
+] as const;
 
 export interface GitCloneOptions {
   displayLabel?: string;
@@ -76,6 +92,32 @@ export function execStreaming(
       reject(err);
     });
   });
+}
+
+export function buildComposeCommandEnv(cwd: string, envFile?: string): Record<string, string> {
+  const env: Record<string, string> = { DOCKER_CLI_HINTS: "false" };
+
+  for (const key of COMPOSE_ENV_ALLOWLIST) {
+    const value = process.env[key];
+    if (typeof value === "string" && value.length > 0) {
+      env[key] = value;
+    }
+  }
+
+  if (!envFile) {
+    return env;
+  }
+
+  const envPath = join(cwd, envFile);
+  if (!existsSync(envPath)) {
+    return env;
+  }
+
+  for (const entry of parseComposeEnvFile(readFileSync(envPath, "utf8")).entries) {
+    env[entry.key] = entry.value;
+  }
+
+  return env;
 }
 
 /**
@@ -355,7 +397,7 @@ export async function dockerComposePull(
   }
   args.push("pull");
 
-  return execStreaming("docker", args, cwd, onLog);
+  return execStreaming("docker", args, cwd, onLog, buildComposeCommandEnv(cwd, envFile));
 }
 
 /**
@@ -380,7 +422,7 @@ export async function dockerComposeUp(
   }
   args.push("up", "-d", "--remove-orphans");
 
-  return execStreaming("docker", args, cwd, onLog);
+  return execStreaming("docker", args, cwd, onLog, buildComposeCommandEnv(cwd, envFile));
 }
 
 /**

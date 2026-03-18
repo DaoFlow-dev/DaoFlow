@@ -1,4 +1,4 @@
-import { basename, join } from "node:path";
+import { basename, dirname, isAbsolute, join } from "node:path";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import {
   createTarArchive,
@@ -45,13 +45,17 @@ function isUploadedCompose(config: ConfigSnapshot): boolean {
   );
 }
 
-function readRepoDefaultEnvFile(workDir: string): string | null {
-  const envPath = join(workDir, ".env");
+function readRepoDefaultEnvFile(workDir: string, composeFile: string): string | null {
+  const composeDir = dirname(composeFile);
+  const envPath = isAbsolute(composeDir)
+    ? join(composeDir, ".env")
+    : join(workDir, composeDir, ".env");
   return existsSync(envPath) ? readFileSync(envPath, "utf8") : null;
 }
 
 function materializeComposeEnv(
   workDir: string,
+  composeFile: string,
   branch: string,
   deploymentEnvState: DeploymentComposeEnvState,
   existingEvidence?: ComposeEnvEvidence
@@ -79,7 +83,7 @@ function materializeComposeEnv(
 
   const artifact = buildComposeEnvArtifact({
     branch,
-    repoDefaultContent: readRepoDefaultEnvFile(workDir),
+    repoDefaultContent: readRepoDefaultEnvFile(workDir, composeFile),
     deploymentEntries: deploymentEnvState.entries
   });
 
@@ -127,6 +131,7 @@ export async function prepareComposeWorkspace(
 
         const composeEnv = materializeComposeEnv(
           localClone.workDir,
+          config.composeFilePath ?? "docker-compose.yml",
           checkout.branch,
           deploymentEnvState,
           config.composeEnv
@@ -198,6 +203,7 @@ export async function prepareComposeWorkspace(
     }
     const composeEnv = materializeComposeEnv(
       result.workDir,
+      config.composeFilePath ?? "docker-compose.yml",
       checkout.branch,
       deploymentEnvState,
       config.composeEnv
@@ -229,7 +235,13 @@ export async function prepareComposeWorkspace(
 
     const composeEnv =
       deploymentEnvState.entries.length > 0
-        ? materializeComposeEnv(localStageDir, "main", deploymentEnvState, config.composeEnv)
+        ? materializeComposeEnv(
+            localStageDir,
+            composeFile,
+            "main",
+            deploymentEnvState,
+            config.composeEnv
+          )
         : undefined;
 
     return {
@@ -285,7 +297,13 @@ export async function prepareComposeWorkspace(
 
   const composeEnv =
     deploymentEnvState.entries.length > 0
-      ? materializeComposeEnv(localStageDir, "main", deploymentEnvState, config.composeEnv)
+      ? materializeComposeEnv(
+          localStageDir,
+          composeFile,
+          "main",
+          deploymentEnvState,
+          config.composeEnv
+        )
       : undefined;
 
   if (composeEnv) {

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 
@@ -98,5 +98,66 @@ describe("prepareComposeWorkspace", () => {
       "FROM_ARCHIVE",
       "RUNTIME_ONLY"
     ]);
+  });
+
+  it("reads repo defaults from the compose file directory for git-backed deployments", async () => {
+    writeFileSync(join(stageDir, ".env"), "ROOT_ONLY=1\n");
+    mkdirSync(join(stageDir, "ops"), { recursive: true });
+    writeFileSync(join(stageDir, "ops", ".env"), "NESTED_ONLY=1\n");
+    writeFileSync(
+      join(stageDir, "ops", "compose.yaml"),
+      "services:\n  app:\n    image: nginx:alpine\n"
+    );
+
+    vi.doMock("./docker-executor", () => ({
+      createTarArchive: vi.fn(),
+      ensureStagingDir: vi.fn(() => stageDir),
+      extractTarArchive: vi.fn(),
+      getStagingArchivePath: vi.fn(),
+      gitClone: vi.fn(() => ({
+        exitCode: 0,
+        workDir: stageDir
+      }))
+    }));
+
+    vi.doMock("./ssh-executor", () => ({
+      remoteEnsureDir: vi.fn(),
+      remoteExtractArchive: vi.fn(),
+      remoteGitClone: vi.fn(),
+      scpUpload: vi.fn()
+    }));
+
+    vi.doMock("./checkout-source", () => ({
+      resolveCheckoutSpec: vi.fn(() => ({
+        repoUrl: "https://example.com/org/repo.git",
+        branch: "main",
+        displayLabel: "org/repo",
+        gitConfig: [],
+        repositoryPreparation: {
+          submodules: false,
+          gitLfs: false
+        },
+        requiresLocalMaterialization: false
+      }))
+    }));
+
+    const { prepareComposeWorkspace } = await import("./compose-workspace");
+
+    const workspace = await prepareComposeWorkspace(
+      "deploy_456",
+      {
+        repoUrl: "https://example.com/org/repo.git",
+        branch: "main",
+        composeFilePath: "ops/compose.yaml"
+      },
+      { mode: "local" },
+      () => {},
+      {
+        kind: "queued",
+        entries: []
+      }
+    );
+
+    expect(workspace.composeEnv?.payloadEntries.map((entry) => entry.key)).toEqual(["NESTED_ONLY"]);
   });
 });

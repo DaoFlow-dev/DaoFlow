@@ -29,6 +29,20 @@ const SSH_CONTROL_DIR = process.env.SSH_CONTROL_DIR ?? "/tmp/daoflow-ssh";
 const SSH_KEY_DIR = process.env.SSH_KEY_DIR ?? "/tmp/daoflow-ssh-keys";
 const DEFAULT_SSH_USER = process.env.SSH_USER ?? "root";
 const SSH_CONNECT_TIMEOUT = 10; // seconds
+const REMOTE_COMPOSE_ENV_ALLOWLIST = [
+  "PATH",
+  "HOME",
+  "DOCKER_CONFIG",
+  "DOCKER_HOST",
+  "DOCKER_CONTEXT",
+  "DOCKER_CERT_PATH",
+  "DOCKER_TLS_VERIFY",
+  "SSH_AUTH_SOCK",
+  "XDG_RUNTIME_DIR",
+  "TMPDIR",
+  "LANG",
+  "LC_ALL"
+] as const;
 
 export interface SSHTarget {
   serverName: string;
@@ -201,6 +215,22 @@ export async function detectDockerVersion(
 
 // ── Remote Docker Commands ─────────────────────────────────────
 
+function buildRemoteComposeEnvPrefix(): string {
+  const preserved = REMOTE_COMPOSE_ENV_ALLOWLIST.map((key) => `${key}="${`$${key}`}" `).join("");
+  return `env -i ${preserved}`.trimEnd();
+}
+
+function buildRemoteComposeCommand(input: {
+  composeFile: string;
+  projectName: string;
+  workDir: string;
+  envFile?: string;
+  subcommand: string;
+}): string {
+  const envFileArg = input.envFile ? ` --env-file ${shellQuote(input.envFile)}` : "";
+  return `cd ${shellQuote(input.workDir)} && ${buildRemoteComposeEnvPrefix()} docker compose -f ${shellQuote(input.composeFile)} -p ${shellQuote(input.projectName)}${envFileArg} ${input.subcommand}`;
+}
+
 export async function remoteDockerComposePull(
   target: SSHTarget,
   composeFile: string,
@@ -209,8 +239,13 @@ export async function remoteDockerComposePull(
   onLog: OnLog,
   envFile?: string
 ): Promise<{ exitCode: number }> {
-  const envFileArg = envFile ? ` --env-file ${shellQuote(envFile)}` : "";
-  const cmd = `cd ${shellQuote(workDir)} && docker compose -f ${shellQuote(composeFile)} -p ${shellQuote(projectName)}${envFileArg} pull`;
+  const cmd = buildRemoteComposeCommand({
+    composeFile,
+    projectName,
+    workDir,
+    envFile,
+    subcommand: "pull"
+  });
   const result = await execRemote(target, cmd, onLog);
   return { exitCode: result.exitCode };
 }
@@ -223,8 +258,13 @@ export async function remoteDockerComposeUp(
   onLog: OnLog,
   envFile?: string
 ): Promise<{ exitCode: number }> {
-  const envFileArg = envFile ? ` --env-file ${shellQuote(envFile)}` : "";
-  const cmd = `cd ${shellQuote(workDir)} && docker compose -f ${shellQuote(composeFile)} -p ${shellQuote(projectName)}${envFileArg} up -d --remove-orphans`;
+  const cmd = buildRemoteComposeCommand({
+    composeFile,
+    projectName,
+    workDir,
+    envFile,
+    subcommand: "up -d --remove-orphans"
+  });
   const result = await execRemote(target, cmd, onLog);
   return { exitCode: result.exitCode };
 }
@@ -236,7 +276,12 @@ export async function remoteDockerComposeDown(
   workDir: string,
   onLog: OnLog
 ): Promise<{ exitCode: number }> {
-  const cmd = `cd ${shellQuote(workDir)} && docker compose -f ${shellQuote(composeFile)} -p ${shellQuote(projectName)} down`;
+  const cmd = buildRemoteComposeCommand({
+    composeFile,
+    projectName,
+    workDir,
+    subcommand: "down"
+  });
   const result = await execRemote(target, cmd, onLog);
   return { exitCode: result.exitCode };
 }
