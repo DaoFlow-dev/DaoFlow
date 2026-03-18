@@ -120,9 +120,17 @@ export default function ComposeEditorTab({
             wrap="off"
           />
         </div>
-        <p className="text-xs text-muted-foreground mt-2">
-          Edit the compose configuration directly. Changes take effect on the next deployment.
-        </p>
+        <div className="flex items-center justify-between mt-2">
+          <p className="text-xs text-muted-foreground">
+            Edit the compose configuration directly. Changes take effect on the next deployment.
+          </p>
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <Badge variant="outline" className="text-[10px]">
+              YAML
+            </Badge>
+            <span>Spaces only · 2-space indent</span>
+          </div>
+        </div>
       </CardContent>
     </Card>
   );

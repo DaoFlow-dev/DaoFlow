@@ -16,6 +16,16 @@ import {
 } from "lucide-react";
 import { getInventoryBadgeVariant, getInventoryDotClass, getInventoryTone } from "@/lib/tone-utils";
 
+function formatRelative(date: string | Date): string {
+  const diff = Date.now() - new Date(date).getTime();
+  const mins = Math.floor(diff / 60_000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return `${Math.floor(hrs / 24)}d ago`;
+}
+
 interface GeneralTabProps {
   service: {
     id: string;
@@ -118,9 +128,12 @@ export default function GeneralTab({ service }: GeneralTabProps) {
           <CardContent className="pt-6">
             <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
               <Clock size={14} />
-              Created
+              Last Deployed
             </div>
-            <span className="text-sm">{new Date(service.createdAt).toLocaleDateString()}</span>
+            <span className="text-sm font-semibold">{formatRelative(service.updatedAt)}</span>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Created {new Date(service.createdAt).toLocaleDateString()}
+            </p>
           </CardContent>
         </Card>
       </div>

@@ -10,7 +10,8 @@ import {
   ShieldCheck,
   ShieldAlert,
   ExternalLink,
-  Cable
+  Cable,
+  RefreshCw
 } from "lucide-react";
 import { useState } from "react";
 
@@ -145,7 +146,17 @@ export default function DomainsTab({
                         )}
                       </div>
                       <div className="text-xs text-muted-foreground mt-0.5">
-                        SSL: <span className="capitalize">{d.sslStatus}</span> · Added{" "}
+                        SSL: <span className="capitalize">{d.sslStatus}</span>
+                        {d.sslStatus === "valid" && (
+                          <span className="ml-2 inline-flex items-center gap-0.5">
+                            <RefreshCw size={10} />
+                            Auto-renew enabled
+                          </span>
+                        )}
+                        {d.sslStatus === "expiring" && (
+                          <span className="ml-2 text-yellow-500 font-medium">Renew soon</span>
+                        )}
+                        {" · Added "}
                         {new Date(d.createdAt).toLocaleDateString()}
                       </div>
                     </div>
