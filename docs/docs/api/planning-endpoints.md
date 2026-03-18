@@ -6,6 +6,109 @@ sidebar_position: 4
 
 Planning endpoints generate previews of changes without executing them. They are safe for AI agents to call freely.
 
+## composeDeploymentPlan
+
+Preview a direct compose deployment without executing it.
+
+```
+POST /trpc/composeDeploymentPlan
+{
+  "json": {
+    "server": "srv_abc123",
+    "compose": "name: preview-stack\nservices:\n  web:\n    build:\n      context: .\n",
+    "composePath": "./compose.yaml",
+    "contextPath": ".",
+    "localBuildContexts": [
+      {
+        "serviceName": "web",
+        "context": ".",
+        "dockerfile": "Dockerfile"
+      }
+    ],
+    "requiresContextUpload": true,
+    "contextBundle": {
+      "fileCount": 42,
+      "sizeBytes": 13824,
+      "includedOverrides": [".env"]
+    }
+  }
+}
+```
+
+**Scope:** `deploy:read`
+
+**Response:**
+
+```json
+{
+  "result": {
+    "data": {
+      "json": {
+        "isReady": true,
+        "deploymentSource": "uploaded-context",
+        "project": {
+          "id": null,
+          "name": "preview-stack",
+          "action": "create"
+        },
+        "environment": {
+          "id": null,
+          "name": "production",
+          "action": "create"
+        },
+        "service": {
+          "id": null,
+          "name": "preview-stack",
+          "action": "create",
+          "sourceType": "compose"
+        },
+        "target": {
+          "serverId": "srv_abc123",
+          "serverName": "prod-us-west",
+          "serverHost": "10.0.0.42",
+          "composePath": "./compose.yaml",
+          "contextPath": ".",
+          "requiresContextUpload": true,
+          "localBuildContexts": [
+            {
+              "serviceName": "web",
+              "context": ".",
+              "dockerfile": "Dockerfile"
+            }
+          ],
+          "contextBundle": {
+            "fileCount": 42,
+            "sizeBytes": 13824,
+            "includedOverrides": [".env"]
+          }
+        },
+        "preflightChecks": [
+          {
+            "status": "ok",
+            "detail": "Organization scope resolved for direct compose deployment."
+          },
+          {
+            "status": "ok",
+            "detail": "Target server resolved to prod-us-west (10.0.0.42)."
+          }
+        ],
+        "steps": [
+          "Freeze the compose file and local build-context manifest",
+          "Bundle the local build context while respecting .dockerignore rules",
+          "Upload the staged archive and compose file to the DaoFlow control plane",
+          "Dispatch the uploaded compose workspace to the execution plane",
+          "Run docker compose up -d --build on prod-us-west",
+          "Record health checks and the final deployment outcome"
+        ],
+        "executeCommand": "daoflow deploy --compose ./compose.yaml --server srv_abc123 --context . --yes"
+      }
+    }
+  }
+}
+```
+
+The CLI computes local bundle metadata first, then sends that summary to the control plane so the returned plan can stay non-mutating while still reflecting local build-context upload requirements.
+
 ## deploymentPlan
 
 Generate a deployment plan without executing it.

@@ -49,7 +49,7 @@ daoflow capabilities --json    # Check what it's allowed to do
 
 Every command that mutates infrastructure requires both the `--yes` flag **and** the correct scope in the token. Without both, the command fails with a structured error telling the agent exactly what scope it needs.
 
-For service deployments, `daoflow deploy --service ... --dry-run` uses the planning lane before execution. Direct compose dry-runs are still local CLI previews until the compose planning API exists.
+For both service and compose deployments, `daoflow deploy ... --dry-run` uses the planning lane before execution. Compose previews still inspect the local filesystem for build-context bundle facts first, but the returned plan comes from the control plane and does not mutate anything.
 
 ## The Safety Contract
 

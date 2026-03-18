@@ -1,8 +1,10 @@
+import { eq } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { describe, expect, it } from "vitest";
 import type { Context } from "./context";
 import { db } from "./db/connection";
 import { deployments } from "./db/schema/deployments";
+import { projects } from "./db/schema/projects";
 import { teams } from "./db/schema/teams";
 import { createEnvironment, createProject } from "./db/services/projects";
 import { ensureControlPlaneReady } from "./db/services/seed";
@@ -183,6 +185,67 @@ async function createConfigDiffFixture(teamId = "team_foundation") {
 }
 
 describe("planning diff surfaces", () => {
+  it("returns a non-mutating direct compose deployment plan", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-compose-plan",
+      session: makeSession("viewer")
+    });
+
+    fixtureCounter += 1;
+    const suffix = `${Date.now()}_${fixtureCounter}`;
+    const stackName = `compose-plan-${suffix}`;
+    const composeContent = `name: ${stackName}\nservices:\n  web:\n    build:\n      context: .\n`;
+
+    const [projectBefore] = await db
+      .select({ id: projects.id })
+      .from(projects)
+      .where(eq(projects.name, stackName))
+      .limit(1);
+
+    expect(projectBefore).toBeUndefined();
+
+    const plan = await caller.composeDeploymentPlan({
+      server: "srv_foundation_1",
+      compose: composeContent,
+      composePath: "./fixtures/compose.yaml",
+      contextPath: ".",
+      localBuildContexts: [{ serviceName: "web", context: ".", dockerfile: null }],
+      requiresContextUpload: true,
+      contextBundle: {
+        fileCount: 12,
+        sizeBytes: 4096,
+        includedOverrides: [".env"]
+      }
+    });
+
+    expect(plan.isReady).toBe(true);
+    expect(plan.project.name).toBe(stackName);
+    expect(plan.project.action).toBe("create");
+    expect(plan.environment.name).toBe("production");
+    expect(plan.environment.action).toBe("create");
+    expect(plan.service.name).toBe(stackName);
+    expect(plan.service.action).toBe("create");
+    expect(plan.target.serverId).toBe("srv_foundation_1");
+    expect(plan.target.requiresContextUpload).toBe(true);
+    expect(plan.target.contextBundle?.fileCount).toBe(12);
+    expect(plan.steps).toEqual(
+      expect.arrayContaining([
+        "Bundle the local build context while respecting .dockerignore rules"
+      ])
+    );
+    expect(plan.executeCommand).toContain("--compose ./fixtures/compose.yaml");
+    expect(plan.executeCommand).toContain("--server srv_foundation_1");
+    expect(plan.executeCommand).toContain("--context .");
+
+    const [projectAfter] = await db
+      .select({ id: projects.id })
+      .from(projects)
+      .where(eq(projects.name, stackName))
+      .limit(1);
+
+    expect(projectAfter).toBeUndefined();
+  });
+
   it("returns a scoped config diff from the planning lane", async () => {
     const caller = appRouter.createCaller({
       requestId: "test-config-diff",

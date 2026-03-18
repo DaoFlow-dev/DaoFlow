@@ -117,7 +117,53 @@ daoflow deploy --service my-app --server prod --dry-run --json
 }
 ```
 
-When using `--dry-run` with `--compose`, the CLI still performs a local preview of context bundling and upload steps because there is not yet a dedicated server-side compose planning route.
+When using `--dry-run` with `--compose`, the CLI calls the planning-lane `composeDeploymentPlan` route. The CLI still computes local context bundle metadata first so the server-side plan can include upload size, included override files, and local build-context requirements without mutating anything.
+
+```bash
+daoflow deploy --compose ./compose.yaml --server prod --dry-run --json
+```
+
+```json
+{
+  "ok": true,
+  "data": {
+    "dryRun": true,
+    "plan": {
+      "isReady": true,
+      "deploymentSource": "uploaded-context",
+      "project": { "id": null, "name": "preview-stack", "action": "create" },
+      "environment": { "id": null, "name": "production", "action": "create" },
+      "service": {
+        "id": null,
+        "name": "preview-stack",
+        "action": "create",
+        "sourceType": "compose"
+      },
+      "target": {
+        "serverId": "srv_prod",
+        "serverName": "prod",
+        "serverHost": "203.0.113.10",
+        "composePath": "./compose.yaml",
+        "contextPath": ".",
+        "requiresContextUpload": true,
+        "localBuildContexts": [
+          { "serviceName": "web", "context": ".", "dockerfile": "Dockerfile" }
+        ],
+        "contextBundle": { "fileCount": 42, "sizeBytes": 13824, "includedOverrides": [".env"] }
+      },
+      "preflightChecks": [
+        { "status": "ok", "detail": "Target server resolved to prod (203.0.113.10)." }
+      ],
+      "steps": [
+        "Freeze the compose file and local build-context manifest",
+        "Bundle the local build context while respecting .dockerignore rules",
+        "Upload the staged archive and compose file to the DaoFlow control plane"
+      ],
+      "executeCommand": "daoflow deploy --compose ./compose.yaml --server srv_prod --context . --yes"
+    }
+  }
+}
+```
 
 Exit code is `3` for successful dry runs.
 

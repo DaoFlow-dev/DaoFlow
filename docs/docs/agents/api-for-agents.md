@@ -21,7 +21,7 @@ Always use the appropriate API lane:
 ```
 1. GET /trpc/capabilities          → Know your scopes
 2. GET /trpc/infrastructureInventory → See current state
-3. POST /trpc/deploymentPlan       → Preview changes
+3. POST /trpc/deploymentPlan or /trpc/composeDeploymentPlan → Preview changes
 4. POST /trpc/createDeploymentRecord → Execute (if plan is good)
 5. GET /trpc/recentDeployments     → Verify result
 ```

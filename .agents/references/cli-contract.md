@@ -77,11 +77,14 @@ This file holds the detailed CLI contract, scope map, and agent-facing command r
 ## Deploy Dry-Run Contract
 
 - `daoflow deploy --service <id> --dry-run` must use the planning lane `deploymentPlan` route
+- `daoflow deploy --compose <path> --dry-run` must use the planning lane `composeDeploymentPlan` route
 - Service dry-run scope: `deploy:read`
+- Compose dry-run scope: `deploy:read`
 - Service execution scope: `deploy:start`
-- `daoflow deploy --compose <path> --dry-run` remains a local CLI preview until a dedicated compose planning route exists
 - JSON service dry-run shape:
   - `{ "ok": true, "data": { "dryRun": true, "plan": { "isReady": boolean, "service": {...}, "target": {...}, "currentDeployment": {...} | null, "preflightChecks": [{ "status": "ok" | "warn" | "fail", "detail": string }], "steps": string[], "executeCommand": string } } }`
+- JSON compose dry-run shape:
+  - `{ "ok": true, "data": { "dryRun": true, "plan": { "isReady": boolean, "deploymentSource": "uploaded-context" | "uploaded-compose", "project": { "id": string | null, "name": string, "action": "reuse" | "create" }, "environment": { "id": string | null, "name": string, "action": "reuse" | "create" }, "service": { "id": string | null, "name": string, "action": "reuse" | "create", "sourceType": "compose" }, "target": { "serverId": string, "serverName": string, "serverHost": string, "composePath": string | null, "contextPath": string | null, "requiresContextUpload": boolean, "localBuildContexts": [{ "serviceName": string, "context": string, "dockerfile": string | null }], "contextBundle": { "fileCount": number, "sizeBytes": number, "includedOverrides": string[] } | null }, "preflightChecks": [{ "status": "ok" | "warn" | "fail", "detail": string }], "steps": string[], "executeCommand": string } } }`
 
 ## Rollback Dry-Run Contract
 

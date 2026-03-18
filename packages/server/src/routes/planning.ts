@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
+import { buildComposeDeploymentPlan } from "../db/services/compose-deployment-plans";
 import { buildConfigDiff } from "../db/services/config-diffs";
 import { ScopedDeploymentNotFoundError } from "../db/services/scoped-deployments";
 import { buildDeploymentPlan } from "../db/services/deployment-plans";
@@ -7,6 +8,54 @@ import { buildRollbackPlan } from "../db/services/rollback-plans";
 import { t, deployReadProcedure } from "../trpc";
 
 export const planningRouter = t.router({
+  composeDeploymentPlan: deployReadProcedure
+    .input(
+      z.object({
+        server: z.string().min(1),
+        compose: z.string().min(1).max(1_000_000),
+        composePath: z.string().min(1).max(500).optional(),
+        contextPath: z.string().min(1).max(500).optional(),
+        localBuildContexts: z
+          .array(
+            z.object({
+              serviceName: z.string().min(1).max(80),
+              context: z.string().min(1).max(500),
+              dockerfile: z.string().min(1).max(500).nullable().optional()
+            })
+          )
+          .max(50),
+        requiresContextUpload: z.boolean(),
+        contextBundle: z
+          .object({
+            fileCount: z.number().int().nonnegative(),
+            sizeBytes: z.number().int().nonnegative(),
+            includedOverrides: z.array(z.string().min(1).max(500)).max(200)
+          })
+          .nullable()
+          .optional(),
+        contextBundleError: z.string().min(1).max(500).optional()
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      try {
+        return await buildComposeDeploymentPlan({
+          composeContent: input.compose,
+          composePath: input.composePath,
+          contextPath: input.contextPath,
+          serverRef: input.server,
+          localBuildContexts: input.localBuildContexts,
+          requiresContextUpload: input.requiresContextUpload,
+          contextBundle: input.contextBundle,
+          contextBundleError: input.contextBundleError,
+          requestedByUserId: ctx.session.user.id
+        });
+      } catch (error) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: error instanceof Error ? error.message : String(error)
+        });
+      }
+    }),
   deploymentPlan: deployReadProcedure
     .input(
       z.object({
