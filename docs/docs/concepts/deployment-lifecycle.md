@@ -95,7 +95,7 @@ A rollback creates a **new deployment record** that references the target deploy
 daoflow diff --a <baseline-id> --b <comparison-id> --json
 ```
 
-Returns structured diff showing changes in commit, image, source type, status, and timing.
+Returns a scoped config diff showing project/environment/service metadata plus changes in commit, image, source type, status, and stored deployment snapshot fields.
 
 ## Cancelling Deployments
 

@@ -61,6 +61,7 @@ Every command accepts these flags:
 | `projects`                       | read         | `deploy:read`                        | no       |
 | [`deploy`](./deploy)             | command      | `deploy:start`                       | yes      |
 | [`rollback`](./rollback)         | command      | `deploy:rollback`                    | yes      |
+| [`diff`](./diff)                 | planning     | `deploy:read`                        | no       |
 | [`logs`](./logs)                 | read         | `logs:read`                          | no       |
 | [`env`](./env)                   | read/command | `env:read` / `env:write`             | varies   |
 | [`plan`](./plan)                 | planning     | `deploy:read`                        | no       |

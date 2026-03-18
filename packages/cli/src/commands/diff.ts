@@ -1,8 +1,8 @@
 /**
  * diff.ts — Compare two deployments (desired vs actual state).
  *
- * Per AGENTS.md §20 Command Scope Map:
- *   diff → read lane, deploy:read
+ * Per the CLI contract:
+ *   diff → planning lane, deploy:read
  *
  * Supports:
  *   daoflow diff --a <deploymentId> --b <deploymentId> [--json]
@@ -29,7 +29,7 @@ export function diffCommand(): Command {
 
       try {
         const trpc = createClient();
-        const result = await trpc.deploymentDiff.query({
+        const result = await trpc.configDiff.query({
           deploymentIdA: opts.a,
           deploymentIdB: opts.b
         });
@@ -39,53 +39,62 @@ export function diffCommand(): Command {
           return;
         }
 
-        console.log(chalk.bold("\n  Deployment Diff\n"));
+        console.log(chalk.bold("\n  Config Diff\n"));
 
         // Side A
         console.log(chalk.cyan("  A (baseline):"));
         console.log(`    ID:      ${result.a.id}`);
+        console.log(`    Project: ${result.a.projectName}`);
+        console.log(`    Env:     ${result.a.environmentName}`);
         console.log(`    Service: ${result.a.serviceName}`);
-        console.log(`    Status:  ${result.a.status}`);
+        console.log(`    Status:  ${result.a.statusLabel}`);
         console.log(`    Commit:  ${result.a.commitSha}`);
         console.log(`    Image:   ${result.a.imageTag}`);
         console.log(`    Source:  ${result.a.sourceType}`);
+        console.log(`    Server:  ${result.a.targetServerName}`);
         console.log(`    Created: ${result.a.createdAt}`);
         console.log();
 
         // Side B
         console.log(chalk.cyan("  B (comparison):"));
         console.log(`    ID:      ${result.b.id}`);
+        console.log(`    Project: ${result.b.projectName}`);
+        console.log(`    Env:     ${result.b.environmentName}`);
         console.log(`    Service: ${result.b.serviceName}`);
-        console.log(`    Status:  ${result.b.status}`);
+        console.log(`    Status:  ${result.b.statusLabel}`);
         console.log(`    Commit:  ${result.b.commitSha}`);
         console.log(`    Image:   ${result.b.imageTag}`);
         console.log(`    Source:  ${result.b.sourceType}`);
+        console.log(`    Server:  ${result.b.targetServerName}`);
         console.log(`    Created: ${result.b.createdAt}`);
         console.log();
 
         // Differences
         console.log(chalk.bold("  Changes:"));
-        const d = result.diffs;
-        if (!d.sameService) console.log(chalk.yellow("    ⚠ Different services"));
-        if (d.commitChanged)
+        if (!result.summary.sameProject) console.log(chalk.yellow("    ⚠ Different projects"));
+        if (!result.summary.sameEnvironment)
+          console.log(chalk.yellow("    ⚠ Different environments"));
+        if (!result.summary.sameService) console.log(chalk.yellow("    ⚠ Different services"));
+
+        for (const change of result.scalarChanges) {
           console.log(
-            chalk.red(`    ✗ Commit changed: ${result.a.commitSha} → ${result.b.commitSha}`)
-          );
-        if (d.imageChanged)
-          console.log(
-            chalk.red(`    ✗ Image changed: ${result.a.imageTag} → ${result.b.imageTag}`)
-          );
-        if (d.sourceTypeChanged)
-          console.log(
-            chalk.yellow(
-              `    ⚠ Source type changed: ${result.a.sourceType} → ${result.b.sourceType}`
+            chalk.red(
+              `    ✗ ${change.key}: ${String(change.baseline)} → ${String(change.comparison)}`
             )
           );
-        if (d.statusChanged)
-          console.log(
-            chalk.yellow(`    ⚠ Status changed: ${result.a.status} → ${result.b.status}`)
-          );
-        if (!d.commitChanged && !d.imageChanged && !d.sourceTypeChanged && !d.statusChanged) {
+        }
+
+        if (result.snapshotChanges.length > 0) {
+          console.log();
+          console.log(chalk.dim("  Snapshot changes:"));
+          for (const change of result.snapshotChanges) {
+            console.log(
+              `    ${chalk.yellow("•")} ${change.key}: ${JSON.stringify(change.baseline)} → ${JSON.stringify(change.comparison)}`
+            );
+          }
+        }
+
+        if (result.scalarChanges.length === 0 && result.snapshotChanges.length === 0) {
           console.log(chalk.green("    ✓ No significant changes"));
         }
         console.log();

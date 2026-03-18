@@ -1,10 +1,7 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import {
-  createDeploymentRecord,
-  cancelDeployment,
-  deploymentDiff
-} from "../db/services/deployments";
+import { createDeploymentRecord, cancelDeployment } from "../db/services/deployments";
+import { buildConfigDiff } from "../db/services/config-diffs";
 import { dispatchDeploymentExecution } from "../db/services/deployment-dispatch";
 import { queueComposeRelease } from "../db/services/compose";
 import {
@@ -16,6 +13,7 @@ import { triggerDeploy } from "../db/services/trigger-deploy";
 import { executeRollback } from "../db/services/execute-rollback";
 import { upsertEnvironmentVariable, deleteEnvironmentVariable } from "../db/services/envvars";
 import { resolveEnvironmentSecretInventory } from "../db/services/onepassword";
+import { ScopedDeploymentNotFoundError } from "../db/services/scoped-deployments";
 import { resolveTeamIdForUser } from "../db/services/teams";
 import {
   t,
@@ -24,10 +22,10 @@ import {
   deployRollbackProcedure,
   envWriteProcedure,
   secretsReadProcedure,
+  deployReadProcedure,
   getActorContext,
   getUpdaterContext,
-  throwOnOperationError,
-  protectedProcedure
+  throwOnOperationError
 } from "../trpc";
 
 export const deployRouter = t.router({
@@ -345,23 +343,44 @@ export const deployRouter = t.router({
 
       return result;
     }),
-  deploymentDiff: protectedProcedure
+  deploymentDiff: deployReadProcedure
     .input(
       z.object({
         deploymentIdA: z.string().min(1),
         deploymentIdB: z.string().min(1)
       })
     )
-    .query(async ({ input }) => {
-      const diff = await deploymentDiff(input.deploymentIdA, input.deploymentIdB);
+    .query(async ({ ctx, input }) => {
+      try {
+        const diff = await buildConfigDiff({
+          deploymentIdA: input.deploymentIdA,
+          deploymentIdB: input.deploymentIdB,
+          requestedByUserId: ctx.session.user.id
+        });
 
-      if (!diff) {
+        if (!diff) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "One or both deployments not found."
+          });
+        }
+
+        return diff;
+      } catch (error) {
+        if (error instanceof TRPCError) {
+          throw error;
+        }
+        if (error instanceof ScopedDeploymentNotFoundError) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: error.message
+          });
+        }
+
         throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "One or both deployments not found."
+          code: "BAD_REQUEST",
+          message: error instanceof Error ? error.message : String(error)
         });
       }
-
-      return diff;
     })
 });

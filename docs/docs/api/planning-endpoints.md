@@ -167,6 +167,96 @@ POST /trpc/rollbackPlan
 
 The rollback planning surface resolves the service inside the caller's team scope, validates the selected target against the retention window, and returns a deterministic preview that can be used by human operators or AI agents.
 
-## Future Planning Surfaces
+## configDiff
 
-Additional planning endpoints such as config diffs are intended follow-up work. Do not assume they exist until they are documented alongside a shipped route.
+Compare two deployment records without executing anything.
+
+```
+POST /trpc/configDiff
+{
+  "json": {
+    "deploymentIdA": "dep_baseline123",
+    "deploymentIdB": "dep_candidate456"
+  }
+}
+```
+
+**Scope:** `deploy:read`
+
+**Response:**
+
+```json
+{
+  "result": {
+    "data": {
+      "json": {
+        "a": {
+          "id": "dep_baseline123",
+          "projectName": "Acme",
+          "environmentName": "production",
+          "serviceName": "api",
+          "status": "healthy",
+          "statusLabel": "Healthy",
+          "statusTone": "healthy",
+          "commitSha": "abcdef1",
+          "imageTag": "ghcr.io/acme/api:1.4.1",
+          "sourceType": "compose",
+          "targetServerName": "prod-us-west",
+          "createdAt": "2026-03-17T19:00:00.000Z",
+          "finishedAt": "2026-03-17T19:05:00.000Z",
+          "stepCount": 5
+        },
+        "b": {
+          "id": "dep_candidate456",
+          "projectName": "Acme",
+          "environmentName": "production",
+          "serviceName": "api",
+          "status": "failed",
+          "statusLabel": "Failed",
+          "statusTone": "failed",
+          "commitSha": "fedcba9",
+          "imageTag": "ghcr.io/acme/api:1.4.2",
+          "sourceType": "compose",
+          "targetServerName": "prod-us-west",
+          "createdAt": "2026-03-17T20:00:00.000Z",
+          "finishedAt": "2026-03-17T20:02:00.000Z",
+          "stepCount": 4
+        },
+        "summary": {
+          "sameProject": true,
+          "sameEnvironment": true,
+          "sameService": true,
+          "changedScalarCount": 3,
+          "changedSnapshotKeyCount": 2
+        },
+        "scalarChanges": [
+          {
+            "key": "commitSha",
+            "baseline": "abcdef1",
+            "comparison": "fedcba9"
+          },
+          {
+            "key": "imageTag",
+            "baseline": "ghcr.io/acme/api:1.4.1",
+            "comparison": "ghcr.io/acme/api:1.4.2"
+          },
+          {
+            "key": "statusLabel",
+            "baseline": "Healthy",
+            "comparison": "Failed"
+          }
+        ],
+        "snapshotChanges": [
+          {
+            "key": "composePath",
+            "baseline": "/srv/acme/api/compose.v1.yaml",
+            "comparison": "/srv/acme/api/compose.v2.yaml"
+          }
+        ]
+      }
+    }
+  }
+}
+```
+
+`configDiff` resolves both deployment IDs inside the caller's team scope before diffing them, so the route does not leak cross-project or cross-team deployment metadata. The legacy `deploymentDiff` command route remains as a compatibility alias, but new clients should call `configDiff`.

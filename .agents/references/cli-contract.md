@@ -49,6 +49,7 @@ This file holds the detailed CLI contract, scope map, and agent-facing command r
 | `projects`       | read     | `deploy:read`                        | no       |
 | `logs`           | read     | `logs:read`                          | no       |
 | `plan`           | planning | `deploy:read`                        | no       |
+| `diff`           | planning | `deploy:read`                        | no       |
 | `doctor`         | read     | `server:read`, `logs:read`           | no       |
 | `deploy`         | command  | `deploy:start`                       | yes      |
 | `push`           | command  | `deploy:start`                       | yes      |
@@ -81,3 +82,15 @@ This file holds the detailed CLI contract, scope map, and agent-facing command r
 - Target flags: `--target <deployment-id>` and `--to <deployment-id>` must behave identically
 - JSON dry-run shape:
   - `{ "ok": true, "data": { "dryRun": true, "plan": { "isReady": boolean, "service": {...}, "currentDeployment": {...} | null, "targetDeployment": {...} | null, "availableTargets": [{ "deploymentId": string, "serviceName": string, "sourceType": string, "commitSha": string | null, "imageTag": string | null, "concludedAt": string | null, "status": string }], "preflightChecks": [{ "status": "ok" | "warn" | "fail", "detail": string }], "steps": string[], "executeCommand": string } } }`
+
+## Diff Contract
+
+- `daoflow diff` is a planning-lane comparison backed by the control plane `configDiff` route
+- Required input: `--a <deployment-id>`, `--b <deployment-id>`
+- Scope: `deploy:read`
+- JSON success shape:
+  - `{ "ok": true, "data": { "a": {...}, "b": {...}, "summary": { "sameProject": boolean, "sameEnvironment": boolean, "sameService": boolean, "changedScalarCount": number, "changedSnapshotKeyCount": number }, "scalarChanges": [{ "key": string, "baseline": unknown, "comparison": unknown }], "snapshotChanges": [{ "key": string, "baseline": unknown, "comparison": unknown }] } }`
+- Human output must show:
+  - baseline and comparison deployment identity, project, environment, service, status, commit, image, and target server
+  - warnings when the deployments span different projects, environments, or services
+  - scalar field changes before snapshot/config changes

@@ -91,7 +91,7 @@ daoflow rollback --service my-api --target <deployment-id> --yes --json
 ### Compare Deployments
 
 ```bash
-# Diff two deployments
+# Diff two deployments inside your accessible team scope
 daoflow diff --a <deployment-id-1> --b <deployment-id-2> --json
 ```
 
