@@ -6,7 +6,9 @@ import { deployments } from "./db/schema/deployments";
 import { gitInstallations, gitProviders } from "./db/schema/git-providers";
 import { environments, projects } from "./db/schema/projects";
 import { encodeGitInstallationPermissions } from "./db/services/git-providers";
+import { readDeploymentComposeEnvEntries } from "./db/services/compose-env";
 import { asRecord } from "./db/services/json-helpers";
+import { upsertEnvironmentVariable } from "./db/services/envvars";
 import { createEnvironment, createProject } from "./db/services/projects";
 import { ensureControlPlaneReady, resetControlPlaneSeedState } from "./db/services/seed";
 import { createService } from "./db/services/services";
@@ -250,6 +252,18 @@ describe("deploy source revalidation", () => {
       })
       .where(eq(environments.id, fixture.environmentId));
 
+    await upsertEnvironmentVariable({
+      environmentId: fixture.environmentId,
+      key: "PREVIEW_FLAG",
+      value: "enabled",
+      isSecret: false,
+      category: "runtime",
+      branchPattern: "main",
+      updatedByUserId: "user_foundation_owner",
+      updatedByEmail: "owner@daoflow.local",
+      updatedByRole: "owner"
+    });
+
     fetchMock.mockImplementation(
       mockGitLabSourceFetch({
         repoFullName,
@@ -276,6 +290,26 @@ describe("deploy source revalidation", () => {
       submodules: true,
       gitLfs: true
     });
+    expect(asRecord(result.deployment.configSnapshot).composeEnv).toMatchObject({
+      status: "queued",
+      branch: "main",
+      fileName: ".daoflow.compose.env",
+      counts: {
+        total: 1,
+        environmentVariables: 1,
+        runtime: 1
+      }
+    });
+    expect(readDeploymentComposeEnvEntries(result.deployment.envVarsEncrypted)).toEqual([
+      {
+        key: "PREVIEW_FLAG",
+        value: "enabled",
+        category: "runtime",
+        isSecret: false,
+        source: "inline",
+        branchPattern: "main"
+      }
+    ]);
 
     const [updatedProject] = await db
       .select()

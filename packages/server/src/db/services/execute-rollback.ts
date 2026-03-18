@@ -147,6 +147,7 @@ export async function executeRollback(input: ExecuteRollbackInput) {
     requestedByUserId: input.requestedByUserId,
     requestedByEmail: input.requestedByEmail,
     requestedByRole: input.requestedByRole,
+    envVarsEncrypted: target.envVarsEncrypted,
     configSnapshot: extractReplayableConfigSnapshot(snapshot),
     steps: [
       { label: "Rollback preparation", detail: `Rolling back to deployment ${target.id}` },

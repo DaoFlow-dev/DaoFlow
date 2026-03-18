@@ -1,4 +1,5 @@
 import { basename, join } from "node:path";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import {
   createTarArchive,
   ensureStagingDir,
@@ -11,10 +12,23 @@ import type { ExecutionTarget } from "./execution-target";
 import { remoteEnsureDir, remoteExtractArchive, remoteGitClone, scpUpload } from "./ssh-executor";
 import type { ConfigSnapshot } from "./step-management";
 import { resolveCheckoutSpec } from "./checkout-source";
+import {
+  COMPOSE_ENV_FILE_NAME,
+  buildMaterializedComposeEnvEvidence,
+  buildComposeEnvArtifact,
+  renderComposeEnvFile,
+  type ComposeEnvEvidence,
+  type ComposeEnvMaterializedEntry
+} from "../compose-env";
+import type { DeploymentComposeEnvState } from "../db/services/compose-env";
 
 interface ComposeWorkspace {
   workDir: string;
   composeFile: string;
+  composeEnv?: {
+    composeEnv: ComposeEnvEvidence;
+    payloadEntries: ComposeEnvMaterializedEntry[];
+  };
 }
 
 function resolveUploadedComposeFile(config: ConfigSnapshot): string {
@@ -31,11 +45,60 @@ function isUploadedCompose(config: ConfigSnapshot): boolean {
   );
 }
 
+function readRepoDefaultEnvFile(workDir: string): string | null {
+  const envPath = join(workDir, ".env");
+  return existsSync(envPath) ? readFileSync(envPath, "utf8") : null;
+}
+
+function materializeComposeEnv(
+  workDir: string,
+  branch: string,
+  deploymentEnvState: DeploymentComposeEnvState,
+  existingEvidence?: ComposeEnvEvidence
+): {
+  composeEnv: ComposeEnvEvidence;
+  payloadEntries: ComposeEnvMaterializedEntry[];
+} {
+  if (deploymentEnvState.kind === "materialized") {
+    writeFileSync(
+      join(workDir, COMPOSE_ENV_FILE_NAME),
+      renderComposeEnvFile(deploymentEnvState.entries),
+      {
+        mode: 0o600
+      }
+    );
+
+    return {
+      composeEnv:
+        existingEvidence?.status === "materialized"
+          ? existingEvidence
+          : buildMaterializedComposeEnvEvidence(branch, deploymentEnvState.entries),
+      payloadEntries: deploymentEnvState.entries
+    };
+  }
+
+  const artifact = buildComposeEnvArtifact({
+    branch,
+    repoDefaultContent: readRepoDefaultEnvFile(workDir),
+    deploymentEntries: deploymentEnvState.entries
+  });
+
+  writeFileSync(join(workDir, COMPOSE_ENV_FILE_NAME), artifact.envFileContents, {
+    mode: 0o600
+  });
+
+  return {
+    composeEnv: artifact.composeEnv,
+    payloadEntries: artifact.payloadEntries
+  };
+}
+
 export async function prepareComposeWorkspace(
   deploymentId: string,
   config: ConfigSnapshot,
   target: ExecutionTarget,
-  onLog: OnLog
+  onLog: OnLog,
+  deploymentEnvState: DeploymentComposeEnvState = { kind: "queued", entries: [] }
 ): Promise<ComposeWorkspace> {
   if (!isUploadedCompose(config)) {
     const checkout = await resolveCheckoutSpec(config);
@@ -45,8 +108,12 @@ export async function prepareComposeWorkspace(
       );
     }
 
+    // Git-backed compose deploys always materialize locally so checked-in .env defaults
+    // become part of the frozen deployment artifact, even when DaoFlow adds no overrides.
+    const requiresComposeEnvMaterialization = Boolean(config.composeEnv);
+
     if (target.mode === "remote") {
-      if (checkout.requiresLocalMaterialization) {
+      if (checkout.requiresLocalMaterialization || requiresComposeEnvMaterialization) {
         const localClone = await gitClone(checkout.repoUrl, checkout.branch, deploymentId, onLog, {
           displayLabel: checkout.displayLabel,
           gitConfig: checkout.gitConfig,
@@ -57,6 +124,13 @@ export async function prepareComposeWorkspace(
             localClone.errorMessage ?? `git clone failed with exit code ${localClone.exitCode}`
           );
         }
+
+        const composeEnv = materializeComposeEnv(
+          localClone.workDir,
+          checkout.branch,
+          deploymentEnvState,
+          config.composeEnv
+        );
 
         const remoteArchivePath = join(target.remoteWorkDir, `${deploymentId}.tar.gz`);
         const localArchivePath = getStagingArchivePath(deploymentId);
@@ -92,7 +166,8 @@ export async function prepareComposeWorkspace(
 
         return {
           workDir: target.remoteWorkDir,
-          composeFile: config.composeFilePath ?? "docker-compose.yml"
+          composeFile: config.composeFilePath ?? "docker-compose.yml",
+          composeEnv
         };
       }
 
@@ -121,9 +196,16 @@ export async function prepareComposeWorkspace(
     if (result.exitCode !== 0) {
       throw new Error(result.errorMessage ?? `git clone failed with exit code ${result.exitCode}`);
     }
+    const composeEnv = materializeComposeEnv(
+      result.workDir,
+      checkout.branch,
+      deploymentEnvState,
+      config.composeEnv
+    );
     return {
       workDir: result.workDir,
-      composeFile: config.composeFilePath ?? "docker-compose.yml"
+      composeFile: config.composeFilePath ?? "docker-compose.yml",
+      composeEnv
     };
   }
 
@@ -145,9 +227,15 @@ export async function prepareComposeWorkspace(
       }
     }
 
+    const composeEnv =
+      deploymentEnvState.entries.length > 0
+        ? materializeComposeEnv(localStageDir, "main", deploymentEnvState, config.composeEnv)
+        : undefined;
+
     return {
       workDir: localStageDir,
-      composeFile
+      composeFile,
+      composeEnv
     };
   }
 
@@ -157,6 +245,19 @@ export async function prepareComposeWorkspace(
   }
 
   if (contextArchive) {
+    if (deploymentEnvState.entries.length > 0) {
+      const extractResult = await extractTarArchive(
+        join(localStageDir, contextArchive),
+        localStageDir,
+        onLog
+      );
+      if (extractResult.exitCode !== 0) {
+        throw new Error(
+          `Failed to extract uploaded context archive locally for deployment ${deploymentId}.`
+        );
+      }
+    }
+
     const localArchivePath = join(localStageDir, contextArchive);
     const remoteArchivePath = join(target.remoteWorkDir, contextArchive);
     const uploadArchive = await scpUpload(target.ssh, localArchivePath, remoteArchivePath, onLog);
@@ -182,8 +283,25 @@ export async function prepareComposeWorkspace(
     throw new Error(`Failed to upload compose file for deployment ${deploymentId}.`);
   }
 
+  const composeEnv =
+    deploymentEnvState.entries.length > 0
+      ? materializeComposeEnv(localStageDir, "main", deploymentEnvState, config.composeEnv)
+      : undefined;
+
+  if (composeEnv) {
+    const localEnvPath = join(localStageDir, COMPOSE_ENV_FILE_NAME);
+    const remoteEnvPath = join(target.remoteWorkDir, COMPOSE_ENV_FILE_NAME);
+    const uploadEnv = await scpUpload(target.ssh, localEnvPath, remoteEnvPath, onLog);
+    if (uploadEnv.exitCode !== 0) {
+      throw new Error(
+        `Failed to upload compose environment variables for deployment ${deploymentId}.`
+      );
+    }
+  }
+
   return {
     workDir: target.remoteWorkDir,
-    composeFile
+    composeFile,
+    composeEnv
   };
 }

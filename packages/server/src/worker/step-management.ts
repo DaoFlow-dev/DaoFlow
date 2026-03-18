@@ -9,6 +9,7 @@ import { db } from "../db/connection";
 import { deployments, deploymentSteps } from "../db/schema/deployments";
 import { events } from "../db/schema/audit";
 import type { RepositoryPreparationConfig } from "../repository-preparation";
+import type { ComposeEnvEvidence } from "../compose-env";
 
 export type DeploymentRow = typeof deployments.$inferSelect;
 
@@ -137,6 +138,7 @@ export interface ConfigSnapshot extends Record<string, unknown> {
   repositoryPreparation?: RepositoryPreparationConfig;
   uploadedComposeFileName?: string;
   uploadedContextArchiveName?: string;
+  composeEnv?: ComposeEnvEvidence;
 }
 
 export function readConfig(deployment: DeploymentRow): ConfigSnapshot {

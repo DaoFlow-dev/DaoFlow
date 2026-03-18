@@ -206,9 +206,11 @@ export async function remoteDockerComposePull(
   composeFile: string,
   projectName: string,
   workDir: string,
-  onLog: OnLog
+  onLog: OnLog,
+  envFile?: string
 ): Promise<{ exitCode: number }> {
-  const cmd = `cd ${shellQuote(workDir)} && docker compose -f ${shellQuote(composeFile)} -p ${shellQuote(projectName)} pull`;
+  const envFileArg = envFile ? ` --env-file ${shellQuote(envFile)}` : "";
+  const cmd = `cd ${shellQuote(workDir)} && docker compose -f ${shellQuote(composeFile)} -p ${shellQuote(projectName)}${envFileArg} pull`;
   const result = await execRemote(target, cmd, onLog);
   return { exitCode: result.exitCode };
 }
@@ -218,9 +220,11 @@ export async function remoteDockerComposeUp(
   composeFile: string,
   projectName: string,
   workDir: string,
-  onLog: OnLog
+  onLog: OnLog,
+  envFile?: string
 ): Promise<{ exitCode: number }> {
-  const cmd = `cd ${shellQuote(workDir)} && docker compose -f ${shellQuote(composeFile)} -p ${shellQuote(projectName)} up -d --remove-orphans`;
+  const envFileArg = envFile ? ` --env-file ${shellQuote(envFile)}` : "";
+  const cmd = `cd ${shellQuote(workDir)} && docker compose -f ${shellQuote(composeFile)} -p ${shellQuote(projectName)}${envFileArg} up -d --remove-orphans`;
   const result = await execRemote(target, cmd, onLog);
   return { exitCode: result.exitCode };
 }

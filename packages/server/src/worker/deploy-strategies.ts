@@ -10,6 +10,12 @@
 import { eq } from "drizzle-orm";
 import { db } from "../db/connection";
 import { deployments } from "../db/schema/deployments";
+import { COMPOSE_ENV_FILE_NAME } from "../compose-env";
+import {
+  encryptComposeDeploymentEnvEntries,
+  persistDeploymentComposeEnvState,
+  readDeploymentComposeEnvState
+} from "../db/services/compose-env";
 import {
   gitClone,
   dockerBuild,
@@ -68,10 +74,25 @@ export async function executeComposeDeployment(
 
   let workDir: string;
   let composeFile: string;
+  let composeEnvFile: string | undefined;
   try {
-    const workspace = await prepareComposeWorkspace(deployment.id, config, target, onLog);
+    const workspace = await prepareComposeWorkspace(
+      deployment.id,
+      config,
+      target,
+      onLog,
+      readDeploymentComposeEnvState(deployment.envVarsEncrypted)
+    );
     workDir = workspace.workDir;
     composeFile = workspace.composeFile;
+    if (workspace.composeEnv) {
+      composeEnvFile = COMPOSE_ENV_FILE_NAME;
+      await persistDeploymentComposeEnvState({
+        deploymentId: deployment.id,
+        envVarsEncrypted: encryptComposeDeploymentEnvEntries(workspace.composeEnv.payloadEntries),
+        composeEnv: workspace.composeEnv.composeEnv
+      });
+    }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     await markStepFailed(cloneStepId, message);
@@ -85,8 +106,15 @@ export async function executeComposeDeployment(
 
   const pullResult =
     target.mode === "remote"
-      ? await remoteDockerComposePull(target.ssh, composeFile, projectName, workDir, onLog)
-      : await dockerComposePull(composeFile, projectName, workDir, onLog);
+      ? await remoteDockerComposePull(
+          target.ssh,
+          composeFile,
+          projectName,
+          workDir,
+          onLog,
+          composeEnvFile
+        )
+      : await dockerComposePull(composeFile, projectName, workDir, onLog, composeEnvFile);
   if (pullResult.exitCode !== 0) {
     await markStepFailed(pullStepId, `docker compose pull exited with code ${pullResult.exitCode}`);
     throw new Error(`docker compose pull failed with exit code ${pullResult.exitCode}`);
@@ -100,8 +128,15 @@ export async function executeComposeDeployment(
 
   const upResult =
     target.mode === "remote"
-      ? await remoteDockerComposeUp(target.ssh, composeFile, projectName, workDir, onLog)
-      : await dockerComposeUp(composeFile, projectName, workDir, onLog);
+      ? await remoteDockerComposeUp(
+          target.ssh,
+          composeFile,
+          projectName,
+          workDir,
+          onLog,
+          composeEnvFile
+        )
+      : await dockerComposeUp(composeFile, projectName, workDir, onLog, composeEnvFile);
   if (upResult.exitCode !== 0) {
     await markStepFailed(deployStepId, `docker compose up exited with code ${upResult.exitCode}`);
     throw new Error(`docker compose up failed with exit code ${upResult.exitCode}`);

@@ -19,6 +19,7 @@ import { dispatchDeploymentExecution } from "./deployment-dispatch";
 import type { AppRole } from "@daoflow/shared";
 import { asRecord, readString } from "./json-helpers";
 import { buildComposeSourceSnapshot, buildRepositorySourceSnapshot } from "./deployment-source";
+import { prepareComposeDeploymentEnvState } from "./compose-env";
 import { revalidateProjectSourceForExecution } from "./project-source-execution-validation";
 
 export interface TriggerDeployInput {
@@ -109,6 +110,7 @@ export async function triggerDeploy(input: TriggerDeployInput) {
   const buildConfig = asRecord(svc.config);
 
   const configSnapshot: Record<string, unknown> = buildRepositorySourceSnapshot(project);
+  let envVarsEncrypted: string | null = null;
 
   if (svc.sourceType === "compose") {
     Object.assign(
@@ -119,6 +121,13 @@ export async function triggerDeploy(input: TriggerDeployInput) {
         composeServiceName: svc.composeServiceName
       })
     );
+
+    const envState = await prepareComposeDeploymentEnvState({
+      environmentId: env.id,
+      branch: typeof configSnapshot.branch === "string" ? configSnapshot.branch : "main"
+    });
+    configSnapshot.composeEnv = envState.composeEnv;
+    envVarsEncrypted = envState.envVarsEncrypted;
   }
 
   if (svc.sourceType === "dockerfile") {
@@ -146,7 +155,8 @@ export async function triggerDeploy(input: TriggerDeployInput) {
     requestedByRole: input.requestedByRole ?? null,
     trigger: input.trigger ?? "user",
     steps: stepsForSourceType(svc.sourceType),
-    configSnapshot
+    configSnapshot,
+    envVarsEncrypted
   };
 
   const deployment = await createDeploymentRecord(deployInput);

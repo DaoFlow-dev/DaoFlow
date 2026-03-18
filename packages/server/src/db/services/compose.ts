@@ -6,6 +6,7 @@ import { environments, projects } from "../schema/projects";
 import type { AppRole } from "@daoflow/shared";
 import { asRecord, readString, readNumber, readStringArray, readRecordArray } from "./json-helpers";
 import { buildComposeSourceSnapshot } from "./deployment-source";
+import { prepareComposeDeploymentEnvState } from "./compose-env";
 
 export interface ComposeDriftDiffRecord {
   id: string;
@@ -219,6 +220,23 @@ export async function queueComposeRelease(input: {
     .limit(1);
   if (!project) return null;
 
+  const envState = await prepareComposeDeploymentEnvState({
+    environmentId: environment.id,
+    branch: project.defaultBranch ?? "main"
+  });
+
+  const configSnapshot = {
+    ...buildComposeSourceSnapshot({
+      project: {
+        ...project,
+        composePath: service.composeFilePath || project.composePath
+      },
+      environment,
+      composeServiceName: service.serviceName
+    }),
+    composeEnv: envState.composeEnv
+  };
+
   const deployment = await createDeploymentRecord({
     projectName: service.projectName,
     environmentName: service.environmentName,
@@ -230,14 +248,8 @@ export async function queueComposeRelease(input: {
     requestedByUserId: input.requestedByUserId,
     requestedByEmail: input.requestedByEmail,
     requestedByRole: input.requestedByRole as AppRole,
-    configSnapshot: buildComposeSourceSnapshot({
-      project: {
-        ...project,
-        composePath: service.composeFilePath || project.composePath
-      },
-      environment,
-      composeServiceName: service.serviceName
-    }),
+    envVarsEncrypted: envState.envVarsEncrypted,
+    configSnapshot,
     steps: [
       {
         label: "Resolve compose diff",

@@ -130,6 +130,7 @@ export interface CreateDeploymentInput {
   trigger?: DeploymentTrigger;
   steps: readonly { label: string; detail: string }[];
   configSnapshot?: Record<string, unknown>;
+  envVarsEncrypted?: string | null;
 }
 
 export async function createDeploymentRecord(input: CreateDeploymentInput) {
@@ -161,6 +162,7 @@ export async function createDeploymentRecord(input: CreateDeploymentInput) {
       workerHint: `ssh://${server[0].name}/docker-engine`,
       ...(input.configSnapshot ?? {})
     },
+    envVarsEncrypted: input.envVarsEncrypted ?? null,
     status: "queued",
     trigger: input.trigger ?? "user",
     requestedByUserId: input.requestedByUserId ?? null,

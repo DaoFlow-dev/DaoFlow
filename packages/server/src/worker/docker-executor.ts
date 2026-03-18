@@ -340,7 +340,8 @@ export async function dockerComposePull(
   composeFile: string,
   projectName: string,
   cwd: string,
-  onLog: OnLog
+  onLog: OnLog,
+  envFile?: string
 ): Promise<{ exitCode: number }> {
   onLog({
     stream: "stdout",
@@ -348,12 +349,13 @@ export async function dockerComposePull(
     timestamp: new Date()
   });
 
-  return execStreaming(
-    "docker",
-    ["compose", "-f", composeFile, "-p", projectName, "pull"],
-    cwd,
-    onLog
-  );
+  const args = ["compose", "-f", composeFile, "-p", projectName];
+  if (envFile) {
+    args.push("--env-file", envFile);
+  }
+  args.push("pull");
+
+  return execStreaming("docker", args, cwd, onLog);
 }
 
 /**
@@ -363,7 +365,8 @@ export async function dockerComposeUp(
   composeFile: string,
   projectName: string,
   cwd: string,
-  onLog: OnLog
+  onLog: OnLog,
+  envFile?: string
 ): Promise<{ exitCode: number }> {
   onLog({
     stream: "stdout",
@@ -371,12 +374,13 @@ export async function dockerComposeUp(
     timestamp: new Date()
   });
 
-  return execStreaming(
-    "docker",
-    ["compose", "-f", composeFile, "-p", projectName, "up", "-d", "--remove-orphans"],
-    cwd,
-    onLog
-  );
+  const args = ["compose", "-f", composeFile, "-p", projectName];
+  if (envFile) {
+    args.push("--env-file", envFile);
+  }
+  args.push("up", "-d", "--remove-orphans");
+
+  return execStreaming("docker", args, cwd, onLog);
 }
 
 /**
