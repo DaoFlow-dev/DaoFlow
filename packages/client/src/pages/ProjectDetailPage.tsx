@@ -4,7 +4,7 @@ import { trpc } from "../lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Plus, Settings2, Copy } from "lucide-react";
+import { ArrowLeft, Plus, Settings2, Copy, Check } from "lucide-react";
 import AddServiceDialog from "../components/AddServiceDialog";
 import { ProjectOverviewCards } from "@/components/project/ProjectOverviewCards";
 import { ProjectServicesList } from "@/components/project/ProjectServicesList";
@@ -20,6 +20,7 @@ export default function ProjectDetailPage() {
   const [editName, setEditName] = useState("");
   const [editDesc, setEditDesc] = useState("");
   const [activeEnv, setActiveEnv] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState(false);
 
   const project = trpc.projectDetails.useQuery({ projectId: id! }, { enabled: !!id });
   const services = trpc.projectServices.useQuery({ projectId: id! }, { enabled: !!id });
@@ -103,6 +104,20 @@ export default function ProjectDetailPage() {
               <p className="text-muted-foreground text-sm">{config.description}</p>
             )}
           </div>
+          <Button
+            size="sm"
+            variant="ghost"
+            title="Copy Project ID"
+            aria-label="Copy project ID"
+            onClick={() => {
+              void navigator.clipboard.writeText(p.id).then(() => {
+                setCopiedId(true);
+                setTimeout(() => setCopiedId(false), 2000);
+              });
+            }}
+          >
+            {copiedId ? <Check size={14} /> : <Copy size={14} />}
+          </Button>
         </div>
         <div className="flex items-center gap-2">
           <Button

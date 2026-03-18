@@ -109,7 +109,15 @@ export default function ServersPage() {
                   <CardHeader className="gap-2">
                     <div className="flex items-center justify-between gap-3">
                       <div>
-                        <CardTitle className="text-base">{String(check.serverName)}</CardTitle>
+                        <CardTitle className="text-base flex items-center gap-2">
+                          <span
+                            className={`inline-block h-2.5 w-2.5 rounded-full ${check.sshReachable ? "bg-green-500" : "bg-destructive"}`}
+                            aria-label={
+                              check.sshReachable ? "Server ready" : "Server needs attention"
+                            }
+                          />
+                          {String(check.serverName)}
+                        </CardTitle>
                         <CardDescription>
                           {String(check.serverHost)} · SSH {String(check.sshPort)}
                         </CardDescription>
