@@ -161,7 +161,7 @@ export default function ProjectsPage() {
           {allProjects.map((p) => (
             <Card
               key={String(p.id)}
-              className="cursor-pointer transition-colors hover:bg-muted/50"
+              className="cursor-pointer transition-all hover:bg-muted/50 hover:scale-[1.02]"
               onClick={() => void navigate(`/projects/${String(p.id)}`)}
             >
               <CardHeader className="flex-row items-center gap-3 space-y-0 pb-2">

@@ -13,10 +13,22 @@ import {
   TableHeader,
   TableRow
 } from "@/components/ui/table";
-import { Rocket, ChevronDown, ChevronRight, RotateCcw } from "lucide-react";
+import { Rocket, ChevronDown, ChevronRight, RotateCcw, RefreshCw } from "lucide-react";
 import DeploymentLogViewer from "../components/DeploymentLogViewer";
 import DeploymentRollbackDialog from "../components/DeploymentRollbackDialog";
 import { getBadgeVariantFromTone } from "@/lib/tone-utils";
+
+function formatRelative(iso: string | Date | null): string {
+  if (!iso) return "—";
+  const ms = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(ms / 60_000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  return `${days}d ago`;
+}
 
 export default function DeploymentsPage() {
   const session = useSession();
@@ -118,14 +130,18 @@ export default function DeploymentsPage() {
                         <TableCell className="text-muted-foreground">
                           {String(d.sourceType ?? "docker")}
                         </TableCell>
-                        <TableCell className="text-muted-foreground">
-                          {d.createdAt ? new Date(d.createdAt).toLocaleString() : "—"}
+                        <TableCell
+                          className="text-muted-foreground"
+                          title={d.createdAt ? new Date(d.createdAt).toLocaleString() : undefined}
+                        >
+                          {formatRelative(d.createdAt ?? null)}
                         </TableCell>
                         <TableCell className="text-right">
                           {isSuccessful && (
                             <Button
                               variant="ghost"
                               size="sm"
+                              aria-label="Rollback deployment"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setRollbackServiceId(String(d.serviceId));
@@ -133,6 +149,19 @@ export default function DeploymentsPage() {
                             >
                               <RotateCcw size={14} className="mr-1" />
                               Rollback
+                            </Button>
+                          )}
+                          {typeof d.conclusion === "string" && d.conclusion === "failure" && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              aria-label="Retry failed deployment"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                              }}
+                            >
+                              <RefreshCw size={14} className="mr-1" />
+                              Retry
                             </Button>
                           )}
                         </TableCell>
