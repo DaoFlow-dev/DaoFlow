@@ -9,6 +9,7 @@ import AddServiceDialog from "../components/AddServiceDialog";
 import { ProjectOverviewCards } from "@/components/project/ProjectOverviewCards";
 import { ProjectServicesList } from "@/components/project/ProjectServicesList";
 import { ProjectSettingsPanel } from "@/components/project/ProjectSettingsPanel";
+import { ProjectGitCard } from "@/components/project/ProjectGitCard";
 
 export default function ProjectDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -128,6 +129,8 @@ export default function ProjectDetailPage() {
           onEditDesc={setEditDesc}
         />
       )}
+
+      <ProjectGitCard config={config} />
 
       <ProjectOverviewCards
         serviceCount={serviceList.length}
