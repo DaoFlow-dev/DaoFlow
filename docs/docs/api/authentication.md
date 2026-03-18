@@ -23,6 +23,13 @@ curl -H "Authorization: Bearer dfl_your_token_here" \
   http://localhost:3000/trpc/health
 ```
 
+DaoFlow now resolves Bearer tokens directly inside the tRPC request context. Effective access is the intersection of:
+
+1. The principal role capabilities
+2. The presented token scopes
+
+That means a token can only narrow a principal, never widen it.
+
 ### Creating Tokens
 
 Tokens are created in the dashboard under **Settings → Tokens** or via the API:
@@ -51,6 +58,13 @@ Tokens follow the format: `dfl_<random_string>`
 | Principal | The user/agent this token belongs to             |
 | Expiry    | When the token expires (optional)                |
 | Lane      | Computed from scopes: read, planning, or command |
+
+### CLI Behavior
+
+- `daoflow login --token dfl_...` stores the token as-is
+- CLI requests with `dfl_...` tokens use `Authorization: Bearer ...`
+- CLI requests with non-`dfl_...` tokens continue to use Better Auth session cookies
+- `daoflow whoami --json` reports `authMethod`, token metadata, and `session: null` when the current identity is token-backed
 
 ## First User
 

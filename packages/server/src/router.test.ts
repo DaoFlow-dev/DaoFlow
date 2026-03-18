@@ -1,6 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import { describe, expect, it } from "vitest";
-import type { Context } from "./context";
+import { getEffectiveTokenCapabilities, type ApiTokenScope } from "@daoflow/shared";
+import type { Context, RequestAuthContext } from "./context";
 import { db } from "./db/connection";
 import { deployments } from "./db/schema/deployments";
 import { createEnvironment, createProject } from "./db/services/projects";
@@ -66,6 +67,32 @@ function makeSession(role: string): NonNullable<Context["session"]> {
       userAgent: null
     }
   } as unknown as NonNullable<Context["session"]>;
+}
+
+function makeTokenAuthContext(
+  role: "owner" | "agent",
+  scopes: ApiTokenScope[],
+  principalType: "user" | "agent" = "user"
+): RequestAuthContext {
+  return {
+    method: "api-token",
+    role,
+    capabilities: getEffectiveTokenCapabilities(role, scopes),
+    principal: {
+      id: principalType === "agent" ? "principal_observer_agent_1" : "user_foundation_owner",
+      email: principalType === "agent" ? "observer-agent@daoflow.local" : "owner@daoflow.local",
+      name: principalType === "agent" ? "Observer Agent" : "Foundation Owner",
+      type: principalType,
+      linkedUserId: principalType === "agent" ? "user_observer_agent" : "user_foundation_owner"
+    },
+    token: {
+      id: principalType === "agent" ? "token_observer_readonly" : "token_owner_scoped",
+      name: principalType === "agent" ? "readonly-observer" : "owner-scoped",
+      prefix: principalType === "agent" ? "df_read_4f39" : "dfl_owner_1",
+      expiresAt: null,
+      scopes
+    }
+  };
 }
 
 async function createRollbackFixture() {
@@ -213,6 +240,47 @@ describe("appRouter", () => {
 
     expect(response.authz.role).toBe("viewer");
     expect(response.authz.capabilities).toContain("server:read");
+  });
+
+  it("returns token-backed identity details for bearer-auth callers", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-viewer-token",
+      session: makeSession("agent"),
+      auth: makeTokenAuthContext("agent", ["server:read", "deploy:read"], "agent")
+    });
+
+    const response = await caller.viewer();
+
+    expect(response.principal.type).toBe("agent");
+    expect(response.authz.authMethod).toBe("api-token");
+    expect(response.authz.capabilities).toEqual(["server:read", "deploy:read"]);
+    expect(response.session).toBeNull();
+  });
+
+  it("denies command procedures when a token scopes an owner down to read-only", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-owner-token-scope",
+      session: makeSession("owner"),
+      auth: makeTokenAuthContext("owner", ["deploy:read"])
+    });
+
+    await expect(
+      caller.registerServer({
+        name: "scoped-owner",
+        host: "203.0.113.55",
+        sshUser: "root",
+        sshPort: 22,
+        region: "local-test",
+        kind: "docker-engine"
+      })
+    ).rejects.toMatchObject({
+      code: "FORBIDDEN",
+      cause: {
+        code: "SCOPE_DENIED",
+        requiredScopes: ["server:write"],
+        grantedScopes: ["deploy:read"]
+      }
+    });
   });
 
   it("returns deployment records without inline step expansion", async () => {

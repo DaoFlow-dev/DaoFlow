@@ -1,4 +1,5 @@
 import { getCurrentContext, type DaoFlowContext } from "./config";
+import { buildAuthHeaders } from "./auth-headers";
 
 export class ApiClient {
   private ctx: DaoFlowContext;
@@ -19,9 +20,8 @@ export class ApiClient {
 
   private headers(extra?: Record<string, string>): Record<string, string> {
     return {
-      Cookie: `better-auth.session_token=${this.ctx.token}`,
       "Content-Type": "application/json",
-      ...extra
+      ...buildAuthHeaders(this.ctx.token, extra)
     };
   }
 
@@ -94,9 +94,8 @@ export class ApiClient {
     }
   ): Promise<unknown> {
     const headers: Record<string, string> = {
-      Cookie: `better-auth.session_token=${this.ctx.token}`,
       "Content-Type": opts?.contentType ?? "application/octet-stream",
-      ...(opts?.headers ?? {})
+      ...buildAuthHeaders(this.ctx.token, opts?.headers)
     };
     if (contentLength) {
       headers["Content-Length"] = String(contentLength);
@@ -119,8 +118,8 @@ export class ApiClient {
   async sse(path: string, onEvent: (data: string) => void, abort?: AbortSignal): Promise<void> {
     const res = await fetch(`${this.baseUrl}${path}`, {
       headers: {
-        Cookie: `better-auth.session_token=${this.ctx.token}`,
-        Accept: "text/event-stream"
+        Accept: "text/event-stream",
+        ...buildAuthHeaders(this.ctx.token)
       },
       signal: abort
     });

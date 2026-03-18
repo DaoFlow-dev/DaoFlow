@@ -6,6 +6,7 @@
  */
 import { createTRPCClient, httpLink } from "@trpc/client";
 import { getCurrentContext, type DaoFlowContext } from "./config";
+import { buildAuthHeaders } from "./auth-headers";
 import type { DaoFlowRouterBase, DaoFlowTRPC } from "./trpc-contract";
 
 export type { CreateAgentInput, RouterOutputs } from "./trpc-contract";
@@ -13,7 +14,7 @@ export type { CreateAgentInput, RouterOutputs } from "./trpc-contract";
 /**
  * Create a fully-typed tRPC client configured with the current CLI context.
  *
- * Auth: sends the session token as a `Cookie` header (Better Auth expects this).
+ * Auth: sends Better Auth sessions as a cookie and DaoFlow API tokens as Bearer auth.
  * Throws if no context/token is available — prompts user to run `daoflow login`.
  */
 export function createClient(ctx?: DaoFlowContext): DaoFlowTRPC {
@@ -29,9 +30,7 @@ export function createClient(ctx?: DaoFlowContext): DaoFlowTRPC {
       httpLink({
         url: `${baseUrl}/trpc`,
         headers() {
-          return {
-            Cookie: `better-auth.session_token=${resolved.token}`
-          };
+          return buildAuthHeaders(resolved.token);
         }
       })
     ]

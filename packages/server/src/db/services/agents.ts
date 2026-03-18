@@ -18,27 +18,7 @@ import {
   type AgentTokenPreset
 } from "@daoflow/shared";
 import { newId as id } from "./json-helpers";
-
-/* ──────────────────────── Helpers ──────────────────────── */
-
-/** Generate a random API token string. */
-function generateTokenValue(): string {
-  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-  let token = "dfl_";
-  for (let i = 0; i < 48; i++) {
-    token += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return token;
-}
-
-/** Hash a token for storage (simple SHA-256). */
-async function hashToken(token: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(token);
-  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
-}
+import { generateApiTokenValue, hashApiToken } from "../../api-token-utils";
 
 /* ──────────────────────── Interfaces ──────────────────────── */
 
@@ -142,8 +122,8 @@ export async function generateAgentToken(input: GenerateTokenInput) {
 
   if (!principal) return { status: "not_found" as const };
 
-  const tokenValue = generateTokenValue();
-  const tokenHash = await hashToken(tokenValue);
+  const tokenValue = generateApiTokenValue();
+  const tokenHash = await hashApiToken(tokenValue);
   const tokenPrefix = tokenValue.slice(0, 12);
   const tokenId = id();
 

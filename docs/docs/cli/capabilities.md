@@ -33,12 +33,37 @@ daoflow capabilities --json
 ```json
 {
   "ok": true,
-  "role": "developer",
-  "scopes": {
-    "read": ["server:read", "deploy:read", "service:read", "env:read", "logs:read", "events:read"],
-    "write": ["deploy:start", "env:write"]
-  },
-  "total": 8
+  "data": {
+    "authMethod": "api-token",
+    "role": "developer",
+    "scopes": [
+      "server:read",
+      "deploy:read",
+      "service:read",
+      "env:read",
+      "logs:read",
+      "events:read",
+      "deploy:start",
+      "env:write"
+    ],
+    "token": {
+      "id": "token_abc123",
+      "name": "ci-deploy",
+      "prefix": "dfl_ci_12ab",
+      "expiresAt": "2026-06-01T00:00:00.000Z",
+      "scopes": [
+        "server:read",
+        "deploy:read",
+        "service:read",
+        "env:read",
+        "logs:read",
+        "events:read",
+        "deploy:start",
+        "env:write"
+      ]
+    },
+    "total": 8
+  }
 }
 ```
 

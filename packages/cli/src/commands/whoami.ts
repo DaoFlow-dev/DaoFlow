@@ -31,20 +31,29 @@ export function whoamiCommand(): Command {
             JSON.stringify({
               ok: true,
               data: {
-                principal: viewer.user,
+                principal: viewer.principal,
                 role: viewer.authz.role,
                 scopes: viewer.authz.capabilities,
+                authMethod: viewer.authz.authMethod,
+                token: viewer.authz.token,
                 session: viewer.session
               }
             })
           );
         } else {
           console.log(chalk.bold("\n  Identity\n"));
-          console.log(`  User:     ${viewer.user.email}`);
-          console.log(`  Name:     ${viewer.user.name ?? chalk.dim("—")}`);
+          console.log(`  Principal: ${viewer.principal.email}`);
+          console.log(`  Name:      ${viewer.principal.name ?? chalk.dim("—")}`);
+          console.log(`  Type:      ${chalk.cyan(viewer.principal.type)}`);
+          console.log(`  Auth:      ${chalk.cyan(viewer.authz.authMethod)}`);
           console.log(`  Role:     ${chalk.cyan(viewer.authz.role)}`);
-          console.log(`  Session:  ${chalk.dim(viewer.session.id.slice(0, 12) + "…")}`);
-          console.log(`  Expires:  ${chalk.dim(viewer.session.expiresAt)}`);
+          if (viewer.session) {
+            console.log(`  Session:   ${chalk.dim(viewer.session.id.slice(0, 12) + "…")}`);
+            console.log(`  Expires:   ${chalk.dim(viewer.session.expiresAt)}`);
+          } else if (viewer.authz.token) {
+            console.log(`  Token:     ${chalk.dim(viewer.authz.token.prefix + "…")}`);
+            console.log(`  Expires:   ${chalk.dim(viewer.authz.token.expiresAt ?? "never")}`);
+          }
           console.log(`  Scopes:   ${viewer.authz.capabilities.length} granted\n`);
         }
       } catch (err) {

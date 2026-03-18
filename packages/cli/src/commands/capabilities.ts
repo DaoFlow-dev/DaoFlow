@@ -33,14 +33,18 @@ export function capabilitiesCommand(): Command {
             JSON.stringify({
               ok: true,
               data: {
+                authMethod: viewer.authz.authMethod,
                 role: viewer.authz.role,
                 scopes: caps,
+                token: viewer.authz.token,
                 total: caps.length
               }
             })
           );
         } else {
-          console.log(chalk.bold(`\n  Capabilities (${viewer.authz.role})\n`));
+          console.log(
+            chalk.bold(`\n  Capabilities (${viewer.authz.role}, ${viewer.authz.authMethod})\n`)
+          );
           const readScopes = caps.filter((s) => s.endsWith(":read"));
           const writeScopes = caps.filter((s) => !s.endsWith(":read"));
 

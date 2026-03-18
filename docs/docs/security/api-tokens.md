@@ -67,3 +67,15 @@ daoflow login --url https://deploy.example.com --token dfl_abc123
 curl -H "Authorization: Bearer dfl_abc123" \
   https://deploy.example.com/trpc/health
 ```
+
+## Effective Permissions
+
+DaoFlow evaluates API tokens as:
+
+`effective capabilities = principal role capabilities ∩ token scopes`
+
+Examples:
+
+- An `owner` token scoped to `deploy:read` can inspect deployments but cannot mutate infrastructure
+- An `agent` token scoped to read endpoints cannot exceed the built-in `agent` role ceiling
+- Revoked, expired, or invalidated tokens are rejected before the request reaches tRPC procedures

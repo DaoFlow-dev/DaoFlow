@@ -104,12 +104,11 @@ export default function SettingsPage() {
             {activeTab === "general" && (
               <GeneralSettingsTab
                 currentRole={currentRole}
-                email={viewer.data?.user.email}
-                sessionExpiresAt={viewer.data?.session.expiresAt}
+                email={viewer.data?.principal.email}
+                sessionExpiresAt={viewer.data?.session?.expiresAt}
                 caps={caps}
               />
             )}
-
             {activeTab === "users" && (
               <UsersSettingsTab
                 isAdmin={isAdmin}

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createApp } from "./app";
-import { resetControlPlaneSeedState } from "./db/services/seed";
+import { ensureControlPlaneReady, resetControlPlaneSeedState } from "./db/services/seed";
+import { createAgentPrincipal, generateAgentToken } from "./db/services/agents";
 import { resetTestDatabase } from "./test-db";
 import {
   ensureInitialOwnerFromEnv,
@@ -171,6 +172,60 @@ describe("createApp", () => {
     expect(exchangeResponse.status).toBe(200);
     expect(exchangeBody.token).toBeTruthy();
     expect(viewerResponse.status).toBe(200);
+  });
+
+  it("accepts bearer API tokens on tRPC routes", async () => {
+    await resetTestDatabase();
+    resetControlPlaneSeedState();
+    await ensureControlPlaneReady();
+
+    const app = createApp();
+    const created = await createAgentPrincipal({
+      name: `api-token-agent-${Date.now()}`,
+      description: "Token-backed viewer test",
+      preset: "agent:read-only",
+      requestedByUserId: "user_foundation_owner",
+      requestedByEmail: "owner@daoflow.local",
+      requestedByRole: "owner"
+    });
+
+    expect(created.status).toBe("ok");
+
+    const generated = await generateAgentToken({
+      principalId: created.principal.id,
+      tokenName: "viewer-token",
+      requestedByUserId: "user_foundation_owner",
+      requestedByEmail: "owner@daoflow.local",
+      requestedByRole: "owner"
+    });
+
+    expect(generated.status).toBe("ok");
+
+    const viewerResponse = await app.request("/trpc/viewer", {
+      headers: {
+        Authorization: `Bearer ${generated.tokenValue}`
+      }
+    });
+    const body = (await viewerResponse.json()) as {
+      result: {
+        data: {
+          principal: {
+            type: string;
+          };
+          authz: {
+            authMethod: string;
+            capabilities: string[];
+          };
+          session: unknown;
+        };
+      };
+    };
+
+    expect(viewerResponse.status).toBe(200);
+    expect(body.result.data.principal.type).toBe("agent");
+    expect(body.result.data.authz.authMethod).toBe("api-token");
+    expect(body.result.data.authz.capabilities).toContain("deploy:read");
+    expect(body.result.data.session).toBeNull();
   });
 
   it("bootstraps an initial owner from environment credentials", async () => {

@@ -15,21 +15,31 @@ type MutationProcedure<TInput, TOutput> = {
 export type DaoFlowRouterBase = AnyRouter;
 
 export interface ViewerOutput {
-  user: {
+  principal: {
     id: string;
     email: string;
     name: string | null;
+    type: "user" | "service" | "agent";
+    linkedUserId: string | null;
   };
   authz: {
+    authMethod: "session" | "api-token";
     stack: string;
     intent: string;
     role: string;
     capabilities: string[];
+    token: {
+      id: string;
+      name: string;
+      prefix: string;
+      expiresAt: string | null;
+      scopes: string[];
+    } | null;
   };
   session: {
     id: string;
     expiresAt: string;
-  };
+  } | null;
 }
 
 export interface HealthOutput {

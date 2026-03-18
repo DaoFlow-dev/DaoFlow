@@ -1,20 +1,15 @@
 import { initTRPC, TRPCError } from "@trpc/server";
-import {
-  canAssumeAnyRole,
-  hasAllScopes,
-  normalizeAppRole,
-  roleCapabilities,
-  type ApiTokenScope,
-  type AppRole
-} from "@daoflow/shared";
-import type { Context } from "./context";
+import { canAssumeAnyRole, hasAllScopes, type ApiTokenScope, type AppRole } from "@daoflow/shared";
+import { getSessionAuthContext, type Context } from "./context";
 import { ensureControlPlaneReady } from "./db/services/seed";
 
 export const t = initTRPC.context<Context>().create();
 
 // ── Protected: requires session ──────────────────────────────
 export const protectedProcedure = t.procedure.use(async ({ ctx, next }) => {
-  if (!ctx.session) {
+  const authContext = ctx.auth ?? getSessionAuthContext(ctx.session);
+
+  if (!ctx.session || !authContext) {
     throw new TRPCError({
       code: "UNAUTHORIZED",
       message: "Sign in to access this procedure."
@@ -27,7 +22,8 @@ export const protectedProcedure = t.procedure.use(async ({ ctx, next }) => {
   return next({
     ctx: {
       ...ctx,
-      session: ctx.session
+      session: ctx.session,
+      auth: authContext
     }
   });
 });
@@ -35,7 +31,7 @@ export const protectedProcedure = t.procedure.use(async ({ ctx, next }) => {
 // ── Role-gated ───────────────────────────────────────────────
 export const roleProcedure = (allowedRoles: readonly AppRole[]) =>
   protectedProcedure.use(({ ctx, next }) => {
-    const role = normalizeAppRole((ctx.session.user as Record<string, unknown>).role);
+    const role = ctx.auth.role;
 
     if (!canAssumeAnyRole(role, allowedRoles)) {
       throw new TRPCError({
@@ -58,7 +54,7 @@ export const scopedProcedure = (
   requiredScopes: readonly ApiTokenScope[]
 ) =>
   roleProcedure(allowedRoles).use(({ ctx, next }) => {
-    const capabilities = roleCapabilities[ctx.role];
+    const capabilities = ctx.auth.capabilities;
 
     if (!hasAllScopes(capabilities, requiredScopes)) {
       throw new TRPCError({

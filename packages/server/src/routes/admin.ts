@@ -1,33 +1,38 @@
-import { appRoles, defaultSignupRole, normalizeAppRole, roleCapabilities } from "@daoflow/shared";
+import { appRoles, defaultSignupRole } from "@daoflow/shared";
 import { listApiTokenInventory, listPrincipalInventory } from "../db/services/tokens";
 import { t, protectedProcedure, adminProcedure } from "../trpc";
 
 export const adminRouter = t.router({
   viewer: protectedProcedure.query(({ ctx }) => {
-    const role = normalizeAppRole((ctx.session.user as Record<string, unknown>).role);
-
     return {
-      user: {
-        id: ctx.session.user.id,
-        email: ctx.session.user.email,
-        name: ctx.session.user.name ?? null
-      },
-      session: {
-        id: ctx.session.session.id,
-        expiresAt: ctx.session.session.expiresAt
-      },
+      principal: ctx.auth.principal,
+      session:
+        ctx.auth.method === "session"
+          ? {
+              id: ctx.session.session.id,
+              expiresAt: ctx.session.session.expiresAt
+            }
+          : null,
       authz: {
-        stack: "Better Auth + tRPC protected procedure",
-        intent: "human session auth for the control plane",
-        role,
-        capabilities: roleCapabilities[role]
+        authMethod: ctx.auth.method,
+        stack:
+          ctx.auth.method === "session"
+            ? "Better Auth session + tRPC protected procedure"
+            : "Bearer API token + tRPC protected procedure",
+        intent:
+          ctx.auth.method === "session"
+            ? "human session auth for the control plane"
+            : "scoped automation auth for CLI, CI, and agent access",
+        role: ctx.auth.role,
+        capabilities: [...ctx.auth.capabilities],
+        token: ctx.auth.token
       }
     };
   }),
   adminControlPlane: adminProcedure.query(({ ctx }) => ({
     operator: {
-      userId: ctx.session.user.id,
-      email: ctx.session.user.email,
+      userId: ctx.auth.principal.linkedUserId ?? ctx.session.user.id,
+      email: ctx.auth.principal.email,
       role: ctx.role
     },
     governance: {
@@ -36,7 +41,7 @@ export const adminRouter = t.router({
       defaultSignupRole,
       elevatedRoles: ["owner", "admin"] as const
     },
-    capabilities: roleCapabilities[ctx.role],
+    capabilities: [...ctx.auth.capabilities],
     guardrails: [
       "External agents stay read-heavy by default.",
       "Destructive actions require narrower capability lanes.",
