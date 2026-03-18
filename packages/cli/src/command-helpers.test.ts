@@ -1,6 +1,22 @@
 import { describe, expect, test } from "bun:test";
 import { Command } from "commander";
-import { resolveCommandJsonOption } from "./command-helpers";
+import { emitJsonError, emitJsonSuccess, resolveCommandJsonOption } from "./command-helpers";
+
+function captureConsoleLog(fn: () => void): string[] {
+  const original = console.log;
+  const messages: string[] = [];
+  console.log = (...args: unknown[]) => {
+    messages.push(args.map((arg) => String(arg)).join(" "));
+  };
+
+  try {
+    fn();
+  } finally {
+    console.log = original;
+  }
+
+  return messages;
+}
 
 describe("resolveCommandJsonOption", () => {
   test("reads the root global --json flag from a subcommand", async () => {
@@ -52,5 +68,29 @@ describe("resolveCommandJsonOption", () => {
     await program.parseAsync(["node", "daoflow", "projects", "list"]);
 
     expect(observed).toBe(false);
+  });
+
+  test("emitJsonSuccess wraps data in the standard envelope", () => {
+    const [output] = captureConsoleLog(() => {
+      emitJsonSuccess({ deploymentId: "dep_123", queued: true });
+    });
+
+    expect(JSON.parse(output)).toEqual({
+      ok: true,
+      data: { deploymentId: "dep_123", queued: true }
+    });
+  });
+
+  test("emitJsonError emits structured errors with optional fields", () => {
+    const [output] = captureConsoleLog(() => {
+      emitJsonError("Permission denied", "SCOPE_DENIED", { requiredScope: "deploy:start" });
+    });
+
+    expect(JSON.parse(output)).toEqual({
+      ok: false,
+      error: "Permission denied",
+      code: "SCOPE_DENIED",
+      requiredScope: "deploy:start"
+    });
   });
 });

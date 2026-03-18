@@ -42,3 +42,15 @@ export function resolveCommandBooleanOption(
 export function resolveCommandJsonOption(command: Command, localValue?: boolean): boolean {
   return resolveCommandBooleanOption(command, "json", localValue);
 }
+
+export function emitJsonSuccess<T>(data: T): void {
+  console.log(JSON.stringify({ ok: true, data }));
+}
+
+export function emitJsonError(
+  error: string,
+  code = "ERROR",
+  extra?: Record<string, unknown>
+): void {
+  console.log(JSON.stringify({ ok: false, error, code, ...extra }));
+}

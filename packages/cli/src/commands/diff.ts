@@ -10,7 +10,12 @@
 
 import { Command } from "commander";
 import chalk from "chalk";
-import { resolveCommandJsonOption } from "../command-helpers";
+import {
+  emitJsonError,
+  emitJsonSuccess,
+  getErrorMessage,
+  resolveCommandJsonOption
+} from "../command-helpers";
 import { createClient } from "../trpc-client";
 
 export function diffCommand(): Command {
@@ -30,7 +35,7 @@ export function diffCommand(): Command {
         });
 
         if (isJson) {
-          console.log(JSON.stringify({ ok: true, diff: result }));
+          emitJsonSuccess(result);
           return;
         }
 
@@ -86,13 +91,7 @@ export function diffCommand(): Command {
         console.log();
       } catch (err) {
         if (isJson) {
-          console.log(
-            JSON.stringify({
-              ok: false,
-              error: err instanceof Error ? err.message : "Unknown error",
-              code: "API_ERROR"
-            })
-          );
+          emitJsonError(getErrorMessage(err), "API_ERROR");
         } else {
           console.error(chalk.red(`✗ ${err instanceof Error ? err.message : String(err)}`));
         }

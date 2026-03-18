@@ -1,6 +1,11 @@
 import { Command } from "commander";
 import chalk from "chalk";
-import { resolveCommandJsonOption } from "../command-helpers";
+import {
+  emitJsonError,
+  emitJsonSuccess,
+  getErrorMessage,
+  resolveCommandJsonOption
+} from "../command-helpers";
 import { createClient } from "../trpc-client";
 
 export function rollbackCommand(): Command {
@@ -46,7 +51,7 @@ export function rollbackCommand(): Command {
           // If no target specified, list available targets
           if (!opts.target) {
             if (isJson) {
-              console.log(JSON.stringify({ ok: true, data: { targets } }));
+              emitJsonSuccess({ targets });
             } else {
               console.log(chalk.bold("\n  Available Rollback Targets\n"));
               for (const t of targets) {
@@ -81,24 +86,20 @@ export function rollbackCommand(): Command {
 
           if (opts.dryRun) {
             const plan = {
-              ok: true,
-              dryRun: true,
-              plan: {
-                serviceId: opts.service,
-                targetDeploymentId: target.deploymentId,
-                targetImage: target.imageTag,
-                targetCommit: target.commitSha,
-                steps: [
-                  "Rollback preparation",
-                  "Restore configuration from target deployment",
-                  "Deploy containers with previous config",
-                  "Health check"
-                ]
-              }
+              serviceId: opts.service,
+              targetDeploymentId: target.deploymentId,
+              targetImage: target.imageTag,
+              targetCommit: target.commitSha,
+              steps: [
+                "Rollback preparation",
+                "Restore configuration from target deployment",
+                "Deploy containers with previous config",
+                "Health check"
+              ]
             };
 
             if (isJson) {
-              console.log(JSON.stringify(plan));
+              emitJsonSuccess({ dryRun: true, plan });
             } else {
               console.log(chalk.bold("\n  Rollback Plan (dry-run)\n"));
               console.log(`  Target:  ${target.deploymentId}`);
@@ -106,7 +107,7 @@ export function rollbackCommand(): Command {
               console.log(`  Commit:  ${target.commitSha ?? "—"}`);
               console.log();
               console.log(chalk.dim("  Steps:"));
-              plan.plan.steps.forEach((step, i) => {
+              plan.steps.forEach((step, i) => {
                 console.log(`    ${chalk.green(`${i + 1}.`)} ${step}`);
               });
             }
@@ -114,12 +115,15 @@ export function rollbackCommand(): Command {
           }
 
           if (!opts.yes) {
-            console.error(
-              chalk.yellow(
-                "Destructive operation. Pass --yes to confirm, or use --dry-run to preview."
-              )
-            );
+            const error =
+              "Destructive operation. Pass --yes to confirm, or use --dry-run to preview.";
+            if (isJson) {
+              emitJsonError(error, "CONFIRMATION_REQUIRED");
+            } else {
+              console.error(chalk.yellow(error));
+            }
             process.exit(1);
+            return;
           }
 
           if (!isJson) {
@@ -132,7 +136,7 @@ export function rollbackCommand(): Command {
           });
 
           if (isJson) {
-            console.log(JSON.stringify({ ok: true, data: result }));
+            emitJsonSuccess(result);
           } else {
             console.log(chalk.green("✓ Rollback deployment queued"));
             console.log(chalk.dim(`  ID: ${result.id}`));
@@ -140,13 +144,7 @@ export function rollbackCommand(): Command {
           }
         } catch (err) {
           if (isJson) {
-            console.log(
-              JSON.stringify({
-                ok: false,
-                error: err instanceof Error ? err.message : "Unknown error",
-                code: "API_ERROR"
-              })
-            );
+            emitJsonError(getErrorMessage(err), "API_ERROR");
           } else {
             console.error(chalk.red(`Error: ${err instanceof Error ? err.message : String(err)}`));
           }

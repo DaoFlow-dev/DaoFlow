@@ -7,7 +7,12 @@
 
 import { Command } from "commander";
 import chalk from "chalk";
-import { resolveCommandJsonOption } from "../command-helpers";
+import {
+  emitJsonError,
+  emitJsonSuccess,
+  getErrorMessage,
+  resolveCommandJsonOption
+} from "../command-helpers";
 import { createClient } from "../trpc-client";
 
 export function cancelCommand(): Command {
@@ -20,13 +25,15 @@ export function cancelCommand(): Command {
       async (opts: { deployment: string; json?: boolean; yes?: boolean }, command: Command) => {
         const isJson = resolveCommandJsonOption(command, opts.json);
 
-        if (!opts.yes && !isJson) {
-          console.error(
-            chalk.yellow(
-              `Destructive: cancel deployment ${opts.deployment}. Pass --yes to confirm.`
-            )
-          );
+        if (!opts.yes) {
+          const error = `Destructive: cancel deployment ${opts.deployment}. Pass --yes to confirm.`;
+          if (isJson) {
+            emitJsonError(error, "CONFIRMATION_REQUIRED");
+          } else {
+            console.error(chalk.yellow(error));
+          }
           process.exit(1);
+          return;
         }
 
         try {
@@ -41,22 +48,16 @@ export function cancelCommand(): Command {
           });
 
           if (isJson) {
-            console.log(JSON.stringify({ ok: true, ...result }));
+            emitJsonSuccess(result);
           } else {
             console.log(chalk.green(`✓ Deployment ${opts.deployment} cancelled`));
           }
         } catch (err) {
-          const message = err instanceof Error ? err.message : "Unknown error";
+          const message = getErrorMessage(err);
           const isConflict = message.includes("already");
 
           if (isJson) {
-            console.log(
-              JSON.stringify({
-                ok: false,
-                error: message,
-                code: isConflict ? "CONFLICT" : "API_ERROR"
-              })
-            );
+            emitJsonError(message, isConflict ? "CONFLICT" : "API_ERROR");
           } else {
             console.error(chalk.red(`✗ ${message}`));
           }

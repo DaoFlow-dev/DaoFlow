@@ -17,7 +17,12 @@ import { createClient } from "../trpc-client";
 import { ApiClient, ApiError } from "../api-client";
 import { loadDaoflowConfig, parseSizeString, type DaoflowConfig } from "../config-loader";
 import { createContextBundle, detectLocalBuildContexts } from "../context-bundler";
-import { resolveCommandJsonOption } from "../command-helpers";
+import {
+  emitJsonError,
+  emitJsonSuccess,
+  getErrorMessage,
+  resolveCommandJsonOption
+} from "../command-helpers";
 
 export function deployCommand(): Command {
   return new Command("deploy")
@@ -80,39 +85,43 @@ export function deployCommand(): Command {
 
         // ── Route: Service deploy (existing) ─────────────────
         if (!serviceId) {
-          console.error(chalk.red("Either --service or --compose is required."));
-          console.error(chalk.dim("  daoflow deploy --service <id> --yes"));
-          console.error(chalk.dim("  daoflow deploy --compose ./compose.yaml --server <id> --yes"));
+          const error = "Either --service or --compose is required.";
+          if (isJson) {
+            emitJsonError(error, "INVALID_INPUT");
+          } else {
+            console.error(chalk.red(error));
+            console.error(chalk.dim("  daoflow deploy --service <id> --yes"));
+            console.error(
+              chalk.dim("  daoflow deploy --compose ./compose.yaml --server <id> --yes")
+            );
+          }
           process.exit(1);
+          return;
         }
 
         if (opts.dryRun) {
           const plan = {
-            ok: true,
-            dryRun: true,
-            plan: {
-              serviceId,
-              commitSha: opts.commit ?? null,
-              imageTag: opts.image ?? null,
-              steps: [
-                "resolve service + environment",
-                "pull/build image",
-                "create network + volumes",
-                "start containers",
-                "health check"
-              ]
-            }
+            serviceId,
+            commitSha: opts.commit ?? null,
+            imageTag: opts.image ?? null,
+            steps: [
+              "resolve service + environment",
+              "pull/build image",
+              "create network + volumes",
+              "start containers",
+              "health check"
+            ]
           };
 
           if (isJson) {
-            console.log(JSON.stringify(plan));
+            emitJsonSuccess({ dryRun: true, plan });
           } else {
             console.log(chalk.bold("\n  Deployment Plan (dry-run)\n"));
             console.log(`  Service ID: ${serviceId}`);
             if (opts.commit) console.log(`  Commit:     ${opts.commit}`);
             if (opts.image) console.log(`  Image:      ${opts.image}`);
             console.log(`  Steps:`);
-            for (const step of plan.plan.steps) {
+            for (const step of plan.steps) {
               console.log(`    ${chalk.dim("→")} ${step}`);
             }
             console.log();
@@ -121,12 +130,15 @@ export function deployCommand(): Command {
         }
 
         if (!opts.yes) {
-          console.error(
-            chalk.yellow(
-              "Destructive operation. Pass --yes to confirm, or use --dry-run to preview."
-            )
-          );
+          const error =
+            "Destructive operation. Pass --yes to confirm, or use --dry-run to preview.";
+          if (isJson) {
+            emitJsonError(error, "CONFIRMATION_REQUIRED");
+          } else {
+            console.error(chalk.yellow(error));
+          }
           process.exit(1);
+          return;
         }
 
         try {
@@ -142,7 +154,7 @@ export function deployCommand(): Command {
           });
 
           if (isJson) {
-            console.log(JSON.stringify({ ok: true, data: result }));
+            emitJsonSuccess(result);
           } else {
             console.log(chalk.green("✓ Deployment queued"));
             console.log(chalk.dim(`  ID: ${result.id}`));
@@ -150,13 +162,7 @@ export function deployCommand(): Command {
           }
         } catch (err) {
           if (isJson) {
-            console.log(
-              JSON.stringify({
-                ok: false,
-                error: err instanceof Error ? err.message : "Unknown error",
-                code: "API_ERROR"
-              })
-            );
+            emitJsonError(getErrorMessage(err), "API_ERROR");
           } else {
             console.error(chalk.red(`Error: ${err instanceof Error ? err.message : String(err)}`));
           }
@@ -185,8 +191,14 @@ async function handleComposeDeploy(opts: ComposeDeployOpts): Promise<void> {
 
   // Validate compose file exists
   if (!existsSync(resolvedCompose)) {
-    console.error(chalk.red(`✗ Compose file not found: ${opts.composePath}`));
+    const error = `Compose file not found: ${opts.composePath}`;
+    if (opts.json) {
+      emitJsonError(error, "FILE_NOT_FOUND");
+    } else {
+      console.error(chalk.red(`✗ ${error}`));
+    }
     process.exit(1);
+    return;
   }
 
   // Parse compose and detect local build contexts
@@ -198,30 +210,32 @@ async function handleComposeDeploy(opts: ComposeDeployOpts): Promise<void> {
   );
 
   if (!opts.serverId) {
-    console.error(chalk.red("✗ --server is required for compose deployments."));
+    const error = "--server is required for compose deployments.";
+    if (opts.json) {
+      emitJsonError(error, "INVALID_INPUT");
+    } else {
+      console.error(chalk.red(`✗ ${error}`));
+    }
     process.exit(1);
+    return;
   }
 
   // ── Dry-run ──────────────────────────────────────────────
   if (opts.dryRun) {
     const plan: Record<string, unknown> = {
-      ok: true,
-      dryRun: true,
-      plan: {
-        type: "compose",
-        composePath: opts.composePath,
-        context: opts.contextPath,
-        server: opts.serverId,
-        localBuildContexts: localContexts,
-        requiresContextUpload: hasLocalContext,
-        steps: [
-          hasLocalContext ? "bundle local context (respects .dockerignore)" : null,
-          hasLocalContext ? "upload context to DaoFlow server" : null,
-          hasLocalContext ? "SCP context to target server" : null,
-          "docker compose up -d --build",
-          "health check"
-        ].filter(Boolean)
-      }
+      type: "compose",
+      composePath: opts.composePath,
+      context: opts.contextPath,
+      server: opts.serverId,
+      localBuildContexts: localContexts,
+      requiresContextUpload: hasLocalContext,
+      steps: [
+        hasLocalContext ? "bundle local context (respects .dockerignore)" : null,
+        hasLocalContext ? "upload context to DaoFlow server" : null,
+        hasLocalContext ? "SCP context to target server" : null,
+        "docker compose up -d --build",
+        "health check"
+      ].filter(Boolean)
     };
 
     // If local context, show bundle preview
@@ -237,7 +251,7 @@ async function handleComposeDeploy(opts: ComposeDeployOpts): Promise<void> {
         });
 
         const sizeMB = (bundle.sizeBytes / 1024 / 1024).toFixed(1);
-        (plan.plan as Record<string, unknown>).contextBundle = {
+        plan.contextBundle = {
           fileCount: bundle.fileCount,
           size: `${sizeMB}MB`,
           includedOverrides: bundle.includedOverrides
@@ -250,13 +264,12 @@ async function handleComposeDeploy(opts: ComposeDeployOpts): Promise<void> {
           /* best-effort */
         }
       } catch (err) {
-        (plan.plan as Record<string, unknown>).contextBundleError =
-          err instanceof Error ? err.message : String(err);
+        plan.contextBundleError = err instanceof Error ? err.message : String(err);
       }
     }
 
     if (opts.json) {
-      console.log(JSON.stringify(plan, null, 2));
+      emitJsonSuccess({ dryRun: true, plan });
     } else {
       console.log(chalk.bold("\n  Compose Deployment Plan (dry-run)\n"));
       console.log(`  Compose:  ${opts.composePath}`);
@@ -275,7 +288,7 @@ async function handleComposeDeploy(opts: ComposeDeployOpts): Promise<void> {
         }
       }
 
-      const bundleInfo = (plan.plan as Record<string, unknown>).contextBundle as
+      const bundleInfo = plan.contextBundle as
         | { fileCount: number; size: string; includedOverrides: string[] }
         | undefined;
       if (bundleInfo) {
@@ -288,7 +301,7 @@ async function handleComposeDeploy(opts: ComposeDeployOpts): Promise<void> {
       }
 
       console.log(chalk.bold("\n  Steps:"));
-      for (const step of (plan.plan as Record<string, unknown>).steps as string[]) {
+      for (const step of plan.steps as string[]) {
         console.log(`    ${chalk.dim("→")} ${step}`);
       }
       console.log();
@@ -299,21 +312,34 @@ async function handleComposeDeploy(opts: ComposeDeployOpts): Promise<void> {
   // ── Interactive prompt ───────────────────────────────────
   if (hasLocalContext && opts.prompt && !opts.yes) {
     const sizeMB = estimateContextSize(resolvedContext, opts.config as Record<string, unknown>);
-    console.log(
-      chalk.yellow(
-        `\n⚠  ${localContexts.length} service(s) use local build context (${sizeMB}).\n` +
-          `   Context will be bundled, uploaded to DaoFlow, and built on server ${opts.serverId}.\n` +
-          `   Pass --yes to confirm, or --dry-run to preview.\n`
-      )
-    );
+    const error =
+      `${localContexts.length} service(s) use local build context (${sizeMB}). ` +
+      `Context will be bundled, uploaded to DaoFlow, and built on server ${opts.serverId}. ` +
+      `Pass --yes to confirm, or --dry-run to preview.`;
+    if (opts.json) {
+      emitJsonError(error, "CONFIRMATION_REQUIRED");
+    } else {
+      console.log(
+        chalk.yellow(
+          `\n⚠  ${localContexts.length} service(s) use local build context (${sizeMB}).\n` +
+            `   Context will be bundled, uploaded to DaoFlow, and built on server ${opts.serverId}.\n` +
+            `   Pass --yes to confirm, or --dry-run to preview.\n`
+        )
+      );
+    }
     process.exit(1);
+    return;
   }
 
   if (!opts.yes) {
-    console.error(
-      chalk.yellow("Destructive operation. Pass --yes to confirm, or use --dry-run to preview.")
-    );
+    const error = "Destructive operation. Pass --yes to confirm, or use --dry-run to preview.";
+    if (opts.json) {
+      emitJsonError(error, "CONFIRMATION_REQUIRED");
+    } else {
+      console.error(chalk.yellow(error));
+    }
     process.exit(1);
+    return;
   }
 
   // ── Execute compose deploy ───────────────────────────────
@@ -325,13 +351,7 @@ async function handleComposeDeploy(opts: ComposeDeployOpts): Promise<void> {
     }
   } catch (err) {
     if (opts.json) {
-      console.log(
-        JSON.stringify({
-          ok: false,
-          error: err instanceof Error ? err.message : "Unknown error",
-          code: "DEPLOY_ERROR"
-        })
-      );
+      emitJsonError(getErrorMessage(err), "DEPLOY_ERROR");
     } else {
       console.error(
         chalk.red(`✗ Deployment failed: ${err instanceof Error ? err.message : String(err)}`)
@@ -440,12 +460,7 @@ function normalizeDeployError(error: unknown): Error {
 
 function renderQueuedDeployment(deploymentId: string, opts: ComposeDeployOpts): void {
   if (opts.json) {
-    console.log(
-      JSON.stringify({
-        ok: true,
-        deploymentId
-      })
-    );
+    emitJsonSuccess({ deploymentId, serverId: opts.serverId ?? null });
     return;
   }
 

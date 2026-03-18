@@ -1,11 +1,18 @@
 import { Command } from "commander";
 import chalk from "chalk";
-import { execSync } from "node:child_process";
-import { createReadStream, statSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { createReadStream, createWriteStream, statSync, unlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { pipeline } from "node:stream/promises";
+import { createGzip } from "node:zlib";
 import { ApiClient } from "../api-client";
-import { resolveCommandJsonOption } from "../command-helpers";
+import {
+  emitJsonError,
+  emitJsonSuccess,
+  getErrorMessage,
+  resolveCommandJsonOption
+} from "../command-helpers";
 
 export function pushCommand(): Command {
   return new Command("push")
@@ -35,40 +42,54 @@ export function pushCommand(): Command {
         const isJson = resolveCommandJsonOption(command, opts.json);
 
         if (!opts.yes) {
-          console.error(
-            chalk.yellow("This will build and push a Docker image. Pass --yes to confirm.")
-          );
+          const error = "This will build and push a Docker image. Pass --yes to confirm.";
+          if (isJson) {
+            emitJsonError(error, "CONFIRMATION_REQUIRED");
+          } else {
+            console.error(chalk.yellow(error));
+          }
           process.exit(1);
+          return;
         }
         const api = new ApiClient();
         const tag: string = opts.tag;
+        const tarFile = join(tmpdir(), `daoflow-push-${Date.now()}.tar`);
         const tarPath = join(tmpdir(), `daoflow-push-${Date.now()}.tar.gz`);
 
         // Step 1: Build image locally
         if (!opts.skipBuild) {
           if (!isJson) console.log(chalk.blue(`⟳ Building Docker image ${tag}...`));
           try {
-            execSync(`docker build -t ${tag} -f ${opts.dockerfile} ${opts.context}`, {
-              stdio: "inherit"
-            });
+            runDockerCommand(["build", "-t", tag, "-f", opts.dockerfile, opts.context], !isJson);
             if (!isJson) console.log(chalk.green(`✓ Image built: ${tag}`));
-          } catch {
-            console.error(chalk.red("✗ Docker build failed"));
+          } catch (error) {
+            if (isJson) {
+              emitJsonError(getErrorMessage(error), "BUILD_FAILED");
+            } else {
+              console.error(chalk.red(`✗ Docker build failed: ${getErrorMessage(error)}`));
+            }
             process.exit(1);
+            return;
           }
         }
 
         if (!isJson) console.log(chalk.blue("⟳ Compressing image..."));
         try {
-          execSync(`docker save ${tag} | gzip > ${tarPath}`, { stdio: "inherit" });
+          runDockerCommand(["image", "save", "-o", tarFile, tag], !isJson);
+          await gzipFile(tarFile, tarPath);
           const size = statSync(tarPath).size;
           if (!isJson) {
             const sizeMB = (size / 1024 / 1024).toFixed(1);
             console.log(chalk.green(`✓ Saved ${sizeMB} MB`));
           }
-        } catch {
-          console.error(chalk.red("✗ Failed to save Docker image"));
+        } catch (error) {
+          if (isJson) {
+            emitJsonError(getErrorMessage(error), "SAVE_FAILED");
+          } else {
+            console.error(chalk.red(`✗ Failed to save Docker image: ${getErrorMessage(error)}`));
+          }
           process.exit(1);
+          return;
         }
 
         // Step 3: Stream tarball to DaoFlow API
@@ -84,22 +105,53 @@ export function pushCommand(): Command {
           );
 
           if (isJson) {
-            console.log(JSON.stringify({ ok: true, data: result }));
+            emitJsonSuccess(result);
           } else {
             console.log(chalk.green("✓ Image pushed successfully"));
             console.log(chalk.dim(JSON.stringify(result, null, 2)));
           }
         } catch (err: unknown) {
-          console.error(chalk.red(`✗ Push failed: ${String(err)}`));
+          if (isJson) {
+            emitJsonError(getErrorMessage(err), "PUSH_FAILED");
+          } else {
+            console.error(chalk.red(`✗ Push failed: ${getErrorMessage(err)}`));
+          }
           process.exit(1);
+          return;
         }
 
         // Cleanup
         try {
-          execSync(`rm -f ${tarPath}`);
+          unlinkSync(tarFile);
+        } catch {
+          /* ignore */
+        }
+        try {
+          unlinkSync(tarPath);
         } catch {
           /* ignore */
         }
       }
     );
+}
+
+function runDockerCommand(args: string[], inheritOutput: boolean): void {
+  const result = spawnSync("docker", args, {
+    stdio: inheritOutput ? "inherit" : ["ignore", "pipe", "pipe"],
+    encoding: inheritOutput ? undefined : "utf8"
+  });
+
+  if (result.error) {
+    throw result.error;
+  }
+
+  if (result.status !== 0) {
+    const stderr = typeof result.stderr === "string" ? result.stderr.trim() : "";
+    const stdout = typeof result.stdout === "string" ? result.stdout.trim() : "";
+    throw new Error(stderr || stdout || `docker ${args[0]} failed with exit code ${result.status}`);
+  }
+}
+
+async function gzipFile(sourcePath: string, targetPath: string): Promise<void> {
+  await pipeline(createReadStream(sourcePath), createGzip(), createWriteStream(targetPath));
 }
