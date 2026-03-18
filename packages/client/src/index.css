@@ -6,13 +6,79 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  color-scheme: dark;
+  color-scheme: light;
   font-family:
     "Inter",
     "Geist Variable",
     system-ui,
     -apple-system,
     sans-serif;
+  background: #fafafa;
+  color: #18181b;
+  --background: oklch(0.98 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.55 0.2 250);
+  --primary-foreground: oklch(0.98 0 0);
+  --secondary: oklch(0.94 0.005 280);
+  --secondary-foreground: oklch(0.25 0 0);
+  --muted: oklch(0.94 0.005 280);
+  --muted-foreground: oklch(0.45 0 0);
+  --accent: oklch(0.94 0.01 280);
+  --accent-foreground: oklch(0.145 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.88 0.005 280);
+  --input: oklch(0.88 0.005 280);
+  --ring: oklch(0.55 0.15 250);
+  --chart-1: oklch(0.646 0.222 41.116);
+  --chart-2: oklch(0.6 0.118 184.704);
+  --chart-3: oklch(0.55 0.12 250);
+  --chart-4: oklch(0.828 0.189 84.429);
+  --chart-5: oklch(0.769 0.188 70.08);
+  --radius: 0.625rem;
+  --sidebar: oklch(0.96 0.005 280);
+  --sidebar-foreground: oklch(0.25 0 0);
+  --sidebar-primary: oklch(0.55 0.2 250);
+  --sidebar-primary-foreground: oklch(0.98 0 0);
+  --sidebar-accent: oklch(0.94 0.01 280);
+  --sidebar-accent-foreground: oklch(0.145 0 0);
+  --sidebar-border: oklch(0.88 0.005 280);
+  --sidebar-ring: oklch(0.55 0.15 250);
+
+  /* ── DaoFlow Design Tokens (Light) ── */
+  --df-bg-surface: #fafafa;
+  --df-bg-card: #ffffff;
+  --df-bg-card-hover: #f4f4f5;
+  --df-bg-input: #f4f4f5;
+  --df-text-primary: #18181b;
+  --df-text-secondary: #52525b;
+  --df-text-muted: #a1a1aa;
+  --df-border-subtle: rgba(0, 0, 0, 0.06);
+  --df-border-default: rgba(0, 0, 0, 0.1);
+  --df-status-healthy: #16a34a;
+  --df-status-running: #2563eb;
+  --df-status-queued: #d97706;
+  --df-status-failed: #dc2626;
+  --df-status-inactive: #a1a1aa;
+  --df-spacing-xs: 0.25rem;
+  --df-spacing-sm: 0.5rem;
+  --df-spacing-md: 1rem;
+  --df-spacing-lg: 1.5rem;
+  --df-spacing-xl: 2rem;
+  --df-radius-sm: 6px;
+  --df-radius-md: 10px;
+  --df-radius-lg: 14px;
+  --df-sidebar-width: 240px;
+  --df-topbar-height: 56px;
+  --df-transition-fast: 150ms ease;
+  --df-transition-default: 250ms ease;
+}
+
+.dark {
+  color-scheme: dark;
   background: #09090b;
   color: #e4e4e7;
   --background: oklch(0.145 0 0);
@@ -33,12 +99,6 @@
   --border: oklch(0.28 0.005 280);
   --input: oklch(0.25 0.005 280);
   --ring: oklch(0.55 0.15 250);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.55 0.12 250);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --radius: 0.625rem;
   --sidebar: oklch(0.16 0.005 280);
   --sidebar-foreground: oklch(0.85 0 0);
   --sidebar-primary: oklch(0.65 0.2 250);
@@ -63,18 +123,6 @@
   --df-status-queued: #fbbf24;
   --df-status-failed: #f87171;
   --df-status-inactive: #71717a;
-  --df-spacing-xs: 0.25rem;
-  --df-spacing-sm: 0.5rem;
-  --df-spacing-md: 1rem;
-  --df-spacing-lg: 1.5rem;
-  --df-spacing-xl: 2rem;
-  --df-radius-sm: 6px;
-  --df-radius-md: 10px;
-  --df-radius-lg: 14px;
-  --df-sidebar-width: 240px;
-  --df-topbar-height: 56px;
-  --df-transition-fast: 150ms ease;
-  --df-transition-default: 250ms ease;
 }
 
 * {

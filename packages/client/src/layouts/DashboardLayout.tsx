@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { NavLink, Navigate, Outlet, useLocation } from "react-router-dom";
 import { ErrorBoundary } from "../components/ErrorBoundary";
+import { useTheme } from "../components/ThemeProvider";
 import { useSession, authClient } from "../lib/auth-client";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -31,7 +32,9 @@ import {
   ChevronsUpDown,
   Hexagon,
   Bot,
-  Radio
+  Radio,
+  Sun,
+  Moon
 } from "lucide-react";
 
 const homeNav = [
@@ -65,6 +68,7 @@ export function DashboardLayout() {
   const session = useSession();
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
+  const themeCtx = useTheme();
   const crumbs = breadcrumbFromPath(location.pathname);
 
   // Loading state
@@ -151,6 +155,21 @@ export function DashboardLayout() {
         </nav>
 
         <div className="sidebar__footer">
+          <button
+            className="sidebar__link"
+            onClick={() => {
+              const { resolved, setTheme } = themeCtx;
+              setTheme(resolved === "dark" ? "light" : "dark");
+            }}
+            title={collapsed ? "Toggle theme" : undefined}
+          >
+            {themeCtx.resolved === "dark" ? (
+              <Sun size={18} className="sidebar__link-icon" />
+            ) : (
+              <Moon size={18} className="sidebar__link-icon" />
+            )}
+            {!collapsed && <span>{themeCtx.resolved === "dark" ? "Light mode" : "Dark mode"}</span>}
+          </button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button className="sidebar__user-card">
