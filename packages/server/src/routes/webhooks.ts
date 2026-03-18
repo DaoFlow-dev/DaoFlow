@@ -136,7 +136,10 @@ async function triggerWebhookDeploys(input: {
       serviceId: service.id,
       status: result.status,
       entity: result.status === "not_found" ? result.entity : undefined,
-      message: result.status === "invalid_source" ? result.message : undefined
+      message:
+        result.status === "invalid_source" || result.status === "provider_unavailable"
+          ? result.message
+          : undefined
     });
   }
 

@@ -131,6 +131,12 @@ export const adminRouter = t.router({
           message: result.message
         });
       }
+      if (result.status === "provider_unavailable") {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: result.message
+        });
+      }
       return result.project;
     }),
 
@@ -165,6 +171,12 @@ export const adminRouter = t.router({
       if (result.status === "invalid_source") {
         throw new TRPCError({
           code: "BAD_REQUEST",
+          message: result.message
+        });
+      }
+      if (result.status === "provider_unavailable") {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
           message: result.message
         });
       }

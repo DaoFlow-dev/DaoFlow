@@ -13,8 +13,23 @@ type GitProviderValidationRecord = Pick<
   "id" | "type" | "name" | "baseUrl" | "appId" | "privateKeyEncrypted"
 >;
 
+const DEFAULT_PROVIDER_VALIDATION_TIMEOUT_MS = 10_000;
+
 function trimTrailingSlash(value: string): string {
   return value.replace(/\/$/, "");
+}
+
+function providerLabel(providerType: "github" | "gitlab"): string {
+  return providerType === "github" ? "GitHub" : "GitLab";
+}
+
+function getProviderValidationTimeoutMs(): number {
+  const raw = Number(process.env.DAOFLOW_PROVIDER_VALIDATION_TIMEOUT_MS);
+  if (Number.isFinite(raw) && raw > 0) {
+    return raw;
+  }
+
+  return DEFAULT_PROVIDER_VALIDATION_TIMEOUT_MS;
 }
 
 function toBase64(value: string): string {
@@ -105,6 +120,83 @@ function invalidResult(
   };
 }
 
+function providerUnavailableResult(
+  providerType: "github" | "gitlab",
+  message: string
+): ProjectSourceValidationResult {
+  return {
+    status: "provider_unavailable",
+    message: `${providerLabel(providerType)} source validation is temporarily unavailable: ${message}`
+  };
+}
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof DOMException
+    ? error.name === "AbortError" || error.name === "TimeoutError"
+    : error instanceof Error && (error.name === "AbortError" || error.name === "TimeoutError");
+}
+
+function isTransientProviderStatus(status: number): boolean {
+  return status === 408 || status === 429 || status >= 500;
+}
+
+function transientProviderMessage(input: {
+  providerType: "github" | "gitlab";
+  operation: string;
+  responseStatus?: number;
+  error?: unknown;
+}): string {
+  if (input.responseStatus === 429) {
+    return `rate limited while checking ${input.operation}; retry later.`;
+  }
+
+  if (input.responseStatus !== undefined) {
+    return `returned ${input.responseStatus} while checking ${input.operation}; retry when the provider is reachable.`;
+  }
+
+  if (isAbortError(input.error)) {
+    return `timed out after ${getProviderValidationTimeoutMs()}ms while checking ${input.operation}; retry when the provider is reachable.`;
+  }
+
+  return `could not reach the provider while checking ${input.operation}; retry when the provider is reachable.`;
+}
+
+async function fetchWithProviderTimeout(
+  providerType: "github" | "gitlab",
+  operation: string,
+  url: string,
+  init: RequestInit
+): Promise<Response | ProjectSourceValidationResult> {
+  try {
+    const response = await fetch(url, {
+      ...init,
+      signal: AbortSignal.timeout(getProviderValidationTimeoutMs())
+    });
+
+    if (isTransientProviderStatus(response.status)) {
+      return providerUnavailableResult(
+        providerType,
+        transientProviderMessage({
+          providerType,
+          operation,
+          responseStatus: response.status
+        })
+      );
+    }
+
+    return response;
+  } catch (error) {
+    return providerUnavailableResult(
+      providerType,
+      transientProviderMessage({
+        providerType,
+        operation,
+        error
+      })
+    );
+  }
+}
+
 async function validateGitHubSource(
   provider: GitProviderValidationRecord,
   source: ProviderLinkedProjectSource
@@ -157,13 +249,18 @@ async function validateGitHubSource(
     "User-Agent": "DaoFlow"
   };
 
-  const tokenResponse = await fetch(
+  const tokenResponse = await fetchWithProviderTimeout(
+    "github",
+    "installation token exchange",
     `${buildGitHubApiBaseUrl(provider.baseUrl)}/app/installations/${installation.installationId}/access_tokens`,
     {
       method: "POST",
       headers: authHeaders
     }
   );
+  if (!(tokenResponse instanceof Response)) {
+    return tokenResponse;
+  }
 
   if (!tokenResponse.ok) {
     return invalidResult(
@@ -199,12 +296,17 @@ async function validateGitHubSource(
     "User-Agent": "DaoFlow"
   };
 
-  const repositoryResponse = await fetch(
+  const repositoryResponse = await fetchWithProviderTimeout(
+    "github",
+    "repository access",
     `${buildGitHubApiBaseUrl(provider.baseUrl)}/repos/${repoPath}`,
     {
       headers: repoHeaders
     }
   );
+  if (!(repositoryResponse instanceof Response)) {
+    return repositoryResponse;
+  }
   if (!repositoryResponse.ok) {
     return invalidResult(
       source,
@@ -218,12 +320,17 @@ async function validateGitHubSource(
     );
   }
 
-  const branchResponse = await fetch(
+  const branchResponse = await fetchWithProviderTimeout(
+    "github",
+    "branch access",
     `${buildGitHubApiBaseUrl(provider.baseUrl)}/repos/${repoPath}/branches/${encodeURIComponent(source.defaultBranch)}`,
     {
       headers: repoHeaders
     }
   );
+  if (!(branchResponse instanceof Response)) {
+    return branchResponse;
+  }
   if (!branchResponse.ok) {
     return invalidResult(
       source,
@@ -237,12 +344,17 @@ async function validateGitHubSource(
     );
   }
 
-  const composeResponse = await fetch(
+  const composeResponse = await fetchWithProviderTimeout(
+    "github",
+    "compose file access",
     `${buildGitHubApiBaseUrl(provider.baseUrl)}/repos/${repoPath}/contents/${encodeURIComponent(source.composePath)}?ref=${encodeURIComponent(source.defaultBranch)}`,
     {
       headers: repoHeaders
     }
   );
+  if (!(composeResponse instanceof Response)) {
+    return composeResponse;
+  }
   if (!composeResponse.ok) {
     return invalidResult(
       source,
@@ -326,12 +438,17 @@ async function validateGitLabSource(
     Authorization: `Bearer ${accessToken}`
   };
 
-  const projectResponse = await fetch(
+  const projectResponse = await fetchWithProviderTimeout(
+    "gitlab",
+    "repository access",
     `${buildGitLabApiBaseUrl(provider.baseUrl)}/projects/${encodeURIComponent(source.repoFullName)}`,
     {
       headers
     }
   );
+  if (!(projectResponse instanceof Response)) {
+    return projectResponse;
+  }
   if (!projectResponse.ok) {
     return invalidResult(
       source,
@@ -360,12 +477,17 @@ async function validateGitLabSource(
   }
 
   const projectId = String(projectData.id);
-  const branchResponse = await fetch(
+  const branchResponse = await fetchWithProviderTimeout(
+    "gitlab",
+    "branch access",
     `${buildGitLabApiBaseUrl(provider.baseUrl)}/projects/${encodeURIComponent(projectId)}/repository/branches/${encodeURIComponent(source.defaultBranch)}`,
     {
       headers
     }
   );
+  if (!(branchResponse instanceof Response)) {
+    return branchResponse;
+  }
   if (!branchResponse.ok) {
     return invalidResult(
       source,
@@ -379,12 +501,17 @@ async function validateGitLabSource(
     );
   }
 
-  const composeResponse = await fetch(
+  const composeResponse = await fetchWithProviderTimeout(
+    "gitlab",
+    "compose file access",
     `${buildGitLabApiBaseUrl(provider.baseUrl)}/projects/${encodeURIComponent(projectId)}/repository/files/${encodeURIComponent(source.composePath)}?ref=${encodeURIComponent(source.defaultBranch)}`,
     {
       headers
     }
   );
+  if (!(composeResponse instanceof Response)) {
+    return composeResponse;
+  }
   if (!composeResponse.ok) {
     return invalidResult(
       source,

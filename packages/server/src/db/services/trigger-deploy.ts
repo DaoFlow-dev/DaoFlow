@@ -101,6 +101,9 @@ export async function triggerDeploy(input: TriggerDeployInput) {
     if (sourceValidation.status === "invalid_source") {
       return sourceValidation;
     }
+    if (sourceValidation.status === "provider_unavailable") {
+      return sourceValidation;
+    }
   }
 
   const buildConfig = asRecord(svc.config);

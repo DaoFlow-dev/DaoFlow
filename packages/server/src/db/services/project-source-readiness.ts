@@ -40,6 +40,10 @@ export type ProjectSourceValidationResult =
       readiness: ProjectSourceReadiness | null;
     }
   | {
+      status: "provider_unavailable";
+      message: string;
+    }
+  | {
       status: "skipped";
     };
 

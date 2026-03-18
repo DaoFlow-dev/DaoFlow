@@ -31,6 +31,104 @@ function toRequestUrl(input: string | URL | Request): string {
   return input.url;
 }
 
+function mockGitLabValidationFetch(input: {
+  repoFullName: string;
+  branch?: string;
+  composePath?: string;
+  projectId: number;
+  projectStatus?: number;
+  branchStatus?: number;
+  composeStatus?: number;
+}) {
+  const branch = input.branch ?? "main";
+  const composePath = input.composePath ?? "docker-compose.yml";
+  const encodedRepoFullName = encodeURIComponent(input.repoFullName);
+  const encodedProjectId = encodeURIComponent(String(input.projectId));
+  const encodedBranch = encodeURIComponent(branch);
+  const encodedComposePath = encodeURIComponent(composePath);
+  const projectStatus = input.projectStatus ?? 200;
+  const branchStatus = input.branchStatus ?? 200;
+  const composeStatus = input.composeStatus ?? 200;
+
+  return (request: string | URL | Request) => {
+    const url = toRequestUrl(request);
+
+    if (url.endsWith(`/projects/${encodedRepoFullName}`)) {
+      return Promise.resolve(
+        new Response(
+          JSON.stringify(
+            projectStatus === 200 ? { id: input.projectId } : { message: "upstream unavailable" }
+          ),
+          {
+            status: projectStatus,
+            headers: { "Content-Type": "application/json" }
+          }
+        )
+      );
+    }
+
+    if (url.endsWith(`/projects/${encodedProjectId}/repository/branches/${encodedBranch}`)) {
+      return Promise.resolve(
+        new Response(
+          JSON.stringify(branchStatus === 200 ? { name: branch } : { message: "missing branch" }),
+          {
+            status: branchStatus,
+            headers: { "Content-Type": "application/json" }
+          }
+        )
+      );
+    }
+
+    if (
+      url.includes(
+        `/projects/${encodedProjectId}/repository/files/${encodedComposePath}?ref=${encodedBranch}`
+      )
+    ) {
+      return Promise.resolve(
+        new Response(
+          JSON.stringify(
+            composeStatus === 200 ? { file_path: composePath } : { message: "missing compose file" }
+          ),
+          {
+            status: composeStatus,
+            headers: { "Content-Type": "application/json" }
+          }
+        )
+      );
+    }
+
+    throw new Error(`Unexpected fetch request: ${url}`);
+  };
+}
+
+async function insertGitLabProviderFixture(input: {
+  providerId: string;
+  installationId: string;
+  providerName: string;
+  installationToken: string;
+}) {
+  await db.insert(gitProviders).values({
+    id: input.providerId,
+    type: "gitlab",
+    name: input.providerName,
+    status: "active",
+    updatedAt: new Date()
+  });
+
+  await db.insert(gitInstallations).values({
+    id: input.installationId,
+    providerId: input.providerId,
+    installationId: `${Date.now()}`,
+    accountName: "example-group",
+    accountType: "group",
+    repositorySelection: "all",
+    permissions: encodeGitInstallationPermissions({ accessToken: input.installationToken }),
+    status: "active",
+    installedByUserId: "user_foundation_owner",
+    updatedAt: new Date()
+  });
+}
+
 describe("project source persistence", () => {
   beforeEach(async () => {
     await resetTestDatabase();
@@ -40,6 +138,7 @@ describe("project source persistence", () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    delete process.env.DAOFLOW_PROVIDER_VALIDATION_TIMEOUT_MS;
   });
 
   it("persists dedicated git source columns and updates defaultBranch in the project row", async () => {
@@ -461,5 +560,130 @@ describe("project source persistence", () => {
       message: "Compose paths must stay within the repository root."
     });
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("classifies provider validation timeouts as provider_unavailable during project create", async () => {
+    const providerId = `gitprov_timeout_${Date.now()}`.slice(0, 32);
+    const installationId = `gitinst_timeout_${Date.now()}`.slice(0, 32);
+
+    await insertGitLabProviderFixture({
+      providerId,
+      installationId,
+      providerName: `Timeout Provider ${Date.now()}`,
+      installationToken: "glpat-timeout"
+    });
+
+    process.env.DAOFLOW_PROVIDER_VALIDATION_TIMEOUT_MS = "5";
+    vi.spyOn(globalThis, "fetch").mockImplementation((_input, init) => {
+      return new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener(
+          "abort",
+          () => reject(new DOMException("The operation was aborted.", "AbortError")),
+          { once: true }
+        );
+      });
+    });
+
+    const created = await createProject({
+      name: `Timeout Source ${Date.now()}`,
+      repoFullName: "example-group/timeout-source",
+      gitProviderId: providerId,
+      gitInstallationId: installationId,
+      defaultBranch: "main",
+      teamId: "team_foundation",
+      requestedByUserId: "user_foundation_owner",
+      requestedByEmail: "owner@daoflow.local",
+      requestedByRole: "owner"
+    });
+
+    expect(created).toEqual({
+      status: "provider_unavailable",
+      message:
+        "GitLab source validation is temporarily unavailable: timed out after 5ms while checking repository access; retry when the provider is reachable."
+    });
+
+    const rows = await db
+      .select()
+      .from(projects)
+      .where(eq(projects.repoFullName, "example-group/timeout-source"));
+    expect(rows).toHaveLength(0);
+  });
+
+  it("does not overwrite stored source state when provider validation is transiently unavailable during update", async () => {
+    const providerId = `gitprov_transient_${Date.now()}`.slice(0, 32);
+    const installationId = `gitinst_transient_${Date.now()}`.slice(0, 32);
+    const repoFullName = "example-group/update-transient";
+
+    await insertGitLabProviderFixture({
+      providerId,
+      installationId,
+      providerName: `Transient Provider ${Date.now()}`,
+      installationToken: "glpat-transient"
+    });
+
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(
+      mockGitLabValidationFetch({
+        repoFullName,
+        composePath: "deploy/compose.yml",
+        projectId: 210
+      })
+    );
+
+    const created = await createProject({
+      name: `Transient Source ${Date.now()}`,
+      repoFullName,
+      gitProviderId: providerId,
+      gitInstallationId: installationId,
+      composePath: "deploy/compose.yml",
+      defaultBranch: "main",
+      teamId: "team_foundation",
+      requestedByUserId: "user_foundation_owner",
+      requestedByEmail: "owner@daoflow.local",
+      requestedByRole: "owner"
+    });
+
+    expect(created.status).toBe("ok");
+    if (created.status !== "ok") {
+      throw new Error("Failed to create transient update fixture.");
+    }
+
+    const [beforeUpdate] = await db
+      .select()
+      .from(projects)
+      .where(eq(projects.id, created.project.id))
+      .limit(1);
+
+    fetchMock.mockImplementation(
+      mockGitLabValidationFetch({
+        repoFullName,
+        composePath: "deploy/compose.alt.yml",
+        projectId: 210,
+        projectStatus: 503
+      })
+    );
+
+    const updated = await updateProject({
+      projectId: created.project.id,
+      composePath: "deploy/compose.alt.yml",
+      requestedByUserId: "user_foundation_owner",
+      requestedByEmail: "owner@daoflow.local",
+      requestedByRole: "owner"
+    });
+
+    expect(updated).toEqual({
+      status: "provider_unavailable",
+      message:
+        "GitLab source validation is temporarily unavailable: returned 503 while checking repository access; retry when the provider is reachable."
+    });
+
+    const [afterUpdate] = await db
+      .select()
+      .from(projects)
+      .where(eq(projects.id, created.project.id))
+      .limit(1);
+
+    expect(afterUpdate?.composePath).toBe("deploy/compose.yml");
+    expect(afterUpdate?.defaultBranch).toBe("main");
+    expect(afterUpdate?.config).toEqual(beforeUpdate?.config);
   });
 });

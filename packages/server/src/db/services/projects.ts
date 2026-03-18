@@ -103,6 +103,12 @@ export async function createProject(input: CreateProjectInput) {
       message: sourceValidation.message
     };
   }
+  if (sourceValidation.status === "provider_unavailable") {
+    return {
+      status: "provider_unavailable" as const,
+      message: sourceValidation.message
+    };
+  }
 
   const projectId = id();
   const baseConfig = {
@@ -183,6 +189,12 @@ export async function updateProject(input: UpdateProjectInput) {
   if (sourceValidation?.status === "invalid") {
     return {
       status: "invalid_source" as const,
+      message: sourceValidation.message
+    };
+  }
+  if (sourceValidation?.status === "provider_unavailable") {
+    return {
+      status: "provider_unavailable" as const,
       message: sourceValidation.message
     };
   }

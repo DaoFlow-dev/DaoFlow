@@ -239,6 +239,12 @@ export const deployRouter = t.router({
           message: result.message
         });
       }
+      if (result.status === "provider_unavailable") {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: result.message
+        });
+      }
       return result.deployment;
     }),
   executeRollback: deployRollbackProcedure

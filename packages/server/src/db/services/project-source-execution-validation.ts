@@ -37,6 +37,10 @@ export type ProjectSourceExecutionValidationResult =
       config: Record<string, unknown>;
     }
   | {
+      status: "provider_unavailable";
+      message: string;
+    }
+  | {
       status: "skipped";
     };
 
@@ -56,6 +60,10 @@ export async function revalidateProjectSourceForExecution(input: {
   });
 
   if (validation.status === "skipped") {
+    return validation;
+  }
+
+  if (validation.status === "provider_unavailable") {
     return validation;
   }
 

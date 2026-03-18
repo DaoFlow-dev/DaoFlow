@@ -353,6 +353,74 @@ describe("deploy source revalidation", () => {
     });
   });
 
+  it("blocks manual deploy dispatch when provider validation is transiently unavailable", async () => {
+    const repoFullName = "example-group/revalidate-provider-unavailable";
+    const providerId = "gitprov_revalidate_transient";
+    const installationId = "gitinst_revalidate_transient";
+    const commitSha = "1234512345123451234512345123451234512345";
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(
+      mockGitLabSourceFetch({
+        repoFullName,
+        composePath: "deploy/compose.yaml",
+        projectId: 403
+      })
+    );
+
+    const fixture = await createGitLabComposeFixture({
+      projectName: "Revalidate Provider Unavailable",
+      repoFullName,
+      composePath: "deploy/compose.yaml",
+      providerId,
+      installationId,
+      serviceName: "provider-unavailable-service"
+    });
+
+    const [projectBeforeDeploy] = await db
+      .select()
+      .from(projects)
+      .where(eq(projects.id, fixture.projectId))
+      .limit(1);
+
+    fetchMock.mockImplementation((request) => {
+      const url = toRequestUrl(request);
+      if (url.endsWith(`/projects/${encodeURIComponent(repoFullName)}`)) {
+        return Promise.resolve(
+          new Response(JSON.stringify({ message: "upstream unavailable" }), {
+            status: 503,
+            headers: { "Content-Type": "application/json" }
+          })
+        );
+      }
+
+      throw new Error(`Unexpected fetch request: ${url}`);
+    });
+
+    const result = await triggerDeploy({
+      serviceId: fixture.serviceId,
+      commitSha,
+      requestedByUserId: "user_foundation_owner",
+      requestedByEmail: "owner@daoflow.local",
+      requestedByRole: "owner"
+    });
+
+    expect(result).toEqual({
+      status: "provider_unavailable",
+      message:
+        "GitLab source validation is temporarily unavailable: returned 503 while checking repository access; retry when the provider is reachable."
+    });
+
+    const queued = await db.select().from(deployments).where(eq(deployments.commitSha, commitSha));
+    expect(queued).toHaveLength(0);
+
+    const [updatedProject] = await db
+      .select()
+      .from(projects)
+      .where(eq(projects.id, fixture.projectId))
+      .limit(1);
+
+    expect(updatedProject?.config).toEqual(projectBeforeDeploy?.config);
+  });
+
   it("marks webhook targets as failed when the provider-linked compose file is no longer reachable", async () => {
     const repoFullName = "example-group/revalidate-webhook";
     const providerId = "gitprov_revalidate_webhook";
