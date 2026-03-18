@@ -8,6 +8,7 @@ import { eq } from "drizzle-orm";
 import { db } from "../db/connection";
 import { deployments, deploymentSteps } from "../db/schema/deployments";
 import { events } from "../db/schema/audit";
+import type { RepositoryPreparationConfig } from "../repository-preparation";
 
 export type DeploymentRow = typeof deployments.$inferSelect;
 
@@ -133,6 +134,7 @@ export interface ConfigSnapshot extends Record<string, unknown> {
   env?: Record<string, string>;
   network?: string;
   deploymentSource?: string;
+  repositoryPreparation?: RepositoryPreparationConfig;
   uploadedComposeFileName?: string;
   uploadedContextArchiveName?: string;
 }

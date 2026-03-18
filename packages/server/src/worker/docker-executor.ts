@@ -12,6 +12,7 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import type { RepositoryPreparationConfig } from "../repository-preparation";
 
 const STAGING_DIR = process.env.GIT_WORK_DIR ?? "/tmp/daoflow-staging";
 
@@ -22,6 +23,13 @@ export type LogLine = {
 };
 
 export type OnLog = (line: LogLine) => void;
+type ExecRunner = typeof execStreaming;
+
+export interface GitCloneOptions {
+  displayLabel?: string;
+  gitConfig?: Array<{ key: string; value: string }>;
+  repositoryPreparation?: RepositoryPreparationConfig;
+}
 
 /**
  * Run an arbitrary command and stream output line-by-line.
@@ -86,7 +94,7 @@ export function getStagingArchivePath(deploymentId: string): string {
 }
 
 function writeGitConfigFile(
-  workDir: string,
+  deploymentId: string,
   gitConfig: Array<{ key: string; value: string }>
 ): string | null {
   if (gitConfig.length === 0) {
@@ -103,9 +111,138 @@ function writeGitConfigFile(
     return [`[${section}]`, `\t${configKey} = ${value}`];
   });
 
-  const configPath = join(workDir, ".daoflow-gitconfig");
+  const configPath = join(STAGING_DIR, `${deploymentId}.gitconfig`);
   writeFileSync(configPath, `${lines.join("\n")}\n`, { mode: 0o600 });
   return configPath;
+}
+
+function describeRepositoryPreparation(config: RepositoryPreparationConfig): string[] {
+  const required: string[] = [];
+  if (config.submodules) {
+    required.push("submodules");
+  }
+  if (config.gitLfs) {
+    required.push("Git LFS");
+  }
+  return required;
+}
+
+export async function prepareClonedRepository(
+  workDir: string,
+  onLog: OnLog,
+  options: {
+    repositoryPreparation?: RepositoryPreparationConfig;
+    gitConfigPath?: string | null;
+  },
+  execRunner: ExecRunner = execStreaming
+): Promise<{ exitCode: number; errorMessage?: string }> {
+  const repositoryPreparation = options.repositoryPreparation ?? {
+    submodules: false,
+    gitLfs: false
+  };
+  const required = describeRepositoryPreparation(repositoryPreparation);
+  if (required.length === 0) {
+    return { exitCode: 0 };
+  }
+
+  const envOverrides = options.gitConfigPath
+    ? { GIT_CONFIG_GLOBAL: options.gitConfigPath }
+    : undefined;
+
+  onLog({
+    stream: "stdout",
+    message: `Preparing repository checkout: ${required.join(", ")}`,
+    timestamp: new Date()
+  });
+
+  if (repositoryPreparation.gitLfs) {
+    const lfsCheck = await execRunner("git", ["lfs", "version"], workDir, onLog, envOverrides);
+    if (lfsCheck.exitCode !== 0) {
+      return {
+        exitCode: lfsCheck.exitCode,
+        errorMessage:
+          "Git LFS is required for this deployment source, but git-lfs is not available on the worker."
+      };
+    }
+  }
+
+  if (repositoryPreparation.submodules) {
+    onLog({
+      stream: "stdout",
+      message: "Synchronizing git submodules recursively",
+      timestamp: new Date()
+    });
+    const sync = await execRunner(
+      "git",
+      ["submodule", "sync", "--recursive"],
+      workDir,
+      onLog,
+      envOverrides
+    );
+    if (sync.exitCode !== 0) {
+      return {
+        exitCode: sync.exitCode,
+        errorMessage: `git submodule sync failed with exit code ${sync.exitCode}`
+      };
+    }
+
+    onLog({
+      stream: "stdout",
+      message: "Updating git submodules recursively",
+      timestamp: new Date()
+    });
+    const update = await execRunner(
+      "git",
+      ["submodule", "update", "--init", "--recursive", "--depth", "1"],
+      workDir,
+      onLog,
+      envOverrides
+    );
+    if (update.exitCode !== 0) {
+      return {
+        exitCode: update.exitCode,
+        errorMessage: `git submodule update failed with exit code ${update.exitCode}`
+      };
+    }
+  }
+
+  if (repositoryPreparation.gitLfs) {
+    onLog({
+      stream: "stdout",
+      message: "Pulling Git LFS objects",
+      timestamp: new Date()
+    });
+    const lfsPull = await execRunner("git", ["lfs", "pull"], workDir, onLog, envOverrides);
+    if (lfsPull.exitCode !== 0) {
+      return {
+        exitCode: lfsPull.exitCode,
+        errorMessage: `git lfs pull failed with exit code ${lfsPull.exitCode}`
+      };
+    }
+
+    if (repositoryPreparation.submodules) {
+      onLog({
+        stream: "stdout",
+        message: "Pulling Git LFS objects for submodules",
+        timestamp: new Date()
+      });
+      const submoduleLfsPull = await execRunner(
+        "git",
+        ["submodule", "foreach", "--recursive", "git lfs pull"],
+        workDir,
+        onLog,
+        envOverrides
+      );
+      if (submoduleLfsPull.exitCode !== 0) {
+        return {
+          exitCode: submoduleLfsPull.exitCode,
+          errorMessage: `git lfs pull failed for submodules with exit code ${submoduleLfsPull.exitCode}`
+        };
+      }
+    }
+  }
+
+  return { exitCode: 0 };
 }
 
 /**
@@ -114,12 +251,16 @@ function writeGitConfigFile(
 export function cleanupStagingDir(deploymentId: string): void {
   const dir = join(STAGING_DIR, deploymentId);
   const archivePath = getStagingArchivePath(deploymentId);
+  const gitConfigPath = join(STAGING_DIR, `${deploymentId}.gitconfig`);
   try {
     if (existsSync(dir)) {
       rmSync(dir, { recursive: true, force: true });
     }
     if (existsSync(archivePath)) {
       rmSync(archivePath, { force: true });
+    }
+    if (existsSync(gitConfigPath)) {
+      rmSync(gitConfigPath, { force: true });
     }
   } catch {
     /* best effort cleanup */
@@ -134,14 +275,11 @@ export async function gitClone(
   branch: string,
   deploymentId: string,
   onLog: OnLog,
-  options?: {
-    displayLabel?: string;
-    gitConfig?: Array<{ key: string; value: string }>;
-  }
-): Promise<{ exitCode: number; workDir: string }> {
+  options?: GitCloneOptions
+): Promise<{ exitCode: number; workDir: string; errorMessage?: string }> {
   const workDir = ensureStagingDir(deploymentId);
   const displayLabel = options?.displayLabel ?? repoUrl;
-  const gitConfigPath = writeGitConfigFile(workDir, options?.gitConfig ?? []);
+  const gitConfigPath = writeGitConfigFile(deploymentId, options?.gitConfig ?? []);
 
   onLog({
     stream: "stdout",
@@ -157,7 +295,24 @@ export async function gitClone(
     gitConfigPath ? { GIT_CONFIG_GLOBAL: gitConfigPath } : undefined
   );
 
-  return { exitCode: result.exitCode, workDir };
+  if (result.exitCode !== 0) {
+    return {
+      exitCode: result.exitCode,
+      workDir,
+      errorMessage: `git clone failed with exit code ${result.exitCode}`
+    };
+  }
+
+  const preparation = await prepareClonedRepository(workDir, onLog, {
+    repositoryPreparation: options?.repositoryPreparation,
+    gitConfigPath
+  });
+
+  return {
+    exitCode: preparation.exitCode,
+    workDir,
+    errorMessage: preparation.errorMessage
+  };
 }
 
 /**

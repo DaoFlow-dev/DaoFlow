@@ -102,6 +102,8 @@ export const adminRouter = t.router({
         gitProviderId: z.string().max(32).optional(),
         gitInstallationId: z.string().max(32).optional(),
         defaultBranch: z.string().max(80).optional(),
+        repositorySubmodules: z.boolean().optional(),
+        repositoryGitLfs: z.boolean().optional(),
         teamId: z.string().min(1).optional()
       })
     )
@@ -151,7 +153,9 @@ export const adminRouter = t.router({
         composePath: z.string().max(500).optional(),
         gitProviderId: z.string().max(32).optional(),
         gitInstallationId: z.string().max(32).optional(),
-        defaultBranch: z.string().max(80).optional()
+        defaultBranch: z.string().max(80).optional(),
+        repositorySubmodules: z.boolean().optional(),
+        repositoryGitLfs: z.boolean().optional()
       })
     )
     .mutation(async ({ ctx, input }) => {

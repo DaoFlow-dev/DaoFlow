@@ -9,6 +9,7 @@ import {
   readProjectSourceReadiness,
   validateProjectSourceReadiness
 } from "./project-source-readiness";
+import { mergeRepositoryPreparationConfig } from "../../repository-preparation";
 
 /* ──────────────────────── Interfaces ──────────────────────── */
 
@@ -21,6 +22,8 @@ export interface CreateProjectInput {
   gitProviderId?: string;
   gitInstallationId?: string;
   defaultBranch?: string;
+  repositorySubmodules?: boolean;
+  repositoryGitLfs?: boolean;
   teamId: string;
   requestedByUserId: string;
   requestedByEmail: string;
@@ -46,6 +49,8 @@ export interface UpdateProjectInput {
   gitProviderId?: string;
   gitInstallationId?: string;
   defaultBranch?: string;
+  repositorySubmodules?: boolean;
+  repositoryGitLfs?: boolean;
   requestedByUserId: string;
   requestedByEmail: string;
   requestedByRole: AppRole;
@@ -115,6 +120,10 @@ export async function createProject(input: CreateProjectInput) {
     description: input.description ?? "",
     latestDeploymentStatus: "new"
   };
+  const configWithRepositoryPreparation = mergeRepositoryPreparationConfig(baseConfig, {
+    submodules: input.repositorySubmodules,
+    gitLfs: input.repositoryGitLfs
+  });
   const [project] = await db
     .insert(projects)
     .values({
@@ -131,7 +140,7 @@ export async function createProject(input: CreateProjectInput) {
       defaultBranch: input.defaultBranch ?? "main",
       createdByUserId: input.requestedByUserId,
       config: mergeProjectSourceReadiness(
-        baseConfig,
+        configWithRepositoryPreparation,
         sourceValidation.status === "ready" ? sourceValidation.readiness : null
       ),
       updatedAt: new Date()
@@ -175,6 +184,8 @@ export async function updateProject(input: UpdateProjectInput) {
     input.gitInstallationId !== undefined ||
     input.defaultBranch !== undefined ||
     input.composePath !== undefined;
+  const repositoryPreparationTouched =
+    input.repositorySubmodules !== undefined || input.repositoryGitLfs !== undefined;
 
   const sourceValidation = sourceFieldsTouched
     ? await validateProjectSourceReadiness({
@@ -207,7 +218,7 @@ export async function updateProject(input: UpdateProjectInput) {
   if (input.gitProviderId !== undefined) updates.gitProviderId = input.gitProviderId;
   if (input.gitInstallationId !== undefined) updates.gitInstallationId = input.gitInstallationId;
   if (input.defaultBranch !== undefined) updates.defaultBranch = input.defaultBranch;
-  if (input.description !== undefined || sourceFieldsTouched) {
+  if (input.description !== undefined || sourceFieldsTouched || repositoryPreparationTouched) {
     const existingConfig = asRecord(existing[0].config);
     const nextConfig =
       input.description !== undefined
@@ -216,9 +227,13 @@ export async function updateProject(input: UpdateProjectInput) {
             description: input.description
           }
         : existingConfig;
+    const nextConfigWithRepositoryPreparation = mergeRepositoryPreparationConfig(nextConfig, {
+      submodules: input.repositorySubmodules,
+      gitLfs: input.repositoryGitLfs
+    });
 
     updates.config = mergeProjectSourceReadiness(
-      nextConfig,
+      nextConfigWithRepositoryPreparation,
       sourceValidation?.status === "ready"
         ? sourceValidation.readiness
         : sourceFieldsTouched

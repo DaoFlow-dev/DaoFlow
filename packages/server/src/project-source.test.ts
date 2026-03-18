@@ -16,6 +16,7 @@ import { createService } from "./db/services/services";
 import { executeRollback } from "./db/services/execute-rollback";
 import { encrypt } from "./db/crypto";
 import { encodeGitInstallationPermissions } from "./db/services/git-providers";
+import { asRecord } from "./db/services/json-helpers";
 import { resetTestDatabase } from "./test-db";
 import { ensureControlPlaneReady, resetControlPlaneSeedState } from "./db/services/seed";
 
@@ -221,6 +222,8 @@ describe("project source persistence", () => {
       gitProviderId: providerId,
       gitInstallationId: installationId,
       defaultBranch: "develop",
+      repositorySubmodules: true,
+      repositoryGitLfs: true,
       teamId: "team_foundation",
       requestedByUserId: "user_foundation_owner",
       requestedByEmail: "owner@daoflow.local",
@@ -236,6 +239,7 @@ describe("project source persistence", () => {
       projectId: created.project.id,
       composePath: "ops/compose.release.yml",
       defaultBranch: "release",
+      repositoryGitLfs: false,
       requestedByUserId: "user_foundation_owner",
       requestedByEmail: "owner@daoflow.local",
       requestedByRole: "owner"
@@ -274,6 +278,10 @@ describe("project source persistence", () => {
           branch: "ok",
           composePath: "ok"
         }
+      },
+      repositoryPreparation: {
+        submodules: true,
+        gitLfs: false
       }
     });
     expect(row.config).not.toHaveProperty("defaultBranch");
@@ -295,6 +303,50 @@ describe("project source persistence", () => {
       providerType: "github"
     });
     expect(fetchMock).toHaveBeenCalled();
+  });
+
+  it("persists repository preparation updates even when no source fields change", async () => {
+    const created = await createProject({
+      name: `Repository Prep ${Date.now()}`,
+      description: "Repository prep fixture",
+      repoUrl: "https://github.com/example-org/platform.git",
+      composePath: "deploy/docker-compose.prod.yml",
+      defaultBranch: "main",
+      repositorySubmodules: true,
+      teamId: "team_foundation",
+      requestedByUserId: "user_foundation_owner",
+      requestedByEmail: "owner@daoflow.local",
+      requestedByRole: "owner"
+    });
+
+    expect(created.status).toBe("ok");
+    if (created.status !== "ok") {
+      throw new Error("Failed to create repository preparation fixture.");
+    }
+
+    const updated = await updateProject({
+      projectId: created.project.id,
+      repositoryGitLfs: true,
+      requestedByUserId: "user_foundation_owner",
+      requestedByEmail: "owner@daoflow.local",
+      requestedByRole: "owner"
+    });
+
+    expect(updated.status).toBe("ok");
+    if (updated.status !== "ok") {
+      throw new Error("Failed to update repository preparation fixture.");
+    }
+
+    const [row] = await db
+      .select()
+      .from(projects)
+      .where(eq(projects.id, created.project.id))
+      .limit(1);
+
+    expect(asRecord(row?.config).repositoryPreparation).toEqual({
+      submodules: true,
+      gitLfs: true
+    });
   });
 
   it("replays repository source metadata when creating a rollback deployment", async () => {

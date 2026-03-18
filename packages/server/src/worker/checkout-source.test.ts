@@ -31,7 +31,34 @@ describe("resolveCheckoutSpec", () => {
       branch: "main",
       displayLabel: "org/repo",
       gitConfig: [],
+      repositoryPreparation: {
+        submodules: false,
+        gitLfs: false
+      },
       requiresLocalMaterialization: false
+    });
+  });
+
+  it("forces local materialization when repository preparation requires submodules or Git LFS", async () => {
+    const spec = await resolveCheckoutSpec({
+      repoUrl: "https://example.com/org/repo.git",
+      branch: "main",
+      repositoryPreparation: {
+        submodules: true,
+        gitLfs: true
+      }
+    });
+
+    expect(spec).toEqual({
+      repoUrl: "https://example.com/org/repo.git",
+      branch: "main",
+      displayLabel: "https://example.com/org/repo.git",
+      gitConfig: [],
+      repositoryPreparation: {
+        submodules: true,
+        gitLfs: true
+      },
+      requiresLocalMaterialization: true
     });
   });
 
@@ -73,6 +100,10 @@ describe("resolveCheckoutSpec", () => {
       branch: "release",
       displayLabel: "example-group/platform",
       gitConfig: [{ key: "http.extraHeader", value: "Authorization: Bearer glpat-encrypted" }],
+      repositoryPreparation: {
+        submodules: false,
+        gitLfs: false
+      },
       requiresLocalMaterialization: true
     });
   });
@@ -112,6 +143,10 @@ describe("resolveCheckoutSpec", () => {
     expect(spec?.gitConfig).toEqual([
       { key: "http.extraHeader", value: "Authorization: Bearer glpat-legacy" }
     ]);
+    expect(spec?.repositoryPreparation).toEqual({
+      submodules: false,
+      gitLfs: false
+    });
   });
 
   it("mints a GitHub installation token and resolves a provider-backed checkout spec", async () => {
@@ -172,6 +207,10 @@ describe("resolveCheckoutSpec", () => {
           value: `AUTHORIZATION: basic ${Buffer.from("x-access-token:ghs_installation_token").toString("base64")}`
         }
       ],
+      repositoryPreparation: {
+        submodules: false,
+        gitLfs: false
+      },
       requiresLocalMaterialization: true
     });
   });

@@ -49,10 +49,13 @@ export async function prepareComposeWorkspace(
       if (checkout.requiresLocalMaterialization) {
         const localClone = await gitClone(checkout.repoUrl, checkout.branch, deploymentId, onLog, {
           displayLabel: checkout.displayLabel,
-          gitConfig: checkout.gitConfig
+          gitConfig: checkout.gitConfig,
+          repositoryPreparation: checkout.repositoryPreparation
         });
         if (localClone.exitCode !== 0) {
-          throw new Error(`git clone failed with exit code ${localClone.exitCode}`);
+          throw new Error(
+            localClone.errorMessage ?? `git clone failed with exit code ${localClone.exitCode}`
+          );
         }
 
         const remoteArchivePath = join(target.remoteWorkDir, `${deploymentId}.tar.gz`);
@@ -112,10 +115,11 @@ export async function prepareComposeWorkspace(
 
     const result = await gitClone(checkout.repoUrl, checkout.branch, deploymentId, onLog, {
       displayLabel: checkout.displayLabel,
-      gitConfig: checkout.gitConfig
+      gitConfig: checkout.gitConfig,
+      repositoryPreparation: checkout.repositoryPreparation
     });
     if (result.exitCode !== 0) {
-      throw new Error(`git clone failed with exit code ${result.exitCode}`);
+      throw new Error(result.errorMessage ?? `git clone failed with exit code ${result.exitCode}`);
     }
     return {
       workDir: result.workDir,

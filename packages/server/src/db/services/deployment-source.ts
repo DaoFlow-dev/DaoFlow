@@ -1,6 +1,10 @@
 import { asRecord, readString } from "./json-helpers";
 import type { ConfigSnapshot } from "../../worker/step-management";
 import { basename, isAbsolute } from "node:path";
+import {
+  hasRepositoryPreparation,
+  readRepositoryPreparationConfig
+} from "../../repository-preparation";
 
 type ProjectRow = {
   repoFullName: string | null;
@@ -58,6 +62,9 @@ export function buildRepositorySourceSnapshot(project: ProjectRow): ConfigSnapsh
     Boolean(project.repoFullName) ||
     Boolean(project.gitProviderId) ||
     Boolean(project.gitInstallationId);
+  const repositoryPreparation = readRepositoryPreparationConfig(
+    asRecord(project.config).repositoryPreparation
+  );
 
   return {
     ...(hasRepositorySource ? { deploymentSource: "git-repository" } : {}),
@@ -65,7 +72,8 @@ export function buildRepositorySourceSnapshot(project: ProjectRow): ConfigSnapsh
     repoUrl: project.repoUrl ?? undefined,
     gitProviderId: project.gitProviderId ?? undefined,
     gitInstallationId: project.gitInstallationId ?? undefined,
-    branch: resolveProjectBranch(project)
+    branch: resolveProjectBranch(project),
+    ...(hasRepositoryPreparation(repositoryPreparation) ? { repositoryPreparation } : {})
   };
 }
 

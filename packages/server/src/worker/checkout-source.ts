@@ -5,6 +5,11 @@ import { gitProviders } from "../db/schema/git-providers";
 import { getGitInstallation, readGitInstallationAccessToken } from "../db/services/git-providers";
 import { decrypt } from "../db/crypto";
 import type { ConfigSnapshot } from "./step-management";
+import {
+  hasRepositoryPreparation,
+  readRepositoryPreparationConfig,
+  type RepositoryPreparationConfig
+} from "../repository-preparation";
 
 type GitConfigEntry = {
   key: string;
@@ -16,6 +21,7 @@ export interface CheckoutSpec {
   branch: string;
   displayLabel: string;
   gitConfig: GitConfigEntry[];
+  repositoryPreparation: RepositoryPreparationConfig;
   requiresLocalMaterialization: boolean;
 }
 
@@ -122,6 +128,8 @@ async function resolveGitHubCheckoutSpec(config: ConfigSnapshot): Promise<Checko
     throw new Error("GitHub installation token exchange did not return a token.");
   }
 
+  const repositoryPreparation = readRepositoryPreparationConfig(config.repositoryPreparation);
+
   return {
     repoUrl: buildGitHubRepoUrl(provider[0].baseUrl, repoFullName),
     branch: config.branch ?? "main",
@@ -132,6 +140,7 @@ async function resolveGitHubCheckoutSpec(config: ConfigSnapshot): Promise<Checko
         value: `AUTHORIZATION: basic ${toBase64(`x-access-token:${tokenData.token}`)}`
       }
     ],
+    repositoryPreparation,
     requiresLocalMaterialization: true
   };
 }
@@ -164,6 +173,8 @@ async function resolveGitLabCheckoutSpec(config: ConfigSnapshot): Promise<Checko
     throw new Error(`GitLab installation ${installationId} does not have a usable access token.`);
   }
 
+  const repositoryPreparation = readRepositoryPreparationConfig(config.repositoryPreparation);
+
   return {
     repoUrl: buildGitLabRepoUrl(provider[0].baseUrl, repoFullName),
     branch: config.branch ?? "main",
@@ -174,11 +185,14 @@ async function resolveGitLabCheckoutSpec(config: ConfigSnapshot): Promise<Checko
         value: `Authorization: Bearer ${accessToken}`
       }
     ],
+    repositoryPreparation,
     requiresLocalMaterialization: true
   };
 }
 
 export async function resolveCheckoutSpec(config: ConfigSnapshot): Promise<CheckoutSpec | null> {
+  const repositoryPreparation = readRepositoryPreparationConfig(config.repositoryPreparation);
+
   if (config.gitProviderId && config.gitInstallationId && config.repoFullName) {
     const [provider] = await db
       .select()
@@ -210,6 +224,7 @@ export async function resolveCheckoutSpec(config: ConfigSnapshot): Promise<Check
     branch: config.branch ?? "main",
     displayLabel: config.repoFullName ?? config.repoUrl,
     gitConfig: [],
-    requiresLocalMaterialization: false
+    repositoryPreparation,
+    requiresLocalMaterialization: hasRepositoryPreparation(repositoryPreparation)
   };
 }

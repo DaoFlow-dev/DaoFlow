@@ -89,6 +89,8 @@ async function createGitLabComposeFixture(input: {
   composePath: string;
   providerId: string;
   installationId: string;
+  repositorySubmodules?: boolean;
+  repositoryGitLfs?: boolean;
   webhookSecret?: string;
   serviceName?: string;
   autoDeploy?: boolean;
@@ -96,7 +98,7 @@ async function createGitLabComposeFixture(input: {
   await db.insert(gitProviders).values({
     id: input.providerId,
     type: "gitlab",
-    name: `${input.projectName} Provider`,
+    name: `${input.projectName} Provider ${input.providerId}`,
     webhookSecret: input.webhookSecret ?? null,
     status: "active",
     updatedAt: new Date()
@@ -116,13 +118,15 @@ async function createGitLabComposeFixture(input: {
   });
 
   const projectResult = await createProject({
-    name: input.projectName,
+    name: `${input.providerId} ${input.projectName}`,
     repoUrl: `https://gitlab.com/${input.repoFullName}.git`,
     repoFullName: input.repoFullName,
     composePath: input.composePath,
     gitProviderId: input.providerId,
     gitInstallationId: input.installationId,
     defaultBranch: "main",
+    repositorySubmodules: input.repositorySubmodules,
+    repositoryGitLfs: input.repositoryGitLfs,
     teamId: "team_foundation",
     requestedByUserId: "user_foundation_owner",
     requestedByEmail: "owner@daoflow.local",
@@ -190,9 +194,9 @@ describe("deploy source revalidation", () => {
   });
 
   it("revalidates the resolved compose path before manual deploy queueing", async () => {
-    const repoFullName = "example-group/revalidate-manual";
-    const providerId = "gitprov_revalidate_manual";
-    const installationId = "gitinst_revalidate_manual";
+    const repoFullName = `example-group/revalidate-manual-${Date.now()}`;
+    const providerId = `gitprov_${Date.now()}_manual`.slice(0, 32);
+    const installationId = `gitinst_${Date.now()}_manual`.slice(0, 32);
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(
       mockGitLabSourceFetch({
         repoFullName,
@@ -206,7 +210,9 @@ describe("deploy source revalidation", () => {
       repoFullName,
       composePath: "deploy/compose.yaml",
       providerId,
-      installationId
+      installationId,
+      repositorySubmodules: true,
+      repositoryGitLfs: true
     });
 
     const [projectRow] = await db
@@ -266,6 +272,10 @@ describe("deploy source revalidation", () => {
     }
 
     expect(asRecord(result.deployment.configSnapshot).composeFilePath).toBe("ops/release.yaml");
+    expect(asRecord(asRecord(result.deployment.configSnapshot).repositoryPreparation)).toEqual({
+      submodules: true,
+      gitLfs: true
+    });
 
     const [updatedProject] = await db
       .select()
@@ -288,9 +298,9 @@ describe("deploy source revalidation", () => {
   });
 
   it("blocks manual deploy dispatch when the provider-linked branch has drifted away", async () => {
-    const repoFullName = "example-group/revalidate-invalid-branch";
-    const providerId = "gitprov_revalidate_branch";
-    const installationId = "gitinst_revalidate_branch";
+    const repoFullName = `example-group/revalidate-invalid-branch-${Date.now()}`;
+    const providerId = `gitprov_${Date.now()}_branch`.slice(0, 32);
+    const installationId = `gitinst_${Date.now()}_branch`.slice(0, 32);
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(
       mockGitLabSourceFetch({
         repoFullName,
@@ -354,9 +364,9 @@ describe("deploy source revalidation", () => {
   });
 
   it("blocks manual deploy dispatch when provider validation is transiently unavailable", async () => {
-    const repoFullName = "example-group/revalidate-provider-unavailable";
-    const providerId = "gitprov_revalidate_transient";
-    const installationId = "gitinst_revalidate_transient";
+    const repoFullName = `example-group/revalidate-provider-unavailable-${Date.now()}`;
+    const providerId = `gitprov_${Date.now()}_transient`.slice(0, 32);
+    const installationId = `gitinst_${Date.now()}_transient`.slice(0, 32);
     const commitSha = "1234512345123451234512345123451234512345";
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(
       mockGitLabSourceFetch({
@@ -422,9 +432,9 @@ describe("deploy source revalidation", () => {
   });
 
   it("marks webhook targets as failed when the provider-linked compose file is no longer reachable", async () => {
-    const repoFullName = "example-group/revalidate-webhook";
-    const providerId = "gitprov_revalidate_webhook";
-    const installationId = "gitinst_revalidate_webhook";
+    const repoFullName = `example-group/revalidate-webhook-${Date.now()}`;
+    const providerId = `gitprov_${Date.now()}_webhook`.slice(0, 32);
+    const installationId = `gitinst_${Date.now()}_webhook`.slice(0, 32);
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(
       mockGitLabSourceFetch({
         repoFullName,
