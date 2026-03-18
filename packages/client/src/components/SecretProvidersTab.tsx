@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle, CheckCircle2, KeyRound, Plus, RefreshCw, Shield, Trash2 } from "lucide-react";
+import { getInventoryBadgeVariant } from "../lib/tone-utils";
 
 type SecretProvider = {
   id: string;
@@ -42,12 +43,12 @@ function statusLabel(provider: SecretProvider) {
   return provider.status === "active" ? "Connected" : "Connection failed";
 }
 
-function statusVariant(provider: SecretProvider): "default" | "secondary" | "destructive" {
+function statusKey(provider: SecretProvider) {
   if (!provider.lastTestedAt) {
-    return "secondary";
+    return "pending";
   }
 
-  return provider.status === "active" ? "default" : "destructive";
+  return provider.status;
 }
 
 export default function SecretProvidersTab() {
@@ -164,7 +165,9 @@ function SecretProviderCard({
             </div>
             <div className="flex items-center gap-2">
               <Badge variant="outline">{provider.type}</Badge>
-              <Badge variant={statusVariant(provider)}>{statusLabel(provider)}</Badge>
+              <Badge variant={getInventoryBadgeVariant(statusKey(provider))}>
+                {statusLabel(provider)}
+              </Badge>
             </div>
           </div>
         </CardHeader>

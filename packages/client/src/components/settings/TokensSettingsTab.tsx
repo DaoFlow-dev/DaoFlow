@@ -9,6 +9,7 @@ import {
   TableHeader,
   TableRow
 } from "@/components/ui/table";
+import { getInventoryBadgeVariant } from "@/lib/tone-utils";
 
 interface Token {
   id: string;
@@ -102,9 +103,7 @@ export function TokensSettingsTab({ isLoading, tokens, summary }: TokensSettings
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Badge variant={t.status === "active" ? "default" : "secondary"}>
-                          {t.status}
-                        </Badge>
+                        <Badge variant={getInventoryBadgeVariant(t.status)}>{t.status}</Badge>
                       </TableCell>
                       <TableCell className="text-muted-foreground">
                         {new Date(t.createdAt).toLocaleDateString()}

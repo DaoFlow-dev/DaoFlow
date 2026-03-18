@@ -200,6 +200,7 @@ export function normalizeInventoryStatus(status: string): StatusTone {
     status === "error" ||
     status === "offline" ||
     status === "rejected" ||
+    status === "revoked" ||
     status === "disconnected" ||
     status === "deleted"
   ) {

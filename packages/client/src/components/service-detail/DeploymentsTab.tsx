@@ -5,24 +5,16 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ChevronDown, ChevronRight, Clock, XCircle, GitCompare, RotateCcw } from "lucide-react";
 import { useState } from "react";
+import {
+  getBadgeVariantFromTone,
+  getDeploymentStepTone,
+  getDeploymentTone,
+  getToneDotClass
+} from "@/lib/tone-utils";
 
 interface DeploymentsTabProps {
   serviceId: string;
   serviceName: string;
-}
-
-function statusColor(status: string) {
-  switch (status) {
-    case "healthy":
-    case "completed":
-      return "default" as const;
-    case "failed":
-      return "destructive" as const;
-    case "running":
-      return "secondary" as const;
-    default:
-      return "outline" as const;
-  }
 }
 
 export default function DeploymentsTab({ serviceId, serviceName }: DeploymentsTabProps) {
@@ -86,10 +78,15 @@ export default function DeploymentsTab({ serviceId, serviceName }: DeploymentsTa
             (d: {
               id: string;
               status: string;
+              lifecycleStatus?: string;
+              statusLabel?: string;
+              statusTone?: string;
               conclusion: string | null;
               commitSha: string | null;
               imageTag: string | null;
               createdAt: string;
+              canCancel?: boolean;
+              canRollback?: boolean;
               steps: { label: string; status: string; detail: string | null }[];
               error?: unknown;
               configSnapshot?: unknown;
@@ -108,7 +105,14 @@ export default function DeploymentsTab({ serviceId, serviceName }: DeploymentsTa
                     <div>
                       <div className="flex items-center gap-2">
                         <span className="font-mono text-xs">{d.id.slice(0, 8)}</span>
-                        <Badge variant={statusColor(d.status)}>{d.status}</Badge>
+                        <Badge
+                          variant={getBadgeVariantFromTone(
+                            d.statusTone ??
+                              getDeploymentTone(d.lifecycleStatus ?? d.status, d.conclusion)
+                          )}
+                        >
+                          {d.statusLabel ?? d.status}
+                        </Badge>
                         {d.conclusion && d.conclusion !== d.status && (
                           <Badge variant="outline">{d.conclusion}</Badge>
                         )}
@@ -125,7 +129,7 @@ export default function DeploymentsTab({ serviceId, serviceName }: DeploymentsTa
                   </div>
 
                   <div className="flex items-center gap-1">
-                    {d.status === "queued" && (
+                    {d.canCancel && (
                       <Button
                         size="sm"
                         variant="ghost"
@@ -138,7 +142,7 @@ export default function DeploymentsTab({ serviceId, serviceName }: DeploymentsTa
                         <XCircle size={14} />
                       </Button>
                     )}
-                    {d.status === "healthy" && rollbackTargets.data?.length && (
+                    {d.canRollback && rollbackTargets.data?.length && (
                       <Button
                         size="sm"
                         variant="ghost"
@@ -168,15 +172,10 @@ export default function DeploymentsTab({ serviceId, serviceName }: DeploymentsTa
                         {d.steps.map((step, i) => (
                           <div key={i} className="flex items-start gap-2 text-sm">
                             <span
-                              className={`mt-0.5 w-2 h-2 rounded-full shrink-0 ${
-                                step.status === "completed"
-                                  ? "bg-green-500"
-                                  : step.status === "failed"
-                                    ? "bg-red-500"
-                                    : step.status === "running"
-                                      ? "bg-blue-500 animate-pulse"
-                                      : "bg-gray-400"
-                              }`}
+                              className={`mt-0.5 h-2 w-2 shrink-0 rounded-full ${getToneDotClass(
+                                getDeploymentStepTone(step.status),
+                                { pulse: true }
+                              )}`}
                             />
                             <div>
                               <span className="font-medium">{step.label}</span>

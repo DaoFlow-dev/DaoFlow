@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Bot, Plus, Copy, Check, Key, Shield } from "lucide-react";
 import CreateAgentDialog from "../components/CreateAgentDialog";
+import { getInventoryBadgeVariant } from "../lib/tone-utils";
 
 export default function AgentsPage() {
   const [showCreate, setShowCreate] = useState(false);
@@ -82,9 +83,7 @@ daoflow logs --json`;
                     {agent.name}
                   </CardTitle>
                   <div className="flex items-center gap-2">
-                    <Badge variant={agent.status === "active" ? "default" : "secondary"}>
-                      {agent.status}
-                    </Badge>
+                    <Badge variant={getInventoryBadgeVariant(agent.status)}>{agent.status}</Badge>
                     <Button
                       variant="outline"
                       size="sm"

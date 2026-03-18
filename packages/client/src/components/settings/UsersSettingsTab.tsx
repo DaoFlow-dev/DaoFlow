@@ -9,6 +9,7 @@ import {
   TableHeader,
   TableRow
 } from "@/components/ui/table";
+import { getInventoryBadgeVariant } from "@/lib/tone-utils";
 
 interface Principal {
   id: string;
@@ -63,9 +64,7 @@ export function UsersSettingsTab({ isAdmin, isLoading, principals }: UsersSettin
                       <Badge variant={p.type === "agent" ? "outline" : "secondary"}>{p.type}</Badge>
                     </TableCell>
                     <TableCell>
-                      <Badge variant={p.status === "active" ? "default" : "destructive"}>
-                        {p.status}
-                      </Badge>
+                      <Badge variant={getInventoryBadgeVariant(p.status)}>{p.status}</Badge>
                     </TableCell>
                     <TableCell className="text-muted-foreground">
                       {new Date(p.createdAt).toLocaleDateString()}

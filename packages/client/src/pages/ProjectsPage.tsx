@@ -17,6 +17,7 @@ import {
   DialogTrigger
 } from "@/components/ui/dialog";
 import { FolderKanban, Plus, Search } from "lucide-react";
+import { getInventoryBadgeVariant } from "../lib/tone-utils";
 
 export default function ProjectsPage() {
   const session = useSession();
@@ -167,15 +168,7 @@ export default function ProjectsPage() {
                     {String(p.sourceType ?? "compose")}
                   </p>
                 </div>
-                <Badge
-                  variant={
-                    p.status === "active"
-                      ? "default"
-                      : p.status === "paused"
-                        ? "secondary"
-                        : "destructive"
-                  }
-                >
+                <Badge variant={getInventoryBadgeVariant(String(p.status))}>
                   {String(p.status)}
                 </Badge>
               </CardHeader>

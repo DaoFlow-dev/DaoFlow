@@ -13,6 +13,7 @@ import {
   DialogFooter
 } from "@/components/ui/dialog";
 import { GitBranch, Plus, Trash2, ExternalLink } from "lucide-react";
+import { getInventoryBadgeVariant } from "../lib/tone-utils";
 
 export default function GitProvidersTab() {
   const [showRegister, setShowRegister] = useState(false);
@@ -90,9 +91,7 @@ function ProviderCard({
           </CardTitle>
           <div className="flex items-center gap-2">
             <Badge variant="secondary">{provider.type}</Badge>
-            <Badge variant={provider.status === "active" ? "default" : "secondary"}>
-              {provider.status}
-            </Badge>
+            <Badge variant={getInventoryBadgeVariant(provider.status)}>{provider.status}</Badge>
             <Button
               variant="ghost"
               size="sm"

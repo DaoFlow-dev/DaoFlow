@@ -92,6 +92,29 @@ export function getDeploymentTone(status: string, conclusion: string | null): St
   return getDeploymentStatusTone(status, conclusion);
 }
 
+export function getDeploymentBadgeVariant(
+  status: string,
+  conclusion: string | null
+): StatusBadgeVariant {
+  return getBadgeVariantFromTone(getDeploymentTone(status, conclusion));
+}
+
+export function getDeploymentStepTone(status: string): StatusTone {
+  if (status === "completed") {
+    return "healthy";
+  }
+
+  if (status === "failed") {
+    return "failed";
+  }
+
+  if (status === "running") {
+    return "running";
+  }
+
+  return "queued";
+}
+
 export function getTimelineLifecycle(kind: string) {
   if (kind === "deployment.failed" || kind === "execution.job.failed" || kind === "step.failed") {
     return "failed" as const;
