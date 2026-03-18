@@ -2,7 +2,6 @@ import { useState } from "react";
 import type { FormEvent } from "react";
 import { isTRPCClientError } from "@trpc/client";
 import { trpc } from "../../lib/trpc";
-import { getServerReadinessTone } from "../../lib/tone-utils";
 
 interface ServerCheck {
   serverId: string;
@@ -12,7 +11,7 @@ interface ServerCheck {
   targetKind: string;
   sshPort: number;
   readinessStatus: string;
-  statusTone?: string;
+  statusTone: string;
   sshReachable: boolean;
   dockerReachable: boolean;
   composeReachable: boolean;
@@ -188,61 +187,57 @@ export function ServerReadiness({
           </div>
 
           <div className="server-readiness-list">
-            {serverReadiness.data.checks.map((check) => {
-              const statusTone = check.statusTone ?? getServerReadinessTone(check.readinessStatus);
-
-              return (
-                <article
-                  className="timeline-event"
-                  data-testid={`server-readiness-card-${check.serverId}`}
-                  key={check.serverId}
-                >
-                  <div className="timeline-event__top">
-                    <div>
-                      <p className="roadmap-item__lane">
-                        {check.targetKind} · SSH {check.sshPort}
-                      </p>
-                      <h3>{check.serverName}</h3>
-                    </div>
-                    <span className={`deployment-status deployment-status--${statusTone}`}>
-                      {check.readinessStatus}
-                    </span>
+            {serverReadiness.data.checks.map((check) => (
+              <article
+                className="timeline-event"
+                data-testid={`server-readiness-card-${check.serverId}`}
+                key={check.serverId}
+              >
+                <div className="timeline-event__top">
+                  <div>
+                    <p className="roadmap-item__lane">
+                      {check.targetKind} · SSH {check.sshPort}
+                    </p>
+                    <h3>{check.serverName}</h3>
                   </div>
-                  <p className="deployment-card__meta">
-                    {check.serverHost} · inventory status {check.serverStatus}
-                  </p>
-                  <p className="deployment-card__meta">
-                    SSH {check.sshReachable ? "reachable" : "blocked"} · Docker{" "}
-                    {check.dockerReachable ? "reachable" : "blocked"} · Compose{" "}
-                    {check.composeReachable ? "reachable" : "blocked"}
-                  </p>
-                  <p className="deployment-card__meta">
-                    Checked at {check.checkedAt} · Latency{" "}
-                    {check.latencyMs === null ? "not measured" : `${check.latencyMs} ms`}
-                  </p>
-                  <div className="rollback-plan__columns">
-                    <div>
-                      <p className="roadmap-item__lane">Issues</p>
-                      <ul className="deployment-card__steps">
-                        {check.issues.length > 0 ? (
-                          check.issues.map((issue) => <li key={issue}>{issue}</li>)
-                        ) : (
-                          <li>Connectivity checks are healthy.</li>
-                        )}
-                      </ul>
-                    </div>
-                    <div>
-                      <p className="roadmap-item__lane">Recommended actions</p>
-                      <ul className="deployment-card__steps">
-                        {check.recommendedActions.map((action) => (
-                          <li key={action}>{action}</li>
-                        ))}
-                      </ul>
-                    </div>
+                  <span className={`deployment-status deployment-status--${check.statusTone}`}>
+                    {check.readinessStatus}
+                  </span>
+                </div>
+                <p className="deployment-card__meta">
+                  {check.serverHost} · inventory status {check.serverStatus}
+                </p>
+                <p className="deployment-card__meta">
+                  SSH {check.sshReachable ? "reachable" : "blocked"} · Docker{" "}
+                  {check.dockerReachable ? "reachable" : "blocked"} · Compose{" "}
+                  {check.composeReachable ? "reachable" : "blocked"}
+                </p>
+                <p className="deployment-card__meta">
+                  Checked at {check.checkedAt} · Latency{" "}
+                  {check.latencyMs === null ? "not measured" : `${check.latencyMs} ms`}
+                </p>
+                <div className="rollback-plan__columns">
+                  <div>
+                    <p className="roadmap-item__lane">Issues</p>
+                    <ul className="deployment-card__steps">
+                      {check.issues.length > 0 ? (
+                        check.issues.map((issue) => <li key={issue}>{issue}</li>)
+                      ) : (
+                        <li>Connectivity checks are healthy.</li>
+                      )}
+                    </ul>
                   </div>
-                </article>
-              );
-            })}
+                  <div>
+                    <p className="roadmap-item__lane">Recommended actions</p>
+                    <ul className="deployment-card__steps">
+                      {check.recommendedActions.map((action) => (
+                        <li key={action}>{action}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              </article>
+            ))}
           </div>
         </>
       ) : (
