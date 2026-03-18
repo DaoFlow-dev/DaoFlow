@@ -12,7 +12,12 @@
 
 import { Command } from "commander";
 import chalk from "chalk";
-import { resolveCommandJsonOption } from "../command-helpers";
+import {
+  emitJsonError,
+  emitJsonSuccess,
+  getErrorMessage,
+  resolveCommandJsonOption
+} from "../command-helpers";
 import { createClient } from "../trpc-client";
 
 // ── Inline preset definitions (mirrored from @daoflow/shared for CLI use)
@@ -113,7 +118,7 @@ export function tokenCommand(): Command {
       }));
 
       if (isJson) {
-        console.log(JSON.stringify({ ok: true, presets: presetList }));
+        emitJsonSuccess({ presets: presetList });
         return;
       }
 
@@ -160,7 +165,7 @@ export function tokenCommand(): Command {
         if (opts.preset && !PRESET_NAMES.includes(opts.preset as PresetName)) {
           const msg = `Invalid preset "${opts.preset}". Use: ${PRESET_NAMES.join(", ")}`;
           if (isJson) {
-            console.log(JSON.stringify({ ok: false, error: msg, code: "INVALID_PRESET" }));
+            emitJsonError(msg, "INVALID_PRESET");
           } else {
             console.error(chalk.red(`✗ ${msg}`));
           }
@@ -171,7 +176,7 @@ export function tokenCommand(): Command {
         if (!opts.preset && !opts.scopes) {
           const msg = "Either --preset or --scopes is required.";
           if (isJson) {
-            console.log(JSON.stringify({ ok: false, error: msg, code: "MISSING_SCOPES" }));
+            emitJsonError(msg, "MISSING_SCOPES");
           } else {
             console.error(chalk.red(`✗ ${msg}`));
             console.error(
@@ -185,7 +190,7 @@ export function tokenCommand(): Command {
         if (opts.preset && opts.scopes) {
           const msg = "Use either --preset or --scopes, not both.";
           if (isJson) {
-            console.log(JSON.stringify({ ok: false, error: msg, code: "AMBIGUOUS_SCOPES" }));
+            emitJsonError(msg, "AMBIGUOUS_SCOPES");
           } else {
             console.error(chalk.red(`✗ ${msg}`));
           }
@@ -193,7 +198,16 @@ export function tokenCommand(): Command {
         }
 
         // Show confirmation
-        if (!opts.yes && !isJson) {
+        if (!opts.yes) {
+          if (isJson) {
+            emitJsonError(
+              `Creating agent token ${opts.name} requires --yes to confirm.`,
+              "CONFIRMATION_REQUIRED"
+            );
+            process.exit(1);
+            return;
+          }
+
           const presetInfo = opts.preset ? PRESETS[opts.preset as PresetName] : null;
           const scopeList = presetInfo
             ? presetInfo.scopes
@@ -238,22 +252,19 @@ export function tokenCommand(): Command {
           });
 
           if (isJson) {
-            console.log(
-              JSON.stringify({
-                ok: true,
-                agent: {
-                  id: agent.id,
-                  name: agent.name,
-                  scopes: (agent.defaultScopes ?? "").split(",").filter(Boolean)
-                },
-                token: {
-                  id: (tokenResult as Record<string, unknown>).id,
-                  value: (tokenResult as Record<string, unknown>).tokenValue as string,
-                  prefix: (tokenResult as Record<string, unknown>).tokenPrefix as string
-                },
-                preset: opts.preset ?? null
-              })
-            );
+            emitJsonSuccess({
+              agent: {
+                id: agent.id,
+                name: agent.name,
+                scopes: (agent.defaultScopes ?? "").split(",").filter(Boolean)
+              },
+              token: {
+                id: (tokenResult as Record<string, unknown>).id,
+                value: (tokenResult as Record<string, unknown>).tokenValue as string,
+                prefix: (tokenResult as Record<string, unknown>).tokenPrefix as string
+              },
+              preset: opts.preset ?? null
+            });
           } else {
             const tokenValue = (tokenResult as Record<string, unknown>).tokenValue as string;
             console.log(chalk.green("✓ Agent created and token generated\n"));
@@ -267,13 +278,7 @@ export function tokenCommand(): Command {
           }
         } catch (err) {
           if (isJson) {
-            console.log(
-              JSON.stringify({
-                ok: false,
-                error: err instanceof Error ? err.message : "Unknown error",
-                code: "API_ERROR"
-              })
-            );
+            emitJsonError(getErrorMessage(err), "API_ERROR");
           } else {
             console.error(chalk.red(`✗ ${err instanceof Error ? err.message : String(err)}`));
           }
@@ -295,7 +300,7 @@ export function tokenCommand(): Command {
         const inventory = await trpc.agentTokenInventory.query();
 
         if (isJson) {
-          console.log(JSON.stringify({ ok: true, ...inventory }));
+          emitJsonSuccess(inventory);
           return;
         }
 
@@ -316,13 +321,7 @@ export function tokenCommand(): Command {
         console.log();
       } catch (err) {
         if (isJson) {
-          console.log(
-            JSON.stringify({
-              ok: false,
-              error: err instanceof Error ? err.message : "Unknown error",
-              code: "API_ERROR"
-            })
-          );
+          emitJsonError(getErrorMessage(err), "API_ERROR");
         } else {
           console.error(chalk.red(`✗ ${err instanceof Error ? err.message : String(err)}`));
         }
@@ -340,11 +339,15 @@ export function tokenCommand(): Command {
     .action(async (opts: { id: string; json?: boolean; yes?: boolean }, command: Command) => {
       const isJson = resolveCommandJsonOption(command, opts.json);
 
-      if (!opts.yes && !isJson) {
-        console.error(
-          chalk.yellow(`Destructive operation — revoking token ${opts.id}. Pass --yes to confirm.`)
-        );
+      if (!opts.yes) {
+        const error = `Destructive operation — revoking token ${opts.id}. Pass --yes to confirm.`;
+        if (isJson) {
+          emitJsonError(error, "CONFIRMATION_REQUIRED");
+        } else {
+          console.error(chalk.yellow(error));
+        }
         process.exit(1);
+        return;
       }
 
       try {
@@ -352,19 +355,13 @@ export function tokenCommand(): Command {
         const result = await trpc.revokeAgentToken.mutate({ tokenId: opts.id });
 
         if (isJson) {
-          console.log(JSON.stringify({ ok: true, ...result }));
+          emitJsonSuccess(result);
         } else {
           console.log(chalk.green(`✓ Token ${opts.id} revoked`));
         }
       } catch (err) {
         if (isJson) {
-          console.log(
-            JSON.stringify({
-              ok: false,
-              error: err instanceof Error ? err.message : "Unknown error",
-              code: "API_ERROR"
-            })
-          );
+          emitJsonError(getErrorMessage(err), "API_ERROR");
         } else {
           console.error(chalk.red(`✗ ${err instanceof Error ? err.message : String(err)}`));
         }

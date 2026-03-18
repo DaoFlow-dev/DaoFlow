@@ -1,7 +1,12 @@
 import { Command } from "commander";
 import chalk from "chalk";
 import { writeFileSync, readFileSync, existsSync } from "node:fs";
-import { getErrorMessage, resolveCommandJsonOption } from "../command-helpers";
+import {
+  emitJsonError,
+  emitJsonSuccess,
+  getErrorMessage,
+  resolveCommandJsonOption
+} from "../command-helpers";
 import { createClient } from "../trpc-client";
 import { upsertEnvFileValue } from "../local-env";
 
@@ -28,17 +33,12 @@ export function envCommand(): Command {
         writeFileSync(opts.output, lines.join("\n") + "\n");
 
         if (isJson) {
-          console.log(
-            JSON.stringify({
-              ok: true,
-              data: {
-                environmentId: opts.envId ?? null,
-                output: opts.output,
-                variableCount: data.variables.length,
-                maskedSecretCount
-              }
-            })
-          );
+          emitJsonSuccess({
+            environmentId: opts.envId ?? null,
+            output: opts.output,
+            variableCount: data.variables.length,
+            maskedSecretCount
+          });
           return;
         }
 
@@ -46,9 +46,7 @@ export function envCommand(): Command {
         console.log(chalk.dim(`  (${maskedSecretCount} secrets masked)`));
       } catch (error) {
         if (isJson) {
-          console.log(
-            JSON.stringify({ ok: false, error: getErrorMessage(error), code: "API_ERROR" })
-          );
+          emitJsonError(getErrorMessage(error), "API_ERROR");
         } else {
           console.error(chalk.red(`✗ ${getErrorMessage(error)}`));
         }
@@ -82,7 +80,7 @@ export function envCommand(): Command {
         if (!existsSync(opts.input)) {
           const error = `File not found: ${opts.input}`;
           if (isJson) {
-            console.log(JSON.stringify({ ok: false, error, code: "FILE_NOT_FOUND" }));
+            emitJsonError(error, "FILE_NOT_FOUND");
           } else {
             console.error(chalk.red(`✗ ${error}`));
           }
@@ -105,19 +103,14 @@ export function envCommand(): Command {
 
         if (opts.dryRun) {
           if (isJson) {
-            console.log(
-              JSON.stringify({
-                ok: true,
-                data: {
-                  dryRun: true,
-                  environmentId: opts.envId,
-                  input: opts.input,
-                  variableCount: vars.length,
-                  keys: vars.map((v) => v.key),
-                  markAsSecret: opts.secret ?? false
-                }
-              })
-            );
+            emitJsonSuccess({
+              dryRun: true,
+              environmentId: opts.envId,
+              input: opts.input,
+              variableCount: vars.length,
+              keys: vars.map((v) => v.key),
+              markAsSecret: opts.secret ?? false
+            });
             process.exit(3);
           }
 
@@ -131,7 +124,7 @@ export function envCommand(): Command {
         if (!opts.yes) {
           const error = `This will push ${vars.length} variables to environment ${opts.envId}. Pass --yes to confirm.`;
           if (isJson) {
-            console.log(JSON.stringify({ ok: false, error, code: "CONFIRMATION_REQUIRED" }));
+            emitJsonError(error, "CONFIRMATION_REQUIRED");
           } else {
             console.error(chalk.yellow(error));
           }
@@ -154,26 +147,19 @@ export function envCommand(): Command {
           }
 
           if (isJson) {
-            console.log(
-              JSON.stringify({
-                ok: true,
-                data: {
-                  environmentId: opts.envId,
-                  input: opts.input,
-                  variableCount: count,
-                  markAsSecret: opts.secret ?? false
-                }
-              })
-            );
+            emitJsonSuccess({
+              environmentId: opts.envId,
+              input: opts.input,
+              variableCount: count,
+              markAsSecret: opts.secret ?? false
+            });
             return;
           }
 
           console.log(chalk.green(`✓ Pushed ${count} variables to environment ${opts.envId}`));
         } catch (error) {
           if (isJson) {
-            console.log(
-              JSON.stringify({ ok: false, error: getErrorMessage(error), code: "API_ERROR" })
-            );
+            emitJsonError(getErrorMessage(error), "API_ERROR");
           } else {
             console.error(chalk.red(`✗ ${getErrorMessage(error)}`));
           }
@@ -196,7 +182,7 @@ export function envCommand(): Command {
         const data = await trpc.environmentVariables.query({ environmentId: opts.envId });
 
         if (isJson) {
-          console.log(JSON.stringify({ ok: true, ...data }));
+          emitJsonSuccess(data);
           return;
         }
 
@@ -209,13 +195,7 @@ export function envCommand(): Command {
         console.log();
       } catch (err) {
         if (isJson) {
-          console.log(
-            JSON.stringify({
-              ok: false,
-              error: err instanceof Error ? err.message : "Unknown",
-              code: "API_ERROR"
-            })
-          );
+          emitJsonError(getErrorMessage(err), "API_ERROR");
         } else {
           console.error(chalk.red(`✗ ${err instanceof Error ? err.message : String(err)}`));
         }
@@ -259,7 +239,7 @@ export function envCommand(): Command {
         if (!opts.value && !opts.secretRef) {
           const msg = "Either --value or --secret-ref is required.";
           if (isJson) {
-            console.log(JSON.stringify({ ok: false, error: msg, code: "INVALID_INPUT" }));
+            emitJsonError(msg, "INVALID_INPUT");
           } else {
             console.error(chalk.red(`✗ ${msg}`));
           }
@@ -269,7 +249,7 @@ export function envCommand(): Command {
         if (!opts.local && !opts.envId) {
           const msg = "Environment ID is required unless --local is used.";
           if (isJson) {
-            console.log(JSON.stringify({ ok: false, error: msg, code: "INVALID_INPUT" }));
+            emitJsonError(msg, "INVALID_INPUT");
           } else {
             console.error(chalk.red(`✗ ${msg}`));
           }
@@ -280,7 +260,7 @@ export function envCommand(): Command {
         if (opts.secretRef && !/^op:\/\/[^/]+\/[^/]+\/[^/]+$/.test(opts.secretRef)) {
           const msg = `Invalid secret reference: ${opts.secretRef}. Expected format: op://vault/item/field`;
           if (isJson) {
-            console.log(JSON.stringify({ ok: false, error: msg, code: "INVALID_SECRET_REF" }));
+            emitJsonError(msg, "INVALID_SECRET_REF");
           } else {
             console.error(chalk.red(`✗ ${msg}`));
           }
@@ -293,26 +273,17 @@ export function envCommand(): Command {
             upsertEnvFileValue(opts.file, opts.key, storedValue);
 
             if (isJson) {
-              console.log(
-                JSON.stringify({
-                  ok: true,
-                  key: opts.key,
-                  file: opts.file,
-                  source: opts.secretRef ? "1password" : "inline"
-                })
-              );
+              emitJsonSuccess({
+                key: opts.key,
+                file: opts.file,
+                source: opts.secretRef ? "1password" : "inline"
+              });
             } else {
               console.log(chalk.green(`✓ Wrote ${opts.key} to ${opts.file}`));
             }
           } catch (err) {
             if (isJson) {
-              console.log(
-                JSON.stringify({
-                  ok: false,
-                  error: err instanceof Error ? err.message : "Unknown",
-                  code: "FILE_WRITE_FAILED"
-                })
-              );
+              emitJsonError(getErrorMessage(err), "FILE_WRITE_FAILED");
             } else {
               console.error(chalk.red(`✗ ${err instanceof Error ? err.message : String(err)}`));
             }
@@ -321,14 +292,16 @@ export function envCommand(): Command {
           return;
         }
 
-        if (!opts.yes && !isJson) {
-          const source = opts.secretRef ? `(1Password: ${opts.secretRef})` : "";
-          console.error(
-            chalk.yellow(
-              `Set ${opts.key} in environment ${opts.envId} ${source}. Pass --yes to confirm.`
-            )
-          );
+        if (!opts.yes) {
+          const source = opts.secretRef ? ` (1Password: ${opts.secretRef})` : "";
+          const error = `Set ${opts.key} in environment ${opts.envId}${source}. Pass --yes to confirm.`;
+          if (isJson) {
+            emitJsonError(error, "CONFIRMATION_REQUIRED");
+          } else {
+            console.error(chalk.yellow(error));
+          }
           process.exit(1);
+          return;
         }
 
         try {
@@ -344,15 +317,12 @@ export function envCommand(): Command {
           });
 
           if (isJson) {
-            console.log(
-              JSON.stringify({
-                ok: true,
-                key: opts.key,
-                environment: opts.envId!,
-                source: opts.secretRef ? "1password" : "inline",
-                secretRef: opts.secretRef ?? null
-              })
-            );
+            emitJsonSuccess({
+              key: opts.key,
+              environment: opts.envId!,
+              source: opts.secretRef ? "1password" : "inline",
+              secretRef: opts.secretRef ?? null
+            });
           } else {
             if (opts.secretRef) {
               console.log(
@@ -366,13 +336,7 @@ export function envCommand(): Command {
           }
         } catch (err) {
           if (isJson) {
-            console.log(
-              JSON.stringify({
-                ok: false,
-                error: err instanceof Error ? err.message : "Unknown",
-                code: "API_ERROR"
-              })
-            );
+            emitJsonError(getErrorMessage(err), "API_ERROR");
           } else {
             console.error(chalk.red(`✗ ${err instanceof Error ? err.message : String(err)}`));
           }
@@ -396,13 +360,15 @@ export function envCommand(): Command {
       ) => {
         const isJson = resolveCommandJsonOption(command, opts.json);
 
-        if (!opts.yes && !isJson) {
-          console.error(
-            chalk.yellow(
-              `Destructive: delete ${opts.key} from environment ${opts.envId}. Pass --yes.`
-            )
-          );
+        if (!opts.yes) {
+          const error = `Destructive: delete ${opts.key} from environment ${opts.envId}. Pass --yes.`;
+          if (isJson) {
+            emitJsonError(error, "CONFIRMATION_REQUIRED");
+          } else {
+            console.error(chalk.yellow(error));
+          }
           process.exit(1);
+          return;
         }
 
         try {
@@ -413,19 +379,13 @@ export function envCommand(): Command {
           });
 
           if (isJson) {
-            console.log(JSON.stringify({ ok: true, deleted: opts.key, environment: opts.envId }));
+            emitJsonSuccess({ deleted: opts.key, environment: opts.envId });
           } else {
             console.log(chalk.green(`✓ Deleted ${opts.key} from environment ${opts.envId}`));
           }
         } catch (err) {
           if (isJson) {
-            console.log(
-              JSON.stringify({
-                ok: false,
-                error: err instanceof Error ? err.message : "Unknown",
-                code: "API_ERROR"
-              })
-            );
+            emitJsonError(getErrorMessage(err), "API_ERROR");
           } else {
             console.error(chalk.red(`✗ ${err instanceof Error ? err.message : String(err)}`));
           }
@@ -449,7 +409,12 @@ export function envCommand(): Command {
 
         if (data.variables.length === 0) {
           if (isJson) {
-            console.log(JSON.stringify({ ok: true, resolved: 0, variables: [] }));
+            emitJsonSuccess({
+              environmentId: opts.envId,
+              resolved: 0,
+              unresolved: 0,
+              variables: []
+            });
           } else {
             console.log(chalk.dim("No 1Password references found in this environment."));
           }
@@ -457,15 +422,12 @@ export function envCommand(): Command {
         }
 
         if (isJson) {
-          console.log(
-            JSON.stringify({
-              ok: true,
-              environmentId: data.environmentId,
-              resolved: data.resolved,
-              unresolved: data.unresolved,
-              variables: data.variables
-            })
-          );
+          emitJsonSuccess({
+            environmentId: data.environmentId,
+            resolved: data.resolved,
+            unresolved: data.unresolved,
+            variables: data.variables
+          });
         } else {
           console.log(
             chalk.bold(`\n  1Password References (${data.variables.length} variables)\n`)
@@ -487,13 +449,7 @@ export function envCommand(): Command {
         }
       } catch (err) {
         if (isJson) {
-          console.log(
-            JSON.stringify({
-              ok: false,
-              error: err instanceof Error ? err.message : "Unknown",
-              code: "API_ERROR"
-            })
-          );
+          emitJsonError(getErrorMessage(err), "API_ERROR");
         } else {
           console.error(chalk.red(`✗ ${err instanceof Error ? err.message : String(err)}`));
         }

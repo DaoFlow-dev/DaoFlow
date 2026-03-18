@@ -4,7 +4,7 @@
  */
 import { Command } from "commander";
 import * as crypto from "node:crypto";
-import { resolveCommandJsonOption } from "../command-helpers";
+import { emitJsonError, emitJsonSuccess, resolveCommandJsonOption } from "../command-helpers";
 
 export function registerConfigCommand(program: Command) {
   const config = program.command("config").description("Configuration management utilities");
@@ -25,21 +25,14 @@ export function registerConfigCommand(program: Command) {
         const privateKey = ecdh.getPrivateKey("base64url");
 
         if (isJson) {
-          console.log(
-            JSON.stringify(
-              {
-                ok: true,
-                publicKey,
-                privateKey,
-                instructions: {
-                  server: "Set VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY environment variables",
-                  client: "Set VITE_VAPID_PUBLIC_KEY in client .env"
-                }
-              },
-              null,
-              2
-            )
-          );
+          emitJsonSuccess({
+            publicKey,
+            privateKey,
+            instructions: {
+              server: "Set VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY environment variables",
+              client: "Set VITE_VAPID_PUBLIC_KEY in client .env"
+            }
+          });
         } else {
           console.log("\n🔐 VAPID Keys Generated\n");
           console.log("Add these to your server environment:");
@@ -54,7 +47,7 @@ export function registerConfigCommand(program: Command) {
       } catch (err) {
         const message = err instanceof Error ? err.message : "Failed to generate VAPID keys";
         if (isJson) {
-          console.log(JSON.stringify({ ok: false, error: message }));
+          emitJsonError(message, "VAPID_GENERATION_FAILED");
         } else {
           console.error(`Error: ${message}`);
         }
