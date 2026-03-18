@@ -1,20 +1,31 @@
+import { Suspense, lazy, type ComponentType } from "react";
 import { createBrowserRouter } from "react-router-dom";
+import { RouteFallback } from "./components/RouteFallback";
 import { DashboardLayout } from "./layouts/DashboardLayout";
-import DashboardPage from "./pages/DashboardPage";
-import ProjectsPage from "./pages/ProjectsPage";
-import ProjectDetailPage from "./pages/ProjectDetailPage";
-import ServersPage from "./pages/ServersPage";
-import DeploymentsPage from "./pages/DeploymentsPage";
-import BackupsPage from "./pages/BackupsPage";
-import DestinationsPage from "./pages/DestinationsPage";
-import SettingsPage from "./pages/SettingsPage";
-import SetupWizardPage from "./pages/SetupWizardPage";
-import ServiceDetailPage from "./pages/ServiceDetailPage";
-import AgentsPage from "./pages/AgentsPage";
-import GitCallbackPage from "./pages/GitCallbackPage";
-import LoginPage from "./pages/LoginPage";
-import NotFoundPage from "./pages/NotFoundPage";
-import NotificationChannelsPage from "./pages/NotificationChannelsPage";
+
+const DashboardPage = lazy(() => import("./pages/DashboardPage"));
+const ProjectsPage = lazy(() => import("./pages/ProjectsPage"));
+const ProjectDetailPage = lazy(() => import("./pages/ProjectDetailPage"));
+const ServersPage = lazy(() => import("./pages/ServersPage"));
+const DeploymentsPage = lazy(() => import("./pages/DeploymentsPage"));
+const BackupsPage = lazy(() => import("./pages/BackupsPage"));
+const DestinationsPage = lazy(() => import("./pages/DestinationsPage"));
+const SettingsPage = lazy(() => import("./pages/SettingsPage"));
+const SetupWizardPage = lazy(() => import("./pages/SetupWizardPage"));
+const ServiceDetailPage = lazy(() => import("./pages/ServiceDetailPage"));
+const AgentsPage = lazy(() => import("./pages/AgentsPage"));
+const GitCallbackPage = lazy(() => import("./pages/GitCallbackPage"));
+const LoginPage = lazy(() => import("./pages/LoginPage"));
+const NotFoundPage = lazy(() => import("./pages/NotFoundPage"));
+const NotificationChannelsPage = lazy(() => import("./pages/NotificationChannelsPage"));
+
+function routeElement(Component: ComponentType) {
+  return (
+    <Suspense fallback={<RouteFallback />}>
+      <Component />
+    </Suspense>
+  );
+}
 
 /**
  * Central route definitions for DaoFlow.
@@ -23,25 +34,25 @@ import NotificationChannelsPage from "./pages/NotificationChannelsPage";
  * DashboardLayout gates on session and redirects to /login if unauthenticated.
  */
 export const router = createBrowserRouter([
-  { path: "/login", element: <LoginPage /> },
-  { path: "/setup", element: <SetupWizardPage /> },
+  { path: "/login", element: routeElement(LoginPage) },
+  { path: "/setup", element: routeElement(SetupWizardPage) },
   {
     path: "/",
     element: <DashboardLayout />,
     children: [
-      { index: true, element: <DashboardPage /> },
-      { path: "projects", element: <ProjectsPage /> },
-      { path: "projects/:id", element: <ProjectDetailPage /> },
-      { path: "services/:id", element: <ServiceDetailPage /> },
-      { path: "servers", element: <ServersPage /> },
-      { path: "deployments", element: <DeploymentsPage /> },
-      { path: "backups", element: <BackupsPage /> },
-      { path: "destinations", element: <DestinationsPage /> },
-      { path: "agents", element: <AgentsPage /> },
-      { path: "notifications", element: <NotificationChannelsPage /> },
-      { path: "settings", element: <SettingsPage /> },
-      { path: "settings/git/callback", element: <GitCallbackPage /> },
-      { path: "*", element: <NotFoundPage /> }
+      { index: true, element: routeElement(DashboardPage) },
+      { path: "projects", element: routeElement(ProjectsPage) },
+      { path: "projects/:id", element: routeElement(ProjectDetailPage) },
+      { path: "services/:id", element: routeElement(ServiceDetailPage) },
+      { path: "servers", element: routeElement(ServersPage) },
+      { path: "deployments", element: routeElement(DeploymentsPage) },
+      { path: "backups", element: routeElement(BackupsPage) },
+      { path: "destinations", element: routeElement(DestinationsPage) },
+      { path: "agents", element: routeElement(AgentsPage) },
+      { path: "notifications", element: routeElement(NotificationChannelsPage) },
+      { path: "settings", element: routeElement(SettingsPage) },
+      { path: "settings/git/callback", element: routeElement(GitCallbackPage) },
+      { path: "*", element: routeElement(NotFoundPage) }
     ]
   }
 ]);
