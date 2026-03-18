@@ -14,13 +14,17 @@ interface EnvironmentTabProps {
 }
 
 interface EnvVar {
-  id: number;
+  id: string;
   key: string;
   value: string;
   scope?: string;
   isSecret: boolean;
   source?: string;
-  category?: string;
+  category?: "runtime" | "build";
+}
+
+function normalizeCategory(category: string): "runtime" | "build" {
+  return category === "build" ? "build" : "runtime";
 }
 
 export default function EnvironmentTab({
@@ -49,10 +53,17 @@ export default function EnvironmentTab({
     onSuccess: () => void envQuery.refetch()
   });
 
-  const rawData = envQuery.data;
-  const vars: EnvVar[] = Array.isArray(rawData) ? (rawData as EnvVar[]) : [];
+  const vars: EnvVar[] =
+    envQuery.data?.variables.map((variable) => ({
+      id: variable.id,
+      key: variable.key,
+      value: variable.displayValue,
+      isSecret: variable.isSecret,
+      source: variable.source,
+      category: normalizeCategory(variable.category)
+    })) ?? [];
 
-  function handleSaveRaw() {
+  const handleSaveRaw = useCallback(() => {
     if (!environmentId) return;
     const lines = rawText.split("\n").filter((l) => l.trim() && !l.startsWith("#"));
     for (const line of lines) {
@@ -74,11 +85,22 @@ export default function EnvironmentTab({
         });
       }
     }
-  }
+  }, [environmentId, rawText, upsertMutation]);
 
-  function handleSaveBuildConfig() {
+  const handleSaveBuildConfig = useCallback(() => {
     setSavedBuildArgs(buildArgs);
     setSavedBuildSecrets(buildSecrets);
+  }, [buildArgs, buildSecrets]);
+
+  function handleEnterRawMode() {
+    setMode("raw");
+    setRawText(
+      vars
+        .map((variable) =>
+          variable.isSecret ? `# ${variable.key}=[secret]` : `${variable.key}=${variable.value}`
+        )
+        .join("\n")
+    );
   }
 
   // Cmd+S keyboard shortcut
@@ -93,7 +115,7 @@ export default function EnvironmentTab({
         }
       }
     },
-    [mode, rawText, hasUnsavedChanges, buildArgs, buildSecrets]
+    [mode, handleSaveRaw, hasUnsavedChanges, handleSaveBuildConfig]
   );
 
   useEffect(() => {
@@ -141,10 +163,7 @@ export default function EnvironmentTab({
           <Button
             size="sm"
             variant={mode === "raw" ? "default" : "outline"}
-            onClick={() => {
-              setMode("raw");
-              setRawText(vars.map((v) => `${v.key}=${v.value}`).join("\n"));
-            }}
+            onClick={handleEnterRawMode}
           >
             <FileText size={14} className="mr-1" />
             Raw

@@ -6,13 +6,13 @@ import { Plus, Trash2, Eye, EyeOff, Save, Pencil } from "lucide-react";
 import { useState } from "react";
 
 interface EnvVar {
-  id: number;
+  id: string;
   key: string;
   value: string;
   scope?: string;
   isSecret: boolean;
   source?: string;
-  category?: string;
+  category?: "runtime" | "build";
 }
 
 interface EnvVarTableProps {
@@ -23,7 +23,7 @@ interface EnvVarTableProps {
     key: string;
     value: string;
     isSecret: boolean;
-    category: "runtime";
+    category: "runtime" | "build";
   }) => void;
   onDelete: (data: { environmentId: string; key: string }) => void;
   isUpsertPending: boolean;
@@ -37,10 +37,14 @@ export function EnvVarTable({
   isUpsertPending
 }: EnvVarTableProps) {
   const [revealedKeys, setRevealedKeys] = useState<Set<string>>(new Set());
-  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
   const [newKey, setNewKey] = useState("");
   const [newValue, setNewValue] = useState("");
+
+  function getVariableCategory(variable: EnvVar): "runtime" | "build" {
+    return variable.category === "build" ? "build" : "runtime";
+  }
 
   function toggleReveal(key: string) {
     setRevealedKeys((prev) => {
@@ -111,15 +115,19 @@ export function EnvVarTable({
                       value={editValue}
                       onChange={(e) => setEditValue(e.target.value)}
                       className="h-7 font-mono text-sm flex-1"
+                      placeholder={v.isSecret ? "Enter a new secret value" : undefined}
                       autoFocus
                       onKeyDown={(e) => {
                         if (e.key === "Enter") {
+                          if (v.isSecret && editValue.trim().length === 0) {
+                            return;
+                          }
                           onUpsert({
                             environmentId,
                             key: v.key,
-                            value: editValue || " ",
+                            value: v.isSecret ? editValue.trim() : editValue || " ",
                             isSecret: v.isSecret,
-                            category: "runtime" as const
+                            category: getVariableCategory(v)
                           });
                           setEditingId(null);
                         } else if (e.key === "Escape") {
@@ -130,13 +138,14 @@ export function EnvVarTable({
                     <Button
                       size="sm"
                       variant="ghost"
+                      disabled={v.isSecret && editValue.trim().length === 0}
                       onClick={() => {
                         onUpsert({
                           environmentId,
                           key: v.key,
-                          value: editValue || " ",
+                          value: v.isSecret ? editValue.trim() : editValue || " ",
                           isSecret: v.isSecret,
-                          category: "runtime" as const
+                          category: getVariableCategory(v)
                         });
                         setEditingId(null);
                       }}
@@ -147,7 +156,7 @@ export function EnvVarTable({
                 ) : (
                   <>
                     <span className="font-mono text-sm text-muted-foreground flex-1 truncate">
-                      {revealedKeys.has(v.key) ? v.value : "••••••••"}
+                      {v.isSecret ? "[secret]" : revealedKeys.has(v.key) ? v.value : "••••••••"}
                     </span>
 
                     {v.category && (
@@ -157,22 +166,24 @@ export function EnvVarTable({
                     )}
 
                     <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => toggleReveal(v.key)}
-                        title={revealedKeys.has(v.key) ? "Hide" : "Reveal"}
-                      >
-                        {revealedKeys.has(v.key) ? <EyeOff size={14} /> : <Eye size={14} />}
-                      </Button>
+                      {!v.isSecret ? (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => toggleReveal(v.key)}
+                          title={revealedKeys.has(v.key) ? "Hide" : "Reveal"}
+                        >
+                          {revealedKeys.has(v.key) ? <EyeOff size={14} /> : <Eye size={14} />}
+                        </Button>
+                      ) : null}
                       <Button
                         size="sm"
                         variant="ghost"
                         onClick={() => {
                           setEditingId(v.id);
-                          setEditValue(v.value);
+                          setEditValue(v.isSecret ? "" : v.value);
                         }}
-                        title="Edit"
+                        title={v.isSecret ? "Replace secret" : "Edit"}
                       >
                         <Pencil size={14} />
                       </Button>

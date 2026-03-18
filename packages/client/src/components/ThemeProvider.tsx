@@ -1,18 +1,5 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-
-type Theme = "light" | "dark" | "system";
-
-interface ThemeContextValue {
-  theme: Theme;
-  setTheme: (t: Theme) => void;
-  resolved: "light" | "dark";
-}
-
-const ThemeContext = createContext<ThemeContextValue>({
-  theme: "light",
-  setTheme: () => {},
-  resolved: "light"
-});
+import { useEffect, useState, type ReactNode } from "react";
+import { ThemeContext, type Theme } from "./theme-context";
 
 function getSystemTheme(): "light" | "dark" {
   if (typeof window === "undefined") return "light";
@@ -53,8 +40,4 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   }, [theme]);
 
   return <ThemeContext value={{ theme, setTheme, resolved }}>{children}</ThemeContext>;
-}
-
-export function useTheme() {
-  return useContext(ThemeContext);
 }

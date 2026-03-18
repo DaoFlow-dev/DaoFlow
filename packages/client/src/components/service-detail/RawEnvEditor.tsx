@@ -14,7 +14,7 @@ export function RawEnvEditor({ rawText, onRawTextChange, onSave, isPending }: Ra
     <Card>
       <CardHeader>
         <CardTitle className="text-sm">
-          Raw Editor — one KEY=value per line, # for comments
+          Raw Editor — one KEY=value per line, # for comments or redacted secrets
         </CardTitle>
       </CardHeader>
       <CardContent>

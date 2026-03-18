@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { NavLink, Navigate, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { ErrorBoundary } from "../components/ErrorBoundary";
-import { useTheme } from "../components/ThemeProvider";
+import { useTheme } from "../components/theme-context";
 import { useSession, authClient } from "../lib/auth-client";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
