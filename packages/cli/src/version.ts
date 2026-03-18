@@ -1,23 +1,12 @@
-import { readFileSync } from "fs";
-import { resolve, dirname } from "path";
-import { fileURLToPath } from "url";
-
 /**
- * Read the CLI version from package.json at build time.
+ * CLI version — inlined at build time by Bun's bundler.
  *
- * Bun's bundler inlines the file read at compile, so the compiled
- * binary always carries the version it was built with.
+ * Using a static import ensures the version string is embedded
+ * directly into the compiled binary. The readFileSync approach
+ * fails in compiled binaries because the path can't be resolved
+ * at runtime.
  */
-let _version = "0.0.0-dev";
-try {
-  const __filename = fileURLToPath(import.meta.url);
-  const __dirname = dirname(__filename);
-  const pkgPath = resolve(__dirname, "../package.json");
-  const pkg = JSON.parse(readFileSync(pkgPath, "utf-8")) as { version: string };
-  _version = pkg.version;
-} catch {
-  // Fallback for unusual runtime environments
-}
+import pkg from "../package.json";
 
 /** Semantic version of the CLI (matches package.json at build time). */
-export const CLI_VERSION: string = _version;
+export const CLI_VERSION: string = (pkg as { version: string }).version;
