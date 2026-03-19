@@ -17,6 +17,7 @@ import type {
   FrozenComposeEnvFilePayload,
   FrozenComposeInputsPayload
 } from "../../compose-inputs";
+import type { ComposeBuildPlan } from "../../compose-build-plan";
 import { asRecord } from "./json-helpers";
 
 function normalizeComposeEnvCategory(value: string): ComposeEnvVariableCategory {
@@ -113,6 +114,7 @@ function parseFrozenComposeInputsPayload(value: unknown): FrozenComposeInputsPay
 export async function resolveComposeDeploymentEnvEntries(input: {
   environmentId: string;
   branch: string;
+  additionalEntries?: ComposeEnvPayloadEntry[];
 }): Promise<ComposeEnvPayloadEntry[]> {
   const rows = await db
     .select()
@@ -120,7 +122,7 @@ export async function resolveComposeDeploymentEnvEntries(input: {
     .where(eq(environmentVariables.environmentId, input.environmentId))
     .orderBy(asc(environmentVariables.key));
 
-  return rows
+  const resolved: ComposeEnvPayloadEntry[] = rows
     .filter((row) => matchesComposeEnvBranchPattern(row.branchPattern, input.branch))
     .map((row) => ({
       key: row.key,
@@ -130,11 +132,23 @@ export async function resolveComposeDeploymentEnvEntries(input: {
       source: row.source === "1password" ? "1password" : "inline",
       branchPattern: row.branchPattern
     }));
+
+  if (!input.additionalEntries?.length) {
+    return resolved;
+  }
+
+  const merged = new Map(resolved.map((entry) => [entry.key, entry] as const));
+  for (const entry of input.additionalEntries) {
+    merged.set(entry.key, entry);
+  }
+
+  return [...merged.values()].sort((a, b) => a.key.localeCompare(b.key));
 }
 
 export async function prepareComposeDeploymentEnvState(input: {
   environmentId: string;
   branch: string;
+  additionalEntries?: ComposeEnvPayloadEntry[];
 }): Promise<{
   envVarsEncrypted: string;
   composeEnv: ComposeEnvEvidence;
@@ -305,6 +319,7 @@ export async function persistDeploymentComposeEnvState(input: {
   envEntries: ComposeEnvPayloadEntry[] | ComposeEnvMaterializedEntry[];
   composeEnv: ComposeEnvEvidence;
   composeInputs?: ComposeInputManifest;
+  composeBuildPlan?: ComposeBuildPlan;
   frozenInputs?: FrozenComposeInputsPayload;
 }): Promise<void> {
   const [deployment] = await db
@@ -325,6 +340,7 @@ export async function persistDeploymentComposeEnvState(input: {
       configSnapshot: {
         ...snapshot,
         composeEnv: input.composeEnv,
+        ...(input.composeBuildPlan ? { composeBuildPlan: input.composeBuildPlan } : {}),
         ...(input.composeInputs ? { composeInputs: input.composeInputs } : {})
       },
       updatedAt: new Date()

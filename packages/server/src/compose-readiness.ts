@@ -1,32 +1,94 @@
 type JsonRecord = Record<string, unknown>;
 
-export interface ComposeReadinessProbeInput {
+type ComposeReadinessTransport = "http" | "tcp";
+type ComposeReadinessTarget = "published-port" | "internal-network";
+
+interface ComposeReadinessProbeInputBase {
+  target: ComposeReadinessTarget;
+  port: number;
+  timeoutSeconds?: number;
+  intervalSeconds?: number;
+}
+
+export interface ComposeHttpPublishedPortReadinessProbeInput extends ComposeReadinessProbeInputBase {
   type: "http";
   target: "published-port";
-  port: number;
   path: string;
   host?: string;
   scheme?: "http" | "https";
-  timeoutSeconds?: number;
-  intervalSeconds?: number;
   successStatusCodes?: number[];
 }
 
-export interface ComposeReadinessProbe {
+export interface ComposeHttpInternalNetworkReadinessProbeInput extends ComposeReadinessProbeInputBase {
+  type: "http";
+  target: "internal-network";
+  path: string;
+  scheme?: "http" | "https";
+  successStatusCodes?: number[];
+}
+
+export interface ComposeTcpPublishedPortReadinessProbeInput extends ComposeReadinessProbeInputBase {
+  type: "tcp";
+  target: "published-port";
+  host?: string;
+}
+
+export interface ComposeTcpInternalNetworkReadinessProbeInput extends ComposeReadinessProbeInputBase {
+  type: "tcp";
+  target: "internal-network";
+}
+
+export type ComposeReadinessProbeInput =
+  | ComposeHttpPublishedPortReadinessProbeInput
+  | ComposeHttpInternalNetworkReadinessProbeInput
+  | ComposeTcpPublishedPortReadinessProbeInput
+  | ComposeTcpInternalNetworkReadinessProbeInput;
+
+interface ComposeReadinessProbeBase {
+  type: ComposeReadinessTransport;
+  target: ComposeReadinessTarget;
+  port: number;
+  timeoutSeconds: number;
+  intervalSeconds: number;
+}
+
+export interface ComposeHttpPublishedPortReadinessProbe extends ComposeReadinessProbeBase {
   type: "http";
   target: "published-port";
-  port: number;
   path: string;
   host: string;
   scheme: "http" | "https";
-  timeoutSeconds: number;
-  intervalSeconds: number;
   successStatusCodes: number[];
 }
 
-export interface ComposeReadinessProbeSnapshot extends ComposeReadinessProbe {
-  serviceName: string;
+export interface ComposeHttpInternalNetworkReadinessProbe extends ComposeReadinessProbeBase {
+  type: "http";
+  target: "internal-network";
+  path: string;
+  scheme: "http" | "https";
+  successStatusCodes: number[];
 }
+
+export interface ComposeTcpPublishedPortReadinessProbe extends ComposeReadinessProbeBase {
+  type: "tcp";
+  target: "published-port";
+  host: string;
+}
+
+export interface ComposeTcpInternalNetworkReadinessProbe extends ComposeReadinessProbeBase {
+  type: "tcp";
+  target: "internal-network";
+}
+
+export type ComposeReadinessProbe =
+  | ComposeHttpPublishedPortReadinessProbe
+  | ComposeHttpInternalNetworkReadinessProbe
+  | ComposeTcpPublishedPortReadinessProbe
+  | ComposeTcpInternalNetworkReadinessProbe;
+
+export type ComposeReadinessProbeSnapshot = ComposeReadinessProbe & {
+  serviceName: string;
+};
 
 const DEFAULT_HOST = "127.0.0.1";
 const DEFAULT_SCHEME = "http";
@@ -62,22 +124,64 @@ function normalizeStatusCodes(value: unknown): number[] {
 
 export function readComposeReadinessProbe(value: unknown): ComposeReadinessProbe | null {
   const record = asRecord(value);
-  if (record.type !== "http" || record.target !== "published-port") {
+  const type = record.type;
+  const target = record.target;
+  if (
+    (type !== "http" && type !== "tcp") ||
+    (target !== "published-port" && target !== "internal-network")
+  ) {
     return null;
   }
 
   const port = readInteger(record.port);
-  const path = readNonEmptyString(record.path);
-  if (!port || port < 1 || port > 65535 || !path) {
+  if (!port || port < 1 || port > 65535) {
     return null;
   }
 
-  const scheme = record.scheme === "https" ? "https" : DEFAULT_SCHEME;
-  const host = readNonEmptyString(record.host) ?? DEFAULT_HOST;
   const timeoutSeconds = readInteger(record.timeoutSeconds) ?? DEFAULT_TIMEOUT_SECONDS;
   const intervalSeconds = readInteger(record.intervalSeconds) ?? DEFAULT_INTERVAL_SECONDS;
   if (timeoutSeconds < 1 || intervalSeconds < 1) {
     return null;
+  }
+
+  if (type === "tcp") {
+    if (target === "internal-network") {
+      return {
+        type: "tcp",
+        target: "internal-network",
+        port,
+        timeoutSeconds,
+        intervalSeconds
+      };
+    }
+
+    return {
+      type: "tcp",
+      target: "published-port",
+      host: readNonEmptyString(record.host) ?? DEFAULT_HOST,
+      port,
+      timeoutSeconds,
+      intervalSeconds
+    };
+  }
+
+  const path = readNonEmptyString(record.path);
+  if (!path) {
+    return null;
+  }
+
+  const scheme = record.scheme === "https" ? "https" : DEFAULT_SCHEME;
+  if (target === "internal-network") {
+    return {
+      type: "http",
+      target: "internal-network",
+      port,
+      path,
+      scheme,
+      timeoutSeconds,
+      intervalSeconds,
+      successStatusCodes: normalizeStatusCodes(record.successStatusCodes)
+    };
   }
 
   return {
@@ -85,7 +189,7 @@ export function readComposeReadinessProbe(value: unknown): ComposeReadinessProbe
     target: "published-port",
     port,
     path,
-    host,
+    host: readNonEmptyString(record.host) ?? DEFAULT_HOST,
     scheme,
     timeoutSeconds,
     intervalSeconds,
@@ -154,14 +258,44 @@ export function snapshotComposeReadinessProbe(input: {
   };
 }
 
-export function buildComposeReadinessProbeUrl(probe: ComposeReadinessProbe): string {
-  return `${probe.scheme}://${probe.host}:${probe.port}${probe.path}`;
+function readComposeReadinessProbeHost(probe: ComposeReadinessProbe, serviceName?: string): string {
+  if (probe.target === "published-port") {
+    return probe.host;
+  }
+
+  return readNonEmptyString(serviceName) ?? "service";
+}
+
+export function buildComposeReadinessProbeUrl(
+  probe: ComposeReadinessProbe,
+  serviceName?: string
+): string {
+  const host = readComposeReadinessProbeHost(probe, serviceName);
+  if (probe.type === "tcp") {
+    return `tcp://${host}:${probe.port}`;
+  }
+
+  return `${probe.scheme}://${host}:${probe.port}${probe.path}`;
 }
 
 function formatSuccessStatusCodes(codes: number[]): string {
   return codes.length === 1 ? String(codes[0]) : codes.join(", ");
 }
 
-export function describeComposeReadinessProbe(probe: ComposeReadinessProbe): string {
-  return `HTTP readiness on ${buildComposeReadinessProbeUrl(probe)} expecting ${formatSuccessStatusCodes(probe.successStatusCodes)} within ${probe.timeoutSeconds}s (poll every ${probe.intervalSeconds}s)`;
+function describeComposeReadinessTarget(probe: ComposeReadinessProbe): string {
+  return probe.target === "published-port" ? "published endpoint" : "compose internal network";
+}
+
+export function describeComposeReadinessProbe(
+  probe: ComposeReadinessProbe,
+  serviceName?: string
+): string {
+  const target = describeComposeReadinessTarget(probe);
+  const location = buildComposeReadinessProbeUrl(probe, serviceName);
+
+  if (probe.type === "tcp") {
+    return `TCP readiness on ${target} ${location} within ${probe.timeoutSeconds}s (poll every ${probe.intervalSeconds}s)`;
+  }
+
+  return `HTTP readiness on ${target} ${location} expecting ${formatSuccessStatusCodes(probe.successStatusCodes)} within ${probe.timeoutSeconds}s (poll every ${probe.intervalSeconds}s)`;
 }
