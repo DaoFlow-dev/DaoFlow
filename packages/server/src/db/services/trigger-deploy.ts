@@ -22,7 +22,8 @@ import { asRecord, readString } from "./json-helpers";
 import {
   buildComposeSourceSnapshot,
   buildRepositorySourceSnapshot,
-  extractReplayableConfigSnapshot
+  extractReplayableConfigSnapshot,
+  resolveComposeImageOverride
 } from "./deployment-source";
 import { prepareComposeDeploymentEnvState } from "./compose-env";
 import { revalidateProjectSourceForExecution } from "./project-source-execution-validation";
@@ -220,6 +221,26 @@ export async function triggerDeploy(input: TriggerDeployInput) {
     configSnapshot.ports = [svc.port];
   }
 
+  const effectiveImageTag =
+    input.imageTag ?? svc.imageReference ?? replayedComposeDeployment?.imageTag ?? "";
+  const composeImageOverride =
+    svc.sourceType === "compose"
+      ? resolveComposeImageOverride({
+          serviceName: svc.name,
+          composeServiceName: svc.composeServiceName,
+          requestedImageTag: input.imageTag,
+          effectiveImageTag,
+          serviceImageReference: svc.imageReference,
+          existingOverride: configSnapshot.composeImageOverride
+        })
+      : undefined;
+
+  if (composeImageOverride) {
+    configSnapshot.composeImageOverride = composeImageOverride;
+  } else {
+    delete configSnapshot.composeImageOverride;
+  }
+
   const deployInput: CreateDeploymentInput = {
     projectName: project.name,
     environmentName: env.name,
@@ -227,7 +248,7 @@ export async function triggerDeploy(input: TriggerDeployInput) {
     sourceType: svc.sourceType as "compose" | "dockerfile" | "image",
     targetServerId,
     commitSha: input.commitSha ?? replayedComposeDeployment?.commitSha ?? "",
-    imageTag: input.imageTag ?? svc.imageReference ?? replayedComposeDeployment?.imageTag ?? "",
+    imageTag: effectiveImageTag,
     requestedByUserId: input.requestedByUserId ?? null,
     requestedByEmail: input.requestedByEmail ?? null,
     requestedByRole: input.requestedByRole ?? null,

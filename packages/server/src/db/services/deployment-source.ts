@@ -1,5 +1,5 @@
 import { asRecord, readString } from "./json-helpers";
-import type { ConfigSnapshot } from "../../worker/step-management";
+import type { ComposeImageOverride, ConfigSnapshot } from "../../worker/step-management";
 import { basename, isAbsolute } from "node:path";
 import {
   hasRepositoryPreparation,
@@ -46,6 +46,10 @@ function resolveProjectBranch(project: ProjectRow): string {
   return project.defaultBranch ?? readString(asRecord(project.config), "defaultBranch", "main");
 }
 
+function readNonEmptyString(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
+}
+
 export function resolveComposeFilePath(input: ComposeSourceSnapshotInput): string {
   const environmentConfig = asRecord(input.environment?.config);
 
@@ -82,6 +86,68 @@ export function buildComposeSourceSnapshot(input: ComposeSourceSnapshotInput): C
     ...buildRepositorySourceSnapshot(input.project),
     composeFilePath: resolveComposeFilePath(input),
     ...(input.composeServiceName ? { composeServiceName: input.composeServiceName } : {})
+  };
+}
+
+export function readComposeImageOverride(value: unknown): ComposeImageOverride | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+
+  const record = value as Record<string, unknown>;
+  const serviceName = readNonEmptyString(record.serviceName);
+  const imageReference = readNonEmptyString(record.imageReference);
+  if (!serviceName || !imageReference) {
+    return undefined;
+  }
+
+  return {
+    serviceName,
+    imageReference
+  };
+}
+
+export function resolveComposeImageOverride(input: {
+  serviceName: string;
+  composeServiceName?: string | null;
+  requestedImageTag?: string | null;
+  effectiveImageTag?: string | null;
+  serviceImageReference?: string | null;
+  existingOverride?: unknown;
+}): ComposeImageOverride | undefined {
+  const requestedImageTag = readNonEmptyString(input.requestedImageTag);
+  const targetImageReference =
+    requestedImageTag ?? readNonEmptyString(input.effectiveImageTag) ?? undefined;
+  if (!targetImageReference) {
+    return undefined;
+  }
+
+  const overrideServiceName =
+    readNonEmptyString(input.composeServiceName) ?? readNonEmptyString(input.serviceName);
+  if (!overrideServiceName) {
+    return undefined;
+  }
+
+  if (requestedImageTag) {
+    return {
+      serviceName: overrideServiceName,
+      imageReference: targetImageReference
+    };
+  }
+
+  const existingOverride = readComposeImageOverride(input.existingOverride);
+  if (existingOverride) {
+    return existingOverride;
+  }
+
+  const defaultImageReference = readNonEmptyString(input.serviceImageReference);
+  if (defaultImageReference === targetImageReference) {
+    return undefined;
+  }
+
+  return {
+    serviceName: overrideServiceName,
+    imageReference: targetImageReference
   };
 }
 

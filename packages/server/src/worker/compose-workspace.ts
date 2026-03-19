@@ -23,6 +23,7 @@ import {
 } from "../compose-env";
 import {
   materializeComposeInputs,
+  type ComposeImageOverrideRequest,
   type ComposeInputManifest,
   type FrozenComposeInputsPayload
 } from "../compose-inputs";
@@ -113,6 +114,7 @@ function materializeComposeArtifacts(input: {
   branch: string;
   sourceProvenance: "repository-checkout" | "uploaded-artifact";
   deploymentState: DeploymentComposeState;
+  imageOverride?: ComposeImageOverrideRequest;
   existingComposeEnv?: ComposeEnvEvidence;
   existingComposeInputs?: ComposeInputManifest;
 }): Omit<ComposeWorkspace, "workDir"> {
@@ -130,6 +132,7 @@ function materializeComposeArtifacts(input: {
     sourceProvenance: input.sourceProvenance,
     repoDefaultContent,
     composeEnvFileContents: composeEnv.fileContents,
+    imageOverride: input.imageOverride,
     existingManifest: input.existingComposeInputs,
     existingFrozenInputs: input.deploymentState.frozenInputs
   });
@@ -212,6 +215,7 @@ export async function prepareComposeWorkspace(
       branch: checkout.branch,
       sourceProvenance: "repository-checkout",
       deploymentState,
+      imageOverride: config.composeImageOverride,
       existingComposeEnv: config.composeEnv,
       existingComposeInputs: config.composeInputs
     });
@@ -287,6 +291,7 @@ export async function prepareComposeWorkspace(
     branch: config.branch ?? "main",
     sourceProvenance: "uploaded-artifact",
     deploymentState,
+    imageOverride: config.composeImageOverride,
     existingComposeEnv: config.composeEnv,
     existingComposeInputs: config.composeInputs
   });

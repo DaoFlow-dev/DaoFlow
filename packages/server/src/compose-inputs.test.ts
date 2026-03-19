@@ -29,11 +29,13 @@ describe("compose input materialization", () => {
       [
         "services:",
         "  api:",
-        "    image: nginx:alpine",
+        "    image: ghcr.io/daoflow/api:stable",
         "    env_file:",
         "      - ./config/runtime.env",
         "      - path: ./config/optional.env",
-        "        required: false"
+        "        required: false",
+        "  web:",
+        "    image: ghcr.io/daoflow/web:stable"
       ].join("\n")
     );
     mkdirSync(join(workDir, "config"), { recursive: true });
@@ -44,7 +46,11 @@ describe("compose input materialization", () => {
       composeFile: "ops.compose.yaml",
       sourceProvenance: "repository-checkout",
       repoDefaultContent: "ROOT_ONLY=1\n",
-      composeEnvFileContents: "ROOT_ONLY=1\n"
+      composeEnvFileContents: "ROOT_ONLY=1\n",
+      imageOverride: {
+        serviceName: "api",
+        imageReference: "ghcr.io/daoflow/api:2.0.0"
+      }
     });
 
     expect(result.composeFile).toBe(".daoflow.compose.rendered.yaml");
@@ -77,6 +83,8 @@ describe("compose input materialization", () => {
     const renderedCompose = readFileSync(join(workDir, result.composeFile), "utf8");
     expect(renderedCompose).toContain(".daoflow.compose.inputs/config__runtime.env");
     expect(renderedCompose).not.toContain("./config/runtime.env");
+    expect(renderedCompose).toContain("image: ghcr.io/daoflow/api:2.0.0");
+    expect(renderedCompose).toContain("image: ghcr.io/daoflow/web:stable");
   });
 
   it("replays previously frozen compose inputs without rereading repository files", () => {
@@ -123,13 +131,24 @@ describe("compose input materialization", () => {
       sourceProvenance: "uploaded-artifact",
       composeEnvFileContents: "STATIC=1\n",
       existingManifest: manifest,
-      existingFrozenInputs: frozenInputs
+      existingFrozenInputs: frozenInputs,
+      imageOverride: {
+        serviceName: "api",
+        imageReference: "ghcr.io/daoflow/api:rollback"
+      }
     });
 
     expect(result.composeFile).toBe(".daoflow.compose.rendered.yaml");
-    expect(result.manifest).toEqual(manifest);
+    expect(result.manifest.entries).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "compose-file",
+          path: ".daoflow.compose.rendered.yaml"
+        })
+      ])
+    );
     expect(readFileSync(join(workDir, result.composeFile), "utf8")).toBe(
-      "services:\n  api:\n    image: nginx:alpine\n"
+      "services:\n  api:\n    image: ghcr.io/daoflow/api:rollback\n"
     );
   });
 

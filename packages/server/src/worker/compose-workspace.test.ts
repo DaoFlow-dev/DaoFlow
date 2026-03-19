@@ -232,7 +232,11 @@ describe("prepareComposeWorkspace", () => {
       {
         repoUrl: "https://example.com/org/repo.git",
         branch: "main",
-        composeFilePath: "ops/compose.yaml"
+        composeFilePath: "ops/compose.yaml",
+        composeImageOverride: {
+          serviceName: "app",
+          imageReference: "ghcr.io/daoflow/control-plane:2.0.0"
+        }
       },
       { mode: "local" },
       () => {},
@@ -262,6 +266,7 @@ describe("prepareComposeWorkspace", () => {
     );
 
     const renderedCompose = readFileSync(join(stageDir, workspace.composeFile), "utf8");
+    expect(renderedCompose).toContain("image: ghcr.io/daoflow/control-plane:2.0.0");
     expect(renderedCompose).toContain(".daoflow.compose.inputs/config__runtime.env");
   });
 });

@@ -626,7 +626,11 @@ describe("deploy source revalidation", () => {
       composeFilePath: "compose.yaml",
       uploadedComposeFileName: "compose.yaml",
       uploadedContextArchiveName: "context.tar.gz",
-      uploadedArtifactId: "0123456789abcdef0123456789abcdef"
+      uploadedArtifactId: "0123456789abcdef0123456789abcdef",
+      composeImageOverride: {
+        serviceName: "direct-upload-service",
+        imageReference: "ghcr.io/daoflow/direct-upload:newer"
+      }
     });
     expect(asRecord(result.deployment.configSnapshot)).not.toHaveProperty("temporalWorkflowId");
     expect(asRecord(result.deployment.configSnapshot)).not.toHaveProperty("temporalRunId");

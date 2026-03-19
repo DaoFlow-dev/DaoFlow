@@ -18,7 +18,7 @@ import { dispatchDeploymentExecution } from "./deployment-dispatch";
 import { asRecord, readString } from "./json-helpers";
 import { resolveServiceForUser } from "./scoped-services";
 import type { AppRole } from "@daoflow/shared";
-import { extractReplayableConfigSnapshot } from "./deployment-source";
+import { extractReplayableConfigSnapshot, resolveComposeImageOverride } from "./deployment-source";
 
 const DEFAULT_ROLLBACK_RETENTION = 3;
 
@@ -135,6 +135,23 @@ export async function executeRollback(input: ExecuteRollbackInput) {
 
   // Extract deployment config from the target
   const snapshot = asRecord(target.configSnapshot);
+  const configSnapshot = extractReplayableConfigSnapshot(snapshot);
+  const composeImageOverride =
+    target.sourceType === "compose"
+      ? resolveComposeImageOverride({
+          serviceName: svc.name,
+          composeServiceName: svc.composeServiceName,
+          effectiveImageTag: target.imageTag,
+          serviceImageReference: svc.imageReference,
+          existingOverride: snapshot.composeImageOverride
+        })
+      : undefined;
+
+  if (composeImageOverride) {
+    configSnapshot.composeImageOverride = composeImageOverride;
+  } else {
+    delete configSnapshot.composeImageOverride;
+  }
 
   const deployInput: CreateDeploymentInput = {
     projectName: readString(snapshot, "projectName", project[0].name),
@@ -148,7 +165,7 @@ export async function executeRollback(input: ExecuteRollbackInput) {
     requestedByEmail: input.requestedByEmail,
     requestedByRole: input.requestedByRole,
     envVarsEncrypted: target.envVarsEncrypted,
-    configSnapshot: extractReplayableConfigSnapshot(snapshot),
+    configSnapshot,
     steps: [
       { label: "Rollback preparation", detail: `Rolling back to deployment ${target.id}` },
       { label: "Restore configuration", detail: "Applying previous deployment config" },

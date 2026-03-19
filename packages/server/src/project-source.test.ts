@@ -499,7 +499,11 @@ describe("project source persistence", () => {
       gitProviderId: providerId,
       gitInstallationId: installationId,
       branch: "main",
-      composeFilePath: "deploy/compose.yaml"
+      composeFilePath: "deploy/compose.yaml",
+      composeImageOverride: {
+        serviceName: "control-plane",
+        imageReference: "ghcr.io/daoflow/control-plane:stable"
+      }
     });
     expect(rollback.deployment.configSnapshot).not.toHaveProperty("temporalWorkflowId");
     expect(rollback.deployment.configSnapshot).not.toHaveProperty("temporalRunId");

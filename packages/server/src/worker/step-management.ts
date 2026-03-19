@@ -117,6 +117,11 @@ export async function emitEvent(
 
 /* ──────────────────────── Config Snapshot ──────────────────────── */
 
+export interface ComposeImageOverride {
+  serviceName: string;
+  imageReference: string;
+}
+
 export interface ConfigSnapshot extends Record<string, unknown> {
   projectName?: string;
   environmentName?: string;
@@ -140,6 +145,7 @@ export interface ConfigSnapshot extends Record<string, unknown> {
   uploadedComposeFileName?: string;
   uploadedContextArchiveName?: string;
   uploadedArtifactId?: string;
+  composeImageOverride?: ComposeImageOverride;
   composeEnv?: ComposeEnvEvidence;
   composeInputs?: ComposeInputManifest;
 }

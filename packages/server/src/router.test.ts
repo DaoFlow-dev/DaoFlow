@@ -5,6 +5,7 @@ import type { Context, RequestAuthContext } from "./context";
 import { db } from "./db/connection";
 import { deployments } from "./db/schema/deployments";
 import { createEnvironment, createProject } from "./db/services/projects";
+import { asRecord } from "./db/services/json-helpers";
 import { createService } from "./db/services/services";
 import { appRouter } from "./router";
 
@@ -341,6 +342,34 @@ describe("appRouter", () => {
       expect(report.statusTone).toEqual(expect.any(String));
       expect(report.statusLabel).toEqual(expect.any(String));
     }
+  });
+
+  it("queues compose releases with service-scoped image override metadata", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-compose-release-queue",
+      session: makeSession("developer")
+    });
+    const catalog = await caller.composeReleaseCatalog({});
+    const service = catalog.services.find((candidate) => candidate.imageReference.length > 0);
+
+    if (!service) {
+      return;
+    }
+
+    const deployment = await caller.queueComposeRelease({
+      composeServiceId: service.id,
+      commitSha: "abcdef1",
+      imageTag: `${service.imageReference}-override`
+    });
+
+    expect(deployment.imageTag).toBe(`${service.imageReference}-override`);
+    expect(asRecord(deployment.configSnapshot)).toMatchObject({
+      composeServiceName: service.serviceName,
+      composeImageOverride: {
+        serviceName: service.serviceName,
+        imageReference: `${service.imageReference}-override`
+      }
+    });
   });
 
   it("returns deployment rollback plans with normalized status metadata", async () => {

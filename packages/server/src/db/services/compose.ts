@@ -5,7 +5,7 @@ import { dispatchDeploymentExecution } from "./deployment-dispatch";
 import { environments, projects } from "../schema/projects";
 import type { AppRole } from "@daoflow/shared";
 import { asRecord, readString, readNumber, readStringArray, readRecordArray } from "./json-helpers";
-import { buildComposeSourceSnapshot } from "./deployment-source";
+import { buildComposeSourceSnapshot, resolveComposeImageOverride } from "./deployment-source";
 import { prepareComposeDeploymentEnvState } from "./compose-env";
 
 export interface ComposeDriftDiffRecord {
@@ -225,7 +225,7 @@ export async function queueComposeRelease(input: {
     branch: project.defaultBranch ?? "main"
   });
 
-  const configSnapshot = {
+  const configSnapshot: Record<string, unknown> = {
     ...buildComposeSourceSnapshot({
       project: {
         ...project,
@@ -236,6 +236,17 @@ export async function queueComposeRelease(input: {
     }),
     composeEnv: envState.composeEnv
   };
+  const effectiveImageTag = input.imageTag ?? service.imageReference;
+  const composeImageOverride = resolveComposeImageOverride({
+    serviceName: service.serviceName,
+    composeServiceName: service.serviceName,
+    requestedImageTag: input.imageTag,
+    effectiveImageTag,
+    serviceImageReference: service.imageReference
+  });
+  if (composeImageOverride) {
+    configSnapshot.composeImageOverride = composeImageOverride;
+  }
 
   const deployment = await createDeploymentRecord({
     projectName: service.projectName,
@@ -244,7 +255,7 @@ export async function queueComposeRelease(input: {
     sourceType: "compose",
     targetServerId: service.targetServerId,
     commitSha: input.commitSha,
-    imageTag: input.imageTag ?? service.imageReference,
+    imageTag: effectiveImageTag,
     requestedByUserId: input.requestedByUserId,
     requestedByEmail: input.requestedByEmail,
     requestedByRole: input.requestedByRole as AppRole,
