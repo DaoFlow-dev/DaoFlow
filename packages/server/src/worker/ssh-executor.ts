@@ -3,7 +3,8 @@
  *
  * This file was split into:
  *  - ./ssh-connection.ts — SSH connection, key lifecycle, exec, SCP, shell quoting
- *  - ./ssh-docker.ts    — Remote Docker commands (compose, build, run, health, logs)
+ *  - ./ssh-compose.ts   — Remote Docker Compose commands
+ *  - ./ssh-docker.ts    — Remote Docker commands (build, run, health, logs)
  *
  * All existing imports from "./ssh-executor" continue to work without changes.
  */
@@ -22,9 +23,13 @@ export {
 
 export {
   remoteDockerComposePull,
+  remoteDockerComposeBuild,
   remoteDockerComposeUp,
   remoteDockerComposePs,
-  remoteDockerComposeDown,
+  remoteDockerComposeDown
+} from "./ssh-compose";
+
+export {
   remoteDockerPull,
   remoteDockerRun,
   remoteDockerBuild,

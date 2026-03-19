@@ -81,9 +81,22 @@ function formatContainerLabel(container: ComposeContainerStatus): string {
 
 export function assessComposeHealth(
   statuses: ComposeContainerStatus[],
-  targetLabel: string
+  targetLabel: string,
+  expectedServiceNames?: string[],
+  expectedHealthcheckServiceNames?: string[]
 ): ComposeHealthAssessment {
-  if (statuses.length === 0) {
+  const expectedServiceNameSet = new Set(
+    (expectedServiceNames ?? []).map((serviceName) => serviceName.trim()).filter(Boolean)
+  );
+  const expectedHealthcheckServiceNameSet = new Set(
+    (expectedHealthcheckServiceNames ?? []).map((serviceName) => serviceName.trim()).filter(Boolean)
+  );
+  const scopedStatuses =
+    expectedServiceNameSet.size > 0
+      ? statuses.filter((status) => expectedServiceNameSet.has(status.service))
+      : statuses;
+
+  if (scopedStatuses.length === 0) {
     return {
       kind: "pending",
       summary: `${targetLabel} have not reported any running containers yet`
@@ -96,10 +109,21 @@ export function assessComposeHealth(
   let allHaveDockerHealthchecks = true;
   let hasRunningContainer = false;
 
-  for (const status of statuses) {
+  if (expectedServiceNameSet.size > 0) {
+    const observedServiceNames = new Set(scopedStatuses.map((status) => status.service));
+    const missingServiceNames = [...expectedServiceNameSet].filter(
+      (serviceName) => !observedServiceNames.has(serviceName)
+    );
+    if (missingServiceNames.length > 0) {
+      pending.push(`waiting for services: ${missingServiceNames.join(", ")}`);
+    }
+  }
+
+  for (const status of scopedStatuses) {
     const label = formatContainerLabel(status);
     const state = status.state.trim().toLowerCase();
     const health = status.health?.trim().toLowerCase() ?? null;
+    const requiresHealthcheck = expectedHealthcheckServiceNameSet.has(status.service);
 
     if (!health) {
       allHaveDockerHealthchecks = false;
@@ -131,6 +155,11 @@ export function assessComposeHealth(
 
     if (health && health !== "healthy") {
       pending.push(`${label} health is ${health}`);
+      continue;
+    }
+
+    if (requiresHealthcheck && health !== "healthy") {
+      pending.push(`${label} is still waiting for Docker health`);
     }
   }
 
@@ -149,7 +178,11 @@ export function assessComposeHealth(
   }
 
   if (!hasRunningContainer) {
-    if (completedSuccessfully.length > 0 && completedSuccessfully.length === statuses.length) {
+    if (
+      completedSuccessfully.length > 0 &&
+      completedSuccessfully.length === scopedStatuses.length &&
+      pending.length === 0
+    ) {
       return {
         kind: "healthy",
         summary: `${targetLabel} completed successfully`

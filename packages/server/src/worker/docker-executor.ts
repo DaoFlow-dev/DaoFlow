@@ -1,19 +1,7 @@
-/**
- * docker-executor.ts
- *
- * Isolated module for running Docker / Docker Compose / git commands.
- * Each function streams output line-by-line through a callback so the
- * log-streamer can persist them in real time.
- *
- * This module never touches the database directly — it only runs
- * child processes and reports their output.
- */
-
 import { spawn, type ChildProcess } from "node:child_process";
 import { parseComposePsOutput, type ComposeContainerStatus } from "./compose-health";
 import { formatComposeExecutionEnvSummary, prepareComposeCommandEnv } from "./compose-command-env";
 
-// Re-export git-executor functions for backward compatibility
 export {
   ensureStagingDir,
   getStagingArchivePath,
@@ -25,6 +13,10 @@ export {
 export { buildComposeCommandEnv } from "./compose-command-env";
 
 const STAGING_DIR = process.env.GIT_WORK_DIR ?? "/tmp/daoflow-staging";
+const COMPOSE_BUILD_ENV = {
+  DOCKER_BUILDKIT: "1",
+  COMPOSE_DOCKER_CLI_BUILD: "1"
+} as const;
 
 export type LogLine = {
   stream: "stdout" | "stderr";
@@ -39,10 +31,6 @@ export interface ExecStreamingOptions {
   inheritParentEnv?: boolean;
 }
 
-/**
- * Run an arbitrary command and stream output line-by-line.
- * Returns the exit code (0 = success).
- */
 export function execStreaming(
   command: string,
   args: string[],
@@ -91,9 +79,6 @@ export function execStreaming(
   });
 }
 
-/**
- * Build a Docker image from a Dockerfile.
- */
 export async function dockerBuild(
   context: string,
   dockerfile: string,
@@ -109,9 +94,6 @@ export async function dockerBuild(
   return execStreaming("docker", ["build", "-t", tag, "-f", dockerfile, "."], context, onLog);
 }
 
-/**
- * Pull images defined in a compose file.
- */
 export async function dockerComposePull(
   composeFile: string,
   projectName: string,
@@ -140,8 +122,9 @@ export async function dockerComposePull(
   if (envFile) {
     args.push("--env-file", envFile);
   }
-  args.push("pull");
+  args.push("pull", "--ignore-buildable");
   if (scopedServiceName) {
+    args.push("--include-deps");
     args.push(scopedServiceName);
   }
 
@@ -150,9 +133,52 @@ export async function dockerComposePull(
   });
 }
 
-/**
- * Deploy services with docker compose up.
- */
+export async function dockerComposeBuild(
+  composeFile: string,
+  projectName: string,
+  cwd: string,
+  onLog: OnLog,
+  envFile?: string,
+  composeServiceName?: string,
+  execRunner: ExecRunner = execStreaming
+): Promise<{ exitCode: number }> {
+  const scopedServiceName = composeServiceName?.trim();
+  const composeExecutionEnv = prepareComposeCommandEnv(cwd, envFile);
+  onLog({
+    stream: "stdout",
+    message: scopedServiceName
+      ? `Building compose project ${projectName} (service: ${scopedServiceName})`
+      : `Building compose project ${projectName}`,
+    timestamp: new Date()
+  });
+  onLog({
+    stream: "stdout",
+    message: formatComposeExecutionEnvSummary(composeExecutionEnv.summary),
+    timestamp: new Date()
+  });
+
+  const args = ["compose", "-f", composeFile, "-p", projectName];
+  if (envFile) {
+    args.push("--env-file", envFile);
+  }
+  args.push("build");
+  if (scopedServiceName) {
+    args.push("--with-dependencies");
+    args.push(scopedServiceName);
+  }
+
+  return execRunner(
+    "docker",
+    args,
+    cwd,
+    onLog,
+    { ...composeExecutionEnv.env, ...COMPOSE_BUILD_ENV },
+    {
+      inheritParentEnv: false
+    }
+  );
+}
+
 export async function dockerComposeUp(
   composeFile: string,
   projectName: string,
@@ -241,9 +267,6 @@ export async function dockerComposePs(
   };
 }
 
-/**
- * Stop and remove services with docker compose down.
- */
 export async function dockerComposeDown(
   composeFile: string,
   projectName: string,
@@ -276,9 +299,6 @@ export async function dockerComposeDown(
   );
 }
 
-/**
- * Deploy a single image-based container (non-compose path).
- */
 export async function dockerRun(
   tag: string,
   containerName: string,
@@ -310,9 +330,6 @@ export async function dockerRun(
   return execStreaming("docker", args, STAGING_DIR, onLog);
 }
 
-/**
- * Pull a single Docker image.
- */
 export async function dockerPull(tag: string, onLog: OnLog): Promise<{ exitCode: number }> {
   onLog({
     stream: "stdout",
@@ -323,10 +340,6 @@ export async function dockerPull(tag: string, onLog: OnLog): Promise<{ exitCode:
   return execStreaming("docker", ["pull", tag], STAGING_DIR, onLog);
 }
 
-/**
- * Check if a container is running and healthy.
- * Returns true if the container is in "running" state.
- */
 export async function checkContainerHealth(containerName: string, onLog: OnLog): Promise<boolean> {
   let healthy = false;
 
@@ -345,9 +358,6 @@ export async function checkContainerHealth(containerName: string, onLog: OnLog):
   return result.exitCode === 0 && healthy;
 }
 
-/**
- * Stop and remove a container by name.
- */
 export async function dockerRemoveContainer(
   containerName: string,
   onLog: OnLog
@@ -363,10 +373,6 @@ export async function dockerRemoveContainer(
   return execStreaming("docker", ["rm", "-f", containerName], STAGING_DIR, onLog);
 }
 
-/**
- * Load a Docker image from a tarball file.
- * Equivalent to `docker load -i <tarPath>`.
- */
 export async function dockerLoad(tarPath: string, onLog: OnLog): Promise<{ exitCode: number }> {
   onLog({
     stream: "stdout",
@@ -377,10 +383,6 @@ export async function dockerLoad(tarPath: string, onLog: OnLog): Promise<{ exitC
   return execStreaming("docker", ["load", "-i", tarPath], STAGING_DIR, onLog);
 }
 
-/**
- * List Docker images and return structured JSON output.
- * Equivalent to `docker images --format json`.
- */
 export async function dockerListImages(
   onLog: OnLog
 ): Promise<{ exitCode: number; images: DockerImageListEntry[] }> {

@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   buildComposeCommandEnv,
+  dockerComposeBuild,
   dockerComposePs,
   dockerComposeDown,
   cleanupStagingDir,
@@ -242,12 +243,63 @@ describe("dockerComposePull", () => {
         "--env-file",
         ".daoflow.compose.env",
         "pull",
+        "--ignore-buildable",
+        "--include-deps",
         "api"
       ],
       "/tmp/demo",
       collector.onLog,
       expect.objectContaining({
         DOCKER_CLI_HINTS: "false"
+      }),
+      {
+        inheritParentEnv: false
+      }
+    );
+    expect(
+      collector.lines.some((line) =>
+        line.message.includes("Compose execution env isolated from ambient worker env")
+      )
+    ).toBe(true);
+  });
+});
+
+describe("dockerComposeBuild", () => {
+  it("enables BuildKit and scopes build execution to the selected compose service", async () => {
+    const collector = createLogCollector();
+    process.env.PATH = "/usr/bin:/bin";
+    const execRunner = vi.fn().mockResolvedValueOnce({ exitCode: 0, signal: null });
+
+    await dockerComposeBuild(
+      ".daoflow.compose.rendered.yaml",
+      "demo",
+      "/tmp/demo",
+      collector.onLog,
+      ".daoflow.compose.env",
+      "api",
+      execRunner
+    );
+
+    expect(execRunner).toHaveBeenCalledWith(
+      "docker",
+      [
+        "compose",
+        "-f",
+        ".daoflow.compose.rendered.yaml",
+        "-p",
+        "demo",
+        "--env-file",
+        ".daoflow.compose.env",
+        "build",
+        "--with-dependencies",
+        "api"
+      ],
+      "/tmp/demo",
+      collector.onLog,
+      expect.objectContaining({
+        DOCKER_CLI_HINTS: "false",
+        DOCKER_BUILDKIT: "1",
+        COMPOSE_DOCKER_CLI_BUILD: "1"
       }),
       {
         inheritParentEnv: false

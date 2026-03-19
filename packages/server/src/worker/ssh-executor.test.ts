@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { LogLine } from "./docker-executor";
 import {
+  remoteDockerComposeBuild,
   remoteDockerComposePs,
   remoteDockerComposeDown,
   remoteDockerComposePull,
@@ -40,24 +41,19 @@ describe("remoteDockerComposePull", () => {
       "/srv/demo",
       collector.onLog,
       ".daoflow.compose.env",
+      ".daoflow.compose.export.sh",
       "api",
       execRemoteImpl
     );
 
-    expect(execRemoteImpl).toHaveBeenCalledWith(
-      target,
-      expect.stringContaining(
-        'env -i DOCKER_CLI_HINTS=false PATH="${PATH:-}" HOME="${HOME:-}" DOCKER_CONFIG="${DOCKER_CONFIG:-}"'
-      ),
-      collector.onLog
-    );
-    expect(execRemoteImpl).toHaveBeenCalledWith(
-      target,
-      expect.stringContaining(
-        "docker compose -f '.daoflow.compose.rendered.yaml' -p 'demo' --env-file '.daoflow.compose.env' pull 'api'"
-      ),
-      collector.onLog
-    );
+    expect(execRemoteImpl).toHaveBeenCalledTimes(1);
+    const command = String(execRemoteImpl.mock.calls[0]?.[1] ?? "");
+    expect(command).toContain('env -i DOCKER_CLI_HINTS=false PATH="${PATH:-}"');
+    expect(command).toContain(".daoflow.compose.export.sh");
+    expect(command).toContain("docker compose");
+    expect(command).toContain("--env-file");
+    expect(command).toContain(" pull --ignore-buildable --include-deps ");
+    expect(command).toContain("api");
     expect(
       collector.lines.some((line) =>
         line.message.includes("Compose execution env isolated from ambient remote shell env")
@@ -77,17 +73,17 @@ describe("remoteDockerComposeUp", () => {
       "/srv/demo",
       onLog,
       ".daoflow.compose.env",
+      ".daoflow.compose.export.sh",
       "api",
       execRemoteImpl
     );
 
-    expect(execRemoteImpl).toHaveBeenCalledWith(
-      target,
-      expect.stringContaining(
-        "docker compose -f '.daoflow.compose.rendered.yaml' -p 'demo' --env-file '.daoflow.compose.env' up -d --remove-orphans 'api'"
-      ),
-      onLog
-    );
+    expect(execRemoteImpl).toHaveBeenCalledTimes(1);
+    const command = String(execRemoteImpl.mock.calls[0]?.[1] ?? "");
+    expect(command).toContain(".daoflow.compose.export.sh");
+    expect(command).toContain("docker compose");
+    expect(command).toContain(" up -d --remove-orphans ");
+    expect(command).toContain("api");
   });
 });
 
@@ -118,17 +114,17 @@ describe("remoteDockerComposePs", () => {
       "/srv/demo",
       onLog,
       ".daoflow.compose.env",
+      ".daoflow.compose.export.sh",
       "api",
       execRemoteImpl
     );
 
-    expect(execRemoteImpl).toHaveBeenCalledWith(
-      target,
-      expect.stringContaining(
-        "docker compose -f '.daoflow.compose.rendered.yaml' -p 'demo' --env-file '.daoflow.compose.env' ps --format json 'api'"
-      ),
-      expect.any(Function)
-    );
+    expect(execRemoteImpl).toHaveBeenCalledTimes(1);
+    const command = String(execRemoteImpl.mock.calls[0]?.[1] ?? "");
+    expect(command).toContain(".daoflow.compose.export.sh");
+    expect(command).toContain("docker compose");
+    expect(command).toContain(" ps --format json ");
+    expect(command).toContain("api");
     expect(result).toEqual({
       exitCode: 0,
       statuses: [
@@ -157,15 +153,42 @@ describe("remoteDockerComposeDown", () => {
       "/srv/demo",
       collector.onLog,
       ".daoflow.compose.env",
+      ".daoflow.compose.export.sh",
       execRemoteImpl
     );
 
-    expect(execRemoteImpl).toHaveBeenCalledWith(
+    expect(execRemoteImpl).toHaveBeenCalledTimes(1);
+    const command = String(execRemoteImpl.mock.calls[0]?.[1] ?? "");
+    expect(command).toContain(".daoflow.compose.export.sh");
+    expect(command).toContain("docker compose");
+    expect(command).toContain(" down");
+  });
+});
+
+describe("remoteDockerComposeBuild", () => {
+  it("sources the generated export file and enables BuildKit for remote builds", async () => {
+    const execRemoteImpl = vi.fn().mockResolvedValueOnce({ exitCode: 0, signal: null });
+
+    await remoteDockerComposeBuild(
       target,
-      expect.stringContaining(
-        "docker compose -f '.daoflow.compose.rendered.yaml' -p 'demo' --env-file '.daoflow.compose.env' down"
-      ),
-      collector.onLog
+      ".daoflow.compose.rendered.yaml",
+      "demo",
+      "/srv/demo",
+      onLog,
+      ".daoflow.compose.env",
+      ".daoflow.compose.export.sh",
+      "api",
+      execRemoteImpl
     );
+
+    expect(execRemoteImpl).toHaveBeenCalledTimes(1);
+    const command = String(execRemoteImpl.mock.calls[0]?.[1] ?? "");
+    expect(command).toContain(".daoflow.compose.export.sh");
+    expect(command).toContain("DOCKER_BUILDKIT=1");
+    expect(command).toContain("COMPOSE_DOCKER_CLI_BUILD=1");
+    expect(command).toContain("docker compose");
+    expect(command).toContain(" build --with-dependencies ");
+    expect(command).toContain(" build ");
+    expect(command).toContain("api");
   });
 });
