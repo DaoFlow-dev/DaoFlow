@@ -15,7 +15,7 @@ import { parseComposePsOutput, type ComposeContainerStatus } from "./compose-hea
 import { execRemote, shellQuote, type SSHTarget } from "./ssh-connection";
 
 function buildRemoteComposeEnvPrefix(): string {
-  const preserved = COMPOSE_COMMAND_ENV_ALLOWLIST.map((key) => `${key}="\${${key}}" `).join("");
+  const preserved = COMPOSE_COMMAND_ENV_ALLOWLIST.map((key) => `${key}="\${${key}:-}" `).join("");
   return `env -i DOCKER_CLI_HINTS=false ${preserved}`.trimEnd();
 }
 

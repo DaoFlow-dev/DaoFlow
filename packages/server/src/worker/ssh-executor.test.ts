@@ -47,7 +47,7 @@ describe("remoteDockerComposePull", () => {
     expect(execRemoteImpl).toHaveBeenCalledWith(
       target,
       expect.stringContaining(
-        'env -i DOCKER_CLI_HINTS=false PATH="${PATH}" HOME="${HOME}" DOCKER_CONFIG="${DOCKER_CONFIG}"'
+        'env -i DOCKER_CLI_HINTS=false PATH="${PATH:-}" HOME="${HOME:-}" DOCKER_CONFIG="${DOCKER_CONFIG:-}"'
       ),
       collector.onLog
     );
