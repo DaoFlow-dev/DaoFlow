@@ -9,6 +9,8 @@ import {
   readComposeReadinessProbeFromConfig,
   type ComposeReadinessProbe
 } from "../../compose-readiness";
+import type { ComposeBuildPlan } from "../../compose-build-plan";
+import { resolveComposeExecutionScope } from "../../compose-build-plan-execution";
 import { buildComposeEnvPlanDiagnostics } from "../../compose-env-plan";
 import { materializeComposeWorkspaceArtifacts } from "../../compose-workspace-artifacts";
 import { db } from "../connection";
@@ -101,6 +103,7 @@ async function materializeComposePlanningPreflight(input: {
       status: "ok";
       composeContent: string;
       repoDefaultContent: string | null;
+      buildPlan: ComposeBuildPlan;
       warnings: string[];
     }
   | {
@@ -150,6 +153,7 @@ async function materializeComposePlanningPreflight(input: {
       status: "ok",
       composeContent: materialized.composeInputs.frozenInputs.composeFile.contents,
       repoDefaultContent: materialized.repoDefaultContent,
+      buildPlan: materialized.composeBuildPlan,
       warnings: materialized.composeInputs.manifest.warnings
     };
   } catch (error) {
@@ -208,28 +212,40 @@ function buildPlanSteps(input: {
   targetServerName: string;
   composeServiceName?: string | null;
   composeReadinessProbe?: ComposeReadinessProbe | null;
+  composeBuildPlan?: ComposeBuildPlan | null;
 }) {
   const serverStep = `Dispatch execution to ${input.targetServerName}`;
 
   switch (input.sourceType) {
     case "compose": {
+      const executionScope = input.composeBuildPlan
+        ? resolveComposeExecutionScope(input.composeBuildPlan, input.composeServiceName)
+        : null;
       const composeTargetLabel = input.composeServiceName
         ? `compose service ${input.composeServiceName}`
         : "compose services";
       const composeUpCommand = input.composeServiceName
         ? `Apply docker compose up -d ${input.composeServiceName} with the staged configuration`
         : "Apply docker compose up -d with the staged configuration";
-      return [
-        "Freeze the compose inputs and resolved runtime spec",
-        input.imageTag
-          ? `Pull ${input.imageTag} and refresh ${composeTargetLabel}`
-          : `Resolve image references from the compose spec and refresh ${composeTargetLabel}`,
+      const steps = ["Freeze the compose inputs and resolved runtime spec"];
+      if (executionScope?.needsPull ?? true) {
+        steps.push(
+          input.imageTag
+            ? `Pull ${input.imageTag} and refresh ${composeTargetLabel}`
+            : `Resolve image references from the compose spec and refresh ${composeTargetLabel}`
+        );
+      }
+      if ((executionScope?.buildServiceNames.length ?? 0) > 0) {
+        steps.push(`Build ${composeTargetLabel} from the checked-out compose contexts`);
+      }
+      steps.push(
         composeUpCommand,
         input.composeReadinessProbe
           ? `Verify Docker Compose container state, Docker health, and ${describeComposeReadinessProbe(input.composeReadinessProbe)}, then mark the rollout outcome`
           : "Verify Docker Compose container state and Docker health, then mark the rollout outcome",
         serverStep
-      ];
+      );
+      return steps;
     }
     case "dockerfile":
       return [
@@ -312,6 +328,7 @@ export async function buildDeploymentPlan(input: BuildDeploymentPlanInput) {
   const sourceType = normalizeSourceType(service.sourceType);
   const readinessProbe = readComposeReadinessProbeFromConfig(service.config);
   let composeEnvPlan: ReturnType<typeof buildComposeEnvPlanDiagnostics> | null = null;
+  let composeBuildPlan: ComposeBuildPlan | null = null;
 
   const checks = [
     makeCheck("ok", `Service ${service.name} is registered in ${environment[0].name}.`),
@@ -374,6 +391,7 @@ export async function buildDeploymentPlan(input: BuildDeploymentPlanInput) {
       });
 
       if (planInputs.status === "ok") {
+        composeBuildPlan = planInputs.buildPlan;
         composeEnvPlan = buildComposeEnvPlanDiagnostics({
           branch,
           composeContent: planInputs.composeContent,
@@ -382,6 +400,15 @@ export async function buildDeploymentPlan(input: BuildDeploymentPlanInput) {
           warnings: planInputs.warnings
         });
         checks.push(...buildComposeEnvPlanChecks(composeEnvPlan));
+        if (composeBuildPlan.services.length > 0) {
+          const buildServiceLabel = composeBuildPlan.services.length === 1 ? "service" : "services";
+          checks.push(
+            makeCheck(
+              "ok",
+              `Compose build plan detected ${composeBuildPlan.services.length} build ${buildServiceLabel}: ${composeBuildPlan.services.map((buildService) => buildService.serviceName).join(", ")}.`
+            )
+          );
+        }
       } else {
         checks.push(makeCheck("fail", `Compose workspace preflight failed: ${planInputs.reason}`));
       }
@@ -404,7 +431,8 @@ export async function buildDeploymentPlan(input: BuildDeploymentPlanInput) {
     hasHealthcheck: Boolean(service.healthcheckPath),
     targetServerName: resolvedServer?.name ?? "the configured worker",
     composeServiceName: service.composeServiceName,
-    composeReadinessProbe: readinessProbe
+    composeReadinessProbe: readinessProbe,
+    composeBuildPlan
   });
 
   const currentDeployment = latestDeployment

@@ -45,7 +45,10 @@ function makeSession(role: string): NonNullable<Context["session"]> {
   } as unknown as NonNullable<Context["session"]>;
 }
 
-async function createRepoBackedComposeService(input: { files: Record<string, string> }): Promise<{
+async function createRepoBackedComposeService(input: {
+  files: Record<string, string>;
+  composeServiceName?: string;
+}): Promise<{
   repository: LocalGitRepositoryFixture;
   serviceId: string;
 }> {
@@ -89,6 +92,7 @@ async function createRepoBackedComposeService(input: { files: Record<string, str
     projectId: projectResult.project.id,
     environmentId: environmentResult.environment.id,
     sourceType: "compose",
+    composeServiceName: input.composeServiceName,
     targetServerId: "srv_foundation_1",
     requestedByUserId: "user_foundation_owner",
     requestedByEmail: "owner@daoflow.local",
@@ -176,6 +180,123 @@ describe("deployment plan compose workspace preflight", () => {
             )
         )
       ).toBe(true);
+    } finally {
+      fixture.repository.cleanup();
+    }
+  });
+
+  it("surfaces build-context execution for git-backed compose services", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-plan-compose-build-context",
+      session: makeSession("viewer")
+    });
+    const fixture = await createRepoBackedComposeService({
+      files: {
+        Dockerfile: "FROM node:22-alpine\n",
+        "deploy/compose.yaml": [
+          "services:",
+          "  api:",
+          "    build:",
+          "      context: .",
+          "      dockerfile: ../Dockerfile"
+        ].join("\n")
+      }
+    });
+
+    try {
+      const plan = await caller.deploymentPlan({
+        service: fixture.serviceId
+      });
+
+      expect(plan.isReady).toBe(true);
+      expect(
+        plan.preflightChecks.some(
+          (check) =>
+            check.status === "ok" &&
+            check.detail.includes("Compose build plan detected 1 build service: api.")
+        )
+      ).toBe(true);
+      expect(plan.steps).toEqual(
+        expect.arrayContaining(["Build compose services from the checked-out compose contexts"])
+      );
+    } finally {
+      fixture.repository.cleanup();
+    }
+  });
+
+  it("keeps the pull step when a scoped build service may start image-backed dependencies", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-plan-compose-build-scope",
+      session: makeSession("viewer")
+    });
+    const fixture = await createRepoBackedComposeService({
+      composeServiceName: "api",
+      files: {
+        Dockerfile: "FROM node:22-alpine\n",
+        "deploy/compose.yaml": [
+          "services:",
+          "  api:",
+          "    build:",
+          "      context: .",
+          "      dockerfile: ../Dockerfile",
+          "    depends_on:",
+          "      - worker",
+          "  worker:",
+          "    image: nginx:alpine"
+        ].join("\n")
+      }
+    });
+
+    try {
+      const plan = await caller.deploymentPlan({
+        service: fixture.serviceId
+      });
+
+      expect(plan.isReady).toBe(true);
+      expect(plan.steps).toContain(
+        "Resolve image references from the compose spec and refresh compose service api"
+      );
+      expect(plan.steps).toContain(
+        "Build compose service api from the checked-out compose contexts"
+      );
+    } finally {
+      fixture.repository.cleanup();
+    }
+  });
+
+  it("omits the build step when the scoped compose service only needs pulled images", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-plan-compose-pull-scope",
+      session: makeSession("viewer")
+    });
+    const fixture = await createRepoBackedComposeService({
+      composeServiceName: "worker",
+      files: {
+        Dockerfile: "FROM node:22-alpine\n",
+        "deploy/compose.yaml": [
+          "services:",
+          "  api:",
+          "    build:",
+          "      context: .",
+          "      dockerfile: ../Dockerfile",
+          "  worker:",
+          "    image: nginx:alpine"
+        ].join("\n")
+      }
+    });
+
+    try {
+      const plan = await caller.deploymentPlan({
+        service: fixture.serviceId
+      });
+
+      expect(plan.isReady).toBe(true);
+      expect(plan.steps).toContain(
+        "Resolve image references from the compose spec and refresh compose service worker"
+      );
+      expect(plan.steps).not.toContain(
+        "Build compose service worker from the checked-out compose contexts"
+      );
     } finally {
       fixture.repository.cleanup();
     }
