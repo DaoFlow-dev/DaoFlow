@@ -367,6 +367,13 @@ describe("deploy source revalidation", () => {
         branchPattern: "main"
       }
     ]);
+    expect(result.deployment.steps.map((step) => step.detail)).toEqual(
+      expect.arrayContaining([
+        "docker-compose pull",
+        "docker-compose up -d",
+        "Verify Docker Compose container state and Docker health"
+      ])
+    );
 
     const [updatedProject] = await db
       .select()

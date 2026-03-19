@@ -265,7 +265,7 @@ POST /trpc/deploymentPlan
           "Freeze the compose inputs and resolved runtime spec",
           "Pull ghcr.io/acme/api:1.4.2 and refresh compose service api",
           "Apply docker compose up -d api with the staged configuration",
-          "Run configured health check and promote only if it stays green",
+          "Verify Docker Compose container state and Docker health, then mark the rollout outcome",
           "Dispatch execution to prod-us-west"
         ],
         "executeCommand": "daoflow deploy --service svc_abc123 --server srv_abc123 --image ghcr.io/acme/api:1.4.2 --yes"

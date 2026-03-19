@@ -136,7 +136,7 @@ Service plan:
       "Freeze the compose inputs and resolved runtime spec",
       "Pull ghcr.io/acme/api:1.4.2 and refresh compose service api",
       "Apply docker compose up -d api with the staged configuration",
-      "Run configured health check and promote only if it stays green",
+      "Verify Docker Compose container state and Docker health, then mark the rollout outcome",
       "Dispatch execution to prod"
     ],
     "executeCommand": "daoflow deploy --service svc_123 --server srv_123 --image ghcr.io/acme/api:1.4.2 --yes"

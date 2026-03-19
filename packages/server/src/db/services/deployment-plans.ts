@@ -204,9 +204,6 @@ function buildPlanSteps(input: {
   composeServiceName?: string | null;
 }) {
   const serverStep = `Dispatch execution to ${input.targetServerName}`;
-  const verifyStep = input.hasHealthcheck
-    ? "Run configured health check and promote only if it stays green"
-    : "Verify container and compose status, then mark the rollout outcome";
 
   switch (input.sourceType) {
     case "compose": {
@@ -222,7 +219,7 @@ function buildPlanSteps(input: {
           ? `Pull ${input.imageTag} and refresh ${composeTargetLabel}`
           : `Resolve image references from the compose spec and refresh ${composeTargetLabel}`,
         composeUpCommand,
-        verifyStep,
+        "Verify Docker Compose container state and Docker health, then mark the rollout outcome",
         serverStep
       ];
     }
@@ -233,7 +230,9 @@ function buildPlanSteps(input: {
           ? "Build the image from the configured Dockerfile"
           : "Build the image using the default Dockerfile path",
         "Replace the running container with the new image",
-        verifyStep,
+        input.hasHealthcheck
+          ? "Run configured health check and promote only if it stays green"
+          : "Verify container status and Docker health, then mark the rollout outcome",
         serverStep
       ];
     case "image":
@@ -241,7 +240,9 @@ function buildPlanSteps(input: {
       return [
         `Pull ${input.imageTag ?? "the configured image reference"}`,
         "Stop the existing container and start the new image",
-        verifyStep,
+        input.hasHealthcheck
+          ? "Run configured health check and promote only if it stays green"
+          : "Verify container status and Docker health, then mark the rollout outcome",
         serverStep
       ];
   }
@@ -320,6 +321,15 @@ export async function buildDeploymentPlan(input: BuildDeploymentPlanInput) {
   ];
 
   if (sourceType === "compose") {
+    if (service.healthcheckPath) {
+      checks.push(
+        makeCheck(
+          "warn",
+          `Compose service healthcheckPath "${service.healthcheckPath}" is advisory only today; compose execution verifies Docker Compose container state and Docker health instead of probing that path.`
+        )
+      );
+    }
+
     const branch = project[0].defaultBranch ?? "main";
     const deploymentEntries = await resolveComposeDeploymentEnvEntries({
       environmentId: environment[0].id,

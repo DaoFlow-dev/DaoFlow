@@ -45,7 +45,10 @@ function stepsForSourceType(sourceType: string): { label: string; detail: string
       return [
         { label: "Pull images", detail: "docker-compose pull" },
         { label: "Start services", detail: "docker-compose up -d" },
-        { label: "Health check", detail: "Verify containers are healthy" }
+        {
+          label: "Health check",
+          detail: "Verify Docker Compose container state and Docker health"
+        }
       ];
     case "dockerfile":
       return [
