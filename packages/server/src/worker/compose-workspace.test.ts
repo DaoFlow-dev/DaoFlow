@@ -192,15 +192,17 @@ describe("prepareComposeWorkspace", () => {
       ].join("\n")
     );
 
+    const gitClone = vi.fn(() => ({
+      exitCode: 0,
+      workDir: stageDir
+    }));
+
     vi.doMock("./docker-executor", () => ({
       createTarArchive: vi.fn(),
       ensureStagingDir: vi.fn(() => stageDir),
       extractTarArchive: vi.fn(),
       getStagingArchivePath: vi.fn(),
-      gitClone: vi.fn(() => ({
-        exitCode: 0,
-        workDir: stageDir
-      }))
+      gitClone
     }));
 
     vi.doMock("./ssh-executor", () => ({
@@ -233,9 +235,20 @@ describe("prepareComposeWorkspace", () => {
         composeFilePath: "ops/compose.yaml"
       },
       { mode: "local" },
-      () => {}
+      () => {},
+      undefined,
+      "abcdef1234567890abcdef1234567890abcdef12"
     );
 
+    expect(gitClone).toHaveBeenCalledWith(
+      "https://example.com/org/repo.git",
+      "main",
+      "deploy_456",
+      expect.any(Function),
+      expect.objectContaining({
+        commitSha: "abcdef1234567890abcdef1234567890abcdef12"
+      })
+    );
     expect(workspace.composeFile).toBe(".daoflow.compose.rendered.yaml");
     expect(workspace.composeEnv.payloadEntries.map((entry) => entry.key)).toEqual(["ROOT_ONLY"]);
     expect(workspace.composeInputs.manifest.entries).toEqual(

@@ -183,7 +183,8 @@ export async function prepareComposeWorkspace(
   config: ConfigSnapshot,
   target: ExecutionTarget,
   onLog: OnLog,
-  deploymentState: DeploymentComposeState = { envState: { kind: "queued", entries: [] } }
+  deploymentState: DeploymentComposeState = { envState: { kind: "queued", entries: [] } },
+  pinnedCommitSha?: string
 ): Promise<ComposeWorkspace> {
   if (!isUploadedCompose(config)) {
     const checkout = await resolveCheckoutSpec(config);
@@ -196,7 +197,8 @@ export async function prepareComposeWorkspace(
     const localClone = await gitClone(checkout.repoUrl, checkout.branch, deploymentId, onLog, {
       displayLabel: checkout.displayLabel,
       gitConfig: checkout.gitConfig,
-      repositoryPreparation: checkout.repositoryPreparation
+      repositoryPreparation: checkout.repositoryPreparation,
+      commitSha: pinnedCommitSha
     });
     if (localClone.exitCode !== 0) {
       throw new Error(

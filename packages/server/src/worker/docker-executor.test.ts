@@ -4,7 +4,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   buildComposeCommandEnv,
+  cleanupStagingDir,
   execStreaming,
+  gitClone,
   prepareClonedRepository,
   type LogLine
 } from "./docker-executor";
@@ -141,5 +143,56 @@ describe("buildComposeCommandEnv", () => {
       PATH: "/usr/bin:/bin"
     });
     expect(env.API_KEY).toBe("file-value");
+  });
+});
+
+describe("gitClone", () => {
+  it("pins the checkout to a recorded commit when one is provided", async () => {
+    const collector = createLogCollector();
+    const deploymentId = "pin-commit-checkout";
+    const execRunner = vi
+      .fn()
+      .mockResolvedValueOnce({ exitCode: 0, signal: null })
+      .mockResolvedValueOnce({ exitCode: 0, signal: null })
+      .mockResolvedValueOnce({ exitCode: 0, signal: null });
+
+    try {
+      const result = await gitClone(
+        "https://example.com/org/repo.git",
+        "main",
+        deploymentId,
+        collector.onLog,
+        {
+          commitSha: "abcdef1234567890abcdef1234567890abcdef12"
+        },
+        execRunner
+      );
+
+      expect(result).toMatchObject({
+        exitCode: 0
+      });
+      const commandCalls = (execRunner.mock.calls as Parameters<typeof execStreaming>[]).map(
+        (call) => [call[0], call[1]]
+      );
+      expect(commandCalls).toEqual([
+        [
+          "git",
+          [
+            "clone",
+            "--depth",
+            "1",
+            "--branch",
+            "main",
+            "--single-branch",
+            "https://example.com/org/repo.git",
+            "."
+          ]
+        ],
+        ["git", ["fetch", "--depth", "1", "origin", "abcdef1234567890abcdef1234567890abcdef12"]],
+        ["git", ["checkout", "--detach", "abcdef1234567890abcdef1234567890abcdef12"]]
+      ]);
+    } finally {
+      cleanupStagingDir(deploymentId);
+    }
   });
 });

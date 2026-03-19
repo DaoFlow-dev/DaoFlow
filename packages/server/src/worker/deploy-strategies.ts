@@ -81,7 +81,8 @@ export async function executeComposeDeployment(
       config,
       target,
       onLog,
-      deploymentComposeState
+      deploymentComposeState,
+      deployment.commitSha ?? undefined
     );
     workDir = workspace.workDir;
     composeFile = workspace.composeFile;

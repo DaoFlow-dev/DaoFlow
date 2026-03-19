@@ -45,6 +45,7 @@ export interface GitCloneOptions {
   displayLabel?: string;
   gitConfig?: Array<{ key: string; value: string }>;
   repositoryPreparation?: RepositoryPreparationConfig;
+  commitSha?: string;
 }
 
 /**
@@ -167,6 +168,60 @@ function describeRepositoryPreparation(config: RepositoryPreparationConfig): str
     required.push("Git LFS");
   }
   return required;
+}
+
+function formatCommitLabel(commitSha: string): string {
+  return commitSha.slice(0, 12);
+}
+
+async function checkoutPinnedGitCommit(
+  workDir: string,
+  commitSha: string,
+  onLog: OnLog,
+  options: {
+    gitConfigPath?: string | null;
+  },
+  execRunner: ExecRunner = execStreaming
+): Promise<{ exitCode: number; errorMessage?: string }> {
+  const envOverrides = options.gitConfigPath
+    ? { GIT_CONFIG_GLOBAL: options.gitConfigPath }
+    : undefined;
+
+  onLog({
+    stream: "stdout",
+    message: `Pinning repository checkout to commit ${formatCommitLabel(commitSha)}`,
+    timestamp: new Date()
+  });
+
+  const fetch = await execRunner(
+    "git",
+    ["fetch", "--depth", "1", "origin", commitSha],
+    workDir,
+    onLog,
+    envOverrides
+  );
+  if (fetch.exitCode !== 0) {
+    return {
+      exitCode: fetch.exitCode,
+      errorMessage: `git fetch failed for commit ${commitSha} with exit code ${fetch.exitCode}`
+    };
+  }
+
+  const checkout = await execRunner(
+    "git",
+    ["checkout", "--detach", commitSha],
+    workDir,
+    onLog,
+    envOverrides
+  );
+  if (checkout.exitCode !== 0) {
+    return {
+      exitCode: checkout.exitCode,
+      errorMessage: `git checkout failed for commit ${commitSha} with exit code ${checkout.exitCode}`
+    };
+  }
+
+  return { exitCode: 0 };
 }
 
 export async function prepareClonedRepository(
@@ -317,11 +372,13 @@ export async function gitClone(
   branch: string,
   deploymentId: string,
   onLog: OnLog,
-  options?: GitCloneOptions
+  options?: GitCloneOptions,
+  execRunner: ExecRunner = execStreaming
 ): Promise<{ exitCode: number; workDir: string; errorMessage?: string }> {
   const workDir = ensureStagingDir(deploymentId);
   const displayLabel = options?.displayLabel ?? repoUrl;
   const gitConfigPath = writeGitConfigFile(deploymentId, options?.gitConfig ?? []);
+  const commitSha = options?.commitSha?.trim();
 
   onLog({
     stream: "stdout",
@@ -329,7 +386,7 @@ export async function gitClone(
     timestamp: new Date()
   });
 
-  const result = await execStreaming(
+  const result = await execRunner(
     "git",
     ["clone", "--depth", "1", "--branch", branch, "--single-branch", repoUrl, "."],
     workDir,
@@ -345,10 +402,32 @@ export async function gitClone(
     };
   }
 
-  const preparation = await prepareClonedRepository(workDir, onLog, {
-    repositoryPreparation: options?.repositoryPreparation,
-    gitConfigPath
-  });
+  if (commitSha) {
+    const pinnedCheckout = await checkoutPinnedGitCommit(
+      workDir,
+      commitSha,
+      onLog,
+      { gitConfigPath },
+      execRunner
+    );
+    if (pinnedCheckout.exitCode !== 0) {
+      return {
+        exitCode: pinnedCheckout.exitCode,
+        workDir,
+        errorMessage: pinnedCheckout.errorMessage
+      };
+    }
+  }
+
+  const preparation = await prepareClonedRepository(
+    workDir,
+    onLog,
+    {
+      repositoryPreparation: options?.repositoryPreparation,
+      gitConfigPath
+    },
+    execRunner
+  );
 
   return {
     exitCode: preparation.exitCode,
