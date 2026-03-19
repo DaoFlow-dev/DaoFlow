@@ -14,6 +14,7 @@ import * as databaseActivities from "./activities/database-activities";
 import * as retentionActivities from "./activities/retention-activities";
 import * as notificationActivities from "./activities/notification-activities";
 import { resolve } from "node:path";
+import { TEMPORAL_ADDRESS, TEMPORAL_NAMESPACE, TEMPORAL_TASK_QUEUE } from "./temporal-config";
 
 const activities = {
   ...deployActivities,
@@ -22,10 +23,6 @@ const activities = {
   ...retentionActivities,
   ...notificationActivities
 };
-
-const TEMPORAL_ADDRESS = process.env.TEMPORAL_ADDRESS ?? "localhost:7233";
-const TEMPORAL_NAMESPACE = process.env.TEMPORAL_NAMESPACE ?? "daoflow";
-const TEMPORAL_TASK_QUEUE = process.env.TEMPORAL_TASK_QUEUE ?? "daoflow-deployments";
 
 let worker: Worker | null = null;
 

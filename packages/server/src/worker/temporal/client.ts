@@ -8,12 +8,9 @@
 
 import { Connection, Client } from "@temporalio/client";
 import type { DeploymentWorkflowInput } from "../deployment-workflow-input";
+import { TEMPORAL_ADDRESS, TEMPORAL_NAMESPACE, TEMPORAL_TASK_QUEUE } from "./temporal-config";
 
 let client: Client | null = null;
-
-const TEMPORAL_ADDRESS = process.env.TEMPORAL_ADDRESS ?? "localhost:7233";
-const TEMPORAL_NAMESPACE = process.env.TEMPORAL_NAMESPACE ?? "daoflow";
-const TEMPORAL_TASK_QUEUE = process.env.TEMPORAL_TASK_QUEUE ?? "daoflow-deployments";
 
 /**
  * Get or create a singleton Temporal client.

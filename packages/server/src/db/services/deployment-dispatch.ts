@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { db } from "../connection";
 import { deployments } from "../schema/deployments";
 import { startDeploymentWorkflow } from "../../worker/temporal/client";
+import { isTemporalEnabled } from "../../worker/temporal/temporal-config";
 
 interface DispatchableDeployment {
   id: string;
@@ -12,14 +13,10 @@ interface DispatchableDeployment {
   configSnapshot: unknown;
 }
 
-function isTemporalDispatchEnabled(): boolean {
-  return process.env.DAOFLOW_ENABLE_TEMPORAL === "true" && !!process.env.TEMPORAL_ADDRESS;
-}
-
 export async function dispatchDeploymentExecution(
   deployment: DispatchableDeployment
 ): Promise<void> {
-  if (!isTemporalDispatchEnabled()) {
+  if (!isTemporalEnabled()) {
     return;
   }
 

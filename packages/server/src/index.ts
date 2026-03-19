@@ -32,9 +32,7 @@ function shouldStartWorker(): boolean {
   return true;
 }
 
-function isTemporalEnabled(): boolean {
-  return process.env.DAOFLOW_ENABLE_TEMPORAL === "true" && !!process.env.TEMPORAL_ADDRESS;
-}
+import { isTemporalEnabled } from "./worker/temporal/temporal-config";
 
 async function start() {
   const app = createApp();
