@@ -88,6 +88,8 @@ export async function persistUploadedArtifacts(input: {
 export async function restoreUploadedArtifacts(input: {
   artifactId: string;
   destinationDir: string;
+  composeFileName?: string;
+  contextArchiveName?: string | null;
 }): Promise<{
   restoredFiles: string[];
 }> {

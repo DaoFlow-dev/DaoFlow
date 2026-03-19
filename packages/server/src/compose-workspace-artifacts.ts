@@ -4,10 +4,13 @@ import {
   buildComposeEnvArtifact,
   buildMaterializedComposeEnvEvidence,
   COMPOSE_ENV_FILE_NAME,
+  COMPOSE_ENV_EXPORT_FILE_NAME,
+  renderComposeEnvExportFile,
   renderComposeEnvFile,
   type ComposeEnvEvidence,
   type ComposeEnvMaterializedEntry
 } from "./compose-env";
+import type { ComposeBuildPlan } from "./compose-build-plan";
 import {
   materializeComposeInputs,
   type ComposeImageOverrideRequest,
@@ -19,6 +22,7 @@ import type { DeploymentComposeEnvState, DeploymentComposeState } from "./db/ser
 export interface MaterializedComposeWorkspaceArtifacts {
   composeFile: string;
   repoDefaultContent: string | null;
+  composeBuildPlan: ComposeBuildPlan;
   composeEnv: {
     composeEnv: ComposeEnvEvidence;
     payloadEntries: ComposeEnvMaterializedEntry[];
@@ -53,6 +57,11 @@ function materializeComposeEnv(input: {
     writeFileSync(join(input.workDir, COMPOSE_ENV_FILE_NAME), fileContents, {
       mode: 0o600
     });
+    writeFileSync(
+      join(input.workDir, COMPOSE_ENV_EXPORT_FILE_NAME),
+      renderComposeEnvExportFile(input.deploymentEnvState.entries),
+      { mode: 0o600 }
+    );
 
     return {
       composeEnv:
@@ -73,6 +82,11 @@ function materializeComposeEnv(input: {
   writeFileSync(join(input.workDir, COMPOSE_ENV_FILE_NAME), artifact.envFileContents, {
     mode: 0o600
   });
+  writeFileSync(
+    join(input.workDir, COMPOSE_ENV_EXPORT_FILE_NAME),
+    renderComposeEnvExportFile(artifact.payloadEntries),
+    { mode: 0o600 }
+  );
 
   return {
     composeEnv: artifact.composeEnv,
@@ -88,6 +102,7 @@ export function materializeComposeWorkspaceArtifacts(input: {
   sourceProvenance: "repository-checkout" | "uploaded-artifact";
   deploymentState: DeploymentComposeState;
   imageOverride?: ComposeImageOverrideRequest;
+  existingComposeBuildPlan?: ComposeBuildPlan;
   existingComposeEnv?: ComposeEnvEvidence;
   existingComposeInputs?: ComposeInputManifest;
 }): MaterializedComposeWorkspaceArtifacts {
@@ -106,6 +121,7 @@ export function materializeComposeWorkspaceArtifacts(input: {
     repoDefaultContent,
     composeEnvFileContents: composeEnv.fileContents,
     imageOverride: input.imageOverride,
+    existingBuildPlan: input.existingComposeBuildPlan,
     existingManifest: input.existingComposeInputs,
     existingFrozenInputs: input.deploymentState.frozenInputs
   });
@@ -113,6 +129,7 @@ export function materializeComposeWorkspaceArtifacts(input: {
   return {
     composeFile: composeInputs.composeFile,
     repoDefaultContent,
+    composeBuildPlan: composeInputs.buildPlan,
     composeEnv: {
       composeEnv: composeEnv.composeEnv,
       payloadEntries: composeEnv.payloadEntries

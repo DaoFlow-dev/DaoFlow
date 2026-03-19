@@ -92,6 +92,7 @@ describe("prepareComposeWorkspace", () => {
     expect(callOrder).toContain("upload:.daoflow.compose.rendered.yaml");
     expect(callOrder).toContain("upload:.daoflow.compose.inputs/config__runtime.env");
     expect(callOrder).toContain("upload:.daoflow.compose.env");
+    expect(callOrder).toContain("upload:.daoflow.compose.export.sh");
     expect(workspace.composeFile).toBe(".daoflow.compose.rendered.yaml");
     expect(workspace.composeEnv.composeEnv.counts.repoDefaults).toBe(1);
     expect(workspace.composeEnv.payloadEntries.map((entry) => entry.key)).toEqual(["FROM_ARCHIVE"]);
@@ -162,7 +163,9 @@ describe("prepareComposeWorkspace", () => {
 
     expect(restoreUploadedArtifacts).toHaveBeenCalledWith({
       artifactId: "0123456789abcdef0123456789abcdef",
-      destinationDir: stageDir
+      destinationDir: stageDir,
+      composeFileName: "compose.yaml",
+      contextArchiveName: "context.tar.gz"
     });
     expect(workspace.composeEnv.payloadEntries.map((entry) => entry.key)).toEqual([
       "FROM_RESTORED"
@@ -268,5 +271,133 @@ describe("prepareComposeWorkspace", () => {
     const renderedCompose = readFileSync(join(stageDir, workspace.composeFile), "utf8");
     expect(renderedCompose).toContain("image: ghcr.io/daoflow/control-plane:2.0.0");
     expect(renderedCompose).toContain(".daoflow.compose.inputs/config__runtime.env");
+  });
+
+  it("rewrites git-backed build contexts and secret file paths for the frozen compose workspace", async () => {
+    mkdirSync(join(stageDir, "ops", "config"), { recursive: true });
+    mkdirSync(join(stageDir, "ops", "secrets"), { recursive: true });
+    mkdirSync(join(stageDir, "ops", "data"), { recursive: true });
+    writeFileSync(join(stageDir, "ops", ".env"), "ROOT_ONLY=1\n");
+    writeFileSync(join(stageDir, "ops", "config", "runtime.env"), "RUNTIME_ONLY=1\n");
+    writeFileSync(join(stageDir, "ops", "config", "runtime.conf"), "listen=0.0.0.0\n");
+    writeFileSync(join(stageDir, "ops", "secrets", "npm.token"), "token-value\n");
+    writeFileSync(join(stageDir, "Dockerfile"), "FROM node:22-alpine\n");
+    writeFileSync(
+      join(stageDir, "ops", "compose.yaml"),
+      [
+        "services:",
+        "  app:",
+        "    build:",
+        "      context: .",
+        "      dockerfile: ../Dockerfile",
+        "      secrets:",
+        "        - source: npm_token",
+        "          target: npm_token",
+        "    configs:",
+        "      - runtime_cfg",
+        "    env_file:",
+        "      - ./config/runtime.env",
+        "    volumes:",
+        "      - ./data:/var/lib/app",
+        "configs:",
+        "  runtime_cfg:",
+        "    file: ./config/runtime.conf",
+        "secrets:",
+        "  npm_token:",
+        "    file: ./secrets/npm.token"
+      ].join("\n")
+    );
+
+    vi.doMock("./docker-executor", () => ({
+      createTarArchive: vi.fn(),
+      ensureStagingDir: vi.fn(() => stageDir),
+      extractTarArchive: vi.fn(),
+      getStagingArchivePath: vi.fn(),
+      gitClone: vi.fn(() => ({
+        exitCode: 0,
+        workDir: stageDir
+      }))
+    }));
+
+    vi.doMock("./ssh-executor", () => ({
+      remoteEnsureDir: vi.fn(),
+      remoteExtractArchive: vi.fn(),
+      scpUpload: vi.fn()
+    }));
+
+    vi.doMock("./checkout-source", () => ({
+      resolveCheckoutSpec: vi.fn(() => ({
+        repoUrl: "https://example.com/org/repo.git",
+        branch: "main",
+        displayLabel: "org/repo",
+        gitConfig: [],
+        repositoryPreparation: {
+          submodules: false,
+          gitLfs: false
+        },
+        requiresLocalMaterialization: false
+      }))
+    }));
+
+    const { prepareComposeWorkspace } = await import("./compose-workspace");
+
+    const workspace = await prepareComposeWorkspace(
+      "deploy_build_456",
+      {
+        repoUrl: "https://example.com/org/repo.git",
+        branch: "main",
+        composeFilePath: "ops/compose.yaml"
+      },
+      { mode: "local" },
+      () => {}
+    );
+
+    const renderedCompose = readFileSync(join(stageDir, workspace.composeFile), "utf8");
+    const exportedEnv = readFileSync(join(stageDir, ".daoflow.compose.export.sh"), "utf8");
+
+    expect(renderedCompose).toContain("context: ops");
+    expect(renderedCompose).toContain("dockerfile: ../Dockerfile");
+    expect(renderedCompose).toContain("file: ops/config/runtime.conf");
+    expect(renderedCompose).toContain("file: ops/secrets/npm.token");
+    expect(renderedCompose).toContain("ops/data:/var/lib/app");
+    expect(exportedEnv).toContain("export ROOT_ONLY='1'");
+    expect(workspace.composeBuildPlan).toMatchObject({
+      strategy: "build-only",
+      services: [
+        {
+          serviceName: "app",
+          context: "ops",
+          dockerfile: "../Dockerfile",
+          secrets: [
+            {
+              sourceName: "npm_token",
+              provider: "file",
+              reference: "ops/secrets/npm.token",
+              target: "npm_token"
+            }
+          ]
+        }
+      ],
+      graphServices: [
+        {
+          serviceName: "app",
+          configs: [
+            {
+              sourceName: "runtime_cfg",
+              provider: "file",
+              reference: "ops/config/runtime.conf",
+              target: null
+            }
+          ]
+        }
+      ],
+      configs: [
+        {
+          name: "runtime_cfg",
+          provider: "file",
+          reference: "ops/config/runtime.conf"
+        }
+      ]
+    });
   });
 });

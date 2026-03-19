@@ -1,4 +1,5 @@
 export const COMPOSE_ENV_FILE_NAME = ".daoflow.compose.env";
+export const COMPOSE_ENV_EXPORT_FILE_NAME = ".daoflow.compose.export.sh";
 
 export const COMPOSE_ENV_PRECEDENCE = [
   "repo-defaults",
@@ -93,6 +94,10 @@ function escapeComposeInterpolation(value: string): string {
   return value.replace(/\$/g, "$$$$");
 }
 
+function shellEscapeEnvValue(value: string): string {
+  return "'" + value.replace(/'/g, `'"'"'`) + "'";
+}
+
 export function renderComposeEnvFile(entries: ComposeEnvRenderableEntry[]): string {
   return (
     entries
@@ -104,6 +109,13 @@ export function renderComposeEnvFile(entries: ComposeEnvRenderableEntry[]): stri
         return `${entry.key}=${formatEnvValue(value)}`;
       })
       .join("\n") + "\n"
+  );
+}
+
+export function renderComposeEnvExportFile(entries: ComposeEnvRenderableEntry[]): string {
+  return (
+    entries.map((entry) => `export ${entry.key}=${shellEscapeEnvValue(entry.value)}`).join("\n") +
+    "\n"
   );
 }
 

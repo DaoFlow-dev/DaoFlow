@@ -9,8 +9,10 @@ import { db } from "../db/connection";
 import { deployments, deploymentSteps } from "../db/schema/deployments";
 import { events } from "../db/schema/audit";
 import type { RepositoryPreparationConfig } from "../repository-preparation";
+import type { ComposeBuildPlan } from "../compose-build-plan";
 import type { ComposeEnvEvidence } from "../compose-env";
 import type { ComposeInputManifest } from "../compose-inputs";
+import type { ComposePreviewMetadata } from "../compose-preview";
 import type { ComposeReadinessProbeSnapshot } from "../compose-readiness";
 
 export type DeploymentRow = typeof deployments.$inferSelect;
@@ -128,6 +130,7 @@ export interface ConfigSnapshot extends Record<string, unknown> {
   environmentName?: string;
   targetServerName?: string;
   targetServerHost?: string;
+  stackName?: string;
   composeFilePath?: string;
   composeServiceName?: string;
   repoUrl?: string;
@@ -135,6 +138,7 @@ export interface ConfigSnapshot extends Record<string, unknown> {
   gitProviderId?: string;
   gitInstallationId?: string;
   branch?: string;
+  composeEnvBranch?: string;
   dockerfile?: string;
   buildContext?: string;
   ports?: string[];
@@ -146,8 +150,11 @@ export interface ConfigSnapshot extends Record<string, unknown> {
   uploadedComposeFileName?: string;
   uploadedContextArchiveName?: string;
   uploadedArtifactId?: string;
+  composeOperation?: "up" | "down";
+  preview?: ComposePreviewMetadata;
   composeImageOverride?: ComposeImageOverride;
   readinessProbe?: ComposeReadinessProbeSnapshot;
+  composeBuildPlan?: ComposeBuildPlan;
   composeEnv?: ComposeEnvEvidence;
   composeInputs?: ComposeInputManifest;
 }

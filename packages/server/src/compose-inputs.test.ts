@@ -152,6 +152,113 @@ describe("compose input materialization", () => {
     );
   });
 
+  it("replays previously frozen build contexts without renormalizing them against the original compose path", () => {
+    const workDir = mkdtempSync(join(tmpdir(), "daoflow-compose-replay-build-"));
+    tempDirs.push(workDir);
+
+    const frozenInputs: FrozenComposeInputsPayload = {
+      composeFile: {
+        path: ".daoflow.compose.rendered.yaml",
+        sourcePath: "deploy/compose.yaml",
+        contents: [
+          "services:",
+          "  api:",
+          "    build:",
+          "      context: deploy",
+          "      dockerfile: ../Dockerfile",
+          "secrets:",
+          "  npm_token:",
+          "    file: deploy/secrets/npm.token"
+        ].join("\n")
+      },
+      envFiles: []
+    };
+
+    const result = materializeComposeInputs({
+      workDir,
+      composeFile: "missing-compose.yaml",
+      sourceProvenance: "uploaded-artifact",
+      composeEnvFileContents: "",
+      existingFrozenInputs: frozenInputs,
+      existingBuildPlan: {
+        status: "materialized",
+        version: 1,
+        stackName: null,
+        strategy: "build-only",
+        services: [
+          {
+            serviceName: "api",
+            context: "deploy",
+            contextType: "local-path",
+            image: null,
+            dockerfile: "../Dockerfile",
+            target: null,
+            args: [],
+            additionalContexts: [],
+            secrets: [
+              {
+                sourceName: "npm_token",
+                provider: "file",
+                reference: "deploy/secrets/npm.token",
+                target: null
+              }
+            ]
+          }
+        ],
+        graphServices: [
+          {
+            serviceName: "api",
+            image: null,
+            hasBuild: true,
+            dependsOn: [],
+            healthcheck: {
+              present: false,
+              disabled: false,
+              testType: "none",
+              interval: null,
+              timeout: null,
+              startPeriod: null,
+              startInterval: null,
+              retries: null
+            },
+            networks: [],
+            namedVolumes: [],
+            runtimeSecrets: [],
+            configs: [],
+            profiles: []
+          }
+        ],
+        networks: [],
+        volumes: [],
+        secrets: [],
+        configs: [],
+        warnings: ["Preserved build-plan warning"]
+      }
+    });
+
+    expect(result.buildPlan).toMatchObject({
+      strategy: "build-only",
+      services: [
+        {
+          serviceName: "api",
+          context: "deploy",
+          dockerfile: "../Dockerfile"
+        }
+      ],
+      warnings: ["Preserved build-plan warning"]
+    });
+    expect(readFileSync(join(workDir, result.composeFile), "utf8")).toContain("context: deploy");
+    expect(readFileSync(join(workDir, result.composeFile), "utf8")).not.toContain(
+      "context: deploy/deploy"
+    );
+    expect(readFileSync(join(workDir, result.composeFile), "utf8")).toContain(
+      "file: deploy/secrets/npm.token"
+    );
+    expect(readFileSync(join(workDir, result.composeFile), "utf8")).not.toContain(
+      "file: deploy/deploy/secrets/npm.token"
+    );
+  });
+
   it("rejects env_file references that escape the deployment workspace", () => {
     const workDir = mkdtempSync(join(tmpdir(), "daoflow-compose-traversal-"));
     tempDirs.push(workDir);

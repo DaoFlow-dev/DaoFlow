@@ -2,6 +2,11 @@ import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, normalize, relative, resolve } from "node:path";
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
+import {
+  buildComposeBuildPlan,
+  rewriteComposeBuildAndSecretReferences,
+  type ComposeBuildPlan
+} from "./compose-build-plan";
 import { COMPOSE_ENV_FILE_NAME } from "./compose-env";
 
 export const RENDERED_COMPOSE_FILE_NAME = ".daoflow.compose.rendered.yaml";
@@ -58,6 +63,7 @@ export interface FrozenComposeInputsPayload {
 
 export interface MaterializedComposeInputs {
   composeFile: string;
+  buildPlan: ComposeBuildPlan;
   manifest: ComposeInputManifest;
   frozenInputs: FrozenComposeInputsPayload;
 }
@@ -253,6 +259,7 @@ export function materializeComposeInputs(input: {
   composeEnvFileContents: string;
   existingManifest?: ComposeInputManifest;
   existingFrozenInputs?: FrozenComposeInputsPayload;
+  existingBuildPlan?: ComposeBuildPlan;
   imageOverride?: ComposeImageOverrideRequest;
 }): MaterializedComposeInputs {
   if (input.existingFrozenInputs) {
@@ -262,6 +269,7 @@ export function materializeComposeInputs(input: {
         unknown
       > | null) ?? {};
     applyComposeImageOverride(doc, input.imageOverride);
+    const buildPlan = buildComposeBuildPlan(doc, input.existingBuildPlan?.warnings ?? []);
     const renderedComposeContents = stringifyYaml(doc);
     const frozenInputs: FrozenComposeInputsPayload = {
       composeFile: {
@@ -273,9 +281,11 @@ export function materializeComposeInputs(input: {
     const composeFile = materializeFrozenComposeInputs(input.workDir, frozenInputs);
     const preservedEntries =
       input.existingManifest?.entries.filter((entry) => entry.kind === "repo-default-env") ?? [];
+    const mergedWarnings = [...(input.existingManifest?.warnings ?? [])];
     const manifest: ComposeInputManifest = input.existingManifest
       ? {
           ...input.existingManifest,
+          warnings: mergedWarnings,
           entries: [
             buildManifestEntry({
               kind: "compose-file",
@@ -306,7 +316,7 @@ export function materializeComposeInputs(input: {
       : {
           status: "materialized",
           version: 1,
-          warnings: [],
+          warnings: mergedWarnings,
           entries: [
             buildManifestEntry({
               kind: "compose-file",
@@ -336,6 +346,7 @@ export function materializeComposeInputs(input: {
 
     return {
       composeFile,
+      buildPlan,
       manifest,
       frozenInputs
     };
@@ -344,13 +355,19 @@ export function materializeComposeInputs(input: {
   const composePath = join(input.workDir, input.composeFile);
   const originalComposeContents = readFileSync(composePath, "utf8");
   const doc = (parseYaml(originalComposeContents) as Record<string, unknown> | null) ?? {};
+  const buildWarnings = rewriteComposeBuildAndSecretReferences({
+    doc,
+    workDir: input.workDir,
+    composeFile: input.composeFile
+  });
   applyComposeImageOverride(doc, input.imageOverride);
+  const buildPlan = buildComposeBuildPlan(doc, buildWarnings);
   const services =
     doc.services && typeof doc.services === "object" && !Array.isArray(doc.services)
       ? (doc.services as Record<string, unknown>)
       : null;
   const envFileReferences = collectServiceEnvFileReferences(doc);
-  const warnings: string[] = [];
+  const warnings: string[] = [...buildWarnings];
   const envFilesBySource = new Map<string, FrozenComposeEnvFilePayload>();
 
   for (const [serviceName, references] of envFileReferences.entries()) {
@@ -475,6 +492,7 @@ export function materializeComposeInputs(input: {
 
   return {
     composeFile,
+    buildPlan,
     manifest: {
       status: "materialized",
       version: 1,

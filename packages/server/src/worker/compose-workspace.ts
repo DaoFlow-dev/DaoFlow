@@ -13,10 +13,12 @@ import type { ConfigSnapshot } from "./step-management";
 import { resolveCheckoutSpec } from "./checkout-source";
 import { restoreUploadedArtifacts } from "./uploaded-artifacts";
 import {
+  COMPOSE_ENV_EXPORT_FILE_NAME,
   COMPOSE_ENV_FILE_NAME,
   type ComposeEnvEvidence,
   type ComposeEnvMaterializedEntry
 } from "../compose-env";
+import type { ComposeBuildPlan } from "../compose-build-plan";
 import type { ComposeInputManifest, FrozenComposeInputsPayload } from "../compose-inputs";
 import { materializeComposeWorkspaceArtifacts } from "../compose-workspace-artifacts";
 import type { DeploymentComposeState } from "../db/services/compose-env";
@@ -24,6 +26,7 @@ import type { DeploymentComposeState } from "../db/services/compose-env";
 interface ComposeWorkspace {
   workDir: string;
   composeFile: string;
+  composeBuildPlan: ComposeBuildPlan;
   composeEnv: {
     composeEnv: ComposeEnvEvidence;
     payloadEntries: ComposeEnvMaterializedEntry[];
@@ -55,6 +58,7 @@ function materializeComposeArtifacts(
 
   return {
     composeFile: artifacts.composeFile,
+    composeBuildPlan: artifacts.composeBuildPlan,
     composeEnv: artifacts.composeEnv,
     composeInputs: artifacts.composeInputs
   };
@@ -122,10 +126,11 @@ export async function prepareComposeWorkspace(
     const artifacts = materializeComposeArtifacts({
       workDir: localClone.workDir,
       composeFile: config.composeFilePath ?? "docker-compose.yml",
-      branch: checkout.branch,
+      branch: config.composeEnvBranch ?? checkout.branch,
       sourceProvenance: "repository-checkout",
       deploymentState,
       imageOverride: config.composeImageOverride,
+      existingComposeBuildPlan: config.composeBuildPlan,
       existingComposeEnv: config.composeEnv,
       existingComposeInputs: config.composeInputs
     });
@@ -174,7 +179,9 @@ export async function prepareComposeWorkspace(
   if (config.uploadedArtifactId) {
     await restoreUploadedArtifacts({
       artifactId: config.uploadedArtifactId,
-      destinationDir: localStageDir
+      destinationDir: localStageDir,
+      composeFileName: config.uploadedComposeFileName,
+      contextArchiveName: config.uploadedContextArchiveName
     });
   }
   const composeFile = basename(resolveUploadedComposeFile(config));
@@ -198,10 +205,11 @@ export async function prepareComposeWorkspace(
   const artifacts = materializeComposeArtifacts({
     workDir: localStageDir,
     composeFile,
-    branch: config.branch ?? "main",
+    branch: config.composeEnvBranch ?? config.branch ?? "main",
     sourceProvenance: "uploaded-artifact",
     deploymentState,
     imageOverride: config.composeImageOverride,
+    existingComposeBuildPlan: config.composeBuildPlan,
     existingComposeEnv: config.composeEnv,
     existingComposeInputs: config.composeInputs
   });
@@ -244,6 +252,7 @@ export async function prepareComposeWorkspace(
     [
       artifacts.composeFile,
       COMPOSE_ENV_FILE_NAME,
+      COMPOSE_ENV_EXPORT_FILE_NAME,
       ...artifacts.composeInputs.frozenInputs.envFiles.map((envFile) => envFile.path)
     ],
     onLog,
