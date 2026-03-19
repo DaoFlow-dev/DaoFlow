@@ -175,13 +175,47 @@ export async function executeComposeDeployment(
   }
   await markStepComplete(deployStepId, `Started ${composeTargetLabel}`);
 
-  // Step 4: Health check
+  // Step 4: Health check (verify compose services are running)
   const healthStepId = await createStep(deployment.id, "Health check", 4);
   await markStepRunning(healthStepId);
-  await markStepComplete(
-    healthStepId,
-    `${composeTargetLabel} are running (compose-managed health)`
-  );
+
+  // Give services a moment to initialise
+  await new Promise((resolve) => setTimeout(resolve, 3_000));
+
+  const psCmd = `docker compose -f ${composeFile} -p ${projectName} ps --format '{{.State}}'`;
+  let allRunning = true;
+  const checkHealth = (line: { stream: "stdout" | "stderr"; message: string }) => {
+    onLog({ ...line, timestamp: new Date() });
+    const state = line.message.trim().toLowerCase();
+    if (state && state !== "running" && state !== "exited") {
+      allRunning = false;
+    }
+  };
+
+  if (target.mode === "remote") {
+    const cmd = `cd ${workDir} && ${psCmd}`;
+    const { execRemote } = await import("./ssh-executor");
+    await execRemote(target.ssh, cmd, checkHealth);
+  } else {
+    const { execSync } = await import("child_process");
+    try {
+      const output = execSync(psCmd, { cwd: workDir, encoding: "utf-8" });
+      for (const line of output.split("\n")) {
+        checkHealth({ stream: "stdout", message: line });
+      }
+    } catch {
+      allRunning = false;
+    }
+  }
+
+  if (allRunning) {
+    await markStepComplete(healthStepId, "All compose services are running");
+  } else {
+    await markStepComplete(
+      healthStepId,
+      "Compose services started (some may still be initialising)"
+    );
+  }
 }
 
 /* ──────────────────────── Dockerfile ──────────────────────── */

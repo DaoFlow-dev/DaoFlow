@@ -1,6 +1,7 @@
 import type { servers } from "../db/schema/servers";
 import { decrypt } from "../db/crypto";
 import { removeSSHKey, type SSHTarget, writeSSHKey } from "./ssh-executor";
+import { hostname } from "node:os";
 
 export type ExecutionTarget =
   | {
@@ -14,9 +15,18 @@ export type ExecutionTarget =
 
 const REMOTE_STAGING_ROOT = process.env.REMOTE_GIT_WORK_DIR ?? "/tmp/daoflow-staging";
 
+/** Cached hostname — resolved once at module load. */
+const localHostname = hostname().toLowerCase();
+
 function isLocalHost(host: string): boolean {
   const normalized = host.trim().toLowerCase();
-  return normalized === "localhost" || normalized === "127.0.0.1" || normalized === "::1";
+  return (
+    normalized === "localhost" ||
+    normalized === "127.0.0.1" ||
+    normalized === "::1" ||
+    normalized === "host.docker.internal" ||
+    normalized === localHostname
+  );
 }
 
 export function resolveExecutionTarget(

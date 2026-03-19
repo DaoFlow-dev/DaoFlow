@@ -150,3 +150,61 @@ export function throwOnOperationError(
     });
   }
 }
+
+/** Helper for delete/cancel mutations that carry userId, email, and role. */
+export function getDeleteContext(ctx: {
+  session: { user: { id: string; email: string; role?: string | null } };
+}) {
+  return {
+    userId: ctx.session.user.id,
+    email: ctx.session.user.email,
+    role: (ctx.session.user.role ?? "viewer") as AppRole
+  };
+}
+
+/**
+ * Map a deploy/rollback result status to the appropriate TRPCError.
+ * Centralises the repeated if-chain in triggerDeploy / executeRollback.
+ */
+export function throwOnDeployResultError(result: {
+  status: string;
+  entity?: string;
+  message?: string;
+  retention?: number;
+}): void {
+  const map: Record<string, { code: TRPCError["code"]; message: string }> = {
+    not_found: {
+      code: "NOT_FOUND",
+      message: `${result.entity ?? "Resource"} not found.`
+    },
+    no_server: {
+      code: "BAD_REQUEST",
+      message: "No target server configured for this service or environment."
+    },
+    create_failed: {
+      code: "INTERNAL_SERVER_ERROR",
+      message: "Failed to create deployment record."
+    },
+    invalid_source: {
+      code: "BAD_REQUEST",
+      message: result.message ?? "Invalid deployment source."
+    },
+    provider_unavailable: {
+      code: "PRECONDITION_FAILED",
+      message: result.message ?? "Provider unavailable."
+    },
+    invalid_target: {
+      code: "BAD_REQUEST",
+      message: "Target deployment is not a successful deployment."
+    },
+    outside_retention: {
+      code: "BAD_REQUEST",
+      message: `Target deployment is outside the retention window (${result.retention} versions).`
+    }
+  };
+
+  const entry = map[result.status];
+  if (entry) {
+    throw new TRPCError({ code: entry.code, message: entry.message });
+  }
+}

@@ -85,12 +85,18 @@ async function start() {
     // Continue — the server can still serve health checks
   }
 
-  void ensureInitialOwnerFromEnv().catch((error) => {
+  try {
+    await ensureInitialOwnerFromEnv();
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    const isPasswordError = /password/i.test(msg);
     console.error(
-      "[auth] Initial owner bootstrap failed:",
-      error instanceof Error ? error.message : String(error)
+      `[auth] Initial owner bootstrap failed: ${msg}` +
+        (isPasswordError
+          ? "\n       → Ensure DAOFLOW_INITIAL_ADMIN_PASSWORD is at least 8 characters, then recreate the container with: docker compose up -d"
+          : "")
     );
-  });
+  }
 
   // Start the execution worker when Docker is available
   if (shouldStartWorker()) {

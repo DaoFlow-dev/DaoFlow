@@ -25,7 +25,9 @@ import {
   deployReadProcedure,
   getActorContext,
   getUpdaterContext,
-  throwOnOperationError
+  getDeleteContext,
+  throwOnOperationError,
+  throwOnDeployResultError
 } from "../trpc";
 
 export const deployRouter = t.router({
@@ -215,37 +217,8 @@ export const deployRouter = t.router({
         ...input,
         ...getActorContext(ctx)
       });
-      if (result.status === "not_found") {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: `${result.entity ?? "Resource"} not found.`
-        });
-      }
-      if (result.status === "no_server") {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: "No target server configured for this service or environment."
-        });
-      }
-      if (result.status === "create_failed") {
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Failed to create deployment record."
-        });
-      }
-      if (result.status === "invalid_source") {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: result.message
-        });
-      }
-      if (result.status === "provider_unavailable") {
-        throw new TRPCError({
-          code: "PRECONDITION_FAILED",
-          message: result.message
-        });
-      }
-      return result.deployment;
+      throwOnDeployResultError(result);
+      return (result as { deployment: unknown }).deployment;
     }),
   executeRollback: deployRollbackProcedure
     .input(
@@ -259,31 +232,8 @@ export const deployRouter = t.router({
         ...input,
         ...getActorContext(ctx)
       });
-      if (result.status === "not_found") {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: `${result.entity ?? "Resource"} not found.`
-        });
-      }
-      if (result.status === "invalid_target") {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: "Target deployment is not a successful deployment."
-        });
-      }
-      if (result.status === "outside_retention") {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: `Target deployment is outside the retention window (${result.retention} versions).`
-        });
-      }
-      if (result.status === "create_failed") {
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Failed to create rollback deployment."
-        });
-      }
-      return result.deployment;
+      throwOnDeployResultError(result);
+      return (result as { deployment: unknown }).deployment;
     }),
   deleteEnvironmentVariable: envWriteProcedure
     .input(
@@ -296,18 +246,13 @@ export const deployRouter = t.router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      const actor = getDeleteContext(ctx);
       const result = await deleteEnvironmentVariable({
         environmentId: input.environmentId,
         key: input.key,
-        deletedByUserId: ctx.session.user.id,
-        deletedByEmail: ctx.session.user.email,
-        deletedByRole: (ctx.session.user.role ?? "viewer") as
-          | "viewer"
-          | "owner"
-          | "admin"
-          | "operator"
-          | "developer"
-          | "agent"
+        deletedByUserId: actor.userId,
+        deletedByEmail: actor.email,
+        deletedByRole: actor.role
       });
 
       if (!result) {
@@ -326,17 +271,12 @@ export const deployRouter = t.router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      const actor = getDeleteContext(ctx);
       const result = await cancelDeployment({
         deploymentId: input.deploymentId,
-        cancelledByUserId: ctx.session.user.id,
-        cancelledByEmail: ctx.session.user.email,
-        cancelledByRole: (ctx.session.user.role ?? "viewer") as
-          | "viewer"
-          | "owner"
-          | "admin"
-          | "operator"
-          | "developer"
-          | "agent"
+        cancelledByUserId: actor.userId,
+        cancelledByEmail: actor.email,
+        cancelledByRole: actor.role
       });
 
       if (result.status === "not-found") {
