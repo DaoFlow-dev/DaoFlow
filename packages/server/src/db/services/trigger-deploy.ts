@@ -20,7 +20,6 @@ import { dispatchDeploymentExecution } from "./deployment-dispatch";
 import type { AppRole } from "@daoflow/shared";
 import { asRecord, readString } from "./json-helpers";
 import {
-  describeComposeReadinessProbe,
   readComposeReadinessProbeFromConfig,
   snapshotComposeReadinessProbe
 } from "../../compose-readiness";
@@ -32,11 +31,20 @@ import {
 } from "./deployment-source";
 import { prepareComposeDeploymentEnvState } from "./compose-env";
 import { revalidateProjectSourceForExecution } from "./project-source-execution-validation";
+import {
+  buildComposePreviewEnvEntries,
+  deriveComposePreviewMetadata,
+  normalizeComposePreviewRequest,
+  previewModeAllowsRequest,
+  readComposePreviewConfigFromConfig,
+  type ComposePreviewRequestInput
+} from "../../compose-preview";
 
 export interface TriggerDeployInput {
   serviceId: string;
   commitSha?: string;
   imageTag?: string;
+  preview?: ComposePreviewRequestInput;
   requestedByUserId?: string | null;
   requestedByEmail?: string | null;
   requestedByRole?: AppRole | null;
@@ -46,35 +54,50 @@ export interface TriggerDeployInput {
 /** Generate deployment steps based on sourceType. */
 function stepsForSourceType(input: {
   sourceType: string;
-  composeReadinessDescription?: string | null;
+  composeOperation?: "up" | "down";
+  hasPreview?: boolean;
 }): { label: string; detail: string }[] {
   switch (input.sourceType) {
     case "compose":
       return [
-        { label: "Pull images", detail: "docker-compose pull" },
-        { label: "Start services", detail: "docker-compose up -d" },
         {
-          label: "Health check",
-          detail: input.composeReadinessDescription
-            ? `Verify Docker Compose container state, Docker health, and ${input.composeReadinessDescription}`
-            : "Verify Docker Compose container state and Docker health"
+          label: "Prepare deployment inputs",
+          detail: input.hasPreview
+            ? "Resolved preview compose source inputs, deployment env state, and replayable config snapshot."
+            : "Resolved compose source inputs, deployment env state, and replayable config snapshot."
+        },
+        {
+          label: "Queue execution handoff",
+          detail:
+            input.composeOperation === "down"
+              ? "Dispatch the compose preview cleanup to the execution plane."
+              : "Dispatch the compose deployment to the execution plane."
         }
       ];
     case "dockerfile":
       return [
-        { label: "Clone repository", detail: "git clone" },
-        { label: "Build image", detail: "docker build" },
-        { label: "Start container", detail: "docker run" },
-        { label: "Health check", detail: "Verify container is healthy" }
+        {
+          label: "Prepare deployment inputs",
+          detail: "Resolved Dockerfile source inputs and created an immutable deployment snapshot."
+        },
+        {
+          label: "Queue execution handoff",
+          detail: "Dispatch the Dockerfile deployment to the execution plane."
+        }
       ];
     case "image":
       return [
-        { label: "Pull image", detail: "docker pull" },
-        { label: "Start container", detail: "docker run" },
-        { label: "Health check", detail: "Verify container is healthy" }
+        {
+          label: "Prepare deployment inputs",
+          detail: "Resolved the image reference and created an immutable deployment snapshot."
+        },
+        {
+          label: "Queue execution handoff",
+          detail: "Dispatch the image deployment to the execution plane."
+        }
       ];
     default:
-      return [{ label: "Deploy", detail: "Execute deployment" }];
+      return [{ label: "Queue execution handoff", detail: "Dispatch the deployment job." }];
   }
 }
 
@@ -159,6 +182,12 @@ export async function triggerDeploy(input: TriggerDeployInput) {
 
   const composeProjectHasRepositorySource =
     svc.sourceType === "compose" ? hasRepositorySource(project) : false;
+  if (input.preview && svc.sourceType !== "compose") {
+    return {
+      status: "invalid_preview" as const,
+      message: "Preview deployments are only supported for compose services."
+    };
+  }
 
   if (svc.sourceType === "compose" && composeProjectHasRepositorySource) {
     const sourceValidation = await revalidateProjectSourceForExecution({
@@ -176,6 +205,7 @@ export async function triggerDeploy(input: TriggerDeployInput) {
 
   const buildConfig = asRecord(svc.config);
   const readinessProbe = readComposeReadinessProbeFromConfig(buildConfig);
+  const previewConfig = readComposePreviewConfigFromConfig(buildConfig);
   const configSnapshot: Record<string, unknown> = composeProjectHasRepositorySource
     ? buildRepositorySourceSnapshot(project)
     : {};
@@ -183,6 +213,29 @@ export async function triggerDeploy(input: TriggerDeployInput) {
   let replayedComposeDeployment: typeof deployments.$inferSelect | null = null;
 
   if (svc.sourceType === "compose") {
+    const previewRequest = input.preview ? normalizeComposePreviewRequest(input.preview) : null;
+    if (previewRequest) {
+      if (!composeProjectHasRepositorySource) {
+        return {
+          status: "invalid_preview" as const,
+          message:
+            "Preview deployments require a git-backed compose service so DaoFlow can check out the requested branch."
+        };
+      }
+      if (!previewConfig?.enabled) {
+        return {
+          status: "invalid_preview" as const,
+          message: "Preview deployments are not enabled for this compose service."
+        };
+      }
+      if (!previewModeAllowsRequest(previewConfig.mode, previewRequest)) {
+        return {
+          status: "invalid_preview" as const,
+          message: `Preview mode ${previewConfig.mode} does not allow ${previewRequest.target} preview requests.`
+        };
+      }
+    }
+
     if (composeProjectHasRepositorySource) {
       Object.assign(
         configSnapshot,
@@ -193,9 +246,35 @@ export async function triggerDeploy(input: TriggerDeployInput) {
         })
       );
 
+      let previewMetadata = null;
+      if (previewRequest && previewConfig) {
+        previewMetadata = deriveComposePreviewMetadata({
+          config: previewConfig,
+          request: previewRequest,
+          projectName: project.name,
+          environmentName: env.name,
+          serviceName: svc.name,
+          baseStackName: project.name
+        });
+        configSnapshot.branch = previewRequest.branch;
+        configSnapshot.composeEnvBranch = previewMetadata.envBranch;
+        configSnapshot.stackName = previewMetadata.stackName;
+        configSnapshot.composeOperation = previewRequest.action === "destroy" ? "down" : "up";
+        configSnapshot.preview = previewMetadata;
+      } else {
+        configSnapshot.composeOperation = "up";
+      }
+
       const envState = await prepareComposeDeploymentEnvState({
         environmentId: env.id,
-        branch: typeof configSnapshot.branch === "string" ? configSnapshot.branch : "main"
+        branch:
+          typeof configSnapshot.composeEnvBranch === "string"
+            ? configSnapshot.composeEnvBranch
+            : typeof configSnapshot.branch === "string"
+              ? configSnapshot.branch
+              : "main",
+        additionalEntries:
+          previewMetadata !== null ? buildComposePreviewEnvEntries(previewMetadata) : undefined
       });
       configSnapshot.composeEnv = envState.composeEnv;
       envVarsEncrypted = envState.envVarsEncrypted;
@@ -277,10 +356,8 @@ export async function triggerDeploy(input: TriggerDeployInput) {
     trigger: input.trigger ?? "user",
     steps: stepsForSourceType({
       sourceType: svc.sourceType,
-      composeReadinessDescription:
-        svc.sourceType === "compose" && readinessProbe
-          ? describeComposeReadinessProbe(readinessProbe)
-          : null
+      composeOperation: configSnapshot.composeOperation === "down" ? "down" : "up",
+      hasPreview: configSnapshot.preview !== undefined
     }),
     configSnapshot,
     envVarsEncrypted

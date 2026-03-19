@@ -19,6 +19,8 @@ import {
 } from "../db/services/backups";
 import { listDestinations, getDestination } from "../db/services/destinations";
 import { listComposeDriftReport, listComposeReleaseCatalog } from "../db/services/compose";
+import { listComposePreviewReconciliation } from "../db/services/compose-preview-reconciliation";
+import { listComposePreviewDeployments } from "../db/services/compose-previews";
 import { listEnvironmentVariableInventory } from "../db/services/envvars";
 import { listExecutionQueue } from "../db/services/execution";
 import { listInfrastructureInventory, listServerReadiness } from "../db/services/servers";
@@ -111,6 +113,30 @@ export const readRouter = t.router({
   composeDriftReport: protectedProcedure.input(limitInput(40)).query(async ({ input }) => {
     return listComposeDriftReport(input.limit ?? 24);
   }),
+  composePreviews: deployReadProcedure
+    .input(
+      z.object({
+        serviceId: z.string().min(1)
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      return listComposePreviewDeployments({
+        serviceRef: input.serviceId,
+        requestedByUserId: ctx.session.user.id
+      });
+    }),
+  composePreviewReconciliation: deployReadProcedure
+    .input(
+      z.object({
+        serviceId: z.string().min(1)
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      return listComposePreviewReconciliation({
+        serviceRef: input.serviceId,
+        requestedByUserId: ctx.session.user.id
+      });
+    }),
   approvalQueue: protectedProcedure.input(limitInput(40)).query(async ({ input }) => {
     return listApprovalQueue(input.limit ?? 24);
   }),

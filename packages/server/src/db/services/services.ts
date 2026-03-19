@@ -10,6 +10,11 @@ import {
   type ComposeReadinessProbeInput,
   writeComposeReadinessProbeToConfig
 } from "../../compose-readiness";
+import {
+  readComposePreviewConfigFromConfig,
+  type ComposePreviewConfigInput,
+  writeComposePreviewConfigToConfig
+} from "../../compose-preview";
 
 /* ──────────────────────── Helpers ──────────────────────── */
 
@@ -34,6 +39,7 @@ export interface CreateServiceInput {
   port?: string;
   healthcheckPath?: string;
   readinessProbe?: ComposeReadinessProbeInput | null;
+  preview?: ComposePreviewConfigInput | null;
   targetServerId?: string;
   requestedByUserId: string;
   requestedByEmail: string;
@@ -50,6 +56,7 @@ export interface UpdateServiceInput {
   port?: string;
   healthcheckPath?: string;
   readinessProbe?: ComposeReadinessProbeInput | null;
+  preview?: ComposePreviewConfigInput | null;
   replicaCount?: string;
   targetServerId?: string;
   requestedByUserId: string;
@@ -69,8 +76,10 @@ export interface DeleteServiceInput {
 function normalizeServiceRecord(service: typeof services.$inferSelect) {
   return {
     ...service,
-    config: writeComposeReadinessProbeToConfig({
-      config: service.config
+    config: writeComposePreviewConfigToConfig({
+      config: writeComposeReadinessProbeToConfig({
+        config: service.config
+      })
     })
   };
 }
@@ -101,6 +110,12 @@ export async function createService(input: CreateServiceInput) {
       message: "Explicit readiness probes are only supported for compose services."
     };
   }
+  if (input.preview?.enabled === true && input.sourceType !== "compose") {
+    return {
+      status: "invalid_config" as const,
+      message: "Preview deployments are only supported for compose services."
+    };
+  }
 
   const serviceId = id();
   const [service] = await db
@@ -119,9 +134,12 @@ export async function createService(input: CreateServiceInput) {
       healthcheckPath: input.healthcheckPath ?? null,
       targetServerId: input.targetServerId ?? null,
       status: "inactive",
-      config: writeComposeReadinessProbeToConfig({
-        config: {},
-        readinessProbe: input.readinessProbe
+      config: writeComposePreviewConfigToConfig({
+        config: writeComposeReadinessProbeToConfig({
+          config: {},
+          readinessProbe: input.readinessProbe
+        }),
+        preview: input.preview
       }),
       updatedAt: new Date()
     })
@@ -164,6 +182,12 @@ export async function updateService(input: UpdateServiceInput) {
       message: "Explicit readiness probes are only supported for compose services."
     };
   }
+  if (input.preview?.enabled === true && nextSourceType !== "compose") {
+    return {
+      status: "invalid_config" as const,
+      message: "Preview deployments are only supported for compose services."
+    };
+  }
 
   const updates: Partial<typeof services.$inferInsert> = { updatedAt: new Date() };
   if (input.name !== undefined) {
@@ -183,10 +207,25 @@ export async function updateService(input: UpdateServiceInput) {
       config: existing.config,
       readinessProbe: input.readinessProbe
     });
+  }
+  if (input.preview !== undefined) {
+    updates.config = writeComposePreviewConfigToConfig({
+      config: updates.config ?? existing.config,
+      preview: input.preview
+    });
   } else if (nextSourceType !== "compose" && readComposeReadinessProbeFromConfig(existing.config)) {
     updates.config = writeComposeReadinessProbeToConfig({
       config: existing.config,
       readinessProbe: null
+    });
+  }
+  if (
+    nextSourceType !== "compose" &&
+    readComposePreviewConfigFromConfig(updates.config ?? existing.config)
+  ) {
+    updates.config = writeComposePreviewConfigToConfig({
+      config: updates.config ?? existing.config,
+      preview: null
     });
   }
 

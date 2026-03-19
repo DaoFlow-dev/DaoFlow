@@ -10,6 +10,7 @@ import {
   failExecutionJob
 } from "../db/services/execution";
 import { triggerDeploy } from "../db/services/trigger-deploy";
+import { reconcileComposePreviewState } from "../db/services/compose-preview-reconciliation";
 import { executeRollback } from "../db/services/execute-rollback";
 import { upsertEnvironmentVariable, deleteEnvironmentVariable } from "../db/services/envvars";
 import { resolveEnvironmentSecretInventory } from "../db/services/onepassword";
@@ -209,7 +210,15 @@ export const deployRouter = t.router({
       z.object({
         serviceId: z.string().min(1),
         commitSha: z.string().optional(),
-        imageTag: z.string().optional()
+        imageTag: z.string().optional(),
+        preview: z
+          .object({
+            target: z.enum(["branch", "pull-request"]),
+            branch: z.string().min(1).max(255),
+            pullRequestNumber: z.number().int().min(1).optional(),
+            action: z.enum(["deploy", "destroy"]).optional()
+          })
+          .optional()
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -219,6 +228,22 @@ export const deployRouter = t.router({
       });
       throwOnDeployResultError(result);
       return (result as { deployment: unknown }).deployment;
+    }),
+  reconcileComposePreviews: deployStartProcedure
+    .input(
+      z.object({
+        serviceId: z.string().min(1),
+        dryRun: z.boolean().optional(),
+        limit: z.number().int().min(1).max(100).optional()
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      return reconcileComposePreviewState({
+        serviceRef: input.serviceId,
+        dryRun: input.dryRun,
+        limit: input.limit,
+        ...getActorContext(ctx)
+      });
     }),
   executeRollback: deployRollbackProcedure
     .input(

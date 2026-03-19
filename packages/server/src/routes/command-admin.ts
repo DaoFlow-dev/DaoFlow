@@ -30,16 +30,53 @@ import {
   throwOnOperationError
 } from "../trpc";
 
-const composeReadinessProbeSchema = z.object({
-  type: z.literal("http"),
-  target: z.literal("published-port"),
+const composeReadinessProbeBaseSchema = {
   port: z.number().int().min(1).max(65535),
-  path: z.string().min(1).max(255),
-  host: z.string().min(1).max(255).optional(),
-  scheme: z.enum(["http", "https"]).optional(),
   timeoutSeconds: z.number().int().min(1).max(300).optional(),
-  intervalSeconds: z.number().int().min(1).max(30).optional(),
-  successStatusCodes: z.array(z.number().int().min(100).max(599)).max(20).optional()
+  intervalSeconds: z.number().int().min(1).max(30).optional()
+} as const;
+
+const composeReadinessProbeSchema = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("http"),
+    target: z.literal("published-port"),
+    ...composeReadinessProbeBaseSchema,
+    path: z.string().min(1).max(255),
+    host: z.string().min(1).max(255).optional(),
+    scheme: z.enum(["http", "https"]).optional(),
+    successStatusCodes: z.array(z.number().int().min(100).max(599)).max(20).optional()
+  }),
+  z.object({
+    type: z.literal("http"),
+    target: z.literal("internal-network"),
+    ...composeReadinessProbeBaseSchema,
+    path: z.string().min(1).max(255),
+    scheme: z.enum(["http", "https"]).optional(),
+    successStatusCodes: z.array(z.number().int().min(100).max(599)).max(20).optional()
+  }),
+  z.object({
+    type: z.literal("tcp"),
+    target: z.literal("published-port"),
+    ...composeReadinessProbeBaseSchema,
+    host: z.string().min(1).max(255).optional()
+  }),
+  z.object({
+    type: z.literal("tcp"),
+    target: z.literal("internal-network"),
+    ...composeReadinessProbeBaseSchema
+  })
+]);
+
+const composePreviewConfigSchema = z.object({
+  enabled: z.boolean().optional(),
+  mode: z.enum(["branch", "pull-request", "any"]).optional(),
+  domainTemplate: z.string().min(1).max(255).optional(),
+  staleAfterHours: z
+    .number()
+    .int()
+    .min(1)
+    .max(24 * 30)
+    .optional()
 });
 
 export const adminRouter = t.router({
@@ -279,6 +316,7 @@ export const adminRouter = t.router({
         port: z.string().max(20).optional(),
         healthcheckPath: z.string().max(255).optional(),
         readinessProbe: composeReadinessProbeSchema.nullable().optional(),
+        preview: composePreviewConfigSchema.nullable().optional(),
         targetServerId: z.string().optional()
       })
     )
@@ -314,6 +352,7 @@ export const adminRouter = t.router({
         port: z.string().max(20).optional(),
         healthcheckPath: z.string().max(255).optional(),
         readinessProbe: composeReadinessProbeSchema.nullable().optional(),
+        preview: composePreviewConfigSchema.nullable().optional(),
         replicaCount: z.string().max(5).optional(),
         targetServerId: z.string().optional()
       })
