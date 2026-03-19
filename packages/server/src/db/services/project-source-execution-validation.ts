@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { db } from "../connection";
 import { projects } from "../schema/projects";
 import { resolveComposeFilePath } from "./deployment-source";
+import { asRecord } from "./json-helpers";
 import {
   mergeProjectSourceReadiness,
   validateProjectSourceReadiness,
@@ -49,6 +50,7 @@ export async function revalidateProjectSourceForExecution(input: {
   environment?: ProjectExecutionValidationEnvironment;
 }): Promise<ProjectSourceExecutionValidationResult> {
   const validation = await validateProjectSourceReadiness({
+    repoUrl: input.project.repoUrl,
     repoFullName: input.project.repoFullName,
     gitProviderId: input.project.gitProviderId,
     gitInstallationId: input.project.gitInstallationId,
@@ -56,7 +58,8 @@ export async function revalidateProjectSourceForExecution(input: {
     composePath: resolveComposeFilePath({
       project: input.project,
       environment: input.environment
-    })
+    }),
+    repositoryPreparation: asRecord(input.project.config).repositoryPreparation
   });
 
   if (validation.status === "skipped") {

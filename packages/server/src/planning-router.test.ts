@@ -11,6 +11,7 @@ import { createEnvironment, createProject } from "./db/services/projects";
 import { ensureControlPlaneReady } from "./db/services/seed";
 import { createService } from "./db/services/services";
 import { appRouter } from "./router";
+import { createLocalGitRepository } from "./test-git-repo";
 
 let fixtureCounter = 0;
 
@@ -348,6 +349,82 @@ describe("planning diff surfaces", () => {
       ])
     );
     expect(plan.isReady).toBe(false);
+  });
+
+  it("builds deployment plans for generic repoUrl compose services", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-plan-generic-repo-url",
+      session: makeSession("viewer")
+    });
+    const repository = createLocalGitRepository({
+      files: {
+        "deploy/compose.yaml": "services:\n  api:\n    image: example/api:${IMAGE_TAG}\n",
+        "deploy/.env": "IMAGE_TAG=stable\n"
+      }
+    });
+
+    try {
+      const projectResult = await createProject({
+        name: `generic-plan-${Date.now()}`,
+        repoUrl: repository.rootDir,
+        composePath: "deploy/compose.yaml",
+        defaultBranch: "main",
+        teamId: "team_foundation",
+        requestedByUserId: "user_foundation_owner",
+        requestedByEmail: "owner@daoflow.local",
+        requestedByRole: "owner"
+      });
+      if (projectResult.status !== "ok") {
+        throw new Error("Failed to create generic repoUrl planning fixture project.");
+      }
+
+      const environmentResult = await createEnvironment({
+        projectId: projectResult.project.id,
+        name: `generic-plan-env-${Date.now()}`,
+        targetServerId: "srv_foundation_1",
+        requestedByUserId: "user_foundation_owner",
+        requestedByEmail: "owner@daoflow.local",
+        requestedByRole: "owner"
+      });
+      if (environmentResult.status !== "ok") {
+        throw new Error("Failed to create generic repoUrl planning fixture environment.");
+      }
+
+      const serviceResult = await createService({
+        name: `generic-plan-svc-${Date.now()}`,
+        projectId: projectResult.project.id,
+        environmentId: environmentResult.environment.id,
+        sourceType: "compose",
+        targetServerId: "srv_foundation_1",
+        requestedByUserId: "user_foundation_owner",
+        requestedByEmail: "owner@daoflow.local",
+        requestedByRole: "owner"
+      });
+      if (serviceResult.status !== "ok") {
+        throw new Error("Failed to create generic repoUrl planning fixture service.");
+      }
+
+      const plan = await caller.deploymentPlan({
+        service: serviceResult.service.id
+      });
+
+      expect(plan.isReady).toBe(true);
+      expect(plan.composeEnvPlan?.branch).toBe("main");
+      expect(plan.composeEnvPlan?.composeEnv.counts).toMatchObject({
+        total: 1,
+        repoDefaults: 1,
+        environmentVariables: 0
+      });
+      expect(plan.composeEnvPlan?.interpolation.status).toBe("ok");
+      expect(
+        plan.preflightChecks.some(
+          (check) =>
+            check.status === "warn" && check.detail.includes("could not read deploy/compose.yaml")
+        )
+      ).toBe(false);
+    } finally {
+      repository.cleanup();
+    }
   });
 
   it("returns a scoped config diff from the planning lane", async () => {

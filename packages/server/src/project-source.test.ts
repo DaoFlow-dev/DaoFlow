@@ -18,6 +18,7 @@ import { encrypt } from "./db/crypto";
 import { encodeGitInstallationPermissions } from "./db/services/git-providers";
 import { asRecord } from "./db/services/json-helpers";
 import { resetTestDatabase } from "./test-db";
+import { createLocalGitRepository } from "./test-git-repo";
 import { ensureControlPlaneReady, resetControlPlaneSeedState } from "./db/services/seed";
 
 function toRequestUrl(input: string | URL | Request): string {
@@ -347,6 +348,81 @@ describe("project source persistence", () => {
       submodules: true,
       gitLfs: true
     });
+  });
+
+  it("persists and revalidates generic repoUrl source readiness when repoUrl changes", async () => {
+    const firstRepository = createLocalGitRepository({
+      files: {
+        "deploy/compose.yaml": "services:\n  api:\n    image: nginx:1.27\n"
+      }
+    });
+    const secondRepository = createLocalGitRepository({
+      files: {
+        "deploy/compose.yaml": "services:\n  api:\n    image: nginx:1.28\n"
+      }
+    });
+
+    try {
+      const created = await createProject({
+        name: `Generic Source ${Date.now()}`,
+        repoUrl: firstRepository.rootDir,
+        composePath: "deploy/compose.yaml",
+        defaultBranch: "main",
+        teamId: "team_foundation",
+        requestedByUserId: "user_foundation_owner",
+        requestedByEmail: "owner@daoflow.local",
+        requestedByRole: "owner"
+      });
+
+      expect(created.status).toBe("ok");
+      if (created.status !== "ok") {
+        throw new Error("Failed to create generic repoUrl project.");
+      }
+
+      const project = await getProject(created.project.id);
+      expect(project?.sourceReadiness).toMatchObject({
+        status: "ready",
+        providerType: "generic-git",
+        repoFullName: null,
+        repoUrl: firstRepository.rootDir,
+        branch: "main",
+        composePath: "deploy/compose.yaml"
+      });
+
+      const updated = await updateProject({
+        projectId: created.project.id,
+        repoUrl: secondRepository.rootDir,
+        requestedByUserId: "user_foundation_owner",
+        requestedByEmail: "owner@daoflow.local",
+        requestedByRole: "owner"
+      });
+
+      expect(updated.status).toBe("ok");
+      if (updated.status !== "ok") {
+        throw new Error("Failed to update generic repoUrl project.");
+      }
+
+      const [row] = await db
+        .select()
+        .from(projects)
+        .where(eq(projects.id, created.project.id))
+        .limit(1);
+
+      expect(row).toMatchObject({
+        repoUrl: secondRepository.rootDir,
+        composePath: "deploy/compose.yaml",
+        defaultBranch: "main"
+      });
+      expect(asRecord(row?.config).sourceReadiness).toMatchObject({
+        status: "ready",
+        providerType: "generic-git",
+        repoUrl: secondRepository.rootDir,
+        composePath: "deploy/compose.yaml"
+      });
+    } finally {
+      firstRepository.cleanup();
+      secondRepository.cleanup();
+    }
   });
 
   it("replays repository source metadata when creating a rollback deployment", async () => {

@@ -193,7 +193,7 @@ export async function remoteGitClone(
     timestamp: new Date()
   });
 
-  const cmd = `mkdir -p ${shellQuote(workDir)} && cd ${shellQuote(workDir)} && git clone --depth 1 --branch ${shellQuote(branch)} --single-branch ${shellQuote(repoUrl)} .`;
+  const cmd = `mkdir -p ${shellQuote(workDir)} && cd ${shellQuote(workDir)} && git clone --depth 1 --branch ${shellQuote(branch)} --single-branch -- ${shellQuote(repoUrl)} .`;
   const result = await execRemote(target, cmd, onLog);
   return { exitCode: result.exitCode };
 }

@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "../connection";
 import { encrypt } from "../crypto";
 import { gitInstallations, gitProviders } from "../schema/git-providers";
+import { createLocalGitRepository } from "../../test-git-repo";
 import { encodeGitInstallationPermissions } from "./git-providers";
 import { fetchProjectRepositoryTextFile } from "./project-source-files";
 import { resetTestDatabase } from "../../test-db";
@@ -85,6 +86,7 @@ describe("project source files", () => {
 
     const result = await fetchProjectRepositoryTextFile({
       project: {
+        repoUrl: "https://github.com/example-org/platform.git",
         repoFullName: "example-org/platform",
         gitProviderId: "gitprov_plan_github",
         gitInstallationId: "gitinst_plan_github"
@@ -148,6 +150,7 @@ describe("project source files", () => {
 
     const result = await fetchProjectRepositoryTextFile({
       project: {
+        repoUrl: "https://gitlab.com/example-group/platform.git",
         repoFullName: "example-group/platform",
         gitProviderId: "gitprov_plan_gitlab",
         gitInstallationId: "gitinst_plan_gitlab"
@@ -160,5 +163,34 @@ describe("project source files", () => {
       status: "ok",
       content: "services:\n  api:\n    image: example/api:${TAG}\n"
     });
+  });
+
+  it("reads compose files from generic repoUrl sources through a shallow checkout", async () => {
+    const repository = createLocalGitRepository({
+      files: {
+        "deploy/compose.yaml": "services:\n  api:\n    image: example/api:${TAG}\n"
+      }
+    });
+
+    try {
+      const result = await fetchProjectRepositoryTextFile({
+        project: {
+          repoUrl: repository.rootDir,
+          repoFullName: null,
+          gitProviderId: null,
+          gitInstallationId: null,
+          config: {}
+        },
+        branch: "main",
+        path: "deploy/compose.yaml"
+      });
+
+      expect(result).toEqual({
+        status: "ok",
+        content: "services:\n  api:\n    image: example/api:${TAG}\n"
+      });
+    } finally {
+      repository.cleanup();
+    }
   });
 });

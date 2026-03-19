@@ -289,7 +289,7 @@ export async function gitClone(
 
   const result = await execRunner(
     "git",
-    ["clone", "--depth", "1", "--branch", branch, "--single-branch", repoUrl, "."],
+    ["clone", "--depth", "1", "--branch", branch, "--single-branch", "--", repoUrl, "."],
     workDir,
     onLog,
     gitConfigPath ? { GIT_CONFIG_GLOBAL: gitConfigPath } : undefined

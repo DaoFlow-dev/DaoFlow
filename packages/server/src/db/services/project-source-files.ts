@@ -1,14 +1,20 @@
+import { existsSync, readFileSync } from "node:fs";
+import { isAbsolute, join, relative } from "node:path";
 import { createSign } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { db } from "../connection";
 import { gitProviders } from "../schema/git-providers";
 import { decrypt } from "../crypto";
 import { getGitInstallation, readGitInstallationAccessToken } from "./git-providers";
+import { asRecord } from "./json-helpers";
+import { materializeProjectSourceInspection } from "./project-source-checkout-inspection";
 
 type ProjectSourceFileProject = {
+  repoUrl: string | null;
   repoFullName: string | null;
   gitProviderId: string | null;
   gitInstallationId: string | null;
+  config?: unknown;
 };
 
 type ProjectSourceFileResult =
@@ -137,6 +143,47 @@ export async function fetchProjectRepositoryTextFile(input: {
   branch: string;
   path: string;
 }): Promise<ProjectSourceFileResult> {
+  if (input.project.repoUrl && !input.project.gitProviderId && !input.project.gitInstallationId) {
+    const inspection = await materializeProjectSourceInspection({
+      project: {
+        repoUrl: input.project.repoUrl,
+        repoFullName: input.project.repoFullName,
+        repositoryPreparation: asRecord(asRecord(input.project.config).repositoryPreparation)
+      },
+      branch: input.branch
+    });
+
+    if (inspection.status !== "ok") {
+      return inspection;
+    }
+
+    try {
+      const filePath = join(inspection.workDir, input.path);
+      const relativePath = relative(inspection.workDir, filePath);
+
+      if (relativePath.startsWith("..") || isAbsolute(relativePath)) {
+        return {
+          status: "not_found",
+          reason: `Repository file path ${input.path} escapes the repository.`
+        };
+      }
+
+      if (!existsSync(filePath)) {
+        return {
+          status: "not_found",
+          reason: `Repository file ${input.path} was not found in ${input.project.repoUrl}@${input.branch}.`
+        };
+      }
+
+      return {
+        status: "ok",
+        content: readFileSync(filePath, "utf8")
+      };
+    } finally {
+      inspection.cleanup();
+    }
+  }
+
   if (
     !input.project.repoFullName ||
     !input.project.gitProviderId ||
@@ -144,7 +191,8 @@ export async function fetchProjectRepositoryTextFile(input: {
   ) {
     return {
       status: "not_available",
-      reason: "Project source is not linked to a supported GitHub or GitLab installation."
+      reason:
+        "Project source does not define a supported provider-linked repository or a generic repoUrl checkout."
     };
   }
 

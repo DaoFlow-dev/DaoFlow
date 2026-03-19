@@ -95,12 +95,23 @@ export async function createProject(input: CreateProjectInput) {
   const byName = await db.select().from(projects).where(eq(projects.name, input.name)).limit(1);
   if (byName[0]) return { status: "conflict" as const, conflictField: "name" };
 
+  const baseConfig = {
+    description: input.description ?? "",
+    latestDeploymentStatus: "new"
+  };
+  const configWithRepositoryPreparation = mergeRepositoryPreparationConfig(baseConfig, {
+    submodules: input.repositorySubmodules,
+    gitLfs: input.repositoryGitLfs
+  });
   const sourceValidation = await validateProjectSourceReadiness({
+    repoUrl: input.repoUrl,
     repoFullName: input.repoFullName,
     gitProviderId: input.gitProviderId,
     gitInstallationId: input.gitInstallationId,
     defaultBranch: input.defaultBranch,
-    composePath: input.composePath
+    composePath: input.composePath,
+    repositoryPreparation: asRecord(configWithRepositoryPreparation).repositoryPreparation,
+    genericGitMode: "best-effort"
   });
   if (sourceValidation.status === "invalid") {
     return {
@@ -116,14 +127,6 @@ export async function createProject(input: CreateProjectInput) {
   }
 
   const projectId = id();
-  const baseConfig = {
-    description: input.description ?? "",
-    latestDeploymentStatus: "new"
-  };
-  const configWithRepositoryPreparation = mergeRepositoryPreparationConfig(baseConfig, {
-    submodules: input.repositorySubmodules,
-    gitLfs: input.repositoryGitLfs
-  });
   const [project] = await db
     .insert(projects)
     .values({
@@ -179,6 +182,7 @@ export async function updateProject(input: UpdateProjectInput) {
   }
 
   const sourceFieldsTouched =
+    input.repoUrl !== undefined ||
     input.repoFullName !== undefined ||
     input.gitProviderId !== undefined ||
     input.gitInstallationId !== undefined ||
@@ -186,14 +190,29 @@ export async function updateProject(input: UpdateProjectInput) {
     input.composePath !== undefined;
   const repositoryPreparationTouched =
     input.repositorySubmodules !== undefined || input.repositoryGitLfs !== undefined;
+  const existingConfig = asRecord(existing[0].config);
+  const nextConfig =
+    input.description !== undefined
+      ? {
+          ...existingConfig,
+          description: input.description
+        }
+      : existingConfig;
+  const nextConfigWithRepositoryPreparation = mergeRepositoryPreparationConfig(nextConfig, {
+    submodules: input.repositorySubmodules,
+    gitLfs: input.repositoryGitLfs
+  });
 
   const sourceValidation = sourceFieldsTouched
     ? await validateProjectSourceReadiness({
+        repoUrl: input.repoUrl ?? existing[0].repoUrl,
         repoFullName: input.repoFullName ?? existing[0].repoFullName,
         gitProviderId: input.gitProviderId ?? existing[0].gitProviderId,
         gitInstallationId: input.gitInstallationId ?? existing[0].gitInstallationId,
         defaultBranch: input.defaultBranch ?? existing[0].defaultBranch,
-        composePath: input.composePath ?? existing[0].composePath
+        composePath: input.composePath ?? existing[0].composePath,
+        repositoryPreparation: asRecord(nextConfigWithRepositoryPreparation).repositoryPreparation,
+        genericGitMode: "best-effort"
       })
     : null;
 
@@ -219,19 +238,6 @@ export async function updateProject(input: UpdateProjectInput) {
   if (input.gitInstallationId !== undefined) updates.gitInstallationId = input.gitInstallationId;
   if (input.defaultBranch !== undefined) updates.defaultBranch = input.defaultBranch;
   if (input.description !== undefined || sourceFieldsTouched || repositoryPreparationTouched) {
-    const existingConfig = asRecord(existing[0].config);
-    const nextConfig =
-      input.description !== undefined
-        ? {
-            ...existingConfig,
-            description: input.description
-          }
-        : existingConfig;
-    const nextConfigWithRepositoryPreparation = mergeRepositoryPreparationConfig(nextConfig, {
-      submodules: input.repositorySubmodules,
-      gitLfs: input.repositoryGitLfs
-    });
-
     updates.config = mergeProjectSourceReadiness(
       nextConfigWithRepositoryPreparation,
       sourceValidation?.status === "ready"

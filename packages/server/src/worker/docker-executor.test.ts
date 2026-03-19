@@ -187,6 +187,7 @@ describe("gitClone", () => {
             "--branch",
             "main",
             "--single-branch",
+            "--",
             "https://example.com/org/repo.git",
             "."
           ]
