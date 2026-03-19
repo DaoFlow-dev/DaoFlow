@@ -409,6 +409,14 @@ describe("appRouter", () => {
     if (plan.service.sourceType === "compose") {
       expect(plan.composeEnvPlan).toBeTruthy();
       expect(plan.composeEnvPlan?.branch).toEqual(expect.any(String));
+      if (plan.service.composeServiceName) {
+        expect(plan.steps).toEqual(
+          expect.arrayContaining([
+            expect.stringContaining(`compose service ${plan.service.composeServiceName}`),
+            expect.stringContaining(`docker compose up -d ${plan.service.composeServiceName}`)
+          ])
+        );
+      }
     }
   });
 

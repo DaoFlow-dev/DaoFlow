@@ -43,6 +43,7 @@ const REMOTE_COMPOSE_ENV_ALLOWLIST = [
   "LANG",
   "LC_ALL"
 ] as const;
+type RemoteExecRunner = typeof execRemote;
 
 export interface SSHTarget {
   serverName: string;
@@ -226,9 +227,13 @@ function buildRemoteComposeCommand(input: {
   workDir: string;
   envFile?: string;
   subcommand: string;
+  composeServiceName?: string;
 }): string {
   const envFileArg = input.envFile ? ` --env-file ${shellQuote(input.envFile)}` : "";
-  return `cd ${shellQuote(input.workDir)} && ${buildRemoteComposeEnvPrefix()} docker compose -f ${shellQuote(input.composeFile)} -p ${shellQuote(input.projectName)}${envFileArg} ${input.subcommand}`;
+  const serviceArg = input.composeServiceName?.trim()
+    ? ` ${shellQuote(input.composeServiceName.trim())}`
+    : "";
+  return `cd ${shellQuote(input.workDir)} && ${buildRemoteComposeEnvPrefix()} docker compose -f ${shellQuote(input.composeFile)} -p ${shellQuote(input.projectName)}${envFileArg} ${input.subcommand}${serviceArg}`;
 }
 
 export async function remoteDockerComposePull(
@@ -237,16 +242,19 @@ export async function remoteDockerComposePull(
   projectName: string,
   workDir: string,
   onLog: OnLog,
-  envFile?: string
+  envFile?: string,
+  composeServiceName?: string,
+  execRemoteImpl: RemoteExecRunner = execRemote
 ): Promise<{ exitCode: number }> {
   const cmd = buildRemoteComposeCommand({
     composeFile,
     projectName,
     workDir,
     envFile,
-    subcommand: "pull"
+    subcommand: "pull",
+    composeServiceName
   });
-  const result = await execRemote(target, cmd, onLog);
+  const result = await execRemoteImpl(target, cmd, onLog);
   return { exitCode: result.exitCode };
 }
 
@@ -256,16 +264,19 @@ export async function remoteDockerComposeUp(
   projectName: string,
   workDir: string,
   onLog: OnLog,
-  envFile?: string
+  envFile?: string,
+  composeServiceName?: string,
+  execRemoteImpl: RemoteExecRunner = execRemote
 ): Promise<{ exitCode: number }> {
   const cmd = buildRemoteComposeCommand({
     composeFile,
     projectName,
     workDir,
     envFile,
-    subcommand: "up -d --remove-orphans"
+    subcommand: "up -d --remove-orphans",
+    composeServiceName
   });
-  const result = await execRemote(target, cmd, onLog);
+  const result = await execRemoteImpl(target, cmd, onLog);
   return { exitCode: result.exitCode };
 }
 

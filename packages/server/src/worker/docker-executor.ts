@@ -462,11 +462,16 @@ export async function dockerComposePull(
   projectName: string,
   cwd: string,
   onLog: OnLog,
-  envFile?: string
+  envFile?: string,
+  composeServiceName?: string,
+  execRunner: ExecRunner = execStreaming
 ): Promise<{ exitCode: number }> {
+  const scopedServiceName = composeServiceName?.trim();
   onLog({
     stream: "stdout",
-    message: `Pulling images for compose project ${projectName}`,
+    message: scopedServiceName
+      ? `Pulling images for compose project ${projectName} (service: ${scopedServiceName})`
+      : `Pulling images for compose project ${projectName}`,
     timestamp: new Date()
   });
 
@@ -475,8 +480,11 @@ export async function dockerComposePull(
     args.push("--env-file", envFile);
   }
   args.push("pull");
+  if (scopedServiceName) {
+    args.push(scopedServiceName);
+  }
 
-  return execStreaming("docker", args, cwd, onLog, buildComposeCommandEnv(cwd, envFile));
+  return execRunner("docker", args, cwd, onLog, buildComposeCommandEnv(cwd, envFile));
 }
 
 /**
@@ -487,11 +495,16 @@ export async function dockerComposeUp(
   projectName: string,
   cwd: string,
   onLog: OnLog,
-  envFile?: string
+  envFile?: string,
+  composeServiceName?: string,
+  execRunner: ExecRunner = execStreaming
 ): Promise<{ exitCode: number }> {
+  const scopedServiceName = composeServiceName?.trim();
   onLog({
     stream: "stdout",
-    message: `Starting compose project ${projectName}`,
+    message: scopedServiceName
+      ? `Starting compose project ${projectName} (service: ${scopedServiceName})`
+      : `Starting compose project ${projectName}`,
     timestamp: new Date()
   });
 
@@ -500,8 +513,11 @@ export async function dockerComposeUp(
     args.push("--env-file", envFile);
   }
   args.push("up", "-d", "--remove-orphans");
+  if (scopedServiceName) {
+    args.push(scopedServiceName);
+  }
 
-  return execStreaming("docker", args, cwd, onLog, buildComposeCommandEnv(cwd, envFile));
+  return execRunner("docker", args, cwd, onLog, buildComposeCommandEnv(cwd, envFile));
 }
 
 /**

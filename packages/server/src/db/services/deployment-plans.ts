@@ -171,6 +171,7 @@ function buildPlanSteps(input: {
   hasDockerfilePath: boolean;
   hasHealthcheck: boolean;
   targetServerName: string;
+  composeServiceName?: string | null;
 }) {
   const serverStep = `Dispatch execution to ${input.targetServerName}`;
   const verifyStep = input.hasHealthcheck
@@ -178,16 +179,23 @@ function buildPlanSteps(input: {
     : "Verify container and compose status, then mark the rollout outcome";
 
   switch (input.sourceType) {
-    case "compose":
+    case "compose": {
+      const composeTargetLabel = input.composeServiceName
+        ? `compose service ${input.composeServiceName}`
+        : "compose services";
+      const composeUpCommand = input.composeServiceName
+        ? `Apply docker compose up -d ${input.composeServiceName} with the staged configuration`
+        : "Apply docker compose up -d with the staged configuration";
       return [
         "Freeze the compose inputs and resolved runtime spec",
         input.imageTag
-          ? `Pull ${input.imageTag} and refresh compose services`
-          : "Resolve image references from the compose spec and refresh services",
-        "Apply docker compose up -d with the staged configuration",
+          ? `Pull ${input.imageTag} and refresh ${composeTargetLabel}`
+          : `Resolve image references from the compose spec and refresh ${composeTargetLabel}`,
+        composeUpCommand,
         verifyStep,
         serverStep
       ];
+    }
     case "dockerfile":
       return [
         "Freeze Dockerfile inputs and build context",
@@ -308,7 +316,8 @@ export async function buildDeploymentPlan(input: BuildDeploymentPlanInput) {
     imageTag: effectiveImageTag,
     hasDockerfilePath: Boolean(service.dockerfilePath),
     hasHealthcheck: Boolean(service.healthcheckPath),
-    targetServerName: resolvedServer?.name ?? "the configured worker"
+    targetServerName: resolvedServer?.name ?? "the configured worker",
+    composeServiceName: service.composeServiceName
   });
 
   const currentDeployment = latestDeployment

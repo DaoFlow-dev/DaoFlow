@@ -62,6 +62,13 @@ export async function executeComposeDeployment(
   const uploadedSource =
     config.deploymentSource === "uploaded-compose" ||
     config.deploymentSource === "uploaded-context";
+  const composeServiceName =
+    typeof config.composeServiceName === "string" && config.composeServiceName.trim().length > 0
+      ? config.composeServiceName.trim()
+      : undefined;
+  const composeTargetLabel = composeServiceName
+    ? `compose service ${composeServiceName}`
+    : "compose services";
 
   // Step 1: Clone / prepare workspace
   const cloneStepId = await createStep(
@@ -102,7 +109,11 @@ export async function executeComposeDeployment(
   await markStepComplete(cloneStepId, `Workspace ready at ${workDir}`);
 
   // Step 2: Pull images
-  const pullStepId = await createStep(deployment.id, "Pull images", 2);
+  const pullStepId = await createStep(
+    deployment.id,
+    composeServiceName ? `Pull images for ${composeServiceName}` : "Pull images",
+    2
+  );
   await markStepRunning(pullStepId);
 
   const pullResult =
@@ -113,18 +124,30 @@ export async function executeComposeDeployment(
           projectName,
           workDir,
           onLog,
-          composeEnvFile
+          composeEnvFile,
+          composeServiceName
         )
-      : await dockerComposePull(composeFile, projectName, workDir, onLog, composeEnvFile);
+      : await dockerComposePull(
+          composeFile,
+          projectName,
+          workDir,
+          onLog,
+          composeEnvFile,
+          composeServiceName
+        );
   if (pullResult.exitCode !== 0) {
     await markStepFailed(pullStepId, `docker compose pull exited with code ${pullResult.exitCode}`);
     throw new Error(`docker compose pull failed with exit code ${pullResult.exitCode}`);
   }
-  await markStepComplete(pullStepId, "All images pulled");
+  await markStepComplete(pullStepId, `Pulled images for ${composeTargetLabel}`);
 
   // Step 3: Deploy
   await transitionDeployment(deployment.id, "deploy");
-  const deployStepId = await createStep(deployment.id, "Start services", 3);
+  const deployStepId = await createStep(
+    deployment.id,
+    composeServiceName ? `Start ${composeServiceName}` : "Start services",
+    3
+  );
   await markStepRunning(deployStepId);
 
   const upResult =
@@ -135,19 +158,30 @@ export async function executeComposeDeployment(
           projectName,
           workDir,
           onLog,
-          composeEnvFile
+          composeEnvFile,
+          composeServiceName
         )
-      : await dockerComposeUp(composeFile, projectName, workDir, onLog, composeEnvFile);
+      : await dockerComposeUp(
+          composeFile,
+          projectName,
+          workDir,
+          onLog,
+          composeEnvFile,
+          composeServiceName
+        );
   if (upResult.exitCode !== 0) {
     await markStepFailed(deployStepId, `docker compose up exited with code ${upResult.exitCode}`);
     throw new Error(`docker compose up failed with exit code ${upResult.exitCode}`);
   }
-  await markStepComplete(deployStepId, "Compose services started");
+  await markStepComplete(deployStepId, `Started ${composeTargetLabel}`);
 
   // Step 4: Health check
   const healthStepId = await createStep(deployment.id, "Health check", 4);
   await markStepRunning(healthStepId);
-  await markStepComplete(healthStepId, "Compose services are running (compose-managed health)");
+  await markStepComplete(
+    healthStepId,
+    `${composeTargetLabel} are running (compose-managed health)`
+  );
 }
 
 /* ──────────────────────── Dockerfile ──────────────────────── */

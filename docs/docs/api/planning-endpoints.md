@@ -263,8 +263,8 @@ POST /trpc/deploymentPlan
         ],
         "steps": [
           "Freeze the compose inputs and resolved runtime spec",
-          "Pull ghcr.io/acme/api:1.4.2 and refresh compose services",
-          "Apply docker compose up -d with the staged configuration",
+          "Pull ghcr.io/acme/api:1.4.2 and refresh compose service api",
+          "Apply docker compose up -d api with the staged configuration",
           "Run configured health check and promote only if it stays green",
           "Dispatch execution to prod-us-west"
         ],

@@ -5,6 +5,8 @@ import { join } from "node:path";
 import {
   buildComposeCommandEnv,
   cleanupStagingDir,
+  dockerComposePull,
+  dockerComposeUp,
   execStreaming,
   gitClone,
   prepareClonedRepository,
@@ -194,5 +196,81 @@ describe("gitClone", () => {
     } finally {
       cleanupStagingDir(deploymentId);
     }
+  });
+});
+
+describe("dockerComposePull", () => {
+  it("scopes pull execution to the selected compose service", async () => {
+    const collector = createLogCollector();
+    const execRunner = vi.fn().mockResolvedValueOnce({ exitCode: 0, signal: null });
+
+    await dockerComposePull(
+      ".daoflow.compose.rendered.yaml",
+      "demo",
+      "/tmp/demo",
+      collector.onLog,
+      ".daoflow.compose.env",
+      "api",
+      execRunner
+    );
+
+    expect(execRunner).toHaveBeenCalledWith(
+      "docker",
+      [
+        "compose",
+        "-f",
+        ".daoflow.compose.rendered.yaml",
+        "-p",
+        "demo",
+        "--env-file",
+        ".daoflow.compose.env",
+        "pull",
+        "api"
+      ],
+      "/tmp/demo",
+      collector.onLog,
+      expect.objectContaining({
+        DOCKER_CLI_HINTS: "false"
+      })
+    );
+  });
+});
+
+describe("dockerComposeUp", () => {
+  it("scopes up execution to the selected compose service", async () => {
+    const collector = createLogCollector();
+    const execRunner = vi.fn().mockResolvedValueOnce({ exitCode: 0, signal: null });
+
+    await dockerComposeUp(
+      ".daoflow.compose.rendered.yaml",
+      "demo",
+      "/tmp/demo",
+      collector.onLog,
+      ".daoflow.compose.env",
+      "api",
+      execRunner
+    );
+
+    expect(execRunner).toHaveBeenCalledWith(
+      "docker",
+      [
+        "compose",
+        "-f",
+        ".daoflow.compose.rendered.yaml",
+        "-p",
+        "demo",
+        "--env-file",
+        ".daoflow.compose.env",
+        "up",
+        "-d",
+        "--remove-orphans",
+        "api"
+      ],
+      "/tmp/demo",
+      collector.onLog,
+      expect.objectContaining({
+        DOCKER_CLI_HINTS: "false"
+      })
+    );
   });
 });
