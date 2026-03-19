@@ -33,6 +33,30 @@ POST /trpc/createDeploymentRecord
 X-Idempotency-Key: unique-deploy-key-123
 ```
 
+## reconcileComposePreviews
+
+Evaluate preview routing drift and queue destroy deployments for stale preview stacks.
+
+```
+POST /trpc/reconcileComposePreviews
+{
+  "json": {
+    "serviceId": "svc_preview",
+    "dryRun": false,
+    "limit": 20
+  }
+}
+```
+
+**Scope:** `deploy:start`
+
+**Response includes:**
+
+- `summary` — reconciliation counts for the targeted service
+- `previews[]` — the same reconciliation report returned by `composePreviewReconciliation`
+- `execution.gcQueued` — how many stale preview cleanup deployments were queued
+- `execution.queuedDeployments[]` — preview keys and deployment IDs for queued cleanup actions
+
 ## registerServer
 
 Register a new managed server.

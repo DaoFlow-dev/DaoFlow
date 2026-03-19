@@ -58,6 +58,38 @@ GET /trpc/recentDeployments?input={"json":{"limit":50}}
 
 **Scope:** `deploy:read`
 
+## composePreviews
+
+Get the latest preview lifecycle state for a compose service.
+
+```
+GET /trpc/composePreviews?input={"json":{"serviceId":"svc_abc123"}}
+```
+
+**Scope:** `deploy:read`
+
+**Response includes:**
+
+- `service` — the scoped compose service identity
+- `previews[]` — one item per preview key with source branch, optional pull request number, isolated stack name, preview env branch, latest deploy or destroy action, normalized status, timestamps, and whether the preview is currently active
+
+## composePreviewReconciliation
+
+Compare desired preview metadata against observed tunnel-route state and stale-preview policy for a compose service.
+
+```
+GET /trpc/composePreviewReconciliation?input={"json":{"serviceId":"svc_abc123"}}
+```
+
+**Scope:** `deploy:read`
+
+**Response includes:**
+
+- `service` — the scoped compose service identity plus preview config
+- `policy.staleAfterHours` — the configured preview retention window, if any
+- `summary` — counts for in-sync, drifted, stale, unmanaged, and garbage-collectable previews
+- `previews[]` — one item per preview key with desired domain, observed tunnel route, reconciliation status, stale cutoff, and GC eligibility
+
 ## backupOverview
 
 Get backup policies and recent runs.
