@@ -1,19 +1,19 @@
 import { and, desc, eq } from "drizzle-orm";
-import { posix } from "node:path";
 import {
   formatDeploymentStatusLabel,
   getDeploymentStatusTone,
   normalizeDeploymentStatus
 } from "@daoflow/shared";
 import { buildComposeEnvPlanDiagnostics } from "../../compose-env-plan";
+import { materializeComposeWorkspaceArtifacts } from "../../compose-workspace-artifacts";
 import { db } from "../connection";
 import { deployments } from "../schema/deployments";
 import { environments, projects } from "../schema/projects";
 import { servers } from "../schema/servers";
 import { asRecord } from "./json-helpers";
 import { resolveComposeDeploymentEnvEntries } from "./compose-env";
-import { resolveComposeFilePath } from "./deployment-source";
-import { fetchProjectRepositoryTextFile } from "./project-source-files";
+import { resolveComposeFilePath, resolveComposeImageOverride } from "./deployment-source";
+import { materializeProjectSourceInspection } from "./project-source-checkout-inspection";
 import { resolveServiceForUser } from "./scoped-services";
 
 type PlanCheckStatus = "ok" | "warn" | "fail";
@@ -77,54 +77,84 @@ function buildComposeEnvPlanChecks(
   return checks;
 }
 
-function resolveRepoDefaultPath(composeFilePath: string): string {
-  const directory = posix.dirname(composeFilePath);
-  return directory === "." ? ".env" : posix.join(directory, ".env");
+function hasRepositorySource(project: typeof projects.$inferSelect): boolean {
+  return Boolean(
+    project.repoUrl || (project.repoFullName && project.gitProviderId && project.gitInstallationId)
+  );
 }
 
-async function resolveComposePlanInputs(input: {
+async function materializeComposePlanningPreflight(input: {
   project: typeof projects.$inferSelect;
   environment: typeof environments.$inferSelect;
   branch: string;
-}): Promise<{
-  composeContent: string | null;
-  repoDefaultContent: string | null;
-  warnings: string[];
-}> {
-  const composeFilePath = resolveComposeFilePath({
-    project: input.project,
-    environment: input.environment
-  });
-  const composeFile = await fetchProjectRepositoryTextFile({
-    project: input.project,
-    branch: input.branch,
-    path: composeFilePath
+  imageTag: string | null;
+  serviceName: string;
+  composeServiceName?: string | null;
+  serviceImageReference?: string | null;
+}): Promise<
+  | {
+      status: "ok";
+      composeContent: string;
+      repoDefaultContent: string | null;
+      warnings: string[];
+    }
+  | {
+      status: "fail";
+      reason: string;
+    }
+> {
+  const inspection = await materializeProjectSourceInspection({
+    project: {
+      repoUrl: input.project.repoUrl,
+      repoFullName: input.project.repoFullName,
+      gitProviderId: input.project.gitProviderId,
+      gitInstallationId: input.project.gitInstallationId,
+      repositoryPreparation: asRecord(input.project.config).repositoryPreparation
+    },
+    branch: input.branch
   });
 
-  if (composeFile.status !== "ok") {
+  if (inspection.status !== "ok") {
     return {
-      composeContent: null,
-      repoDefaultContent: null,
-      warnings: [`Compose source analysis could not read ${composeFilePath}: ${composeFile.reason}`]
+      status: "fail",
+      reason: inspection.reason
     };
   }
 
-  const repoDefaultFile = await fetchProjectRepositoryTextFile({
-    project: input.project,
-    branch: input.branch,
-    path: resolveRepoDefaultPath(composeFilePath)
-  });
+  try {
+    const composeFilePath = resolveComposeFilePath({
+      project: input.project,
+      environment: input.environment
+    });
+    const composeImageOverride = resolveComposeImageOverride({
+      serviceName: input.serviceName,
+      composeServiceName: input.composeServiceName,
+      effectiveImageTag: input.imageTag,
+      serviceImageReference: input.serviceImageReference
+    });
+    const materialized = materializeComposeWorkspaceArtifacts({
+      workDir: inspection.workDir,
+      composeFile: composeFilePath,
+      branch: input.branch,
+      sourceProvenance: "repository-checkout",
+      deploymentState: { envState: { kind: "queued", entries: [] } },
+      imageOverride: composeImageOverride
+    });
 
-  return {
-    composeContent: composeFile.content,
-    repoDefaultContent: repoDefaultFile.status === "ok" ? repoDefaultFile.content : null,
-    warnings:
-      repoDefaultFile.status === "not_available"
-        ? [
-            `Compose repo-default analysis could not read ${resolveRepoDefaultPath(composeFilePath)}: ${repoDefaultFile.reason}`
-          ]
-        : []
-  };
+    return {
+      status: "ok",
+      composeContent: materialized.composeInputs.frozenInputs.composeFile.contents,
+      repoDefaultContent: materialized.repoDefaultContent,
+      warnings: materialized.composeInputs.manifest.warnings
+    };
+  } catch (error) {
+    return {
+      status: "fail",
+      reason: error instanceof Error ? error.message : String(error)
+    };
+  } finally {
+    inspection.cleanup();
+  }
 }
 
 function normalizeSourceType(value: string): DeploymentPlanSourceType {
@@ -295,20 +325,41 @@ export async function buildDeploymentPlan(input: BuildDeploymentPlanInput) {
       environmentId: environment[0].id,
       branch
     });
-    const planInputs = await resolveComposePlanInputs({
-      project: project[0],
-      environment: environment[0],
-      branch
-    });
+    const repoBacked = hasRepositorySource(project[0]);
 
-    composeEnvPlan = buildComposeEnvPlanDiagnostics({
-      branch,
-      composeContent: planInputs.composeContent,
-      repoDefaultContent: planInputs.repoDefaultContent,
-      deploymentEntries,
-      warnings: planInputs.warnings
-    });
-    checks.push(...buildComposeEnvPlanChecks(composeEnvPlan));
+    if (repoBacked) {
+      const planInputs = await materializeComposePlanningPreflight({
+        project: project[0],
+        environment: environment[0],
+        branch,
+        imageTag: effectiveImageTag,
+        serviceName: service.name,
+        composeServiceName: service.composeServiceName,
+        serviceImageReference: service.imageReference
+      });
+
+      if (planInputs.status === "ok") {
+        composeEnvPlan = buildComposeEnvPlanDiagnostics({
+          branch,
+          composeContent: planInputs.composeContent,
+          repoDefaultContent: planInputs.repoDefaultContent,
+          deploymentEntries,
+          warnings: planInputs.warnings
+        });
+        checks.push(...buildComposeEnvPlanChecks(composeEnvPlan));
+      } else {
+        checks.push(makeCheck("fail", `Compose workspace preflight failed: ${planInputs.reason}`));
+      }
+    } else {
+      composeEnvPlan = buildComposeEnvPlanDiagnostics({
+        branch,
+        deploymentEntries,
+        warnings: [
+          "Compose workspace preflight requires a repository-backed source; this service relies on uploaded artifacts or replayable deployment state."
+        ]
+      });
+      checks.push(...buildComposeEnvPlanChecks(composeEnvPlan));
+    }
   }
 
   const steps = buildPlanSteps({

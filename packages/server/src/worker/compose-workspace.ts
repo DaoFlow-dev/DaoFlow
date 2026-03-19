@@ -1,5 +1,4 @@
-import { basename, dirname, isAbsolute, join } from "node:path";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { basename, dirname, join } from "node:path";
 import {
   createTarArchive,
   ensureStagingDir,
@@ -14,20 +13,13 @@ import type { ConfigSnapshot } from "./step-management";
 import { resolveCheckoutSpec } from "./checkout-source";
 import { restoreUploadedArtifacts } from "./uploaded-artifacts";
 import {
-  buildComposeEnvArtifact,
-  buildMaterializedComposeEnvEvidence,
   COMPOSE_ENV_FILE_NAME,
-  renderComposeEnvFile,
   type ComposeEnvEvidence,
   type ComposeEnvMaterializedEntry
 } from "../compose-env";
-import {
-  materializeComposeInputs,
-  type ComposeImageOverrideRequest,
-  type ComposeInputManifest,
-  type FrozenComposeInputsPayload
-} from "../compose-inputs";
-import type { DeploymentComposeEnvState, DeploymentComposeState } from "../db/services/compose-env";
+import type { ComposeInputManifest, FrozenComposeInputsPayload } from "../compose-inputs";
+import { materializeComposeWorkspaceArtifacts } from "../compose-workspace-artifacts";
+import type { DeploymentComposeState } from "../db/services/compose-env";
 
 interface ComposeWorkspace {
   workDir: string;
@@ -56,97 +48,15 @@ function isUploadedCompose(config: ConfigSnapshot): boolean {
   );
 }
 
-function readRepoDefaultEnvFile(workDir: string, composeFile: string): string | null {
-  const composeDir = dirname(composeFile);
-  const envPath = isAbsolute(composeDir)
-    ? join(composeDir, ".env")
-    : join(workDir, composeDir, ".env");
-  return existsSync(envPath) ? readFileSync(envPath, "utf8") : null;
-}
-
-function materializeComposeEnv(
-  workDir: string,
-  composeFile: string,
-  branch: string,
-  deploymentEnvState: DeploymentComposeEnvState,
-  existingEvidence?: ComposeEnvEvidence
-): {
-  composeEnv: ComposeEnvEvidence;
-  payloadEntries: ComposeEnvMaterializedEntry[];
-  fileContents: string;
-} {
-  if (deploymentEnvState.kind === "materialized") {
-    const fileContents = renderComposeEnvFile(deploymentEnvState.entries);
-    writeFileSync(join(workDir, COMPOSE_ENV_FILE_NAME), fileContents, {
-      mode: 0o600
-    });
-
-    return {
-      composeEnv:
-        existingEvidence?.status === "materialized"
-          ? existingEvidence
-          : buildMaterializedComposeEnvEvidence(branch, deploymentEnvState.entries),
-      payloadEntries: deploymentEnvState.entries,
-      fileContents
-    };
-  }
-
-  const artifact = buildComposeEnvArtifact({
-    branch,
-    repoDefaultContent: readRepoDefaultEnvFile(workDir, composeFile),
-    deploymentEntries: deploymentEnvState.entries
-  });
-
-  writeFileSync(join(workDir, COMPOSE_ENV_FILE_NAME), artifact.envFileContents, {
-    mode: 0o600
-  });
+function materializeComposeArtifacts(
+  input: Parameters<typeof materializeComposeWorkspaceArtifacts>[0]
+): Omit<ComposeWorkspace, "workDir"> {
+  const artifacts = materializeComposeWorkspaceArtifacts(input);
 
   return {
-    composeEnv: artifact.composeEnv,
-    payloadEntries: artifact.payloadEntries,
-    fileContents: artifact.envFileContents
-  };
-}
-
-function materializeComposeArtifacts(input: {
-  workDir: string;
-  composeFile: string;
-  branch: string;
-  sourceProvenance: "repository-checkout" | "uploaded-artifact";
-  deploymentState: DeploymentComposeState;
-  imageOverride?: ComposeImageOverrideRequest;
-  existingComposeEnv?: ComposeEnvEvidence;
-  existingComposeInputs?: ComposeInputManifest;
-}): Omit<ComposeWorkspace, "workDir"> {
-  const repoDefaultContent = readRepoDefaultEnvFile(input.workDir, input.composeFile);
-  const composeEnv = materializeComposeEnv(
-    input.workDir,
-    input.composeFile,
-    input.branch,
-    input.deploymentState.envState,
-    input.existingComposeEnv
-  );
-  const composeInputs = materializeComposeInputs({
-    workDir: input.workDir,
-    composeFile: input.composeFile,
-    sourceProvenance: input.sourceProvenance,
-    repoDefaultContent,
-    composeEnvFileContents: composeEnv.fileContents,
-    imageOverride: input.imageOverride,
-    existingManifest: input.existingComposeInputs,
-    existingFrozenInputs: input.deploymentState.frozenInputs
-  });
-
-  return {
-    composeFile: composeInputs.composeFile,
-    composeEnv: {
-      composeEnv: composeEnv.composeEnv,
-      payloadEntries: composeEnv.payloadEntries
-    },
-    composeInputs: {
-      manifest: composeInputs.manifest,
-      frozenInputs: composeInputs.frozenInputs
-    }
+    composeFile: artifacts.composeFile,
+    composeEnv: artifacts.composeEnv,
+    composeInputs: artifacts.composeInputs
   };
 }
 
