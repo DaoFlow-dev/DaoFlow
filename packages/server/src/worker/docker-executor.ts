@@ -10,10 +10,8 @@
  */
 
 import { spawn, type ChildProcess } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
-import { parseComposeEnvFile } from "../compose-env";
 import { parseComposePsOutput, type ComposeContainerStatus } from "./compose-health";
+import { formatComposeExecutionEnvSummary, prepareComposeCommandEnv } from "./compose-command-env";
 
 // Re-export git-executor functions for backward compatibility
 export {
@@ -24,6 +22,7 @@ export {
   prepareClonedRepository,
   type GitCloneOptions
 } from "./git-executor";
+export { buildComposeCommandEnv } from "./compose-command-env";
 
 const STAGING_DIR = process.env.GIT_WORK_DIR ?? "/tmp/daoflow-staging";
 
@@ -36,20 +35,9 @@ export type LogLine = {
 export type OnLog = (line: LogLine) => void;
 type ExecRunner = typeof execStreaming;
 
-const COMPOSE_ENV_ALLOWLIST = [
-  "PATH",
-  "HOME",
-  "DOCKER_CONFIG",
-  "DOCKER_HOST",
-  "DOCKER_CONTEXT",
-  "DOCKER_CERT_PATH",
-  "DOCKER_TLS_VERIFY",
-  "SSH_AUTH_SOCK",
-  "XDG_RUNTIME_DIR",
-  "TMPDIR",
-  "LANG",
-  "LC_ALL"
-] as const;
+export interface ExecStreamingOptions {
+  inheritParentEnv?: boolean;
+}
 
 /**
  * Run an arbitrary command and stream output line-by-line.
@@ -60,15 +48,20 @@ export function execStreaming(
   args: string[],
   cwd: string,
   onLog: OnLog,
-  envOverrides?: Record<string, string>
+  envOverrides?: Record<string, string>,
+  options?: ExecStreamingOptions
 ): Promise<{ exitCode: number; signal: string | null }> {
   return new Promise((resolve, reject) => {
     let child: ChildProcess;
     try {
+      const env =
+        options?.inheritParentEnv === false
+          ? (envOverrides ?? {})
+          : { ...process.env, DOCKER_CLI_HINTS: "false", ...(envOverrides ?? {}) };
       child = spawn(command, args, {
         cwd,
         stdio: ["ignore", "pipe", "pipe"],
-        env: { ...process.env, DOCKER_CLI_HINTS: "false", ...(envOverrides ?? {}) }
+        env
       });
     } catch (err) {
       reject(err instanceof Error ? err : new Error(String(err)));
@@ -96,32 +89,6 @@ export function execStreaming(
       reject(err);
     });
   });
-}
-
-export function buildComposeCommandEnv(cwd: string, envFile?: string): Record<string, string> {
-  const env: Record<string, string> = { DOCKER_CLI_HINTS: "false" };
-
-  for (const key of COMPOSE_ENV_ALLOWLIST) {
-    const value = process.env[key];
-    if (typeof value === "string" && value.length > 0) {
-      env[key] = value;
-    }
-  }
-
-  if (!envFile) {
-    return env;
-  }
-
-  const envPath = join(cwd, envFile);
-  if (!existsSync(envPath)) {
-    return env;
-  }
-
-  for (const entry of parseComposeEnvFile(readFileSync(envPath, "utf8")).entries) {
-    env[entry.key] = entry.value;
-  }
-
-  return env;
 }
 
 /**
@@ -155,11 +122,17 @@ export async function dockerComposePull(
   execRunner: ExecRunner = execStreaming
 ): Promise<{ exitCode: number }> {
   const scopedServiceName = composeServiceName?.trim();
+  const composeExecutionEnv = prepareComposeCommandEnv(cwd, envFile);
   onLog({
     stream: "stdout",
     message: scopedServiceName
       ? `Pulling images for compose project ${projectName} (service: ${scopedServiceName})`
       : `Pulling images for compose project ${projectName}`,
+    timestamp: new Date()
+  });
+  onLog({
+    stream: "stdout",
+    message: formatComposeExecutionEnvSummary(composeExecutionEnv.summary),
     timestamp: new Date()
   });
 
@@ -172,7 +145,9 @@ export async function dockerComposePull(
     args.push(scopedServiceName);
   }
 
-  return execRunner("docker", args, cwd, onLog, buildComposeCommandEnv(cwd, envFile));
+  return execRunner("docker", args, cwd, onLog, composeExecutionEnv.env, {
+    inheritParentEnv: false
+  });
 }
 
 /**
@@ -188,11 +163,17 @@ export async function dockerComposeUp(
   execRunner: ExecRunner = execStreaming
 ): Promise<{ exitCode: number }> {
   const scopedServiceName = composeServiceName?.trim();
+  const composeExecutionEnv = prepareComposeCommandEnv(cwd, envFile);
   onLog({
     stream: "stdout",
     message: scopedServiceName
       ? `Starting compose project ${projectName} (service: ${scopedServiceName})`
       : `Starting compose project ${projectName}`,
+    timestamp: new Date()
+  });
+  onLog({
+    stream: "stdout",
+    message: formatComposeExecutionEnvSummary(composeExecutionEnv.summary),
     timestamp: new Date()
   });
 
@@ -205,7 +186,9 @@ export async function dockerComposeUp(
     args.push(scopedServiceName);
   }
 
-  return execRunner("docker", args, cwd, onLog, buildComposeCommandEnv(cwd, envFile));
+  return execRunner("docker", args, cwd, onLog, composeExecutionEnv.env, {
+    inheritParentEnv: false
+  });
 }
 
 export async function dockerComposePs(
@@ -217,6 +200,7 @@ export async function dockerComposePs(
   composeServiceName?: string,
   execRunner: ExecRunner = execStreaming
 ): Promise<{ exitCode: number; statuses: ComposeContainerStatus[] }> {
+  const composeExecutionEnv = prepareComposeCommandEnv(cwd, envFile);
   const args = ["compose", "-f", composeFile, "-p", projectName];
   if (envFile) {
     args.push("--env-file", envFile);
@@ -227,6 +211,12 @@ export async function dockerComposePs(
   if (scopedServiceName) {
     args.push(scopedServiceName);
   }
+
+  onLog({
+    stream: "stdout",
+    message: formatComposeExecutionEnvSummary(composeExecutionEnv.summary),
+    timestamp: new Date()
+  });
 
   const stdoutLines: string[] = [];
   const result = await execRunner(
@@ -241,7 +231,8 @@ export async function dockerComposePs(
 
       onLog(line);
     },
-    buildComposeCommandEnv(cwd, envFile)
+    composeExecutionEnv.env,
+    { inheritParentEnv: false }
   );
 
   return {
@@ -257,19 +248,31 @@ export async function dockerComposeDown(
   composeFile: string,
   projectName: string,
   cwd: string,
-  onLog: OnLog
+  onLog: OnLog,
+  envFile?: string,
+  execRunner: ExecRunner = execStreaming
 ): Promise<{ exitCode: number }> {
+  const composeExecutionEnv = prepareComposeCommandEnv(cwd, envFile);
   onLog({
     stream: "stdout",
     message: `Stopping compose project ${projectName}`,
     timestamp: new Date()
   });
+  onLog({
+    stream: "stdout",
+    message: formatComposeExecutionEnvSummary(composeExecutionEnv.summary),
+    timestamp: new Date()
+  });
 
-  return execStreaming(
+  return execRunner(
     "docker",
-    ["compose", "-f", composeFile, "-p", projectName, "down"],
+    envFile
+      ? ["compose", "-f", composeFile, "-p", projectName, "--env-file", envFile, "down"]
+      : ["compose", "-f", composeFile, "-p", projectName, "down"],
     cwd,
-    onLog
+    onLog,
+    composeExecutionEnv.env,
+    { inheritParentEnv: false }
   );
 }
 

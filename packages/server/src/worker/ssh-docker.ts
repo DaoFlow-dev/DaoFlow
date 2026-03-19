@@ -7,27 +7,16 @@
  */
 
 import type { OnLog } from "./docker-executor";
+import {
+  COMPOSE_COMMAND_ENV_ALLOWLIST,
+  formatRemoteComposeExecutionEnvSummary
+} from "./compose-command-env";
 import { parseComposePsOutput, type ComposeContainerStatus } from "./compose-health";
 import { execRemote, shellQuote, type SSHTarget } from "./ssh-connection";
 
-const REMOTE_COMPOSE_ENV_ALLOWLIST = [
-  "PATH",
-  "HOME",
-  "DOCKER_CONFIG",
-  "DOCKER_HOST",
-  "DOCKER_CONTEXT",
-  "DOCKER_CERT_PATH",
-  "DOCKER_TLS_VERIFY",
-  "SSH_AUTH_SOCK",
-  "XDG_RUNTIME_DIR",
-  "TMPDIR",
-  "LANG",
-  "LC_ALL"
-] as const;
-
 function buildRemoteComposeEnvPrefix(): string {
-  const preserved = REMOTE_COMPOSE_ENV_ALLOWLIST.map((key) => `${key}="\${${key}}" `).join("");
-  return `env -i ${preserved}`.trimEnd();
+  const preserved = COMPOSE_COMMAND_ENV_ALLOWLIST.map((key) => `${key}="\${${key}}" `).join("");
+  return `env -i DOCKER_CLI_HINTS=false ${preserved}`.trimEnd();
 }
 
 function buildRemoteComposeCommand(input: {
@@ -53,6 +42,11 @@ export async function remoteDockerComposePull(
   serviceName?: string,
   exec: typeof execRemote = execRemote
 ): Promise<{ exitCode: number }> {
+  onLog({
+    stream: "stdout",
+    message: formatRemoteComposeExecutionEnvSummary(envFile),
+    timestamp: new Date()
+  });
   const cmd = buildRemoteComposeCommand({
     composeFile,
     projectName,
@@ -75,6 +69,11 @@ export async function remoteDockerComposeUp(
   serviceName?: string,
   exec: typeof execRemote = execRemote
 ): Promise<{ exitCode: number }> {
+  onLog({
+    stream: "stdout",
+    message: formatRemoteComposeExecutionEnvSummary(envFile),
+    timestamp: new Date()
+  });
   const cmd = buildRemoteComposeCommand({
     composeFile,
     projectName,
@@ -97,6 +96,11 @@ export async function remoteDockerComposePs(
   serviceName?: string,
   exec: typeof execRemote = execRemote
 ): Promise<{ exitCode: number; statuses: ComposeContainerStatus[] }> {
+  onLog({
+    stream: "stdout",
+    message: formatRemoteComposeExecutionEnvSummary(envFile),
+    timestamp: new Date()
+  });
   const cmd = buildRemoteComposeCommand({
     composeFile,
     projectName,
@@ -127,15 +131,23 @@ export async function remoteDockerComposeDown(
   composeFile: string,
   projectName: string,
   workDir: string,
-  onLog: OnLog
+  onLog: OnLog,
+  envFile?: string,
+  exec: typeof execRemote = execRemote
 ): Promise<{ exitCode: number }> {
+  onLog({
+    stream: "stdout",
+    message: formatRemoteComposeExecutionEnvSummary(envFile),
+    timestamp: new Date()
+  });
   const cmd = buildRemoteComposeCommand({
     composeFile,
     projectName,
     workDir,
+    envFile,
     subcommand: "down"
   });
-  const result = await execRemote(target, cmd, onLog);
+  const result = await exec(target, cmd, onLog);
   return { exitCode: result.exitCode };
 }
 

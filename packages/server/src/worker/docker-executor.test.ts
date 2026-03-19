@@ -5,6 +5,7 @@ import { join } from "node:path";
 import {
   buildComposeCommandEnv,
   dockerComposePs,
+  dockerComposeDown,
   cleanupStagingDir,
   dockerComposePull,
   dockerComposeUp,
@@ -95,6 +96,7 @@ describe("buildComposeCommandEnv", () => {
   const originalPath = process.env.PATH;
   const originalDockerConfig = process.env.DOCKER_CONFIG;
   const originalApiKey = process.env.API_KEY;
+  const originalAmbientOnly = process.env.AMBIENT_ONLY;
   let tempDir: string;
 
   afterEach(() => {
@@ -122,30 +124,42 @@ describe("buildComposeCommandEnv", () => {
       process.env.API_KEY = originalApiKey;
     }
 
+    if (originalAmbientOnly === undefined) {
+      delete process.env.AMBIENT_ONLY;
+    } else {
+      process.env.AMBIENT_ONLY = originalAmbientOnly;
+    }
+
     if (tempDir) {
       rmSync(tempDir, { recursive: true, force: true });
     }
   });
 
-  it("pins compose-managed values over ambient process env", () => {
+  it("pins compose-managed values over ambient process env without leaking unrelated host env", () => {
     tempDir = mkdtempSync(join(tmpdir(), "daoflow-compose-env-"));
-    writeFileSync(join(tempDir, ".daoflow.compose.env"), "API_KEY=file-value\n");
+    writeFileSync(
+      join(tempDir, ".daoflow.compose.env"),
+      'API_KEY="file-value$$suffix"\nLITERAL_SECRET="postgres://user:p@ss$$word@db/app"\n'
+    );
 
     process.env.HOME = "/tmp/daoflow-home";
     process.env.PATH = "/usr/bin:/bin";
     process.env.DOCKER_CONFIG = "/tmp/docker-config";
     process.env.API_KEY = "ambient-value";
+    process.env.AMBIENT_ONLY = "should-not-leak";
 
     const env = buildComposeCommandEnv(tempDir, ".daoflow.compose.env");
 
     expect(env).toMatchObject({
-      API_KEY: "file-value",
+      API_KEY: "file-value$$suffix",
       DOCKER_CLI_HINTS: "false",
       DOCKER_CONFIG: "/tmp/docker-config",
       HOME: "/tmp/daoflow-home",
+      LITERAL_SECRET: "postgres://user:p@ss$$word@db/app",
       PATH: "/usr/bin:/bin"
     });
-    expect(env.API_KEY).toBe("file-value");
+    expect(env.API_KEY).toBe("file-value$$suffix");
+    expect(env.AMBIENT_ONLY).toBeUndefined();
   });
 });
 
@@ -204,6 +218,7 @@ describe("gitClone", () => {
 describe("dockerComposePull", () => {
   it("scopes pull execution to the selected compose service", async () => {
     const collector = createLogCollector();
+    process.env.PATH = "/usr/bin:/bin";
     const execRunner = vi.fn().mockResolvedValueOnce({ exitCode: 0, signal: null });
 
     await dockerComposePull(
@@ -233,14 +248,23 @@ describe("dockerComposePull", () => {
       collector.onLog,
       expect.objectContaining({
         DOCKER_CLI_HINTS: "false"
-      })
+      }),
+      {
+        inheritParentEnv: false
+      }
     );
+    expect(
+      collector.lines.some((line) =>
+        line.message.includes("Compose execution env isolated from ambient worker env")
+      )
+    ).toBe(true);
   });
 });
 
 describe("dockerComposeUp", () => {
   it("scopes up execution to the selected compose service", async () => {
     const collector = createLogCollector();
+    process.env.PATH = "/usr/bin:/bin";
     const execRunner = vi.fn().mockResolvedValueOnce({ exitCode: 0, signal: null });
 
     await dockerComposeUp(
@@ -272,7 +296,10 @@ describe("dockerComposeUp", () => {
       collector.onLog,
       expect.objectContaining({
         DOCKER_CLI_HINTS: "false"
-      })
+      }),
+      {
+        inheritParentEnv: false
+      }
     );
   });
 });
@@ -327,7 +354,10 @@ describe("dockerComposePs", () => {
       expect.any(Function),
       expect.objectContaining({
         DOCKER_CLI_HINTS: "false"
-      })
+      }),
+      {
+        inheritParentEnv: false
+      }
     );
     expect(result).toEqual({
       exitCode: 0,
@@ -342,5 +372,44 @@ describe("dockerComposePs", () => {
         }
       ]
     });
+  });
+});
+
+describe("dockerComposeDown", () => {
+  it("stops compose services with the same isolated env contract", async () => {
+    const collector = createLogCollector();
+    process.env.PATH = "/usr/bin:/bin";
+    const execRunner = vi.fn().mockResolvedValueOnce({ exitCode: 0, signal: null });
+
+    await dockerComposeDown(
+      ".daoflow.compose.rendered.yaml",
+      "demo",
+      "/tmp/demo",
+      collector.onLog,
+      ".daoflow.compose.env",
+      execRunner
+    );
+
+    expect(execRunner).toHaveBeenCalledWith(
+      "docker",
+      [
+        "compose",
+        "-f",
+        ".daoflow.compose.rendered.yaml",
+        "-p",
+        "demo",
+        "--env-file",
+        ".daoflow.compose.env",
+        "down"
+      ],
+      "/tmp/demo",
+      collector.onLog,
+      expect.objectContaining({
+        DOCKER_CLI_HINTS: "false"
+      }),
+      {
+        inheritParentEnv: false
+      }
+    );
   });
 });
