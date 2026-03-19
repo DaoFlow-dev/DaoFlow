@@ -17,7 +17,6 @@ import type {
   FrozenComposeEnvFilePayload,
   FrozenComposeInputsPayload
 } from "../../compose-inputs";
-import type { ComposeBuildPlan } from "../../compose-build-plan";
 import { asRecord } from "./json-helpers";
 
 function normalizeComposeEnvCategory(value: string): ComposeEnvVariableCategory {
@@ -319,7 +318,7 @@ export async function persistDeploymentComposeEnvState(input: {
   envEntries: ComposeEnvPayloadEntry[] | ComposeEnvMaterializedEntry[];
   composeEnv: ComposeEnvEvidence;
   composeInputs?: ComposeInputManifest;
-  composeBuildPlan?: ComposeBuildPlan;
+  composeBuildPlan?: unknown;
   frozenInputs?: FrozenComposeInputsPayload;
 }): Promise<void> {
   const [deployment] = await db
