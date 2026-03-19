@@ -5,9 +5,10 @@
  * The worker picks up queued deployments via its existing polling loop.
  */
 
-import { eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { basename, isAbsolute } from "node:path";
 import { db } from "../connection";
+import { deployments } from "../schema/deployments";
 import { services } from "../schema/services";
 import { environments, projects } from "../schema/projects";
 import {
@@ -18,7 +19,11 @@ import {
 import { dispatchDeploymentExecution } from "./deployment-dispatch";
 import type { AppRole } from "@daoflow/shared";
 import { asRecord, readString } from "./json-helpers";
-import { buildComposeSourceSnapshot, buildRepositorySourceSnapshot } from "./deployment-source";
+import {
+  buildComposeSourceSnapshot,
+  buildRepositorySourceSnapshot,
+  extractReplayableConfigSnapshot
+} from "./deployment-source";
 import { prepareComposeDeploymentEnvState } from "./compose-env";
 import { revalidateProjectSourceForExecution } from "./project-source-execution-validation";
 
@@ -64,6 +69,51 @@ function normalizeRepositoryPath(path: string, fallback: string): string {
   return isAbsolute(path) ? basename(path) : path;
 }
 
+function hasRepositorySource(project: typeof projects.$inferSelect): boolean {
+  return Boolean(
+    project.repoUrl || project.repoFullName || project.gitProviderId || project.gitInstallationId
+  );
+}
+
+function isReplayableUploadedSnapshot(snapshot: Record<string, unknown>): boolean {
+  const deploymentSource = readString(snapshot, "deploymentSource");
+  const uploadedArtifactId = readString(snapshot, "uploadedArtifactId");
+
+  return (
+    (deploymentSource === "uploaded-compose" || deploymentSource === "uploaded-context") &&
+    uploadedArtifactId.length > 0
+  );
+}
+
+async function findLatestReplayableUploadedDeployment(input: {
+  projectId: string;
+  environmentId: string;
+  serviceName: string;
+}) {
+  const candidates = await db
+    .select()
+    .from(deployments)
+    .where(
+      and(
+        eq(deployments.projectId, input.projectId),
+        eq(deployments.environmentId, input.environmentId),
+        eq(deployments.serviceName, input.serviceName),
+        eq(deployments.sourceType, "compose")
+      )
+    )
+    .orderBy(desc(deployments.createdAt))
+    .limit(20);
+
+  for (const candidate of candidates) {
+    const snapshot = asRecord(candidate.configSnapshot);
+    if (isReplayableUploadedSnapshot(snapshot)) {
+      return candidate;
+    }
+  }
+
+  return null;
+}
+
 export async function triggerDeploy(input: TriggerDeployInput) {
   // Look up the service
   const [svc] = await db.select().from(services).where(eq(services.id, input.serviceId)).limit(1);
@@ -93,7 +143,10 @@ export async function triggerDeploy(input: TriggerDeployInput) {
     return { status: "no_server" as const };
   }
 
-  if (svc.sourceType === "compose") {
+  const composeProjectHasRepositorySource =
+    svc.sourceType === "compose" ? hasRepositorySource(project) : false;
+
+  if (svc.sourceType === "compose" && composeProjectHasRepositorySource) {
     const sourceValidation = await revalidateProjectSourceForExecution({
       project,
       environment: env
@@ -108,26 +161,51 @@ export async function triggerDeploy(input: TriggerDeployInput) {
   }
 
   const buildConfig = asRecord(svc.config);
-
-  const configSnapshot: Record<string, unknown> = buildRepositorySourceSnapshot(project);
+  const configSnapshot: Record<string, unknown> = composeProjectHasRepositorySource
+    ? buildRepositorySourceSnapshot(project)
+    : {};
   let envVarsEncrypted: string | null = null;
+  let replayedComposeDeployment: typeof deployments.$inferSelect | null = null;
 
   if (svc.sourceType === "compose") {
-    Object.assign(
-      configSnapshot,
-      buildComposeSourceSnapshot({
-        project,
-        environment: env,
-        composeServiceName: svc.composeServiceName
-      })
-    );
+    if (composeProjectHasRepositorySource) {
+      Object.assign(
+        configSnapshot,
+        buildComposeSourceSnapshot({
+          project,
+          environment: env,
+          composeServiceName: svc.composeServiceName
+        })
+      );
 
-    const envState = await prepareComposeDeploymentEnvState({
-      environmentId: env.id,
-      branch: typeof configSnapshot.branch === "string" ? configSnapshot.branch : "main"
-    });
-    configSnapshot.composeEnv = envState.composeEnv;
-    envVarsEncrypted = envState.envVarsEncrypted;
+      const envState = await prepareComposeDeploymentEnvState({
+        environmentId: env.id,
+        branch: typeof configSnapshot.branch === "string" ? configSnapshot.branch : "main"
+      });
+      configSnapshot.composeEnv = envState.composeEnv;
+      envVarsEncrypted = envState.envVarsEncrypted;
+    } else {
+      replayedComposeDeployment = await findLatestReplayableUploadedDeployment({
+        projectId: project.id,
+        environmentId: env.id,
+        serviceName: svc.name
+      });
+
+      if (!replayedComposeDeployment) {
+        return {
+          status: "invalid_source" as const,
+          message:
+            `Service ${svc.name} has no repository source and no retained uploaded artifact ` +
+            "snapshot available for replay. Re-upload the compose source before triggering a redeploy."
+        };
+      }
+
+      Object.assign(
+        configSnapshot,
+        extractReplayableConfigSnapshot(asRecord(replayedComposeDeployment.configSnapshot))
+      );
+      envVarsEncrypted = replayedComposeDeployment.envVarsEncrypted;
+    }
   }
 
   if (svc.sourceType === "dockerfile") {
@@ -148,8 +226,8 @@ export async function triggerDeploy(input: TriggerDeployInput) {
     serviceName: svc.name,
     sourceType: svc.sourceType as "compose" | "dockerfile" | "image",
     targetServerId,
-    commitSha: input.commitSha ?? "",
-    imageTag: input.imageTag ?? svc.imageReference ?? "",
+    commitSha: input.commitSha ?? replayedComposeDeployment?.commitSha ?? "",
+    imageTag: input.imageTag ?? svc.imageReference ?? replayedComposeDeployment?.imageTag ?? "",
     requestedByUserId: input.requestedByUserId ?? null,
     requestedByEmail: input.requestedByEmail ?? null,
     requestedByRole: input.requestedByRole ?? null,

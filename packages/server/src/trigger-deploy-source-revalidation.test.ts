@@ -6,7 +6,11 @@ import { deployments } from "./db/schema/deployments";
 import { gitInstallations, gitProviders } from "./db/schema/git-providers";
 import { environments, projects } from "./db/schema/projects";
 import { encodeGitInstallationPermissions } from "./db/services/git-providers";
-import { readDeploymentComposeEnvEntries } from "./db/services/compose-env";
+import {
+  encryptComposeDeploymentState,
+  readDeploymentComposeEnvEntries,
+  readDeploymentComposeState
+} from "./db/services/compose-env";
 import { asRecord } from "./db/services/json-helpers";
 import { upsertEnvironmentVariable } from "./db/services/envvars";
 import { createEnvironment, createProject } from "./db/services/projects";
@@ -181,6 +185,59 @@ async function createGitLabComposeFixture(input: {
     projectId: projectResult.project.id,
     environmentId: environmentResult.environment.id,
     serviceId: serviceResult.service.id
+  };
+}
+
+async function createDirectUploadComposeFixture(input: {
+  projectName: string;
+  serviceName?: string;
+}) {
+  const projectResult = await createProject({
+    name: `${input.projectName} ${Date.now()}`,
+    description: "Direct upload compose fixture",
+    teamId: "team_foundation",
+    requestedByUserId: "user_foundation_owner",
+    requestedByEmail: "owner@daoflow.local",
+    requestedByRole: "owner"
+  });
+  expect(projectResult.status).toBe("ok");
+  if (projectResult.status !== "ok") {
+    throw new Error("Failed to create direct-upload project fixture.");
+  }
+
+  const environmentResult = await createEnvironment({
+    projectId: projectResult.project.id,
+    name: "production",
+    targetServerId: "srv_foundation_1",
+    requestedByUserId: "user_foundation_owner",
+    requestedByEmail: "owner@daoflow.local",
+    requestedByRole: "owner"
+  });
+  expect(environmentResult.status).toBe("ok");
+  if (environmentResult.status !== "ok") {
+    throw new Error("Failed to create direct-upload environment fixture.");
+  }
+
+  const serviceResult = await createService({
+    name: input.serviceName ?? "uploaded-runtime",
+    projectId: projectResult.project.id,
+    environmentId: environmentResult.environment.id,
+    sourceType: "compose",
+    targetServerId: "srv_foundation_1",
+    requestedByUserId: "user_foundation_owner",
+    requestedByEmail: "owner@daoflow.local",
+    requestedByRole: "owner"
+  });
+  expect(serviceResult.status).toBe("ok");
+  if (serviceResult.status !== "ok") {
+    throw new Error("Failed to create direct-upload service fixture.");
+  }
+
+  return {
+    projectId: projectResult.project.id,
+    environmentId: environmentResult.environment.id,
+    serviceId: serviceResult.service.id,
+    serviceName: serviceResult.service.name
   };
 }
 
@@ -463,6 +520,190 @@ describe("deploy source revalidation", () => {
       .limit(1);
 
     expect(updatedProject?.config).toEqual(projectBeforeDeploy?.config);
+  });
+
+  it("replays retained uploaded artifact snapshots for direct-upload compose services", async () => {
+    const fixture = await createDirectUploadComposeFixture({
+      projectName: "Direct Upload Replay",
+      serviceName: "direct-upload-service"
+    });
+
+    const directUploadState = encryptComposeDeploymentState({
+      envEntries: [
+        {
+          key: "UPLOADED_FLAG",
+          value: "1",
+          category: "runtime",
+          isSecret: false,
+          source: "inline",
+          branchPattern: null
+        }
+      ],
+      frozenInputs: {
+        composeFile: {
+          path: ".daoflow.compose.rendered.yaml",
+          sourcePath: "compose.yaml",
+          contents: "services:\n  app:\n    image: nginx:alpine\n"
+        },
+        envFiles: []
+      }
+    });
+
+    await db.insert(deployments).values({
+      id: `depup_old_${Date.now()}`.slice(0, 32),
+      projectId: fixture.projectId,
+      environmentId: fixture.environmentId,
+      targetServerId: "srv_foundation_1",
+      serviceName: fixture.serviceName,
+      sourceType: "compose",
+      commitSha: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      imageTag: "ghcr.io/daoflow/direct-upload:stable",
+      envVarsEncrypted: directUploadState,
+      configSnapshot: {
+        deploymentSource: "uploaded-context",
+        composeFilePath: "compose.yaml",
+        uploadedComposeFileName: "compose.yaml",
+        uploadedContextArchiveName: "context.tar.gz"
+      },
+      status: "completed",
+      conclusion: "succeeded",
+      trigger: "user",
+      requestedByUserId: "user_foundation_owner",
+      requestedByEmail: "owner@daoflow.local",
+      requestedByRole: "owner",
+      createdAt: new Date(Date.now() - 120_000),
+      concludedAt: new Date(Date.now() - 119_000),
+      updatedAt: new Date(Date.now() - 119_000)
+    });
+
+    await db.insert(deployments).values({
+      id: `depup_new_${Date.now()}`.slice(0, 32),
+      projectId: fixture.projectId,
+      environmentId: fixture.environmentId,
+      targetServerId: "srv_foundation_1",
+      serviceName: fixture.serviceName,
+      sourceType: "compose",
+      commitSha: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      imageTag: "ghcr.io/daoflow/direct-upload:newer",
+      envVarsEncrypted: directUploadState,
+      configSnapshot: {
+        deploymentSource: "uploaded-context",
+        composeFilePath: "compose.yaml",
+        uploadedComposeFileName: "compose.yaml",
+        uploadedContextArchiveName: "context.tar.gz",
+        uploadedArtifactId: "0123456789abcdef0123456789abcdef",
+        queueName: "docker-ssh",
+        temporalWorkflowId: "workflow-old",
+        temporalRunId: "run-old"
+      },
+      status: "failed",
+      conclusion: "failed",
+      trigger: "user",
+      requestedByUserId: "user_foundation_owner",
+      requestedByEmail: "owner@daoflow.local",
+      requestedByRole: "owner",
+      createdAt: new Date(Date.now() - 60_000),
+      concludedAt: new Date(Date.now() - 59_000),
+      updatedAt: new Date(Date.now() - 59_000)
+    });
+
+    const result = await triggerDeploy({
+      serviceId: fixture.serviceId,
+      requestedByUserId: "user_foundation_owner",
+      requestedByEmail: "owner@daoflow.local",
+      requestedByRole: "owner"
+    });
+
+    expect(result.status).toBe("ok");
+    if (result.status !== "ok") {
+      throw new Error("Expected direct-upload trigger replay to succeed.");
+    }
+
+    expect(result.deployment.commitSha).toBe("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
+    expect(result.deployment.imageTag).toBe("ghcr.io/daoflow/direct-upload:newer");
+    expect(asRecord(result.deployment.configSnapshot)).toMatchObject({
+      deploymentSource: "uploaded-context",
+      composeFilePath: "compose.yaml",
+      uploadedComposeFileName: "compose.yaml",
+      uploadedContextArchiveName: "context.tar.gz",
+      uploadedArtifactId: "0123456789abcdef0123456789abcdef"
+    });
+    expect(asRecord(result.deployment.configSnapshot)).not.toHaveProperty("temporalWorkflowId");
+    expect(asRecord(result.deployment.configSnapshot)).not.toHaveProperty("temporalRunId");
+    expect(readDeploymentComposeState(result.deployment.envVarsEncrypted)).toMatchObject({
+      envState: {
+        kind: "queued",
+        entries: [
+          {
+            key: "UPLOADED_FLAG",
+            value: "1",
+            category: "runtime",
+            isSecret: false,
+            source: "inline",
+            branchPattern: null
+          }
+        ]
+      },
+      frozenInputs: {
+        composeFile: {
+          path: ".daoflow.compose.rendered.yaml",
+          sourcePath: "compose.yaml",
+          contents: "services:\n  app:\n    image: nginx:alpine\n"
+        },
+        envFiles: []
+      }
+    });
+  });
+
+  it("blocks direct-upload redeploys when no retained artifact snapshot is available", async () => {
+    const fixture = await createDirectUploadComposeFixture({
+      projectName: "Direct Upload Missing Replay",
+      serviceName: "missing-direct-upload-service"
+    });
+
+    await db.insert(deployments).values({
+      id: `depup_legacy_${Date.now()}`.slice(0, 32),
+      projectId: fixture.projectId,
+      environmentId: fixture.environmentId,
+      targetServerId: "srv_foundation_1",
+      serviceName: fixture.serviceName,
+      sourceType: "compose",
+      commitSha: "",
+      imageTag: "",
+      configSnapshot: {
+        deploymentSource: "uploaded-compose",
+        composeFilePath: "compose.yaml",
+        uploadedComposeFileName: "compose.yaml"
+      },
+      status: "completed",
+      conclusion: "succeeded",
+      trigger: "user",
+      requestedByUserId: "user_foundation_owner",
+      requestedByEmail: "owner@daoflow.local",
+      requestedByRole: "owner",
+      createdAt: new Date(Date.now() - 60_000),
+      concludedAt: new Date(Date.now() - 59_000),
+      updatedAt: new Date(Date.now() - 59_000)
+    });
+
+    const result = await triggerDeploy({
+      serviceId: fixture.serviceId,
+      requestedByUserId: "user_foundation_owner",
+      requestedByEmail: "owner@daoflow.local",
+      requestedByRole: "owner"
+    });
+
+    expect(result).toEqual({
+      status: "invalid_source",
+      message:
+        "Service missing-direct-upload-service has no repository source and no retained uploaded artifact snapshot available for replay. Re-upload the compose source before triggering a redeploy."
+    });
+
+    const queued = await db
+      .select()
+      .from(deployments)
+      .where(eq(deployments.projectId, fixture.projectId));
+    expect(queued).toHaveLength(1);
   });
 
   it("marks webhook targets as failed when the provider-linked compose file is no longer reachable", async () => {
