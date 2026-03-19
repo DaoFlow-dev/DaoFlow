@@ -8,23 +8,135 @@ import { getErrorMessage, getExecErrorMessage, resolveCommandJsonOption } from "
 import { defaultInstallDir } from "../templates";
 
 interface UninstallOptions {
-  dir: string;
+  dir?: string;
   removeData?: boolean;
   yes?: boolean;
   json?: boolean;
 }
 
+/**
+ * Auto-discover running DaoFlow installations by inspecting Docker containers.
+ *
+ * Strategy:
+ *   1. Run `docker ps` filtered for images containing "daoflow"
+ *   2. Extract the compose working directory from container labels
+ *   3. Return unique directories found
+ */
+function discoverInstallations(): string[] {
+  try {
+    // Find containers whose image name contains "daoflow"
+    const output = execSync(
+      'docker ps --filter "ancestor=*daoflow*" --format "{{.Labels}}" 2>/dev/null || ' +
+        'docker ps --format "{{.Image}} {{.Labels}}" 2>/dev/null',
+      { encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] }
+    );
+
+    const dirs = new Set<string>();
+
+    // Try to get working_dir from compose labels
+    for (const line of output.split("\n")) {
+      if (!line.includes("daoflow")) continue;
+
+      // Extract com.docker.compose.project.working_dir from labels
+      const match = line.match(/com\.docker\.compose\.project\.working_dir=([^,\s]+)/);
+      if (match?.[1]) {
+        dirs.add(match[1]);
+      }
+    }
+
+    // Fallback: inspect compose project containers directly
+    if (dirs.size === 0) {
+      try {
+        const psOutput = execSync('docker ps --format "{{.ID}}" --filter "name=daoflow"', {
+          encoding: "utf-8",
+          stdio: ["pipe", "pipe", "pipe"]
+        }).trim();
+
+        for (const containerId of psOutput.split("\n").filter(Boolean)) {
+          try {
+            const inspectOutput = execSync(
+              `docker inspect --format '{{index .Config.Labels "com.docker.compose.project.working_dir"}}' ${containerId}`,
+              { encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] }
+            ).trim();
+            if (inspectOutput && inspectOutput !== "<no value>") {
+              dirs.add(inspectOutput);
+            }
+          } catch {
+            /* container inspect failed */
+          }
+        }
+      } catch {
+        /* docker ps failed */
+      }
+    }
+
+    return [...dirs];
+  } catch {
+    return [];
+  }
+}
+
 export function uninstallCommand(): Command {
   return new Command("uninstall")
     .description("Stop DaoFlow services and optionally remove data")
-    .option("--dir <path>", "DaoFlow installation directory", defaultInstallDir())
+    .option("--dir <path>", "DaoFlow installation directory (auto-detected if omitted)")
     .option("--remove-data", "Also remove volumes and database data (destructive)")
     .option("--yes", "Skip confirmation prompts")
     .option("--json", "Output as structured JSON")
     .action(async (opts: UninstallOptions, command: Command) => {
       const isJson = resolveCommandJsonOption(command, opts.json);
-      const dir = opts.dir;
-      const removeData = opts.removeData ?? false;
+
+      // -- Resolve installation directory --
+      let dir = opts.dir;
+
+      if (!dir) {
+        // Auto-discover running DaoFlow installations
+        const discovered = discoverInstallations();
+
+        if (discovered.length === 1) {
+          dir = discovered[0]!;
+          if (!isJson) {
+            console.error(chalk.dim(`  Auto-detected installation at ${dir}`));
+          }
+        } else if (discovered.length > 1) {
+          if (isJson) {
+            console.log(
+              JSON.stringify({
+                ok: false,
+                error: "Multiple DaoFlow installations found. Specify --dir explicitly.",
+                code: "MULTIPLE_INSTALLATIONS",
+                installations: discovered
+              })
+            );
+            process.exit(1);
+          }
+
+          // Interactive selection
+          console.error(chalk.bold("\n🔍 Multiple DaoFlow installations found:\n"));
+          discovered.forEach((d, i) => {
+            console.error(`  ${chalk.cyan(`${i + 1}`)}. ${d}`);
+          });
+          console.error();
+
+          const rl = await import("readline");
+          const iface = rl.createInterface({ input: process.stdin, output: process.stderr });
+          const answer = await new Promise<string>((resolve) => {
+            iface.question(`Select installation (1-${discovered.length}): `, (ans) => {
+              iface.close();
+              resolve(ans.trim());
+            });
+          });
+          const idx = parseInt(answer, 10) - 1;
+          if (isNaN(idx) || idx < 0 || idx >= discovered.length) {
+            console.error(chalk.yellow("Invalid selection. Cancelled."));
+            process.exit(0);
+          }
+          dir = discovered[idx]!;
+        } else {
+          // No containers found, fall back to default
+          dir = defaultInstallDir();
+        }
+      }
 
       // -- Check installation exists --
       if (!existsSync(join(dir, "docker-compose.yml"))) {
@@ -33,11 +145,17 @@ export function uninstallCommand(): Command {
           console.log(JSON.stringify({ ok: false, error: msg, code: "NOT_INSTALLED" }));
         } else {
           console.error(chalk.red(msg));
+          if (!opts.dir) {
+            console.error(
+              chalk.dim("  Specify --dir <path> if your installation is in a different location.")
+            );
+          }
         }
         process.exit(1);
       }
 
       // -- Confirm --
+      const removeData = opts.removeData ?? false;
       if (!opts.yes) {
         console.error(chalk.bold("\n⚠️  DaoFlow Uninstall\n"));
         console.error(`  Directory: ${chalk.dim(dir)}`);

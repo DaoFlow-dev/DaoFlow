@@ -17,6 +17,7 @@ import { capabilitiesCommand } from "./commands/capabilities";
 import { installCommand } from "./commands/install";
 import { upgradeCommand } from "./commands/upgrade";
 import { uninstallCommand } from "./commands/uninstall";
+import { updateCommand } from "./commands/update";
 import { backupCommand } from "./commands/backup";
 import { tokenCommand } from "./commands/token";
 import { diffCommand } from "./commands/diff";
@@ -59,6 +60,7 @@ export function createProgram(): Command {
   program.addCommand(tokenCommand());
   program.addCommand(diffCommand());
   program.addCommand(cancelCommand());
+  program.addCommand(updateCommand());
   registerConfigCommand(program);
 
   return program;
