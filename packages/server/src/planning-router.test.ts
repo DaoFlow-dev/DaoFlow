@@ -582,14 +582,14 @@ describe("planning diff surfaces", () => {
         successStatusCodes: [200]
       });
       expect(plan.steps).toContain(
-        "Verify Docker Compose container state, Docker health, and HTTP readiness on http://127.0.0.1:8080/ready expecting 200 within 60s (poll every 3s), then mark the rollout outcome"
+        "Verify Docker Compose container state, Docker health, and HTTP readiness on published endpoint http://127.0.0.1:8080/ready expecting 200 within 60s (poll every 3s), then mark the rollout outcome"
       );
       expect(
         plan.preflightChecks.some(
           (check) =>
             check.status === "ok" &&
             check.detail.includes(
-              "Compose execution will run HTTP readiness on http://127.0.0.1:8080/ready expecting 200 within 60s"
+              "Compose execution will run HTTP readiness on published endpoint http://127.0.0.1:8080/ready expecting 200 within 60s"
             )
         )
       ).toBe(true);

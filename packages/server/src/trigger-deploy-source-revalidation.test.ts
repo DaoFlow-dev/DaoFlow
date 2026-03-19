@@ -370,9 +370,8 @@ describe("deploy source revalidation", () => {
     ]);
     expect(result.deployment.steps.map((step) => step.detail)).toEqual(
       expect.arrayContaining([
-        "docker-compose pull",
-        "docker-compose up -d",
-        "Verify Docker Compose container state and Docker health"
+        "Resolved compose source inputs, deployment env state, and replayable config snapshot.",
+        "Dispatch the compose deployment to the execution plane."
       ])
     );
 
@@ -616,7 +615,8 @@ describe("deploy source revalidation", () => {
       });
       expect(result.deployment.steps.map((step) => step.detail)).toEqual(
         expect.arrayContaining([
-          "Verify Docker Compose container state, Docker health, and HTTP readiness on http://127.0.0.1:8080/ready expecting 200, 204 within 60s (poll every 3s)"
+          "Resolved compose source inputs, deployment env state, and replayable config snapshot.",
+          "Dispatch the compose deployment to the execution plane."
         ])
       );
     } finally {
