@@ -53,6 +53,8 @@ function discoverInstallations(): string[] {
         }).trim();
 
         for (const containerId of psOutput.split("\n").filter(Boolean)) {
+          // Validate container ID is hex-only to prevent command injection
+          if (!/^[a-f0-9]+$/i.test(containerId)) continue;
           try {
             const inspectOutput = execSync(
               `docker inspect --format '{{index .Config.Labels "com.docker.compose.project.working_dir"}}' ${containerId}`,
