@@ -20,6 +20,7 @@ const ForgotPasswordPage = lazy(() => import("./pages/ForgotPasswordPage"));
 const NotFoundPage = lazy(() => import("./pages/NotFoundPage"));
 const NotificationChannelsPage = lazy(() => import("./pages/NotificationChannelsPage"));
 const UserProfilePage = lazy(() => import("./pages/UserProfilePage"));
+const ApprovalsPage = lazy(() => import("./pages/ApprovalsPage"));
 
 function routeElement(Component: ComponentType) {
   return (
@@ -55,6 +56,7 @@ export const router = createBrowserRouter([
       { path: "notifications", element: routeElement(NotificationChannelsPage) },
       { path: "settings", element: routeElement(SettingsPage) },
       { path: "settings/git/callback", element: routeElement(GitCallbackPage) },
+      { path: "approvals", element: routeElement(ApprovalsPage) },
       { path: "profile", element: routeElement(UserProfilePage) },
       { path: "*", element: routeElement(NotFoundPage) }
     ]

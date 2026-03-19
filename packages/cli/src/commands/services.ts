@@ -7,11 +7,14 @@ export function servicesCommand(): Command {
   return new Command("services")
     .description("List services and their status")
     .option("--json", "Output as JSON")
-    .action(async (opts: { json?: boolean }, command: Command) => {
+    .option("--project <id>", "Filter by project ID")
+    .action(async (opts: { json?: boolean; project?: string }, command: Command) => {
       const isJson = resolveCommandJsonOption(command, opts.json);
       try {
         const trpc = createClient();
-        const data = await trpc.composeReleaseCatalog.query({});
+        const query: Record<string, unknown> = {};
+        if (opts.project) query.projectId = opts.project;
+        const data = await trpc.composeReleaseCatalog.query(query);
 
         if (isJson) {
           console.log(JSON.stringify({ ok: true, data }));

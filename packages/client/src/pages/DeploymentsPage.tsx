@@ -13,7 +13,7 @@ import {
   TableHeader,
   TableRow
 } from "@/components/ui/table";
-import { Rocket, ChevronDown, ChevronRight, RotateCcw, RefreshCw } from "lucide-react";
+import { Rocket, ChevronDown, ChevronRight, RotateCcw, RefreshCw, XCircle } from "lucide-react";
 import DeploymentLogViewer from "@/components/DeploymentLogViewer";
 import DeploymentRollbackDialog from "@/components/DeploymentRollbackDialog";
 import { getBadgeVariantFromTone } from "@/lib/tone-utils";
@@ -39,6 +39,10 @@ export default function DeploymentsPage() {
     { limit: 50 },
     { enabled: Boolean(session.data) }
   );
+
+  const cancelMut = trpc.cancelDeployment.useMutation({
+    onSuccess: () => void recentDeployments.refetch()
+  });
 
   const deployments = recentDeployments.data ?? [];
 
@@ -162,6 +166,24 @@ export default function DeploymentsPage() {
                             >
                               <RefreshCw size={14} className="mr-1" />
                               Retry
+                            </Button>
+                          )}
+                          {(lifecycleStatus === "queued" || lifecycleStatus === "running") && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-destructive hover:text-destructive"
+                              aria-label="Cancel deployment"
+                              disabled={cancelMut.isPending}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (window.confirm("Cancel this deployment?")) {
+                                  cancelMut.mutate({ deploymentId: id });
+                                }
+                              }}
+                            >
+                              <XCircle size={14} className="mr-1" />
+                              Cancel
                             </Button>
                           )}
                         </TableCell>

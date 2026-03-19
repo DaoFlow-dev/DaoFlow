@@ -37,7 +37,8 @@ import {
   Bot,
   Radio,
   Sun,
-  Moon
+  Moon,
+  ShieldCheck
 } from "lucide-react";
 
 const homeNav = [
@@ -48,7 +49,8 @@ const homeNav = [
   { to: "/backups", label: "Backups", icon: DatabaseBackup },
   { to: "/destinations", label: "Destinations", icon: HardDrive },
   { to: "/notifications", label: "Notifications", icon: Radio },
-  { to: "/agents", label: "Agents", icon: Bot }
+  { to: "/agents", label: "Agents", icon: Bot },
+  { to: "/approvals", label: "Approvals", icon: ShieldCheck }
 ] as const;
 
 const settingsNav = [
@@ -198,73 +200,75 @@ export function DashboardLayout() {
             </nav>
           </TooltipProvider>
 
-          <div className="sidebar__footer">
-            {(() => {
-              const btn = (
-                <button
-                  className="sidebar__link"
-                  onClick={() => {
-                    const { resolved, setTheme } = themeCtx;
-                    setTheme(resolved === "dark" ? "light" : "dark");
-                  }}
-                >
-                  {themeCtx.resolved === "dark" ? (
-                    <Sun size={18} className="sidebar__link-icon" />
-                  ) : (
-                    <Moon size={18} className="sidebar__link-icon" />
-                  )}
-                  {!collapsed && (
-                    <span>{themeCtx.resolved === "dark" ? "Light mode" : "Dark mode"}</span>
-                  )}
-                </button>
-              );
-              return collapsed ? (
-                <Tooltip>
-                  <TooltipTrigger asChild>{btn}</TooltipTrigger>
-                  <TooltipContent side="right">Toggle theme</TooltipContent>
-                </Tooltip>
-              ) : (
-                btn
-              );
-            })()}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button className="sidebar__user-card">
-                  <Avatar className="h-8 w-8">
-                    <AvatarFallback className="text-xs">{userInitial}</AvatarFallback>
-                  </Avatar>
-                  {!collapsed && (
-                    <>
-                      <div className="sidebar__user-info">
-                        <p className="sidebar__user-name">{session.data.user.name}</p>
-                        <p className="sidebar__user-email">{session.data.user.email}</p>
-                      </div>
-                      <ChevronsUpDown size={14} className="ml-auto opacity-50" />
-                    </>
-                  )}
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent side="top" className="w-56" align="start">
-                <DropdownMenuLabel>
-                  <p className="font-medium">{session.data.user.name}</p>
-                  <p className="text-xs text-muted-foreground">{session.data.user.email}</p>
-                </DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => void navigate("/profile")}>
-                  <User size={14} />
-                  Profile Settings
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onClick={() => void authClient.signOut()}
-                  className="text-destructive"
-                >
-                  <LogOut size={14} />
-                  Sign out
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
+          <TooltipProvider delayDuration={0}>
+            <div className="sidebar__footer">
+              {(() => {
+                const btn = (
+                  <button
+                    className="sidebar__link"
+                    onClick={() => {
+                      const { resolved, setTheme } = themeCtx;
+                      setTheme(resolved === "dark" ? "light" : "dark");
+                    }}
+                  >
+                    {themeCtx.resolved === "dark" ? (
+                      <Sun size={18} className="sidebar__link-icon" />
+                    ) : (
+                      <Moon size={18} className="sidebar__link-icon" />
+                    )}
+                    {!collapsed && (
+                      <span>{themeCtx.resolved === "dark" ? "Light mode" : "Dark mode"}</span>
+                    )}
+                  </button>
+                );
+                return collapsed ? (
+                  <Tooltip>
+                    <TooltipTrigger asChild>{btn}</TooltipTrigger>
+                    <TooltipContent side="right">Toggle theme</TooltipContent>
+                  </Tooltip>
+                ) : (
+                  btn
+                );
+              })()}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button className="sidebar__user-card">
+                    <Avatar className="h-8 w-8">
+                      <AvatarFallback className="text-xs">{userInitial}</AvatarFallback>
+                    </Avatar>
+                    {!collapsed && (
+                      <>
+                        <div className="sidebar__user-info">
+                          <p className="sidebar__user-name">{session.data.user.name}</p>
+                          <p className="sidebar__user-email">{session.data.user.email}</p>
+                        </div>
+                        <ChevronsUpDown size={14} className="ml-auto opacity-50" />
+                      </>
+                    )}
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent side="top" className="w-56" align="start">
+                  <DropdownMenuLabel>
+                    <p className="font-medium">{session.data.user.name}</p>
+                    <p className="text-xs text-muted-foreground">{session.data.user.email}</p>
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => void navigate("/profile")}>
+                    <User size={14} />
+                    Profile Settings
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={() => void authClient.signOut()}
+                    className="text-destructive"
+                  >
+                    <LogOut size={14} />
+                    Sign out
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </TooltipProvider>
         </aside>
 
         {/* ── Main content ── */}

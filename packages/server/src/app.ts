@@ -43,6 +43,75 @@ export function createApp() {
   );
   app.use("*", logger());
 
+  // ── Auth rate limiting (credential endpoints only) ──────
+  const authRateLimitMap = new Map<string, { count: number; reset: number }>();
+  const RATE_LIMITED_AUTH_PATHS = [
+    "/api/auth/sign-in",
+    "/api/auth/sign-up",
+    "/api/auth/forgot-password",
+    "/api/auth/reset-password"
+  ];
+
+  function getClientIp(c: {
+    req: { header: (name: string) => string | undefined };
+    env: unknown;
+  }): string {
+    return (
+      c.req.header("x-forwarded-for")?.split(",")[0]?.trim() ||
+      c.req.header("x-real-ip") ||
+      c.req.header("cf-connecting-ip") ||
+      // Bun exposes socket address via the server context
+      (c.env as Record<string, string> | undefined)?.remoteAddress ||
+      "127.0.0.1"
+    );
+  }
+
+  app.use("/api/auth/*", async (c, next) => {
+    const method = c.req.method;
+    const path = new URL(c.req.url).pathname;
+
+    // Only rate-limit credential mutations, not session checks
+    const isCredentialEndpoint =
+      method === "POST" && RATE_LIMITED_AUTH_PATHS.some((p) => path.startsWith(p));
+
+    if (!isCredentialEndpoint) {
+      await next();
+      return;
+    }
+
+    const ip = getClientIp(c);
+    const now = Date.now();
+    const windowMs = 60_000; // 1 minute
+    const maxRequests = 60;
+
+    // Purge expired entries every 100 requests to prevent memory leaks
+    if (authRateLimitMap.size > 100) {
+      for (const [key, val] of authRateLimitMap) {
+        if (val.reset < now) authRateLimitMap.delete(key);
+      }
+    }
+
+    let entry = authRateLimitMap.get(ip);
+    if (!entry || entry.reset < now) {
+      entry = { count: 0, reset: now + windowMs };
+      authRateLimitMap.set(ip, entry);
+    }
+
+    entry.count++;
+    c.header("X-RateLimit-Limit", String(maxRequests));
+    c.header("X-RateLimit-Remaining", String(Math.max(0, maxRequests - entry.count)));
+    c.header("X-RateLimit-Reset", String(Math.ceil(entry.reset / 1000)));
+
+    if (entry.count > maxRequests) {
+      return c.json(
+        { error: "Too many requests. Please try again later.", code: "RATE_LIMITED" },
+        429
+      );
+    }
+
+    await next();
+  });
+
   // ── Better Auth ───────────────────────────────────────────
   app.use("/api/auth/*", async (_c, next) => {
     await ensureInitialOwnerFromEnv();
