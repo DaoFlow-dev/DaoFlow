@@ -18,6 +18,7 @@ import { ensureControlPlaneReady, resetControlPlaneSeedState } from "./db/servic
 import { createService } from "./db/services/services";
 import { triggerDeploy } from "./db/services/trigger-deploy";
 import { resetTestDatabase } from "./test-db";
+import { createLocalGitRepository } from "./test-git-repo";
 
 function toRequestUrl(input: string | URL | Request): string {
   if (typeof input === "string") {
@@ -527,6 +528,100 @@ describe("deploy source revalidation", () => {
       .limit(1);
 
     expect(updatedProject?.config).toEqual(projectBeforeDeploy?.config);
+  });
+
+  it("freezes explicit compose readiness probes into deployment snapshots", async () => {
+    const repository = createLocalGitRepository({
+      files: {
+        "deploy/compose.yaml": "services:\n  api:\n    image: example/api:${IMAGE_TAG}\n",
+        "deploy/.env": "IMAGE_TAG=stable\n"
+      }
+    });
+
+    try {
+      const projectResult = await createProject({
+        name: `Readiness Snapshot ${Date.now()}`,
+        repoUrl: repository.rootDir,
+        composePath: "deploy/compose.yaml",
+        defaultBranch: "main",
+        teamId: "team_foundation",
+        requestedByUserId: "user_foundation_owner",
+        requestedByEmail: "owner@daoflow.local",
+        requestedByRole: "owner"
+      });
+      expect(projectResult.status).toBe("ok");
+      if (projectResult.status !== "ok") {
+        throw new Error("Failed to create readiness snapshot project fixture.");
+      }
+
+      const environmentResult = await createEnvironment({
+        projectId: projectResult.project.id,
+        name: "production",
+        targetServerId: "srv_foundation_1",
+        requestedByUserId: "user_foundation_owner",
+        requestedByEmail: "owner@daoflow.local",
+        requestedByRole: "owner"
+      });
+      expect(environmentResult.status).toBe("ok");
+      if (environmentResult.status !== "ok") {
+        throw new Error("Failed to create readiness snapshot environment fixture.");
+      }
+
+      const serviceResult = await createService({
+        name: "compose-runtime",
+        projectId: projectResult.project.id,
+        environmentId: environmentResult.environment.id,
+        sourceType: "compose",
+        composeServiceName: "api",
+        readinessProbe: {
+          type: "http",
+          target: "published-port",
+          port: 8080,
+          path: "/ready",
+          successStatusCodes: [200, 204]
+        },
+        requestedByUserId: "user_foundation_owner",
+        requestedByEmail: "owner@daoflow.local",
+        requestedByRole: "owner"
+      });
+      expect(serviceResult.status).toBe("ok");
+      if (serviceResult.status !== "ok") {
+        throw new Error("Failed to create readiness snapshot service fixture.");
+      }
+
+      const result = await triggerDeploy({
+        serviceId: serviceResult.service.id,
+        commitSha: "abcdef1234567890abcdef1234567890abcdef12",
+        requestedByUserId: "user_foundation_owner",
+        requestedByEmail: "owner@daoflow.local",
+        requestedByRole: "owner"
+      });
+
+      expect(result.status).toBe("ok");
+      if (result.status !== "ok") {
+        throw new Error("Expected readiness snapshot deployment to succeed.");
+      }
+
+      expect(asRecord(result.deployment.configSnapshot).readinessProbe).toMatchObject({
+        serviceName: "api",
+        type: "http",
+        target: "published-port",
+        host: "127.0.0.1",
+        scheme: "http",
+        port: 8080,
+        path: "/ready",
+        timeoutSeconds: 60,
+        intervalSeconds: 3,
+        successStatusCodes: [200, 204]
+      });
+      expect(result.deployment.steps.map((step) => step.detail)).toEqual(
+        expect.arrayContaining([
+          "Verify Docker Compose container state, Docker health, and HTTP readiness on http://127.0.0.1:8080/ready expecting 200, 204 within 60s (poll every 3s)"
+        ])
+      );
+    } finally {
+      repository.cleanup();
+    }
   });
 
   it("replays retained uploaded artifact snapshots for direct-upload compose services", async () => {

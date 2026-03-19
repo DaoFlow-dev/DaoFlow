@@ -20,6 +20,11 @@ import { dispatchDeploymentExecution } from "./deployment-dispatch";
 import type { AppRole } from "@daoflow/shared";
 import { asRecord, readString } from "./json-helpers";
 import {
+  describeComposeReadinessProbe,
+  readComposeReadinessProbeFromConfig,
+  snapshotComposeReadinessProbe
+} from "../../compose-readiness";
+import {
   buildComposeSourceSnapshot,
   buildRepositorySourceSnapshot,
   extractReplayableConfigSnapshot,
@@ -39,15 +44,20 @@ export interface TriggerDeployInput {
 }
 
 /** Generate deployment steps based on sourceType. */
-function stepsForSourceType(sourceType: string): { label: string; detail: string }[] {
-  switch (sourceType) {
+function stepsForSourceType(input: {
+  sourceType: string;
+  composeReadinessDescription?: string | null;
+}): { label: string; detail: string }[] {
+  switch (input.sourceType) {
     case "compose":
       return [
         { label: "Pull images", detail: "docker-compose pull" },
         { label: "Start services", detail: "docker-compose up -d" },
         {
           label: "Health check",
-          detail: "Verify Docker Compose container state and Docker health"
+          detail: input.composeReadinessDescription
+            ? `Verify Docker Compose container state, Docker health, and ${input.composeReadinessDescription}`
+            : "Verify Docker Compose container state and Docker health"
         }
       ];
     case "dockerfile":
@@ -165,6 +175,7 @@ export async function triggerDeploy(input: TriggerDeployInput) {
   }
 
   const buildConfig = asRecord(svc.config);
+  const readinessProbe = readComposeReadinessProbeFromConfig(buildConfig);
   const configSnapshot: Record<string, unknown> = composeProjectHasRepositorySource
     ? buildRepositorySourceSnapshot(project)
     : {};
@@ -212,6 +223,14 @@ export async function triggerDeploy(input: TriggerDeployInput) {
     }
   }
 
+  delete configSnapshot.readinessProbe;
+  if (readinessProbe) {
+    configSnapshot.readinessProbe = snapshotComposeReadinessProbe({
+      probe: readinessProbe,
+      serviceName: svc.composeServiceName ?? svc.name
+    });
+  }
+
   if (svc.sourceType === "dockerfile") {
     configSnapshot.dockerfile = normalizeRepositoryPath(
       svc.dockerfilePath ?? "Dockerfile",
@@ -256,7 +275,13 @@ export async function triggerDeploy(input: TriggerDeployInput) {
     requestedByEmail: input.requestedByEmail ?? null,
     requestedByRole: input.requestedByRole ?? null,
     trigger: input.trigger ?? "user",
-    steps: stepsForSourceType(svc.sourceType),
+    steps: stepsForSourceType({
+      sourceType: svc.sourceType,
+      composeReadinessDescription:
+        svc.sourceType === "compose" && readinessProbe
+          ? describeComposeReadinessProbe(readinessProbe)
+          : null
+    }),
     configSnapshot,
     envVarsEncrypted
   };

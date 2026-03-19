@@ -30,6 +30,18 @@ import {
   throwOnOperationError
 } from "../trpc";
 
+const composeReadinessProbeSchema = z.object({
+  type: z.literal("http"),
+  target: z.literal("published-port"),
+  port: z.number().int().min(1).max(65535),
+  path: z.string().min(1).max(255),
+  host: z.string().min(1).max(255).optional(),
+  scheme: z.enum(["http", "https"]).optional(),
+  timeoutSeconds: z.number().int().min(1).max(300).optional(),
+  intervalSeconds: z.number().int().min(1).max(30).optional(),
+  successStatusCodes: z.array(z.number().int().min(100).max(599)).max(20).optional()
+});
+
 export const adminRouter = t.router({
   /* ── Server Registration ─────────────────────────────────── */
   registerServer: serverWriteProcedure
@@ -266,6 +278,7 @@ export const adminRouter = t.router({
         composeServiceName: z.string().max(100).optional(),
         port: z.string().max(20).optional(),
         healthcheckPath: z.string().max(255).optional(),
+        readinessProbe: composeReadinessProbeSchema.nullable().optional(),
         targetServerId: z.string().optional()
       })
     )
@@ -283,6 +296,9 @@ export const adminRouter = t.router({
           message: `A service with this name already exists in the environment.`
         });
       }
+      if (result.status === "invalid_config") {
+        throw new TRPCError({ code: "BAD_REQUEST", message: result.message });
+      }
       return result.service;
     }),
 
@@ -297,6 +313,7 @@ export const adminRouter = t.router({
         composeServiceName: z.string().max(100).optional(),
         port: z.string().max(20).optional(),
         healthcheckPath: z.string().max(255).optional(),
+        readinessProbe: composeReadinessProbeSchema.nullable().optional(),
         replicaCount: z.string().max(5).optional(),
         targetServerId: z.string().optional()
       })
@@ -308,6 +325,9 @@ export const adminRouter = t.router({
       });
       if (result.status === "not_found") {
         throw new TRPCError({ code: "NOT_FOUND", message: "Service not found." });
+      }
+      if (result.status === "invalid_config") {
+        throw new TRPCError({ code: "BAD_REQUEST", message: result.message });
       }
       return result.service;
     }),

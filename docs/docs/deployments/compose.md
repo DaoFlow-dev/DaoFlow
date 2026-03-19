@@ -11,7 +11,8 @@ Docker Compose is the primary deployment method in DaoFlow. Compose files are fi
 1. You provide a `compose.yaml` file
 2. DaoFlow uploads it to the target server
 3. Runs `docker compose up -d` with the appropriate project name
-4. Monitors health and records the outcome
+4. Waits for Docker Compose container state and Docker health
+5. If configured, runs an explicit readiness probe from the deployment target host and records the outcome
 
 ## CLI Deployment
 
@@ -66,6 +67,33 @@ For each Compose deployment, DaoFlow records:
 ## Multi-Service Support
 
 Compose files with multiple services are deployed as a unit. All services start together, and the deployment is marked as successful only when all services are healthy.
+
+## Explicit Readiness Probes
+
+Compose deployments can opt into an explicit readiness probe on the DaoFlow service definition:
+
+```json
+{
+  "readinessProbe": {
+    "type": "http",
+    "target": "published-port",
+    "port": 8080,
+    "path": "/ready",
+    "host": "127.0.0.1",
+    "scheme": "http",
+    "timeoutSeconds": 60,
+    "intervalSeconds": 3,
+    "successStatusCodes": [200, 204]
+  }
+}
+```
+
+Current semantics are intentionally narrow and deterministic:
+
+- DaoFlow probes a published port from the deployment target host, not from the control plane browser session.
+- Docker Compose container state and Docker health must pass before the readiness probe can promote the rollout.
+- Remote Docker targets need `curl` available so the worker can execute the probe over SSH from the host that is actually running the Compose project.
+- Legacy `healthcheckPath` metadata is still stored for compatibility, but explicit `readinessProbe` takes precedence for compose execution.
 
 ## Environment Variable Injection
 

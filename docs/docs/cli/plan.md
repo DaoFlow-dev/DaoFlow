@@ -61,7 +61,18 @@ Service plan:
       "imageReference": "ghcr.io/acme/api:stable",
       "dockerfilePath": null,
       "composeServiceName": "api",
-      "healthcheckPath": "/healthz"
+      "healthcheckPath": "/healthz",
+      "readinessProbe": {
+        "type": "http",
+        "target": "published-port",
+        "host": "127.0.0.1",
+        "scheme": "http",
+        "port": 8080,
+        "path": "/ready",
+        "timeoutSeconds": 60,
+        "intervalSeconds": 3,
+        "successStatusCodes": [200, 204]
+      }
     },
     "composeEnvPlan": {
       "branch": "main",
@@ -130,19 +141,25 @@ Service plan:
       { "status": "ok", "detail": "Service api is registered in production." },
       { "status": "ok", "detail": "Target server resolved to prod (10.0.0.42)." },
       { "status": "ok", "detail": "Source type is compose." },
-      { "status": "ok", "detail": "Deployment input will use ghcr.io/acme/api:1.4.2." }
+      { "status": "ok", "detail": "Deployment input will use ghcr.io/acme/api:1.4.2." },
+      {
+        "status": "ok",
+        "detail": "Compose execution will run HTTP readiness on http://127.0.0.1:8080/ready expecting 200, 204 within 60s (poll every 3s) after Docker Compose container state and Docker health are green."
+      }
     ],
     "steps": [
       "Freeze the compose inputs and resolved runtime spec",
       "Pull ghcr.io/acme/api:1.4.2 and refresh compose service api",
       "Apply docker compose up -d api with the staged configuration",
-      "Verify Docker Compose container state and Docker health, then mark the rollout outcome",
+      "Verify Docker Compose container state, Docker health, and HTTP readiness on http://127.0.0.1:8080/ready expecting 200, 204 within 60s (poll every 3s), then mark the rollout outcome",
       "Dispatch execution to prod"
     ],
     "executeCommand": "daoflow deploy --service svc_123 --server srv_123 --image ghcr.io/acme/api:1.4.2 --yes"
   }
 }
 ```
+
+For compose-backed services, `healthcheckPath` remains legacy metadata. When `service.config.readinessProbe` is present, the plan shows the real execution contract that DaoFlow will enforce on the target host.
 
 Compose plan:
 

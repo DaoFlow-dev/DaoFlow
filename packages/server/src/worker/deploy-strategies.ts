@@ -11,11 +11,16 @@ import { eq } from "drizzle-orm";
 import { db } from "../db/connection";
 import { deployments } from "../db/schema/deployments";
 import { COMPOSE_ENV_FILE_NAME } from "../compose-env";
+import { readComposeReadinessProbeSnapshot } from "../compose-readiness";
 import {
   persistDeploymentComposeEnvState,
   readDeploymentComposeState
 } from "../db/services/compose-env";
 import { assessComposeHealth, type ComposeContainerStatus } from "./compose-health";
+import {
+  runLocalComposeReadinessCheck,
+  runRemoteComposeReadinessCheck
+} from "./compose-readiness-check";
 import {
   gitClone,
   dockerBuild,
@@ -72,6 +77,7 @@ export async function executeComposeDeployment(
   const composeTargetLabel = composeServiceName
     ? `compose service ${composeServiceName}`
     : "compose services";
+  const readinessProbe = readComposeReadinessProbeSnapshot(config.readinessProbe);
 
   // Step 1: Clone / prepare workspace
   const cloneStepId = await createStep(
@@ -190,7 +196,8 @@ export async function executeComposeDeployment(
     composeEnvFile,
     onLog,
     target,
-    healthStepId
+    healthStepId,
+    readinessProbe
   );
 }
 
@@ -400,12 +407,39 @@ async function waitForComposeHealthy(
   composeEnvFile: string | undefined,
   onLog: OnLog,
   target: ExecutionTarget,
-  healthStepId: number
+  healthStepId: number,
+  readinessProbe: ReturnType<typeof readComposeReadinessProbeSnapshot>
 ): Promise<void> {
-  const start = Date.now();
+  const composeStart = Date.now();
+  let readinessStart: number | null = null;
   let lastPendingSummary = `${composeTargetLabel} are still converging`;
 
-  while (Date.now() - start < HEALTH_CHECK_TIMEOUT_MS) {
+  const intervalMs = readinessProbe
+    ? readinessProbe.intervalSeconds * 1_000
+    : HEALTH_CHECK_INTERVAL_MS;
+
+  while (true) {
+    const now = Date.now();
+    if (!readinessStart && now - composeStart >= HEALTH_CHECK_TIMEOUT_MS) {
+      await markStepFailed(
+        healthStepId,
+        `Timed out after ${HEALTH_CHECK_TIMEOUT_MS / 1000}s: ${lastPendingSummary}`
+      );
+      throw new Error(`Health check timeout for ${composeTargetLabel}`);
+    }
+
+    if (
+      readinessProbe &&
+      readinessStart !== null &&
+      now - readinessStart >= readinessProbe.timeoutSeconds * 1_000
+    ) {
+      await markStepFailed(
+        healthStepId,
+        `Timed out after ${readinessProbe.timeoutSeconds}s: ${lastPendingSummary}`
+      );
+      throw new Error(`Health check timeout for ${composeTargetLabel}`);
+    }
+
     const statusResult = await readComposeHealthStatuses(
       composeFile,
       projectName,
@@ -425,8 +459,30 @@ async function waitForComposeHealthy(
 
     const assessment = assessComposeHealth(statusResult.statuses, composeTargetLabel);
     if (assessment.kind === "healthy") {
-      await markStepComplete(healthStepId, assessment.summary);
-      return;
+      if (!readinessProbe) {
+        await markStepComplete(healthStepId, assessment.summary);
+        return;
+      }
+
+      readinessStart ??= Date.now();
+      const readinessAttempt =
+        target.mode === "remote"
+          ? await runRemoteComposeReadinessCheck(target.ssh, readinessProbe, onLog)
+          : await runLocalComposeReadinessCheck(readinessProbe);
+
+      if (readinessAttempt.kind === "success") {
+        await markStepComplete(healthStepId, `${assessment.summary}; ${readinessAttempt.summary}`);
+        return;
+      }
+
+      if (readinessAttempt.kind === "failed") {
+        await markStepFailed(healthStepId, readinessAttempt.summary);
+        throw new Error(readinessAttempt.summary);
+      }
+
+      lastPendingSummary = readinessAttempt.summary;
+      await new Promise((resolve) => setTimeout(resolve, intervalMs));
+      continue;
     }
 
     if (assessment.kind === "failed") {
@@ -435,14 +491,8 @@ async function waitForComposeHealthy(
     }
 
     lastPendingSummary = assessment.summary;
-    await new Promise((resolve) => setTimeout(resolve, HEALTH_CHECK_INTERVAL_MS));
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
   }
-
-  await markStepFailed(
-    healthStepId,
-    `Timed out after ${HEALTH_CHECK_TIMEOUT_MS / 1000}s: ${lastPendingSummary}`
-  );
-  throw new Error(`Health check timeout for ${composeTargetLabel}`);
 }
 
 async function waitForHealthy(

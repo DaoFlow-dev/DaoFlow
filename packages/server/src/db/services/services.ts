@@ -5,6 +5,11 @@ import { services } from "../schema/services";
 import { environments } from "../schema/projects";
 import type { AppRole } from "@daoflow/shared";
 import { newId as id } from "./json-helpers";
+import {
+  readComposeReadinessProbeFromConfig,
+  type ComposeReadinessProbeInput,
+  writeComposeReadinessProbeToConfig
+} from "../../compose-readiness";
 
 /* ──────────────────────── Helpers ──────────────────────── */
 
@@ -28,6 +33,7 @@ export interface CreateServiceInput {
   composeServiceName?: string;
   port?: string;
   healthcheckPath?: string;
+  readinessProbe?: ComposeReadinessProbeInput | null;
   targetServerId?: string;
   requestedByUserId: string;
   requestedByEmail: string;
@@ -43,6 +49,7 @@ export interface UpdateServiceInput {
   composeServiceName?: string;
   port?: string;
   healthcheckPath?: string;
+  readinessProbe?: ComposeReadinessProbeInput | null;
   replicaCount?: string;
   targetServerId?: string;
   requestedByUserId: string;
@@ -58,6 +65,15 @@ export interface DeleteServiceInput {
 }
 
 /* ──────────────────────── Service CRUD ──────────────────────── */
+
+function normalizeServiceRecord(service: typeof services.$inferSelect) {
+  return {
+    ...service,
+    config: writeComposeReadinessProbeToConfig({
+      config: service.config
+    })
+  };
+}
 
 export async function createService(input: CreateServiceInput) {
   // Verify the environment exists
@@ -79,6 +95,13 @@ export async function createService(input: CreateServiceInput) {
 
   if (existing) return { status: "conflict" as const, conflictField: "name" };
 
+  if (input.readinessProbe && input.sourceType !== "compose") {
+    return {
+      status: "invalid_config" as const,
+      message: "Explicit readiness probes are only supported for compose services."
+    };
+  }
+
   const serviceId = id();
   const [service] = await db
     .insert(services)
@@ -96,7 +119,10 @@ export async function createService(input: CreateServiceInput) {
       healthcheckPath: input.healthcheckPath ?? null,
       targetServerId: input.targetServerId ?? null,
       status: "inactive",
-      config: {},
+      config: writeComposeReadinessProbeToConfig({
+        config: {},
+        readinessProbe: input.readinessProbe
+      }),
       updatedAt: new Date()
     })
     .returning();
@@ -119,7 +145,7 @@ export async function createService(input: CreateServiceInput) {
     }
   });
 
-  return { status: "ok" as const, service };
+  return { status: "ok" as const, service: normalizeServiceRecord(service) };
 }
 
 export async function updateService(input: UpdateServiceInput) {
@@ -130,6 +156,14 @@ export async function updateService(input: UpdateServiceInput) {
     .limit(1);
 
   if (!existing) return { status: "not_found" as const };
+
+  const nextSourceType = input.sourceType ?? existing.sourceType;
+  if (input.readinessProbe && nextSourceType !== "compose") {
+    return {
+      status: "invalid_config" as const,
+      message: "Explicit readiness probes are only supported for compose services."
+    };
+  }
 
   const updates: Partial<typeof services.$inferInsert> = { updatedAt: new Date() };
   if (input.name !== undefined) {
@@ -144,6 +178,17 @@ export async function updateService(input: UpdateServiceInput) {
   if (input.healthcheckPath !== undefined) updates.healthcheckPath = input.healthcheckPath;
   if (input.replicaCount !== undefined) updates.replicaCount = input.replicaCount;
   if (input.targetServerId !== undefined) updates.targetServerId = input.targetServerId;
+  if (input.readinessProbe !== undefined) {
+    updates.config = writeComposeReadinessProbeToConfig({
+      config: existing.config,
+      readinessProbe: input.readinessProbe
+    });
+  } else if (nextSourceType !== "compose" && readComposeReadinessProbeFromConfig(existing.config)) {
+    updates.config = writeComposeReadinessProbeToConfig({
+      config: existing.config,
+      readinessProbe: null
+    });
+  }
 
   const [service] = await db
     .update(services)
@@ -164,7 +209,7 @@ export async function updateService(input: UpdateServiceInput) {
     metadata: { resourceType: "service", resourceId: input.serviceId }
   });
 
-  return { status: "ok" as const, service };
+  return { status: "ok" as const, service: normalizeServiceRecord(service) };
 }
 
 export async function deleteService(input: DeleteServiceInput) {
@@ -196,26 +241,29 @@ export async function deleteService(input: DeleteServiceInput) {
 
 export async function listServices(environmentId?: string, limit = 50) {
   if (environmentId) {
-    return db
+    const rows = await db
       .select()
       .from(services)
       .where(eq(services.environmentId, environmentId))
       .orderBy(desc(services.createdAt))
       .limit(limit);
+    return rows.map(normalizeServiceRecord);
   }
-  return db.select().from(services).orderBy(desc(services.createdAt)).limit(limit);
+  const rows = await db.select().from(services).orderBy(desc(services.createdAt)).limit(limit);
+  return rows.map(normalizeServiceRecord);
 }
 
 export async function listServicesByProject(projectId: string) {
-  return db
+  const rows = await db
     .select()
     .from(services)
     .where(eq(services.projectId, projectId))
     .orderBy(desc(services.createdAt));
+  return rows.map(normalizeServiceRecord);
 }
 
 export async function getService(serviceId: string) {
   const [service] = await db.select().from(services).where(eq(services.id, serviceId)).limit(1);
 
-  return service ?? null;
+  return service ? normalizeServiceRecord(service) : null;
 }

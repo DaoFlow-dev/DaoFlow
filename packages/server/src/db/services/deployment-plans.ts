@@ -4,6 +4,11 @@ import {
   getDeploymentStatusTone,
   normalizeDeploymentStatus
 } from "@daoflow/shared";
+import {
+  describeComposeReadinessProbe,
+  readComposeReadinessProbeFromConfig,
+  type ComposeReadinessProbe
+} from "../../compose-readiness";
 import { buildComposeEnvPlanDiagnostics } from "../../compose-env-plan";
 import { materializeComposeWorkspaceArtifacts } from "../../compose-workspace-artifacts";
 import { db } from "../connection";
@@ -202,6 +207,7 @@ function buildPlanSteps(input: {
   hasHealthcheck: boolean;
   targetServerName: string;
   composeServiceName?: string | null;
+  composeReadinessProbe?: ComposeReadinessProbe | null;
 }) {
   const serverStep = `Dispatch execution to ${input.targetServerName}`;
 
@@ -219,7 +225,9 @@ function buildPlanSteps(input: {
           ? `Pull ${input.imageTag} and refresh ${composeTargetLabel}`
           : `Resolve image references from the compose spec and refresh ${composeTargetLabel}`,
         composeUpCommand,
-        "Verify Docker Compose container state and Docker health, then mark the rollout outcome",
+        input.composeReadinessProbe
+          ? `Verify Docker Compose container state, Docker health, and ${describeComposeReadinessProbe(input.composeReadinessProbe)}, then mark the rollout outcome`
+          : "Verify Docker Compose container state and Docker health, then mark the rollout outcome",
         serverStep
       ];
     }
@@ -302,6 +310,7 @@ export async function buildDeploymentPlan(input: BuildDeploymentPlanInput) {
     .limit(1);
 
   const sourceType = normalizeSourceType(service.sourceType);
+  const readinessProbe = readComposeReadinessProbeFromConfig(service.config);
   let composeEnvPlan: ReturnType<typeof buildComposeEnvPlanDiagnostics> | null = null;
 
   const checks = [
@@ -321,11 +330,27 @@ export async function buildDeploymentPlan(input: BuildDeploymentPlanInput) {
   ];
 
   if (sourceType === "compose") {
-    if (service.healthcheckPath) {
+    if (readinessProbe) {
+      checks.push(
+        makeCheck(
+          "ok",
+          `Compose execution will run ${describeComposeReadinessProbe(readinessProbe)} after Docker Compose container state and Docker health are green.`
+        )
+      );
+    } else if (service.healthcheckPath) {
       checks.push(
         makeCheck(
           "warn",
           `Compose service healthcheckPath "${service.healthcheckPath}" is advisory only today; compose execution verifies Docker Compose container state and Docker health instead of probing that path.`
+        )
+      );
+    }
+
+    if (readinessProbe && service.healthcheckPath) {
+      checks.push(
+        makeCheck(
+          "warn",
+          `Legacy healthcheckPath "${service.healthcheckPath}" is ignored for compose execution because an explicit readiness probe is configured.`
         )
       );
     }
@@ -378,7 +403,8 @@ export async function buildDeploymentPlan(input: BuildDeploymentPlanInput) {
     hasDockerfilePath: Boolean(service.dockerfilePath),
     hasHealthcheck: Boolean(service.healthcheckPath),
     targetServerName: resolvedServer?.name ?? "the configured worker",
-    composeServiceName: service.composeServiceName
+    composeServiceName: service.composeServiceName,
+    composeReadinessProbe: readinessProbe
   });
 
   const currentDeployment = latestDeployment
@@ -410,7 +436,8 @@ export async function buildDeploymentPlan(input: BuildDeploymentPlanInput) {
       imageReference: service.imageReference,
       dockerfilePath: service.dockerfilePath,
       composeServiceName: service.composeServiceName,
-      healthcheckPath: service.healthcheckPath
+      healthcheckPath: service.healthcheckPath,
+      readinessProbe
     },
     composeEnvPlan,
     target: {

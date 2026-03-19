@@ -504,6 +504,112 @@ describe("planning diff surfaces", () => {
     }
   });
 
+  it("models explicit compose readiness probes in the deployment plan", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-plan-compose-readiness-probe",
+      session: makeSession("viewer")
+    });
+    const repository = createLocalGitRepository({
+      files: {
+        "deploy/compose.yaml": "services:\n  api:\n    image: example/api:${IMAGE_TAG}\n",
+        "deploy/.env": "IMAGE_TAG=stable\n"
+      }
+    });
+
+    try {
+      const projectResult = await createProject({
+        name: `compose-readiness-plan-${Date.now()}`,
+        repoUrl: repository.rootDir,
+        composePath: "deploy/compose.yaml",
+        defaultBranch: "main",
+        teamId: "team_foundation",
+        requestedByUserId: "user_foundation_owner",
+        requestedByEmail: "owner@daoflow.local",
+        requestedByRole: "owner"
+      });
+      if (projectResult.status !== "ok") {
+        throw new Error("Failed to create compose readiness planning fixture project.");
+      }
+
+      const environmentResult = await createEnvironment({
+        projectId: projectResult.project.id,
+        name: `compose-readiness-env-${Date.now()}`,
+        targetServerId: "srv_foundation_1",
+        requestedByUserId: "user_foundation_owner",
+        requestedByEmail: "owner@daoflow.local",
+        requestedByRole: "owner"
+      });
+      if (environmentResult.status !== "ok") {
+        throw new Error("Failed to create compose readiness planning fixture environment.");
+      }
+
+      const serviceResult = await createService({
+        name: `compose-readiness-svc-${Date.now()}`,
+        projectId: projectResult.project.id,
+        environmentId: environmentResult.environment.id,
+        sourceType: "compose",
+        composeServiceName: "api",
+        targetServerId: "srv_foundation_1",
+        healthcheckPath: "/legacy-ready",
+        readinessProbe: {
+          type: "http",
+          target: "published-port",
+          port: 8080,
+          path: "/ready"
+        },
+        requestedByUserId: "user_foundation_owner",
+        requestedByEmail: "owner@daoflow.local",
+        requestedByRole: "owner"
+      });
+      if (serviceResult.status !== "ok") {
+        throw new Error("Failed to create compose readiness planning fixture service.");
+      }
+
+      const plan = await caller.deploymentPlan({
+        service: serviceResult.service.id
+      });
+
+      expect(plan.isReady).toBe(true);
+      expect(plan.service.readinessProbe).toMatchObject({
+        type: "http",
+        target: "published-port",
+        host: "127.0.0.1",
+        port: 8080,
+        path: "/ready",
+        scheme: "http",
+        timeoutSeconds: 60,
+        intervalSeconds: 3,
+        successStatusCodes: [200]
+      });
+      expect(plan.steps).toContain(
+        "Verify Docker Compose container state, Docker health, and HTTP readiness on http://127.0.0.1:8080/ready expecting 200 within 60s (poll every 3s), then mark the rollout outcome"
+      );
+      expect(
+        plan.preflightChecks.some(
+          (check) =>
+            check.status === "ok" &&
+            check.detail.includes(
+              "Compose execution will run HTTP readiness on http://127.0.0.1:8080/ready expecting 200 within 60s"
+            )
+        )
+      ).toBe(true);
+      expect(
+        plan.preflightChecks.some(
+          (check) =>
+            check.status === "warn" &&
+            check.detail.includes('Legacy healthcheckPath "/legacy-ready" is ignored')
+        )
+      ).toBe(true);
+      expect(
+        plan.preflightChecks.some(
+          (check) => check.status === "warn" && check.detail.includes("advisory only today")
+        )
+      ).toBe(false);
+    } finally {
+      repository.cleanup();
+    }
+  });
+
   it("returns a scoped config diff from the planning lane", async () => {
     const caller = appRouter.createCaller({
       requestId: "test-config-diff",

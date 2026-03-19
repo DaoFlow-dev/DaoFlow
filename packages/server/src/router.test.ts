@@ -412,6 +412,87 @@ describe("appRouter", () => {
     expect(insight.statusLabel).toEqual(expect.any(String));
   });
 
+  it("returns normalized compose readiness probe metadata from service reads", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-service-readiness-probe",
+      session: makeSession("viewer")
+    });
+
+    const projectResult = await createProject({
+      name: `service-readiness-${Date.now()}`,
+      description: "Compose readiness read fixture",
+      teamId: "team_foundation",
+      requestedByUserId: "user_foundation_owner",
+      requestedByEmail: "owner@daoflow.local",
+      requestedByRole: "owner"
+    });
+    expect(projectResult.status).toBe("ok");
+    if (projectResult.status !== "ok") {
+      throw new Error("Failed to create service readiness project fixture.");
+    }
+
+    const environmentResult = await createEnvironment({
+      projectId: projectResult.project.id,
+      name: `service-readiness-env-${Date.now()}`,
+      targetServerId: "srv_foundation_1",
+      requestedByUserId: "user_foundation_owner",
+      requestedByEmail: "owner@daoflow.local",
+      requestedByRole: "owner"
+    });
+    expect(environmentResult.status).toBe("ok");
+    if (environmentResult.status !== "ok") {
+      throw new Error("Failed to create service readiness environment fixture.");
+    }
+
+    const serviceResult = await createService({
+      name: `service-readiness-svc-${Date.now()}`,
+      projectId: projectResult.project.id,
+      environmentId: environmentResult.environment.id,
+      sourceType: "compose",
+      composeServiceName: "api",
+      targetServerId: "srv_foundation_1",
+      readinessProbe: {
+        type: "http",
+        target: "published-port",
+        port: 3000,
+        path: "/ready",
+        successStatusCodes: [200, 204]
+      },
+      requestedByUserId: "user_foundation_owner",
+      requestedByEmail: "owner@daoflow.local",
+      requestedByRole: "owner"
+    });
+    expect(serviceResult.status).toBe("ok");
+    if (serviceResult.status !== "ok") {
+      throw new Error("Failed to create service readiness service fixture.");
+    }
+
+    const [serviceDetails, listedServices] = await Promise.all([
+      caller.serviceDetails({ serviceId: serviceResult.service.id }),
+      caller.services({ environmentId: environmentResult.environment.id })
+    ]);
+
+    expect(asRecord(serviceDetails.config).readinessProbe).toMatchObject({
+      type: "http",
+      target: "published-port",
+      host: "127.0.0.1",
+      scheme: "http",
+      port: 3000,
+      path: "/ready",
+      timeoutSeconds: 60,
+      intervalSeconds: 3,
+      successStatusCodes: [200, 204]
+    });
+    expect(
+      listedServices.some(
+        (service) =>
+          service.id === serviceResult.service.id &&
+          asRecord(service.config).readinessProbe &&
+          asRecord(service.config).readinessProbe !== null
+      )
+    ).toBe(true);
+  });
+
   it("returns a real deployment plan from the planning lane", async () => {
     const caller = appRouter.createCaller({
       requestId: "test-plan",

@@ -11,6 +11,7 @@ import { events } from "../db/schema/audit";
 import type { RepositoryPreparationConfig } from "../repository-preparation";
 import type { ComposeEnvEvidence } from "../compose-env";
 import type { ComposeInputManifest } from "../compose-inputs";
+import type { ComposeReadinessProbeSnapshot } from "../compose-readiness";
 
 export type DeploymentRow = typeof deployments.$inferSelect;
 
@@ -146,6 +147,7 @@ export interface ConfigSnapshot extends Record<string, unknown> {
   uploadedContextArchiveName?: string;
   uploadedArtifactId?: string;
   composeImageOverride?: ComposeImageOverride;
+  readinessProbe?: ComposeReadinessProbeSnapshot;
   composeEnv?: ComposeEnvEvidence;
   composeInputs?: ComposeInputManifest;
 }
