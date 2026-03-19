@@ -467,8 +467,13 @@ async function waitForComposeHealthy(
       readinessStart ??= Date.now();
       const readinessAttempt =
         target.mode === "remote"
-          ? await runRemoteComposeReadinessCheck(target.ssh, readinessProbe, onLog)
-          : await runLocalComposeReadinessCheck(readinessProbe);
+          ? await runRemoteComposeReadinessCheck(
+              target.ssh,
+              readinessProbe,
+              statusResult.statuses,
+              onLog
+            )
+          : await runLocalComposeReadinessCheck(readinessProbe, statusResult.statuses);
 
       if (readinessAttempt.kind === "success") {
         await markStepComplete(healthStepId, `${assessment.summary}; ${readinessAttempt.summary}`);

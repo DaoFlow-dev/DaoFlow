@@ -35,7 +35,7 @@ describe("runLocalComposeReadinessCheck", () => {
     const fetchImpl = vi.fn().mockResolvedValueOnce(new Response(null, { status: 204 }));
 
     await expect(
-      runLocalComposeReadinessCheck(probe, fetchImpl as unknown as typeof fetch)
+      runLocalComposeReadinessCheck(probe, [], fetchImpl as unknown as typeof fetch)
     ).resolves.toEqual({
       kind: "success",
       summary: "api readiness probe passed at http://127.0.0.1:8080/ready (HTTP 204)"
@@ -46,7 +46,7 @@ describe("runLocalComposeReadinessCheck", () => {
     const fetchImpl = vi.fn().mockResolvedValueOnce(new Response(null, { status: 404 }));
 
     await expect(
-      runLocalComposeReadinessCheck(probe, fetchImpl as unknown as typeof fetch)
+      runLocalComposeReadinessCheck(probe, [], fetchImpl as unknown as typeof fetch)
     ).resolves.toEqual({
       kind: "pending",
       summary: "api readiness probe is still waiting on http://127.0.0.1:8080/ready (HTTP 404)"
@@ -57,7 +57,7 @@ describe("runLocalComposeReadinessCheck", () => {
     const fetchImpl = vi.fn().mockRejectedValueOnce(new Error("connect ECONNREFUSED 127.0.0.1"));
 
     await expect(
-      runLocalComposeReadinessCheck(probe, fetchImpl as unknown as typeof fetch)
+      runLocalComposeReadinessCheck(probe, [], fetchImpl as unknown as typeof fetch)
     ).resolves.toEqual({
       kind: "pending",
       summary:
@@ -79,7 +79,9 @@ describe("runRemoteComposeReadinessCheck", () => {
         return Promise.resolve({ exitCode: 0, signal: null });
       });
 
-    await expect(runRemoteComposeReadinessCheck(target, probe, onLog, execImpl)).resolves.toEqual({
+    await expect(
+      runRemoteComposeReadinessCheck(target, probe, [], onLog, execImpl)
+    ).resolves.toEqual({
       kind: "success",
       summary: "api readiness probe passed at http://127.0.0.1:8080/ready (HTTP 200)"
     });
@@ -97,7 +99,9 @@ describe("runRemoteComposeReadinessCheck", () => {
         return Promise.resolve({ exitCode: 0, signal: null });
       });
 
-    await expect(runRemoteComposeReadinessCheck(target, probe, onLog, execImpl)).resolves.toEqual({
+    await expect(
+      runRemoteComposeReadinessCheck(target, probe, [], onLog, execImpl)
+    ).resolves.toEqual({
       kind: "pending",
       summary: "api readiness probe is still waiting on http://127.0.0.1:8080/ready (HTTP 404)"
     });
@@ -106,7 +110,9 @@ describe("runRemoteComposeReadinessCheck", () => {
   it("stays pending while the target port is not yet accepting connections", async () => {
     const execImpl = vi.fn().mockResolvedValueOnce({ exitCode: 7, signal: null });
 
-    await expect(runRemoteComposeReadinessCheck(target, probe, onLog, execImpl)).resolves.toEqual({
+    await expect(
+      runRemoteComposeReadinessCheck(target, probe, [], onLog, execImpl)
+    ).resolves.toEqual({
       kind: "pending",
       summary: "api readiness probe is still waiting on http://127.0.0.1:8080/ready (curl exit 7)"
     });
