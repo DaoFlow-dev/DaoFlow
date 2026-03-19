@@ -23,6 +23,7 @@ export {
 export {
   remoteDockerComposePull,
   remoteDockerComposeUp,
+  remoteDockerComposePs,
   remoteDockerComposeDown,
   remoteDockerPull,
   remoteDockerRun,

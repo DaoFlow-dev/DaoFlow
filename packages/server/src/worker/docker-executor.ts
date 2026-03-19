@@ -13,6 +13,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { parseComposeEnvFile } from "../compose-env";
+import { parseComposePsOutput, type ComposeContainerStatus } from "./compose-health";
 
 // Re-export git-executor functions for backward compatibility
 export {
@@ -205,6 +206,48 @@ export async function dockerComposeUp(
   }
 
   return execRunner("docker", args, cwd, onLog, buildComposeCommandEnv(cwd, envFile));
+}
+
+export async function dockerComposePs(
+  composeFile: string,
+  projectName: string,
+  cwd: string,
+  onLog: OnLog,
+  envFile?: string,
+  composeServiceName?: string,
+  execRunner: ExecRunner = execStreaming
+): Promise<{ exitCode: number; statuses: ComposeContainerStatus[] }> {
+  const args = ["compose", "-f", composeFile, "-p", projectName];
+  if (envFile) {
+    args.push("--env-file", envFile);
+  }
+  args.push("ps", "--format", "json");
+
+  const scopedServiceName = composeServiceName?.trim();
+  if (scopedServiceName) {
+    args.push(scopedServiceName);
+  }
+
+  const stdoutLines: string[] = [];
+  const result = await execRunner(
+    "docker",
+    args,
+    cwd,
+    (line) => {
+      if (line.stream === "stdout") {
+        stdoutLines.push(line.message);
+        return;
+      }
+
+      onLog(line);
+    },
+    buildComposeCommandEnv(cwd, envFile)
+  );
+
+  return {
+    exitCode: result.exitCode,
+    statuses: result.exitCode === 0 ? parseComposePsOutput(stdoutLines.join("\n")) : []
+  };
 }
 
 /**

@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import type { LogLine } from "./docker-executor";
-import { remoteDockerComposePull, remoteDockerComposeUp, type SSHTarget } from "./ssh-executor";
+import {
+  remoteDockerComposePs,
+  remoteDockerComposePull,
+  remoteDockerComposeUp,
+  type SSHTarget
+} from "./ssh-executor";
 
 const target: SSHTarget = {
   serverName: "prod",
@@ -59,5 +64,59 @@ describe("remoteDockerComposeUp", () => {
       ),
       onLog
     );
+  });
+});
+
+describe("remoteDockerComposePs", () => {
+  it("reads machine-readable remote compose status for the selected service", async () => {
+    const execRemoteImpl = vi
+      .fn()
+      .mockImplementationOnce((_target, _command, onLog: (line: LogLine) => void) => {
+        onLog({
+          stream: "stdout",
+          message: JSON.stringify({
+            Service: "api",
+            Name: "demo-api-1",
+            State: "running",
+            Status: "Up 2 seconds (healthy)",
+            Health: "healthy",
+            ExitCode: 0
+          }),
+          timestamp: new Date()
+        });
+        return Promise.resolve({ exitCode: 0, signal: null });
+      });
+
+    const result = await remoteDockerComposePs(
+      target,
+      ".daoflow.compose.rendered.yaml",
+      "demo",
+      "/srv/demo",
+      onLog,
+      ".daoflow.compose.env",
+      "api",
+      execRemoteImpl
+    );
+
+    expect(execRemoteImpl).toHaveBeenCalledWith(
+      target,
+      expect.stringContaining(
+        "docker compose -f '.daoflow.compose.rendered.yaml' -p 'demo' --env-file '.daoflow.compose.env' ps --format json 'api'"
+      ),
+      expect.any(Function)
+    );
+    expect(result).toEqual({
+      exitCode: 0,
+      statuses: [
+        {
+          service: "api",
+          name: "demo-api-1",
+          state: "running",
+          status: "Up 2 seconds (healthy)",
+          health: "healthy",
+          exitCode: 0
+        }
+      ]
+    });
   });
 });

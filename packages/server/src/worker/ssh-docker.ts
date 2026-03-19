@@ -7,6 +7,7 @@
  */
 
 import type { OnLog } from "./docker-executor";
+import { parseComposePsOutput, type ComposeContainerStatus } from "./compose-health";
 import { execRemote, shellQuote, type SSHTarget } from "./ssh-connection";
 
 const REMOTE_COMPOSE_ENV_ALLOWLIST = [
@@ -84,6 +85,41 @@ export async function remoteDockerComposeUp(
   });
   const result = await exec(target, cmd, onLog);
   return { exitCode: result.exitCode };
+}
+
+export async function remoteDockerComposePs(
+  target: SSHTarget,
+  composeFile: string,
+  projectName: string,
+  workDir: string,
+  onLog: OnLog,
+  envFile?: string,
+  serviceName?: string,
+  exec: typeof execRemote = execRemote
+): Promise<{ exitCode: number; statuses: ComposeContainerStatus[] }> {
+  const cmd = buildRemoteComposeCommand({
+    composeFile,
+    projectName,
+    workDir,
+    envFile,
+    subcommand: "ps --format json",
+    serviceName
+  });
+
+  const stdoutLines: string[] = [];
+  const result = await exec(target, cmd, (line) => {
+    if (line.stream === "stdout") {
+      stdoutLines.push(line.message);
+      return;
+    }
+
+    onLog(line);
+  });
+
+  return {
+    exitCode: result.exitCode,
+    statuses: result.exitCode === 0 ? parseComposePsOutput(stdoutLines.join("\n")) : []
+  };
 }
 
 export async function remoteDockerComposeDown(

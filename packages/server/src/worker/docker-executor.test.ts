@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   buildComposeCommandEnv,
+  dockerComposePs,
   cleanupStagingDir,
   dockerComposePull,
   dockerComposeUp,
@@ -272,5 +273,73 @@ describe("dockerComposeUp", () => {
         DOCKER_CLI_HINTS: "false"
       })
     );
+  });
+});
+
+describe("dockerComposePs", () => {
+  it("reads machine-readable compose status for the selected service", async () => {
+    const collector = createLogCollector();
+    const execRunner = vi
+      .fn()
+      .mockImplementationOnce((_command, _args, _cwd, onLog: (line: LogLine) => void) => {
+        onLog({
+          stream: "stdout",
+          message: JSON.stringify({
+            Service: "api",
+            Name: "demo-api-1",
+            State: "running",
+            Status: "Up 2 seconds (healthy)",
+            Health: "healthy",
+            ExitCode: 0
+          }),
+          timestamp: new Date()
+        });
+        return Promise.resolve({ exitCode: 0, signal: null });
+      });
+
+    const result = await dockerComposePs(
+      ".daoflow.compose.rendered.yaml",
+      "demo",
+      "/tmp/demo",
+      collector.onLog,
+      ".daoflow.compose.env",
+      "api",
+      execRunner
+    );
+
+    expect(execRunner).toHaveBeenCalledWith(
+      "docker",
+      [
+        "compose",
+        "-f",
+        ".daoflow.compose.rendered.yaml",
+        "-p",
+        "demo",
+        "--env-file",
+        ".daoflow.compose.env",
+        "ps",
+        "--format",
+        "json",
+        "api"
+      ],
+      "/tmp/demo",
+      expect.any(Function),
+      expect.objectContaining({
+        DOCKER_CLI_HINTS: "false"
+      })
+    );
+    expect(result).toEqual({
+      exitCode: 0,
+      statuses: [
+        {
+          service: "api",
+          name: "demo-api-1",
+          state: "running",
+          status: "Up 2 seconds (healthy)",
+          health: "healthy",
+          exitCode: 0
+        }
+      ]
+    });
   });
 });

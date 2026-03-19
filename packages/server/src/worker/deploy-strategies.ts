@@ -15,9 +15,11 @@ import {
   persistDeploymentComposeEnvState,
   readDeploymentComposeState
 } from "../db/services/compose-env";
+import { assessComposeHealth, type ComposeContainerStatus } from "./compose-health";
 import {
   gitClone,
   dockerBuild,
+  dockerComposePs,
   dockerPull,
   dockerComposePull,
   dockerComposeUp,
@@ -30,6 +32,7 @@ import type { ExecutionTarget } from "./execution-target";
 import {
   remoteCheckContainerHealth,
   remoteDockerBuild,
+  remoteDockerComposePs,
   remoteDockerComposePull,
   remoteDockerComposeUp,
   remoteDockerPull,
@@ -178,44 +181,17 @@ export async function executeComposeDeployment(
   // Step 4: Health check (verify compose services are running)
   const healthStepId = await createStep(deployment.id, "Health check", 4);
   await markStepRunning(healthStepId);
-
-  // Give services a moment to initialise
-  await new Promise((resolve) => setTimeout(resolve, 3_000));
-
-  const psCmd = `docker compose -f ${composeFile} -p ${projectName} ps --format '{{.State}}'`;
-  let allRunning = true;
-  const checkHealth = (line: { stream: "stdout" | "stderr"; message: string }) => {
-    onLog({ ...line, timestamp: new Date() });
-    const state = line.message.trim().toLowerCase();
-    if (state && state !== "running" && state !== "exited") {
-      allRunning = false;
-    }
-  };
-
-  if (target.mode === "remote") {
-    const cmd = `cd ${workDir} && ${psCmd}`;
-    const { execRemote } = await import("./ssh-executor");
-    await execRemote(target.ssh, cmd, checkHealth);
-  } else {
-    const { execSync } = await import("child_process");
-    try {
-      const output = execSync(psCmd, { cwd: workDir, encoding: "utf-8" });
-      for (const line of output.split("\n")) {
-        checkHealth({ stream: "stdout", message: line });
-      }
-    } catch {
-      allRunning = false;
-    }
-  }
-
-  if (allRunning) {
-    await markStepComplete(healthStepId, "All compose services are running");
-  } else {
-    await markStepComplete(
-      healthStepId,
-      "Compose services started (some may still be initialising)"
-    );
-  }
+  await waitForComposeHealthy(
+    composeFile,
+    projectName,
+    workDir,
+    composeTargetLabel,
+    composeServiceName,
+    composeEnvFile,
+    onLog,
+    target,
+    healthStepId
+  );
 }
 
 /* ──────────────────────── Dockerfile ──────────────────────── */
@@ -392,6 +368,82 @@ export async function executeImageDeployment(
 }
 
 /* ──────────────────────── Health Check ──────────────────────── */
+
+async function readComposeHealthStatuses(
+  composeFile: string,
+  projectName: string,
+  workDir: string,
+  onLog: OnLog,
+  target: ExecutionTarget,
+  envFile?: string,
+  composeServiceName?: string
+): Promise<{ exitCode: number; statuses: ComposeContainerStatus[] }> {
+  return target.mode === "remote"
+    ? remoteDockerComposePs(
+        target.ssh,
+        composeFile,
+        projectName,
+        workDir,
+        onLog,
+        envFile,
+        composeServiceName
+      )
+    : dockerComposePs(composeFile, projectName, workDir, onLog, envFile, composeServiceName);
+}
+
+async function waitForComposeHealthy(
+  composeFile: string,
+  projectName: string,
+  workDir: string,
+  composeTargetLabel: string,
+  composeServiceName: string | undefined,
+  composeEnvFile: string | undefined,
+  onLog: OnLog,
+  target: ExecutionTarget,
+  healthStepId: number
+): Promise<void> {
+  const start = Date.now();
+  let lastPendingSummary = `${composeTargetLabel} are still converging`;
+
+  while (Date.now() - start < HEALTH_CHECK_TIMEOUT_MS) {
+    const statusResult = await readComposeHealthStatuses(
+      composeFile,
+      projectName,
+      workDir,
+      onLog,
+      target,
+      composeEnvFile,
+      composeServiceName
+    );
+    if (statusResult.exitCode !== 0) {
+      await markStepFailed(
+        healthStepId,
+        `docker compose ps exited with code ${statusResult.exitCode}`
+      );
+      throw new Error(`docker compose ps failed with exit code ${statusResult.exitCode}`);
+    }
+
+    const assessment = assessComposeHealth(statusResult.statuses, composeTargetLabel);
+    if (assessment.kind === "healthy") {
+      await markStepComplete(healthStepId, assessment.summary);
+      return;
+    }
+
+    if (assessment.kind === "failed") {
+      await markStepFailed(healthStepId, assessment.summary);
+      throw new Error(assessment.summary);
+    }
+
+    lastPendingSummary = assessment.summary;
+    await new Promise((resolve) => setTimeout(resolve, HEALTH_CHECK_INTERVAL_MS));
+  }
+
+  await markStepFailed(
+    healthStepId,
+    `Timed out after ${HEALTH_CHECK_TIMEOUT_MS / 1000}s: ${lastPendingSummary}`
+  );
+  throw new Error(`Health check timeout for ${composeTargetLabel}`);
+}
 
 async function waitForHealthy(
   deployment: DeploymentRow,
