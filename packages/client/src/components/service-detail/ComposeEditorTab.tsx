@@ -107,13 +107,13 @@ export default function ComposeEditorTab({
         )}
         <div className="relative">
           {/* Line numbers gutter */}
-          <div className="absolute left-0 top-0 bottom-0 w-10 bg-[#161b22] rounded-l-lg border-r border-white/10 flex flex-col items-end pr-2 pt-3 text-xs font-mono text-gray-600 overflow-hidden select-none leading-[1.6]">
+          <div className="absolute left-0 top-0 bottom-0 w-10 bg-zinc-900 rounded-l-lg border-r border-zinc-800 flex flex-col items-end pr-2 pt-3 text-xs font-mono text-zinc-500 overflow-hidden select-none leading-[1.6]">
             {content.split("\n").map((_, i) => (
               <div key={i}>{i + 1}</div>
             ))}
           </div>
           <textarea
-            className="w-full h-[500px] pl-14 pr-4 py-3 font-mono text-sm bg-[#0d1117] text-gray-300 rounded-lg border border-white/10 focus:outline-none focus:ring-1 focus:ring-primary resize-y leading-[1.6]"
+            className="w-full h-[500px] pl-14 pr-4 py-3 font-mono text-sm bg-zinc-950 text-zinc-300 rounded-lg border border-zinc-800 focus:outline-none focus:ring-1 focus:ring-primary resize-y leading-[1.6]"
             value={content}
             onChange={(e) => setContent(e.target.value)}
             spellCheck={false}

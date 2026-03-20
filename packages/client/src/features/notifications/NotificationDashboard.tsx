@@ -1,10 +1,11 @@
 /**
- * Task #68: Notification dashboard widget — recent notifications,
+ * Task #68: Notification dashboard widget -- recent notifications,
  * delivery success rate, filter by channel type.
  * Wired to tRPC listDeliveryLogs for live stats.
  */
 import { trpc } from "../../lib/trpc";
 import { useSession } from "../../lib/auth-client";
+import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export function NotificationDashboard() {
@@ -22,7 +23,7 @@ export function NotificationDashboard() {
   const total = delivered + failed;
   const rate = total > 0 ? Math.round((delivered / total) * 100) : 100;
 
-  // Channel breakdown (count by channelId — ideally we'd join channel names)
+  // Channel breakdown (count by channelId -- ideally we'd join channel names)
   const channelCounts = new Map<string, number>();
   for (const log of logs) {
     if (log.status === "delivered") {
@@ -33,30 +34,30 @@ export function NotificationDashboard() {
 
   if (logsQuery.isLoading) {
     return (
-      <div className="card p-6" data-testid="notification-dashboard-widget">
+      <Card className="p-6" data-testid="notification-dashboard-widget">
         <Skeleton className="h-24 w-full" />
-      </div>
+      </Card>
     );
   }
 
   return (
-    <div className="card p-6" data-testid="notification-dashboard-widget">
-      <h3 className="text-sm font-medium text-white/60 uppercase tracking-wider mb-4">
+    <Card className="p-6" data-testid="notification-dashboard-widget">
+      <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-4">
         Notifications
       </h3>
 
       <div className="grid grid-cols-3 gap-4 mb-4">
         <div className="text-center">
           <div className="text-2xl font-bold text-emerald-400">{rate}%</div>
-          <div className="text-xs text-white/40 mt-1">delivery rate</div>
+          <div className="mt-1 text-xs text-muted-foreground">delivery rate</div>
         </div>
         <div className="text-center">
-          <div className="text-2xl font-bold text-white">{delivered}</div>
-          <div className="text-xs text-white/40 mt-1">delivered</div>
+          <div className="text-2xl font-bold text-foreground">{delivered}</div>
+          <div className="mt-1 text-xs text-muted-foreground">delivered</div>
         </div>
         <div className="text-center">
           <div className="text-2xl font-bold text-red-400">{failed}</div>
-          <div className="text-xs text-white/40 mt-1">failed</div>
+          <div className="mt-1 text-xs text-muted-foreground">failed</div>
         </div>
       </div>
 
@@ -65,20 +66,20 @@ export function NotificationDashboard() {
         <div className="space-y-2">
           {channelEntries.map(([channelId, count]) => (
             <div key={channelId} className="flex items-center gap-2">
-              <span className="text-xs text-white/50 w-20 truncate">{channelId}</span>
-              <div className="flex-1 bg-white/5 rounded-full h-1.5">
+              <span className="w-20 truncate text-xs text-muted-foreground">{channelId}</span>
+              <div className="h-1.5 flex-1 rounded-full bg-muted">
                 <div
-                  className="bg-blue-500 h-full rounded-full transition-all"
+                  className="h-full rounded-full bg-blue-500 transition-all"
                   style={{ width: `${(count / Math.max(delivered, 1)) * 100}%` }}
                 />
               </div>
-              <span className="text-xs text-white/40 w-8 text-right">{count}</span>
+              <span className="w-8 text-right text-xs text-muted-foreground">{count}</span>
             </div>
           ))}
         </div>
       ) : (
-        <p className="text-xs text-white/30 text-center">No delivery data yet</p>
+        <p className="text-center text-xs text-muted-foreground">No delivery data yet</p>
       )}
-    </div>
+    </Card>
   );
 }

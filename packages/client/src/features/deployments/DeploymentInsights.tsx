@@ -1,3 +1,6 @@
+import { Badge } from "@/components/ui/badge";
+import { getBadgeVariantFromTone } from "@/lib/tone-utils";
+
 interface EvidenceItem {
   kind: string;
   id: string;
@@ -37,49 +40,53 @@ export function DeploymentInsights({
   insightsMessage
 }: DeploymentInsightsProps) {
   return (
-    <section className="deployment-insights">
-      <div className="roadmap__header">
-        <p className="roadmap__kicker">Agentic observability</p>
-        <h2>Agent-ready deployment diagnostics</h2>
+    <section className="space-y-6">
+      <div className="space-y-1">
+        <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+          Agentic observability
+        </p>
+        <h2 className="text-2xl font-semibold tracking-tight text-foreground">
+          Agent-ready deployment diagnostics
+        </h2>
       </div>
 
       {session.data && deploymentInsights.data ? (
-        <div className="insight-list">
+        <div className="grid grid-cols-2 gap-3">
           {deploymentInsights.data.map((insight) => (
             <article
-              className="timeline-event"
+              className="rounded-xl border bg-card p-5 shadow-sm"
               data-testid={`deployment-insight-${insight.deploymentId}`}
               key={insight.deploymentId}
             >
-              <div className="timeline-event__top">
+              <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="roadmap-item__lane">
+                  <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
                     {insight.environmentName} · {insight.projectName}
                   </p>
-                  <h3>{insight.serviceName}</h3>
+                  <h3 className="text-base font-semibold text-foreground">{insight.serviceName}</h3>
                 </div>
-                <span className={`deployment-status deployment-status--${insight.statusTone}`}>
+                <Badge variant={getBadgeVariantFromTone(insight.statusTone)}>
                   {insight.statusLabel}
-                </span>
+                </Badge>
               </div>
-              <p className="deployment-card__meta">{insight.summary}</p>
-              <p className="deployment-card__meta">
+              <p className="mt-2 text-sm text-muted-foreground">{insight.summary}</p>
+              <p className="mt-2 text-sm text-muted-foreground">
                 Suspected root cause: {insight.suspectedRootCause}
               </p>
               {insight.healthyBaseline ? (
-                <p className="deployment-card__meta">
+                <p className="mt-2 text-sm text-muted-foreground">
                   Healthy baseline: {insight.healthyBaseline.commitSha} ·{" "}
                   {insight.healthyBaseline.imageTag}
                 </p>
               ) : null}
-              <div className="token-card__chips">
+              <div className="mt-3 flex flex-wrap gap-1.5">
                 {insight.evidence.map((item) => (
-                  <span className="token-chip" key={item.id}>
+                  <Badge variant="outline" key={item.id}>
                     {item.kind}:{item.title}
-                  </span>
+                  </Badge>
                 ))}
               </div>
-              <ul className="deployment-card__steps">
+              <ul className="mt-3 list-disc pl-5 text-sm text-muted-foreground space-y-1">
                 {insight.safeActions.map((action) => (
                   <li key={action}>{action}</li>
                 ))}
@@ -88,7 +95,7 @@ export function DeploymentInsights({
           ))}
         </div>
       ) : (
-        <p className="viewer-empty">
+        <p className="py-10 text-center text-sm text-muted-foreground">
           {insightsMessage ?? "Sign in to inspect evidence-backed deployment diagnostics."}
         </p>
       )}

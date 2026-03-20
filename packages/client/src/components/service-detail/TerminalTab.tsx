@@ -27,7 +27,7 @@ export default function TerminalTab({ serviceId, containerId, serverId }: Termin
     const display = document.createElement("div");
     display.className = "terminal-display";
     display.style.cssText =
-      "width:100%;height:100%;overflow-y:auto;padding:8px;font-family:monospace;font-size:13px;line-height:1.6;color:#e4e4e7;background:transparent;outline:none;";
+      "width:100%;height:100%;overflow-y:auto;padding:8px;font-family:monospace;font-size:13px;line-height:1.6;color:#d4d4d8;background:transparent;outline:none;";
     display.contentEditable = "true";
     display.spellcheck = false;
     container.appendChild(display);
@@ -126,7 +126,7 @@ export default function TerminalTab({ serviceId, containerId, serverId }: Termin
       </CardHeader>
       <CardContent>
         <div
-          className="bg-[#0d1117] rounded-lg border border-white/10 h-[500px] overflow-hidden cursor-text"
+          className="bg-zinc-950 rounded-lg border border-zinc-800 h-[500px] overflow-hidden cursor-text"
           ref={termRef}
           onClick={() => {
             // Focus the terminal display

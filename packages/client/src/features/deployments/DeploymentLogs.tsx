@@ -1,4 +1,6 @@
-import { getLogTone } from "../../lib/tone-utils";
+import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
+import { getLogTone, getBadgeVariantFromTone } from "@/lib/tone-utils";
 
 interface LogLine {
   id: string | number;
@@ -26,58 +28,72 @@ export interface DeploymentLogsProps {
 
 export function DeploymentLogs({ session, deploymentLogs, logsMessage }: DeploymentLogsProps) {
   return (
-    <section className="deployment-logs">
-      <div className="roadmap__header">
-        <p className="roadmap__kicker">Raw evidence</p>
-        <h2>Append-only deployment logs</h2>
+    <section className="space-y-6">
+      <div className="space-y-1">
+        <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+          Raw evidence
+        </p>
+        <h2 className="text-2xl font-semibold tracking-tight text-foreground">
+          Append-only deployment logs
+        </h2>
       </div>
 
       {session.data && deploymentLogs.data ? (
         <>
-          <div className="log-summary" data-testid="log-summary">
-            <div className="token-summary__item">
-              <span className="metric__label">Lines</span>
-              <strong>{deploymentLogs.data.summary.totalLines}</strong>
-            </div>
-            <div className="token-summary__item">
-              <span className="metric__label">stderr</span>
-              <strong>{deploymentLogs.data.summary.stderrLines}</strong>
-            </div>
-            <div className="token-summary__item">
-              <span className="metric__label">Deployments</span>
-              <strong>{deploymentLogs.data.summary.deploymentCount}</strong>
-            </div>
+          <div className="grid grid-cols-3 gap-3 mb-3" data-testid="log-summary">
+            <Card className="p-4">
+              <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Lines
+              </span>
+              <strong className="mt-1 block text-2xl font-bold">
+                {deploymentLogs.data.summary.totalLines}
+              </strong>
+            </Card>
+            <Card className="p-4">
+              <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                stderr
+              </span>
+              <strong className="mt-1 block text-2xl font-bold">
+                {deploymentLogs.data.summary.stderrLines}
+              </strong>
+            </Card>
+            <Card className="p-4">
+              <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Deployments
+              </span>
+              <strong className="mt-1 block text-2xl font-bold">
+                {deploymentLogs.data.summary.deploymentCount}
+              </strong>
+            </Card>
           </div>
 
-          <div className="log-list">
+          <div className="grid grid-cols-2 gap-3">
             {deploymentLogs.data.lines.map((line) => (
               <article
-                className="token-card log-line"
+                className="rounded-xl border bg-card p-5 shadow-sm"
                 data-testid={`deployment-log-line-${line.id}`}
                 key={line.id}
               >
-                <div className="token-card__top">
+                <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="roadmap-item__lane">
+                    <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
                       {line.serviceName} · {line.environmentName}
                     </p>
-                    <h3>
+                    <h3 className="text-base font-semibold text-foreground">
                       {line.stream} #{line.lineNumber}
                     </h3>
                   </div>
-                  <span
-                    className={`deployment-status deployment-status--${getLogTone(line.stream)}`}
-                  >
+                  <Badge variant={getBadgeVariantFromTone(getLogTone(line.stream))}>
                     {line.stream}
-                  </span>
+                  </Badge>
                 </div>
-                <p className="deployment-card__meta log-line__message">{line.message}</p>
+                <p className="mt-2 font-mono text-sm text-muted-foreground">{line.message}</p>
               </article>
             ))}
           </div>
         </>
       ) : (
-        <p className="viewer-empty">
+        <p className="py-10 text-center text-sm text-muted-foreground">
           {logsMessage ?? "Sign in to inspect append-only deployment log lines."}
         </p>
       )}

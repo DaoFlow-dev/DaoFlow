@@ -2,6 +2,10 @@ import { useState } from "react";
 import { isTRPCClientError } from "@trpc/client";
 import { trpc } from "../../lib/trpc";
 import { getBackupOperationTone } from "../../lib/tone-utils";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { getBadgeVariantFromTone } from "@/lib/tone-utils";
 
 interface BackupPolicy {
   id: string;
@@ -141,70 +145,97 @@ export function BackupCatalog({
   }
 
   return (
-    <section className="backup-catalog">
-      <div className="roadmap__header">
-        <p className="roadmap__kicker">Backup awareness</p>
-        <h2>Backup policies and runs</h2>
+    <section className="space-y-6">
+      <div className="space-y-1">
+        <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+          Backup awareness
+        </p>
+        <h2 className="text-2xl font-semibold tracking-tight text-foreground">
+          Backup policies and runs
+        </h2>
       </div>
 
       {session.data && backupOverview.data ? (
         <>
-          <div className="backup-summary" data-testid="backup-summary">
-            <div className="token-summary__item">
-              <span className="metric__label">Policies</span>
-              <strong>{backupOverview.data.summary.totalPolicies}</strong>
-            </div>
-            <div className="token-summary__item">
-              <span className="metric__label">Queued</span>
-              <strong>{backupOverview.data.summary.queuedRuns}</strong>
-            </div>
-            <div className="token-summary__item">
-              <span className="metric__label">Succeeded</span>
-              <strong>{backupOverview.data.summary.succeededRuns}</strong>
-            </div>
-            <div className="token-summary__item">
-              <span className="metric__label">Failed</span>
-              <strong>{backupOverview.data.summary.failedRuns}</strong>
-            </div>
+          <div className="grid grid-cols-4 gap-3 mb-3" data-testid="backup-summary">
+            <Card className="p-4">
+              <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Policies
+              </span>
+              <strong className="mt-1 block text-2xl font-bold">
+                {backupOverview.data.summary.totalPolicies}
+              </strong>
+            </Card>
+            <Card className="p-4">
+              <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Queued
+              </span>
+              <strong className="mt-1 block text-2xl font-bold">
+                {backupOverview.data.summary.queuedRuns}
+              </strong>
+            </Card>
+            <Card className="p-4">
+              <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Succeeded
+              </span>
+              <strong className="mt-1 block text-2xl font-bold">
+                {backupOverview.data.summary.succeededRuns}
+              </strong>
+            </Card>
+            <Card className="p-4">
+              <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Failed
+              </span>
+              <strong className="mt-1 block text-2xl font-bold">
+                {backupOverview.data.summary.failedRuns}
+              </strong>
+            </Card>
           </div>
 
           {backupFeedback ? (
-            <p className="auth-feedback" data-testid="backup-feedback">
+            <p
+              className="rounded-lg border bg-muted px-4 py-2 text-sm text-muted-foreground"
+              data-testid="backup-feedback"
+            >
               {backupFeedback}
             </p>
           ) : null}
           {backupRestoreFeedback ? (
-            <p className="auth-feedback" data-testid="restore-feedback">
+            <p
+              className="rounded-lg border bg-muted px-4 py-2 text-sm text-muted-foreground"
+              data-testid="restore-feedback"
+            >
               {backupRestoreFeedback}
             </p>
           ) : null}
 
-          <div className="backup-policy-list">
+          <div className="grid grid-cols-2 gap-3">
             {backupOverview.data.policies.map((policy) => (
               <article
-                className="token-card"
+                className="rounded-xl border bg-card p-5 shadow-sm"
                 data-testid={`backup-policy-${policy.id}`}
                 key={policy.id}
               >
-                <div className="token-card__top">
+                <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="roadmap-item__lane">{policy.environmentName}</p>
-                    <h3>{policy.serviceName}</h3>
+                    <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                      {policy.environmentName}
+                    </p>
+                    <h3 className="text-base font-semibold text-foreground">
+                      {policy.serviceName}
+                    </h3>
                   </div>
-                  <span className="deployment-status deployment-status--queued">
-                    {policy.targetType}
-                  </span>
+                  <Badge variant={getBadgeVariantFromTone("queued")}>{policy.targetType}</Badge>
                 </div>
-                <p className="deployment-card__meta">
+                <p className="mt-2 text-sm text-muted-foreground">
                   {policy.storageProvider} · {policy.scheduleLabel}
                 </p>
-                <p className="deployment-card__meta">
+                <p className="mt-2 text-sm text-muted-foreground">
                   Retention: {policy.retentionCount} snapshots
                 </p>
                 {canOperateExecutionJobs ? (
-                  <div className="job-actions">
-                    <button
-                      className="action-button"
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Button
                       disabled={triggerBackupRun.isPending}
                       onClick={() => {
                         void handleTriggerBackupRun(policy.id, policy.serviceName);
@@ -212,48 +243,46 @@ export function BackupCatalog({
                       type="button"
                     >
                       Queue backup
-                    </button>
+                    </Button>
                   </div>
                 ) : null}
               </article>
             ))}
           </div>
 
-          <div className="backup-run-list">
+          <div className="grid grid-cols-2 gap-3">
             {backupOverview.data.runs.map((run) => {
               const statusTone = run.statusTone ?? getBackupOperationTone(run.status);
 
               return (
                 <article
-                  className="timeline-event"
+                  className="rounded-xl border bg-card p-5 shadow-sm"
                   data-testid={`backup-run-${run.id}`}
                   key={run.id}
                 >
-                  <div className="timeline-event__top">
+                  <div className="flex items-start justify-between gap-3">
                     <div>
-                      <p className="roadmap-item__lane">
+                      <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
                         {run.environmentName} · {run.triggerKind}
                       </p>
-                      <h3>{run.serviceName}</h3>
+                      <h3 className="text-base font-semibold text-foreground">{run.serviceName}</h3>
                     </div>
-                    <span className={`deployment-status deployment-status--${statusTone}`}>
-                      {run.status}
-                    </span>
+                    <Badge variant={getBadgeVariantFromTone(statusTone)}>{run.status}</Badge>
                   </div>
-                  <p className="deployment-card__meta">
+                  <p className="mt-2 text-sm text-muted-foreground">
                     {run.targetType} backup · Requested by {run.requestedBy}
                   </p>
-                  <p className="deployment-card__meta">
+                  <p className="mt-2 text-sm text-muted-foreground">
                     {run.artifactPath ??
                       "Artifact path will be assigned by the future backup worker."}
                   </p>
                   {(canOperateExecutionJobs || canRequestApprovals) &&
                   run.status === "succeeded" &&
                   run.artifactPath ? (
-                    <div className="job-actions">
+                    <div className="mt-3 flex flex-wrap gap-2">
                       {canOperateExecutionJobs ? (
-                        <button
-                          className="action-button action-button--muted"
+                        <Button
+                          variant="outline"
                           disabled={queueBackupRestore.isPending}
                           onClick={() => {
                             void handleQueueBackupRestore(run.id, run.serviceName);
@@ -261,11 +290,10 @@ export function BackupCatalog({
                           type="button"
                         >
                           Queue restore
-                        </button>
+                        </Button>
                       ) : null}
                       {canRequestApprovals ? (
-                        <button
-                          className="action-button"
+                        <Button
                           disabled={requestApproval.isPending}
                           onClick={() => {
                             void handleRequestBackupRestoreApproval(run.id, run.serviceName);
@@ -273,7 +301,7 @@ export function BackupCatalog({
                           type="button"
                         >
                           {requestApproval.isPending ? "Requesting..." : "Request approval"}
-                        </button>
+                        </Button>
                       ) : null}
                     </div>
                   ) : null}
@@ -284,69 +312,95 @@ export function BackupCatalog({
 
           {backupRestoreQueue.data ? (
             <>
-              <div className="roadmap__header">
-                <p className="roadmap__kicker">Recovery drills</p>
-                <h2>Backup restore queue</h2>
+              <div className="space-y-1">
+                <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                  Recovery drills
+                </p>
+                <h2 className="text-2xl font-semibold tracking-tight text-foreground">
+                  Backup restore queue
+                </h2>
               </div>
 
-              <div className="restore-summary" data-testid="restore-summary">
-                <div className="token-summary__item">
-                  <span className="metric__label">Requests</span>
-                  <strong>{backupRestoreQueue.data.summary.totalRequests}</strong>
-                </div>
-                <div className="token-summary__item">
-                  <span className="metric__label">Queued</span>
-                  <strong>{backupRestoreQueue.data.summary.queuedRequests}</strong>
-                </div>
-                <div className="token-summary__item">
-                  <span className="metric__label">Succeeded</span>
-                  <strong>{backupRestoreQueue.data.summary.succeededRequests}</strong>
-                </div>
-                <div className="token-summary__item">
-                  <span className="metric__label">Failed</span>
-                  <strong>{backupRestoreQueue.data.summary.failedRequests}</strong>
-                </div>
+              <div className="grid grid-cols-4 gap-3 mb-3" data-testid="restore-summary">
+                <Card className="p-4">
+                  <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                    Requests
+                  </span>
+                  <strong className="mt-1 block text-2xl font-bold">
+                    {backupRestoreQueue.data.summary.totalRequests}
+                  </strong>
+                </Card>
+                <Card className="p-4">
+                  <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                    Queued
+                  </span>
+                  <strong className="mt-1 block text-2xl font-bold">
+                    {backupRestoreQueue.data.summary.queuedRequests}
+                  </strong>
+                </Card>
+                <Card className="p-4">
+                  <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                    Succeeded
+                  </span>
+                  <strong className="mt-1 block text-2xl font-bold">
+                    {backupRestoreQueue.data.summary.succeededRequests}
+                  </strong>
+                </Card>
+                <Card className="p-4">
+                  <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                    Failed
+                  </span>
+                  <strong className="mt-1 block text-2xl font-bold">
+                    {backupRestoreQueue.data.summary.failedRequests}
+                  </strong>
+                </Card>
               </div>
 
-              <div className="restore-run-list">
+              <div className="grid grid-cols-2 gap-3">
                 {backupRestoreQueue.data.requests.map((request) => {
                   const statusTone = request.statusTone ?? getBackupOperationTone(request.status);
 
                   return (
                     <article
-                      className="timeline-event"
+                      className="rounded-xl border bg-card p-5 shadow-sm"
                       data-testid={`backup-restore-${request.id}`}
                       key={request.id}
                     >
-                      <div className="timeline-event__top">
+                      <div className="flex items-start justify-between gap-3">
                         <div>
-                          <p className="roadmap-item__lane">
+                          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
                             {request.environmentName} · {request.targetType}
                           </p>
-                          <h3>{request.serviceName}</h3>
+                          <h3 className="text-base font-semibold text-foreground">
+                            {request.serviceName}
+                          </h3>
                         </div>
-                        <span className={`deployment-status deployment-status--${statusTone}`}>
+                        <Badge variant={getBadgeVariantFromTone(statusTone)}>
                           {request.status}
-                        </span>
+                        </Badge>
                       </div>
-                      <p className="deployment-card__meta">
+                      <p className="mt-2 text-sm text-muted-foreground">
                         Restore to {request.destinationServerName}:{request.restorePath}
                       </p>
-                      <p className="deployment-card__meta">{request.sourceArtifactPath}</p>
-                      <p className="deployment-card__meta">{request.validationSummary}</p>
+                      <p className="mt-2 text-sm text-muted-foreground">
+                        {request.sourceArtifactPath}
+                      </p>
+                      <p className="mt-2 text-sm text-muted-foreground">
+                        {request.validationSummary}
+                      </p>
                     </article>
                   );
                 })}
               </div>
             </>
           ) : (
-            <p className="viewer-empty">
+            <p className="py-10 text-center text-sm text-muted-foreground">
               {backupRestoreMessage ?? "Sign in to inspect queued and historical restore drills."}
             </p>
           )}
         </>
       ) : (
-        <p className="viewer-empty">
+        <p className="py-10 text-center text-sm text-muted-foreground">
           {backupMessage ?? "Sign in to inspect backup policies and recent runs."}
         </p>
       )}

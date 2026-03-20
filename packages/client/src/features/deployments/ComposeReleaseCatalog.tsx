@@ -2,6 +2,10 @@ import { useState } from "react";
 import type { FormEvent } from "react";
 import { isTRPCClientError } from "@trpc/client";
 import { trpc } from "../../lib/trpc";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { getBadgeVariantFromTone } from "@/lib/tone-utils";
 
 interface ComposeService {
   id: string;
@@ -108,22 +112,28 @@ export function ComposeReleaseCatalog({
   }
 
   return (
-    <section className="compose-release-catalog">
-      <div className="roadmap__header">
-        <p className="roadmap__kicker">Compose-first targets</p>
-        <h2>Compose release catalog</h2>
+    <section className="space-y-6">
+      <div className="space-y-1">
+        <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+          Compose-first targets
+        </p>
+        <h2 className="text-2xl font-semibold tracking-tight text-foreground">
+          Compose release catalog
+        </h2>
       </div>
 
       {session.data && canQueueDeployments && composeReleaseCatalog.data ? (
         <form
-          className="compose-release-composer"
+          className="space-y-4"
           data-testid="compose-release-form"
           onSubmit={(event) => void handleQueueRelease(event)}
         >
           <div>
-            <p className="roadmap-item__lane">Typed release queue</p>
-            <h3>Queue a compose release</h3>
-            <p className="deployment-card__meta">
+            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              Typed release queue
+            </p>
+            <h3 className="text-base font-semibold text-foreground">Queue a compose release</h3>
+            <p className="mt-2 text-sm text-muted-foreground">
               Pick a seeded Compose target and queue a rollout with topology-aware steps.
             </p>
           </div>
@@ -149,12 +159,12 @@ export function ComposeReleaseCatalog({
               placeholder="optional override"
             />
           </label>
-          <button className="action-button" disabled={queueComposeRelease.isPending} type="submit">
+          <Button disabled={queueComposeRelease.isPending} type="submit">
             {queueComposeRelease.isPending ? "Queueing..." : "Queue compose release"}
-          </button>
+          </Button>
           {canRequestApprovals ? (
-            <button
-              className="action-button action-button--muted"
+            <Button
+              variant="outline"
               disabled={requestApproval.isPending}
               onClick={() => {
                 void handleRequestApproval();
@@ -162,77 +172,98 @@ export function ComposeReleaseCatalog({
               type="button"
             >
               {requestApproval.isPending ? "Requesting..." : "Request approval"}
-            </button>
+            </Button>
           ) : null}
           {feedback ? (
-            <p className="auth-feedback" data-testid="compose-release-feedback">
+            <p
+              className="rounded-lg border bg-muted px-4 py-2 text-sm text-muted-foreground"
+              data-testid="compose-release-feedback"
+            >
               {feedback}
             </p>
           ) : null}
         </form>
       ) : session.data ? (
-        <p className="viewer-empty">Deploy-capable roles can queue Compose releases here.</p>
+        <p className="py-10 text-center text-sm text-muted-foreground">
+          Deploy-capable roles can queue Compose releases here.
+        </p>
       ) : null}
 
       {session.data && composeReleaseCatalog.data ? (
         <>
-          <div className="compose-release-summary" data-testid="compose-release-summary">
-            <div className="token-summary__item">
-              <span className="metric__label">Services</span>
-              <strong>{composeReleaseCatalog.data.summary.totalServices}</strong>
-            </div>
-            <div className="token-summary__item">
-              <span className="metric__label">Stateful</span>
-              <strong>{composeReleaseCatalog.data.summary.statefulServices}</strong>
-            </div>
-            <div className="token-summary__item">
-              <span className="metric__label">Healthy envs</span>
-              <strong>{composeReleaseCatalog.data.summary.healthyEnvironments}</strong>
-            </div>
-            <div className="token-summary__item">
-              <span className="metric__label">Networks</span>
-              <strong>{composeReleaseCatalog.data.summary.uniqueNetworks}</strong>
-            </div>
+          <div className="grid grid-cols-4 gap-3 mb-3" data-testid="compose-release-summary">
+            <Card className="p-4">
+              <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Services
+              </span>
+              <strong className="mt-1 block text-2xl font-bold">
+                {composeReleaseCatalog.data.summary.totalServices}
+              </strong>
+            </Card>
+            <Card className="p-4">
+              <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Stateful
+              </span>
+              <strong className="mt-1 block text-2xl font-bold">
+                {composeReleaseCatalog.data.summary.statefulServices}
+              </strong>
+            </Card>
+            <Card className="p-4">
+              <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Healthy envs
+              </span>
+              <strong className="mt-1 block text-2xl font-bold">
+                {composeReleaseCatalog.data.summary.healthyEnvironments}
+              </strong>
+            </Card>
+            <Card className="p-4">
+              <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Networks
+              </span>
+              <strong className="mt-1 block text-2xl font-bold">
+                {composeReleaseCatalog.data.summary.uniqueNetworks}
+              </strong>
+            </Card>
           </div>
 
-          <div className="compose-release-list">
+          <div className="grid grid-cols-2 gap-3">
             {composeReleaseCatalog.data.services.map((service) => (
               <article
-                className="token-card"
+                className="rounded-xl border bg-card p-5 shadow-sm"
                 data-testid={`compose-service-card-${service.id}`}
                 key={service.id}
               >
-                <div className="token-card__top">
+                <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="roadmap-item__lane">
+                    <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
                       {service.environmentName} · {service.projectName}
                     </p>
-                    <h3>{service.serviceName}</h3>
+                    <h3 className="text-base font-semibold text-foreground">
+                      {service.serviceName}
+                    </h3>
                   </div>
-                  <span
-                    className={`deployment-status deployment-status--${service.releaseTrackTone}`}
-                  >
+                  <Badge variant={getBadgeVariantFromTone(service.releaseTrackTone)}>
                     {service.releaseTrackLabel}
-                  </span>
+                  </Badge>
                 </div>
-                <p className="deployment-card__meta">
+                <p className="mt-2 text-sm text-muted-foreground">
                   {service.targetServerName} · {service.composeFilePath}
                 </p>
-                <p className="deployment-card__meta">
+                <p className="mt-2 text-sm text-muted-foreground">
                   Image: {service.imageReference} · Replicas: {service.replicaCount}
                 </p>
-                <p className="deployment-card__meta">
+                <p className="mt-2 text-sm text-muted-foreground">
                   Ports:{" "}
                   {service.exposedPorts.length > 0
                     ? service.exposedPorts.join(", ")
                     : "internal only"}
                 </p>
-                <p className="deployment-card__meta">
+                <p className="mt-2 text-sm text-muted-foreground">
                   Dependencies:{" "}
                   {service.dependencies.length > 0 ? service.dependencies.join(", ") : "none"} ·
                   Network: {service.networkName}
                 </p>
-                <p className="deployment-card__meta">
+                <p className="mt-2 text-sm text-muted-foreground">
                   Volumes: {service.volumeMounts.join(", ")} · Healthcheck:{" "}
                   {service.healthcheckPath ?? "process-level"}
                 </p>
@@ -241,7 +272,7 @@ export function ComposeReleaseCatalog({
           </div>
         </>
       ) : (
-        <p className="viewer-empty">
+        <p className="py-10 text-center text-sm text-muted-foreground">
           {composeReleaseCatalogMessage ??
             "Sign in to inspect Compose release targets and queue rollouts from catalogued topology."}
         </p>

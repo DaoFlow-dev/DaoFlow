@@ -2,6 +2,9 @@ import { useState } from "react";
 import type { FormEvent } from "react";
 import { isTRPCClientError } from "@trpc/client";
 import { trpc } from "../../lib/trpc";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { getBadgeVariantFromTone } from "@/lib/tone-utils";
 
 interface DeploymentStep {
   id: number;
@@ -85,22 +88,28 @@ export function DeploymentList({
   }
 
   return (
-    <section className="deployments">
-      <div className="roadmap__header">
-        <p className="roadmap__kicker">Deployment write-path foundation</p>
-        <h2>Queued and historical deployments</h2>
+    <section className="space-y-6">
+      <div className="space-y-1">
+        <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+          Deployment write-path foundation
+        </p>
+        <h2 className="text-2xl font-semibold tracking-tight text-foreground">
+          Queued and historical deployments
+        </h2>
       </div>
 
       {session.data && canQueueDeployments ? (
         <form
-          className="deployment-composer"
+          className="space-y-4"
           data-testid="manual-deployment-form"
           onSubmit={(event) => void handleCreateDeployment(event)}
         >
           <div>
-            <p className="roadmap-item__lane">Safe operator action</p>
-            <h3>Queue a deployment record</h3>
-            <p className="deployment-card__meta">
+            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              Safe operator action
+            </p>
+            <h3 className="text-base font-semibold text-foreground">Queue a deployment record</h3>
+            <p className="mt-2 text-sm text-muted-foreground">
               This only creates immutable control-plane records and pending steps. Docker execution
               remains outside the web process.
             </p>
@@ -117,56 +126,61 @@ export function DeploymentList({
             Image tag
             <input value={imageTag} onChange={(event) => setImageTag(event.target.value)} />
           </label>
-          <button
-            className="action-button"
-            disabled={createDeploymentRecord.isPending}
-            type="submit"
-          >
+          <Button disabled={createDeploymentRecord.isPending} type="submit">
             {createDeploymentRecord.isPending ? "Queueing..." : "Queue deployment record"}
-          </button>
+          </Button>
           {feedback ? (
-            <p className="auth-feedback" data-testid="deployment-feedback">
+            <p
+              className="rounded-lg border bg-muted px-4 py-2 text-sm text-muted-foreground"
+              data-testid="deployment-feedback"
+            >
               {feedback}
             </p>
           ) : null}
         </form>
       ) : session.data ? (
-        <p className="viewer-empty">
+        <p className="py-10 text-center text-sm text-muted-foreground">
           Deploy-capable roles can queue immutable deployment records here.
         </p>
       ) : null}
 
       {session.data && recentDeployments.data ? (
-        <div className="deployment-list">
+        <div className="grid grid-cols-2 gap-3">
           {recentDeployments.data.map((deployment) => (
             <article
-              className="deployment-card"
+              className="rounded-xl border bg-card p-5 shadow-sm"
               data-testid={`deployment-card-${deployment.id}`}
               key={deployment.id}
             >
-              <div className="deployment-card__top">
+              <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="roadmap-item__lane">{deployment.environmentName}</p>
-                  <h3>{deployment.serviceName}</h3>
+                  <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                    {deployment.environmentName}
+                  </p>
+                  <h3 className="text-base font-semibold text-foreground">
+                    {deployment.serviceName}
+                  </h3>
                 </div>
-                <span
-                  className={`deployment-status deployment-status--${deployment.statusTone}`}
+                <Badge
+                  variant={getBadgeVariantFromTone(deployment.statusTone)}
                   data-testid={`deployment-status-${deployment.id}`}
                 >
                   {deployment.statusLabel}
-                </span>
+                </Badge>
               </div>
-              <p className="deployment-card__meta">
+              <p className="mt-2 text-sm text-muted-foreground">
                 {deployment.projectName} on {deployment.targetServerName} (
                 {deployment.targetServerHost})
               </p>
-              <p className="deployment-card__meta">
+              <p className="mt-2 text-sm text-muted-foreground">
                 Source: {deployment.sourceType} · Commit: {deployment.commitSha} · Image:{" "}
                 {deployment.imageTag}
               </p>
-              <p className="deployment-card__meta">Requested by {deployment.requestedByEmail}</p>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Requested by {deployment.requestedByEmail}
+              </p>
               {deployment.steps && deployment.steps.length > 0 && (
-                <ul className="deployment-card__steps">
+                <ul className="mt-3 list-disc pl-5 text-sm text-muted-foreground space-y-1">
                   {deployment.steps.map((step) => (
                     <li key={step.id}>
                       <strong>{step.label}</strong>: {step.detail}
@@ -178,7 +192,7 @@ export function DeploymentList({
           ))}
         </div>
       ) : (
-        <p className="viewer-empty">
+        <p className="py-10 text-center text-sm text-muted-foreground">
           {deploymentMessage ?? "Sign in to inspect deployment records and structured steps."}
         </p>
       )}

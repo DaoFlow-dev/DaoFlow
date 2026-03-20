@@ -1,4 +1,6 @@
-import { getInventoryTone } from "@/lib/tone-utils";
+import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
+import { getInventoryTone, getBadgeVariantFromTone } from "@/lib/tone-utils";
 
 interface ServerItem {
   id: string;
@@ -61,65 +63,87 @@ export function InfrastructureInventory({
   infrastructureMessage
 }: InfrastructureInventoryProps) {
   return (
-    <section className="infrastructure-inventory">
-      <div className="roadmap__header">
-        <p className="roadmap__kicker">Inventory slice</p>
-        <h2>Servers, projects, and environments</h2>
+    <section className="space-y-6">
+      <div className="space-y-1">
+        <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+          Inventory slice
+        </p>
+        <h2 className="text-2xl font-semibold tracking-tight text-foreground">
+          Servers, projects, and environments
+        </h2>
       </div>
 
       {session.data && infrastructureInventory.data ? (
         <>
-          <div className="inventory-summary" data-testid="inventory-summary">
-            <div className="token-summary__item">
-              <span className="metric__label">Servers</span>
-              <strong>{infrastructureInventory.data.summary.totalServers}</strong>
-            </div>
-            <div className="token-summary__item">
-              <span className="metric__label">Projects</span>
-              <strong>{infrastructureInventory.data.summary.totalProjects}</strong>
-            </div>
-            <div className="token-summary__item">
-              <span className="metric__label">Environments</span>
-              <strong>{infrastructureInventory.data.summary.totalEnvironments}</strong>
-            </div>
-            <div className="token-summary__item">
-              <span className="metric__label">Healthy servers</span>
-              <strong>{infrastructureInventory.data.summary.healthyServers}</strong>
-            </div>
+          <div className="grid grid-cols-4 gap-3 mb-3" data-testid="inventory-summary">
+            <Card className="p-4">
+              <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Servers
+              </span>
+              <strong className="mt-1 block text-2xl font-bold">
+                {infrastructureInventory.data.summary.totalServers}
+              </strong>
+            </Card>
+            <Card className="p-4">
+              <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Projects
+              </span>
+              <strong className="mt-1 block text-2xl font-bold">
+                {infrastructureInventory.data.summary.totalProjects}
+              </strong>
+            </Card>
+            <Card className="p-4">
+              <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Environments
+              </span>
+              <strong className="mt-1 block text-2xl font-bold">
+                {infrastructureInventory.data.summary.totalEnvironments}
+              </strong>
+            </Card>
+            <Card className="p-4">
+              <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Healthy servers
+              </span>
+              <strong className="mt-1 block text-2xl font-bold">
+                {infrastructureInventory.data.summary.healthyServers}
+              </strong>
+            </Card>
           </div>
 
-          <div className="inventory-columns">
-            <div className="inventory-column">
-              <div className="inventory-column__header">
-                <p className="roadmap-item__lane">Managed targets</p>
-                <h3>Servers</h3>
+          <div className="grid grid-cols-3 gap-3">
+            <div className="grid gap-3 content-start">
+              <div>
+                <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                  Managed targets
+                </p>
+                <h3 className="text-base font-semibold text-foreground">Servers</h3>
               </div>
-              <div className="inventory-list">
+              <div className="grid gap-3">
                 {infrastructureInventory.data.servers.map((server) => {
                   const statusTone = server.statusTone ?? getInventoryTone(server.status);
 
                   return (
                     <article
-                      className="token-card"
+                      className="rounded-xl border bg-card p-5 shadow-sm"
                       data-testid={`server-card-${server.id}`}
                       key={server.id}
                     >
-                      <div className="token-card__top">
+                      <div className="flex items-start justify-between gap-3">
                         <div>
-                          <p className="roadmap-item__lane">{server.kind}</p>
-                          <h3>{server.name}</h3>
+                          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                            {server.kind}
+                          </p>
+                          <h3 className="text-base font-semibold text-foreground">{server.name}</h3>
                         </div>
-                        <span className={`deployment-status deployment-status--${statusTone}`}>
-                          {server.status}
-                        </span>
+                        <Badge variant={getBadgeVariantFromTone(statusTone)}>{server.status}</Badge>
                       </div>
-                      <p className="deployment-card__meta">
+                      <p className="mt-2 text-sm text-muted-foreground">
                         {server.host} · {server.region} · SSH {server.sshPort}
                       </p>
-                      <p className="deployment-card__meta">
+                      <p className="mt-2 text-sm text-muted-foreground">
                         {server.engineVersion} · {server.environmentCount} attached environments
                       </p>
-                      <p className="deployment-card__meta">
+                      <p className="mt-2 text-sm text-muted-foreground">
                         Last heartbeat: {server.lastHeartbeatAt ?? "No heartbeat recorded"}
                       </p>
                     </article>
@@ -128,33 +152,39 @@ export function InfrastructureInventory({
               </div>
             </div>
 
-            <div className="inventory-column">
-              <div className="inventory-column__header">
-                <p className="roadmap-item__lane">Deployment surfaces</p>
-                <h3>Projects</h3>
+            <div className="grid gap-3 content-start">
+              <div>
+                <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                  Deployment surfaces
+                </p>
+                <h3 className="text-base font-semibold text-foreground">Projects</h3>
               </div>
-              <div className="inventory-list">
+              <div className="grid gap-3">
                 {infrastructureInventory.data.projects.map((project) => {
                   const statusTone =
                     project.statusTone ?? getInventoryTone(project.latestDeploymentStatus);
 
                   return (
                     <article
-                      className="token-card"
+                      className="rounded-xl border bg-card p-5 shadow-sm"
                       data-testid={`project-card-${project.id}`}
                       key={project.id}
                     >
-                      <div className="token-card__top">
+                      <div className="flex items-start justify-between gap-3">
                         <div>
-                          <p className="roadmap-item__lane">{project.defaultBranch}</p>
-                          <h3>{project.name}</h3>
+                          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                            {project.defaultBranch}
+                          </p>
+                          <h3 className="text-base font-semibold text-foreground">
+                            {project.name}
+                          </h3>
                         </div>
-                        <span className={`deployment-status deployment-status--${statusTone}`}>
+                        <Badge variant={getBadgeVariantFromTone(statusTone)}>
                           {project.latestDeploymentStatus}
-                        </span>
+                        </Badge>
                       </div>
-                      <p className="deployment-card__meta">{project.repositoryUrl}</p>
-                      <p className="deployment-card__meta">
+                      <p className="mt-2 text-sm text-muted-foreground">{project.repositoryUrl}</p>
+                      <p className="mt-2 text-sm text-muted-foreground">
                         {project.serviceCount} services · {project.environmentCount} environments
                       </p>
                     </article>
@@ -163,35 +193,43 @@ export function InfrastructureInventory({
               </div>
             </div>
 
-            <div className="inventory-column">
-              <div className="inventory-column__header">
-                <p className="roadmap-item__lane">Compose topology</p>
-                <h3>Environments</h3>
+            <div className="grid gap-3 content-start">
+              <div>
+                <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                  Compose topology
+                </p>
+                <h3 className="text-base font-semibold text-foreground">Environments</h3>
               </div>
-              <div className="inventory-list">
+              <div className="grid gap-3">
                 {infrastructureInventory.data.environments.map((environment) => {
                   const statusTone = environment.statusTone ?? getInventoryTone(environment.status);
 
                   return (
                     <article
-                      className="timeline-event"
+                      className="rounded-xl border bg-card p-5 shadow-sm"
                       data-testid={`environment-card-${environment.id}`}
                       key={environment.id}
                     >
-                      <div className="timeline-event__top">
+                      <div className="flex items-start justify-between gap-3">
                         <div>
-                          <p className="roadmap-item__lane">{environment.projectName}</p>
-                          <h3>{environment.name}</h3>
+                          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                            {environment.projectName}
+                          </p>
+                          <h3 className="text-base font-semibold text-foreground">
+                            {environment.name}
+                          </h3>
                         </div>
-                        <span className={`deployment-status deployment-status--${statusTone}`}>
+                        <Badge variant={getBadgeVariantFromTone(statusTone)}>
                           {environment.status}
-                        </span>
+                        </Badge>
                       </div>
-                      <p className="deployment-card__meta">
+                      <p className="mt-2 text-sm text-muted-foreground">
                         {environment.targetServerName} · Network {environment.networkName}
                       </p>
-                      <p className="deployment-card__meta">{environment.composeFilePath}</p>
-                      <p className="deployment-card__meta">
+                      <p className="mt-2 text-sm text-muted-foreground">
+                        {environment.composeFilePath}
+                      </p>
+                      <p className="mt-2 text-sm text-muted-foreground">
                         {environment.serviceCount} Compose services
                       </p>
                     </article>
@@ -202,7 +240,7 @@ export function InfrastructureInventory({
           </div>
         </>
       ) : (
-        <p className="viewer-empty">
+        <p className="py-10 text-center text-sm text-muted-foreground">
           {infrastructureMessage ??
             "Sign in to inspect managed servers, projects, and environments."}
         </p>

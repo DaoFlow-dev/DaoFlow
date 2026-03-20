@@ -1,3 +1,6 @@
+import { Badge } from "@/components/ui/badge";
+import { getBadgeVariantFromTone } from "@/lib/tone-utils";
+
 interface RollbackPlan {
   deploymentId: string;
   projectName: string;
@@ -29,51 +32,59 @@ export function RollbackPlans({
   rollbackPlansMessage
 }: RollbackPlansProps) {
   return (
-    <section className="rollback-plans">
-      <div className="roadmap__header">
-        <p className="roadmap__kicker">Recovery planning</p>
-        <h2>Rollback planning</h2>
+    <section className="space-y-6">
+      <div className="space-y-1">
+        <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+          Recovery planning
+        </p>
+        <h2 className="text-2xl font-semibold tracking-tight text-foreground">Rollback planning</h2>
       </div>
 
       {session.data && deploymentRollbackPlans.data ? (
-        <div className="rollback-plan-list">
+        <div className="grid grid-cols-2 gap-3">
           {deploymentRollbackPlans.data.map((plan) => {
             return (
               <article
-                className="deployment-card"
+                className="rounded-xl border bg-card p-5 shadow-sm"
                 data-testid={`rollback-plan-${plan.deploymentId}`}
                 key={plan.deploymentId}
               >
-                <div className="deployment-card__top">
+                <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="roadmap-item__lane">
+                    <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
                       {plan.environmentName} · {plan.projectName}
                     </p>
-                    <h3>{plan.serviceName}</h3>
+                    <h3 className="text-base font-semibold text-foreground">{plan.serviceName}</h3>
                   </div>
-                  <span className={`deployment-status deployment-status--${plan.planStatusTone}`}>
+                  <Badge variant={getBadgeVariantFromTone(plan.planStatusTone)}>
                     {plan.planStatusLabel}
-                  </span>
+                  </Badge>
                 </div>
-                <p className="deployment-card__meta">{plan.reason}</p>
-                <p className="deployment-card__meta">Current status: {plan.currentStatusLabel}</p>
+                <p className="mt-2 text-sm text-muted-foreground">{plan.reason}</p>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Current status: {plan.currentStatusLabel}
+                </p>
                 {plan.targetCommitSha ? (
-                  <p className="deployment-card__meta">
+                  <p className="mt-2 text-sm text-muted-foreground">
                     Rollback target: {plan.targetCommitSha} · {plan.targetImageTag}
                   </p>
                 ) : null}
-                <div className="rollback-plan__columns">
+                <div className="mt-3 grid grid-cols-2 gap-3">
                   <div>
-                    <p className="roadmap-item__lane">Preflight checks</p>
-                    <ul className="deployment-card__steps">
+                    <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                      Preflight checks
+                    </p>
+                    <ul className="mt-3 list-disc pl-5 text-sm text-muted-foreground space-y-1">
                       {plan.checks.map((check) => (
                         <li key={check}>{check}</li>
                       ))}
                     </ul>
                   </div>
                   <div>
-                    <p className="roadmap-item__lane">Recovery steps</p>
-                    <ul className="deployment-card__steps">
+                    <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                      Recovery steps
+                    </p>
+                    <ul className="mt-3 list-disc pl-5 text-sm text-muted-foreground space-y-1">
                       {plan.steps.map((step) => (
                         <li key={step}>{step}</li>
                       ))}
@@ -85,7 +96,7 @@ export function RollbackPlans({
           })}
         </div>
       ) : (
-        <p className="viewer-empty">
+        <p className="py-10 text-center text-sm text-muted-foreground">
           {rollbackPlansMessage ?? "Sign in to inspect rollback targets and recovery checks."}
         </p>
       )}

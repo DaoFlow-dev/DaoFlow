@@ -2,6 +2,10 @@ import { useState } from "react";
 import type { FormEvent } from "react";
 import { isTRPCClientError } from "@trpc/client";
 import { trpc } from "../../lib/trpc";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { getBadgeVariantFromTone } from "@/lib/tone-utils";
 
 interface EnvironmentEntry {
   id: string;
@@ -92,21 +96,27 @@ export function EnvironmentVariables({
   }
 
   return (
-    <section className="environment-variables">
-      <div className="roadmap__header">
-        <p className="roadmap__kicker">Environment management</p>
-        <h2>Encrypted environment configuration</h2>
+    <section className="space-y-6">
+      <div className="space-y-1">
+        <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+          Environment management
+        </p>
+        <h2 className="text-2xl font-semibold tracking-tight text-foreground">
+          Encrypted environment configuration
+        </h2>
       </div>
 
       {session.data && canManageEnvironmentVariables && infrastructureInventory.data ? (
         <form
-          className="environment-variable-composer"
+          className="space-y-4"
           onSubmit={(event) => void handleUpsertEnvironmentVariable(event)}
         >
           <div>
-            <p className="roadmap-item__lane">Redacted read model</p>
-            <h3>Save scoped variable</h3>
-            <p className="deployment-card__meta">
+            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              Redacted read model
+            </p>
+            <h3 className="text-base font-semibold text-foreground">Save scoped variable</h3>
+            <p className="mt-2 text-sm text-muted-foreground">
               Secret values stay write-only in the UI and are redacted on every read path.
             </p>
           </div>
@@ -165,78 +175,95 @@ export function EnvironmentVariables({
             />
             Secret value
           </label>
-          <button
-            className="action-button"
-            disabled={upsertEnvironmentVariable.isPending}
-            type="submit"
-          >
+          <Button disabled={upsertEnvironmentVariable.isPending} type="submit">
             {upsertEnvironmentVariable.isPending ? "Saving..." : "Save variable"}
-          </button>
+          </Button>
           {environmentVariableFeedback ? (
-            <p className="auth-feedback" data-testid="environment-variable-feedback">
+            <p
+              className="rounded-lg border bg-muted px-4 py-2 text-sm text-muted-foreground"
+              data-testid="environment-variable-feedback"
+            >
               {environmentVariableFeedback}
             </p>
           ) : null}
         </form>
       ) : session.data ? (
-        <p className="viewer-empty">
+        <p className="py-10 text-center text-sm text-muted-foreground">
           Deploy-capable roles can update encrypted environment variables here.
         </p>
       ) : null}
 
       {session.data && environmentVariables.data ? (
         <>
-          <div className="environment-variable-summary" data-testid="environment-variable-summary">
-            <div className="token-summary__item">
-              <span className="metric__label">Variables</span>
-              <strong>{environmentVariables.data.summary.totalVariables}</strong>
-            </div>
-            <div className="token-summary__item">
-              <span className="metric__label">Secrets</span>
-              <strong>{environmentVariables.data.summary.secretVariables}</strong>
-            </div>
-            <div className="token-summary__item">
-              <span className="metric__label">Runtime</span>
-              <strong>{environmentVariables.data.summary.runtimeVariables}</strong>
-            </div>
-            <div className="token-summary__item">
-              <span className="metric__label">Build</span>
-              <strong>{environmentVariables.data.summary.buildVariables}</strong>
-            </div>
+          <div className="grid grid-cols-4 gap-3 mb-3" data-testid="environment-variable-summary">
+            <Card className="p-4">
+              <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Variables
+              </span>
+              <strong className="mt-1 block text-2xl font-bold">
+                {environmentVariables.data.summary.totalVariables}
+              </strong>
+            </Card>
+            <Card className="p-4">
+              <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Secrets
+              </span>
+              <strong className="mt-1 block text-2xl font-bold">
+                {environmentVariables.data.summary.secretVariables}
+              </strong>
+            </Card>
+            <Card className="p-4">
+              <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Runtime
+              </span>
+              <strong className="mt-1 block text-2xl font-bold">
+                {environmentVariables.data.summary.runtimeVariables}
+              </strong>
+            </Card>
+            <Card className="p-4">
+              <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Build
+              </span>
+              <strong className="mt-1 block text-2xl font-bold">
+                {environmentVariables.data.summary.buildVariables}
+              </strong>
+            </Card>
           </div>
 
-          <div className="environment-variable-list">
+          <div className="grid grid-cols-2 gap-3">
             {environmentVariables.data.variables.map((variable) => (
               <article
-                className="token-card"
+                className="rounded-xl border bg-card p-5 shadow-sm"
                 data-testid={`environment-variable-card-${variable.id}`}
                 key={variable.id}
               >
-                <div className="token-card__top">
+                <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="roadmap-item__lane">
+                    <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
                       {variable.projectName} / {variable.environmentName}
                     </p>
-                    <h3>{variable.key}</h3>
+                    <h3 className="text-base font-semibold text-foreground">{variable.key}</h3>
                   </div>
-                  <span className={`deployment-status deployment-status--${variable.statusTone}`}>
+                  <Badge variant={getBadgeVariantFromTone(variable.statusTone)}>
                     {variable.statusLabel}
-                  </span>
+                  </Badge>
                 </div>
-                <p className="deployment-card__meta">Value: {variable.displayValue}</p>
-                <p className="deployment-card__meta">
+                <p className="mt-2 text-sm text-muted-foreground">Value: {variable.displayValue}</p>
+                <p className="mt-2 text-sm text-muted-foreground">
                   Category: {variable.category} · Source: {variable.source}
                 </p>
-                <p className="deployment-card__meta">
+                <p className="mt-2 text-sm text-muted-foreground">
                   Branch pattern: {variable.branchPattern ?? "all branches"}
                 </p>
-                <p className="deployment-card__meta">Updated by {variable.updatedByEmail}</p>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Updated by {variable.updatedByEmail}
+                </p>
               </article>
             ))}
           </div>
         </>
       ) : (
-        <p className="viewer-empty">
+        <p className="py-10 text-center text-sm text-muted-foreground">
           {environmentVariablesMessage ??
             "Sign in to inspect encrypted environment variable metadata."}
         </p>

@@ -1,3 +1,7 @@
+import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
+import { getBadgeVariantFromTone } from "@/lib/tone-utils";
+
 interface DriftDiff {
   id: string;
   field: string;
@@ -49,80 +53,102 @@ export function ComposeDrift({
   composeDriftMessage
 }: ComposeDriftProps) {
   return (
-    <section className="compose-drift">
-      <div className="roadmap__header">
-        <p className="roadmap__kicker">Planning API</p>
-        <h2>Compose drift inspector</h2>
+    <section className="space-y-6">
+      <div className="space-y-1">
+        <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+          Planning API
+        </p>
+        <h2 className="text-2xl font-semibold tracking-tight text-foreground">
+          Compose drift inspector
+        </h2>
       </div>
 
       {session.data && composeDriftReport.data ? (
         <>
-          <div className="compose-drift-summary" data-testid="compose-drift-summary">
-            <div className="token-summary__item">
-              <span className="metric__label">Services</span>
-              <strong>{composeDriftReport.data.summary.totalServices}</strong>
-            </div>
-            <div className="token-summary__item">
-              <span className="metric__label">Aligned</span>
-              <strong>{composeDriftReport.data.summary.alignedServices}</strong>
-            </div>
-            <div className="token-summary__item">
-              <span className="metric__label">Review required</span>
-              <strong>{composeDriftReport.data.summary.reviewRequired}</strong>
-            </div>
-            <div className="token-summary__item">
-              <span className="metric__label">Blocked</span>
-              <strong>{composeDriftReport.data.summary.blockedServices}</strong>
-            </div>
+          <div className="grid grid-cols-4 gap-3 mb-3" data-testid="compose-drift-summary">
+            <Card className="p-4">
+              <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Services
+              </span>
+              <strong className="mt-1 block text-2xl font-bold">
+                {composeDriftReport.data.summary.totalServices}
+              </strong>
+            </Card>
+            <Card className="p-4">
+              <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Aligned
+              </span>
+              <strong className="mt-1 block text-2xl font-bold">
+                {composeDriftReport.data.summary.alignedServices}
+              </strong>
+            </Card>
+            <Card className="p-4">
+              <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Review required
+              </span>
+              <strong className="mt-1 block text-2xl font-bold">
+                {composeDriftReport.data.summary.reviewRequired}
+              </strong>
+            </Card>
+            <Card className="p-4">
+              <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Blocked
+              </span>
+              <strong className="mt-1 block text-2xl font-bold">
+                {composeDriftReport.data.summary.blockedServices}
+              </strong>
+            </Card>
           </div>
 
-          <div className="compose-drift-list">
+          <div className="grid grid-cols-2 gap-3">
             {composeDriftReport.data.reports.map((report) => (
               <article
-                className="token-card"
+                className="rounded-xl border bg-card p-5 shadow-sm"
                 data-testid={`compose-drift-card-${report.composeServiceId}`}
                 key={report.composeServiceId}
               >
-                <div className="token-card__top">
+                <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="roadmap-item__lane">
+                    <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
                       {report.environmentName} · {report.projectName}
                     </p>
-                    <h3>{report.serviceName}</h3>
+                    <h3 className="text-base font-semibold text-foreground">
+                      {report.serviceName}
+                    </h3>
                   </div>
-                  <span className={`deployment-status deployment-status--${report.statusTone}`}>
+                  <Badge variant={getBadgeVariantFromTone(report.statusTone)}>
                     {report.statusLabel}
-                  </span>
+                  </Badge>
                 </div>
-                <p className="deployment-card__meta">
+                <p className="mt-2 text-sm text-muted-foreground">
                   {report.targetServerName} · {report.composeFilePath}
                 </p>
-                <p className="deployment-card__meta">{report.summary}</p>
-                <p className="deployment-card__meta">
+                <p className="mt-2 text-sm text-muted-foreground">{report.summary}</p>
+                <p className="mt-2 text-sm text-muted-foreground">
                   Desired image: {report.desiredImageReference} · Actual image:{" "}
                   {report.actualImageReference}
                 </p>
-                <p className="deployment-card__meta">
+                <p className="mt-2 text-sm text-muted-foreground">
                   Desired replicas: {report.desiredReplicaCount} · Actual replicas:{" "}
                   {report.actualReplicaCount} · Runtime: {report.actualContainerState}
                 </p>
                 {report.diffs.length > 0 ? (
-                  <div className="token-card__chips">
+                  <div className="mt-3 flex flex-wrap gap-1.5">
                     {report.diffs.map((diff) => (
-                      <span className="token-chip" key={diff.id}>
+                      <Badge variant="outline" key={diff.id}>
                         {diff.field}: {diff.desiredValue}
                         {" -> "}
                         {diff.actualValue}
-                      </span>
+                      </Badge>
                     ))}
                   </div>
                 ) : null}
-                <div className="rollback-plan__columns">
+                <div className="mt-3 grid grid-cols-2 gap-3">
                   <div>
-                    <h4>Impact</h4>
-                    <p className="deployment-card__meta">{report.impactSummary}</p>
+                    <h4 className="text-sm font-semibold text-foreground">Impact</h4>
+                    <p className="mt-2 text-sm text-muted-foreground">{report.impactSummary}</p>
                     {report.diffs.length > 0 ? (
-                      <ul className="deployment-card__steps">
+                      <ul className="mt-3 list-disc pl-5 text-sm text-muted-foreground space-y-1">
                         {report.diffs.map((diff) => (
                           <li key={`${diff.id}-impact`}>{diff.impact}</li>
                         ))}
@@ -130,8 +156,8 @@ export function ComposeDrift({
                     ) : null}
                   </div>
                   <div>
-                    <h4>Safe next actions</h4>
-                    <ul className="deployment-card__steps">
+                    <h4 className="text-sm font-semibold text-foreground">Safe next actions</h4>
+                    <ul className="mt-3 list-disc pl-5 text-sm text-muted-foreground space-y-1">
                       {report.recommendedActions.map((action) => (
                         <li key={action}>{action}</li>
                       ))}
@@ -143,7 +169,7 @@ export function ComposeDrift({
           </div>
         </>
       ) : (
-        <p className="viewer-empty">
+        <p className="py-10 text-center text-sm text-muted-foreground">
           {composeDriftMessage ??
             "Sign in to compare desired Compose specs against the last observed runtime state."}
         </p>

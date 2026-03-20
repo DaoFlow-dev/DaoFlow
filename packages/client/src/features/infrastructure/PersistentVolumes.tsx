@@ -1,4 +1,6 @@
-import { formatBytes } from "../../lib/tone-utils";
+import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
+import { formatBytes, getBadgeVariantFromTone } from "@/lib/tone-utils";
 
 interface VolumeItem {
   id: string;
@@ -40,63 +42,83 @@ export function PersistentVolumes({
   persistentVolumesMessage
 }: PersistentVolumesProps) {
   return (
-    <section className="persistent-volumes">
-      <div className="roadmap__header">
-        <p className="roadmap__kicker">Stateful services</p>
-        <h2>Persistent volume registry</h2>
+    <section className="space-y-6">
+      <div className="space-y-1">
+        <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+          Stateful services
+        </p>
+        <h2 className="text-2xl font-semibold tracking-tight text-foreground">
+          Persistent volume registry
+        </h2>
       </div>
 
       {session.data && persistentVolumes.data ? (
         <>
-          <div className="persistent-volume-summary" data-testid="persistent-volume-summary">
-            <div className="token-summary__item">
-              <span className="metric__label">Volumes</span>
-              <strong>{persistentVolumes.data.summary.totalVolumes}</strong>
-            </div>
-            <div className="token-summary__item">
-              <span className="metric__label">Protected</span>
-              <strong>{persistentVolumes.data.summary.protectedVolumes}</strong>
-            </div>
-            <div className="token-summary__item">
-              <span className="metric__label">Needs attention</span>
-              <strong>{persistentVolumes.data.summary.attentionVolumes}</strong>
-            </div>
-            <div className="token-summary__item">
-              <span className="metric__label">Attached bytes</span>
-              <strong>{formatBytes(persistentVolumes.data.summary.attachedBytes)}</strong>
-            </div>
+          <div className="grid grid-cols-4 gap-3 mb-3" data-testid="persistent-volume-summary">
+            <Card className="p-4">
+              <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Volumes
+              </span>
+              <strong className="mt-1 block text-2xl font-bold">
+                {persistentVolumes.data.summary.totalVolumes}
+              </strong>
+            </Card>
+            <Card className="p-4">
+              <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Protected
+              </span>
+              <strong className="mt-1 block text-2xl font-bold">
+                {persistentVolumes.data.summary.protectedVolumes}
+              </strong>
+            </Card>
+            <Card className="p-4">
+              <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Needs attention
+              </span>
+              <strong className="mt-1 block text-2xl font-bold">
+                {persistentVolumes.data.summary.attentionVolumes}
+              </strong>
+            </Card>
+            <Card className="p-4">
+              <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Attached bytes
+              </span>
+              <strong className="mt-1 block text-2xl font-bold">
+                {formatBytes(persistentVolumes.data.summary.attachedBytes)}
+              </strong>
+            </Card>
           </div>
 
-          <div className="persistent-volume-list">
+          <div className="grid grid-cols-2 gap-3">
             {persistentVolumes.data.volumes.map((volume) => (
               <article
-                className="token-card"
+                className="rounded-xl border bg-card p-5 shadow-sm"
                 data-testid={`persistent-volume-card-${volume.id}`}
                 key={volume.id}
               >
-                <div className="token-card__top">
+                <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="roadmap-item__lane">
+                    <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
                       {volume.environmentName} · {volume.projectName}
                     </p>
-                    <h3>{volume.volumeName}</h3>
+                    <h3 className="text-base font-semibold text-foreground">{volume.volumeName}</h3>
                   </div>
-                  <span className={`deployment-status deployment-status--${volume.statusTone}`}>
+                  <Badge variant={getBadgeVariantFromTone(volume.statusTone)}>
                     {volume.backupCoverage}
-                  </span>
+                  </Badge>
                 </div>
-                <p className="deployment-card__meta">
+                <p className="mt-2 text-sm text-muted-foreground">
                   {volume.serviceName} on {volume.targetServerName} ·{" "}
                   {formatBytes(volume.sizeBytes)}
                 </p>
-                <p className="deployment-card__meta">
+                <p className="mt-2 text-sm text-muted-foreground">
                   Mount path: {volume.mountPath} · Driver: {volume.driver}
                 </p>
-                <p className="deployment-card__meta">
+                <p className="mt-2 text-sm text-muted-foreground">
                   Backup policy: {volume.backupPolicyId ?? "Unmanaged"} · Restore readiness:{" "}
                   {volume.restoreReadiness}
                 </p>
-                <p className="deployment-card__meta">
+                <p className="mt-2 text-sm text-muted-foreground">
                   Last backup: {volume.lastBackupAt ?? "No snapshot recorded"} · Last restore test:{" "}
                   {volume.lastRestoreTestAt ?? "Not exercised"}
                 </p>
@@ -105,7 +127,7 @@ export function PersistentVolumes({
           </div>
         </>
       ) : (
-        <p className="viewer-empty">
+        <p className="py-10 text-center text-sm text-muted-foreground">
           {persistentVolumesMessage ??
             "Sign in to inspect mounted volumes, backup coverage, and restore readiness."}
         </p>

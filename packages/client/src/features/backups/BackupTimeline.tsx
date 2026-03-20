@@ -11,7 +11,7 @@ export function BackupTimeline() {
     return (
       <div className="animate-pulse space-y-3" data-testid="backup-timeline-loading">
         {Array.from({ length: 5 }).map((_, i) => (
-          <div key={i} className="h-10 bg-white/5 rounded" />
+          <div key={i} className="h-10 rounded bg-muted" />
         ))}
       </div>
     );
@@ -21,7 +21,10 @@ export function BackupTimeline() {
 
   if (runs.length === 0) {
     return (
-      <div className="text-center text-white/40 py-8" data-testid="backup-timeline-empty">
+      <div
+        className="py-10 text-center text-sm text-muted-foreground"
+        data-testid="backup-timeline-empty"
+      >
         No backup runs yet
       </div>
     );
@@ -35,7 +38,7 @@ export function BackupTimeline() {
         return (
           <div
             key={run.id}
-            className="flex items-center gap-3 px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors group"
+            className="group flex items-center gap-3 rounded-lg border bg-card px-4 py-2 transition-colors hover:bg-muted"
           >
             {/* Status dot */}
             <div
@@ -43,23 +46,21 @@ export function BackupTimeline() {
             />
 
             {/* Policy name */}
-            <span className="text-sm text-white/80 truncate flex-1">{run.policyId}</span>
+            <span className="flex-1 truncate text-sm text-foreground">{run.policyId}</span>
 
             {/* Status badge */}
-            <span
-              className={`rounded-full bg-white/10 px-2 py-0.5 text-xs ${getToneTextClass(tone)}`}
-            >
+            <span className={`rounded-full bg-muted px-2 py-0.5 text-xs ${getToneTextClass(tone)}`}>
               {run.status}
             </span>
 
             {/* Duration / time */}
-            <span className="text-xs text-white/40 min-w-[80px] text-right">
+            <span className="min-w-[80px] text-right text-xs text-muted-foreground">
               {run.startedAt
                 ? new Date(run.startedAt).toLocaleTimeString([], {
                     hour: "2-digit",
                     minute: "2-digit"
                   })
-                : "—"}
+                : "---"}
             </span>
           </div>
         );

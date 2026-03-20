@@ -2,6 +2,10 @@ import { useState } from "react";
 import type { FormEvent } from "react";
 import { isTRPCClientError } from "@trpc/client";
 import { trpc } from "../../lib/trpc";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { getBadgeVariantFromTone } from "@/lib/tone-utils";
 
 interface ServerCheck {
   serverId: string;
@@ -83,18 +87,24 @@ export function ServerReadiness({
   }
 
   return (
-    <section className="server-readiness">
-      <div className="roadmap__header">
-        <p className="roadmap__kicker">Onboarding slice</p>
-        <h2>Server readiness and onboarding</h2>
+    <section className="space-y-6">
+      <div className="space-y-1">
+        <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+          Onboarding slice
+        </p>
+        <h2 className="text-2xl font-semibold tracking-tight text-foreground">
+          Server readiness and onboarding
+        </h2>
       </div>
 
       {session.data && canManageServers ? (
-        <form className="server-onboarding" onSubmit={(event) => void handleRegisterServer(event)}>
+        <form className="space-y-4" onSubmit={(event) => void handleRegisterServer(event)}>
           <div>
-            <p className="roadmap-item__lane">Admin-only action</p>
-            <h3>Register a target host</h3>
-            <p className="deployment-card__meta">
+            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              Admin-only action
+            </p>
+            <h3 className="text-base font-semibold text-foreground">Register a target host</h3>
+            <p className="mt-2 text-sm text-muted-foreground">
               New servers start blocked until SSH, Docker Engine, and Compose probes pass.
             </p>
           </div>
@@ -145,17 +155,20 @@ export function ServerReadiness({
               <option value="docker-swarm-manager">docker-swarm-manager</option>
             </select>
           </label>
-          <button className="action-button" disabled={registerServer.isPending} type="submit">
+          <Button disabled={registerServer.isPending} type="submit">
             {registerServer.isPending ? "Registering..." : "Register server"}
-          </button>
+          </Button>
           {serverFeedback ? (
-            <p className="auth-feedback" data-testid="server-onboarding-feedback">
+            <p
+              className="rounded-lg border bg-muted px-4 py-2 text-sm text-muted-foreground"
+              data-testid="server-onboarding-feedback"
+            >
               {serverFeedback}
             </p>
           ) : null}
         </form>
       ) : session.data ? (
-        <p className="viewer-empty">
+        <p className="py-10 text-center text-sm text-muted-foreground">
           Elevated roles can register new target hosts here. Signed-in viewers can still inspect
           readiness checks below.
         </p>
@@ -163,63 +176,79 @@ export function ServerReadiness({
 
       {session.data && serverReadiness.data ? (
         <>
-          <div className="server-readiness-summary" data-testid="server-readiness-summary">
-            <div className="token-summary__item">
-              <span className="metric__label">Servers</span>
-              <strong>{serverReadiness.data.summary.totalServers}</strong>
-            </div>
-            <div className="token-summary__item">
-              <span className="metric__label">Ready</span>
-              <strong>{serverReadiness.data.summary.readyServers}</strong>
-            </div>
-            <div className="token-summary__item">
-              <span className="metric__label">Blocked</span>
-              <strong>{serverReadiness.data.summary.blockedServers}</strong>
-            </div>
-            <div className="token-summary__item">
-              <span className="metric__label">Avg latency</span>
-              <strong>
+          <div className="grid grid-cols-4 gap-3 mb-3" data-testid="server-readiness-summary">
+            <Card className="p-4">
+              <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Servers
+              </span>
+              <strong className="mt-1 block text-2xl font-bold">
+                {serverReadiness.data.summary.totalServers}
+              </strong>
+            </Card>
+            <Card className="p-4">
+              <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Ready
+              </span>
+              <strong className="mt-1 block text-2xl font-bold">
+                {serverReadiness.data.summary.readyServers}
+              </strong>
+            </Card>
+            <Card className="p-4">
+              <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Blocked
+              </span>
+              <strong className="mt-1 block text-2xl font-bold">
+                {serverReadiness.data.summary.blockedServers}
+              </strong>
+            </Card>
+            <Card className="p-4">
+              <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Avg latency
+              </span>
+              <strong className="mt-1 block text-2xl font-bold">
                 {serverReadiness.data.summary.averageLatencyMs === null
                   ? "n/a"
                   : `${serverReadiness.data.summary.averageLatencyMs} ms`}
               </strong>
-            </div>
+            </Card>
           </div>
 
-          <div className="server-readiness-list">
+          <div className="grid grid-cols-2 gap-3">
             {serverReadiness.data.checks.map((check) => (
               <article
-                className="timeline-event"
+                className="rounded-xl border bg-card p-5 shadow-sm"
                 data-testid={`server-readiness-card-${check.serverId}`}
                 key={check.serverId}
               >
-                <div className="timeline-event__top">
+                <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="roadmap-item__lane">
+                    <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
                       {check.targetKind} · SSH {check.sshPort}
                     </p>
-                    <h3>{check.serverName}</h3>
+                    <h3 className="text-base font-semibold text-foreground">{check.serverName}</h3>
                   </div>
-                  <span className={`deployment-status deployment-status--${check.statusTone}`}>
+                  <Badge variant={getBadgeVariantFromTone(check.statusTone)}>
                     {check.readinessStatus}
-                  </span>
+                  </Badge>
                 </div>
-                <p className="deployment-card__meta">
+                <p className="mt-2 text-sm text-muted-foreground">
                   {check.serverHost} · inventory status {check.serverStatus}
                 </p>
-                <p className="deployment-card__meta">
+                <p className="mt-2 text-sm text-muted-foreground">
                   SSH {check.sshReachable ? "reachable" : "blocked"} · Docker{" "}
                   {check.dockerReachable ? "reachable" : "blocked"} · Compose{" "}
                   {check.composeReachable ? "reachable" : "blocked"}
                 </p>
-                <p className="deployment-card__meta">
+                <p className="mt-2 text-sm text-muted-foreground">
                   Checked at {check.checkedAt} · Latency{" "}
                   {check.latencyMs === null ? "not measured" : `${check.latencyMs} ms`}
                 </p>
-                <div className="rollback-plan__columns">
+                <div className="mt-3 grid grid-cols-2 gap-3">
                   <div>
-                    <p className="roadmap-item__lane">Issues</p>
-                    <ul className="deployment-card__steps">
+                    <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                      Issues
+                    </p>
+                    <ul className="mt-3 list-disc pl-5 text-sm text-muted-foreground space-y-1">
                       {check.issues.length > 0 ? (
                         check.issues.map((issue) => <li key={issue}>{issue}</li>)
                       ) : (
@@ -228,8 +257,10 @@ export function ServerReadiness({
                     </ul>
                   </div>
                   <div>
-                    <p className="roadmap-item__lane">Recommended actions</p>
-                    <ul className="deployment-card__steps">
+                    <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                      Recommended actions
+                    </p>
+                    <ul className="mt-3 list-disc pl-5 text-sm text-muted-foreground space-y-1">
                       {check.recommendedActions.map((action) => (
                         <li key={action}>{action}</li>
                       ))}
@@ -241,7 +272,7 @@ export function ServerReadiness({
           </div>
         </>
       ) : (
-        <p className="viewer-empty">
+        <p className="py-10 text-center text-sm text-muted-foreground">
           {serverReadinessMessage ??
             "Sign in to inspect server onboarding readiness and connectivity issues."}
         </p>

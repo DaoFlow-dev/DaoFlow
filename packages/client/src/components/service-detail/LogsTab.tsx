@@ -228,7 +228,7 @@ export default function LogsTab({ serviceId, serviceName }: LogsTabProps) {
         </div>
 
         {/* Log output */}
-        <div className="bg-[#0d1117] rounded-lg p-3 h-[500px] overflow-y-auto font-mono text-xs leading-relaxed">
+        <div className="bg-zinc-950 rounded-lg p-3 h-[500px] overflow-y-auto font-mono text-xs leading-relaxed">
           {filteredLogs.length === 0 ? (
             <div className="h-full flex items-center justify-center text-gray-500">
               {isConnected ? (
@@ -245,10 +245,10 @@ export default function LogsTab({ serviceId, serviceName }: LogsTabProps) {
               <div
                 key={i}
                 className={`py-0.5 flex gap-2 hover:bg-white/5 ${
-                  line.stream === "stderr" ? "text-red-400" : "text-gray-300"
+                  line.stream === "stderr" ? "text-red-400" : "text-zinc-300"
                 }`}
               >
-                <span className="text-gray-600 shrink-0 select-none">
+                <span className="text-zinc-500 shrink-0 select-none">
                   {new Date(line.timestamp).toLocaleTimeString()}
                 </span>
                 <span className="break-all">{parseAnsi(line.message)}</span>

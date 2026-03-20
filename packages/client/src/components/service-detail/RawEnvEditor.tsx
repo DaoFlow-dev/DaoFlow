@@ -19,7 +19,7 @@ export function RawEnvEditor({ rawText, onRawTextChange, onSave, isPending }: Ra
       </CardHeader>
       <CardContent>
         <textarea
-          className="w-full h-64 p-3 font-mono text-sm bg-[#0d1117] text-gray-300 rounded-lg border border-white/10 focus:outline-none focus:ring-1 focus:ring-primary resize-y"
+          className="w-full h-64 p-3 font-mono text-sm bg-zinc-950 text-zinc-300 rounded-lg border border-zinc-800 focus:outline-none focus:ring-1 focus:ring-primary resize-y"
           value={rawText}
           onChange={(e) => onRawTextChange(e.target.value)}
           spellCheck={false}

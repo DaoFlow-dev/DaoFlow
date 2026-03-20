@@ -2,6 +2,10 @@ import { useState } from "react";
 import { isTRPCClientError } from "@trpc/client";
 import { trpc } from "../../lib/trpc";
 import { getExecutionJobTone, getTimelineLifecycle, getTimelineTone } from "../../lib/tone-utils";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { getBadgeVariantFromTone } from "@/lib/tone-utils";
 
 interface ExecutionJob {
   id: string;
@@ -109,69 +113,91 @@ export function ExecutionHandoff({
   }
 
   return (
-    <section className="execution-handoff">
-      <div className="roadmap__header">
-        <p className="roadmap__kicker">Execution-plane foundation</p>
-        <h2>Worker handoff queue</h2>
+    <section className="space-y-6">
+      <div className="space-y-1">
+        <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+          Execution-plane foundation
+        </p>
+        <h2 className="text-2xl font-semibold tracking-tight text-foreground">
+          Worker handoff queue
+        </h2>
       </div>
 
       {session.data && executionQueue.data ? (
         <>
-          <div className="queue-summary" data-testid="queue-summary">
-            <div className="token-summary__item">
-              <span className="metric__label">Total jobs</span>
-              <strong>{executionQueue.data.summary.totalJobs}</strong>
-            </div>
-            <div className="token-summary__item">
-              <span className="metric__label">Pending</span>
-              <strong>{executionQueue.data.summary.pendingJobs}</strong>
-            </div>
-            <div className="token-summary__item">
-              <span className="metric__label">Completed</span>
-              <strong>{executionQueue.data.summary.completedJobs}</strong>
-            </div>
-            <div className="token-summary__item">
-              <span className="metric__label">Failed</span>
-              <strong>{executionQueue.data.summary.failedJobs}</strong>
-            </div>
+          <div className="grid grid-cols-4 gap-3 mb-3" data-testid="queue-summary">
+            <Card className="p-4">
+              <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Total jobs
+              </span>
+              <strong className="mt-1 block text-2xl font-bold">
+                {executionQueue.data.summary.totalJobs}
+              </strong>
+            </Card>
+            <Card className="p-4">
+              <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Pending
+              </span>
+              <strong className="mt-1 block text-2xl font-bold">
+                {executionQueue.data.summary.pendingJobs}
+              </strong>
+            </Card>
+            <Card className="p-4">
+              <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Completed
+              </span>
+              <strong className="mt-1 block text-2xl font-bold">
+                {executionQueue.data.summary.completedJobs}
+              </strong>
+            </Card>
+            <Card className="p-4">
+              <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Failed
+              </span>
+              <strong className="mt-1 block text-2xl font-bold">
+                {executionQueue.data.summary.failedJobs}
+              </strong>
+            </Card>
           </div>
 
           {feedback ? (
-            <p className="auth-feedback" data-testid="execution-feedback">
+            <p
+              className="rounded-lg border bg-muted px-4 py-2 text-sm text-muted-foreground"
+              data-testid="execution-feedback"
+            >
               {feedback}
             </p>
           ) : null}
 
-          <div className="queue-list">
+          <div className="grid grid-cols-2 gap-3">
             {executionQueue.data.jobs.map((job) => {
               const statusTone = job.statusTone ?? getExecutionJobTone(job.status);
 
               return (
                 <article
-                  className="token-card"
+                  className="rounded-xl border bg-card p-5 shadow-sm"
                   data-testid={`execution-job-${job.id}`}
                   key={job.id}
                 >
-                  <div className="token-card__top">
+                  <div className="flex items-start justify-between gap-3">
                     <div>
-                      <p className="roadmap-item__lane">{job.environmentName}</p>
-                      <h3>{job.serviceName}</h3>
+                      <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                        {job.environmentName}
+                      </p>
+                      <h3 className="text-base font-semibold text-foreground">{job.serviceName}</h3>
                     </div>
-                    <span className={`deployment-status deployment-status--${statusTone}`}>
-                      {job.status}
-                    </span>
+                    <Badge variant={getBadgeVariantFromTone(statusTone)}>{job.status}</Badge>
                   </div>
-                  <p className="deployment-card__meta">
+                  <p className="mt-2 text-sm text-muted-foreground">
                     Queue: {job.queueName} · Worker hint: {job.workerHint}
                   </p>
-                  <p className="deployment-card__meta">
+                  <p className="mt-2 text-sm text-muted-foreground">
                     {job.projectName} on {job.targetServerName} ({job.targetServerHost})
                   </p>
                   {canOperateExecutionJobs ? (
-                    <div className="job-actions">
+                    <div className="mt-3 flex flex-wrap gap-2">
                       {job.status === "pending" ? (
-                        <button
-                          className="action-button"
+                        <Button
                           disabled={mutationPending}
                           onClick={() => {
                             void handleDispatchJob(job.id, job.serviceName);
@@ -179,12 +205,11 @@ export function ExecutionHandoff({
                           type="button"
                         >
                           Dispatch
-                        </button>
+                        </Button>
                       ) : null}
                       {job.status === "dispatched" ? (
                         <>
-                          <button
-                            className="action-button"
+                          <Button
                             disabled={mutationPending}
                             onClick={() => {
                               void handleCompleteJob(job.id, job.serviceName);
@@ -192,9 +217,9 @@ export function ExecutionHandoff({
                             type="button"
                           >
                             Mark healthy
-                          </button>
-                          <button
-                            className="action-button action-button--muted"
+                          </Button>
+                          <Button
+                            variant="outline"
                             disabled={mutationPending}
                             onClick={() => {
                               void handleFailJob(job.id, job.serviceName);
@@ -202,7 +227,7 @@ export function ExecutionHandoff({
                             type="button"
                           >
                             Mark failed
-                          </button>
+                          </Button>
                         </>
                       ) : null}
                     </div>
@@ -213,49 +238,51 @@ export function ExecutionHandoff({
           </div>
         </>
       ) : (
-        <p className="viewer-empty">
+        <p className="py-10 text-center text-sm text-muted-foreground">
           {executionQueueMessage ?? "Sign in to inspect queued worker handoff jobs."}
         </p>
       )}
 
-      <div className="roadmap__header">
-        <p className="roadmap__kicker">Immutable event feed</p>
-        <h2>Operations timeline</h2>
+      <div className="space-y-1">
+        <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+          Immutable event feed
+        </p>
+        <h2 className="text-2xl font-semibold tracking-tight text-foreground">
+          Operations timeline
+        </h2>
       </div>
 
       {session.data && operationsTimeline.data ? (
-        <div className="timeline-list">
+        <div className="grid grid-cols-2 gap-3">
           {operationsTimeline.data.map((event) => {
             const statusTone = event.statusTone ?? getTimelineTone(event.kind);
             const statusLabel = event.statusLabel ?? getTimelineLifecycle(event.kind);
 
             return (
               <article
-                className="timeline-event"
+                className="rounded-xl border bg-card p-5 shadow-sm"
                 data-testid={`timeline-event-${event.id}`}
                 key={event.id}
               >
-                <div className="timeline-event__top">
+                <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="roadmap-item__lane">
+                    <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
                       {event.resourceType} · {event.kind}
                     </p>
-                    <h3>{event.summary}</h3>
+                    <h3 className="text-base font-semibold text-foreground">{event.summary}</h3>
                   </div>
-                  <span className={`deployment-status deployment-status--${statusTone}`}>
-                    {statusLabel}
-                  </span>
+                  <Badge variant={getBadgeVariantFromTone(statusTone)}>{statusLabel}</Badge>
                 </div>
-                <p className="deployment-card__meta">
+                <p className="mt-2 text-sm text-muted-foreground">
                   {event.serviceName} · {event.resourceId}
                 </p>
-                <p className="deployment-card__meta">{event.detail}</p>
+                <p className="mt-2 text-sm text-muted-foreground">{event.detail}</p>
               </article>
             );
           })}
         </div>
       ) : (
-        <p className="viewer-empty">
+        <p className="py-10 text-center text-sm text-muted-foreground">
           {timelineMessage ?? "Sign in to inspect immutable deployment events."}
         </p>
       )}
