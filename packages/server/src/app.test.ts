@@ -2,6 +2,7 @@ import { createHmac, generateKeyPairSync } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createApp } from "./app";
+import { generateApiTokenValue, hashApiToken } from "./api-token-utils";
 import { ensureControlPlaneReady, resetControlPlaneSeedState } from "./db/services/seed";
 import { createAgentPrincipal, generateAgentToken } from "./db/services/agents";
 import { db } from "./db/connection";
@@ -15,6 +16,7 @@ import { encodeGitInstallationPermissions } from "./db/services/git-providers";
 import { createEnvironment, createProject } from "./db/services/projects";
 import { createService } from "./db/services/services";
 import { resetTestDatabase } from "./test-db";
+import * as serviceObservabilityWorker from "./worker/service-observability";
 import {
   ensureInitialOwnerFromEnv,
   resetInitialOwnerBootstrapState
@@ -168,6 +170,131 @@ async function createAgentBearerToken(input?: {
   }
 
   return generated.tokenValue;
+}
+
+async function createServiceBearerToken(input?: {
+  scopes?: string[];
+  principalStatus?: "active" | "paused" | "inactive";
+  tokenStatus?: "active" | "paused" | "revoked";
+  expiresAt?: Date;
+}) {
+  const suffix = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+  const principalId = `svcpr_${suffix}`.slice(0, 32);
+  const tokenId = `svctok_${suffix}`.slice(0, 32);
+  const tokenValue = generateApiTokenValue();
+  const tokenHash = await hashApiToken(tokenValue);
+
+  await db.insert(principals).values({
+    id: principalId,
+    type: "service",
+    name: `release-${suffix}`.slice(0, 100),
+    description: "Token-backed service app test",
+    linkedUserId: null,
+    defaultScopes:
+      input?.scopes?.join(",") ??
+      "server:read,deploy:read,service:read,logs:read,events:read,approvals:create",
+    status: input?.principalStatus ?? "active",
+    updatedAt: new Date()
+  });
+
+  await db.insert(apiTokens).values({
+    id: tokenId,
+    name: `service-${suffix}`.slice(0, 80),
+    tokenHash,
+    tokenPrefix: tokenValue.slice(0, 12),
+    principalType: "service",
+    principalId,
+    scopes:
+      input?.scopes?.join(",") ??
+      "server:read,deploy:read,service:read,logs:read,events:read,approvals:create",
+    status: input?.tokenStatus ?? "active",
+    expiresAt: input?.expiresAt ?? null,
+    createdByUserId: "user_foundation_owner",
+    revokedAt: input?.tokenStatus === "revoked" ? new Date() : null
+  });
+
+  return tokenValue;
+}
+
+async function createServiceRuntimeFixture() {
+  const suffix = `${Date.now()}${Math.floor(Math.random() * 10_000)}`;
+  const projectName = `obs-project-${suffix}`;
+  const environmentName = `obs-env-${suffix}`;
+  const serviceName = `obs-service-${suffix}`;
+
+  const projectResult = await createProject({
+    name: projectName,
+    teamId: "team_foundation",
+    requestedByUserId: "user_foundation_owner",
+    requestedByEmail: "owner@daoflow.local",
+    requestedByRole: "owner"
+  });
+  expect(projectResult.status).toBe("ok");
+  if (projectResult.status !== "ok") {
+    throw new Error("Failed to create observability project fixture.");
+  }
+
+  const environmentResult = await createEnvironment({
+    projectId: projectResult.project.id,
+    name: environmentName,
+    targetServerId: "srv_foundation_1",
+    requestedByUserId: "user_foundation_owner",
+    requestedByEmail: "owner@daoflow.local",
+    requestedByRole: "owner"
+  });
+  expect(environmentResult.status).toBe("ok");
+  if (environmentResult.status !== "ok") {
+    throw new Error("Failed to create observability environment fixture.");
+  }
+
+  const serviceResult = await createService({
+    name: serviceName,
+    projectId: projectResult.project.id,
+    environmentId: environmentResult.environment.id,
+    sourceType: "compose",
+    composeServiceName: "web",
+    targetServerId: "srv_foundation_1",
+    requestedByUserId: "user_foundation_owner",
+    requestedByEmail: "owner@daoflow.local",
+    requestedByRole: "owner"
+  });
+  expect(serviceResult.status).toBe("ok");
+  if (serviceResult.status !== "ok") {
+    throw new Error("Failed to create observability service fixture.");
+  }
+
+  const deploymentId = `depobs_${suffix}`.slice(0, 32);
+  const createdAt = new Date(Date.now() - 60_000);
+
+  await db.insert(deployments).values({
+    id: deploymentId,
+    projectId: projectResult.project.id,
+    environmentId: environmentResult.environment.id,
+    targetServerId: "srv_foundation_1",
+    serviceName: serviceResult.service.name,
+    sourceType: "compose",
+    commitSha: "abc1234",
+    imageTag: "ghcr.io/daoflow/obs:latest",
+    configSnapshot: {
+      projectName,
+      composeServiceName: "web",
+      targetServerName: "foundation-vps-1",
+      targetServerHost: "203.0.113.24"
+    },
+    status: "completed",
+    conclusion: "succeeded",
+    trigger: "user",
+    requestedByUserId: "user_foundation_owner",
+    requestedByEmail: "owner@daoflow.local",
+    requestedByRole: "owner",
+    createdAt,
+    concludedAt: new Date(createdAt.getTime() + 30_000),
+    updatedAt: new Date(createdAt.getTime() + 30_000)
+  });
+
+  return {
+    serviceId: serviceResult.service.id
+  };
 }
 
 describe("createApp", () => {
@@ -1777,5 +1904,94 @@ describe("createApp", () => {
 
     expect(response.status).toBe(401);
     expect(body.code).toBe("AUTH_REQUIRED");
+  });
+
+  it("accepts agent bearer tokens on GET /api/v1/container-stats when the token includes diagnostics:read", async () => {
+    await resetTestDatabase();
+    resetControlPlaneSeedState();
+    await ensureControlPlaneReady();
+
+    const fixture = await createServiceRuntimeFixture();
+    const app = createApp();
+    const tokenValue = await createAgentBearerToken({ preset: "agent:read-only" });
+    const expectedStats = {
+      cpuPercent: 12.5,
+      memoryUsageMB: 256,
+      memoryLimitMB: 1024,
+      memoryPercent: 25,
+      networkRxMB: 32,
+      networkTxMB: 12,
+      blockReadMB: 4,
+      blockWriteMB: 6,
+      pids: 18,
+      uptime: "4m",
+      restartCount: 1
+    };
+
+    const readStatsSpy = vi
+      .spyOn(serviceObservabilityWorker, "readServiceStats")
+      .mockResolvedValue(expectedStats);
+
+    const response = await app.request(`/api/v1/container-stats/${fixture.serviceId}`, {
+      headers: {
+        Authorization: `Bearer ${tokenValue}`
+      }
+    });
+    const body = (await response.json()) as typeof expectedStats;
+
+    expect(response.status).toBe(200);
+    expect(body).toEqual(expectedStats);
+    expect(readStatsSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("denies service principal bearer tokens on GET /api/v1/container-stats because the developer role ceiling excludes diagnostics:read", async () => {
+    await resetTestDatabase();
+    resetControlPlaneSeedState();
+    await ensureControlPlaneReady();
+
+    const app = createApp();
+    const tokenValue = await createServiceBearerToken({
+      scopes: [
+        "server:read",
+        "deploy:read",
+        "service:read",
+        "logs:read",
+        "events:read",
+        "diagnostics:read"
+      ]
+    });
+
+    const response = await app.request("/api/v1/container-stats/svc-test-123", {
+      headers: {
+        Authorization: `Bearer ${tokenValue}`
+      }
+    });
+    const body = (await response.json()) as { code: string; requiredScopes: string[] };
+
+    expect(response.status).toBe(403);
+    expect(body.code).toBe("SCOPE_DENIED");
+    expect(body.requiredScopes).toEqual(["diagnostics:read"]);
+  });
+
+  it("returns TOKEN_REVOKED for paused service principal tokens on GET /api/v1/container-stats", async () => {
+    await resetTestDatabase();
+    resetControlPlaneSeedState();
+    await ensureControlPlaneReady();
+
+    const app = createApp();
+    const tokenValue = await createServiceBearerToken({
+      tokenStatus: "paused"
+    });
+
+    const response = await app.request("/api/v1/container-stats/svc-test-123", {
+      headers: {
+        Authorization: `Bearer ${tokenValue}`
+      }
+    });
+    const body = (await response.json()) as { code: string; error: string };
+
+    expect(response.status).toBe(401);
+    expect(body.code).toBe("TOKEN_REVOKED");
+    expect(body.error).toContain("revoked");
   });
 });
