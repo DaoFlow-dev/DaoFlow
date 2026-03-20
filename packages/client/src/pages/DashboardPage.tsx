@@ -121,10 +121,14 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div
+        className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4 xl:gap-5"
+        data-testid="dashboard-stats-grid"
+      >
         {stats.map((s) => (
           <Card
             key={s.label}
+            data-testid={`dashboard-stat-${s.label.toLowerCase()}`}
             className="group relative cursor-pointer overflow-hidden border-transparent bg-gradient-to-br from-card to-card/80 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md hover:border-primary/10"
             onClick={() => void navigate(s.href)}
           >
@@ -134,7 +138,7 @@ export default function DashboardPage() {
                 backgroundImage: `linear-gradient(135deg, transparent 60%, ${s.color.includes("blue") ? "rgba(59,130,246,0.04)" : s.color.includes("purple") ? "rgba(168,85,247,0.04)" : s.color.includes("amber") ? "rgba(245,158,11,0.04)" : "rgba(16,185,129,0.04)"})`
               }}
             />
-            <CardContent className="relative flex items-center gap-4 p-5">
+            <CardContent className="relative flex items-center gap-3 p-4 sm:gap-4 sm:p-5">
               <div
                 className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${s.bg} transition-transform duration-300 group-hover:scale-110`}
               >
