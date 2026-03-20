@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { trpc } from "../lib/trpc";
 import { useSession } from "../lib/auth-client";
+import { BackupRunDetailsSheet } from "@/components/backups/BackupRunDetailsSheet";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -16,6 +17,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { DatabaseBackup, Plus, Clock, PlayCircle, StopCircle, RotateCcw } from "lucide-react";
 import { getBackupOperationBadgeVariant, formatBytes } from "../lib/tone-utils";
+import { isTRPCClientError } from "@trpc/client";
 
 export default function BackupsPage() {
   const session = useSession();
@@ -32,9 +34,45 @@ export default function BackupsPage() {
   });
 
   const [cronInputs, setCronInputs] = useState<Record<string, string>>({});
+  const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
+  const backupRunDetails = trpc.backupRunDetails.useQuery(
+    {
+      runId: selectedRunId ?? ""
+    },
+    {
+      enabled: Boolean(session.data && selectedRunId)
+    }
+  );
+  const backupRunDetailStatus = backupRunDetails.data?.status;
+  const refetchBackupRunDetails = backupRunDetails.refetch;
+
+  useEffect(() => {
+    if (!selectedRunId) {
+      return;
+    }
+
+    if (!backupRunDetailStatus) {
+      return;
+    }
+
+    if (!["queued", "running"].includes(backupRunDetailStatus)) {
+      return;
+    }
+
+    const interval = window.setInterval(() => {
+      void refetchBackupRunDetails();
+    }, 5000);
+
+    return () => window.clearInterval(interval);
+  }, [backupRunDetailStatus, refetchBackupRunDetails, selectedRunId]);
 
   const policies = backupOverview.data?.policies ?? [];
   const runs = backupOverview.data?.runs ?? [];
+  const detailsErrorMessage = isTRPCClientError(backupRunDetails.error)
+    ? backupRunDetails.error.message
+    : backupRunDetails.error
+      ? "Unable to load backup run diagnostics right now."
+      : null;
 
   return (
     <main className="shell space-y-6" data-testid="backup-overview">
@@ -223,17 +261,27 @@ export default function BackupsPage() {
                           {r.finishedAt ? new Date(r.finishedAt).toLocaleString() : "—"}
                         </TableCell>
                         <TableCell className="text-right">
-                          {String(r.status) === "succeeded" && (
+                          <div className="flex justify-end gap-2">
                             <Button
                               size="sm"
-                              variant="outline"
-                              disabled
-                              title="Restore from this backup"
+                              variant={String(r.status) === "failed" ? "default" : "outline"}
+                              data-testid={`backup-run-inspect-${String(r.id)}`}
+                              onClick={() => setSelectedRunId(String(r.id))}
                             >
-                              <RotateCcw size={14} className="mr-1" />
-                              Restore
+                              Inspect
                             </Button>
-                          )}
+                            {String(r.status) === "succeeded" && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled
+                                title="Restore from this backup"
+                              >
+                                <RotateCcw size={14} className="mr-1" />
+                                Restore
+                              </Button>
+                            )}
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -244,6 +292,18 @@ export default function BackupsPage() {
           )}
         </>
       )}
+
+      <BackupRunDetailsSheet
+        open={selectedRunId !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelectedRunId(null);
+          }
+        }}
+        isLoading={backupRunDetails.isLoading}
+        errorMessage={detailsErrorMessage}
+        run={backupRunDetails.data}
+      />
     </main>
   );
 }
