@@ -1,8 +1,8 @@
 /**
  * Task #30: Backup timeline view with status dots and duration bars.
  */
-import { trpc } from "../../lib/trpc";
-import { getBackupOperationTone, getToneDotClass, getToneTextClass } from "../../lib/tone-utils";
+import { trpc } from "@/lib/trpc";
+import { getBackupOperationTone, getToneDotClass, getToneTextClass } from "@/lib/tone-utils";
 
 export function BackupTimeline() {
   const { data, isLoading } = trpc.backupOverview.useQuery({ limit: 20 });

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { isTRPCClientError } from "@trpc/client";
-import { trpc } from "../../lib/trpc";
-import { getBackupOperationTone } from "../../lib/tone-utils";
+import { trpc } from "@/lib/trpc";
+import { getBackupOperationTone } from "@/lib/tone-utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";

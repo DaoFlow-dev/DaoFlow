@@ -3,7 +3,7 @@
  * Shows protection coverage %, last success, next scheduled, failed count.
  */
 import { Card } from "@/components/ui/card";
-import { trpc } from "../../lib/trpc";
+import { trpc } from "@/lib/trpc";
 
 export function BackupDashboardWidget() {
   const { data: metrics, isLoading } = trpc.backupMetrics.useQuery();

@@ -3,8 +3,8 @@
  * delivery success rate, filter by channel type.
  * Wired to tRPC listDeliveryLogs for live stats.
  */
-import { trpc } from "../../lib/trpc";
-import { useSession } from "../../lib/auth-client";
+import { useSession } from "@/lib/auth-client";
+import { trpc } from "@/lib/trpc";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 

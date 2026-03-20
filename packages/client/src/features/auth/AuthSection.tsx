@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
-import { signIn, signOut, signUp } from "../../lib/auth-client";
+import { signIn, signOut, signUp } from "@/lib/auth-client";
 
 interface SessionData {
   user: { email: string; name: string };
