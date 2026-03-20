@@ -51,27 +51,31 @@ This file holds the detailed CLI contract, scope map, and agent-facing command r
 
 ## Command Scope Map
 
-| Command          | Lane     | Required Scope(s)                    | Mutating |
-| ---------------- | -------- | ------------------------------------ | -------- |
-| `login`          | session  | none                                 | yes      |
-| `whoami`         | read     | any valid token                      | no       |
-| `capabilities`   | read     | any valid token                      | no       |
-| `status`         | read     | `server:read`                        | no       |
-| `services`       | read     | `service:read`                       | no       |
-| `projects`       | read     | `deploy:read`                        | no       |
-| `logs`           | read     | `logs:read`                          | no       |
-| `plan`           | planning | `deploy:read`                        | no       |
-| `diff`           | planning | `deploy:read`                        | no       |
-| `doctor`         | read     | `server:read`, `logs:read`           | no       |
-| `deploy`         | command  | `deploy:start`                       | yes      |
-| `push`           | command  | `deploy:start`                       | yes      |
-| `rollback`       | command  | `deploy:rollback`                    | yes      |
-| `env list`       | read     | `env:read`                           | no       |
-| `env set`        | command  | `env:write`                          | yes      |
-| `env delete`     | command  | `env:write`                          | yes      |
-| `backup list`    | read     | `backup:read`                        | no       |
-| `backup run`     | command  | `backup:run`                         | yes      |
-| `backup restore` | command  | `backup:restore`, `approvals:create` | yes      |
+| Command          | Lane     | Required Scope(s)          | Mutating |
+| ---------------- | -------- | -------------------------- | -------- |
+| `login`          | session  | none                       | yes      |
+| `whoami`         | read     | any valid token            | no       |
+| `capabilities`   | read     | any valid token            | no       |
+| `status`         | read     | `server:read`              | no       |
+| `services`       | read     | `service:read`             | no       |
+| `projects`       | read     | `deploy:read`              | no       |
+| `logs`           | read     | `logs:read`                | no       |
+| `plan`           | planning | `deploy:read`              | no       |
+| `diff`           | planning | `deploy:read`              | no       |
+| `doctor`         | read     | `server:read`, `logs:read` | no       |
+| `deploy`         | command  | `deploy:start`             | yes      |
+| `push`           | command  | `deploy:start`             | yes      |
+| `rollback`       | command  | `deploy:rollback`          | yes      |
+| `env list`       | read     | `env:read`                 | no       |
+| `env set`        | command  | `env:write`                | yes      |
+| `env delete`     | command  | `env:write`                | yes      |
+| `backup list`    | read     | `backup:read`              | no       |
+| `backup run`     | command  | `backup:run`               | yes      |
+| `backup restore` | command  | `backup:restore`           | yes      |
+
+- `daoflow backup restore --dry-run` is a planning-lane preview backed by `backupRestorePlan` and requires only `backup:read`
+- `daoflow backup restore --yes` queues the restore and requires `backup:restore`
+- If an operator wants a human approval gate before restore execution, create a separate `requestApproval` with `approvals:create`
 
 ## Plan Command Contract
 

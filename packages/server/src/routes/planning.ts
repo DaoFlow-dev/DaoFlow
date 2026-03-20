@@ -1,11 +1,12 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
+import { buildBackupRestorePlan } from "../db/services/backups";
 import { buildComposeDeploymentPlan } from "../db/services/compose-deployment-plans";
 import { buildConfigDiff } from "../db/services/config-diffs";
 import { ScopedDeploymentNotFoundError } from "../db/services/scoped-deployments";
 import { buildDeploymentPlan } from "../db/services/deployment-plans";
 import { buildRollbackPlan } from "../db/services/rollback-plans";
-import { t, deployReadProcedure } from "../trpc";
+import { t, deployReadProcedure, backupReadProcedure } from "../trpc";
 
 export const planningRouter = t.router({
   composeDeploymentPlan: deployReadProcedure
@@ -122,6 +123,25 @@ export const planningRouter = t.router({
           message: error instanceof Error ? error.message : String(error)
         });
       }
+    }),
+  backupRestorePlan: backupReadProcedure
+    .input(
+      z.object({
+        backupRunId: z.string().min(1)
+      })
+    )
+    .query(async ({ input }) => {
+      const plan = await buildBackupRestorePlan(input.backupRunId);
+
+      if (!plan) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message:
+            "Only successful backup runs with an artifact and restore target can be previewed."
+        });
+      }
+
+      return plan;
     }),
   configDiff: deployReadProcedure
     .input(

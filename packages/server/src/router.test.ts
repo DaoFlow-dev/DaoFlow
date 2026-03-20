@@ -1,9 +1,11 @@
 import { TRPCError } from "@trpc/server";
+import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 import { getEffectiveTokenCapabilities, type ApiTokenScope } from "@daoflow/shared";
 import type { Context, RequestAuthContext } from "./context";
 import { db } from "./db/connection";
 import { deployments } from "./db/schema/deployments";
+import { backupRestores } from "./db/schema/storage";
 import { createEnvironment, createProject } from "./db/services/projects";
 import { asRecord } from "./db/services/json-helpers";
 import { createService } from "./db/services/services";
@@ -973,6 +975,38 @@ describe("appRouter", () => {
     expect(run.error).toContain("pg_dump");
   });
 
+  it("returns a non-mutating backup restore plan from the planning lane", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-backup-restore-plan",
+      session: makeSession("viewer")
+    });
+
+    const restoresBefore = await db
+      .select({ id: backupRestores.id })
+      .from(backupRestores)
+      .where(eq(backupRestores.backupRunId, "brun_foundation_volume_success"));
+
+    const plan = await caller.backupRestorePlan({
+      backupRunId: "brun_foundation_volume_success"
+    });
+
+    const restoresAfter = await db
+      .select({ id: backupRestores.id })
+      .from(backupRestores)
+      .where(eq(backupRestores.backupRunId, "brun_foundation_volume_success"));
+
+    expect(plan.isReady).toBe(true);
+    expect(plan.backupRun.id).toBe("brun_foundation_volume_success");
+    expect(plan.backupRun.artifactPath).toContain("postgres-volume-2026-03-11.tar.zst");
+    expect(plan.target.path).toBe("/var/lib/postgresql/data");
+    expect(plan.executeCommand).toBe(
+      "daoflow backup restore --backup-run-id brun_foundation_volume_success --yes"
+    );
+    expect(plan.approvalRequest.procedure).toBe("requestApproval");
+    expect(plan.approvalRequest.requiredScope).toBe("approvals:create");
+    expect(restoresAfter).toHaveLength(restoresBefore.length);
+  });
+
   it("denies backup read procedures when a token omits backup:read", async () => {
     const caller = appRouter.createCaller({
       requestId: "test-backup-read-scope-denied",
@@ -1001,6 +1035,19 @@ describe("appRouter", () => {
         grantedScopes: ["deploy:read"]
       }
     });
+
+    await expect(
+      caller.backupRestorePlan({
+        backupRunId: "brun_foundation_volume_success"
+      })
+    ).rejects.toMatchObject({
+      code: "FORBIDDEN",
+      cause: {
+        code: "SCOPE_DENIED",
+        requiredScopes: ["backup:read"],
+        grantedScopes: ["deploy:read"]
+      }
+    });
   });
 
   it("allows backup read procedures when a token includes backup:read", async () => {
@@ -1014,9 +1061,13 @@ describe("appRouter", () => {
     const run = await caller.backupRunDetails({
       runId: "brun_foundation_db_failed"
     });
+    const plan = await caller.backupRestorePlan({
+      backupRunId: "brun_foundation_volume_success"
+    });
 
     expect(overview.summary.totalPolicies).toBeGreaterThanOrEqual(0);
     expect(run.id).toBe("brun_foundation_db_failed");
+    expect(plan.backupRun.id).toBe("brun_foundation_volume_success");
   });
 
   it("returns approval requests keyed by targetResource", async () => {

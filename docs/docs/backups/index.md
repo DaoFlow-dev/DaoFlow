@@ -42,5 +42,6 @@ daoflow backup restore --backup-run-id bkp_run_123 --yes
 | ------------------- | ---------------- |
 | View policies       | `backup:read`    |
 | View backup history | `backup:read`    |
+| Preview restore     | `backup:read`    |
 | Run a backup        | `backup:run`     |
 | Restore a backup    | `backup:restore` |

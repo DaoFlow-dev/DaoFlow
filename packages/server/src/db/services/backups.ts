@@ -14,6 +14,7 @@ import {
   loadBackupRelations,
   readRequestedByEmail
 } from "./backup-view-helpers";
+import { getBackupRunDetails } from "./backup-run-details";
 
 export async function listBackupOverview(limit = 12) {
   const [policies, runs, relations, triggeredByUsers] = await Promise.all([
@@ -126,6 +127,85 @@ export async function triggerBackupRun(
   });
 
   return run;
+}
+
+export async function buildBackupRestorePlan(backupRunId: string) {
+  const run = await getBackupRunDetails(backupRunId);
+
+  if (!run || run.status !== "succeeded" || !run.artifactPath || !run.mountPath) {
+    return null;
+  }
+
+  const restoreTarget = `${run.mountPath} on ${run.destinationServerName || "the target server"}`;
+  const restoreAction =
+    run.backupType === "database"
+      ? `Replay the ${run.databaseEngine ?? "database"} backup into ${restoreTarget}.`
+      : `Replay the backup artifact into ${restoreTarget}.`;
+
+  return {
+    isReady: true,
+    backupRun: {
+      id: run.id,
+      policyId: run.policyId,
+      policyName: run.policyName,
+      projectName: run.projectName,
+      environmentName: run.environmentName,
+      serviceName: run.serviceName,
+      artifactPath: run.artifactPath,
+      checksum: run.checksum,
+      verifiedAt: run.verifiedAt,
+      restoreCount: run.restoreCount
+    },
+    target: {
+      destinationServerName: run.destinationServerName,
+      path: run.mountPath,
+      backupType: run.backupType,
+      databaseEngine: run.databaseEngine
+    },
+    preflightChecks: [
+      {
+        status: "ok" as const,
+        detail: `Resolved backup artifact ${run.artifactPath}.`
+      },
+      run.verifiedAt
+        ? {
+            status: "ok" as const,
+            detail: `This backup was last verified at ${run.verifiedAt}.`
+          }
+        : {
+            status: "warn" as const,
+            detail: "This backup has not been verified by a test restore yet."
+          },
+      run.restoreCount > 0
+        ? {
+            status: "ok" as const,
+            detail: `This backup already has ${run.restoreCount} recorded restore attempt(s).`
+          }
+        : {
+            status: "warn" as const,
+            detail: "No restore attempts have been recorded for this backup yet."
+          },
+      {
+        status: "ok" as const,
+        detail: `Restore target resolves to ${restoreTarget}.`
+      }
+    ],
+    steps: [
+      `Resolve the backup artifact from ${run.artifactPath}.`,
+      restoreAction,
+      "Queue the restore execution and persist the audit trail."
+    ],
+    executeCommand: `daoflow backup restore --backup-run-id ${backupRunId} --yes`,
+    approvalRequest: {
+      procedure: "requestApproval" as const,
+      requiredScope: "approvals:create" as const,
+      input: {
+        actionType: "backup-restore" as const,
+        backupRunId,
+        reason: "Describe why replaying this backup is safe and necessary."
+      }
+    }
+  };
 }
 
 export async function queueBackupRestore(

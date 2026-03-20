@@ -178,6 +178,43 @@ export interface QueueRestoreOutput {
   completedAt: Date | null;
 }
 
+export interface BackupRestorePlanOutput {
+  isReady: boolean;
+  backupRun: {
+    id: string;
+    policyId: string;
+    policyName: string;
+    projectName: string;
+    environmentName: string;
+    serviceName: string;
+    artifactPath: string;
+    checksum: string | null;
+    verifiedAt: string | null;
+    restoreCount: number;
+  };
+  target: {
+    destinationServerName: string;
+    path: string;
+    backupType: string;
+    databaseEngine: string | null;
+  };
+  preflightChecks: Array<{
+    status: "ok" | "warn" | "fail";
+    detail: string;
+  }>;
+  steps: string[];
+  executeCommand: string;
+  approvalRequest: {
+    procedure: "requestApproval";
+    requiredScope: "approvals:create";
+    input: {
+      actionType: "backup-restore";
+      backupRunId: string;
+      reason: string;
+    };
+  };
+}
+
 export interface BackupRunOutput {
   id: string;
   policyId: string;
@@ -546,6 +583,7 @@ export interface DaoFlowTRPC {
   disableBackupSchedule: MutationProcedure<{ policyId: string }, { ok: boolean }>;
   triggerBackupNow: MutationProcedure<{ policyId: string }, BackupRunOutput>;
   triggerTestRestore: MutationProcedure<{ backupRunId: string }, QueueRestoreOutput>;
+  backupRestorePlan: QueryProcedure<BackupRestorePlanOutput, { backupRunId: string }>;
   queueBackupRestore: MutationProcedure<{ backupRunId: string }, QueueRestoreOutput>;
   environmentVariables: QueryProcedure<
     EnvironmentVariablesOutput,

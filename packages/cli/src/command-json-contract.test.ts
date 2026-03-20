@@ -188,6 +188,152 @@ describe("CLI JSON contract", () => {
     });
   });
 
+  test("backup restore dry-run in JSON mode uses the planning lane and exits 3", async () => {
+    const program = new Command().name("daoflow");
+    program.addCommand(backupCommand());
+
+    const originalFetch = globalThis.fetch;
+    const originalUrl = process.env.DAOFLOW_URL;
+    const originalToken = process.env.DAOFLOW_TOKEN;
+
+    const result = await withTempHome(async () => {
+      process.env.DAOFLOW_URL = "https://daoflow.test";
+      process.env.DAOFLOW_TOKEN = "dfl_test_token";
+      globalThis.fetch = ((input: RequestInfo | URL) => {
+        const url =
+          typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+
+        expect(url).toContain("/trpc/backupRestorePlan");
+        expect(url).toContain("backupRunId");
+
+        return new Response(
+          JSON.stringify({
+            result: {
+              data: {
+                isReady: true,
+                backupRun: {
+                  id: "bkr_123",
+                  policyId: "bpol_123",
+                  policyName: "postgres-volume",
+                  projectName: "foundation",
+                  environmentName: "production",
+                  serviceName: "postgres",
+                  artifactPath: "s3://backups/postgres-2026-03-20.tar.zst",
+                  checksum: null,
+                  verifiedAt: null,
+                  restoreCount: 1
+                },
+                target: {
+                  destinationServerName: "foundation-vps-1",
+                  path: "/var/lib/postgresql/data",
+                  backupType: "volume",
+                  databaseEngine: null
+                },
+                preflightChecks: [
+                  {
+                    status: "ok",
+                    detail: "Resolved backup artifact s3://backups/postgres-2026-03-20.tar.zst."
+                  }
+                ],
+                steps: ["Resolve", "Replay", "Queue"],
+                executeCommand: "daoflow backup restore --backup-run-id bkr_123 --yes",
+                approvalRequest: {
+                  procedure: "requestApproval",
+                  requiredScope: "approvals:create",
+                  input: {
+                    actionType: "backup-restore",
+                    backupRunId: "bkr_123",
+                    reason: "Describe why replaying this backup is safe and necessary."
+                  }
+                }
+              }
+            }
+          }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" }
+          }
+        );
+      }) as unknown as typeof fetch;
+
+      try {
+        return await captureCommandExecution(async () => {
+          await program.parseAsync([
+            "node",
+            "daoflow",
+            "backup",
+            "restore",
+            "--backup-run-id",
+            "bkr_123",
+            "--dry-run",
+            "--json"
+          ]);
+        });
+      } finally {
+        globalThis.fetch = originalFetch;
+        if (originalUrl) {
+          process.env.DAOFLOW_URL = originalUrl;
+        } else {
+          delete process.env.DAOFLOW_URL;
+        }
+
+        if (originalToken) {
+          process.env.DAOFLOW_TOKEN = originalToken;
+        } else {
+          delete process.env.DAOFLOW_TOKEN;
+        }
+      }
+    });
+
+    expect(result.exitCode).toBe(3);
+    expect(result.errors).toEqual([]);
+    expect(result.logs).toHaveLength(1);
+    expect(JSON.parse(result.logs[0])).toEqual({
+      ok: true,
+      data: {
+        dryRun: true,
+        plan: {
+          isReady: true,
+          backupRun: {
+            id: "bkr_123",
+            policyId: "bpol_123",
+            policyName: "postgres-volume",
+            projectName: "foundation",
+            environmentName: "production",
+            serviceName: "postgres",
+            artifactPath: "s3://backups/postgres-2026-03-20.tar.zst",
+            checksum: null,
+            verifiedAt: null,
+            restoreCount: 1
+          },
+          target: {
+            destinationServerName: "foundation-vps-1",
+            path: "/var/lib/postgresql/data",
+            backupType: "volume",
+            databaseEngine: null
+          },
+          preflightChecks: [
+            {
+              status: "ok",
+              detail: "Resolved backup artifact s3://backups/postgres-2026-03-20.tar.zst."
+            }
+          ],
+          steps: ["Resolve", "Replay", "Queue"],
+          executeCommand: "daoflow backup restore --backup-run-id bkr_123 --yes",
+          approvalRequest: {
+            procedure: "requestApproval",
+            requiredScope: "approvals:create",
+            input: {
+              actionType: "backup-restore",
+              backupRunId: "bkr_123",
+              reason: "Describe why replaying this backup is safe and necessary."
+            }
+          }
+        }
+      }
+    });
+  });
+
   test("backup run dry-run still emits JSON and exits 3 without --json", async () => {
     const program = new Command().name("daoflow");
     program.addCommand(backupCommand());
@@ -252,7 +398,9 @@ describe("CLI JSON contract", () => {
     expect(result.logs).toEqual([]);
     expect(result.errors).toHaveLength(1);
     const [errorLine] = result.errors;
-    expect(() => JSON.parse(errorLine ?? "")).toThrow();
+    expect(() => {
+      JSON.parse(errorLine ?? "");
+    }).toThrow();
   });
 
   test("token create in JSON mode still requires --yes", async () => {

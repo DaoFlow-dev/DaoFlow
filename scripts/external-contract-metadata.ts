@@ -174,6 +174,13 @@ addApiGroup(
   }
 );
 
+apiProcedureAccess.backupRestorePlan = {
+  auth: "authenticated",
+  laneOverride: "planning",
+  requiredRoles: READ_ROLES,
+  requiredScopes: ["backup:read"]
+};
+
 addApiGroup(apiProcedureAccess, ["registerServer", "deleteServer"], {
   auth: "authenticated",
   requiredRoles: ADMIN_ROLES,
@@ -407,6 +414,56 @@ export const apiExamples: ApiExample[] = [
     }
   },
   {
+    id: "backup.restore-plan",
+    category: "backup",
+    procedure: "backupRestorePlan",
+    request: {
+      method: "GET",
+      path: "/trpc/backupRestorePlan",
+      input: { backupRunId: "bkr_123" }
+    },
+    response: {
+      isReady: true,
+      backupRun: {
+        id: "bkr_123",
+        policyId: "bkp_pol_123",
+        policyName: "nightly-postgres",
+        projectName: "platform",
+        environmentName: "production",
+        serviceName: "postgres",
+        artifactPath: "s3://acme-backups/platform/postgres-2026-03-20.tar.zst",
+        checksum: "sha256:abc123",
+        verifiedAt: "2026-03-20T11:45:00.000Z",
+        restoreCount: 2
+      },
+      target: {
+        destinationServerName: "prod-db-1",
+        path: "/var/lib/postgresql/data",
+        backupType: "volume",
+        databaseEngine: "postgres"
+      },
+      preflightChecks: [
+        { status: "ok", detail: "Backup run completed successfully." },
+        { status: "ok", detail: "Artifact path is available for restore download." }
+      ],
+      steps: [
+        "Queue a restore record for the selected backup run",
+        "Download the backup artifact from the configured destination",
+        "Execute the restore workflow against the target mount path"
+      ],
+      executeCommand: "daoflow backup restore --backup-run-id bkr_123 --yes",
+      approvalRequest: {
+        procedure: "requestApproval",
+        requiredScope: "approvals:create",
+        input: {
+          actionType: "backup-restore",
+          backupRunId: "bkr_123",
+          reason: "Restore backup run bkr_123 after validation."
+        }
+      }
+    }
+  },
+  {
     id: "backup.restore",
     category: "backup",
     procedure: "queueBackupRestore",
@@ -485,7 +542,7 @@ export const cliCommandMeta: Record<string, CliCommandMeta> = {
   "backup run": { lane: "command", requiredScopes: ["backup:run"], mutating: true },
   "backup restore": {
     lane: "command",
-    requiredScopes: ["backup:restore", "approvals:create"],
+    requiredScopes: ["backup:restore"],
     mutating: true
   },
   "backup verify": { lane: "command", requiredScopes: ["backup:restore"], mutating: true },
@@ -577,6 +634,25 @@ export const cliExamples = [
         action: "backup.run",
         policyId: "pol_123",
         message: "Would trigger one-off backup for policy pol_123"
+      }
+    }
+  },
+  {
+    id: "backup.restore-dry-run",
+    category: "backup",
+    command: "daoflow backup restore --backup-run-id bkr_123 --dry-run --json",
+    response: {
+      ok: true,
+      data: {
+        dryRun: true,
+        plan: {
+          isReady: true,
+          executeCommand: "daoflow backup restore --backup-run-id bkr_123 --yes",
+          approvalRequest: {
+            procedure: "requestApproval",
+            requiredScope: "approvals:create"
+          }
+        }
       }
     }
   },

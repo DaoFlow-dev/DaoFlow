@@ -229,6 +229,28 @@
       }
     },
     {
+      "name": "backupRestorePlan",
+      "summary": "backup Restore Plan",
+      "path": "/trpc/backupRestorePlan",
+      "method": "GET",
+      "lane": "planning",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator", "developer", "viewer", "agent"],
+      "requiredScopes": ["backup:read"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "backupRunId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["backupRunId"],
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "backupRestoreQueue",
       "summary": "backup Restore Queue",
       "path": "/trpc/backupRestoreQueue",
@@ -4076,6 +4098,64 @@
         "status": "queued",
         "triggerKind": "manual",
         "createdAt": "2026-03-20T12:05:00.000Z"
+      }
+    },
+    {
+      "id": "backup.restore-plan",
+      "category": "backup",
+      "procedure": "backupRestorePlan",
+      "request": {
+        "method": "GET",
+        "path": "/trpc/backupRestorePlan",
+        "input": {
+          "backupRunId": "bkr_123"
+        }
+      },
+      "response": {
+        "isReady": true,
+        "backupRun": {
+          "id": "bkr_123",
+          "policyId": "bkp_pol_123",
+          "policyName": "nightly-postgres",
+          "projectName": "platform",
+          "environmentName": "production",
+          "serviceName": "postgres",
+          "artifactPath": "s3://acme-backups/platform/postgres-2026-03-20.tar.zst",
+          "checksum": "sha256:abc123",
+          "verifiedAt": "2026-03-20T11:45:00.000Z",
+          "restoreCount": 2
+        },
+        "target": {
+          "destinationServerName": "prod-db-1",
+          "path": "/var/lib/postgresql/data",
+          "backupType": "volume",
+          "databaseEngine": "postgres"
+        },
+        "preflightChecks": [
+          {
+            "status": "ok",
+            "detail": "Backup run completed successfully."
+          },
+          {
+            "status": "ok",
+            "detail": "Artifact path is available for restore download."
+          }
+        ],
+        "steps": [
+          "Queue a restore record for the selected backup run",
+          "Download the backup artifact from the configured destination",
+          "Execute the restore workflow against the target mount path"
+        ],
+        "executeCommand": "daoflow backup restore --backup-run-id bkr_123 --yes",
+        "approvalRequest": {
+          "procedure": "requestApproval",
+          "requiredScope": "approvals:create",
+          "input": {
+            "actionType": "backup-restore",
+            "backupRunId": "bkr_123",
+            "reason": "Restore backup run bkr_123 after validation."
+          }
+        }
       }
     },
     {

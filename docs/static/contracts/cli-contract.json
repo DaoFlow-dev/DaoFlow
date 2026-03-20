@@ -253,7 +253,7 @@
       "path": "backup restore",
       "summary": "Queue a restore from a backup run",
       "lane": "command",
-      "requiredScopes": ["backup:restore", "approvals:create"],
+      "requiredScopes": ["backup:restore"],
       "mutating": true,
       "hasAction": true,
       "hasSubcommands": false,
@@ -1629,6 +1629,25 @@
           "action": "backup.run",
           "policyId": "pol_123",
           "message": "Would trigger one-off backup for policy pol_123"
+        }
+      }
+    },
+    {
+      "id": "backup.restore-dry-run",
+      "category": "backup",
+      "command": "daoflow backup restore --backup-run-id bkr_123 --dry-run --json",
+      "response": {
+        "ok": true,
+        "data": {
+          "dryRun": true,
+          "plan": {
+            "isReady": true,
+            "executeCommand": "daoflow backup restore --backup-run-id bkr_123 --yes",
+            "approvalRequest": {
+              "procedure": "requestApproval",
+              "requiredScope": "approvals:create"
+            }
+          }
         }
       }
     },

@@ -17,11 +17,11 @@ CI also runs the check so docs cannot drift silently.
 
 ## Three-Lane Model
 
-| Lane         | Purpose             | Side Effects | Examples                                                                |
-| ------------ | ------------------- | ------------ | ----------------------------------------------------------------------- |
-| **Read**     | Query current state | None         | `health`, `viewer`, `recentDeployments`, `infrastructureInventory`      |
-| **Planning** | Preview changes     | None         | `deploymentPlan`, `composeDeploymentPlan`, `rollbackPlan`, `configDiff` |
-| **Command**  | Execute mutations   | Yes          | `triggerDeploy`, `registerServer`, `requestApproval`                    |
+| Lane         | Purpose             | Side Effects | Examples                                                                                     |
+| ------------ | ------------------- | ------------ | -------------------------------------------------------------------------------------------- |
+| **Read**     | Query current state | None         | `health`, `viewer`, `recentDeployments`, `infrastructureInventory`                           |
+| **Planning** | Preview changes     | None         | `deploymentPlan`, `composeDeploymentPlan`, `rollbackPlan`, `backupRestorePlan`, `configDiff` |
+| **Command**  | Execute mutations   | Yes          | `triggerDeploy`, `registerServer`, `requestApproval`                                         |
 
 ## Base URL
 
