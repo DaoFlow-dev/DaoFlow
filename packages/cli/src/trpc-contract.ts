@@ -54,6 +54,7 @@ export interface ServerReadinessOutput {
     readyServers: number;
     attentionServers: number;
     blockedServers: number;
+    pollIntervalMs: number;
     averageLatencyMs: number | null;
   };
   checks: Array<{
@@ -63,10 +64,13 @@ export interface ServerReadinessOutput {
     targetKind: string;
     serverStatus: string;
     readinessStatus: string;
+    statusTone: string;
     sshPort: number;
     sshReachable: boolean;
     dockerReachable: boolean;
     composeReachable: boolean;
+    dockerVersion: string | null;
+    composeVersion: string | null;
     latencyMs: number | null;
     checkedAt: string;
     issues: string[];

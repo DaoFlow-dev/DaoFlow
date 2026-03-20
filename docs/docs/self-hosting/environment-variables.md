@@ -67,9 +67,10 @@ Complete reference for the `.env` file consumed by the production `docker-compos
 
 These are usually set inside the compose file rather than in your `.env`, but they are part of the runtime contract:
 
-| Variable       | Default                 | Description                                     |
-| -------------- | ----------------------- | ----------------------------------------------- |
-| `PORT`         | `3000`                  | Internal HTTP port inside the DaoFlow container |
-| `NODE_ENV`     | `production` in compose | Runtime mode                                    |
-| `GIT_WORK_DIR` | `/app/staging`          | Frozen deploy artifact workspace                |
-| `SSH_KEY_DIR`  | `/app/.ssh`             | SSH key storage for managed targets             |
+| Variable                            | Default                 | Description                                              |
+| ----------------------------------- | ----------------------- | -------------------------------------------------------- |
+| `PORT`                              | `3000`                  | Internal HTTP port inside the DaoFlow container          |
+| `NODE_ENV`                          | `production` in compose | Runtime mode                                             |
+| `GIT_WORK_DIR`                      | `/app/staging`          | Frozen deploy artifact workspace                         |
+| `SSH_KEY_DIR`                       | `/app/.ssh`             | SSH key storage for managed targets                      |
+| `SERVER_READINESS_POLL_INTERVAL_MS` | `60000`                 | Interval for recurring persisted server readiness checks |

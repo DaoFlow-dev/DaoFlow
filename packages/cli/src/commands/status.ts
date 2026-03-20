@@ -4,6 +4,11 @@ import { getErrorMessage, resolveCommandJsonOption } from "../command-helpers";
 import { createClient, type RouterOutputs } from "../trpc-client";
 import { getCurrentContext, loadConfig } from "../config";
 
+function formatServerRuntime(check: RouterOutputs["serverReadiness"]["checks"][number]): string {
+  const latency = check.latencyMs === null ? "latency n/a" : `${check.latencyMs}ms`;
+  return `Docker ${check.dockerVersion ?? "unavailable"} · Compose ${check.composeVersion ?? "unavailable"} · ${latency} · checked ${check.checkedAt}`;
+}
+
 export function statusCommand(): Command {
   return new Command("status")
     .description("Show current deployment and server status")
@@ -61,15 +66,25 @@ export function statusCommand(): Command {
           if (serverData) {
             console.log(chalk.bold("  Servers"));
             console.log(
-              `  Total: ${serverData.summary.totalServers}  Ready: ${chalk.green(serverData.summary.readyServers)}  Attention: ${chalk.yellow(serverData.summary.attentionServers)}`
+              `  Total: ${serverData.summary.totalServers}  Ready: ${chalk.green(serverData.summary.readyServers)}  Attention: ${chalk.yellow(serverData.summary.attentionServers)}  Poll: ${Math.round(serverData.summary.pollIntervalMs / 1000)}s`
             );
+            if (serverData.summary.averageLatencyMs !== null) {
+              console.log(`  Average latency: ${serverData.summary.averageLatencyMs}ms`);
+            }
             console.log();
 
             for (const check of serverData.checks) {
-              const icon = check.sshReachable ? chalk.green("●") : chalk.yellow("●");
+              const icon = check.readinessStatus === "ready" ? chalk.green("●") : chalk.yellow("●");
               console.log(
-                `  ${icon} ${check.serverName.padEnd(20)} ${check.serverHost}  Docker: ${check.dockerReachable ? "✓" : "✗"}`
+                `  ${icon} ${check.serverName.padEnd(20)} ${check.serverHost}  ${check.readinessStatus}`
               );
+              console.log(chalk.dim(`    ${formatServerRuntime(check)}`));
+              console.log(
+                `    SSH ${check.sshReachable ? "ok" : "blocked"} · Docker ${check.dockerReachable ? "ok" : "blocked"} · Compose ${check.composeReachable ? "ok" : "blocked"}`
+              );
+              if (check.issues.length > 0) {
+                console.log(chalk.yellow(`    Issues: ${check.issues.join("; ")}`));
+              }
             }
           }
 

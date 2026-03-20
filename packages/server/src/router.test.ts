@@ -819,6 +819,7 @@ describe("appRouter", () => {
     const response = await caller.serverReadiness({});
 
     expect(response.summary.totalServers).toBeGreaterThanOrEqual(0);
+    expect(response.summary.pollIntervalMs).toBeGreaterThan(0);
 
     const check = response.checks[0];
     if (!check) {
@@ -826,6 +827,8 @@ describe("appRouter", () => {
     }
 
     expect(check.statusTone).toEqual(expect.any(String));
+    expect(check.dockerVersion === null || typeof check.dockerVersion === "string").toBe(true);
+    expect(check.composeVersion === null || typeof check.composeVersion === "string").toBe(true);
   });
 
   it("registers a server with the async service layer return shape", async () => {

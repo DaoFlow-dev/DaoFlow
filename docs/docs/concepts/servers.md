@@ -51,18 +51,16 @@ ssh-copy-id -i ~/.ssh/daoflow_key.pub user@your-server
 
 ## Health Checks
 
-DaoFlow monitors server health with periodic checks:
+DaoFlow monitors server readiness with recurring checks:
 
 | Check             | What It Verifies            |
 | ----------------- | --------------------------- |
 | SSH Connectivity  | Can connect over SSH        |
 | Docker Available  | Docker daemon is running    |
 | Compose Available | Docker Compose is installed |
-| Disk Space        | Available storage capacity  |
-| Memory            | Available RAM               |
-| CPU Load          | Current load average        |
 
-Health checks run at a configurable interval (default: 60 seconds).
+Readiness checks run at a configurable interval using `SERVER_READINESS_POLL_INTERVAL_MS`
+(default: `60000`).
 
 ### Checking Server Health
 
@@ -77,16 +75,28 @@ daoflow doctor --json
 ```json
 {
   "ok": true,
-  "servers": [
-    {
-      "name": "production-vps",
-      "host": "203.0.113.10",
-      "sshConnected": true,
-      "dockerVersion": "24.0.7",
-      "composeVersion": "2.23.0",
-      "lastHealthCheck": "2026-03-15T10:30:00Z"
+  "data": {
+    "servers": {
+      "summary": {
+        "totalServers": 1,
+        "readyServers": 1,
+        "attentionServers": 0,
+        "blockedServers": 0,
+        "pollIntervalMs": 60000,
+        "averageLatencyMs": 42
+      },
+      "checks": [
+        {
+          "serverName": "production-vps",
+          "serverHost": "203.0.113.10",
+          "sshReachable": true,
+          "dockerVersion": "24.0.7",
+          "composeVersion": "2.23.0",
+          "checkedAt": "2026-03-20T22:29:30.000Z"
+        }
+      ]
     }
-  ]
+  }
 }
 ```
 

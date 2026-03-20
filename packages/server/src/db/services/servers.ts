@@ -11,6 +11,7 @@ import {
   normalizeServerReadinessStatus,
   type AppRole
 } from "@daoflow/shared";
+import { resolveServerReadinessPollIntervalMs } from "../../server-readiness-config";
 import {
   newId as id,
   asRecord,
@@ -107,6 +108,8 @@ export async function listServerReadiness(limit = 12) {
         sshReachable: readBoolean(readiness, "sshReachable", server.status === "ready"),
         dockerReachable: readBoolean(readiness, "dockerReachable", server.status === "ready"),
         composeReachable: readBoolean(readiness, "composeReachable", server.status === "ready"),
+        dockerVersion: server.dockerVersion ?? null,
+        composeVersion: server.composeVersion ?? null,
         latencyMs: readNumber(readiness, "latencyMs"),
         checkedAt: readString(
           readiness,
@@ -132,6 +135,8 @@ export async function listServerReadiness(limit = 12) {
       sshReachable: false,
       dockerReachable: false,
       composeReachable: false,
+      dockerVersion: server.dockerVersion ?? null,
+      composeVersion: server.composeVersion ?? null,
       latencyMs: null as number | null,
       checkedAt: server.lastCheckedAt?.toISOString() ?? server.createdAt.toISOString(),
       issues: ["SSH handshake has not succeeded yet for this host."],
@@ -151,6 +156,7 @@ export async function listServerReadiness(limit = 12) {
       readyServers: checks.filter((check) => check.readinessStatus === "ready").length,
       attentionServers: checks.filter((check) => check.readinessStatus === "attention").length,
       blockedServers: checks.filter((check) => check.serverStatus === "offline").length,
+      pollIntervalMs: resolveServerReadinessPollIntervalMs(),
       averageLatencyMs:
         measuredLatencies.length > 0
           ? Math.round(

@@ -15,6 +15,10 @@ import {
   stopTemporalWorker,
   closeTemporalClient
 } from "./worker";
+import {
+  startServerReadinessMonitor,
+  stopServerReadinessMonitor
+} from "./worker/server-readiness-monitor";
 import { ensureInitialOwnerFromEnv } from "./bootstrap-initial-owner";
 import { runAutoMigrations } from "./db/auto-migrate";
 
@@ -123,8 +127,11 @@ async function start() {
     }
   }
 
+  startServerReadinessMonitor();
+
   const shutdown = (signal: string) => {
     console.log(`Received ${signal}; shutting down DaoFlow control plane.`);
+    stopServerReadinessMonitor();
     if (isTemporalEnabled()) {
       stopTemporalWorker();
       void closeTemporalClient();
