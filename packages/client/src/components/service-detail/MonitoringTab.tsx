@@ -1,40 +1,20 @@
+import { useCallback, useEffect, useRef, useState } from "react";
+import { AlertCircle, Cpu, HardDrive, MemoryStick, Network, Power, RefreshCw } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Cpu,
-  MemoryStick,
-  Network,
-  HardDrive,
-  Activity,
-  Clock,
-  RefreshCw,
-  Power
-} from "lucide-react";
-import { useState, useEffect, useCallback, useRef } from "react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { MonitoringMiniChart, MonitoringStatsCard, type TimeSeries } from "./MonitoringPrimitives";
+import { readObservabilityJson, type ContainerStats } from "./observability-client";
 
 interface MonitoringTabProps {
   serviceId: string;
   serviceName: string;
 }
 
-interface ContainerStats {
-  cpuPercent: number;
-  memoryUsageMB: number;
-  memoryLimitMB: number;
-  memoryPercent: number;
-  networkRxMB: number;
-  networkTxMB: number;
-  blockReadMB: number;
-  blockWriteMB: number;
-  pids: number;
-  uptime: string;
-  restartCount: number;
-}
-
-interface TimeSeries {
-  time: string;
-  value: number;
+function appendSeriesPoint(prev: TimeSeries[], value: number): TimeSeries[] {
+  const time = new Date().toLocaleTimeString();
+  return [...prev.slice(-60), { time, value }];
 }
 
 export default function MonitoringTab({
@@ -48,56 +28,87 @@ export default function MonitoringTab({
   const [netTxHistory, setNetTxHistory] = useState<TimeSeries[]>([]);
   const [isPolling, setIsPolling] = useState(true);
   const [historyMinutes, setHistoryMinutes] = useState(5);
+  const [isLoading, setIsLoading] = useState(true);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const fetchStats = useCallback(async () => {
-    try {
-      const response = await fetch(`/api/v1/container-stats/${serviceId}`);
-      if (response.ok) {
-        const data = (await response.json()) as ContainerStats;
-        setStats(data);
+    const result = await readObservabilityJson<ContainerStats>(
+      `/api/v1/container-stats/${serviceId}`
+    );
+    setIsLoading(false);
 
-        const now = new Date().toLocaleTimeString();
-        setCpuHistory((prev) => [...prev.slice(-60), { time: now, value: data.cpuPercent }]);
-        setMemHistory((prev) => [...prev.slice(-60), { time: now, value: data.memoryPercent }]);
-        setNetRxHistory((prev) => [...prev.slice(-60), { time: now, value: data.networkRxMB }]);
-        setNetTxHistory((prev) => [...prev.slice(-60), { time: now, value: data.networkTxMB }]);
+    if (!result.ok) {
+      if (result.error.code === "NOT_RUNNING") {
+        setStats(null);
+        setStatusMessage("Container not running");
+        setIsPolling(false);
+        return;
       }
-    } catch {
-      // Container may not be running
+
+      setStatusMessage(result.error.message);
+      return;
     }
+
+    setStatusMessage(null);
+    setStats(result.data);
+    setCpuHistory((prev) => appendSeriesPoint(prev, result.data.cpuPercent));
+    setMemHistory((prev) => appendSeriesPoint(prev, result.data.memoryPercent));
+    setNetRxHistory((prev) => appendSeriesPoint(prev, result.data.networkRxMB));
+    setNetTxHistory((prev) => appendSeriesPoint(prev, result.data.networkTxMB));
   }, [serviceId]);
 
   useEffect(() => {
-    if (isPolling) {
-      void fetchStats();
-      intervalRef.current = setInterval(() => void fetchStats(), 5000);
+    if (!isPolling) {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+      return;
     }
+
+    setIsLoading(true);
+    void fetchStats();
+    intervalRef.current = setInterval(() => void fetchStats(), 5000);
+
     return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
     };
   }, [fetchStats, isPolling]);
-  // Trim history to selected range
-  const maxPoints = historyMinutes * 12; // ~5s polling = 12 pts/min
+
+  const maxPoints = historyMinutes * 12;
   const trimmedCpu = cpuHistory.slice(-maxPoints);
   const trimmedMem = memHistory.slice(-maxPoints);
   const trimmedNetRx = netRxHistory.slice(-maxPoints);
   const trimmedNetTx = netTxHistory.slice(-maxPoints);
 
-  if (!stats && !isPolling) {
+  if (!stats && statusMessage === "Container not running") {
     return (
-      <Card className="shadow-sm">
+      <Card className="shadow-sm" data-testid={`monitoring-card-${serviceId}`}>
         <CardContent className="flex flex-col items-center justify-center gap-3 py-16">
           <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/10 to-primary/5">
             <Power size={24} className="text-muted-foreground" />
           </div>
           <div className="text-center">
-            <p className="font-medium">Container not running</p>
-            <p className="text-sm text-muted-foreground mt-1">
+            <p className="font-medium" data-testid={`monitoring-status-${serviceId}`}>
+              Container not running
+            </p>
+            <p className="mt-1 text-sm text-muted-foreground">
               Start the service to see real-time metrics.
             </p>
           </div>
-          <Button size="sm" variant="outline" onClick={() => setIsPolling(true)}>
+          <Button
+            size="sm"
+            variant="outline"
+            data-testid={`monitoring-retry-${serviceId}`}
+            onClick={() => {
+              setStatusMessage(null);
+              setIsPolling(true);
+            }}
+          >
             <RefreshCw size={14} className="mr-1" />
             Retry
           </Button>
@@ -105,17 +116,25 @@ export default function MonitoringTab({
       </Card>
     );
   }
+
   return (
-    <div className="space-y-6">
-      {/* Overview Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <StatsCard
+    <div className="space-y-6" data-testid={`monitoring-panel-${serviceId}`}>
+      {statusMessage && statusMessage !== "Container not running" && (
+        <Alert variant="destructive" data-testid={`monitoring-alert-${serviceId}`}>
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>{statusMessage}</AlertDescription>
+        </Alert>
+      )}
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+        <MonitoringStatsCard
           icon={<Cpu size={14} />}
           title="CPU"
           value={stats ? `${stats.cpuPercent.toFixed(1)}%` : "—"}
           color={stats && stats.cpuPercent > 80 ? "text-red-400" : undefined}
+          testId={`monitoring-cpu-${serviceId}`}
         />
-        <StatsCard
+        <MonitoringStatsCard
           icon={<MemoryStick size={14} />}
           title="Memory"
           value={
@@ -123,8 +142,9 @@ export default function MonitoringTab({
           }
           subtitle={stats ? `${stats.memoryPercent.toFixed(1)}%` : undefined}
           color={stats && stats.memoryPercent > 85 ? "text-red-400" : undefined}
+          testId={`monitoring-memory-${serviceId}`}
         />
-        <StatsCard
+        <MonitoringStatsCard
           icon={<Network size={14} />}
           title="Network I/O"
           value={
@@ -132,8 +152,9 @@ export default function MonitoringTab({
               ? `↓ ${stats.networkRxMB.toFixed(1)} MB / ↑ ${stats.networkTxMB.toFixed(1)} MB`
               : "—"
           }
+          testId={`monitoring-network-${serviceId}`}
         />
-        <StatsCard
+        <MonitoringStatsCard
           icon={<HardDrive size={14} />}
           title="Block I/O"
           value={
@@ -141,76 +162,97 @@ export default function MonitoringTab({
               ? `R ${stats.blockReadMB.toFixed(1)} MB / W ${stats.blockWriteMB.toFixed(1)} MB`
               : "—"
           }
+          testId={`monitoring-block-${serviceId}`}
         />
       </div>
 
-      {/* Uptime / Restart / PIDs cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <StatsCard icon={<Clock size={14} />} title="Uptime" value={stats?.uptime ?? "—"} />
-        <StatsCard
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <MonitoringStatsCard
+          icon={<Power size={14} />}
+          title="Uptime"
+          value={stats?.uptime ?? "—"}
+          testId={`monitoring-uptime-${serviceId}`}
+        />
+        <MonitoringStatsCard
           icon={<RefreshCw size={14} />}
           title="Restart Count"
           value={stats?.restartCount?.toString() ?? "0"}
+          testId={`monitoring-restarts-${serviceId}`}
         />
-        <StatsCard
-          icon={<Activity size={14} />}
+        <MonitoringStatsCard
+          icon={<Cpu size={14} />}
           title="Processes"
           value={stats?.pids?.toString() ?? "—"}
+          testId={`monitoring-pids-${serviceId}`}
         />
       </div>
 
-      {/* CPU Chart */}
-      <Card className="shadow-sm">
+      <Card className="shadow-sm" data-testid={`monitoring-chart-cpu-card-${serviceId}`}>
         <CardHeader>
           <div className="flex items-center gap-2">
-            <CardTitle className="text-sm flex items-center gap-2">
+            <CardTitle className="flex items-center gap-2 text-sm">
               <Cpu size={14} />
               CPU Usage %
             </CardTitle>
-            <div className="flex items-center rounded-md border text-xs ml-auto">
-              {([1, 5, 30] as const).map((m) => (
+            <div className="ml-auto flex items-center rounded-md border text-xs">
+              {([1, 5, 30] as const).map((minutes) => (
                 <button
-                  key={m}
-                  onClick={() => setHistoryMinutes(m)}
+                  key={minutes}
+                  type="button"
+                  data-testid={`monitoring-range-${serviceId}-${minutes}m`}
+                  onClick={() => setHistoryMinutes(minutes)}
                   className={`px-2 py-1 transition-colors ${
-                    historyMinutes === m ? "bg-primary text-primary-foreground" : "hover:bg-accent"
-                  } ${m === 1 ? "rounded-l-md" : m === 30 ? "rounded-r-md" : ""}`}
+                    historyMinutes === minutes
+                      ? "bg-primary text-primary-foreground"
+                      : "hover:bg-accent"
+                  } ${minutes === 1 ? "rounded-l-md" : minutes === 30 ? "rounded-r-md" : ""}`}
                 >
-                  {m}m
+                  {minutes}m
                 </button>
               ))}
             </div>
             <Badge
               variant={isPolling ? "default" : "secondary"}
               className="cursor-pointer"
-              onClick={() => setIsPolling(!isPolling)}
+              data-testid={`monitoring-live-${serviceId}`}
+              onClick={() => setIsPolling((value) => !value)}
             >
               {isPolling ? "Live" : "Paused"}
             </Badge>
           </div>
         </CardHeader>
         <CardContent>
-          <MiniChart data={trimmedCpu} color="#3b82f6" maxY={100} unit="%" />
+          <MonitoringMiniChart
+            data={trimmedCpu}
+            color="#3b82f6"
+            maxY={100}
+            unit="%"
+            testId={`monitoring-chart-cpu-${serviceId}`}
+          />
         </CardContent>
       </Card>
 
-      {/* Memory Chart */}
-      <Card className="shadow-sm">
+      <Card className="shadow-sm" data-testid={`monitoring-chart-memory-card-${serviceId}`}>
         <CardHeader>
-          <CardTitle className="text-sm flex items-center gap-2">
+          <CardTitle className="flex items-center gap-2 text-sm">
             <MemoryStick size={14} />
             Memory Usage %
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <MiniChart data={trimmedMem} color="#8b5cf6" maxY={100} unit="%" />
+          <MonitoringMiniChart
+            data={trimmedMem}
+            color="#8b5cf6"
+            maxY={100}
+            unit="%"
+            testId={`monitoring-chart-memory-${serviceId}`}
+          />
         </CardContent>
       </Card>
 
-      {/* Network Chart */}
-      <Card className="shadow-sm">
+      <Card className="shadow-sm" data-testid={`monitoring-chart-network-card-${serviceId}`}>
         <CardHeader>
-          <CardTitle className="text-sm flex items-center gap-2">
+          <CardTitle className="flex items-center gap-2 text-sm">
             <Network size={14} />
             Network I/O (MB)
           </CardTitle>
@@ -218,106 +260,35 @@ export default function MonitoringTab({
         <CardContent>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <p className="text-xs text-muted-foreground mb-1">Receive (↓)</p>
-              <MiniChart data={trimmedNetRx} color="#22c55e" unit=" MB" />
+              <p className="mb-1 text-xs text-muted-foreground">Receive (↓)</p>
+              <MonitoringMiniChart
+                data={trimmedNetRx}
+                color="#22c55e"
+                unit=" MB"
+                testId={`monitoring-chart-network-rx-${serviceId}`}
+              />
             </div>
             <div>
-              <p className="text-xs text-muted-foreground mb-1">Transmit (↑)</p>
-              <MiniChart data={trimmedNetTx} color="#f59e0b" unit=" MB" />
+              <p className="mb-1 text-xs text-muted-foreground">Transmit (↑)</p>
+              <MonitoringMiniChart
+                data={trimmedNetTx}
+                color="#f59e0b"
+                unit=" MB"
+                testId={`monitoring-chart-network-tx-${serviceId}`}
+              />
             </div>
           </div>
         </CardContent>
       </Card>
-    </div>
-  );
-}
 
-function StatsCard({
-  icon,
-  title,
-  value,
-  subtitle,
-  color
-}: {
-  icon: React.ReactNode;
-  title: string;
-  value: string;
-  subtitle?: string;
-  color?: string;
-}) {
-  return (
-    <Card className="border-border/50 shadow-sm transition-all duration-200 hover:shadow-md">
-      <CardContent className="pt-6">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-          {icon}
-          {title}
-        </div>
-        <span className={`text-lg font-semibold ${color ?? ""}`}>{value}</span>
-        {subtitle && (
-          <span className={`ml-2 text-sm ${color ?? "text-muted-foreground"}`}>{subtitle}</span>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-function MiniChart({
-  data,
-  color,
-  maxY,
-  unit = ""
-}: {
-  data: TimeSeries[];
-  color: string;
-  maxY?: number;
-  unit?: string;
-}) {
-  if (data.length < 2) {
-    return (
-      <div className="h-32 flex items-center justify-center text-sm text-muted-foreground">
-        Collecting data...
-      </div>
-    );
-  }
-
-  const actualMax = maxY ?? Math.max(...data.map((d) => d.value), 1);
-  const width = 100;
-  const height = 32;
-
-  // Build SVG path
-  const points = data.map((d, i) => {
-    const x = (i / (data.length - 1)) * width;
-    const y = height - (d.value / actualMax) * height;
-    return `${x},${y}`;
-  });
-
-  const linePath = `M ${points.join(" L ")}`;
-  const areaPath = `${linePath} L ${width},${height} L 0,${height} Z`;
-
-  const lastValue = data[data.length - 1]?.value ?? 0;
-
-  return (
-    <div className="relative">
-      <div className="absolute top-0 right-0 text-xs font-mono text-muted-foreground">
-        {lastValue.toFixed(1)}
-        {unit}
-      </div>
-      <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-32" preserveAspectRatio="none">
-        <defs>
-          <linearGradient id={`grad-${color}`} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={color} stopOpacity="0.3" />
-            <stop offset="100%" stopColor={color} stopOpacity="0.02" />
-          </linearGradient>
-        </defs>
-        <path d={areaPath} fill={`url(#grad-${color})`} />
-        <path
-          d={linePath}
-          fill="none"
-          stroke={color}
-          strokeWidth="0.5"
-          vectorEffect="non-scaling-stroke"
-        />
-      </svg>
+      {isLoading && !stats && !statusMessage && (
+        <p
+          className="text-sm text-muted-foreground"
+          data-testid={`monitoring-loading-${serviceId}`}
+        >
+          Loading live container metrics...
+        </p>
+      )}
     </div>
   );
 }

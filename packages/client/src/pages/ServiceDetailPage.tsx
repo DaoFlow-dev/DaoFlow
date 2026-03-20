@@ -144,7 +144,7 @@ export default function ServiceDetailPage() {
         </TabsContent>
 
         <TabsContent value="terminal" className="mt-4">
-          <TerminalTab serviceId={svc.id} serverId={svc.targetServerId ?? undefined} />
+          <TerminalTab serviceId={svc.id} />
         </TabsContent>
 
         <TabsContent value="monitoring" className="mt-4">
