@@ -84,6 +84,12 @@ Tokens follow the format: `dfl_<random_string>`
 
 The first user to sign up automatically receives the `owner` role with full permissions. Subsequent users get the `viewer` role by default.
 
+## Password Reset And Session Recovery
+
+- The web UI sends password reset requests through `POST /api/auth/request-password-reset`.
+- Better Auth redirects valid reset links back into the SPA at `/reset-password?token=...`; invalid or expired links land on `/reset-password?error=INVALID_TOKEN`.
+- DaoFlow redirects web users back to `/login?returnTo=...` whenever a protected browser request resolves to `401`, so expired sessions recover into a deterministic sign-in flow instead of leaving the UI in a broken state.
+
 ## Agent Principals
 
 Agent accounts are dedicated identities for AI systems. They default to read-only scopes. See [Agent Principals](/docs/security/agent-principals) for setup.

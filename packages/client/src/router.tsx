@@ -19,6 +19,7 @@ const AgentsPage = lazy(() => import("./pages/AgentsPage"));
 const GitCallbackPage = lazy(() => import("./pages/GitCallbackPage"));
 const LoginPage = lazy(() => import("./pages/LoginPage"));
 const ForgotPasswordPage = lazy(() => import("./pages/ForgotPasswordPage"));
+const ResetPasswordPage = lazy(() => import("./pages/ResetPasswordPage"));
 const NotFoundPage = lazy(() => import("./pages/NotFoundPage"));
 const NotificationChannelsPage = lazy(() => import("./pages/NotificationChannelsPage"));
 const UserProfilePage = lazy(() => import("./pages/UserProfilePage"));
@@ -41,6 +42,7 @@ function routeElement(Component: ComponentType) {
 export const router = createBrowserRouter([
   { path: "/login", element: routeElement(LoginPage) },
   { path: "/forgot-password", element: routeElement(ForgotPasswordPage) },
+  { path: "/reset-password", element: routeElement(ResetPasswordPage) },
   { path: "/setup", element: routeElement(SetupWizardPage) },
   {
     path: "/",

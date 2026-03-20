@@ -3,6 +3,7 @@ export type FieldErrors<T extends string> = Partial<Record<T, string>>;
 export type SignInFieldName = "email" | "password";
 export type SignUpFieldName = "name" | "email" | "password";
 export type ForgotPasswordFieldName = "email";
+export type ResetPasswordFieldName = "newPassword" | "confirmPassword";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -53,6 +54,16 @@ export function validateSignUpFields(input: {
   return errors;
 }
 
+function validatePassword(value: string): string | null {
+  if (value.length === 0) {
+    return "Enter a password.";
+  }
+  if (value.length < 8) {
+    return "Use at least 8 characters.";
+  }
+  return null;
+}
+
 export function validateForgotPasswordFields(input: {
   email: string;
 }): FieldErrors<ForgotPasswordFieldName> {
@@ -61,5 +72,25 @@ export function validateForgotPasswordFields(input: {
   if (emailError) {
     errors.email = emailError;
   }
+  return errors;
+}
+
+export function validateResetPasswordFields(input: {
+  newPassword: string;
+  confirmPassword: string;
+}): FieldErrors<ResetPasswordFieldName> {
+  const errors: FieldErrors<ResetPasswordFieldName> = {};
+  const passwordError = validatePassword(input.newPassword);
+
+  if (passwordError) {
+    errors.newPassword = passwordError;
+  }
+
+  if (input.confirmPassword.length === 0) {
+    errors.confirmPassword = "Confirm your new password.";
+  } else if (input.newPassword !== input.confirmPassword) {
+    errors.confirmPassword = "Passwords do not match.";
+  }
+
   return errors;
 }

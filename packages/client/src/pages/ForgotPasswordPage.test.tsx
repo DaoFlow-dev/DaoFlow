@@ -61,5 +61,13 @@ describe("ForgotPasswordPage", () => {
     );
     expect(screen.queryByTestId("forgot-password-email-error")).not.toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledWith("/api/auth/request-password-reset", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: "operator@example.com",
+        redirectTo: "/reset-password"
+      })
+    });
   });
 });

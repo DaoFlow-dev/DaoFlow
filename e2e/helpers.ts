@@ -1,8 +1,16 @@
 import { expect, type Page } from "@playwright/test";
+import { execFileSync } from "node:child_process";
 import { e2eAdminUser, type E2EAuthUser } from "../packages/server/src/testing/e2e-auth-users";
 
 /** Auth operations can be slow in CI — use a generous timeout. */
 const AUTH_TIMEOUT = 30_000;
+const PLAYWRIGHT_DATABASE_URL =
+  process.env.PLAYWRIGHT_DATABASE_URL ??
+  process.env.DATABASE_URL ??
+  "postgresql://daoflow:daoflow_dev@localhost:5432/daoflow_e2e";
+const PLAYWRIGHT_DATABASE_NAME =
+  new URL(PLAYWRIGHT_DATABASE_URL).pathname.replace(/^\//, "") || "daoflow_e2e";
+const DAOFLOW_DEV_COMPOSE_FILE = process.env.DAOFLOW_DEV_COMPOSE_FILE ?? "docker-compose.dev.yml";
 
 async function expectSignedIn(page: Page) {
   await expect(page).not.toHaveURL(/\/login(?:\?|$)/, { timeout: AUTH_TIMEOUT });
@@ -73,6 +81,36 @@ export async function getCurrentSession(page: Page) {
     session: { id: string };
     user: { id: string; email: string; role?: string | null; name?: string | null };
   };
+}
+
+export async function createPasswordResetToken(userId: string) {
+  const token = `pwreset_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+  const sqlQuote = (value: string) => `'${value.replace(/'/g, "''")}'`;
+  const verificationId = `ver_${token}`.slice(0, 32);
+  const sql = `insert into verifications (id, identifier, value, expires_at, created_at, updated_at)
+values (${sqlQuote(verificationId)}, ${sqlQuote(`reset-password:${token}`)}, ${sqlQuote(userId)}, now() + interval '1 hour', now(), now());`;
+
+  execFileSync(
+    "docker",
+    [
+      "compose",
+      "-f",
+      DAOFLOW_DEV_COMPOSE_FILE,
+      "exec",
+      "-T",
+      "postgres",
+      "psql",
+      "-U",
+      "daoflow",
+      "-d",
+      PLAYWRIGHT_DATABASE_NAME,
+      "-c",
+      sql
+    ],
+    { stdio: "pipe" }
+  );
+
+  return token;
 }
 
 type TrpcEnvelope<T> =
