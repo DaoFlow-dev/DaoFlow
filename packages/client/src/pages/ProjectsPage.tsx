@@ -1,7 +1,8 @@
-import { useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { trpc } from "../lib/trpc";
 import { useSession } from "../lib/auth-client";
+import { EmptyState } from "@/components/EmptyState";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -29,6 +30,7 @@ import { getInventoryBadgeVariant } from "../lib/tone-utils";
 export default function ProjectsPage() {
   const session = useSession();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -42,6 +44,9 @@ export default function ProjectsPage() {
   const [newProject, setNewProject] = useState({ name: "", description: "", repoUrl: "" });
 
   const projectsQuery = trpc.projects.useQuery({ limit: 50 }, { enabled: Boolean(session.data) });
+  const requestedAction = searchParams.get("action");
+  const totalProjects = projectsQuery.data?.length ?? 0;
+  const hasProjects = totalProjects > 0;
 
   const allProjects = (projectsQuery.data ?? []).filter((p) =>
     String(p.name).toLowerCase().includes(search.toLowerCase())
@@ -57,11 +62,27 @@ export default function ProjectsPage() {
 
   const createProject = trpc.createProject.useMutation({
     onSuccess: () => {
-      setDialogOpen(false);
+      handleDialogOpenChange(false);
       setNewProject({ name: "", description: "", repoUrl: "" });
       void projectsQuery.refetch();
     }
   });
+
+  useEffect(() => {
+    if (requestedAction === "new") {
+      setDialogOpen(true);
+    }
+  }, [requestedAction]);
+
+  function handleDialogOpenChange(open: boolean) {
+    setDialogOpen(open);
+
+    if (!open && requestedAction === "new") {
+      const next = new URLSearchParams(searchParams);
+      next.delete("action");
+      setSearchParams(next, { replace: true });
+    }
+  }
 
   return (
     <main className="shell space-y-6" data-testid="projects-page">
@@ -73,9 +94,9 @@ export default function ProjectsPage() {
           </p>
         </div>
 
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <Dialog open={dialogOpen} onOpenChange={handleDialogOpenChange}>
           <DialogTrigger asChild>
-            <Button>
+            <Button data-testid="projects-new-project-trigger">
               <Plus size={16} /> New Project
             </Button>
           </DialogTrigger>
@@ -130,7 +151,11 @@ export default function ProjectsPage() {
                 />
               </div>
               <div className="flex justify-end gap-2">
-                <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => handleDialogOpenChange(false)}
+                >
                   Cancel
                 </Button>
                 <Button type="submit" disabled={!newProject.name || createProject.isPending}>
@@ -151,33 +176,35 @@ export default function ProjectsPage() {
         </Dialog>
       </div>
 
-      <div className="flex items-center gap-3">
-        <div className="relative flex-1">
-          <Search
-            size={16}
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
-          />
-          <Input
-            placeholder="Search projects..."
-            value={searchInput}
-            onChange={(e) => {
-              setSearchInput(e.target.value);
-              debounceSearch(e.target.value);
-            }}
-            className="pl-9 shadow-sm"
-          />
+      {hasProjects || searchInput ? (
+        <div className="flex items-center gap-3">
+          <div className="relative flex-1">
+            <Search
+              size={16}
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+            />
+            <Input
+              placeholder="Search projects..."
+              value={searchInput}
+              onChange={(e) => {
+                setSearchInput(e.target.value);
+                debounceSearch(e.target.value);
+              }}
+              className="pl-9 shadow-sm"
+            />
+          </div>
+          <Select value={sortBy} onValueChange={(v) => setSortBy(v as "name" | "recent")}>
+            <SelectTrigger className="w-[140px]">
+              <ArrowUpDown size={14} className="mr-1.5" />
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="name">Name</SelectItem>
+              <SelectItem value="recent">Recent</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
-        <Select value={sortBy} onValueChange={(v) => setSortBy(v as "name" | "recent")}>
-          <SelectTrigger className="w-[140px]">
-            <ArrowUpDown size={14} className="mr-1.5" />
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="name">Name</SelectItem>
-            <SelectItem value="recent">Recent</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
+      ) : null}
 
       {projectsQuery.isLoading ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -185,6 +212,46 @@ export default function ProjectsPage() {
             <Skeleton key={i} className="h-28 w-full rounded-lg" />
           ))}
         </div>
+      ) : !hasProjects ? (
+        <EmptyState
+          action={
+            <Button
+              data-testid="projects-empty-create-project"
+              size="lg"
+              onClick={() => handleDialogOpenChange(true)}
+            >
+              <Plus size={18} className="mr-2" />
+              Create your first project
+            </Button>
+          }
+          data-testid="projects-empty-state"
+          description="Create a project to organize environments, attach a repository or Compose source, and start shipping services from one control plane."
+          eyebrow="First deployment"
+          footer={
+            <ol className="grid gap-3 text-left sm:grid-cols-3">
+              <li className="rounded-2xl border border-border/60 bg-muted/30 p-4">
+                <p className="text-sm font-medium text-foreground">Define the project</p>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Start with a name, optional description, and repository link.
+                </p>
+              </li>
+              <li className="rounded-2xl border border-border/60 bg-muted/30 p-4">
+                <p className="text-sm font-medium text-foreground">Add environments</p>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Split staging, production, or internal workloads without duplicating setup.
+                </p>
+              </li>
+              <li className="rounded-2xl border border-border/60 bg-muted/30 p-4">
+                <p className="text-sm font-medium text-foreground">Connect deployments</p>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Attach Docker, Compose, or Git-backed sources once the project exists.
+                </p>
+              </li>
+            </ol>
+          }
+          icon={<FolderKanban size={30} className="text-primary/60" />}
+          title="Create your first project"
+        />
       ) : sortedProjects.length === 0 ? (
         <div className="flex flex-col items-center gap-4 py-16 text-center">
           <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/10 to-primary/5">
