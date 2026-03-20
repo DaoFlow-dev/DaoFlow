@@ -205,6 +205,9 @@ export const adminRouter = t.router({
         gitProviderId: z.string().max(32).optional(),
         gitInstallationId: z.string().max(32).optional(),
         defaultBranch: z.string().max(80).optional(),
+        autoDeploy: z.boolean().optional(),
+        autoDeployBranch: z.string().max(120).optional(),
+        webhookWatchedPaths: z.array(z.string().max(500)).max(50).optional(),
         repositorySubmodules: z.boolean().optional(),
         repositoryGitLfs: z.boolean().optional(),
         teamId: z.string().min(1).optional()
@@ -259,6 +262,9 @@ export const adminRouter = t.router({
         gitProviderId: z.string().max(32).optional(),
         gitInstallationId: z.string().max(32).optional(),
         defaultBranch: z.string().max(80).optional(),
+        autoDeploy: z.boolean().optional(),
+        autoDeployBranch: z.string().max(120).optional(),
+        webhookWatchedPaths: z.array(z.string().max(500)).max(50).optional(),
         repositorySubmodules: z.boolean().optional(),
         repositoryGitLfs: z.boolean().optional()
       })

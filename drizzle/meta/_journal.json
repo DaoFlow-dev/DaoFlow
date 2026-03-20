@@ -36,6 +36,13 @@
       "when": 1773980057753,
       "tag": "0004_fresh_plazm",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1773997796199,
+      "tag": "0005_bored_the_leader",
+      "breakpoints": true
     }
   ]
 }

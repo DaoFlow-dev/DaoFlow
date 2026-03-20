@@ -9,6 +9,7 @@ import {
   normalizeComposeProfiles,
   writeComposeSourceSelectionToConfig
 } from "../../compose-source";
+import { writeWebhookAutoDeployConfigToConfig } from "../../webhook-auto-deploy";
 import {
   mergeProjectSourceReadiness,
   readProjectSourceReadiness,
@@ -29,6 +30,9 @@ export interface CreateProjectInput {
   gitProviderId?: string;
   gitInstallationId?: string;
   defaultBranch?: string;
+  autoDeploy?: boolean;
+  autoDeployBranch?: string;
+  webhookWatchedPaths?: string[];
   repositorySubmodules?: boolean;
   repositoryGitLfs?: boolean;
   teamId: string;
@@ -58,6 +62,9 @@ export interface UpdateProjectInput {
   gitProviderId?: string;
   gitInstallationId?: string;
   defaultBranch?: string;
+  autoDeploy?: boolean;
+  autoDeployBranch?: string;
+  webhookWatchedPaths?: string[];
   repositorySubmodules?: boolean;
   repositoryGitLfs?: boolean;
   requestedByUserId: string;
@@ -125,6 +132,10 @@ export async function createProject(input: CreateProjectInput) {
     composeFiles,
     composeProfiles
   });
+  const configWithWebhookAutoDeploy = writeWebhookAutoDeployConfigToConfig({
+    config: configWithComposeSource,
+    watchedPaths: input.webhookWatchedPaths
+  });
   const sourceValidation = await validateProjectSourceReadiness({
     repoUrl: input.repoUrl,
     repoFullName: input.repoFullName,
@@ -134,7 +145,7 @@ export async function createProject(input: CreateProjectInput) {
     composePath: composeFiles[0],
     composeFiles,
     composeProfiles,
-    repositoryPreparation: asRecord(configWithComposeSource).repositoryPreparation,
+    repositoryPreparation: asRecord(configWithWebhookAutoDeploy).repositoryPreparation,
     genericGitMode: "best-effort"
   });
   if (sourceValidation.status === "invalid") {
@@ -165,9 +176,11 @@ export async function createProject(input: CreateProjectInput) {
       gitProviderId: input.gitProviderId ?? null,
       gitInstallationId: input.gitInstallationId ?? null,
       defaultBranch: input.defaultBranch ?? "main",
+      autoDeploy: input.autoDeploy ?? false,
+      autoDeployBranch: input.autoDeployBranch ?? null,
       createdByUserId: input.requestedByUserId,
       config: mergeProjectSourceReadiness(
-        configWithComposeSource,
+        configWithWebhookAutoDeploy,
         sourceValidation.status === "ready" ? sourceValidation.readiness : null
       ),
       updatedAt: new Date()
@@ -216,6 +229,10 @@ export async function updateProject(input: UpdateProjectInput) {
     input.composeProfiles !== undefined;
   const repositoryPreparationTouched =
     input.repositorySubmodules !== undefined || input.repositoryGitLfs !== undefined;
+  const webhookAutoDeployTouched =
+    input.webhookWatchedPaths !== undefined ||
+    input.autoDeploy !== undefined ||
+    input.autoDeployBranch !== undefined;
   const existingConfig = asRecord(existing[0].config);
   const composeFiles = normalizeComposeFilePaths({
     composeFiles:
@@ -255,6 +272,10 @@ export async function updateProject(input: UpdateProjectInput) {
     composeFiles,
     composeProfiles
   });
+  const nextConfigWithWebhookAutoDeploy = writeWebhookAutoDeployConfigToConfig({
+    config: nextConfigWithComposeSource,
+    watchedPaths: input.webhookWatchedPaths !== undefined ? input.webhookWatchedPaths : undefined
+  });
 
   const sourceValidation = sourceFieldsTouched
     ? await validateProjectSourceReadiness({
@@ -266,7 +287,7 @@ export async function updateProject(input: UpdateProjectInput) {
         composePath: composeFiles[0] ?? existing[0].composePath,
         composeFiles,
         composeProfiles,
-        repositoryPreparation: asRecord(nextConfigWithComposeSource).repositoryPreparation,
+        repositoryPreparation: asRecord(nextConfigWithWebhookAutoDeploy).repositoryPreparation,
         genericGitMode: "best-effort"
       })
     : null;
@@ -298,9 +319,16 @@ export async function updateProject(input: UpdateProjectInput) {
   if (input.gitProviderId !== undefined) updates.gitProviderId = input.gitProviderId;
   if (input.gitInstallationId !== undefined) updates.gitInstallationId = input.gitInstallationId;
   if (input.defaultBranch !== undefined) updates.defaultBranch = input.defaultBranch;
-  if (input.description !== undefined || sourceFieldsTouched || repositoryPreparationTouched) {
+  if (input.autoDeploy !== undefined) updates.autoDeploy = input.autoDeploy;
+  if (input.autoDeployBranch !== undefined) updates.autoDeployBranch = input.autoDeployBranch;
+  if (
+    input.description !== undefined ||
+    sourceFieldsTouched ||
+    repositoryPreparationTouched ||
+    webhookAutoDeployTouched
+  ) {
     updates.config = mergeProjectSourceReadiness(
-      nextConfigWithComposeSource,
+      nextConfigWithWebhookAutoDeploy,
       sourceValidation?.status === "ready"
         ? sourceValidation.readiness
         : sourceFieldsTouched
