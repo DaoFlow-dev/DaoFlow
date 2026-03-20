@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Plus, Clock, PlayCircle, StopCircle, RotateCcw } from "lucide-react";
+import { isTRPCClientError } from "@trpc/client";
 import { Link } from "react-router-dom";
 import { useBackupRunDetails } from "@/features/backups/useBackupRunDetails";
 import { useSession } from "@/lib/auth-client";
@@ -46,13 +47,31 @@ export default function BackupsPage() {
   const triggerNow = trpc.triggerBackupNow.useMutation({
     onSuccess: () => backupOverview.refetch()
   });
+  const queueBackupRestore = trpc.queueBackupRestore.useMutation();
 
   const [cronInputs, setCronInputs] = useState<Record<string, string>>({});
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
+  const [restoreFeedback, setRestoreFeedback] = useState<string | null>(null);
   const { errorMessage: detailsErrorMessage, query: backupRunDetails } =
     useBackupRunDetails(selectedRunId);
 
   const hasDestinations = (backupDestinations.data?.length ?? 0) > 0;
+
+  async function handleQueueBackupRestore(runId: string, serviceName: string) {
+    setRestoreFeedback(null);
+
+    try {
+      await queueBackupRestore.mutateAsync({
+        backupRunId: runId
+      });
+      await backupOverview.refetch();
+      setRestoreFeedback(`Queued restore for ${serviceName}.`);
+    } catch (error) {
+      setRestoreFeedback(
+        isTRPCClientError(error) ? error.message : "Unable to queue the restore right now."
+      );
+    }
+  }
 
   return (
     <main className="shell space-y-6" data-testid="backup-overview">
@@ -67,6 +86,15 @@ export default function BackupsPage() {
           <Plus size={16} /> New Policy
         </Button>
       </div>
+
+      {restoreFeedback ? (
+        <p
+          className="rounded-lg border bg-muted px-4 py-2 text-sm text-muted-foreground"
+          data-testid="backup-restore-feedback"
+        >
+          {restoreFeedback}
+        </p>
+      ) : null}
 
       {backupOverview.isLoading || backupDestinations.isLoading ? (
         <div className="space-y-4">
@@ -250,17 +278,23 @@ export default function BackupsPage() {
                             >
                               Quick inspect
                             </Button>
-                            {String(r.status) === "succeeded" && (
+                            {String(r.status) === "succeeded" && r.artifactPath ? (
                               <Button
                                 size="sm"
                                 variant="outline"
-                                disabled
-                                title="Restore from this backup"
+                                disabled={queueBackupRestore.isPending}
+                                data-testid={`backup-run-queue-restore-${String(r.id)}`}
+                                onClick={() => {
+                                  void handleQueueBackupRestore(
+                                    String(r.id),
+                                    String(r.serviceName ?? r.policyId)
+                                  );
+                                }}
                               >
                                 <RotateCcw size={14} className="mr-1" />
-                                Restore
+                                Queue restore
                               </Button>
-                            )}
+                            ) : null}
                           </div>
                         </TableCell>
                       </TableRow>

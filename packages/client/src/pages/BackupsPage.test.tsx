@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import "@testing-library/jest-dom/vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import BackupsPage from "./BackupsPage";
@@ -13,6 +13,7 @@ const {
   enableBackupScheduleUseMutationMock,
   disableBackupScheduleUseMutationMock,
   triggerBackupNowUseMutationMock,
+  queueBackupRestoreUseMutationMock,
   refetchBackupRunDetailsMock
 } = vi.hoisted(() => ({
   backupOverviewUseQueryMock: vi.fn(),
@@ -21,6 +22,7 @@ const {
   enableBackupScheduleUseMutationMock: vi.fn(),
   disableBackupScheduleUseMutationMock: vi.fn(),
   triggerBackupNowUseMutationMock: vi.fn(),
+  queueBackupRestoreUseMutationMock: vi.fn(),
   refetchBackupRunDetailsMock: vi.fn()
 }));
 
@@ -53,6 +55,9 @@ vi.mock("@/lib/trpc", () => ({
     },
     triggerBackupNow: {
       useMutation: triggerBackupNowUseMutationMock
+    },
+    queueBackupRestore: {
+      useMutation: queueBackupRestoreUseMutationMock
     }
   }
 }));
@@ -161,6 +166,12 @@ describe("BackupsPage", () => {
     enableBackupScheduleUseMutationMock.mockReturnValue({ isPending: false, mutate: vi.fn() });
     disableBackupScheduleUseMutationMock.mockReturnValue({ isPending: false, mutate: vi.fn() });
     triggerBackupNowUseMutationMock.mockReturnValue({ isPending: false, mutate: vi.fn() });
+    queueBackupRestoreUseMutationMock.mockReturnValue({
+      isPending: false,
+      mutateAsync: vi.fn().mockResolvedValue({
+        id: "restore_1"
+      })
+    });
   });
 
   it("opens the backup run details sheet from the runs table", () => {
@@ -178,6 +189,60 @@ describe("BackupsPage", () => {
     expect(
       screen.getByText("Resolved policy control-plane-db for foundation-vps-1.")
     ).toBeVisible();
+    expect(screen.queryByTestId("backup-run-queue-restore-run_failed")).not.toBeInTheDocument();
+  });
+
+  it("queues restore actions for successful runs with artifacts", async () => {
+    const refetchMock = vi.fn().mockResolvedValue(undefined);
+    const mutateAsync = vi.fn().mockResolvedValue({
+      id: "restore_queued"
+    });
+
+    backupOverviewUseQueryMock.mockReturnValue({
+      data: {
+        policies: [],
+        runs: [
+          {
+            id: "run_succeeded",
+            policyId: "policy_2",
+            projectName: "DaoFlow",
+            environmentName: "production",
+            serviceName: "api",
+            targetType: "volume",
+            status: "succeeded",
+            statusTone: "healthy",
+            triggerKind: "manual",
+            requestedBy: "operator@daoflow.dev",
+            artifactPath: "s3://prod-backups/api-2026-03-20.tar.zst",
+            bytesWritten: 4096,
+            startedAt: "2026-03-20T03:00:00.000Z",
+            finishedAt: "2026-03-20T03:04:00.000Z"
+          }
+        ]
+      },
+      isLoading: false,
+      refetch: refetchMock
+    });
+    queueBackupRestoreUseMutationMock.mockReturnValue({
+      isPending: false,
+      mutateAsync
+    });
+
+    renderBackupsPage();
+
+    fireEvent.click(screen.getByTestId("backup-run-queue-restore-run_succeeded"));
+
+    await waitFor(() => {
+      expect(mutateAsync).toHaveBeenCalledWith({
+        backupRunId: "run_succeeded"
+      });
+    });
+    await waitFor(() => {
+      expect(refetchMock).toHaveBeenCalled();
+    });
+    expect(screen.getByTestId("backup-restore-feedback")).toHaveTextContent(
+      "Queued restore for api."
+    );
   });
 
   it("guides operators to configure destinations before policies when backups are empty", () => {
