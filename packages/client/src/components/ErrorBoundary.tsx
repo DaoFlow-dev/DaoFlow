@@ -1,4 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
+import { Button } from "@/components/ui/button";
 
 interface ErrorBoundaryProps {
   children: ReactNode;
@@ -37,15 +38,15 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
       if (this.props.fallback) return this.props.fallback;
 
       return (
-        <div className="df-error-boundary">
-          <div className="df-error-boundary__content">
-            <h2 className="df-error-boundary__title">Something went wrong</h2>
-            <p className="df-error-boundary__message">
+        <div className="flex min-h-[40vh] items-center justify-center p-8">
+          <div className="max-w-md text-center space-y-4">
+            <h2 className="text-xl font-semibold text-foreground">Something went wrong</h2>
+            <p className="text-sm text-muted-foreground">
               {this.state.error?.message ?? "An unexpected error occurred."}
             </p>
-            <button className="df-btn df-btn--ghost" onClick={() => window.location.reload()}>
+            <Button variant="ghost" onClick={() => window.location.reload()}>
               Reload Page
-            </button>
+            </Button>
           </div>
         </div>
       );
