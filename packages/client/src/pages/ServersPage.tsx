@@ -3,11 +3,10 @@ import { isTRPCClientError } from "@trpc/client";
 import { trpc } from "../lib/trpc";
 import { useSession } from "../lib/auth-client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CheckCircle2, Server, XCircle, RefreshCw } from "lucide-react";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { ServerReadinessIndicator } from "@/components/ServerReadinessIndicator";
 import {
   RegisterServerDialog,
   type RegisterServerFormData
@@ -109,96 +108,76 @@ export default function ServersPage() {
               </div>
             </div>
           ) : (
-            <TooltipProvider delayDuration={0}>
-              <div className="grid gap-4 lg:grid-cols-2">
-                {checks.map((check) => (
-                  <Card
-                    key={String(check.serverId)}
-                    className="border-border/50 shadow-sm transition-all duration-200 hover:shadow-md"
-                  >
-                    <CardHeader className="gap-2">
-                      <div className="flex items-center justify-between gap-3">
-                        <div>
-                          <CardTitle className="text-base flex items-center gap-2">
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <span
-                                  className={`inline-block h-2.5 w-2.5 rounded-full ${check.sshReachable ? "bg-green-500" : "bg-destructive"}`}
-                                  aria-label={
-                                    check.sshReachable ? "Server ready" : "Server needs attention"
-                                  }
-                                />
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                {check.sshReachable
-                                  ? "Connected — all checks pass"
-                                  : "Needs attention — check issues below"}
-                              </TooltipContent>
-                            </Tooltip>
-                            {String(check.serverName)}
-                          </CardTitle>
-                          <CardDescription>
-                            {String(check.serverHost)} · SSH {String(check.sshPort)}
-                          </CardDescription>
-                        </div>
-                        <Badge variant={check.sshReachable ? "default" : "destructive"}>
-                          {check.sshReachable ? "Ready" : "Attention"}
-                        </Badge>
+            <div className="grid gap-4 lg:grid-cols-2">
+              {checks.map((check) => (
+                <Card
+                  key={String(check.serverId)}
+                  className="border-border/50 shadow-sm transition-all duration-200 hover:shadow-md"
+                >
+                  <CardHeader className="gap-2">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <CardTitle className="text-base">{String(check.serverName)}</CardTitle>
+                        <CardDescription>
+                          {String(check.serverHost)} · SSH {String(check.sshPort)}
+                        </CardDescription>
                       </div>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="flex flex-wrap gap-2">
-                        <CapabilityBadge
-                          ok={check.sshReachable}
-                          label={`SSH ${check.sshReachable ? "reachable" : "blocked"}`}
-                        />
-                        <CapabilityBadge
-                          ok={check.dockerReachable}
-                          label={`Docker ${check.dockerReachable ? "reachable" : "blocked"}`}
-                        />
-                        <CapabilityBadge
-                          ok={check.composeReachable}
-                          label={`Compose ${check.composeReachable ? "reachable" : "blocked"}`}
-                        />
-                      </div>
+                      <ServerReadinessIndicator
+                        readinessStatus={String(check.readinessStatus)}
+                        dataTestId={`server-status-${String(check.serverId)}`}
+                      />
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="flex flex-wrap gap-2">
+                      <CapabilityBadge
+                        ok={check.sshReachable}
+                        label={`SSH ${check.sshReachable ? "reachable" : "blocked"}`}
+                      />
+                      <CapabilityBadge
+                        ok={check.dockerReachable}
+                        label={`Docker ${check.dockerReachable ? "reachable" : "blocked"}`}
+                      />
+                      <CapabilityBadge
+                        ok={check.composeReachable}
+                        label={`Compose ${check.composeReachable ? "reachable" : "blocked"}`}
+                      />
+                    </div>
 
-                      <div className="text-sm text-muted-foreground">
-                        Checked {new Date(String(check.checkedAt)).toLocaleString()}
-                        {check.latencyMs !== null ? ` · ${check.latencyMs} ms` : ""}
-                      </div>
+                    <div className="text-sm text-muted-foreground">
+                      Checked {new Date(String(check.checkedAt)).toLocaleString()}
+                      {check.latencyMs !== null ? ` · ${check.latencyMs} ms` : ""}
+                    </div>
 
-                      {/* Resource usage bars */}
-                      <ResourceBars check={check as Record<string, unknown>} />
+                    {/* Resource usage bars */}
+                    <ResourceBars check={check as Record<string, unknown>} />
 
-                      <div className="grid gap-4 sm:grid-cols-2">
-                        <div>
-                          <p className="mb-2 text-sm font-medium">Issues</p>
-                          <ul className="space-y-1 text-sm text-muted-foreground">
-                            {check.issues.length > 0 ? (
-                              check.issues.map((issue) => <li key={issue}>{issue}</li>)
-                            ) : (
-                              <li>No open issues.</li>
-                            )}
-                          </ul>
-                        </div>
-                        <div>
-                          <p className="mb-2 text-sm font-medium">Recommended Actions</p>
-                          <ul className="space-y-1 text-sm text-muted-foreground">
-                            {check.recommendedActions.length > 0 ? (
-                              check.recommendedActions.map((action) => (
-                                <li key={action}>{action}</li>
-                              ))
-                            ) : (
-                              <li>No action required.</li>
-                            )}
-                          </ul>
-                        </div>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div>
+                        <p className="mb-2 text-sm font-medium">Issues</p>
+                        <ul className="space-y-1 text-sm text-muted-foreground">
+                          {check.issues.length > 0 ? (
+                            check.issues.map((issue) => <li key={issue}>{issue}</li>)
+                          ) : (
+                            <li>No open issues.</li>
+                          )}
+                        </ul>
                       </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            </TooltipProvider>
+                      <div>
+                        <p className="mb-2 text-sm font-medium">Recommended Actions</p>
+                        <ul className="space-y-1 text-sm text-muted-foreground">
+                          {check.recommendedActions.length > 0 ? (
+                            check.recommendedActions.map((action) => <li key={action}>{action}</li>)
+                          ) : (
+                            <li>No action required.</li>
+                          )}
+                        </ul>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
           )}
         </>
       )}

@@ -5,14 +5,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ServerReadinessIndicator } from "@/components/ServerReadinessIndicator";
 import { getBadgeVariantFromTone, getToneTextClass } from "@/lib/tone-utils";
 import {
   Server,
   FolderKanban,
   Rocket,
   Activity,
-  CheckCircle2,
-  XCircle,
   Plus,
   Clock,
   GitBranch,
@@ -162,17 +161,18 @@ export default function DashboardPage() {
               {checks.map((s) => (
                 <div
                   key={String(s.serverId)}
+                  data-testid={`server-health-${String(s.serverId)}`}
                   className="flex items-center gap-3 rounded-xl border bg-card/50 p-4 transition-all duration-200 hover:border-primary/10 hover:shadow-sm"
                 >
-                  {s.sshReachable ? (
-                    <CheckCircle2 size={18} className="text-emerald-500" />
-                  ) : (
-                    <XCircle size={18} className="text-red-500" />
-                  )}
+                  <ServerReadinessIndicator
+                    readinessStatus={String(s.readinessStatus)}
+                    dataTestId={`server-status-${String(s.serverId)}`}
+                    className="shrink-0"
+                  />
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium">{String(s.serverName)}</p>
                     <p className="text-xs text-muted-foreground">
-                      {String(s.serverHost)} · Docker {s.dockerReachable ? "✓" : "✗"}
+                      {String(s.serverHost)} · Docker {s.dockerReachable ? "reachable" : "blocked"}
                     </p>
                   </div>
                 </div>
