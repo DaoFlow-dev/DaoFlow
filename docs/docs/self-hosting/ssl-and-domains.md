@@ -6,6 +6,26 @@ sidebar_position: 5
 
 DaoFlow supports HTTPS via reverse proxy or Cloudflare Tunnel.
 
+## Service Domain Workflows
+
+The Service Detail Domains tab now persists desired hostnames and explicit published port mappings
+per service. DaoFlow also compares those desired hostnames against observed tunnel or reverse-proxy
+routes so operators can see whether a domain is matched, missing, inactive, or conflicting.
+
+What DaoFlow does today:
+
+- Stores service-level custom domains and primary-domain selection
+- Stores explicit port-mapping metadata that operators want to keep outside the source compose file
+- Shows observed route and route-backed TLS readiness based on existing tunnel or proxy state
+
+What DaoFlow does not do from that tab:
+
+- Automatically provision Traefik, Caddy, or Nginx rules for you
+- Mint or inspect certificates directly outside the route state it can already observe
+
+You still need to point your reverse proxy or tunnel at the correct published service entrypoint.
+Once that external routing is in place, the Domains tab reflects the observed state.
+
 ## Option 1: Reverse Proxy (Recommended)
 
 Use Nginx, Caddy, or Traefik as a reverse proxy with automatic SSL.
