@@ -875,6 +875,52 @@ describe("appRouter", () => {
     expect(run.error).toContain("pg_dump");
   });
 
+  it("denies backup read procedures when a token omits backup:read", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-backup-read-scope-denied",
+      session: makeSession("owner"),
+      auth: makeTokenAuthContext("owner", ["deploy:read"])
+    });
+
+    await expect(caller.backupOverview({})).rejects.toMatchObject({
+      code: "FORBIDDEN",
+      cause: {
+        code: "SCOPE_DENIED",
+        requiredScopes: ["backup:read"],
+        grantedScopes: ["deploy:read"]
+      }
+    });
+
+    await expect(
+      caller.backupRunDetails({
+        runId: "brun_foundation_db_failed"
+      })
+    ).rejects.toMatchObject({
+      code: "FORBIDDEN",
+      cause: {
+        code: "SCOPE_DENIED",
+        requiredScopes: ["backup:read"],
+        grantedScopes: ["deploy:read"]
+      }
+    });
+  });
+
+  it("allows backup read procedures when a token includes backup:read", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-backup-read-scope-allowed",
+      session: makeSession("owner"),
+      auth: makeTokenAuthContext("owner", ["backup:read"])
+    });
+
+    const overview = await caller.backupOverview({});
+    const run = await caller.backupRunDetails({
+      runId: "brun_foundation_db_failed"
+    });
+
+    expect(overview.summary.totalPolicies).toBeGreaterThanOrEqual(0);
+    expect(run.id).toBe("brun_foundation_db_failed");
+  });
+
   it("returns approval requests keyed by targetResource", async () => {
     const caller = appRouter.createCaller({
       requestId: "test-approvals",

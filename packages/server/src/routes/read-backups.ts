@@ -6,20 +6,20 @@ import {
   listPersistentVolumeInventory
 } from "../db/services/backups";
 import { getBackupRunDetails } from "../db/services/backup-run-details";
-import { t, protectedProcedure } from "../trpc";
+import { backupReadProcedure, t } from "../trpc";
 import { limitInput } from "../schemas";
 
 export const backupReadRouter = t.router({
-  backupOverview: protectedProcedure.input(limitInput(50)).query(async ({ input }) => {
+  backupOverview: backupReadProcedure.input(limitInput(50)).query(async ({ input }) => {
     return listBackupOverview(input.limit ?? 12);
   }),
-  backupRestoreQueue: protectedProcedure.input(limitInput(50)).query(async ({ input }) => {
+  backupRestoreQueue: backupReadProcedure.input(limitInput(50)).query(async ({ input }) => {
     return listBackupRestoreQueue(input.limit ?? 12);
   }),
-  persistentVolumes: protectedProcedure.input(limitInput(24)).query(async ({ input }) => {
+  persistentVolumes: backupReadProcedure.input(limitInput(24)).query(async ({ input }) => {
     return listPersistentVolumeInventory(input.limit ?? 12);
   }),
-  backupRunDetails: protectedProcedure
+  backupRunDetails: backupReadProcedure
     .input(
       z.object({
         runId: z.string().min(1)
