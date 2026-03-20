@@ -215,6 +215,41 @@ export interface BackupRestorePlanOutput {
   };
 }
 
+export interface RegisterServerOutput {
+  id: string;
+  name: string;
+  host: string;
+  region: string | null;
+  sshPort: number;
+  sshUser: string | null;
+  kind: string;
+  status: string;
+  dockerVersion: string | null;
+  composeVersion: string | null;
+  metadata?: {
+    readinessCheck?: {
+      readinessStatus?: string;
+      sshReachable?: boolean;
+      dockerReachable?: boolean;
+      composeReachable?: boolean;
+      latencyMs?: number | null;
+      checkedAt?: string;
+      issues?: string[];
+      recommendedActions?: string[];
+    };
+  };
+  readiness?: {
+    readinessStatus: string;
+    sshReachable: boolean;
+    dockerReachable: boolean;
+    composeReachable: boolean;
+    latencyMs: number | null;
+    checkedAt: string | null;
+    issues: string[];
+    recommendedActions: string[];
+  };
+}
+
 export interface BackupRunOutput {
   id: string;
   policyId: string;
@@ -512,6 +547,18 @@ export interface DaoFlowTRPC {
   viewer: QueryProcedure<ViewerOutput>;
   health: QueryProcedure<HealthOutput>;
   serverReadiness: QueryProcedure<ServerReadinessOutput, { limit?: number }>;
+  registerServer: MutationProcedure<
+    {
+      name: string;
+      host: string;
+      region: string;
+      sshPort: number;
+      sshUser?: string;
+      sshPrivateKey?: string;
+      kind: "docker-engine" | "docker-swarm-manager";
+    },
+    RegisterServerOutput
+  >;
   deploymentPlan: QueryProcedure<
     DeploymentPlanPreview,
     {

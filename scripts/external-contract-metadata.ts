@@ -529,6 +529,7 @@ export const cliCommandMeta: Record<string, CliCommandMeta> = {
   plan: { lane: "planning", requiredScopes: ["deploy:read"], mutating: false },
   rollback: { lane: "command", requiredScopes: ["deploy:rollback"], mutating: true },
   status: { lane: "read", requiredScopes: ["server:read"], mutating: false },
+  "server add": { lane: "command", requiredScopes: ["server:write"], mutating: true },
   projects: { lane: "read", requiredScopes: ["deploy:read"], mutating: false },
   "projects list": { lane: "read", requiredScopes: ["deploy:read"], mutating: false },
   doctor: { lane: "read", requiredScopes: ["server:read", "logs:read"], mutating: false },
@@ -611,6 +612,16 @@ export const cliExamples = [
         dryRun: true,
         plan: { isReady: true, executeCommand: "daoflow deploy --service svc_my_api --yes" }
       }
+    }
+  },
+  {
+    id: "server.add-confirmation",
+    category: "deployment",
+    command: "daoflow server add --name edge-vps-1 --host 203.0.113.42 --json",
+    response: {
+      ok: false,
+      error: "Register server edge-vps-1 at 203.0.113.42. Pass --yes to confirm.",
+      code: "CONFIRMATION_REQUIRED"
     }
   },
   {

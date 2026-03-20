@@ -22,6 +22,7 @@ import { backupCommand } from "./commands/backup";
 import { tokenCommand } from "./commands/token";
 import { diffCommand } from "./commands/diff";
 import { cancelCommand } from "./commands/cancel";
+import { serverCommand } from "./commands/server";
 import { registerConfigCommand } from "./commands/config";
 import { emitJsonError, getErrorMessage } from "./command-helpers";
 
@@ -60,6 +61,7 @@ export function createProgram(): Command {
   program.addCommand(tokenCommand());
   program.addCommand(diffCommand());
   program.addCommand(cancelCommand());
+  program.addCommand(serverCommand());
   program.addCommand(updateCommand());
   registerConfigCommand(program);
 

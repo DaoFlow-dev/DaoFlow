@@ -65,6 +65,7 @@ Every command accepts these flags:
 | [`whoami`](./whoami)             | read         | any valid token            | no       |
 | [`capabilities`](./capabilities) | read         | any valid token            | no       |
 | [`status`](./status)             | read         | `server:read`              | no       |
+| [`server add`](./server)         | command      | `server:write`             | yes      |
 | `services`                       | read         | `service:read`             | no       |
 | `projects`                       | read         | `deploy:read`              | no       |
 | [`deploy`](./deploy)             | command      | `deploy:start`             | yes      |

@@ -9,6 +9,7 @@ import { envCommand } from "./commands/env";
 import { logsCommand } from "./commands/logs";
 import { registerConfigCommand } from "./commands/config";
 import { planCommand } from "./commands/plan";
+import { serverCommand } from "./commands/server";
 import { tokenCommand } from "./commands/token";
 
 class ExitSignal extends Error {
@@ -160,6 +161,147 @@ describe("CLI JSON contract", () => {
       ok: false,
       error: "Set API_URL in environment env_123. Pass --yes to confirm.",
       code: "CONFIRMATION_REQUIRED"
+    });
+  });
+
+  test("server add in JSON mode still requires --yes", async () => {
+    const program = new Command().name("daoflow");
+    program.addCommand(serverCommand());
+
+    const result = await captureCommandExecution(async () => {
+      await program.parseAsync([
+        "node",
+        "daoflow",
+        "server",
+        "add",
+        "--name",
+        "edge-vps-1",
+        "--host",
+        "203.0.113.42",
+        "--json"
+      ]);
+    });
+
+    expect(result.exitCode).toBe(1);
+    expect(result.errors).toEqual([]);
+    expect(result.logs).toHaveLength(1);
+    expect(JSON.parse(result.logs[0])).toEqual({
+      ok: false,
+      error: "Register server edge-vps-1 at 203.0.113.42. Pass --yes to confirm.",
+      code: "CONFIRMATION_REQUIRED"
+    });
+  });
+
+  test("server add forwards registration input and returns readiness in the standard success envelope", async () => {
+    const program = new Command().name("daoflow");
+    program.addCommand(serverCommand());
+
+    const originalFetch = globalThis.fetch;
+
+    const result = await withTempHome(async () => {
+      process.env.DAOFLOW_URL = "https://daoflow.test";
+      process.env.DAOFLOW_TOKEN = "dfl_test_token";
+      globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
+        const url =
+          typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+
+        expect(url).toContain("/trpc/registerServer");
+        expect(init?.method).toBe("POST");
+
+        const rawBody = typeof init?.body === "string" ? init.body : "";
+        expect(rawBody).toContain("edge-vps-1");
+        expect(rawBody).toContain("203.0.113.42");
+        expect(rawBody).toContain("docker-engine");
+
+        return new Response(
+          JSON.stringify({
+            result: {
+              data: {
+                id: "srv_edge_vps_1",
+                name: "edge-vps-1",
+                host: "203.0.113.42",
+                region: "us-west-2",
+                sshPort: 22,
+                sshUser: "root",
+                kind: "docker-engine",
+                status: "attention",
+                dockerVersion: null,
+                composeVersion: null,
+                metadata: {
+                  readinessCheck: {
+                    readinessStatus: "attention",
+                    sshReachable: false,
+                    dockerReachable: false,
+                    composeReachable: false,
+                    latencyMs: null,
+                    checkedAt: "2026-03-20T21:59:00.000Z",
+                    issues: ["No SSH private key is stored for this server."],
+                    recommendedActions: [
+                      "Add a per-server SSH user and private key before deploying."
+                    ]
+                  }
+                }
+              }
+            }
+          }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" }
+          }
+        );
+      }) as unknown as typeof fetch;
+
+      try {
+        return await captureCommandExecution(async () => {
+          await program.parseAsync([
+            "node",
+            "daoflow",
+            "server",
+            "add",
+            "--name",
+            "edge-vps-1",
+            "--host",
+            "203.0.113.42",
+            "--region",
+            "us-west-2",
+            "--yes",
+            "--json"
+          ]);
+        });
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
+    });
+
+    expect(result.exitCode).toBeNull();
+    expect(result.errors).toEqual([]);
+    expect(result.logs).toHaveLength(1);
+    expect(JSON.parse(result.logs[0])).toEqual({
+      ok: true,
+      data: {
+        server: {
+          id: "srv_edge_vps_1",
+          name: "edge-vps-1",
+          host: "203.0.113.42",
+          region: "us-west-2",
+          sshPort: 22,
+          sshUser: "root",
+          kind: "docker-engine",
+          status: "attention",
+          dockerVersion: null,
+          composeVersion: null
+        },
+        readiness: {
+          readinessStatus: "attention",
+          sshReachable: false,
+          dockerReachable: false,
+          composeReachable: false,
+          latencyMs: null,
+          checkedAt: "2026-03-20T21:59:00.000Z",
+          issues: ["No SSH private key is stored for this server."],
+          recommendedActions: ["Add a per-server SSH user and private key before deploying."]
+        }
+      }
     });
   });
 

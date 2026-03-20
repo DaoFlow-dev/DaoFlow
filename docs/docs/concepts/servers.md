@@ -15,7 +15,20 @@ Servers are the physical or virtual machines that DaoFlow deploys to. DaoFlow co
 3. Enter: name, host IP, SSH port, and SSH key path
 4. DaoFlow verifies connectivity and detects Docker/Compose versions
 
-Today, server registration is handled in the dashboard or admin API. The CLI can read deployment and health state, but it does not yet expose a `daoflow server add` mutation.
+### Via CLI
+
+```bash
+daoflow server add \
+  --name edge-vps-1 \
+  --host 203.0.113.42 \
+  --region us-west-2 \
+  --ssh-user deploy \
+  --ssh-key ~/.ssh/daoflow_ed25519 \
+  --yes
+```
+
+The CLI registration flow returns the same readiness status, issues, and recommended actions that
+the dashboard uses after registration.
 
 ## Connectivity
 

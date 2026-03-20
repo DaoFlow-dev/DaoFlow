@@ -57,6 +57,7 @@ This file holds the detailed CLI contract, scope map, and agent-facing command r
 | `whoami`         | read     | any valid token            | no       |
 | `capabilities`   | read     | any valid token            | no       |
 | `status`         | read     | `server:read`              | no       |
+| `server add`     | command  | `server:write`             | yes      |
 | `services`       | read     | `service:read`             | no       |
 | `projects`       | read     | `deploy:read`              | no       |
 | `logs`           | read     | `logs:read`                | no       |
@@ -149,3 +150,24 @@ This file holds the detailed CLI contract, scope map, and agent-facing command r
 - `--follow` is reserved for future live streaming and must return a structured `NOT_IMPLEMENTED` error today
 - JSON success shape:
   - `{ "ok": true, "data": { "service": string | null, "deploymentId": string | null, "query": string | null, "stream": "all" | "stdout" | "stderr", "limit": number, "summary": { "totalLines": number, "stderrLines": number, "deploymentCount": number }, "lines": [{ "id": string | number, "deploymentId": string, "serviceName": string, "environmentName": string, "stream": "stdout" | "stderr", "lineNumber": string | number, "level": string, "message": string, "createdAt": string }] } }`
+
+## Server Add Contract
+
+- `daoflow server add` writes through the `registerServer` command lane and immediately returns readiness verification detail
+- Scope: `server:write`
+- Required input:
+  - `--name <name>`
+  - `--host <host>`
+- Optional input:
+  - `--region <region>`
+  - `--ssh-port <port>`
+  - `--ssh-user <user>`
+  - `--ssh-key <path>` or `--ssh-private-key <pem>`
+  - `--kind <docker-engine|docker-swarm-manager>`
+  - `--dry-run`
+  - `--yes`
+  - `--json`
+- `--dry-run` must not call the API and must exit with code `3`
+- Execution must require `--yes`
+- JSON success shape:
+  - `{ "ok": true, "data": { "server": { "id": string, "name": string, "host": string, "region": string | null, "sshPort": number, "sshUser": string | null, "kind": string, "status": string, "dockerVersion": string | null, "composeVersion": string | null, "readiness"?: { "readinessStatus": string, "sshReachable": boolean, "dockerReachable": boolean, "composeReachable": boolean, "latencyMs": number | null, "checkedAt": string, "issues": string[], "recommendedActions": string[] } }, "readiness": { "readinessStatus": string, "sshReachable": boolean, "dockerReachable": boolean, "composeReachable": boolean, "latencyMs": number | null, "checkedAt": string | null, "issues": string[], "recommendedActions": string[] } } }`

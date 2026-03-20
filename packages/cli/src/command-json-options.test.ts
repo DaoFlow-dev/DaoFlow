@@ -7,6 +7,7 @@ import { envCommand } from "./commands/env";
 import { loginCommand } from "./commands/login";
 import { logsCommand } from "./commands/logs";
 import { planCommand } from "./commands/plan";
+import { serverCommand } from "./commands/server";
 
 function hasLongOption(command: Command, longFlag: string): boolean {
   return command.options.some((option) => option.long === longFlag);
@@ -81,5 +82,19 @@ describe("CLI JSON option coverage", () => {
     const env = envCommand();
     expect(hasLongOption(getSubcommand(env, "pull"), "--json")).toBe(true);
     expect(hasLongOption(getSubcommand(env, "push"), "--json")).toBe(true);
+  });
+
+  test("server add declares --json", () => {
+    const server = serverCommand();
+    expect(hasLongOption(getSubcommand(server, "add"), "--json")).toBe(true);
+  });
+
+  test("server add help includes scope, examples, and JSON shapes", () => {
+    const help = renderHelp(getSubcommand(serverCommand(), "add"));
+    expect(help).toContain("Required scope:");
+    expect(help).toContain("server:write");
+    expect(help).toContain("Examples:");
+    expect(help).toContain("daoflow server add --name edge-vps-1");
+    expect(help).toContain("Example JSON shapes:");
   });
 });

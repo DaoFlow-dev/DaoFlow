@@ -1265,6 +1265,92 @@
       "supportsYes": true
     },
     {
+      "path": "server",
+      "summary": "Register and inspect deployment targets",
+      "lane": "local",
+      "requiredScopes": [],
+      "mutating": false,
+      "hasAction": false,
+      "hasSubcommands": true,
+      "aliases": [],
+      "arguments": [],
+      "options": [],
+      "supportsJson": false,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
+      "path": "server add",
+      "summary": "Register a Docker host and run readiness verification",
+      "lane": "command",
+      "requiredScopes": ["server:write"],
+      "mutating": true,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--name <name>",
+          "description": "Server name",
+          "required": true
+        },
+        {
+          "flags": "--host <host>",
+          "description": "Server hostname or IP address",
+          "required": true
+        },
+        {
+          "flags": "--region <region>",
+          "description": "Region label",
+          "required": false
+        },
+        {
+          "flags": "--ssh-port <port>",
+          "description": "SSH port",
+          "required": false
+        },
+        {
+          "flags": "--ssh-user <user>",
+          "description": "SSH username",
+          "required": false
+        },
+        {
+          "flags": "--ssh-key <path>",
+          "description": "Path to the SSH private key file",
+          "required": false
+        },
+        {
+          "flags": "--ssh-private-key <pem>",
+          "description": "Inline SSH private key material",
+          "required": false
+        },
+        {
+          "flags": "--kind <kind>",
+          "description": "Target kind (docker-engine or docker-swarm-manager)",
+          "required": false
+        },
+        {
+          "flags": "--dry-run",
+          "description": "Preview the registration payload without mutating",
+          "required": false
+        },
+        {
+          "flags": "-y, --yes",
+          "description": "Skip confirmation prompt",
+          "required": false
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": true,
+      "supportsYes": true
+    },
+    {
       "path": "services",
       "summary": "List services and their status",
       "lane": "read",
@@ -1616,6 +1702,16 @@
             "executeCommand": "daoflow deploy --service svc_my_api --yes"
           }
         }
+      }
+    },
+    {
+      "id": "server.add-confirmation",
+      "category": "deployment",
+      "command": "daoflow server add --name edge-vps-1 --host 203.0.113.42 --json",
+      "response": {
+        "ok": false,
+        "error": "Register server edge-vps-1 at 203.0.113.42. Pass --yes to confirm.",
+        "code": "CONFIRMATION_REQUIRED"
       }
     },
     {

@@ -9,7 +9,7 @@ import { getCurrentContext, type DaoFlowContext } from "./config";
 import { buildAuthHeaders } from "./auth-headers";
 import type { DaoFlowRouterBase, DaoFlowTRPC } from "./trpc-contract";
 
-export type { CreateAgentInput, RouterOutputs } from "./trpc-contract";
+export type { CreateAgentInput, RegisterServerOutput, RouterOutputs } from "./trpc-contract";
 
 /**
  * Create a fully-typed tRPC client configured with the current CLI context.
