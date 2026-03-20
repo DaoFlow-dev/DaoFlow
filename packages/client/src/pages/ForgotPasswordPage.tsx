@@ -6,23 +6,30 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { validateForgotPasswordFields } from "@/lib/auth-form-validation";
 import { ArrowLeft, CheckCircle2, Mail } from "lucide-react";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<string | null>(null);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    setError(null);
+    const nextErrors = validateForgotPasswordFields({ email });
+    setEmailError(nextErrors.email ?? null);
+    setFeedback(null);
+    if (nextErrors.email) {
+      return;
+    }
     setLoading(true);
     try {
       const res = await fetch("/api/auth/forget-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, redirectTo: "/reset-password" })
+        body: JSON.stringify({ email: email.trim(), redirectTo: "/reset-password" })
       });
       if (!res.ok) {
         const data = (await res.json().catch(() => ({}))) as { message?: string };
@@ -30,7 +37,7 @@ export default function ForgotPasswordPage() {
       }
       setSent(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to send reset email.");
+      setFeedback(err instanceof Error ? err.message : "Unable to send reset email.");
     } finally {
       setLoading(false);
     }
@@ -67,7 +74,7 @@ export default function ForgotPasswordPage() {
               </Link>
             </div>
           ) : (
-            <form className="space-y-4" onSubmit={(e) => void handleSubmit(e)}>
+            <form className="space-y-4" noValidate onSubmit={(e) => void handleSubmit(e)}>
               <div className="space-y-2">
                 <Label htmlFor="reset-email">Email</Label>
                 <Input
@@ -75,12 +82,36 @@ export default function ForgotPasswordPage() {
                   type="email"
                   placeholder="you@example.com"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    setEmailError(null);
+                    setFeedback(null);
+                  }}
+                  aria-describedby={emailError ? "reset-email-error" : undefined}
+                  aria-invalid={Boolean(emailError)}
+                  data-testid="forgot-password-email"
                 />
+                {emailError ? (
+                  <p
+                    id="reset-email-error"
+                    className="text-sm text-destructive"
+                    data-testid="forgot-password-email-error"
+                  >
+                    {emailError}
+                  </p>
+                ) : null}
               </div>
-              {error && <p className="text-sm text-destructive">{error}</p>}
-              <Button type="submit" className="w-full" disabled={loading}>
+              {feedback ? (
+                <Alert variant="destructive" data-testid="forgot-password-feedback">
+                  <AlertDescription>{feedback}</AlertDescription>
+                </Alert>
+              ) : null}
+              <Button
+                type="submit"
+                className="w-full"
+                disabled={loading}
+                data-testid="forgot-password-submit"
+              >
                 {loading ? "Sending…" : "Send Reset Link"}
               </Button>
               <p className="text-center text-sm text-muted-foreground">
