@@ -222,12 +222,6 @@ body {
   min-height: 56px;
 }
 
-.sidebar__logo {
-  font-size: 1.35rem;
-  color: var(--sidebar-primary);
-  flex-shrink: 0;
-}
-
 .sidebar__title {
   font-size: 1rem;
   font-weight: 700;
@@ -368,25 +362,6 @@ body {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-.sidebar__logout {
-  appearance: none;
-  background: transparent;
-  border: none;
-  color: var(--sidebar-accent-foreground);
-  cursor: pointer;
-  padding: 0.3rem;
-  border-radius: 4px;
-  transition:
-    background 0.15s,
-    color 0.15s;
-  flex-shrink: 0;
-}
-
-.sidebar__logout:hover {
-  background: rgba(248, 113, 113, 0.12);
-  color: #f87171;
 }
 
 /* ========= Topbar ========= */
@@ -555,96 +530,4 @@ select:focus,
 button:focus-visible {
   outline: 2px solid #3b82f6;
   outline-offset: 2px;
-}
-
-/* ========= Premium UI Utilities ========= */
-.df-glass {
-  background: color-mix(in oklch, var(--background) 80%, transparent);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid var(--df-border-subtle);
-}
-
-.df-card-hover {
-  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.df-card-hover:hover {
-  box-shadow: var(--df-shadow-md);
-  border-color: color-mix(in oklch, var(--primary) 20%, var(--border));
-  transform: translateY(-1px);
-}
-
-.df-gradient-border {
-  position: relative;
-}
-
-.df-gradient-border::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background: linear-gradient(
-    90deg,
-    var(--primary),
-    color-mix(in oklch, var(--primary) 60%, #a855f7)
-  );
-  border-radius: inherit;
-  opacity: 0;
-  transition: opacity 0.25s ease;
-}
-
-.df-gradient-border:hover::before {
-  opacity: 1;
-}
-
-.df-stat-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
-  transition: all 0.25s ease;
-}
-
-.df-pulse-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  animation: df-pulse 2s infinite;
-}
-
-@keyframes df-pulse {
-  0%,
-  100% {
-    opacity: 1;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0.6;
-    transform: scale(1.15);
-  }
-}
-
-.df-shimmer {
-  background: linear-gradient(
-    110deg,
-    transparent 25%,
-    color-mix(in oklch, var(--primary) 5%, transparent) 37%,
-    transparent 63%
-  );
-  background-size: 200% 100%;
-  animation: df-shimmer 2s ease-in-out infinite;
-}
-
-@keyframes df-shimmer {
-  0% {
-    background-position: 200% 0;
-  }
-  100% {
-    background-position: -200% 0;
-  }
 }
