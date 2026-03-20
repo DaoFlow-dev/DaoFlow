@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { backupCommand } from "./commands/backup";
 import { deployCommand } from "./commands/deploy";
 import { envCommand } from "./commands/env";
+import { logsCommand } from "./commands/logs";
 import { registerConfigCommand } from "./commands/config";
 import { planCommand } from "./commands/plan";
 import { tokenCommand } from "./commands/token";
@@ -330,6 +331,111 @@ describe("CLI JSON contract", () => {
             }
           }
         }
+      }
+    });
+  });
+
+  test("logs forwards targeted filter options and returns the standard success envelope", async () => {
+    const program = new Command().name("daoflow");
+    program.addCommand(logsCommand());
+
+    const originalFetch = globalThis.fetch;
+
+    const result = await withTempHome(async () => {
+      process.env.DAOFLOW_URL = "https://daoflow.test";
+      process.env.DAOFLOW_TOKEN = "dfl_test_token";
+      globalThis.fetch = ((input: RequestInfo | URL) => {
+        const url =
+          typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+
+        expect(url).toContain("/trpc/deploymentLogs");
+        expect(url).toContain("query");
+        expect(url).toContain("stderr");
+        expect(url).toContain("control-plane");
+
+        return new Response(
+          JSON.stringify({
+            result: {
+              data: {
+                summary: {
+                  totalLines: 1,
+                  stderrLines: 1,
+                  deploymentCount: 1
+                },
+                lines: [
+                  {
+                    id: "log_foundation_failed_3",
+                    deploymentId: "dep_foundation_20260311_1",
+                    serviceName: "control-plane",
+                    environmentName: "production-us-west",
+                    stream: "stderr",
+                    lineNumber: 3,
+                    level: "error",
+                    message: "Readiness endpoint /healthz returned 503 for 2 consecutive checks.",
+                    createdAt: "2026-03-20T12:59:35.000Z"
+                  }
+                ]
+              }
+            }
+          }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" }
+          }
+        );
+      }) as unknown as typeof fetch;
+
+      try {
+        return await captureCommandExecution(async () => {
+          await program.parseAsync([
+            "node",
+            "daoflow",
+            "logs",
+            "control-plane",
+            "--query",
+            "readiness",
+            "--stream",
+            "stderr",
+            "--lines",
+            "25",
+            "--json"
+          ]);
+        });
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
+    });
+
+    expect(result.exitCode).toBeNull();
+    expect(result.errors).toEqual([]);
+    expect(result.logs).toHaveLength(1);
+
+    expect(JSON.parse(result.logs[0])).toEqual({
+      ok: true,
+      data: {
+        service: "control-plane",
+        deploymentId: null,
+        query: "readiness",
+        stream: "stderr",
+        limit: 25,
+        summary: {
+          totalLines: 1,
+          stderrLines: 1,
+          deploymentCount: 1
+        },
+        lines: [
+          {
+            id: "log_foundation_failed_3",
+            deploymentId: "dep_foundation_20260311_1",
+            serviceName: "control-plane",
+            environmentName: "production-us-west",
+            stream: "stderr",
+            lineNumber: 3,
+            level: "error",
+            message: "Readiness endpoint /healthz returned 503 for 2 consecutive checks.",
+            createdAt: "2026-03-20T12:59:35.000Z"
+          }
+        ]
       }
     });
   });

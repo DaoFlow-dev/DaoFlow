@@ -27,6 +27,11 @@ These routes currently require authentication but do not advertise a narrower to
 - Backup inventory: `backupDestinations`, `backupDestination`, `backupMetrics`, `backupDiagnosis`
 - Notification reads: `listPushSubscriptions`, `listChannels`, `getUserPreferences`, `getProjectOverrides`, `listDeliveryLogs`
 
+Notable queryable observation inputs:
+
+- `deploymentLogs` supports optional `deploymentId`, `service`, `query`, `stream`, and `limit` filters for targeted log retrieval.
+- `operationsTimeline` supports optional `deploymentId` and `limit`.
+
 ## Scoped Read Procedures
 
 These routes require both authentication and the listed scope set:

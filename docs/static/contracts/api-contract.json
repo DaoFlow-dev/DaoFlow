@@ -1591,6 +1591,20 @@
             "type": "string",
             "minLength": 1
           },
+          "service": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "query": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "stream": {
+            "type": "string",
+            "enum": ["all", "stdout", "stderr"]
+          },
           "limit": {
             "type": "integer",
             "minimum": 1,

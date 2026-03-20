@@ -722,20 +722,28 @@ describe("appRouter", () => {
     ).rejects.toMatchObject({ code: "BAD_REQUEST" } satisfies Partial<TRPCError>);
   });
 
-  it("returns deployment logs keyed by level", async () => {
+  it("returns deployment logs keyed by level and supports targeted filters", async () => {
     const caller = appRouter.createCaller({
       requestId: "test-logs",
       session: makeSession("viewer")
     });
-    const response = await caller.deploymentLogs({});
+    const response = await caller.deploymentLogs({
+      deploymentId: "dep_foundation_20260311_1",
+      query: "readiness",
+      stream: "stderr"
+    });
 
     expect(response.summary.totalLines).toBeGreaterThanOrEqual(0);
+    expect(response.lines.length).toBeGreaterThan(0);
 
     const line = response.lines[0];
     if (!line) {
       return;
     }
 
+    expect(line.deploymentId).toBe("dep_foundation_20260311_1");
+    expect(line.stream).toBe("stderr");
+    expect(line.message.toLowerCase()).toContain("readiness");
     expect(line.level).toEqual(expect.any(String));
     expect(line.stream).toEqual(expect.any(String));
   });

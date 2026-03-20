@@ -1,20 +1,33 @@
-import { Command } from "commander";
+import { Command, Option } from "commander";
 import chalk from "chalk";
 import { getErrorMessage, resolveCommandJsonOption } from "../command-helpers";
 import { createClient } from "../trpc-client";
 
 export function logsCommand(): Command {
   return new Command("logs")
-    .description("Stream real-time deployment logs (SSE)")
-    .argument("[service]", "Service name to filter")
+    .description("Fetch persisted deployment logs from the control plane")
+    .argument("[service]", "Service name to filter when querying recent logs")
     .option("--deployment <id>", "Deployment ID")
+    .option("--query <text>", "Search within persisted log messages")
     .option("--follow", "Follow log output", false)
     .option("--lines <n>", "Number of lines to show", "50")
+    .addOption(
+      new Option("--stream <stream>", "Filter by stream")
+        .choices(["all", "stdout", "stderr"])
+        .default("all")
+    )
     .option("--json", "Output as JSON")
     .action(
       async (
         service: string | undefined,
-        opts: { deployment?: string; follow?: boolean; lines?: string; json?: boolean },
+        opts: {
+          deployment?: string;
+          query?: string;
+          follow?: boolean;
+          lines?: string;
+          stream?: "all" | "stdout" | "stderr";
+          json?: boolean;
+        },
         command: Command
       ) => {
         const isJson = resolveCommandJsonOption(command, opts.json);
@@ -35,6 +48,9 @@ export function logsCommand(): Command {
           const trpc = createClient();
           const data = await trpc.deploymentLogs.query({
             deploymentId: opts.deployment,
+            service,
+            query: opts.query,
+            stream: opts.stream,
             limit: Number(opts.lines)
           });
 
@@ -45,7 +61,10 @@ export function logsCommand(): Command {
                 data: {
                   service: service ?? null,
                   deploymentId: opts.deployment ?? null,
+                  query: opts.query ?? null,
+                  stream: opts.stream ?? "all",
                   limit: Number(opts.lines),
+                  summary: data.summary,
                   lines: data.lines
                 }
               })

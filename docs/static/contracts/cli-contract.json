@@ -1015,7 +1015,7 @@
     },
     {
       "path": "logs",
-      "summary": "Stream real-time deployment logs (SSE)",
+      "summary": "Fetch persisted deployment logs from the control plane",
       "lane": "read",
       "requiredScopes": ["logs:read"],
       "mutating": false,
@@ -1036,6 +1036,11 @@
           "required": false
         },
         {
+          "flags": "--query <text>",
+          "description": "Search within persisted log messages",
+          "required": false
+        },
+        {
           "flags": "--follow",
           "description": "Follow log output",
           "required": false
@@ -1043,6 +1048,11 @@
         {
           "flags": "--lines <n>",
           "description": "Number of lines to show",
+          "required": false
+        },
+        {
+          "flags": "--stream <stream>",
+          "description": "Filter by stream",
           "required": false
         },
         {

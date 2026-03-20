@@ -616,7 +616,16 @@ export interface DaoFlowTRPC {
     { serviceId: string; targetDeploymentId: string },
     RollbackExecutionOutput
   >;
-  deploymentLogs: QueryProcedure<DeploymentLogsOutput, { deploymentId?: string; limit?: number }>;
+  deploymentLogs: QueryProcedure<
+    DeploymentLogsOutput,
+    {
+      deploymentId?: string;
+      service?: string;
+      query?: string;
+      stream?: "all" | "stdout" | "stderr";
+      limit?: number;
+    }
+  >;
   projects: QueryProcedure<ProjectListItem[], { limit?: number }>;
   cancelDeployment: MutationProcedure<
     { deploymentId: string },

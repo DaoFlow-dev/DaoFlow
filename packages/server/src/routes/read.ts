@@ -188,11 +188,20 @@ const coreReadRouter = t.router({
     .input(
       z.object({
         deploymentId: z.string().min(1).optional(),
+        service: z.string().min(1).max(80).optional(),
+        query: z.string().trim().min(1).max(200).optional(),
+        stream: z.enum(["all", "stdout", "stderr"]).optional(),
         limit: z.number().int().min(1).max(100).optional()
       })
     )
     .query(async ({ input }) => {
-      return listDeploymentLogs(input.deploymentId, input.limit ?? 18);
+      return listDeploymentLogs({
+        deploymentId: input.deploymentId,
+        serviceName: input.service,
+        query: input.query,
+        stream: input.stream,
+        limit: input.limit ?? 18
+      });
     }),
   operationsTimeline: protectedProcedure
     .input(

@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, ilike, inArray, sql, type SQL } from "drizzle-orm";
 import { db } from "../connection";
 import { auditEntries, events } from "../schema/audit";
 import { deploymentLogs, deployments, deploymentSteps } from "../schema/deployments";
@@ -28,6 +28,7 @@ import { readComposePreviewMetadata } from "../../compose-preview";
 export type DeploymentStatus = DeploymentLifecycleStatus;
 export type DeploymentSourceType = "compose" | "dockerfile" | "image";
 export type DeploymentTrigger = (typeof deployments.$inferSelect)["trigger"];
+export type DeploymentLogStream = "all" | "stdout" | "stderr";
 
 async function loadProjectEnvironmentByNames(projectName: string, environmentName: string) {
   const [project] = await db.select().from(projects).where(eq(projects.name, projectName)).limit(1);
@@ -343,19 +344,63 @@ export async function listDeploymentRecords(status?: string, limit = 20) {
   return status ? mapped.filter((deployment) => deployment.status === status) : mapped;
 }
 
-export async function listDeploymentLogs(deploymentId?: string, limit = 18) {
-  const query = deploymentId
-    ? db.select().from(deploymentLogs).where(eq(deploymentLogs.deploymentId, deploymentId))
-    : db.select().from(deploymentLogs);
+export interface ListDeploymentLogsInput {
+  deploymentId?: string;
+  serviceName?: string;
+  query?: string;
+  stream?: DeploymentLogStream;
+  limit?: number;
+}
 
-  const logs = await query.orderBy(desc(deploymentLogs.createdAt)).limit(limit);
-  const deploymentIds = [...new Set(logs.map((log) => log.deploymentId))];
-  const deploymentRows =
-    deploymentIds.length > 0
-      ? await db.select().from(deployments).where(inArray(deployments.id, deploymentIds))
-      : [];
+function buildDeploymentLogFilters(input: ListDeploymentLogsInput) {
+  const filters: SQL[] = [];
+
+  if (input.deploymentId) {
+    filters.push(eq(deploymentLogs.deploymentId, input.deploymentId));
+  }
+
+  if (input.serviceName) {
+    filters.push(eq(deployments.serviceName, input.serviceName));
+  }
+
+  if (input.query) {
+    filters.push(ilike(deploymentLogs.message, `%${input.query}%`));
+  }
+
+  if (input.stream === "stderr") {
+    filters.push(
+      sql`(coalesce(${deploymentLogs.metadata} ->> 'stream', '') = 'stderr' or ${deploymentLogs.level} = 'error')`
+    );
+  }
+
+  if (input.stream === "stdout") {
+    filters.push(
+      sql`(coalesce(${deploymentLogs.metadata} ->> 'stream', 'stdout') = 'stdout' and ${deploymentLogs.level} <> 'error')`
+    );
+  }
+
+  return filters;
+}
+
+export async function listDeploymentLogs(input: ListDeploymentLogsInput = {}) {
+  const limit = input.limit ?? 18;
+  const filters = buildDeploymentLogFilters(input);
+  const condition = filters.length > 0 ? and(...filters) : undefined;
+  const baseQuery = db
+    .select({
+      log: deploymentLogs,
+      deployment: deployments
+    })
+    .from(deploymentLogs)
+    .innerJoin(deployments, eq(deploymentLogs.deploymentId, deployments.id));
+
+  const rows = await (condition ? baseQuery.where(condition) : baseQuery)
+    .orderBy(desc(deploymentLogs.createdAt))
+    .limit(limit);
+  const deploymentRows = [
+    ...new Map(rows.map((row) => [row.deployment.id, row.deployment])).values()
+  ];
   const index = await buildDeploymentIndex(deploymentRows);
-  const deploymentById = new Map(deploymentRows.map((row) => [row.id, row]));
 
   const [counts] = await db
     .select({
@@ -363,7 +408,9 @@ export async function listDeploymentLogs(deploymentId?: string, limit = 18) {
       stderrLines: sql<number>`count(*) filter (where ${deploymentLogs.level} = 'error')`,
       deploymentCount: sql<number>`count(distinct ${deploymentLogs.deploymentId})`
     })
-    .from(deploymentLogs);
+    .from(deploymentLogs)
+    .innerJoin(deployments, eq(deploymentLogs.deploymentId, deployments.id))
+    .where(condition);
 
   return {
     summary: {
@@ -371,13 +418,10 @@ export async function listDeploymentLogs(deploymentId?: string, limit = 18) {
       stderrLines: Number(counts?.stderrLines ?? 0),
       deploymentCount: Number(counts?.deploymentCount ?? 0)
     },
-    lines: logs.map((log) => {
+    lines: rows.map(({ log, deployment }) => {
       const metadata = asRecord(log.metadata);
-      const deployment = deploymentById.get(log.deploymentId);
-      const project = deployment ? index.projectById.get(deployment.projectId) : undefined;
-      const environment = deployment
-        ? index.environmentById.get(deployment.environmentId)
-        : undefined;
+      const project = index.projectById.get(deployment.projectId);
+      const environment = index.environmentById.get(deployment.environmentId);
 
       return {
         ...log,
@@ -390,7 +434,7 @@ export async function listDeploymentLogs(deploymentId?: string, limit = 18) {
         createdAt: log.createdAt.toISOString(),
         projectName: project?.name ?? "",
         environmentName: environment?.name ?? "",
-        serviceName: deployment?.serviceName ?? ""
+        serviceName: deployment.serviceName
       };
     })
   };

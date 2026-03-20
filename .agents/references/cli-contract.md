@@ -135,3 +135,17 @@ This file holds the detailed CLI contract, scope map, and agent-facing command r
   - baseline and comparison deployment identity, project, environment, service, status, commit, image, and target server
   - warnings when the deployments span different projects, environments, or services
   - scalar field changes before snapshot/config changes
+
+## Logs Contract
+
+- `daoflow logs` reads persisted deployment log lines through the `deploymentLogs` read procedure
+- Scope: `logs:read`
+- Optional targeting input:
+  - positional `[service]` to filter global recent logs by service name
+  - `--deployment <id>` to scope results to one deployment
+  - `--query <text>` to search within persisted log messages
+  - `--stream <all|stdout|stderr>` to filter by log stream
+  - `--lines <n>` to cap returned lines
+- `--follow` is reserved for future live streaming and must return a structured `NOT_IMPLEMENTED` error today
+- JSON success shape:
+  - `{ "ok": true, "data": { "service": string | null, "deploymentId": string | null, "query": string | null, "stream": "all" | "stdout" | "stderr", "limit": number, "summary": { "totalLines": number, "stderrLines": number, "deploymentCount": number }, "lines": [{ "id": string | number, "deploymentId": string, "serviceName": string, "environmentName": string, "stream": "stdout" | "stderr", "lineNumber": string | number, "level": string, "message": string, "createdAt": string }] } }`
