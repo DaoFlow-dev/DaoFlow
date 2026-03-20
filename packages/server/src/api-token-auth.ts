@@ -34,6 +34,22 @@ export interface TokenBackedSession {
   };
 }
 
+export type TokenAuthFailureCode =
+  | "TOKEN_INVALID"
+  | "TOKEN_REVOKED"
+  | "TOKEN_EXPIRED"
+  | "TOKEN_INVALIDATED";
+
+export interface TokenAuthFailure {
+  code: TokenAuthFailureCode;
+  error: string;
+}
+
+export type TokenAuthResolution =
+  | { status: "absent" }
+  | { status: "ok"; auth: TokenBackedSession }
+  | { status: "rejected"; failure: TokenAuthFailure };
+
 function getPrincipalRole(principalType: string, userRole: unknown): AppRole {
   if (principalType === "agent") {
     return "agent";
@@ -61,6 +77,28 @@ export async function resolveBearerTokenAuth(
   const rawToken = parseBearerApiToken(headerValue);
   if (!rawToken) {
     return null;
+  }
+
+  const result = await resolveBearerTokenAuthResult(headerValue);
+  return result.status === "ok" ? result.auth : null;
+}
+
+function rejectToken(code: TokenAuthFailureCode, error: string): TokenAuthResolution {
+  return {
+    status: "rejected",
+    failure: {
+      code,
+      error
+    }
+  };
+}
+
+export async function resolveBearerTokenAuthResult(
+  headerValue: string | null | undefined
+): Promise<TokenAuthResolution> {
+  const rawToken = parseBearerApiToken(headerValue);
+  if (!rawToken) {
+    return { status: "absent" };
   }
 
   const tokenHash = await hashApiToken(rawToken);
@@ -92,8 +130,12 @@ export async function resolveBearerTokenAuth(
     .where(eq(apiTokens.tokenHash, tokenHash))
     .limit(1);
 
-  if (!row || row.tokenStatus !== "active" || row.tokenRevokedAt) {
-    return null;
+  if (!row) {
+    return rejectToken("TOKEN_INVALID", "API token is invalid.");
+  }
+
+  if (row.tokenStatus !== "active" || row.tokenRevokedAt) {
+    return rejectToken("TOKEN_REVOKED", "API token has been revoked.");
   }
 
   if (
@@ -102,20 +144,20 @@ export async function resolveBearerTokenAuth(
     !row.principalName ||
     row.principalStatus !== "active"
   ) {
-    return null;
+    return rejectToken("TOKEN_INVALIDATED", "API token has been invalidated.");
   }
 
   const now = Date.now();
   if (row.tokenExpiresAt && row.tokenExpiresAt.getTime() <= now) {
-    return null;
+    return rejectToken("TOKEN_EXPIRED", "API token has expired.");
   }
 
   if (row.tokensInvalidBefore && row.tokenCreatedAt.getTime() < row.tokensInvalidBefore.getTime()) {
-    return null;
+    return rejectToken("TOKEN_INVALIDATED", "API token has been invalidated.");
   }
 
   if (row.userId && row.userStatus !== "active") {
-    return null;
+    return rejectToken("TOKEN_INVALIDATED", "API token has been invalidated.");
   }
 
   const role = getPrincipalRole(row.principalType, row.userRole);
@@ -127,43 +169,46 @@ export async function resolveBearerTokenAuth(
   const principalName = row.userName ?? row.principalName;
 
   return {
-    session: {
-      user: {
-        id: principalId,
+    status: "ok",
+    auth: {
+      session: {
+        user: {
+          id: principalId,
+          email: principalEmail,
+          name: principalName,
+          emailVerified: Boolean(row.userId),
+          createdAt: row.tokenCreatedAt,
+          updatedAt: row.tokenCreatedAt,
+          image: null,
+          role
+        },
+        session: {
+          id: row.tokenId,
+          userId: principalId,
+          expiresAt: row.tokenExpiresAt ?? new Date("9999-12-31T23:59:59.999Z"),
+          token: row.tokenPrefix,
+          createdAt: row.tokenCreatedAt,
+          updatedAt: row.tokenCreatedAt,
+          ipAddress: null,
+          userAgent: "api-token"
+        }
+      } as NonNullable<AuthSession>,
+      principal: {
+        id: row.principalId,
         email: principalEmail,
         name: principalName,
-        emailVerified: Boolean(row.userId),
-        createdAt: row.tokenCreatedAt,
-        updatedAt: row.tokenCreatedAt,
-        image: null,
-        role
+        type: row.principalType as "user" | "service" | "agent",
+        linkedUserId: row.linkedUserId
       },
-      session: {
+      role,
+      presentedScopes,
+      effectiveCapabilities,
+      token: {
         id: row.tokenId,
-        userId: principalId,
-        expiresAt: row.tokenExpiresAt ?? new Date("9999-12-31T23:59:59.999Z"),
-        token: row.tokenPrefix,
-        createdAt: row.tokenCreatedAt,
-        updatedAt: row.tokenCreatedAt,
-        ipAddress: null,
-        userAgent: "api-token"
+        name: row.tokenName,
+        prefix: row.tokenPrefix,
+        expiresAt: row.tokenExpiresAt?.toISOString() ?? null
       }
-    } as NonNullable<AuthSession>,
-    principal: {
-      id: row.principalId,
-      email: principalEmail,
-      name: principalName,
-      type: row.principalType as "user" | "service" | "agent",
-      linkedUserId: row.linkedUserId
-    },
-    role,
-    presentedScopes,
-    effectiveCapabilities,
-    token: {
-      id: row.tokenId,
-      name: row.tokenName,
-      prefix: row.tokenPrefix,
-      expiresAt: row.tokenExpiresAt?.toISOString() ?? null
     }
   };
 }

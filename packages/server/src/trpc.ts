@@ -3,7 +3,24 @@ import { canAssumeAnyRole, hasAllScopes, type ApiTokenScope, type AppRole } from
 import { getSessionAuthContext, type Context } from "./context";
 import { ensureControlPlaneReady } from "./db/services/seed";
 
-export const t = initTRPC.context<Context>().create();
+export const t = initTRPC.context<Context>().create({
+  errorFormatter({ shape, error }) {
+    const cause =
+      error.cause && typeof error.cause === "object"
+        ? (error.cause as unknown as Record<string, unknown>)
+        : null;
+
+    return cause
+      ? {
+          ...shape,
+          data: {
+            ...shape.data,
+            cause
+          }
+        }
+      : shape;
+  }
+});
 
 // ── Protected: requires session ──────────────────────────────
 export const protectedProcedure = t.procedure.use(async ({ ctx, next }) => {
@@ -12,7 +29,8 @@ export const protectedProcedure = t.procedure.use(async ({ ctx, next }) => {
   if (!ctx.session || !authContext) {
     throw new TRPCError({
       code: "UNAUTHORIZED",
-      message: "Sign in to access this procedure."
+      message: ctx.authFailure?.body.error ?? "Sign in to access this procedure.",
+      cause: ctx.authFailure?.body
     });
   }
 

@@ -1,5 +1,5 @@
 import { hasAllScopes, type ApiTokenScope, type AppRole } from "@daoflow/shared";
-import { resolveBearerTokenAuth } from "../api-token-auth";
+import { resolveBearerTokenAuthResult } from "../api-token-auth";
 import { auth, type AuthSession } from "../auth";
 import { getSessionAuthContext, type RequestAuthContext } from "../context";
 import { ensureControlPlaneReady } from "../db/services/seed";
@@ -38,9 +38,10 @@ export async function authorizeRequest(input: {
   requiredScopes: readonly ApiTokenScope[];
 }): Promise<RequestAuthorizationResult> {
   const session = await auth.api.getSession({ headers: input.headers });
-  const tokenAuth = session
-    ? null
-    : await resolveBearerTokenAuth(input.headers.get("authorization"));
+  const tokenAuthResult = session
+    ? ({ status: "absent" } as const)
+    : await resolveBearerTokenAuthResult(input.headers.get("authorization"));
+  const tokenAuth = tokenAuthResult.status === "ok" ? tokenAuthResult.auth : null;
   const authContext = tokenAuth
     ? ({
         method: "api-token",
@@ -53,6 +54,18 @@ export async function authorizeRequest(input: {
         }
       } satisfies RequestAuthContext)
     : getSessionAuthContext(session);
+
+  if (tokenAuthResult.status === "rejected") {
+    return {
+      ok: false,
+      status: 401,
+      body: {
+        ok: false,
+        error: tokenAuthResult.failure.error,
+        code: tokenAuthResult.failure.code
+      }
+    };
+  }
 
   if (!authContext || !(tokenAuth?.session ?? session)) {
     return authRequiredResult();

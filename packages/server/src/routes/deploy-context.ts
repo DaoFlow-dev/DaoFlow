@@ -2,11 +2,9 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join, normalize, relative, resolve } from "node:path";
 import { Hono, type Context } from "hono";
 import { parse as parseYaml } from "yaml";
-import { hasAllScopes, normalizeAppRole, roleCapabilities, type AppRole } from "@daoflow/shared";
-import { auth } from "../auth";
+import type { AppRole } from "@daoflow/shared";
 import { buildComposeBuildPlan } from "../compose-build-plan";
 import { deriveComposeStackName } from "../db/services/compose-deployment-plan-build";
-import { ensureControlPlaneReady } from "../db/services/seed";
 import { ensureDirectDeploymentScope } from "../db/services/direct-deployments";
 import { createDeploymentRecord } from "../db/services/deployments";
 import { dispatchDeploymentExecution } from "../db/services/deployment-dispatch";
@@ -17,6 +15,7 @@ import {
   createDirectContextUploadSession,
   loadDirectContextUploadSession
 } from "./deploy-context-upload";
+import { authorizeRequest } from "./request-auth";
 import { streamBodyToFile } from "./stream-to-file";
 
 export const deployContextRouter = new Hono();
@@ -176,37 +175,18 @@ function resolveUploadedComposeFiles(
 }
 
 async function requireDeployActor(c: Context) {
-  const session = await auth.api.getSession({ headers: c.req.raw.headers });
-  if (!session) {
-    return c.json(
-      {
-        ok: false,
-        error: "Valid authentication required. Provide a session cookie.",
-        code: "AUTH_REQUIRED"
-      },
-      401
-    );
-  }
-
-  await ensureControlPlaneReady();
-
-  const role = normalizeAppRole((session.user as Record<string, unknown>).role);
-  if (!hasAllScopes(roleCapabilities[role], ["deploy:start"])) {
-    return c.json(
-      {
-        ok: false,
-        error: "Missing required scope(s): deploy:start",
-        code: "SCOPE_DENIED",
-        requiredScope: "deploy:start"
-      },
-      403
-    );
+  const authResult = await authorizeRequest({
+    headers: c.req.raw.headers,
+    requiredScopes: ["deploy:start"]
+  });
+  if (!authResult.ok) {
+    return c.json(authResult.body, authResult.status);
   }
 
   return {
-    userId: session.user.id,
-    email: session.user.email,
-    role
+    userId: authResult.actor.auth.principal.linkedUserId ?? authResult.actor.auth.principal.id,
+    email: authResult.actor.auth.principal.email,
+    role: authResult.actor.role
   } satisfies DeployActor;
 }
 

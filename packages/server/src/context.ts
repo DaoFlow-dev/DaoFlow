@@ -7,7 +7,7 @@ import {
 } from "@daoflow/shared";
 import { auth } from "./auth";
 import type { AuthSession } from "./auth";
-import { resolveBearerTokenAuth } from "./api-token-auth";
+import { resolveBearerTokenAuthResult, type TokenAuthFailureCode } from "./api-token-auth";
 
 export interface RequestAuthContext {
   method: "session" | "api-token";
@@ -33,6 +33,14 @@ export interface Context {
   requestId: string;
   session: AuthSession;
   auth?: RequestAuthContext | null;
+  authFailure?: {
+    status: 401;
+    body: {
+      ok: false;
+      error: string;
+      code: TokenAuthFailureCode;
+    };
+  } | null;
 }
 
 export function getSessionAuthContext(session: AuthSession): RequestAuthContext | null {
@@ -61,7 +69,10 @@ export async function createContext(c: HonoContext): Promise<Context> {
   const session = await auth.api.getSession({
     headers: c.req.raw.headers
   });
-  const tokenAuth = session ? null : await resolveBearerTokenAuth(c.req.header("authorization"));
+  const tokenAuthResult = session
+    ? ({ status: "absent" } as const)
+    : await resolveBearerTokenAuthResult(c.req.header("authorization"));
+  const tokenAuth = tokenAuthResult.status === "ok" ? tokenAuthResult.auth : null;
 
   return {
     requestId:
@@ -78,6 +89,17 @@ export async function createContext(c: HonoContext): Promise<Context> {
             scopes: tokenAuth.presentedScopes
           }
         }
-      : getSessionAuthContext(session)
+      : getSessionAuthContext(session),
+    authFailure:
+      tokenAuthResult.status === "rejected"
+        ? {
+            status: 401,
+            body: {
+              ok: false,
+              error: tokenAuthResult.failure.error,
+              code: tokenAuthResult.failure.code
+            }
+          }
+        : null
   };
 }

@@ -13,6 +13,7 @@ import { webhooksRouter } from "./routes/webhooks";
 import { deployContextRouter } from "./routes/deploy-context";
 import { cliAuthRouter } from "./routes/cli-auth";
 import { serviceObservabilityRouter } from "./routes/service-observability";
+import { authorizeRequest } from "./routes/request-auth";
 import { ensureInitialOwnerFromEnv } from "./bootstrap-initial-owner";
 
 type Env = {
@@ -148,16 +149,12 @@ export function createApp() {
 
   // ── SSE Log Streaming (T-15) ──────────────────────────────
   app.get("/api/v1/logs/stream/:deploymentId", async (c) => {
-    const session = await auth.api.getSession({ headers: c.req.raw.headers });
-    if (!session) {
-      return c.json(
-        {
-          ok: false,
-          error: "Valid authentication required. Provide a session cookie or Bearer token.",
-          code: "AUTH_REQUIRED"
-        },
-        401
-      );
+    const authResult = await authorizeRequest({
+      headers: c.req.raw.headers,
+      requiredScopes: ["logs:read"]
+    });
+    if (!authResult.ok) {
+      return c.json(authResult.body, authResult.status);
     }
 
     const deploymentId = c.req.param("deploymentId");

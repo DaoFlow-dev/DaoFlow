@@ -8,12 +8,11 @@ API tokens provide scoped access to the DaoFlow API for CLI, CI/CD, and AI agent
 
 ## Creating Tokens
 
-### Via Dashboard
+### Via CLI
 
-1. Go to **Settings → Tokens**
-2. Click **Create Token**
-3. Enter a name and select scopes
-4. Copy the generated token (shown only once)
+```bash
+daoflow token create --name "ci-agent" --preset agent:minimal-write --expires 90 --yes
+```
 
 ### Via API
 
@@ -39,6 +38,8 @@ POST /trpc/generateAgentToken
 ```
 
 `createAgent` is role-gated to `owner` and `admin`. `generateAgentToken` requires the `tokens:manage` scope and an admin-capable role.
+
+The dashboard currently exposes token inventory and agent-principal management surfaces, while token minting itself remains a CLI/admin-API flow.
 
 ## Token Properties
 
@@ -80,6 +81,8 @@ curl -H "Authorization: Bearer dfl_abc123" \
   https://deploy.example.com/trpc/viewer
 ```
 
+Bearer `dfl_...` tokens are also accepted on token-aware REST endpoints under `/api/v1`, including direct compose deploy intake, uploaded-context deploys, image operations, log streaming, and service observability routes.
+
 ## Effective Permissions
 
 DaoFlow evaluates API tokens as:
@@ -91,3 +94,13 @@ Examples:
 - An `owner` token scoped to `deploy:read` can inspect deployments but cannot mutate infrastructure
 - An `agent` token scoped to read endpoints cannot exceed the built-in `agent` role ceiling
 - Revoked, expired, or invalidated tokens are rejected before the request reaches tRPC procedures
+
+## Structured Failure Codes
+
+Unauthorized token-backed requests return deterministic machine-readable codes:
+
+- `AUTH_REQUIRED` — no valid session cookie or Bearer token was provided
+- `TOKEN_INVALID` — the presented token does not exist or does not match any stored token hash
+- `TOKEN_REVOKED` — the token was explicitly revoked
+- `TOKEN_EXPIRED` — the token TTL has elapsed
+- `TOKEN_INVALIDATED` — the backing principal was deactivated or the token was rotated out via invalidation cutoff

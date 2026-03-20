@@ -8,6 +8,7 @@ import { db } from "./db/connection";
 import { deployments } from "./db/schema/deployments";
 import { gitInstallations, gitProviders } from "./db/schema/git-providers";
 import { projects } from "./db/schema/projects";
+import { apiTokens, principals } from "./db/schema/tokens";
 import { users } from "./db/schema/users";
 import { encrypt } from "./db/crypto";
 import { encodeGitInstallationPermissions } from "./db/services/git-providers";
@@ -114,6 +115,59 @@ function mockGitLabSourceFetch(input: {
 
     throw new Error(`Unexpected fetch request: ${url}`);
   };
+}
+
+async function createAgentBearerToken(input?: {
+  preset?: "agent:read-only" | "agent:minimal-write" | "agent:full";
+  expiresAt?: Date;
+  principalId?: string;
+  revoke?: boolean;
+}) {
+  const preset = input?.preset ?? "agent:read-only";
+  let resolvedPrincipalId = input?.principalId ?? "";
+  if (!input?.principalId) {
+    const created = await createAgentPrincipal({
+      name: `api-token-agent-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      description: "Token-backed app test",
+      preset,
+      requestedByUserId: "user_foundation_owner",
+      requestedByEmail: "owner@daoflow.local",
+      requestedByRole: "owner"
+    });
+
+    expect(created.status).toBe("ok");
+    if (created.status !== "ok") {
+      throw new Error("Failed to create agent principal test fixture.");
+    }
+
+    resolvedPrincipalId = created.principal.id;
+  }
+
+  const generated = await generateAgentToken({
+    principalId: resolvedPrincipalId,
+    tokenName: `${preset}-token`,
+    requestedByUserId: "user_foundation_owner",
+    requestedByEmail: "owner@daoflow.local",
+    requestedByRole: "owner"
+  });
+
+  expect(generated.status).toBe("ok");
+  if (generated.status !== "ok") {
+    throw new Error("Failed to generate agent token test fixture.");
+  }
+
+  if (input?.expiresAt || input?.revoke) {
+    await db
+      .update(apiTokens)
+      .set({
+        expiresAt: input.expiresAt ?? undefined,
+        status: input.revoke ? "revoked" : undefined,
+        revokedAt: input.revoke ? new Date() : undefined
+      })
+      .where(eq(apiTokens.id, generated.token.id));
+  }
+
+  return generated.tokenValue;
 }
 
 describe("createApp", () => {
@@ -641,6 +695,112 @@ describe("createApp", () => {
     expect(body.code).toBe("AUTH_REQUIRED");
   });
 
+  it("accepts read-only bearer tokens on GET /api/v1/images", async () => {
+    await resetTestDatabase();
+    resetControlPlaneSeedState();
+    await ensureControlPlaneReady();
+
+    const app = createApp();
+    const tokenValue = await createAgentBearerToken({ preset: "agent:read-only" });
+    const response = await app.request("/api/v1/images", {
+      headers: {
+        Authorization: `Bearer ${tokenValue}`
+      }
+    });
+    const body = (await response.json()) as { images: unknown[] };
+
+    expect(response.status).toBe(200);
+    expect(Array.isArray(body.images)).toBe(true);
+  });
+
+  it("returns TOKEN_EXPIRED for expired bearer tokens on GET /api/v1/images", async () => {
+    await resetTestDatabase();
+    resetControlPlaneSeedState();
+    await ensureControlPlaneReady();
+
+    const app = createApp();
+    const tokenValue = await createAgentBearerToken({
+      preset: "agent:read-only",
+      expiresAt: new Date(Date.now() - 60_000)
+    });
+    const response = await app.request("/api/v1/images", {
+      headers: {
+        Authorization: `Bearer ${tokenValue}`
+      }
+    });
+    const body = (await response.json()) as { code: string; error: string };
+
+    expect(response.status).toBe(401);
+    expect(body.code).toBe("TOKEN_EXPIRED");
+    expect(body.error).toContain("expired");
+  });
+
+  it("returns TOKEN_REVOKED for revoked bearer tokens on GET /api/v1/images", async () => {
+    await resetTestDatabase();
+    resetControlPlaneSeedState();
+    await ensureControlPlaneReady();
+
+    const app = createApp();
+    const tokenValue = await createAgentBearerToken({
+      preset: "agent:read-only",
+      revoke: true
+    });
+    const response = await app.request("/api/v1/images", {
+      headers: {
+        Authorization: `Bearer ${tokenValue}`
+      }
+    });
+    const body = (await response.json()) as { code: string; error: string };
+
+    expect(response.status).toBe(401);
+    expect(body.code).toBe("TOKEN_REVOKED");
+    expect(body.error).toContain("revoked");
+  });
+
+  it("returns TOKEN_INVALID for unknown bearer tokens on GET /api/v1/images", async () => {
+    await resetTestDatabase();
+    resetControlPlaneSeedState();
+    await ensureControlPlaneReady();
+
+    const app = createApp();
+    const response = await app.request("/api/v1/images", {
+      headers: {
+        Authorization: "Bearer dfl_invalid_token_for_rest_auth"
+      }
+    });
+    const body = (await response.json()) as { code: string; error: string };
+
+    expect(response.status).toBe(401);
+    expect(body.code).toBe("TOKEN_INVALID");
+    expect(body.error).toContain("invalid");
+  });
+
+  it("returns TOKEN_INVALIDATED for invalidated bearer tokens on GET /api/v1/images", async () => {
+    await resetTestDatabase();
+    resetControlPlaneSeedState();
+    await ensureControlPlaneReady();
+
+    const app = createApp();
+    const principalId = "principal_observer_agent_1";
+    const tokenValue = await createAgentBearerToken({
+      preset: "agent:read-only",
+      principalId
+    });
+
+    await db.update(principals).set({ status: "inactive" }).where(eq(principals.id, principalId));
+
+    const response = await app.request("/api/v1/images", {
+      headers: {
+        Authorization: `Bearer ${tokenValue}`
+      }
+    });
+    const body = (await response.json()) as { code: string; error: string };
+
+    expect(response.status).toBe(401);
+    expect(body.code).toBe("TOKEN_INVALIDATED");
+    expect(body.error).toContain("invalidated");
+  });
+
   it("rejects unauthenticated POST /api/v1/deploy/compose with 401", async () => {
     const app = createApp();
     const response = await app.request("/api/v1/deploy/compose", {
@@ -654,6 +814,31 @@ describe("createApp", () => {
 
     expect(response.status).toBe(401);
     expect(body.code).toBe("AUTH_REQUIRED");
+  });
+
+  it("denies read-only bearer tokens on POST /api/v1/deploy/compose", async () => {
+    await resetTestDatabase();
+    resetControlPlaneSeedState();
+    await ensureControlPlaneReady();
+
+    const app = createApp();
+    const tokenValue = await createAgentBearerToken({ preset: "agent:read-only" });
+    const response = await app.request("/api/v1/deploy/compose", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${tokenValue}`
+      },
+      body: JSON.stringify({
+        server: "srv_foundation_1",
+        compose: "services:\n  web:\n    image: nginx:alpine\n"
+      })
+    });
+    const body = (await response.json()) as { code: string; requiredScopes: string[] };
+
+    expect(response.status).toBe(403);
+    expect(body.code).toBe("SCOPE_DENIED");
+    expect(body.requiredScopes).toEqual(["deploy:start"]);
   });
 
   it("rejects unauthenticated POST /api/v1/deploy/uploads/intake with 401", async () => {
@@ -1565,6 +1750,24 @@ describe("createApp", () => {
 
     expect(response.status).toBe(401);
     expect(body.code).toBe("AUTH_REQUIRED");
+  });
+
+  it("accepts bearer tokens on GET /api/v1/logs/stream when the token includes logs:read", async () => {
+    await resetTestDatabase();
+    resetControlPlaneSeedState();
+    await ensureControlPlaneReady();
+
+    const app = createApp();
+    const tokenValue = await createAgentBearerToken({ preset: "agent:read-only" });
+    const response = await app.request("/api/v1/logs/stream/dep-test-123", {
+      headers: {
+        Accept: "text/event-stream",
+        Authorization: `Bearer ${tokenValue}`
+      }
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toContain("text/event-stream");
   });
 
   it("rejects unauthenticated GET /api/v1/container-stats with 401", async () => {

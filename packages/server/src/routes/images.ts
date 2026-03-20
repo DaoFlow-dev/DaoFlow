@@ -4,9 +4,9 @@ import { unlink } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
-import { auth } from "../auth";
 import { streamBodyToFile } from "./stream-to-file";
 import { dockerLoad, dockerListImages, type DockerImageListEntry } from "../worker/docker-executor";
+import { authorizeRequest } from "./request-auth";
 
 const imagesRouter = new Hono();
 
@@ -31,18 +31,12 @@ function collectLogs(): { logs: string[]; onLog: import("../worker/docker-execut
  * Query params: tag, server, service
  */
 imagesRouter.post("/push", async (c) => {
-  // Auth gate: validate session via Better Auth (same as tRPC context)
-  const session = await auth.api.getSession({ headers: c.req.raw.headers });
-  if (!session) {
-    return c.json(
-      {
-        status: "error",
-        error: "unauthorized",
-        message: "Valid authentication required. Provide a session cookie or Bearer token.",
-        code: "AUTH_REQUIRED"
-      },
-      401
-    );
+  const authResult = await authorizeRequest({
+    headers: c.req.raw.headers,
+    requiredScopes: ["deploy:start"]
+  });
+  if (!authResult.ok) {
+    return c.json(authResult.body, authResult.status);
   }
 
   const tag = c.req.query("tag") ?? "daoflow-app:latest";
@@ -110,17 +104,12 @@ imagesRouter.post("/push", async (c) => {
  * List Docker images on the server.
  */
 imagesRouter.get("/", async (c) => {
-  const session = await auth.api.getSession({ headers: c.req.raw.headers });
-  if (!session) {
-    return c.json(
-      {
-        status: "error",
-        error: "unauthorized",
-        message: "Valid authentication required. Provide a session cookie or Bearer token.",
-        code: "AUTH_REQUIRED"
-      },
-      401
-    );
+  const authResult = await authorizeRequest({
+    headers: c.req.raw.headers,
+    requiredScopes: ["deploy:read"]
+  });
+  if (!authResult.ok) {
+    return c.json(authResult.body, authResult.status);
   }
 
   try {

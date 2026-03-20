@@ -32,7 +32,7 @@ That means a token can only narrow a principal, never widen it.
 
 ### Creating Tokens
 
-Agent tokens are created in the dashboard or through the admin API in two steps:
+Agent tokens are minted through the CLI or admin API in two steps:
 
 ```bash
 # 1. Create the agent principal
@@ -57,6 +57,8 @@ POST /trpc/generateAgentToken
 
 `createAgent` is role-gated to `owner` and `admin`. `generateAgentToken` requires the `tokens:manage` scope plus an admin-capable role.
 
+Bearer `dfl_...` tokens are accepted on both tRPC procedures and the token-aware REST surfaces under `/api/v1`, including direct compose deploy intake, uploaded-context deploys, image operations, log streaming, and service observability endpoints.
+
 For the full machine-readable contract, including the exact input JSON Schema for both procedures, use [`api-contract.json`](/contracts/api-contract.json).
 
 ### Token Format
@@ -79,6 +81,14 @@ Tokens follow the format: `dfl_<random_string>`
 - CLI requests with `dfl_...` tokens use `Authorization: Bearer ...`
 - CLI requests with non-`dfl_...` tokens continue to use Better Auth session cookies
 - `daoflow whoami --json` reports `authMethod`, token metadata, and `session: null` when the current identity is token-backed
+
+### Structured Token Failures
+
+- Missing credentials return `AUTH_REQUIRED`
+- Unknown tokens return `TOKEN_INVALID`
+- Revoked tokens return `TOKEN_REVOKED`
+- Expired tokens return `TOKEN_EXPIRED`
+- Invalidated principals or rotation cutoffs return `TOKEN_INVALIDATED`
 
 ## First User
 

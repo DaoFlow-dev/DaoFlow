@@ -226,6 +226,31 @@ describe("appRouter", () => {
     } satisfies Partial<TRPCError>);
   });
 
+  it("propagates structured token auth failures through protected procedures", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-protected-expired-token",
+      session: null,
+      authFailure: {
+        status: 401,
+        body: {
+          ok: false,
+          error: "API token has expired.",
+          code: "TOKEN_EXPIRED"
+        }
+      }
+    });
+
+    await expect(caller.recentDeployments({})).rejects.toMatchObject({
+      code: "UNAUTHORIZED",
+      message: "API token has expired.",
+      cause: {
+        ok: false,
+        error: "API token has expired.",
+        code: "TOKEN_EXPIRED"
+      }
+    });
+  });
+
   it("filters roadmap items by lane", async () => {
     const caller = appRouter.createCaller({ requestId: "test-roadmap", session: null });
     const response = await caller.roadmap({ lane: "agent-safety" });
