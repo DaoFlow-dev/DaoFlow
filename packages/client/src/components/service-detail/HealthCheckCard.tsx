@@ -19,7 +19,7 @@ export function HealthCheckCard({ healthcheckPath, port }: HealthCheckCardProps)
   const [hcStartPeriod, setHcStartPeriod] = useState("15");
 
   return (
-    <Card>
+    <Card className="shadow-sm">
       <CardHeader>
         <CardTitle className="text-sm flex items-center gap-2">
           <Heart size={14} />

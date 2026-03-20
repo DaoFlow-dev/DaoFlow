@@ -8,10 +8,12 @@ export default function NotFoundPage() {
     <main className="shell flex min-h-[60vh] items-center justify-center">
       <Card className="w-full max-w-md text-center">
         <CardHeader className="space-y-2 pb-4">
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-muted">
-            <SearchX size={32} className="text-muted-foreground" />
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/10 to-primary/5">
+            <SearchX size={32} className="text-primary/50" />
           </div>
-          <CardTitle className="text-5xl font-extrabold text-muted-foreground/60">404</CardTitle>
+          <CardTitle className="text-5xl font-extrabold tracking-tighter text-muted-foreground/40">
+            404
+          </CardTitle>
           <CardDescription className="text-base">
             This page doesn&apos;t exist or has been moved.
           </CardDescription>

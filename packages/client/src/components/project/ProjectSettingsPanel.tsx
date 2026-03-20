@@ -29,7 +29,7 @@ export function ProjectSettingsPanel({
   errorMessage
 }: ProjectSettingsPanelProps) {
   return (
-    <Card className="border-primary/30">
+    <Card className="border-primary/30 shadow-sm">
       <CardHeader>
         <CardTitle className="text-sm flex items-center gap-2">
           <Settings2 size={14} />

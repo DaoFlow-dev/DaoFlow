@@ -86,9 +86,9 @@ export default function MonitoringTab({
 
   if (!stats && !isPolling) {
     return (
-      <Card>
+      <Card className="shadow-sm">
         <CardContent className="flex flex-col items-center justify-center gap-3 py-16">
-          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-muted">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/10 to-primary/5">
             <Power size={24} className="text-muted-foreground" />
           </div>
           <div className="text-center">
@@ -160,7 +160,7 @@ export default function MonitoringTab({
       </div>
 
       {/* CPU Chart */}
-      <Card>
+      <Card className="shadow-sm">
         <CardHeader>
           <div className="flex items-center gap-2">
             <CardTitle className="text-sm flex items-center gap-2">
@@ -195,7 +195,7 @@ export default function MonitoringTab({
       </Card>
 
       {/* Memory Chart */}
-      <Card>
+      <Card className="shadow-sm">
         <CardHeader>
           <CardTitle className="text-sm flex items-center gap-2">
             <MemoryStick size={14} />
@@ -208,7 +208,7 @@ export default function MonitoringTab({
       </Card>
 
       {/* Network Chart */}
-      <Card>
+      <Card className="shadow-sm">
         <CardHeader>
           <CardTitle className="text-sm flex items-center gap-2">
             <Network size={14} />
@@ -246,7 +246,7 @@ function StatsCard({
   color?: string;
 }) {
   return (
-    <Card>
+    <Card className="border-border/50 shadow-sm transition-all duration-200 hover:shadow-md">
       <CardContent className="pt-6">
         <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
           {icon}

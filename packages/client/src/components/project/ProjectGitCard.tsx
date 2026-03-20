@@ -28,10 +28,10 @@ export function ProjectGitCard({ config }: ProjectGitCardProps) {
   const shortUrl = repoUrl.replace(/^https?:\/\//, "").replace(/\.git$/, "");
 
   return (
-    <Card>
+    <Card className="shadow-sm">
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-base flex items-center gap-2">
+          <CardTitle className="text-base font-semibold flex items-center gap-2">
             <GitBranch size={16} />
             Git Repository
           </CardTitle>

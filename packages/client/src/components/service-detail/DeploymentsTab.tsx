@@ -60,9 +60,9 @@ export default function DeploymentsTab({ serviceId, serviceName }: DeploymentsTa
   if (deployments.isLoading) {
     return (
       <div className="space-y-3">
-        <Skeleton className="h-16 w-full" />
-        <Skeleton className="h-16 w-full" />
-        <Skeleton className="h-16 w-full" />
+        <Skeleton className="h-16 w-full rounded-xl" />
+        <Skeleton className="h-16 w-full rounded-xl" />
+        <Skeleton className="h-16 w-full rounded-xl" />
       </div>
     );
   }
@@ -101,7 +101,7 @@ export default function DeploymentsTab({ serviceId, serviceName }: DeploymentsTa
 
       {/* Deployment list */}
       {serviceDeployments.length === 0 ? (
-        <Card>
+        <Card className="shadow-sm">
           <CardContent className="py-12 text-center text-muted-foreground">
             No deployments yet for this service.
           </CardContent>
@@ -127,7 +127,7 @@ export default function DeploymentsTab({ serviceId, serviceName }: DeploymentsTa
               error?: unknown;
               configSnapshot?: unknown;
             }) => (
-              <Card key={d.id} className="overflow-hidden">
+              <Card key={d.id} className="shadow-sm overflow-hidden">
                 <button
                   className="w-full text-left p-4 flex items-center justify-between hover:bg-muted/50 transition-colors"
                   onClick={() => setExpandedId(expandedId === d.id ? null : d.id)}

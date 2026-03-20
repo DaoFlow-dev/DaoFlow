@@ -13,7 +13,23 @@ import {
   TableHeader,
   TableRow
 } from "@/components/ui/table";
-import { Rocket, ChevronDown, ChevronRight, RotateCcw, RefreshCw, XCircle } from "lucide-react";
+import {
+  Rocket,
+  ChevronDown,
+  ChevronRight,
+  RotateCcw,
+  RefreshCw,
+  XCircle,
+  Search
+} from "lucide-react";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from "@/components/ui/select";
 import DeploymentLogViewer from "@/components/DeploymentLogViewer";
 import DeploymentRollbackDialog from "@/components/DeploymentRollbackDialog";
 import { getBadgeVariantFromTone } from "@/lib/tone-utils";
@@ -34,6 +50,8 @@ export default function DeploymentsPage() {
   const session = useSession();
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [rollbackServiceId, setRollbackServiceId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
 
   const recentDeployments = trpc.recentDeployments.useQuery(
     { limit: 50 },
@@ -45,6 +63,19 @@ export default function DeploymentsPage() {
   });
 
   const deployments = recentDeployments.data ?? [];
+
+  const filteredDeployments = deployments.filter((d) => {
+    const matchesSearch = searchQuery
+      ? String(d.serviceName ?? d.projectId ?? "")
+          .toLowerCase()
+          .includes(searchQuery.toLowerCase())
+      : true;
+    const matchesStatus =
+      statusFilter === "all"
+        ? true
+        : String(d.statusLabel).toLowerCase() === statusFilter.toLowerCase();
+    return matchesSearch && matchesStatus;
+  });
 
   function toggleExpand(id: string) {
     setExpandedId((prev) => (prev === id ? null : id));
@@ -59,11 +90,39 @@ export default function DeploymentsPage() {
         </p>
       </div>
 
+      {/* Search + Filter Bar */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="relative flex-1 min-w-[200px]">
+          <Search
+            size={16}
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+          />
+          <Input
+            placeholder="Search by service name..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="w-[140px]">
+            <SelectValue placeholder="Status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Status</SelectItem>
+            <SelectItem value="healthy">Healthy</SelectItem>
+            <SelectItem value="failed">Failed</SelectItem>
+            <SelectItem value="running">Running</SelectItem>
+            <SelectItem value="queued">Queued</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
       <Card className="shadow-sm">
         <CardHeader>
           <CardTitle className="text-base font-semibold">Deployment History</CardTitle>
           <CardDescription>
-            {deployments.length} deployment
+            {filteredDeployments.length} of {deployments.length} deployment
             {deployments.length !== 1 ? "s" : ""}
           </CardDescription>
         </CardHeader>
@@ -86,6 +145,20 @@ export default function DeploymentsPage() {
                 </p>
               </div>
             </div>
+          ) : filteredDeployments.length === 0 ? (
+            <div className="flex flex-col items-center gap-2 py-12 text-center">
+              <p className="text-sm text-muted-foreground">No deployments match your filters.</p>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  setSearchQuery("");
+                  setStatusFilter("all");
+                }}
+              >
+                Clear filters
+              </Button>
+            </div>
           ) : (
             <Table>
               <TableHeader>
@@ -99,7 +172,7 @@ export default function DeploymentsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {deployments.map((d) => {
+                {filteredDeployments.map((d) => {
                   const id = String(d.id);
                   const isExpanded = expandedId === id;
                   const lifecycleStatus =

@@ -67,7 +67,7 @@ export default function ComposeEditorTab({
   }
 
   return (
-    <Card>
+    <Card className="shadow-sm">
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle className="text-sm flex items-center gap-2">

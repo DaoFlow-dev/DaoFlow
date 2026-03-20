@@ -73,15 +73,15 @@ export default function ActivityTab({ serviceId: _serviceId }: ActivityTabProps)
   if (audit.isLoading || timeline.isLoading) {
     return (
       <div className="space-y-3">
-        <Skeleton className="h-12 w-full" />
-        <Skeleton className="h-12 w-full" />
-        <Skeleton className="h-12 w-full" />
+        <Skeleton className="h-12 w-full rounded-xl" />
+        <Skeleton className="h-12 w-full rounded-xl" />
+        <Skeleton className="h-12 w-full rounded-xl" />
       </div>
     );
   }
 
   return (
-    <Card>
+    <Card className="shadow-sm">
       <CardHeader>
         <CardTitle className="text-sm flex items-center gap-2">
           <Activity size={14} />

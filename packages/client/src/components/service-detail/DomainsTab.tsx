@@ -100,7 +100,7 @@ export default function DomainsTab({
   return (
     <div className="space-y-6">
       {/* Domains */}
-      <Card>
+      <Card className="shadow-sm">
         <CardHeader>
           <CardTitle className="text-sm flex items-center gap-2">
             <Globe size={14} />
@@ -188,7 +188,7 @@ export default function DomainsTab({
       </Card>
 
       {/* Port Mappings */}
-      <Card>
+      <Card className="shadow-sm">
         <CardHeader>
           <CardTitle className="text-sm flex items-center gap-2">
             <Cable size={14} />
@@ -254,7 +254,7 @@ export default function DomainsTab({
       </Card>
 
       {/* Reverse Proxy */}
-      <Card>
+      <Card className="shadow-sm">
         <CardHeader>
           <CardTitle className="text-sm flex items-center gap-2">
             <Shield size={14} />

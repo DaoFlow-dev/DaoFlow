@@ -37,7 +37,7 @@ export function VolumesCard() {
   }
 
   return (
-    <Card>
+    <Card className="shadow-sm">
       <CardHeader>
         <CardTitle className="text-sm flex items-center gap-2">
           <HardDrive size={14} />

@@ -16,7 +16,7 @@ export function RestartPolicyCard() {
   const [maxRetries, setMaxRetries] = useState("3");
 
   return (
-    <Card>
+    <Card className="shadow-sm">
       <CardHeader>
         <CardTitle className="text-sm flex items-center gap-2">
           <RefreshCw size={14} />

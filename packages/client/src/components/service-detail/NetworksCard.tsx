@@ -20,7 +20,7 @@ export function NetworksCard() {
   }
 
   return (
-    <Card>
+    <Card className="shadow-sm">
       <CardHeader>
         <CardTitle className="text-sm flex items-center gap-2">
           <Network size={14} />

@@ -11,7 +11,7 @@ export function ResourceLimitsCard() {
   const [memoryReservation, setMemoryReservation] = useState("");
 
   return (
-    <Card>
+    <Card className="shadow-sm">
       <CardHeader>
         <CardTitle className="text-sm flex items-center gap-2">
           <Cpu size={14} />

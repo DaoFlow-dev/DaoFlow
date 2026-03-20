@@ -16,7 +16,14 @@ import {
   DialogTitle,
   DialogTrigger
 } from "@/components/ui/dialog";
-import { FolderKanban, Plus, Search, Loader2 } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from "@/components/ui/select";
+import { FolderKanban, Plus, Search, Loader2, ArrowUpDown } from "lucide-react";
 import { getInventoryBadgeVariant } from "../lib/tone-utils";
 
 export default function ProjectsPage() {
@@ -25,6 +32,7 @@ export default function ProjectsPage() {
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [sortBy, setSortBy] = useState<"name" | "recent">("name");
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   function debounceSearch(value: string) {
@@ -38,6 +46,14 @@ export default function ProjectsPage() {
   const allProjects = (projectsQuery.data ?? []).filter((p) =>
     String(p.name).toLowerCase().includes(search.toLowerCase())
   );
+
+  const sortedProjects = [...allProjects].sort((a, b) => {
+    if (sortBy === "name") return String(a.name).localeCompare(String(b.name));
+    // Sort by most recent first (createdAt descending)
+    const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+    const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+    return dateB - dateA;
+  });
 
   const createProject = trpc.createProject.useMutation({
     onSuccess: () => {
@@ -135,20 +151,32 @@ export default function ProjectsPage() {
         </Dialog>
       </div>
 
-      <div className="relative">
-        <Search
-          size={16}
-          className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
-        />
-        <Input
-          placeholder="Search projects..."
-          value={searchInput}
-          onChange={(e) => {
-            setSearchInput(e.target.value);
-            debounceSearch(e.target.value);
-          }}
-          className="pl-9 shadow-sm"
-        />
+      <div className="flex items-center gap-3">
+        <div className="relative flex-1">
+          <Search
+            size={16}
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+          />
+          <Input
+            placeholder="Search projects..."
+            value={searchInput}
+            onChange={(e) => {
+              setSearchInput(e.target.value);
+              debounceSearch(e.target.value);
+            }}
+            className="pl-9 shadow-sm"
+          />
+        </div>
+        <Select value={sortBy} onValueChange={(v) => setSortBy(v as "name" | "recent")}>
+          <SelectTrigger className="w-[140px]">
+            <ArrowUpDown size={14} className="mr-1.5" />
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="name">Name</SelectItem>
+            <SelectItem value="recent">Recent</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       {projectsQuery.isLoading ? (
@@ -157,7 +185,7 @@ export default function ProjectsPage() {
             <Skeleton key={i} className="h-28 w-full rounded-lg" />
           ))}
         </div>
-      ) : allProjects.length === 0 ? (
+      ) : sortedProjects.length === 0 ? (
         <div className="flex flex-col items-center gap-4 py-16 text-center">
           <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/10 to-primary/5">
             <FolderKanban size={28} className="text-primary/50" />
@@ -175,7 +203,7 @@ export default function ProjectsPage() {
         </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {allProjects.map((p) => (
+          {sortedProjects.map((p) => (
             <Card
               key={String(p.id)}
               className="group cursor-pointer overflow-hidden border-border/50 transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/15 hover:shadow-md"

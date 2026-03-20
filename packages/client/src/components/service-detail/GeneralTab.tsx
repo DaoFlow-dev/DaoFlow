@@ -52,9 +52,9 @@ export default function GeneralTab({ service }: GeneralTabProps) {
   return (
     <div className="space-y-6">
       {/* Deploy Actions */}
-      <Card>
+      <Card className="shadow-sm">
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">Deploy Settings</CardTitle>
+          <CardTitle className="text-base font-semibold">Deploy Settings</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="flex flex-wrap items-center gap-2">
@@ -85,7 +85,7 @@ export default function GeneralTab({ service }: GeneralTabProps) {
 
       {/* Status Cards Row */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
+        <Card className="border-border/50 shadow-sm transition-all duration-200 hover:shadow-md">
           <CardContent className="pt-6">
             <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
               <Activity size={14} />
@@ -106,7 +106,7 @@ export default function GeneralTab({ service }: GeneralTabProps) {
             </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="border-border/50 shadow-sm transition-all duration-200 hover:shadow-md">
           <CardContent className="pt-6">
             <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
               <Box size={14} />
@@ -115,7 +115,7 @@ export default function GeneralTab({ service }: GeneralTabProps) {
             <span className="text-lg font-semibold">{service.sourceType}</span>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="border-border/50 shadow-sm transition-all duration-200 hover:shadow-md">
           <CardContent className="pt-6">
             <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
               <Server size={14} />
@@ -124,7 +124,7 @@ export default function GeneralTab({ service }: GeneralTabProps) {
             <span className="text-lg font-semibold">{service.replicaCount}</span>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="border-border/50 shadow-sm transition-all duration-200 hover:shadow-md">
           <CardContent className="pt-6">
             <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
               <Clock size={14} />
@@ -139,7 +139,7 @@ export default function GeneralTab({ service }: GeneralTabProps) {
       </div>
 
       {/* Configuration Card */}
-      <Card>
+      <Card className="shadow-sm">
         <CardHeader>
           <CardTitle className="text-sm flex items-center gap-2">
             <Settings2 size={14} />
@@ -171,7 +171,7 @@ export default function GeneralTab({ service }: GeneralTabProps) {
 
       {/* Network Info */}
       {service.port && (
-        <Card>
+        <Card className="shadow-sm">
           <CardHeader>
             <CardTitle className="text-sm flex items-center gap-2">
               <Globe size={14} />

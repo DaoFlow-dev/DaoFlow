@@ -130,16 +130,16 @@ export default function EnvironmentTab({
   if (envQuery.isLoading) {
     return (
       <div className="space-y-3">
-        <Skeleton className="h-10 w-full" />
-        <Skeleton className="h-10 w-full" />
-        <Skeleton className="h-10 w-full" />
+        <Skeleton className="h-10 w-full rounded-xl" />
+        <Skeleton className="h-10 w-full rounded-xl" />
+        <Skeleton className="h-10 w-full rounded-xl" />
       </div>
     );
   }
 
   if (!environmentId) {
     return (
-      <Card>
+      <Card className="shadow-sm">
         <CardContent className="py-12 text-center text-muted-foreground">
           No environment linked to this service. Environment variables require an environment
           context.
@@ -208,7 +208,7 @@ export default function EnvironmentTab({
       )}
 
       {/* Build Args & Secrets (Dokploy pattern) */}
-      <Card>
+      <Card className="shadow-sm">
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <CardTitle className="text-sm flex items-center gap-2">

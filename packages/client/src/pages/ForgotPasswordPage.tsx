@@ -40,7 +40,7 @@ export default function ForgotPasswordPage() {
     <main className="flex min-h-[80vh] items-center justify-center px-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center space-y-2">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/10 to-primary/5 shadow-sm">
             <Mail size={24} className="text-primary" />
           </div>
           <CardTitle>Reset Password</CardTitle>
