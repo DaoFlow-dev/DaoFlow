@@ -1,6 +1,12 @@
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import {
   LayoutDashboard,
@@ -105,6 +111,8 @@ const ALL_ITEMS: PaletteItem[] = [...QUICK_ACTION_ITEMS, ...NAVIGATION_ITEMS];
 
 const RECENT_STORAGE_KEY = "daoflow-recent-pages";
 const MAX_RECENT = 5;
+const COMMAND_PALETTE_INPUT_ID = "command-palette-input";
+const COMMAND_PALETTE_LISTBOX_ID = "command-palette-listbox";
 
 const LABEL_MAP: Record<string, string> = {
   "/": "Dashboard",
@@ -144,6 +152,10 @@ function saveRecentPage(path: string) {
   const recent = loadRecentPages().filter((p) => p !== path);
   recent.unshift(path);
   localStorage.setItem(RECENT_STORAGE_KEY, JSON.stringify(recent.slice(0, MAX_RECENT)));
+}
+
+function getPaletteOptionId(item: PaletteItem) {
+  return `command-palette-option-${item.id}`;
 }
 
 export function CommandPalette() {
@@ -241,6 +253,9 @@ export function CommandPalette() {
   // Keyboard navigation within the list
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
+      if (flatItems.length === 0) {
+        return;
+      }
       if (e.key === "ArrowDown") {
         e.preventDefault();
         setActiveIndex((prev) => (prev + 1) % flatItems.length);
@@ -269,17 +284,30 @@ export function CommandPalette() {
     }
   }, [activeIndex]);
 
+  const activeItem = flatItems[activeIndex];
+  const activeDescendantId = activeItem ? getPaletteOptionId(activeItem) : undefined;
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent className="max-w-md p-0 gap-0" onKeyDown={handleKeyDown}>
         <DialogHeader className="sr-only">
           <DialogTitle>Command Palette</DialogTitle>
+          <DialogDescription>
+            Search navigation targets and quick actions, then use the arrow keys to choose a
+            command.
+          </DialogDescription>
         </DialogHeader>
 
         {/* Search input */}
         <div className="flex items-center border-b px-3">
           <Search size={14} className="text-muted-foreground mr-2" />
           <Input
+            id={COMMAND_PALETTE_INPUT_ID}
+            role="combobox"
+            aria-autocomplete="list"
+            aria-controls={COMMAND_PALETTE_LISTBOX_ID}
+            aria-expanded={open}
+            aria-activedescendant={activeDescendantId}
             placeholder="Type a command or search..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -292,7 +320,13 @@ export function CommandPalette() {
         </div>
 
         {/* Items list */}
-        <div ref={listRef} className="max-h-[300px] overflow-y-auto p-1">
+        <div
+          ref={listRef}
+          id={COMMAND_PALETTE_LISTBOX_ID}
+          role="listbox"
+          aria-labelledby={COMMAND_PALETTE_INPUT_ID}
+          className="max-h-[300px] overflow-y-auto p-1"
+        >
           {filtered.length === 0 ? (
             <p className="py-6 text-center text-sm text-muted-foreground">No results found.</p>
           ) : (
@@ -307,6 +341,9 @@ export function CommandPalette() {
                   return (
                     <button
                       key={item.id}
+                      id={getPaletteOptionId(item)}
+                      role="option"
+                      aria-selected={isActive}
                       data-active={isActive}
                       onClick={() => handleSelect(item.path)}
                       onMouseEnter={() => setActiveIndex(idx)}
