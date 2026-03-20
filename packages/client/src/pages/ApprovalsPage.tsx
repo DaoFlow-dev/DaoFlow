@@ -18,9 +18,9 @@ export default function ApprovalsPage() {
 
   if (session.isPending || approvalQueue.isLoading) {
     return (
-      <div className="space-y-4">
-        <Skeleton className="h-8 w-64" />
-        <Skeleton className="h-32 w-full" />
+      <div className="space-y-4 p-4">
+        <Skeleton className="h-8 w-64 rounded-lg" />
+        <Skeleton className="h-32 w-full rounded-xl" />
       </div>
     );
   }
@@ -29,9 +29,9 @@ export default function ApprovalsPage() {
     <div className="space-y-6">
       <div className="flex items-center gap-3">
         <ShieldCheck size={24} />
-        <h1 className="text-2xl font-bold">Approvals</h1>
+        <h1 className="text-2xl font-bold tracking-tight">Approvals</h1>
       </div>
-      <p className="text-muted-foreground">
+      <p className="text-sm text-muted-foreground">
         Review high-risk operations that require human approval before execution.
       </p>
       <ApprovalQueue

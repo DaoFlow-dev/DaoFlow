@@ -57,7 +57,10 @@ export default function SettingsPage() {
       </div>
 
       {!session.data ? (
-        <div className="flex flex-col items-center gap-2 py-12 text-center">
+        <div className="flex flex-col items-center gap-4 py-16 text-center">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/10 to-primary/5">
+            <Settings size={28} className="text-primary/50" />
+          </div>
           <p className="text-sm text-muted-foreground">Sign in to access settings.</p>
         </div>
       ) : (
@@ -74,7 +77,7 @@ export default function SettingsPage() {
           }}
           className="w-full"
         >
-          <TabsList className="w-full justify-start">
+          <TabsList className="w-full justify-start overflow-x-auto">
             <TabsTrigger value="general" className="gap-1.5">
               <Settings size={14} /> General
             </TabsTrigger>
@@ -100,7 +103,7 @@ export default function SettingsPage() {
               <Lock size={14} /> Secret Providers
             </TabsTrigger>
           </TabsList>
-          <div className="mt-4 min-h-[400px]" role="tabpanel" aria-live="polite">
+          <div className="mt-6 min-h-[400px]" role="tabpanel" aria-live="polite">
             {activeTab === "general" && (
               <GeneralSettingsTab
                 currentRole={currentRole}

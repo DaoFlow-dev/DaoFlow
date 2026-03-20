@@ -41,8 +41,8 @@ export default function ProjectDetailPage() {
   if (project.isLoading) {
     return (
       <div className="space-y-4">
-        <Skeleton className="h-8 w-64" />
-        <Skeleton className="h-48 w-full" />
+        <Skeleton className="h-8 w-64 rounded-xl" />
+        <Skeleton className="h-48 w-full rounded-xl" />
       </div>
     );
   }

@@ -27,7 +27,7 @@ export function ProjectOverviewCards({
 }: ProjectOverviewCardsProps) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-      <Card>
+      <Card className="border-border/50 shadow-sm transition-all duration-200 hover:shadow-md">
         <CardContent className="pt-6">
           <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
             <Box size={14} />
@@ -36,7 +36,7 @@ export function ProjectOverviewCards({
           <span className="text-2xl font-bold">{serviceCount}</span>
         </CardContent>
       </Card>
-      <Card>
+      <Card className="border-border/50 shadow-sm transition-all duration-200 hover:shadow-md">
         <CardContent className="pt-6">
           <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
             <CheckCircle size={14} className="text-green-500" />
@@ -51,7 +51,7 @@ export function ProjectOverviewCards({
           )}
         </CardContent>
       </Card>
-      <Card>
+      <Card className="border-border/50 shadow-sm transition-all duration-200 hover:shadow-md">
         <CardContent className="pt-6">
           <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
             <Layers size={14} />
@@ -60,7 +60,7 @@ export function ProjectOverviewCards({
           <span className="text-2xl font-bold">{envCount}</span>
         </CardContent>
       </Card>
-      <Card>
+      <Card className="border-border/50 shadow-sm transition-all duration-200 hover:shadow-md">
         <CardContent className="pt-6">
           <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
             <Clock size={14} />

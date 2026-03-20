@@ -56,19 +56,24 @@ export default function BackupsPage() {
           <Skeleton className="h-32 w-full" />
         </div>
       ) : policies.length === 0 && runs.length === 0 ? (
-        <div className="flex flex-col items-center gap-2 py-12 text-center">
-          <DatabaseBackup size={32} className="text-muted-foreground" />
-          <p className="text-sm text-muted-foreground">
-            No backup policies configured. Create a policy to start backing up your data.
-          </p>
+        <div className="flex flex-col items-center gap-4 py-16 text-center">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/10 to-primary/5">
+            <DatabaseBackup size={28} className="text-primary/50" />
+          </div>
+          <div>
+            <p className="text-sm font-medium text-foreground">No backup policies configured</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Create a policy to start backing up your data.
+            </p>
+          </div>
         </div>
       ) : (
         <>
           {/* Policies */}
           {policies.length > 0 && (
-            <Card>
+            <Card className="shadow-sm">
               <CardHeader>
-                <CardTitle className="text-base">Backup Policies</CardTitle>
+                <CardTitle className="text-base font-semibold">Backup Policies</CardTitle>
                 <CardDescription>
                   {policies.length} policy{policies.length !== 1 ? "ies" : "y"}
                 </CardDescription>
@@ -80,7 +85,10 @@ export default function BackupsPage() {
                     const hasSchedule = Boolean(p.scheduleLabel);
 
                     return (
-                      <div key={policyId} className="rounded-lg border p-4 space-y-3">
+                      <div
+                        key={policyId}
+                        className="rounded-xl border border-border/50 p-5 space-y-3 shadow-sm transition-all duration-200 hover:shadow-md"
+                      >
                         <div className="flex items-center justify-between gap-2">
                           <p className="text-sm font-semibold">{String(p.serviceName)}</p>
                           <div className="flex items-center gap-1">
@@ -176,9 +184,9 @@ export default function BackupsPage() {
 
           {/* Recent Runs */}
           {runs.length > 0 && (
-            <Card>
+            <Card className="shadow-sm">
               <CardHeader>
-                <CardTitle className="text-base">Recent Runs</CardTitle>
+                <CardTitle className="text-base font-semibold">Recent Runs</CardTitle>
               </CardHeader>
               <CardContent>
                 <Table>

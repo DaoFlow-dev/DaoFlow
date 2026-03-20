@@ -42,11 +42,11 @@ export function ProjectServicesList({
 
       {isLoading ? (
         <div className="space-y-2">
-          <Skeleton className="h-16 w-full" />
-          <Skeleton className="h-16 w-full" />
+          <Skeleton className="h-16 w-full rounded-xl" />
+          <Skeleton className="h-16 w-full rounded-xl" />
         </div>
       ) : services.length === 0 ? (
-        <Card>
+        <Card className="shadow-sm">
           <CardContent className="py-12 text-center text-muted-foreground">
             {activeEnv
               ? "No services in this environment."
@@ -58,7 +58,7 @@ export function ProjectServicesList({
           {services.map((svc) => (
             <Card
               key={svc.id}
-              className="hover:border-primary/30 transition-colors cursor-pointer"
+              className="shadow-sm hover:border-primary/30 transition-all duration-200 hover:shadow-md cursor-pointer"
               onClick={() => void navigate(`/services/${svc.id}`)}
             >
               <CardContent className="py-4 flex items-center justify-between">

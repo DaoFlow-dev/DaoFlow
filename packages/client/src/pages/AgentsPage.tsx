@@ -45,7 +45,7 @@ daoflow logs --json`;
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold flex items-center gap-2">
+          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
             <Bot size={24} /> Agents
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
@@ -64,18 +64,25 @@ daoflow logs --json`;
         </div>
       ) : agents.data?.length === 0 ? (
         <Card>
-          <CardContent className="py-16 text-center text-muted-foreground">
-            <Bot size={32} className="mx-auto mb-3 opacity-40" />
-            <p>No agents configured yet.</p>
-            <p className="text-xs mt-1">
-              Create an agent principal with scoped permissions for AI systems.
-            </p>
+          <CardContent className="flex flex-col items-center gap-4 py-16 text-center">
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/10 to-primary/5">
+              <Bot size={28} className="text-primary/50" />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-foreground">No agents configured yet</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Create an agent principal with scoped permissions for AI systems.
+              </p>
+            </div>
           </CardContent>
         </Card>
       ) : (
         <div className="space-y-3">
           {agents.data?.map((agent) => (
-            <Card key={agent.id}>
+            <Card
+              key={agent.id}
+              className="border-border/50 shadow-sm transition-all duration-200 hover:shadow-md"
+            >
               <CardHeader className="pb-2">
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-base flex items-center gap-2">

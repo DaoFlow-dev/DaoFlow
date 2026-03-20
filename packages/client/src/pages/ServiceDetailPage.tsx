@@ -43,9 +43,9 @@ export default function ServiceDetailPage() {
   if (service.isLoading) {
     return (
       <div className="space-y-4">
-        <Skeleton className="h-12 w-64" />
-        <Skeleton className="h-10 w-full" />
-        <Skeleton className="h-48 w-full" />
+        <Skeleton className="h-12 w-64 rounded-xl" />
+        <Skeleton className="h-10 w-full rounded-xl" />
+        <Skeleton className="h-48 w-full rounded-xl" />
       </div>
     );
   }
@@ -88,7 +88,7 @@ export default function ServiceDetailPage() {
 
       {/* Tabbed interface (item 1) */}
       <Tabs defaultValue="general" className="w-full">
-        <TabsList className="w-full justify-start flex-wrap h-auto gap-1 bg-transparent p-0 border-b rounded-none pb-2">
+        <TabsList className="w-full justify-start flex-wrap h-auto gap-1 bg-transparent p-0 border-b rounded-none pb-2 overflow-x-auto">
           <TabsTrigger value="general" className="gap-1.5 data-[state=active]:bg-muted">
             <Settings2 size={14} />
             General

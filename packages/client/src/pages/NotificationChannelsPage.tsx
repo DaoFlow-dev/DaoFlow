@@ -57,11 +57,15 @@ export default function NotificationChannelsPage() {
         </div>
       ) : items.length === 0 ? (
         <Card>
-          <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
-            <Bell size={32} className="text-muted-foreground" />
+          <CardContent className="flex flex-col items-center gap-4 py-16 text-center">
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/10 to-primary/5">
+              <Bell size={28} className="text-primary/50" />
+            </div>
             <div>
-              <p className="font-medium">No notification channels configured</p>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-sm font-medium text-foreground">
+                No notification channels configured
+              </p>
+              <p className="mt-1 text-sm text-muted-foreground">
                 Add a delivery target before enabling project-specific routing preferences.
               </p>
             </div>
