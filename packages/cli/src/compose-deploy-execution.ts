@@ -3,24 +3,39 @@ import { basename } from "node:path";
 import { ApiClient, ApiError } from "./api-client";
 import { emitJsonSuccess } from "./command-helpers";
 import { createContextBundle } from "./context-bundler";
+import { readComposeFileSet } from "./compose-file-set";
 import { parseSizeString } from "./config-loader";
 import type { ComposeDeployCoreOptions } from "./compose-deploy-types";
 
 export async function executeComposeDeploy(
-  composeContent: string,
   requiresContextUpload: boolean,
   options: ComposeDeployCoreOptions
 ): Promise<void> {
+  const composeFiles =
+    options.composeFiles && options.composeFiles.length > 0
+      ? options.composeFiles
+      : readComposeFileSet({
+          composePath: options.composePath,
+          composeOverrides: options.composeOverrides
+        });
+  const primaryComposeFile = composeFiles[0];
+
   if (requiresContextUpload) {
-    await uploadContextBundle(options.contextPath, composeContent, options);
+    await uploadContextBundle(
+      options.contextPath,
+      composeFiles,
+      primaryComposeFile.contents,
+      options
+    );
     return;
   }
 
-  await executeRemoteComposeDeploy(composeContent, options);
+  await executeRemoteComposeDeploy(composeFiles, primaryComposeFile.contents, options);
 }
 
 function executeRemoteComposeDeploy(
-  composeContent: string,
+  composeFiles: Array<{ path: string; contents: string }>,
+  primaryComposeContent: string,
   options: ComposeDeployCoreOptions
 ): Promise<void> {
   const api = new ApiClient();
@@ -30,8 +45,10 @@ function executeRemoteComposeDeploy(
       deploymentId: string;
     }>("/api/v1/deploy/compose", {
       server: options.serverId,
-      compose: composeContent,
-      project: deriveProjectName(options.composePath, composeContent)
+      compose: primaryComposeContent,
+      composeFiles,
+      profiles: options.composeProfiles,
+      project: deriveProjectName(options.composePath, primaryComposeContent)
     })
     .then((response) => {
       renderQueuedDeployment(response.deploymentId, options);
@@ -43,7 +60,8 @@ function executeRemoteComposeDeploy(
 
 async function uploadContextBundle(
   contextPath: string,
-  composeContent: string,
+  composeFiles: Array<{ path: string; contents: string }>,
+  primaryComposeContent: string,
   options: ComposeDeployCoreOptions
 ): Promise<void> {
   const bundle = createContextBundle({
@@ -66,8 +84,15 @@ async function uploadContextBundle(
         contentType: "application/gzip",
         headers: {
           "X-DaoFlow-Server": options.serverId,
-          "X-DaoFlow-Compose": Buffer.from(composeContent, "utf8").toString("base64"),
-          "X-DaoFlow-Project": deriveProjectName(options.composePath, composeContent)
+          "X-DaoFlow-Compose": Buffer.from(primaryComposeContent, "utf8").toString("base64"),
+          "X-DaoFlow-Compose-Files": Buffer.from(JSON.stringify(composeFiles), "utf8").toString(
+            "base64"
+          ),
+          "X-DaoFlow-Compose-Profiles": Buffer.from(
+            JSON.stringify(options.composeProfiles ?? []),
+            "utf8"
+          ).toString("base64"),
+          "X-DaoFlow-Project": deriveProjectName(options.composePath, primaryComposeContent)
         }
       }
     )) as { ok: boolean; deploymentId: string };

@@ -24,6 +24,10 @@ export interface DaoflowConfig {
   environment?: string;
   /** Path to compose file (default: compose.yaml) */
   compose?: string;
+  /** Additional compose override files in order */
+  composeOverrides?: string[];
+  /** Compose profiles to enable */
+  composeProfiles?: string[];
   /** Build context path (default: .) */
   context?: string;
   /** Dockerfile path (default: Dockerfile) */

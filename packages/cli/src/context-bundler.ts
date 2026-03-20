@@ -63,6 +63,11 @@ export interface ComposeInputAnalysis {
   requiresContextUpload: boolean;
 }
 
+export interface ComposeInputSourceFile {
+  path: string;
+  contents: string;
+}
+
 const DEFAULT_MAX_SIZE = 500 * 1024 * 1024; // 500MB
 
 /**
@@ -297,5 +302,36 @@ export function analyzeComposeInputs(composeContent: string): ComposeInputAnalys
     localBuildContexts,
     localEnvFiles,
     requiresContextUpload: localBuildContexts.length > 0 || localEnvFiles.length > 0
+  };
+}
+
+export function analyzeComposeFileSetInputs(
+  composeFiles: ComposeInputSourceFile[]
+): ComposeInputAnalysis {
+  const buildContexts = new Map<string, ComposeBuildContextReference>();
+  const envFiles = new Map<string, ComposeEnvFileReference>();
+
+  for (const composeFile of composeFiles) {
+    const analysis = analyzeComposeInputs(composeFile.contents);
+
+    for (const buildContext of analysis.localBuildContexts) {
+      buildContexts.set(
+        `${buildContext.serviceName}:${buildContext.context}:${buildContext.dockerfile ?? ""}`,
+        buildContext
+      );
+    }
+
+    for (const envFile of analysis.localEnvFiles) {
+      envFiles.set(
+        `${envFile.serviceName}:${envFile.path}:${envFile.required ? "required" : "optional"}`,
+        envFile
+      );
+    }
+  }
+
+  return {
+    localBuildContexts: [...buildContexts.values()],
+    localEnvFiles: [...envFiles.values()],
+    requiresContextUpload: buildContexts.size > 0 || envFiles.size > 0
   };
 }

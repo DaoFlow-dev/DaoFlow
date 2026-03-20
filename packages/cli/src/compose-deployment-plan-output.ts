@@ -26,6 +26,8 @@ export interface ComposeDeploymentPlanPreview {
     serverName: string;
     serverHost: string;
     composePath: string | null;
+    composeFiles: string[];
+    composeProfiles: string[];
     contextPath: string | null;
     requiresContextUpload: boolean;
     localBuildContexts: Array<{
@@ -85,6 +87,12 @@ export function printComposeDeploymentPlan(
   );
   console.log(`  ${chalk.bold("Server:")}   ${plan.target.serverName} (${plan.target.serverHost})`);
   console.log(`  ${chalk.bold("Compose:")}  ${plan.target.composePath ?? "<compose-path>"}`);
+  if (plan.target.composeFiles.length > 1) {
+    console.log(`  ${chalk.bold("Overrides:")} ${plan.target.composeFiles.slice(1).join(", ")}`);
+  }
+  if (plan.target.composeProfiles.length > 0) {
+    console.log(`  ${chalk.bold("Profiles:")} ${plan.target.composeProfiles.join(", ")}`);
+  }
   console.log(`  ${chalk.bold("Context:")}  ${plan.target.contextPath ?? "."}`);
   console.log(
     `  ${chalk.bold("Upload:")}   ${plan.target.requiresContextUpload ? chalk.yellow("yes") : chalk.green("no")}`

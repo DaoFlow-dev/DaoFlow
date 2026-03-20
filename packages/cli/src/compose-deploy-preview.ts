@@ -1,11 +1,12 @@
 import { existsSync, readFileSync, unlinkSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { emitJsonSuccess } from "./command-helpers";
+import { readComposeFileSet } from "./compose-file-set";
 import {
   printComposeDeploymentPlan,
   type ComposeDeploymentPlanPreview
 } from "./compose-deployment-plan-output";
-import { analyzeComposeInputs, createContextBundle } from "./context-bundler";
+import { analyzeComposeFileSetInputs, createContextBundle } from "./context-bundler";
 import { parseSizeString } from "./config-loader";
 import type { ComposeDeployCoreOptions } from "./compose-deploy-types";
 
@@ -14,6 +15,11 @@ export interface ComposeDeploymentPlanClientLike {
     query(input: {
       server: string;
       compose: string;
+      composeFiles?: Array<{
+        path: string;
+        contents: string;
+      }>;
+      composeProfiles?: string[];
       composePath?: string;
       contextPath?: string;
       repoDefaultContent?: string;
@@ -46,14 +52,17 @@ export async function fetchComposeDeploymentPlan(
   trpc: ComposeDeploymentPlanClientLike,
   options: ComposeDeployCoreOptions
 ): Promise<ComposeDeploymentPlanPreview> {
-  const resolvedCompose = resolve(options.composePath);
-  if (!existsSync(resolvedCompose)) {
-    throw new Error(`Compose file not found: ${options.composePath}`);
-  }
-
-  const composeContent = readFileSync(resolvedCompose, "utf8");
+  const composeFiles =
+    options.composeFiles && options.composeFiles.length > 0
+      ? options.composeFiles
+      : readComposeFileSet({
+          composePath: options.composePath,
+          composeOverrides: options.composeOverrides
+        });
+  const primaryComposeFile = composeFiles[0];
+  const resolvedCompose = resolve(primaryComposeFile.path);
   const repoDefaultContent = readComposeRepoDefaults(resolvedCompose);
-  const composeInputs = analyzeComposeInputs(composeContent);
+  const composeInputs = analyzeComposeFileSetInputs(composeFiles);
   const buildContexts = composeInputs.localBuildContexts.map((context) => ({
     serviceName: context.serviceName,
     context: context.context,
@@ -100,8 +109,10 @@ export async function fetchComposeDeploymentPlan(
 
   return await trpc.composeDeploymentPlan.query({
     server: options.serverId,
-    compose: composeContent,
-    composePath: options.composePath,
+    compose: primaryComposeFile.contents,
+    composeFiles,
+    composeProfiles: options.composeProfiles,
+    composePath: primaryComposeFile.path,
     contextPath: options.contextPath,
     repoDefaultContent,
     localBuildContexts: buildContexts,

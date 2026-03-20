@@ -31,6 +31,18 @@
       "default": "compose.yaml",
       "examples": ["compose.yaml", "docker-compose.yml", "infra/compose.prod.yaml"]
     },
+    "composeOverrides": {
+      "type": "array",
+      "description": "Additional compose override files, applied in order after the primary compose file.",
+      "items": { "type": "string" },
+      "examples": [["compose.prod.yaml"], ["compose.base.yaml", "compose.workers.yaml"]]
+    },
+    "composeProfiles": {
+      "type": "array",
+      "description": "Compose profiles to enable for plan and deploy commands.",
+      "items": { "type": "string" },
+      "examples": [["prod"], ["workers", "metrics"]]
+    },
     "context": {
       "type": "string",
       "description": "Docker build context path, relative to the config file. When set to '.', the entire directory is bundled and uploaded.",

@@ -11,11 +11,12 @@
 
 import { Command } from "commander";
 import chalk from "chalk";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { createClient } from "../trpc-client";
+import { readComposeFileSet } from "../compose-file-set";
 import { loadDaoflowConfig, type DaoflowConfig } from "../config-loader";
-import { analyzeComposeInputs } from "../context-bundler";
+import { analyzeComposeFileSetInputs } from "../context-bundler";
 import {
   emitJsonError,
   emitJsonSuccess,
@@ -55,6 +56,18 @@ export function deployCommand(): Command {
     .description("Deploy a service or compose project")
     .option("--service <id>", "Service ID to deploy")
     .option("--compose <path>", "Docker Compose file path")
+    .option(
+      "--compose-override <path>",
+      "Additional Docker Compose override file, applied after --compose",
+      (value: string, previous: string[] = []) => [...previous, value],
+      []
+    )
+    .option(
+      "--profile <name>",
+      "Compose profile to enable",
+      (value: string, previous: string[] = []) => [...previous, value],
+      []
+    )
     .option("--context <path>", "Build context path (default: .)")
     .option("--server <id>", "Target server ID")
     .option("--commit <sha>", "Commit SHA to deploy")
@@ -69,6 +82,8 @@ export function deployCommand(): Command {
         opts: {
           service?: string;
           compose?: string;
+          composeOverride?: string[];
+          profile?: string[];
           context?: string;
           server?: string;
           commit?: string;
@@ -91,6 +106,12 @@ export function deployCommand(): Command {
 
         // Merge config defaults with CLI flags
         const composePath = opts.compose ?? cfg?.compose;
+        const composeOverrides =
+          opts.composeOverride && opts.composeOverride.length > 0
+            ? opts.composeOverride
+            : (cfg?.composeOverrides ?? []);
+        const composeProfiles =
+          opts.profile && opts.profile.length > 0 ? opts.profile : (cfg?.composeProfiles ?? []);
         const contextPath = opts.context ?? cfg?.context ?? ".";
         const serverId = opts.server ?? cfg?.server;
         const serviceId = opts.service;
@@ -99,6 +120,8 @@ export function deployCommand(): Command {
         if (composePath) {
           await handleComposeDeploy({
             composePath,
+            composeOverrides,
+            composeProfiles,
             contextPath,
             serverId,
             dryRun: opts.dryRun,
@@ -195,6 +218,8 @@ export function deployCommand(): Command {
 
 interface ComposeDeployOpts {
   composePath: string;
+  composeOverrides: string[];
+  composeProfiles: string[];
   contextPath: string;
   serverId?: string;
   dryRun?: boolean;
@@ -250,8 +275,11 @@ async function handleComposeDeploy(opts: ComposeDeployOpts): Promise<void> {
   }
 
   // Parse compose and detect local inputs that require context artifacting.
-  const composeContent = readFileSync(resolvedCompose, "utf-8");
-  const composeInputs = analyzeComposeInputs(composeContent);
+  const composeFiles = readComposeFileSet({
+    composePath: opts.composePath,
+    composeOverrides: opts.composeOverrides
+  });
+  const composeInputs = analyzeComposeFileSetInputs(composeFiles);
 
   if (!opts.serverId) {
     const error = "--server is required for compose deployments.";
@@ -266,6 +294,9 @@ async function handleComposeDeploy(opts: ComposeDeployOpts): Promise<void> {
 
   const composeOptions: ComposeDeployCoreOptions = {
     composePath: opts.composePath,
+    composeOverrides: opts.composeOverrides,
+    composeFiles,
+    composeProfiles: opts.composeProfiles,
     contextPath: opts.contextPath,
     serverId: opts.serverId,
     json: opts.json,
@@ -321,7 +352,7 @@ async function handleComposeDeploy(opts: ComposeDeployOpts): Promise<void> {
 
   // ── Execute compose deploy ───────────────────────────────
   try {
-    await executeComposeDeploy(composeContent, composeInputs.requiresContextUpload, composeOptions);
+    await executeComposeDeploy(composeInputs.requiresContextUpload, composeOptions);
   } catch (err) {
     if (opts.json) {
       emitJsonError(getErrorMessage(err), "DEPLOY_ERROR");

@@ -458,6 +458,11 @@ export interface DaoFlowTRPC {
     {
       server: string;
       compose: string;
+      composeFiles?: Array<{
+        path: string;
+        contents: string;
+      }>;
+      composeProfiles?: string[];
       composePath?: string;
       contextPath?: string;
       localBuildContexts: Array<{

@@ -124,6 +124,8 @@ describe("previewComposeDeploy", () => {
                 serverName: "prod-west",
                 serverHost: "203.0.113.10",
                 composePath,
+                composeFiles: [composePath],
+                composeProfiles: [],
                 contextPath: contextDir,
                 requiresContextUpload: true,
                 localBuildContexts: [
@@ -243,6 +245,8 @@ describe("previewComposeDeploy", () => {
                 serverName: "prod-west",
                 serverHost: "203.0.113.10",
                 composePath,
+                composeFiles: [composePath],
+                composeProfiles: [],
                 contextPath: contextDir,
                 requiresContextUpload: true,
                 localBuildContexts: [],
@@ -338,6 +342,8 @@ describe("previewComposeDeploy", () => {
                 serverName: "prod-west",
                 serverHost: "203.0.113.10",
                 composePath,
+                composeFiles: [composePath],
+                composeProfiles: [],
                 contextPath: contextDir,
                 requiresContextUpload: false,
                 localBuildContexts: [],
@@ -456,6 +462,8 @@ describe("previewComposeDeploy", () => {
                   serverName: "prod-west",
                   serverHost: "203.0.113.10",
                   composePath,
+                  composeFiles: [composePath],
+                  composeProfiles: [],
                   contextPath: contextDir,
                   requiresContextUpload: true,
                   localBuildContexts: [
@@ -571,6 +579,8 @@ describe("previewComposeDeploy", () => {
             serverName: "prod-west",
             serverHost: "203.0.113.10",
             composePath,
+            composeFiles: [composePath],
+            composeProfiles: [],
             contextPath: contextDir,
             requiresContextUpload: true,
             localBuildContexts: [
@@ -592,5 +602,91 @@ describe("previewComposeDeploy", () => {
         }
       }
     });
+  });
+
+  test("fetchComposeDeploymentPlan reuses provided compose files without rereading them from disk", async () => {
+    let receivedInput: Record<string, unknown> | undefined;
+
+    await fetchComposeDeploymentPlan(
+      {
+        composeDeploymentPlan: {
+          query: (input) => {
+            receivedInput = input;
+            return Promise.resolve({
+              isReady: true,
+              deploymentSource: "uploaded-compose",
+              project: { id: null, name: "compose", action: "create" },
+              environment: { id: null, name: "production", action: "create" },
+              service: {
+                id: null,
+                name: "compose",
+                action: "create",
+                sourceType: "compose"
+              },
+              composeEnvPlan: {
+                branch: "main",
+                matchedBranchOverrideCount: 0,
+                composeEnv: {
+                  precedence: [],
+                  counts: {
+                    total: 0,
+                    repoDefaults: 0,
+                    environmentVariables: 0,
+                    runtime: 0,
+                    build: 0,
+                    secrets: 0,
+                    overriddenRepoDefaults: 0
+                  },
+                  warnings: [],
+                  entries: []
+                },
+                interpolation: {
+                  status: "ok",
+                  summary: {
+                    totalReferences: 0,
+                    unresolved: 0,
+                    requiredMissing: 0,
+                    optionalMissing: 0
+                  },
+                  warnings: [],
+                  unresolved: []
+                }
+              },
+              target: {
+                serverId: "srv_123",
+                serverName: "prod-west",
+                serverHost: "203.0.113.10",
+                composePath: "compose.yaml",
+                composeFiles: ["compose.yaml"],
+                composeProfiles: [],
+                contextPath: "/tmp",
+                requiresContextUpload: false,
+                localBuildContexts: [],
+                contextBundle: null
+              },
+              preflightChecks: [{ status: "ok", detail: "Remote compose deploy ready." }],
+              steps: ["Queue"],
+              executeCommand: "daoflow deploy --compose compose.yaml --server srv_123 --yes"
+            });
+          }
+        }
+      },
+      {
+        composePath: "/path/that/does/not/exist/compose.yaml",
+        composeFiles: [
+          {
+            path: "compose.yaml",
+            contents: "services:\n  web:\n    image: nginx:alpine\n"
+          }
+        ],
+        contextPath: "/tmp",
+        serverId: "srv_123"
+      }
+    );
+
+    expect(receivedInput).toBeDefined();
+    expect(receivedInput?.compose).toContain("nginx:alpine");
+    expect(receivedInput?.composePath).toBe("compose.yaml");
+    expect(receivedInput?.requiresContextUpload).toBe(false);
   });
 });

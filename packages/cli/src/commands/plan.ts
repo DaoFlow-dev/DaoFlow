@@ -35,6 +35,18 @@ export function planCommand(): Command {
     .description("Preview a deployment plan without executing it")
     .option("--service <id>", "Service name or ID")
     .option("--compose <path>", "Docker Compose file path")
+    .option(
+      "--compose-override <path>",
+      "Additional Docker Compose override file, applied after --compose",
+      (value: string, previous: string[] = []) => [...previous, value],
+      []
+    )
+    .option(
+      "--profile <name>",
+      "Compose profile to enable",
+      (value: string, previous: string[] = []) => [...previous, value],
+      []
+    )
     .option("--context <path>", "Build context path (default: .)")
     .option("--server <id>", "Target server")
     .option("--image <tag>", "Image tag to deploy")
@@ -45,6 +57,8 @@ export function planCommand(): Command {
         opts: {
           service?: string;
           compose?: string;
+          composeOverride?: string[];
+          profile?: string[];
           context?: string;
           server?: string;
           image?: string;
@@ -61,6 +75,12 @@ export function planCommand(): Command {
 
         const serviceId = opts.service;
         const composePath = opts.compose ?? (serviceId ? undefined : cfg?.compose);
+        const composeOverrides =
+          opts.composeOverride && opts.composeOverride.length > 0
+            ? opts.composeOverride
+            : (cfg?.composeOverrides ?? []);
+        const composeProfiles =
+          opts.profile && opts.profile.length > 0 ? opts.profile : (cfg?.composeProfiles ?? []);
         const contextPath = opts.context ?? cfg?.context ?? ".";
         const serverId = opts.server ?? cfg?.server;
 
@@ -124,6 +144,8 @@ export function planCommand(): Command {
             const trpc = createClient();
             const plan = await fetchComposeDeploymentPlan(trpc, {
               composePath,
+              composeOverrides,
+              composeProfiles,
               contextPath,
               serverId: composeServerId,
               json: isJson,
