@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { memo, useState } from "react";
 import { isTRPCClientError } from "@trpc/client";
 import { trpc } from "../lib/trpc";
 import { useSession } from "../lib/auth-client";
@@ -110,72 +110,7 @@ export default function ServersPage() {
           ) : (
             <div className="grid gap-4 lg:grid-cols-2">
               {checks.map((check) => (
-                <Card
-                  key={String(check.serverId)}
-                  className="border-border/50 shadow-sm transition-all duration-200 hover:shadow-md"
-                >
-                  <CardHeader className="gap-2">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <CardTitle className="text-base">{String(check.serverName)}</CardTitle>
-                        <CardDescription>
-                          {String(check.serverHost)} · SSH {String(check.sshPort)}
-                        </CardDescription>
-                      </div>
-                      <ServerReadinessIndicator
-                        readinessStatus={String(check.readinessStatus)}
-                        dataTestId={`server-status-${String(check.serverId)}`}
-                      />
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="flex flex-wrap gap-2">
-                      <CapabilityBadge
-                        ok={check.sshReachable}
-                        label={`SSH ${check.sshReachable ? "reachable" : "blocked"}`}
-                      />
-                      <CapabilityBadge
-                        ok={check.dockerReachable}
-                        label={`Docker ${check.dockerReachable ? "reachable" : "blocked"}`}
-                      />
-                      <CapabilityBadge
-                        ok={check.composeReachable}
-                        label={`Compose ${check.composeReachable ? "reachable" : "blocked"}`}
-                      />
-                    </div>
-
-                    <div className="text-sm text-muted-foreground">
-                      Checked {new Date(String(check.checkedAt)).toLocaleString()}
-                      {check.latencyMs !== null ? ` · ${check.latencyMs} ms` : ""}
-                    </div>
-
-                    {/* Resource usage bars */}
-                    <ResourceBars check={check as Record<string, unknown>} />
-
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      <div>
-                        <p className="mb-2 text-sm font-medium">Issues</p>
-                        <ul className="space-y-1 text-sm text-muted-foreground">
-                          {check.issues.length > 0 ? (
-                            check.issues.map((issue) => <li key={issue}>{issue}</li>)
-                          ) : (
-                            <li>No open issues.</li>
-                          )}
-                        </ul>
-                      </div>
-                      <div>
-                        <p className="mb-2 text-sm font-medium">Recommended Actions</p>
-                        <ul className="space-y-1 text-sm text-muted-foreground">
-                          {check.recommendedActions.length > 0 ? (
-                            check.recommendedActions.map((action) => <li key={action}>{action}</li>)
-                          ) : (
-                            <li>No action required.</li>
-                          )}
-                        </ul>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+                <ServerCheckCard key={String(check.serverId)} check={check as ServerCheck} />
               ))}
             </div>
           )}
@@ -184,6 +119,97 @@ export default function ServersPage() {
     </main>
   );
 }
+
+interface ServerCheck {
+  serverId: unknown;
+  serverName: unknown;
+  serverHost: unknown;
+  sshPort: unknown;
+  readinessStatus: unknown;
+  sshReachable: boolean;
+  dockerReachable: boolean;
+  composeReachable: boolean;
+  checkedAt: string;
+  latencyMs: number | null;
+  issues: string[];
+  recommendedActions: string[];
+  cpuPercent?: number | null;
+  memPercent?: number | null;
+  diskPercent?: number | null;
+}
+
+interface ServerCheckCardProps {
+  check: ServerCheck;
+}
+
+export const ServerCheckCard = memo(function ServerCheckCard({ check }: ServerCheckCardProps) {
+  return (
+    <Card className="border-border/50 shadow-sm transition-all duration-200 hover:shadow-md">
+      <CardHeader className="gap-2">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <CardTitle className="text-base">{String(check.serverName)}</CardTitle>
+            <CardDescription>
+              {String(check.serverHost)} · SSH {String(check.sshPort)}
+            </CardDescription>
+          </div>
+          <ServerReadinessIndicator
+            readinessStatus={String(check.readinessStatus)}
+            dataTestId={`server-status-${String(check.serverId)}`}
+          />
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex flex-wrap gap-2">
+          <CapabilityBadge
+            ok={check.sshReachable}
+            label={`SSH ${check.sshReachable ? "reachable" : "blocked"}`}
+          />
+          <CapabilityBadge
+            ok={check.dockerReachable}
+            label={`Docker ${check.dockerReachable ? "reachable" : "blocked"}`}
+          />
+          <CapabilityBadge
+            ok={check.composeReachable}
+            label={`Compose ${check.composeReachable ? "reachable" : "blocked"}`}
+          />
+        </div>
+
+        <div className="text-sm text-muted-foreground">
+          Checked {new Date(String(check.checkedAt)).toLocaleString()}
+          {check.latencyMs !== null ? ` · ${check.latencyMs} ms` : ""}
+        </div>
+
+        <ResourceBars check={check} />
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <p className="mb-2 text-sm font-medium">Issues</p>
+            <ul className="space-y-1 text-sm text-muted-foreground">
+              {check.issues.length > 0 ? (
+                check.issues.map((issue) => <li key={issue}>{issue}</li>)
+              ) : (
+                <li>No open issues.</li>
+              )}
+            </ul>
+          </div>
+          <div>
+            <p className="mb-2 text-sm font-medium">Recommended Actions</p>
+            <ul className="space-y-1 text-sm text-muted-foreground">
+              {check.recommendedActions.length > 0 ? (
+                check.recommendedActions.map((action) => <li key={action}>{action}</li>)
+              ) : (
+                <li>No action required.</li>
+              )}
+            </ul>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+});
+
+ServerCheckCard.displayName = "ServerCheckCard";
 
 function SummaryCard({ label, value }: { label: string; value: string | number }) {
   return (
@@ -213,7 +239,7 @@ function CapabilityBadge({ ok, label }: { ok: boolean; label: string }) {
   );
 }
 
-function ResourceBars({ check }: { check: Record<string, unknown> }) {
+function ResourceBars({ check }: { check: ServerCheck }) {
   const cpuPercent = typeof check.cpuPercent === "number" ? check.cpuPercent : null;
   const memPercent = typeof check.memPercent === "number" ? check.memPercent : null;
   const diskPercent = typeof check.diskPercent === "number" ? check.diskPercent : null;

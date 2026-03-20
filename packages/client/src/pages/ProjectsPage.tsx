@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { trpc } from "../lib/trpc";
 import { useSession } from "../lib/auth-client";
@@ -83,6 +83,13 @@ export default function ProjectsPage() {
       setSearchParams(next, { replace: true });
     }
   }
+
+  const handleOpenProject = useCallback(
+    (projectId: string) => {
+      void navigate(`/projects/${projectId}`);
+    },
+    [navigate]
+  );
 
   return (
     <main className="shell space-y-6" data-testid="projects-page">
@@ -271,34 +278,53 @@ export default function ProjectsPage() {
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {sortedProjects.map((p) => (
-            <Card
-              key={String(p.id)}
-              className="group cursor-pointer overflow-hidden border-border/50 transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/15 hover:shadow-md"
-              onClick={() => void navigate(`/projects/${String(p.id)}`)}
-            >
-              <CardHeader className="flex-row items-center gap-3 space-y-0 pb-2">
-                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/8 transition-colors group-hover:bg-primary/12">
-                  <FolderKanban size={18} className="text-primary/70" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="truncate text-sm font-semibold">{String(p.name)}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {String(p.sourceType ?? "compose")}
-                  </p>
-                </div>
-                <Badge variant={getInventoryBadgeVariant(String(p.status))}>
-                  {String(p.status)}
-                </Badge>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <p className="text-xs text-muted-foreground truncate">
-                  {p.repoFullName ?? p.repoUrl ?? "No repository linked"}
-                </p>
-              </CardContent>
-            </Card>
+            <ProjectCard key={String(p.id)} project={p} onOpenProject={handleOpenProject} />
           ))}
         </div>
       )}
     </main>
   );
 }
+
+interface ProjectCardProject {
+  id: string | number;
+  name: string;
+  sourceType?: string | null;
+  status: string;
+  repoFullName?: string | null;
+  repoUrl?: string | null;
+}
+
+interface ProjectCardProps {
+  project: ProjectCardProject;
+  onOpenProject: (projectId: string) => void;
+}
+
+export const ProjectCard = memo(function ProjectCard({ project, onOpenProject }: ProjectCardProps) {
+  return (
+    <Card
+      className="group cursor-pointer overflow-hidden border-border/50 transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/15 hover:shadow-md"
+      onClick={() => onOpenProject(String(project.id))}
+    >
+      <CardHeader className="flex-row items-center gap-3 space-y-0 pb-2">
+        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/8 transition-colors group-hover:bg-primary/12">
+          <FolderKanban size={18} className="text-primary/70" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-semibold">{String(project.name)}</p>
+          <p className="text-xs text-muted-foreground">{String(project.sourceType ?? "compose")}</p>
+        </div>
+        <Badge variant={getInventoryBadgeVariant(String(project.status))}>
+          {String(project.status)}
+        </Badge>
+      </CardHeader>
+      <CardContent className="pt-0">
+        <p className="truncate text-xs text-muted-foreground">
+          {project.repoFullName ?? project.repoUrl ?? "No repository linked"}
+        </p>
+      </CardContent>
+    </Card>
+  );
+});
+
+ProjectCard.displayName = "ProjectCard";
