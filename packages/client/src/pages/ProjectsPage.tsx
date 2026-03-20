@@ -52,7 +52,7 @@ export default function ProjectsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Projects</h1>
-          <p className="text-sm text-muted-foreground/80">
+          <p className="text-sm text-muted-foreground">
             Manage your Docker and Compose deployment projects.
           </p>
         </div>
@@ -138,7 +138,7 @@ export default function ProjectsPage() {
       <div className="relative">
         <Search
           size={16}
-          className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/60"
+          className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
         />
         <Input
           placeholder="Search projects..."
@@ -196,7 +196,7 @@ export default function ProjectsPage() {
                 </Badge>
               </CardHeader>
               <CardContent className="pt-0">
-                <p className="text-xs text-muted-foreground/70 truncate">
+                <p className="text-xs text-muted-foreground truncate">
                   {p.repoFullName ?? p.repoUrl ?? "No repository linked"}
                 </p>
               </CardContent>

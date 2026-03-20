@@ -103,7 +103,7 @@ export default function DashboardPage() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
-          <p className="text-sm text-muted-foreground/80">
+          <p className="text-sm text-muted-foreground">
             Overview of your infrastructure and recent activity.
           </p>
         </div>
@@ -212,7 +212,7 @@ export default function DashboardPage() {
               </div>
               <div className="text-center">
                 <p className="font-medium text-foreground">No deployments yet</p>
-                <p className="text-sm mt-1.5 max-w-xs text-muted-foreground/80">
+                <p className="text-sm mt-1.5 max-w-xs text-muted-foreground">
                   Create a project and deploy your first service to see activity here.
                 </p>
               </div>
@@ -261,7 +261,7 @@ export default function DashboardPage() {
                           </span>
                           <Badge
                             variant={getBadgeVariantFromTone(d.statusTone)}
-                            className="px-1.5 py-0 text-[10px]"
+                            className="px-1.5 py-0 text-[11px]"
                           >
                             {d.statusLabel}
                           </Badge>

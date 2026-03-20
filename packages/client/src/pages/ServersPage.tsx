@@ -45,7 +45,7 @@ export default function ServersPage() {
       <div className="flex items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Servers</h1>
-          <p className="text-sm text-muted-foreground/80">
+          <p className="text-sm text-muted-foreground">
             Manage Docker hosts, inspect readiness checks, and register new targets.
           </p>
         </div>
@@ -210,7 +210,7 @@ function SummaryCard({ label, value }: { label: string; value: string | number }
   return (
     <Card className="border-border/50 shadow-sm transition-all duration-200 hover:shadow-md">
       <CardContent className="p-5">
-        <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground/70">
+        <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
           {label}
         </p>
         <p className="mt-1 text-2xl font-bold tracking-tight">{value}</p>

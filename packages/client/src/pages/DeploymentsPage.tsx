@@ -54,7 +54,7 @@ export default function DeploymentsPage() {
     <main className="shell space-y-6" data-testid="deployments-page">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Deployments</h1>
-        <p className="text-sm text-muted-foreground/80">
+        <p className="text-sm text-muted-foreground">
           View deployment history, logs, and rollback options.
         </p>
       </div>
@@ -199,13 +199,13 @@ export default function DeploymentsPage() {
                             <div className="space-y-4 bg-muted/10 p-5 backdrop-blur-sm">
                               <div className="grid gap-3 md:grid-cols-4">
                                 <div>
-                                  <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground/70">
+                                  <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
                                     Actor
                                   </p>
                                   <p className="text-sm font-medium">{actorLabel}</p>
                                 </div>
                                 <div>
-                                  <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground/70">
+                                  <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
                                     Commit
                                   </p>
                                   <p className="text-sm font-medium">
@@ -213,7 +213,7 @@ export default function DeploymentsPage() {
                                   </p>
                                 </div>
                                 <div>
-                                  <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground/70">
+                                  <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
                                     Image
                                   </p>
                                   <p className="truncate text-sm font-medium">
@@ -221,7 +221,7 @@ export default function DeploymentsPage() {
                                   </p>
                                 </div>
                                 <div>
-                                  <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground/70">
+                                  <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
                                     Outcome
                                   </p>
                                   <p className="text-sm font-medium">
@@ -231,7 +231,7 @@ export default function DeploymentsPage() {
                               </div>
                               {Array.isArray(d.steps) && d.steps.length > 0 ? (
                                 <div className="space-y-2">
-                                  <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground/70">
+                                  <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
                                     Structured steps
                                   </p>
                                   <div className="grid gap-2 md:grid-cols-2">
