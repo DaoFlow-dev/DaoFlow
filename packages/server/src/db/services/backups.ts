@@ -7,94 +7,13 @@ import { servers } from "../schema/servers";
 import { users } from "../schema/users";
 import type { AppRole } from "@daoflow/shared";
 import { newId as id, asRecord, readString } from "./json-helpers";
-
-const SEEDED_POLICY_VIEW: Record<
-  string,
-  {
-    projectName: string;
-    environmentName: string;
-    serviceName: string;
-    targetType: "volume" | "database";
-  }
-> = {
-  bpol_foundation_volume_daily: {
-    projectName: "DaoFlow",
-    environmentName: "production-us-west",
-    serviceName: "postgres-volume",
-    targetType: "volume"
-  },
-  bpol_foundation_db_hourly: {
-    projectName: "DaoFlow",
-    environmentName: "staging",
-    serviceName: "control-plane-db",
-    targetType: "database"
-  }
-};
-
-function getBackupOperationStatusTone(status: string) {
-  if (status === "succeeded") {
-    return "healthy" as const;
-  }
-
-  if (status === "failed") {
-    return "failed" as const;
-  }
-
-  if (status === "running") {
-    return "running" as const;
-  }
-
-  return "queued" as const;
-}
-
-function getPersistentVolumeStatusTone(backupCoverage: string, restoreReadiness: string) {
-  if (backupCoverage === "missing") {
-    return "failed" as const;
-  }
-
-  if (
-    backupCoverage === "stale" ||
-    restoreReadiness === "stale" ||
-    restoreReadiness === "untested"
-  ) {
-    return "running" as const;
-  }
-
-  return "healthy" as const;
-}
-
-function getPolicyView(
-  policy: typeof backupPolicies.$inferSelect,
-  volume?: typeof volumes.$inferSelect,
-  destination?: typeof backupDestinations.$inferSelect | null
-) {
-  const seeded = SEEDED_POLICY_VIEW[policy.id];
-  const metadata = asRecord(volume?.metadata);
-
-  return {
-    projectName: seeded?.projectName ?? readString(metadata, "projectName"),
-    environmentName: seeded?.environmentName ?? readString(metadata, "environmentName"),
-    serviceName: seeded?.serviceName ?? policy.name,
-    targetType: seeded?.targetType ?? ("volume" as const),
-    storageProvider: destination?.provider ?? destination?.name ?? "(none)"
-  };
-}
-
-async function loadBackupRelations() {
-  const [policyRows, volumeRows, serverRows, destinationRows] = await Promise.all([
-    db.select().from(backupPolicies),
-    db.select().from(volumes),
-    db.select().from(servers),
-    db.select().from(backupDestinations)
-  ]);
-
-  return {
-    policiesById: new Map(policyRows.map((row) => [row.id, row])),
-    volumesById: new Map(volumeRows.map((row) => [row.id, row])),
-    serversById: new Map(serverRows.map((row) => [row.id, row])),
-    destinationsById: new Map(destinationRows.map((row) => [row.id, row]))
-  };
-}
+import {
+  getBackupOperationStatusTone,
+  getPersistentVolumeStatusTone,
+  getPolicyView,
+  loadBackupRelations,
+  readRequestedByEmail
+} from "./backup-view-helpers";
 
 export async function listBackupOverview(limit = 12) {
   const [policies, runs, relations, triggeredByUsers] = await Promise.all([
@@ -136,12 +55,7 @@ export async function listBackupOverview(limit = 12) {
     runs: runs.map((run) => {
       const policy = relations.policiesById.get(run.policyId);
       const volume = policy ? relations.volumesById.get(policy.volumeId) : undefined;
-      const view = policy ? getPolicyView(policy, volume) : SEEDED_POLICY_VIEW[run.policyId];
-      const requestedBy =
-        run.triggeredByUserId && usersById.get(run.triggeredByUserId)
-          ? (usersById.get(run.triggeredByUserId)?.email ?? "")
-          : "scheduler";
-
+      const view = policy ? getPolicyView(policy, volume) : null;
       return {
         id: run.id,
         policyId: run.policyId,
@@ -152,7 +66,7 @@ export async function listBackupOverview(limit = 12) {
         status: run.status,
         statusTone: getBackupOperationStatusTone(run.status),
         triggerKind: run.triggeredByUserId ? ("manual" as const) : ("scheduled" as const),
-        requestedBy,
+        requestedBy: readRequestedByEmail(run.triggeredByUserId, usersById),
         artifactPath: run.artifactPath,
         bytesWritten: run.sizeBytes ? Number(run.sizeBytes) : null,
         startedAt: run.startedAt?.toISOString() ?? run.createdAt.toISOString(),
@@ -316,10 +230,7 @@ export async function listBackupRestoreQueue(limit = 12) {
         environmentName: view?.environmentName ?? "",
         serviceName: view?.serviceName ?? "",
         targetType: view?.targetType ?? ("volume" as const),
-        requestedBy:
-          restore.triggeredByUserId && usersById.get(restore.triggeredByUserId)
-            ? (usersById.get(restore.triggeredByUserId)?.email ?? "")
-            : "scheduler",
+        requestedBy: readRequestedByEmail(restore.triggeredByUserId, usersById),
         destinationServerName: server?.name ?? volume?.serverId ?? "",
         sourceArtifactPath: run?.artifactPath ?? null,
         restorePath: restore.targetPath,

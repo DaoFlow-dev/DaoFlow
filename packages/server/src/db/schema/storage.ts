@@ -4,6 +4,13 @@ import { servers } from "./servers";
 import { users } from "./users";
 import { backupDestinations } from "./destinations";
 
+export interface BackupRunLogEntry {
+  timestamp: string;
+  level: "info" | "warn" | "error";
+  phase: string;
+  message: string;
+}
+
 export const volumes = pgTable(
   "volumes",
   {
@@ -76,6 +83,7 @@ export const backupRuns = pgTable(
     triggeredByUserId: text("triggered_by_user_id").references(() => users.id, {
       onDelete: "set null"
     }),
+    logEntries: jsonb("log_entries").$type<BackupRunLogEntry[] | null>(),
     error: text("error"),
     startedAt: timestamp("started_at"),
     completedAt: timestamp("completed_at"),

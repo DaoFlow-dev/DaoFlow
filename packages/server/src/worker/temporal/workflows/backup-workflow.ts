@@ -21,6 +21,7 @@
 
 import { proxyActivities } from "@temporalio/workflow";
 import type * as backupActs from "../activities/backup-activities";
+import type * as backupLogActs from "../activities/backup-log-activities";
 import type * as dbActs from "../activities/database-activities";
 import type * as retentionActs from "../activities/retention-activities";
 import type * as notificationActs from "../activities/notification-activities";
@@ -44,6 +45,16 @@ const {
     backoffCoefficient: 2,
     initialInterval: "30s",
     maximumInterval: "5m"
+  }
+});
+
+const { appendBackupRunLog } = proxyActivities<typeof backupLogActs>({
+  startToCloseTimeout: "30 seconds",
+  retry: {
+    maximumAttempts: 2,
+    backoffCoefficient: 2,
+    initialInterval: "5s",
+    maximumInterval: "15s"
   }
 });
 
@@ -125,10 +136,27 @@ export async function backupCronWorkflow(input: BackupCronWorkflowInput): Promis
 
   let runId: string | null = null;
   let containerStopped = false;
+  const writeRunLog = async (
+    input: Parameters<typeof appendBackupRunLog>[0] & {
+      runId: string;
+    }
+  ) => {
+    try {
+      await appendBackupRunLog(input);
+    } catch {
+      // Run-log persistence is best-effort and must not change backup outcome.
+    }
+  };
 
   try {
     // Phase 2: Create backup run record
     runId = await createBackupRun(policyId, triggeredBy);
+    await writeRunLog({
+      runId,
+      level: "info",
+      phase: "prepare",
+      message: `Resolved policy ${resolved.policyName} for ${resolved.volumeName} on ${resolved.serverName}.`
+    });
 
     // Dispatch "started" notification
     try {
@@ -160,10 +188,28 @@ export async function backupCronWorkflow(input: BackupCronWorkflowInput): Promis
 
     // Phase 2.5: Stop container if turnOff is enabled
     if (resolved.turnOff) {
+      await writeRunLog({
+        runId,
+        level: "info",
+        phase: "prepare",
+        message: `Stopping container ${resolved.containerName ?? resolved.volumeName} for a consistent backup window.`
+      });
       const stopResult = await stopContainer(resolved.containerName ?? resolved.volumeName);
       if (stopResult.success) {
         containerStopped = true;
+        await writeRunLog({
+          runId,
+          level: "info",
+          phase: "prepare",
+          message: `Stopped container ${resolved.containerName ?? resolved.volumeName}.`
+        });
       } else {
+        await writeRunLog({
+          runId,
+          level: "warn",
+          phase: "prepare",
+          message: `Failed to stop container ${resolved.containerName ?? resolved.volumeName}: ${stopResult.error}`
+        });
         console.warn(
           `[temporal-backup] Failed to stop container ${resolved.containerName}: ${stopResult.error}`
         );
@@ -174,6 +220,12 @@ export async function backupCronWorkflow(input: BackupCronWorkflowInput): Promis
     let result: { runId: string; artifactPath: string; sizeBytes: number };
 
     if (resolved.backupType === "database" && resolved.databaseEngine) {
+      await writeRunLog({
+        runId,
+        level: "info",
+        phase: "backup",
+        message: `Starting ${resolved.databaseEngine} dump for ${resolved.databaseName ?? resolved.volumeName}.`
+      });
       // Database-native dump
       const dumpResult = await executeDatabaseDump({
         containerName: resolved.containerName ?? resolved.volumeName,
@@ -187,17 +239,49 @@ export async function backupCronWorkflow(input: BackupCronWorkflowInput): Promis
         throw new Error(`Database dump failed: ${dumpResult.error}`);
       }
 
+      await writeRunLog({
+        runId,
+        level: "info",
+        phase: "backup",
+        message: "Database dump completed. Uploading artifact to the configured destination."
+      });
+
       // Upload dump via rclone
       result = await executeBackupCopy(resolved, runId);
     } else {
+      await writeRunLog({
+        runId,
+        level: "info",
+        phase: "backup",
+        message: `Starting volume copy from ${resolved.mountPath} to the configured backup destination.`
+      });
       // Volume tar backup (default)
       result = await executeBackupCopy(resolved, runId);
     }
 
+    await writeRunLog({
+      runId,
+      level: "info",
+      phase: "backup",
+      message: `Uploaded artifact ${result.artifactPath} (${result.sizeBytes} bytes).`
+    });
+
     // Phase 4.5: Verify backup integrity
     try {
+      await writeRunLog({
+        runId,
+        level: "info",
+        phase: "verify",
+        message: `Verifying integrity for ${result.artifactPath}.`
+      });
       const integrity = await verifyBackupIntegrity(resolved, result.artifactPath, result.runId);
       if (!integrity.verified) {
+        await writeRunLog({
+          runId,
+          level: "warn",
+          phase: "verify",
+          message: `Integrity verification failed for ${result.artifactPath}: ${integrity.error ?? "unknown error"}.`
+        });
         await emitBackupEvent(
           policyId,
           "backup.integrity.warning",
@@ -205,13 +289,32 @@ export async function backupCronWorkflow(input: BackupCronWorkflowInput): Promis
           `Integrity check failed for ${result.artifactPath}: ${integrity.error ?? "unknown"}`,
           "error"
         );
+      } else {
+        await writeRunLog({
+          runId,
+          level: "info",
+          phase: "verify",
+          message: `Integrity verification passed for ${result.artifactPath}.`
+        });
       }
     } catch {
+      await writeRunLog({
+        runId,
+        level: "warn",
+        phase: "verify",
+        message: `Integrity verification could not complete for ${result.artifactPath}.`
+      });
       // Integrity check is best-effort, don't fail the backup
     }
 
     // Phase 5: Mark success
     await markBackupRunSucceeded(result.runId, result.artifactPath, result.sizeBytes);
+    await writeRunLog({
+      runId,
+      level: "info",
+      phase: "complete",
+      message: `Backup run completed successfully with artifact ${result.artifactPath}.`
+    });
 
     await emitBackupEvent(
       policyId,
@@ -224,6 +327,12 @@ export async function backupCronWorkflow(input: BackupCronWorkflowInput): Promis
     if (containerStopped) {
       await startContainer(resolved.containerName ?? resolved.volumeName);
       containerStopped = false;
+      await writeRunLog({
+        runId,
+        level: "info",
+        phase: "cleanup",
+        message: `Restarted container ${resolved.containerName ?? resolved.volumeName}.`
+      });
     }
 
     // Phase 7: Apply GFS retention policy
@@ -238,6 +347,12 @@ export async function backupCronWorkflow(input: BackupCronWorkflowInput): Promis
       });
 
       if (retentionResult.deletedRuns > 0) {
+        await writeRunLog({
+          runId,
+          level: "info",
+          phase: "retention",
+          message: `Applied retention policy and pruned ${retentionResult.deletedRuns} older backup run(s).`
+        });
         await emitBackupEvent(
           policyId,
           "backup.retention.applied",
@@ -281,6 +396,14 @@ export async function backupCronWorkflow(input: BackupCronWorkflowInput): Promis
     if (containerStopped) {
       try {
         await startContainer(resolved.containerName ?? resolved.volumeName);
+        if (runId) {
+          await writeRunLog({
+            runId,
+            level: "warn",
+            phase: "cleanup",
+            message: `Restarted container ${resolved.containerName ?? resolved.volumeName} during failure cleanup.`
+          });
+        }
       } catch {
         // CRITICAL: Container restart failed after backup failure
         // Visible in Temporal workflow history via activity failure
@@ -289,6 +412,12 @@ export async function backupCronWorkflow(input: BackupCronWorkflowInput): Promis
 
     if (runId) {
       await markBackupRunFailed(runId, message);
+      await writeRunLog({
+        runId,
+        level: "error",
+        phase: "failed",
+        message
+      });
     }
 
     await emitBackupEvent(policyId, "backup.failed", "Backup failed", message, "error");

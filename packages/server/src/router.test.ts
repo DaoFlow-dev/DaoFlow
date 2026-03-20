@@ -859,6 +859,22 @@ describe("appRouter", () => {
     }
   });
 
+  it("returns backup run details with persisted log state", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-backup-run-details",
+      session: makeSession("viewer")
+    });
+
+    const run = await caller.backupRunDetails({
+      runId: "brun_foundation_db_failed"
+    });
+
+    expect(run.status).toBe("failed");
+    expect(run.logsState).toBe("available");
+    expect(run.logEntries.length).toBeGreaterThan(0);
+    expect(run.error).toContain("pg_dump");
+  });
+
   it("returns approval requests keyed by targetResource", async () => {
     const caller = appRouter.createCaller({
       requestId: "test-approvals",

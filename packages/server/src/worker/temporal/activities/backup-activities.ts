@@ -157,6 +157,7 @@ export async function createBackupRun(policyId: string, triggeredBy: string): Pr
     policyId,
     status: "running",
     triggeredByUserId: triggeredBy === "scheduler" ? null : triggeredBy,
+    logEntries: [],
     startedAt: now,
     createdAt: now
   });

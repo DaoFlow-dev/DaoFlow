@@ -10,6 +10,7 @@
 import { NativeConnection, Worker } from "@temporalio/worker";
 import * as deployActivities from "./activities/deploy-activities";
 import * as backupActivities from "./activities/backup-activities";
+import * as backupLogActivities from "./activities/backup-log-activities";
 import * as databaseActivities from "./activities/database-activities";
 import * as retentionActivities from "./activities/retention-activities";
 import * as notificationActivities from "./activities/notification-activities";
@@ -19,6 +20,7 @@ import { TEMPORAL_ADDRESS, TEMPORAL_NAMESPACE, TEMPORAL_TASK_QUEUE } from "./tem
 const activities = {
   ...deployActivities,
   ...backupActivities,
+  ...backupLogActivities,
   ...databaseActivities,
   ...retentionActivities,
   ...notificationActivities

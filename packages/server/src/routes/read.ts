@@ -10,13 +10,7 @@ import {
 } from "../db/services/deployments";
 import { listApprovalQueue } from "../db/services/approvals";
 import { listAuditTrail, listOperationsTimeline } from "../db/services/audit";
-import {
-  listBackupOverview,
-  listBackupRestoreQueue,
-  listPersistentVolumeInventory,
-  listBackupMetrics,
-  backupDiagnosis
-} from "../db/services/backups";
+import { listBackupMetrics, backupDiagnosis } from "../db/services/backups";
 import { listDestinations, getDestination } from "../db/services/destinations";
 import { listComposeDriftReport, listComposeReleaseCatalog } from "../db/services/compose";
 import { listComposePreviewReconciliation } from "../db/services/compose-preview-reconciliation";
@@ -34,6 +28,7 @@ import {
 } from "../db/services/git-providers";
 import { t, protectedProcedure, deployReadProcedure } from "../trpc";
 import { limitInput, statusLimitInput } from "../schemas";
+import { backupReadRouter } from "./read-backups";
 
 const productPrinciples = [
   "Agent-first, human-supervised",
@@ -46,7 +41,7 @@ const productPrinciples = [
 
 const agentApiLanes = ["read APIs", "planning APIs", "command APIs"] as const;
 
-export const readRouter = t.router({
+const coreReadRouter = t.router({
   health: t.procedure.query(() => ({
     status: "healthy" as const,
     service: "daoflow-control-plane",
@@ -169,9 +164,6 @@ export const readRouter = t.router({
   serverReadiness: protectedProcedure.input(limitInput(24)).query(async ({ input }) => {
     return listServerReadiness(input.limit ?? 12);
   }),
-  persistentVolumes: protectedProcedure.input(limitInput(24)).query(async ({ input }) => {
-    return listPersistentVolumeInventory(input.limit ?? 12);
-  }),
   deploymentInsights: protectedProcedure.input(limitInput(12)).query(async ({ input }) => {
     return listDeploymentInsights(input.limit ?? 6);
   }),
@@ -201,12 +193,6 @@ export const readRouter = t.router({
     .query(async ({ input }) => {
       return listDeploymentLogs(input.deploymentId, input.limit ?? 18);
     }),
-  backupOverview: protectedProcedure.input(limitInput(50)).query(async ({ input }) => {
-    return listBackupOverview(input.limit ?? 12);
-  }),
-  backupRestoreQueue: protectedProcedure.input(limitInput(50)).query(async ({ input }) => {
-    return listBackupRestoreQueue(input.limit ?? 12);
-  }),
   operationsTimeline: protectedProcedure
     .input(
       z.object({
@@ -299,3 +285,5 @@ export const readRouter = t.router({
       return result;
     })
 });
+
+export const readRouter = t.mergeRouters(coreReadRouter, backupReadRouter);

@@ -1,0 +1,1 @@
+ALTER TABLE "backup_runs" ADD COLUMN "log_entries" jsonb;

@@ -42,6 +42,27 @@ export async function seedObservability(tx: SeedTransaction) {
         artifactPath: "s3://daoflow-backups/prod/postgres-volume-2026-03-11.tar.zst",
         sizeBytes: "73400320",
         triggeredByUserId: null,
+        logEntries: [
+          {
+            timestamp: new Date(daysBefore(1).getTime()).toISOString(),
+            level: "info",
+            phase: "prepare",
+            message: "Resolved policy postgres-volume for foundation-vps-1."
+          },
+          {
+            timestamp: new Date(daysBefore(1).getTime() + 2 * 60 * 1000).toISOString(),
+            level: "info",
+            phase: "backup",
+            message:
+              "Uploaded artifact s3://daoflow-backups/prod/postgres-volume-2026-03-11.tar.zst (73400320 bytes)."
+          },
+          {
+            timestamp: new Date(daysBefore(1).getTime() + 4 * 60 * 1000).toISOString(),
+            level: "info",
+            phase: "complete",
+            message: "Backup run completed successfully."
+          }
+        ],
         error: null,
         startedAt: daysBefore(1),
         completedAt: new Date(daysBefore(1).getTime() + 5 * 60 * 1000),
@@ -54,6 +75,26 @@ export async function seedObservability(tx: SeedTransaction) {
         artifactPath: null,
         sizeBytes: null,
         triggeredByUserId: null,
+        logEntries: [
+          {
+            timestamp: new Date(hoursBefore(1).getTime()).toISOString(),
+            level: "info",
+            phase: "prepare",
+            message: "Resolved policy control-plane-db for foundation-vps-1."
+          },
+          {
+            timestamp: new Date(hoursBefore(1).getTime() + 2 * 60 * 1000).toISOString(),
+            level: "info",
+            phase: "backup",
+            message: "Starting postgres dump for control-plane-db."
+          },
+          {
+            timestamp: new Date(hoursBefore(1).getTime() + 7 * 60 * 1000).toISOString(),
+            level: "error",
+            phase: "failed",
+            message: "pg_dump lost the SSH transport before the archive uploaded."
+          }
+        ],
         error: "pg_dump lost the SSH transport before the archive uploaded.",
         startedAt: hoursBefore(1),
         completedAt: new Date(hoursBefore(1).getTime() + 7 * 60 * 1000),
