@@ -98,7 +98,7 @@ export function SignInTab({ onAuthenticated }: { onAuthenticated: () => Promise<
             type="button"
             className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
             onClick={() => setShowPassword((currentValue) => !currentValue)}
-            aria-label={showPassword ? "Hide password" : "Show password"}
+            aria-label={showPassword ? "Hide characters" : "Show characters"}
             data-testid="login-signin-password-toggle"
           >
             {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
