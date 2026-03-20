@@ -1,6 +1,9 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
 import { signIn, signOut, signUp } from "@/lib/auth-client";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 
 interface SessionData {
   user: { email: string; name: string };
@@ -100,117 +103,160 @@ export function AuthSection({
   }
 
   return (
-    <section className="auth-section">
-      <div className="auth-panel">
-        <div className="auth-panel__header">
-          <div>
-            <p className="roadmap__kicker">Auth slice</p>
-            <h2>Better Auth + protected tRPC</h2>
+    <section className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1fr)]">
+      <Card className="border-border/60">
+        <CardHeader className="gap-4">
+          <div className="space-y-1">
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-primary/80">
+              Auth slice
+            </p>
+            <h2 className="text-2xl font-semibold tracking-tight text-foreground">
+              Better Auth + protected tRPC
+            </h2>
           </div>
-          <div className="auth-panel__switches">
-            <button
-              className={authMode === "sign-up" ? "tab tab--active" : "tab"}
+          <div className="inline-flex w-fit rounded-lg border border-border/60 bg-muted/40 p-1">
+            <Button
+              data-testid="auth-mode-sign-up"
               onClick={() => setAuthMode("sign-up")}
+              size="sm"
               type="button"
+              variant={authMode === "sign-up" ? "default" : "ghost"}
             >
               Sign up
-            </button>
-            <button
-              className={authMode === "sign-in" ? "tab tab--active" : "tab"}
+            </Button>
+            <Button
+              data-testid="auth-mode-sign-in"
               onClick={() => setAuthMode("sign-in")}
+              size="sm"
               type="button"
+              variant={authMode === "sign-in" ? "default" : "ghost"}
             >
               Sign in
-            </button>
+            </Button>
           </div>
-        </div>
+        </CardHeader>
 
-        {!session.data ? (
-          <form
-            className="auth-form"
-            onSubmit={(event) => {
-              void (authMode === "sign-up" ? handleSignUp(event) : handleSignIn(event));
-            }}
-          >
-            {authMode === "sign-up" ? (
-              <label>
-                Name
-                <input value={name} onChange={(event) => setName(event.target.value)} />
-              </label>
-            ) : null}
-
-            <label>
-              Email
-              <input
-                type="email"
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-              />
-            </label>
-
-            <label>
-              Password
-              <input
-                type="password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-              />
-            </label>
-
-            <button className="action-button" type="submit">
-              {authMode === "sign-up" ? "Create account" : "Sign in"}
-            </button>
-          </form>
-        ) : (
-          <div className="auth-state">
-            <p className="auth-state__summary" data-testid="auth-summary">
-              Signed in as <strong>{session.data.user.email}</strong>.
-            </p>
-            <p className="auth-state__role" data-testid="auth-role">
-              Assigned role: <strong>{currentRole}</strong>
-            </p>
-            <button
-              className="action-button action-button--muted"
-              onClick={() => {
-                void handleSignOut();
+        <CardContent className="space-y-4">
+          {!session.data ? (
+            <form
+              className="space-y-4"
+              onSubmit={(event) => {
+                void (authMode === "sign-up" ? handleSignUp(event) : handleSignIn(event));
               }}
-              type="button"
             >
-              Sign out
-            </button>
-          </div>
-        )}
+              {authMode === "sign-up" ? (
+                <label className="grid gap-2 text-sm font-medium text-foreground">
+                  <span>Name</span>
+                  <Input
+                    data-testid="auth-input-name"
+                    value={name}
+                    onChange={(event) => setName(event.target.value)}
+                  />
+                </label>
+              ) : null}
 
-        {authFeedback ? <p className="auth-feedback">{authFeedback}</p> : null}
-      </div>
+              <label className="grid gap-2 text-sm font-medium text-foreground">
+                <span>Email</span>
+                <Input
+                  data-testid="auth-input-email"
+                  type="email"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                />
+              </label>
 
-      <div className="auth-panel auth-panel--viewer">
-        <p className="roadmap__kicker">Protected procedure</p>
-        <h2>Viewer</h2>
-        {session.data && viewer.data ? (
-          <pre className="viewer-output" data-testid="viewer-output">
-            {JSON.stringify(viewer.data, null, 2)}
-          </pre>
-        ) : (
-          <p className="viewer-empty">
-            {viewerMessage ?? "Sign in to fetch the protected viewer procedure."}
+              <label className="grid gap-2 text-sm font-medium text-foreground">
+                <span>Password</span>
+                <Input
+                  data-testid="auth-input-password"
+                  type="password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                />
+              </label>
+
+              <Button className="w-full" data-testid="auth-submit" type="submit">
+                {authMode === "sign-up" ? "Create account" : "Sign in"}
+              </Button>
+            </form>
+          ) : (
+            <div className="space-y-4">
+              <div className="rounded-xl border border-border/60 bg-muted/25 p-4 text-sm text-muted-foreground">
+                <p className="font-medium text-foreground" data-testid="auth-summary">
+                  Signed in as <strong>{session.data.user.email}</strong>.
+                </p>
+                <p className="mt-2" data-testid="auth-role">
+                  Assigned role: <strong>{currentRole}</strong>
+                </p>
+              </div>
+              <Button
+                data-testid="auth-sign-out"
+                onClick={() => {
+                  void handleSignOut();
+                }}
+                type="button"
+                variant="outline"
+              >
+                Sign out
+              </Button>
+            </div>
+          )}
+
+          {authFeedback ? (
+            <p className="rounded-xl border border-border/60 bg-muted/25 px-3 py-2 text-sm text-muted-foreground">
+              {authFeedback}
+            </p>
+          ) : null}
+        </CardContent>
+      </Card>
+
+      <Card className="border-border/60">
+        <CardHeader className="space-y-1">
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-primary/80">
+            Protected procedure
           </p>
-        )}
-      </div>
+          <h2 className="text-2xl font-semibold tracking-tight text-foreground">Viewer</h2>
+        </CardHeader>
+        <CardContent>
+          {session.data && viewer.data ? (
+            <pre
+              className="overflow-x-auto rounded-xl border border-border/60 bg-muted/25 p-4 text-xs leading-6 text-foreground"
+              data-testid="viewer-output"
+            >
+              {JSON.stringify(viewer.data, null, 2)}
+            </pre>
+          ) : (
+            <p className="rounded-xl border border-dashed border-border/60 bg-muted/15 p-4 text-sm leading-6 text-muted-foreground">
+              {viewerMessage ?? "Sign in to fetch the protected viewer procedure."}
+            </p>
+          )}
+        </CardContent>
+      </Card>
 
-      <div className="auth-panel auth-panel--viewer">
-        <p className="roadmap__kicker">Role-gated procedure</p>
-        <h2>Admin control plane</h2>
-        {session.data && adminControlPlane.data ? (
-          <pre className="viewer-output" data-testid="admin-output">
-            {JSON.stringify(adminControlPlane.data, null, 2)}
-          </pre>
-        ) : (
-          <p className="viewer-empty">
-            {adminMessage ?? "Elevated roles can inspect governance guardrails here."}
+      <Card className="border-border/60">
+        <CardHeader className="space-y-1">
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-primary/80">
+            Role-gated procedure
           </p>
-        )}
-      </div>
+          <h2 className="text-2xl font-semibold tracking-tight text-foreground">
+            Admin control plane
+          </h2>
+        </CardHeader>
+        <CardContent>
+          {session.data && adminControlPlane.data ? (
+            <pre
+              className="overflow-x-auto rounded-xl border border-border/60 bg-muted/25 p-4 text-xs leading-6 text-foreground"
+              data-testid="admin-output"
+            >
+              {JSON.stringify(adminControlPlane.data, null, 2)}
+            </pre>
+          ) : (
+            <p className="rounded-xl border border-dashed border-border/60 bg-muted/15 p-4 text-sm leading-6 text-muted-foreground">
+              {adminMessage ?? "Elevated roles can inspect governance guardrails here."}
+            </p>
+          )}
+        </CardContent>
+      </Card>
     </section>
   );
 }
