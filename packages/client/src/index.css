@@ -72,6 +72,7 @@
   --df-radius-md: 10px;
   --df-radius-lg: 14px;
   --df-sidebar-width: 240px;
+  --df-sidebar-collapsed-width: 64px;
   --df-topbar-height: 56px;
   --df-transition-fast: 150ms ease;
   --df-transition-default: 250ms ease;
@@ -158,14 +159,15 @@ body {
 
 /* ========= Layout ========= */
 .layout {
+  --layout-sidebar-width: var(--df-sidebar-width);
   display: grid;
-  grid-template-columns: 240px 1fr;
+  grid-template-columns: var(--layout-sidebar-width) minmax(0, 1fr);
   min-height: 100vh;
-  transition: grid-template-columns 0.2s ease;
+  transition: grid-template-columns var(--df-transition-default);
 }
 
-.layout--collapsed {
-  grid-template-columns: 64px 1fr;
+.layout[data-collapsed="true"] {
+  --layout-sidebar-width: var(--df-sidebar-collapsed-width);
 }
 
 .layout__content {
@@ -179,6 +181,7 @@ body {
 .sidebar {
   position: sticky;
   top: 0;
+  width: var(--layout-sidebar-width);
   height: 100vh;
   display: flex;
   flex-direction: column;
@@ -191,7 +194,9 @@ body {
   box-shadow: 1px 0 8px rgba(0, 0, 0, 0.03);
   overflow-y: auto;
   overflow-x: hidden;
-  transition: width 0.2s ease;
+  transition:
+    width var(--df-transition-default),
+    left var(--df-transition-default);
   scrollbar-width: thin;
   scrollbar-color: var(--sidebar-accent) transparent;
 }
@@ -464,11 +469,11 @@ body {
   }
 
   .sidebar {
+    --layout-sidebar-mobile-width: min(var(--df-sidebar-width), calc(100vw - 1rem));
     position: fixed;
-    left: -240px;
-    transition: left 0.25s;
+    left: calc(-1 * var(--layout-sidebar-mobile-width));
+    width: var(--layout-sidebar-mobile-width);
     z-index: 200;
-    width: 220px;
   }
 
   .shell {

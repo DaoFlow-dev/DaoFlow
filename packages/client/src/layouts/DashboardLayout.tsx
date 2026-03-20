@@ -129,7 +129,7 @@ export function DashboardLayout() {
       >
         Skip to content
       </a>
-      <div className={`layout${collapsed ? " layout--collapsed" : ""}`}>
+      <div className="layout" data-collapsed={collapsed ? "true" : "false"}>
         {/* ── Sidebar ── */}
         <aside className="sidebar">
           <div className="sidebar__brand">
