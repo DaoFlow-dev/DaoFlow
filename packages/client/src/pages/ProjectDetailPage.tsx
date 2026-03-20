@@ -4,7 +4,7 @@ import { trpc } from "../lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Plus, Settings2, Copy, Check, Trash2 } from "lucide-react";
+import { ArrowLeft, Plus, Settings2, Copy, Check, Loader2, Trash2 } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -26,8 +26,10 @@ import { getInventoryTone } from "@/lib/tone-utils";
 export default function ProjectDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const utils = trpc.useUtils();
   const [showAddService, setShowAddService] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [editName, setEditName] = useState("");
   const [editDesc, setEditDesc] = useState("");
   const [activeEnv, setActiveEnv] = useState<string | null>(null);
@@ -37,6 +39,19 @@ export default function ProjectDetailPage() {
   const services = trpc.projectServices.useQuery({ projectId: id! }, { enabled: !!id });
   const environments = trpc.projectEnvironments.useQuery({ projectId: id! }, { enabled: !!id });
   const deployments = trpc.recentDeployments.useQuery({ limit: 20 });
+  const updateProject = trpc.updateProject.useMutation({
+    onSuccess: async () => {
+      await Promise.all([project.refetch(), utils.projects.invalidate()]);
+      setShowSettings(false);
+    }
+  });
+  const deleteProject = trpc.deleteProject.useMutation({
+    onSuccess: async () => {
+      await utils.projects.invalidate();
+      setShowDeleteDialog(false);
+      void navigate("/projects");
+    }
+  });
 
   if (project.isLoading) {
     return (
@@ -62,6 +77,7 @@ export default function ProjectDetailPage() {
   const p = project.data;
   const config =
     p.config && typeof p.config === "object" ? (p.config as Record<string, unknown>) : {};
+  const projectDescription = typeof config.description === "string" ? config.description : "";
   const serviceList = (services.data ?? []) as {
     id: string;
     name: string;
@@ -100,6 +116,13 @@ export default function ProjectDetailPage() {
         statusLabel?: string;
       }
     | undefined;
+  const trimmedEditName = editName.trim();
+  const normalizedEditDesc = editDesc.trim();
+  const saveDisabled =
+    !trimmedEditName ||
+    updateProject.isPending ||
+    deleteProject.isPending ||
+    (trimmedEditName === p.name && normalizedEditDesc === projectDescription);
 
   return (
     <div className="space-y-6">
@@ -135,9 +158,10 @@ export default function ProjectDetailPage() {
             size="sm"
             variant="outline"
             onClick={() => {
+              updateProject.reset();
               setShowSettings(!showSettings);
               setEditName(p.name);
-              setEditDesc(typeof config.description === "string" ? config.description : "");
+              setEditDesc(projectDescription);
             }}
           >
             <Settings2 size={14} className="mr-1" />
@@ -151,9 +175,16 @@ export default function ProjectDetailPage() {
             <Plus size={14} className="mr-1" />
             Add Service
           </Button>
-          <AlertDialog>
+          <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
             <AlertDialogTrigger asChild>
-              <Button size="sm" variant="destructive" aria-label="Delete project">
+              <Button
+                size="sm"
+                variant="destructive"
+                aria-label="Delete project"
+                onClick={() => deleteProject.reset()}
+                disabled={deleteProject.isPending}
+                data-testid={`project-delete-trigger-${p.id}`}
+              >
                 <Trash2 size={14} className="mr-1" />
                 Delete
               </Button>
@@ -167,11 +198,32 @@ export default function ProjectDetailPage() {
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                  Delete Project
+                <AlertDialogCancel disabled={deleteProject.isPending}>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  onClick={(event) => {
+                    event.preventDefault();
+                    if (deleteProject.isPending) {
+                      return;
+                    }
+                    deleteProject.mutate({ projectId: p.id });
+                  }}
+                  disabled={deleteProject.isPending}
+                  data-testid={`project-delete-confirm-${p.id}`}
+                >
+                  {deleteProject.isPending ? (
+                    <>
+                      <Loader2 size={14} className="mr-1 animate-spin" />
+                      Deleting...
+                    </>
+                  ) : (
+                    "Delete Project"
+                  )}
                 </AlertDialogAction>
               </AlertDialogFooter>
+              {deleteProject.error && (
+                <p className="text-sm text-destructive">{deleteProject.error.message}</p>
+              )}
             </AlertDialogContent>
           </AlertDialog>
         </div>
@@ -183,6 +235,21 @@ export default function ProjectDetailPage() {
           onEditName={setEditName}
           editDesc={editDesc}
           onEditDesc={setEditDesc}
+          onSave={() =>
+            updateProject.mutate({
+              projectId: p.id,
+              name: trimmedEditName,
+              description: normalizedEditDesc
+            })
+          }
+          onRequestDelete={() => {
+            deleteProject.reset();
+            setShowDeleteDialog(true);
+          }}
+          isSaving={updateProject.isPending}
+          isDeletePending={deleteProject.isPending}
+          saveDisabled={saveDisabled}
+          errorMessage={updateProject.error?.message}
         />
       )}
 

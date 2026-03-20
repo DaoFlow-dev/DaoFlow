@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -34,6 +35,14 @@ export default function ServiceHeader({ service, projectName }: ServiceHeaderPro
       // stop/delete are placeholders until backend support
       setTimeout(() => setActionInProgress(null), 1000);
     }
+  }
+
+  function renderActionIcon(action: string, icon: ReactNode) {
+    if (actionInProgress === action) {
+      return <Loader2 size={14} className="animate-spin" />;
+    }
+
+    return icon;
   }
 
   return (
@@ -81,13 +90,14 @@ export default function ServiceHeader({ service, projectName }: ServiceHeaderPro
             variant="default"
             onClick={() => handleAction("deploy")}
             disabled={!!actionInProgress}
+            data-testid={`service-deploy-${service.id}`}
           >
             {actionInProgress === "deploy" ? (
               <Loader2 size={14} className="mr-1 animate-spin" />
             ) : (
               <Play size={14} className="mr-1" />
             )}
-            Deploy
+            {actionInProgress === "deploy" ? "Deploying..." : "Deploy"}
           </Button>
           <Button
             size="sm"
@@ -96,12 +106,9 @@ export default function ServiceHeader({ service, projectName }: ServiceHeaderPro
             disabled={!!actionInProgress}
             title="Restart"
             aria-label="Restart service"
+            data-testid={`service-restart-${service.id}`}
           >
-            {actionInProgress === "restart" ? (
-              <Loader2 size={14} className="animate-spin" />
-            ) : (
-              <RefreshCw size={14} />
-            )}
+            {renderActionIcon("restart", <RefreshCw size={14} />)}
           </Button>
           <Button
             size="sm"
@@ -110,8 +117,9 @@ export default function ServiceHeader({ service, projectName }: ServiceHeaderPro
             disabled={!!actionInProgress}
             title="Stop"
             aria-label="Stop service"
+            data-testid={`service-stop-${service.id}`}
           >
-            <Square size={14} />
+            {renderActionIcon("stop", <Square size={14} />)}
           </Button>
           <Button
             size="sm"
@@ -120,8 +128,9 @@ export default function ServiceHeader({ service, projectName }: ServiceHeaderPro
             disabled={!!actionInProgress}
             title="Redeploy"
             aria-label="Redeploy service"
+            data-testid={`service-redeploy-${service.id}`}
           >
-            <RotateCcw size={14} />
+            {renderActionIcon("redeploy", <RotateCcw size={14} />)}
           </Button>
           <Button
             size="sm"
@@ -130,8 +139,9 @@ export default function ServiceHeader({ service, projectName }: ServiceHeaderPro
             disabled={!!actionInProgress}
             title="Delete"
             aria-label="Delete service"
+            data-testid={`service-delete-${service.id}`}
           >
-            <Trash2 size={14} />
+            {renderActionIcon("delete", <Trash2 size={14} />)}
           </Button>
         </div>
       </div>
