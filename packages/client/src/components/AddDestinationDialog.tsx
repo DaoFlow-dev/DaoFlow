@@ -18,8 +18,8 @@ import {
   SelectValue
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus } from "lucide-react";
-import { useState } from "react";
+import { Plus, Copy, Check, Terminal } from "lucide-react";
+import { useState, useCallback } from "react";
 
 const PROVIDERS = [
   { key: "s3" as const, name: "S3-Compatible Storage", icon: "☁️" },
@@ -30,6 +30,32 @@ const PROVIDERS = [
   { key: "local" as const, name: "Local Filesystem", icon: "💾" },
   { key: "rclone" as const, name: "Custom Rclone Config", icon: "⚙️" }
 ] as const;
+
+/** Maps our provider keys to rclone backend names and headless authorize commands. */
+const RCLONE_BACKENDS: Record<
+  string,
+  { rcloneType: string; authorizeCmd?: string; defaultName: string }
+> = {
+  s3: { rcloneType: "s3", defaultName: "s3-backup" },
+  gdrive: {
+    rcloneType: "drive",
+    authorizeCmd: 'rclone authorize "drive"',
+    defaultName: "gdrive-backup"
+  },
+  onedrive: {
+    rcloneType: "onedrive",
+    authorizeCmd: 'rclone authorize "onedrive"',
+    defaultName: "onedrive-backup"
+  },
+  dropbox: {
+    rcloneType: "dropbox",
+    authorizeCmd: 'rclone authorize "dropbox"',
+    defaultName: "dropbox-backup"
+  },
+  sftp: { rcloneType: "sftp", defaultName: "sftp-backup" },
+  local: { rcloneType: "local", defaultName: "local-backup" },
+  rclone: { rcloneType: "custom", defaultName: "rclone-remote" }
+};
 
 export type ProviderKey = (typeof PROVIDERS)[number]["key"];
 
@@ -82,6 +108,29 @@ export function AddDestinationDialog({
   const [localPath, setLocalPath] = useState("");
   const [rcloneConfig, setRcloneConfig] = useState("");
   const [rcloneRemotePath, setRcloneRemotePath] = useState("");
+  const [copied, setCopied] = useState(false);
+
+  const handleProviderChange = useCallback(
+    (v: string) => {
+      const key = v as ProviderKey;
+      setProvider(key);
+      const meta = RCLONE_BACKENDS[key];
+      if (meta && !name) {
+        setName(meta.defaultName);
+      }
+    },
+    [name]
+  );
+
+  const authorizeCmd = RCLONE_BACKENDS[provider]?.authorizeCmd;
+
+  function copyCommand() {
+    if (!authorizeCmd) return;
+    void navigator.clipboard.writeText(authorizeCmd).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
 
   function handleSubmit() {
     onSubmit({
@@ -131,7 +180,7 @@ export function AddDestinationDialog({
 
           <div className="grid gap-1.5">
             <Label>Provider</Label>
-            <Select value={provider} onValueChange={(v: string) => setProvider(v as ProviderKey)}>
+            <Select value={provider} onValueChange={handleProviderChange}>
               <SelectTrigger data-testid="destination-provider-select">
                 <SelectValue placeholder="Select provider" />
               </SelectTrigger>
@@ -175,18 +224,46 @@ export function AddDestinationDialog({
           )}
 
           {(provider === "gdrive" || provider === "onedrive" || provider === "dropbox") && (
-            <div className="grid gap-1.5">
-              <Label>OAuth Token (from rclone authorize)</Label>
-              <Textarea
-                className="font-mono text-xs"
-                placeholder="Paste the JSON token from rclone authorize..."
-                rows={4}
-                value={rcloneConfig}
-                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
-                  setRcloneConfig(e.target.value)
-                }
-              />
-            </div>
+            <>
+              {authorizeCmd && (
+                <div className="rounded-lg border bg-muted/50 p-3 space-y-2">
+                  <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                    <Terminal size={14} />
+                    Run this on a machine with a browser to get your token:
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <code className="flex-1 rounded bg-background px-3 py-2 font-mono text-sm border">
+                      {authorizeCmd}
+                    </code>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="shrink-0"
+                      onClick={copyCommand}
+                      title="Copy command"
+                    >
+                      {copied ? <Check size={14} className="text-green-500" /> : <Copy size={14} />}
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Paste the resulting JSON token below.
+                  </p>
+                </div>
+              )}
+              <div className="grid gap-1.5">
+                <Label>OAuth Token</Label>
+                <Textarea
+                  className="font-mono text-xs"
+                  placeholder='{"access_token":"...","token_type":"Bearer",...}'
+                  rows={4}
+                  value={rcloneConfig}
+                  onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
+                    setRcloneConfig(e.target.value)
+                  }
+                />
+              </div>
+            </>
           )}
 
           {(provider === "rclone" || provider === "sftp") && (

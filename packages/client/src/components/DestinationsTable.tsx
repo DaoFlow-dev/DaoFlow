@@ -9,7 +9,8 @@ import {
   TableHeader,
   TableRow
 } from "@/components/ui/table";
-import { TestTube2, Trash2 } from "lucide-react";
+import { FolderOpen, TestTube2, Trash2 } from "lucide-react";
+import { Link } from "react-router-dom";
 
 interface Destination {
   id: string;
@@ -84,6 +85,13 @@ export function DestinationsTable({
                   )}
                 </TableCell>
                 <TableCell className="text-right space-x-1">
+                  <Link
+                    to={`/destinations/${d.id}/browse`}
+                    className="inline-flex items-center justify-center h-8 w-8 rounded-md hover:bg-accent hover:text-accent-foreground"
+                    title="Browse Files"
+                  >
+                    <FolderOpen size={14} />
+                  </Link>
                   <Button
                     data-testid="destination-test-button"
                     size="icon"

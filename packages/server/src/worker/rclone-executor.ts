@@ -443,6 +443,64 @@ export function listRemote(dest: DestinationConfig, subPath?: string): RcloneRes
   }
 }
 
+export interface RemoteFileEntry {
+  name: string;
+  size: number;
+  isDir: boolean;
+  modTime: string;
+  path: string;
+}
+
+/**
+ * List files at a remote path using `rclone lsjson` for structured output.
+ * Returns parsed entries with name, size, isDir, and modTime.
+ */
+export function listRemoteJson(
+  dest: DestinationConfig,
+  subPath?: string
+): { success: boolean; files: RemoteFileEntry[]; error?: string } {
+  const configPath = generateRcloneConfig(dest);
+  try {
+    const useCrypt = dest.encryptionMode === "rclone-crypt";
+    const remotePath = resolveRemotePath(dest, subPath, useCrypt);
+    const result = runRclone(configPath, [
+      "lsjson",
+      remotePath,
+      `--timeout=${DEFAULT_TIMEOUT}`,
+      `--retries=${DEFAULT_RETRIES}`,
+      "--no-mimetype"
+    ]);
+
+    if (!result.success) {
+      return { success: false, files: [], error: result.error ?? result.output };
+    }
+
+    try {
+      const entries = JSON.parse(result.output || "[]") as Array<{
+        Path: string;
+        Name: string;
+        Size: number;
+        IsDir: boolean;
+        ModTime: string;
+      }>;
+      return {
+        success: true,
+        files: entries.map((e) => ({
+          name: e.Name,
+          size: e.Size,
+          isDir: e.IsDir,
+          modTime: e.ModTime,
+          path: e.Path
+        }))
+      };
+    } catch {
+      return { success: true, files: [] };
+    }
+  } finally {
+    cleanupConfig(configPath);
+  }
+}
+
 /**
  * Delete a remote path — used for retention cleanup.
  * Automatically routes through rclone-crypt when encryption is enabled.

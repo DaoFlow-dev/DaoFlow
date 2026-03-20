@@ -12,6 +12,11 @@ import {
   deleteDestination,
   testDestinationConnection
 } from "../db/services/destinations";
+import { listRemoteJson } from "../worker/rclone-executor";
+import type { BackupProvider } from "../db/schema/destinations";
+import { db } from "../db/connection";
+import { backupDestinations } from "../db/schema/destinations";
+import { eq } from "drizzle-orm";
 import { t, backupRunProcedure, backupRestoreProcedure, getActorContext } from "../trpc";
 
 export const backupRouter = t.router({
@@ -172,6 +177,36 @@ export const backupRouter = t.router({
     .input(z.object({ id: z.string().min(1) }))
     .mutation(async ({ input }) => {
       return testDestinationConnection(input.id);
+    }),
+  listDestinationFiles: backupRunProcedure
+    .input(z.object({ id: z.string().min(1), path: z.string().optional() }))
+    .query(async ({ input }) => {
+      const [row] = await db
+        .select()
+        .from(backupDestinations)
+        .where(eq(backupDestinations.id, input.id))
+        .limit(1);
+      if (!row) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Destination not found." });
+      }
+      return listRemoteJson(
+        {
+          id: row.id,
+          provider: row.provider as BackupProvider,
+          accessKey: row.accessKey,
+          secretAccessKey: row.secretAccessKey,
+          bucket: row.bucket,
+          region: row.region,
+          endpoint: row.endpoint,
+          s3Provider: row.s3Provider,
+          rcloneType: row.rcloneType,
+          rcloneConfig: row.rcloneConfig,
+          rcloneRemotePath: row.rcloneRemotePath,
+          oauthToken: row.oauthToken,
+          localPath: row.localPath
+        },
+        input.path
+      );
     }),
 
   /* ── Backup Schedule Management ────────────────────────── */
