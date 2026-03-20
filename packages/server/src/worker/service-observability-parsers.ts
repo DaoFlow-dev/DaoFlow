@@ -83,16 +83,16 @@ function parseSizeComponent(raw: string): number {
 
   const unit = (match[2] ?? "b").toLowerCase();
   const multiplierByUnit: Record<string, number> = {
-    b: 1 / (1024 * 1024),
-    kb: 1 / 1024,
+    b: 1 / (1000 * 1000),
+    kb: 1 / 1000,
     kib: 1 / 1024,
     mb: 1,
     mib: 1,
-    gb: 1024,
+    gb: 1000,
     gib: 1024,
-    tb: 1024 * 1024,
+    tb: 1000 * 1000,
     tib: 1024 * 1024,
-    pb: 1024 * 1024 * 1024,
+    pb: 1000 * 1000 * 1000,
     pib: 1024 * 1024 * 1024
   };
 

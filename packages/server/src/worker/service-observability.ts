@@ -1,6 +1,6 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import type { ExecutionTarget } from "./execution-target";
-import { shellQuote, sshArgs } from "./ssh-connection";
+import { removeSSHKey, shellQuote, sshArgs, writeSSHKey } from "./ssh-connection";
 import type { ResolvedServiceRuntime } from "../db/services/service-runtime";
 import {
   formatUptime,
@@ -42,18 +42,39 @@ function buildDockerCommand(args: string[]): string {
   return ["docker", ...args].map((part) => shellQuote(part)).join(" ");
 }
 
-function spawnTargetCommand(target: ExecutionTarget, dockerArgs: string[]): ChildProcess {
+function spawnTargetCommand(
+  target: ExecutionTarget,
+  dockerArgs: string[]
+): { child: ChildProcess; cleanup: () => void } {
   if (target.mode === "local") {
-    return spawn("docker", dockerArgs, {
-      stdio: ["pipe", "pipe", "pipe"],
-      env: { ...process.env }
-    });
+    return {
+      child: spawn("docker", dockerArgs, {
+        stdio: ["pipe", "pipe", "pipe"],
+        env: { ...process.env }
+      }),
+      cleanup: () => {}
+    };
   }
 
-  return spawn("ssh", [...sshArgs(target.ssh), buildDockerCommand(dockerArgs)], {
-    stdio: ["pipe", "pipe", "pipe"],
-    env: { ...process.env }
-  });
+  const sshTarget =
+    !target.ssh.privateKeyPath && target.ssh.privateKey
+      ? {
+          ...target.ssh,
+          privateKeyPath: writeSSHKey(target.ssh.serverName, target.ssh.privateKey)
+        }
+      : target.ssh;
+
+  return {
+    child: spawn("ssh", [...sshArgs(sshTarget), buildDockerCommand(dockerArgs)], {
+      stdio: ["pipe", "pipe", "pipe"],
+      env: { ...process.env }
+    }),
+    cleanup: () => {
+      if (sshTarget.privateKeyPath && sshTarget.privateKeyPath !== target.ssh.privateKeyPath) {
+        removeSSHKey(sshTarget.privateKeyPath);
+      }
+    }
+  };
 }
 
 function attachLineEmitter(
@@ -84,7 +105,7 @@ async function collectDockerLines(
   target: ExecutionTarget,
   dockerArgs: string[]
 ): Promise<{ exitCode: number; stdout: string[]; stderr: string[] }> {
-  const child = spawnTargetCommand(target, dockerArgs);
+  const { child, cleanup } = spawnTargetCommand(target, dockerArgs);
   const stdout: string[] = [];
   const stderr: string[] = [];
 
@@ -92,8 +113,12 @@ async function collectDockerLines(
   attachLineEmitter(child.stderr, "stderr", (_stream, line) => stderr.push(line));
 
   return new Promise((resolve, reject) => {
-    child.on("error", reject);
+    child.on("error", (error) => {
+      cleanup();
+      reject(error);
+    });
     child.on("close", (code) => {
+      cleanup();
       resolve({
         exitCode: code ?? 1,
         stdout,
@@ -214,7 +239,7 @@ export async function startServiceLogStream(input: {
   }
 
   const children = containerNames.map((containerName) => {
-    const child = spawnTargetCommand(input.runtime.target, [
+    const { child, cleanup } = spawnTargetCommand(input.runtime.target, [
       "logs",
       "--timestamps",
       "--tail",
@@ -232,14 +257,19 @@ export async function startServiceLogStream(input: {
         parseLogLine(line, stream, containerNames.length > 1 ? containerName : undefined)
       )
     );
-    child.on("close", (code) => input.onExit?.(code));
-    return child;
+    child.on("close", (code) => {
+      cleanup();
+      input.onExit?.(code);
+    });
+    child.on("error", cleanup);
+    return { child, cleanup };
   });
 
   return {
     close() {
-      for (const child of children) {
-        child.kill("SIGTERM");
+      for (const entry of children) {
+        entry.child.kill("SIGTERM");
+        entry.cleanup();
       }
     }
   };
@@ -257,7 +287,7 @@ export async function startServiceTerminal(input: {
     throw new Error("No running container is available for terminal access.");
   }
 
-  const child = spawnTargetCommand(input.runtime.target, [
+  const { child, cleanup } = spawnTargetCommand(input.runtime.target, [
     "exec",
     "-i",
     containerName,
@@ -272,7 +302,11 @@ export async function startServiceTerminal(input: {
     input.onData(chunk.toString());
   });
 
-  child.on("close", (code) => input.onExit?.(code));
+  child.on("close", (code) => {
+    cleanup();
+    input.onExit?.(code);
+  });
+  child.on("error", cleanup);
 
   return {
     write(chunk: string) {
@@ -280,6 +314,7 @@ export async function startServiceTerminal(input: {
     },
     close() {
       child.kill("SIGTERM");
+      cleanup();
     }
   };
 }

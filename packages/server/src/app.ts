@@ -12,6 +12,7 @@ import { imagesRouter } from "./routes/images";
 import { webhooksRouter } from "./routes/webhooks";
 import { deployContextRouter } from "./routes/deploy-context";
 import { cliAuthRouter } from "./routes/cli-auth";
+import { serviceObservabilityRouter } from "./routes/service-observability";
 import { ensureInitialOwnerFromEnv } from "./bootstrap-initial-owner";
 
 type Env = {
@@ -128,6 +129,9 @@ export function createApp() {
   // ── CLI device/browser auth ───────────────────────────────
   app.route("/api/v1/cli-auth", cliAuthRouter);
   app.route("/cli/auth", cliAuthRouter);
+
+  // ── Service observability (REST API) ──────────────────────
+  app.route("/api/v1", serviceObservabilityRouter);
 
   // ── Webhooks (GitHub/GitLab) ──────────────────────────────
   app.route("/api/webhooks", webhooksRouter);

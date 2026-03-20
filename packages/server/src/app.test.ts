@@ -1089,4 +1089,13 @@ describe("createApp", () => {
     expect(response.status).toBe(401);
     expect(body.code).toBe("AUTH_REQUIRED");
   });
+
+  it("rejects unauthenticated GET /api/v1/container-stats with 401", async () => {
+    const app = createApp();
+    const response = await app.request("/api/v1/container-stats/svc-test-123");
+    const body = (await response.json()) as { code: string };
+
+    expect(response.status).toBe(401);
+    expect(body.code).toBe("AUTH_REQUIRED");
+  });
 });

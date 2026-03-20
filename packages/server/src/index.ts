@@ -5,6 +5,10 @@ import { serveStatic } from "hono/bun";
 import { DEFAULT_SERVER_PORT } from "@daoflow/shared";
 import { createApp } from "./app";
 import {
+  handleServiceObservabilityWebSocketUpgrade,
+  serviceObservabilityWebSocket
+} from "./service-observability-websocket";
+import {
   startWorker,
   stopWorker,
   startTemporalWorker,
@@ -67,7 +71,15 @@ async function start() {
 
   const server = Bun.serve({
     port,
-    fetch: app.fetch
+    async fetch(req, serverInstance) {
+      const upgraded = await handleServiceObservabilityWebSocketUpgrade(req, serverInstance);
+      if (upgraded !== null) {
+        return upgraded;
+      }
+
+      return app.fetch(req, serverInstance as never);
+    },
+    websocket: serviceObservabilityWebSocket
   });
 
   console.log(`DaoFlow control plane listening on http://localhost:${server.port}`);
