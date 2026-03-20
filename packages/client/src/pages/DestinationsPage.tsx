@@ -66,7 +66,8 @@ export default function DestinationsPage() {
           <div>
             <p className="text-sm font-medium text-foreground">No backup destinations configured</p>
             <p className="mt-1 text-sm text-muted-foreground">
-              Add a destination to start backing up your data.
+              Add a destination to complete setup step 1 of 2, then return to Backups to create
+              policies and schedules.
             </p>
           </div>
         </div>

@@ -2,11 +2,13 @@
 
 import "@testing-library/jest-dom/vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import BackupsPage from "./BackupsPage";
 
 const {
   backupOverviewUseQueryMock,
+  backupDestinationsUseQueryMock,
   backupRunDetailsUseQueryMock,
   enableBackupScheduleUseMutationMock,
   disableBackupScheduleUseMutationMock,
@@ -14,6 +16,7 @@ const {
   refetchBackupRunDetailsMock
 } = vi.hoisted(() => ({
   backupOverviewUseQueryMock: vi.fn(),
+  backupDestinationsUseQueryMock: vi.fn(),
   backupRunDetailsUseQueryMock: vi.fn(),
   enableBackupScheduleUseMutationMock: vi.fn(),
   disableBackupScheduleUseMutationMock: vi.fn(),
@@ -36,6 +39,9 @@ vi.mock("../lib/trpc", () => ({
     backupOverview: {
       useQuery: backupOverviewUseQueryMock
     },
+    backupDestinations: {
+      useQuery: backupDestinationsUseQueryMock
+    },
     backupRunDetails: {
       useQuery: backupRunDetailsUseQueryMock
     },
@@ -52,6 +58,14 @@ vi.mock("../lib/trpc", () => ({
 }));
 
 describe("BackupsPage", () => {
+  function renderBackupsPage() {
+    return render(
+      <MemoryRouter>
+        <BackupsPage />
+      </MemoryRouter>
+    );
+  }
+
   afterEach(() => {
     cleanup();
   });
@@ -82,6 +96,14 @@ describe("BackupsPage", () => {
       },
       isLoading: false,
       refetch: vi.fn()
+    });
+    backupDestinationsUseQueryMock.mockReturnValue({
+      data: [
+        {
+          id: "dest_primary"
+        }
+      ],
+      isLoading: false
     });
     backupRunDetailsUseQueryMock.mockImplementation((input: { runId: string }) => {
       if (input.runId === "run_failed") {
@@ -142,8 +164,9 @@ describe("BackupsPage", () => {
   });
 
   it("opens the backup run details sheet from the runs table", () => {
-    render(<BackupsPage />);
+    renderBackupsPage();
 
+    expect(backupDestinationsUseQueryMock).toHaveBeenCalledWith({}, { enabled: false });
     fireEvent.click(screen.getByTestId("backup-run-inspect-run_failed"));
 
     expect(screen.getByTestId("backup-run-details-sheet")).toBeInTheDocument();
@@ -151,5 +174,86 @@ describe("BackupsPage", () => {
     expect(
       screen.getByText("Resolved policy control-plane-db for foundation-vps-1.")
     ).toBeVisible();
+  });
+
+  it("guides operators to configure destinations before policies when backups are empty", () => {
+    backupOverviewUseQueryMock.mockReturnValue({
+      data: {
+        policies: [],
+        runs: []
+      },
+      isLoading: false,
+      refetch: vi.fn()
+    });
+    backupDestinationsUseQueryMock.mockReturnValue({
+      data: [],
+      isLoading: false
+    });
+
+    renderBackupsPage();
+
+    expect(screen.getByTestId("backup-empty-state")).toBeInTheDocument();
+    expect(screen.getByText("Add a backup destination first")).toBeVisible();
+    expect(backupDestinationsUseQueryMock).toHaveBeenCalledWith({}, { enabled: true });
+    expect(screen.getByTestId("backup-empty-open-destinations")).toHaveAttribute(
+      "href",
+      "/destinations"
+    );
+  });
+
+  it("guides operators to create policies after destinations exist", () => {
+    backupOverviewUseQueryMock.mockReturnValue({
+      data: {
+        policies: [],
+        runs: []
+      },
+      isLoading: false,
+      refetch: vi.fn()
+    });
+    backupDestinationsUseQueryMock.mockReturnValue({
+      data: [
+        {
+          id: "dest_primary"
+        }
+      ],
+      isLoading: false
+    });
+
+    renderBackupsPage();
+
+    expect(screen.getByText("Backup destinations are ready")).toBeVisible();
+    expect(backupDestinationsUseQueryMock).toHaveBeenCalledWith({}, { enabled: true });
+    expect(
+      screen.getByText(
+        /Backup policies are the remaining setup step, and policies and run history will appear here after the first configuration\./i
+      )
+    ).toBeVisible();
+    expect(screen.getByTestId("backup-empty-open-destinations")).toHaveTextContent(
+      "Review Destination Inventory"
+    );
+    expect(screen.getByTestId("backup-empty-open-destinations")).toHaveAttribute(
+      "href",
+      "/destinations"
+    );
+  });
+
+  it("waits for destination data before rendering the empty state", () => {
+    backupOverviewUseQueryMock.mockReturnValue({
+      data: {
+        policies: [],
+        runs: []
+      },
+      isLoading: false,
+      refetch: vi.fn()
+    });
+    backupDestinationsUseQueryMock.mockReturnValue({
+      data: undefined,
+      isLoading: true
+    });
+
+    renderBackupsPage();
+
+    expect(backupDestinationsUseQueryMock).toHaveBeenCalledWith({}, { enabled: true });
+    expect(screen.queryByTestId("backup-empty-state")).not.toBeInTheDocument();
   });
 });

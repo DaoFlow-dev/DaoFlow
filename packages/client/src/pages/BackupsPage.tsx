@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { trpc } from "../lib/trpc";
 import { useSession } from "../lib/auth-client";
 import { BackupRunDetailsSheet } from "@/components/backups/BackupRunDetailsSheet";
+import { BackupEmptyState } from "@/components/backups/BackupEmptyState";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -15,13 +16,24 @@ import {
   TableRow
 } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
-import { DatabaseBackup, Plus, Clock, PlayCircle, StopCircle, RotateCcw } from "lucide-react";
+import { Plus, Clock, PlayCircle, StopCircle, RotateCcw } from "lucide-react";
 import { getBackupOperationBadgeVariant, formatBytes } from "../lib/tone-utils";
 import { isTRPCClientError } from "@trpc/client";
 
 export default function BackupsPage() {
   const session = useSession();
   const backupOverview = trpc.backupOverview.useQuery({}, { enabled: Boolean(session.data) });
+  const policies = backupOverview.data?.policies ?? [];
+  const runs = backupOverview.data?.runs ?? [];
+  const shouldLoadDestinations =
+    Boolean(session.data) &&
+    !backupOverview.isLoading &&
+    policies.length === 0 &&
+    runs.length === 0;
+  const backupDestinations = trpc.backupDestinations.useQuery(
+    {},
+    { enabled: shouldLoadDestinations }
+  );
 
   const enableSchedule = trpc.enableBackupSchedule.useMutation({
     onSuccess: () => backupOverview.refetch()
@@ -66,8 +78,7 @@ export default function BackupsPage() {
     return () => window.clearInterval(interval);
   }, [backupRunDetailStatus, refetchBackupRunDetails, selectedRunId]);
 
-  const policies = backupOverview.data?.policies ?? [];
-  const runs = backupOverview.data?.runs ?? [];
+  const hasDestinations = (backupDestinations.data?.length ?? 0) > 0;
   const detailsErrorMessage = isTRPCClientError(backupRunDetails.error)
     ? backupRunDetails.error.message
     : backupRunDetails.error
@@ -88,23 +99,13 @@ export default function BackupsPage() {
         </Button>
       </div>
 
-      {backupOverview.isLoading ? (
+      {backupOverview.isLoading || backupDestinations.isLoading ? (
         <div className="space-y-4">
           <Skeleton className="h-32 w-full" />
           <Skeleton className="h-32 w-full" />
         </div>
       ) : policies.length === 0 && runs.length === 0 ? (
-        <div className="flex flex-col items-center gap-4 py-16 text-center">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/10 to-primary/5">
-            <DatabaseBackup size={28} className="text-primary/50" />
-          </div>
-          <div>
-            <p className="text-sm font-medium text-foreground">No backup policies configured</p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Create a policy to start backing up your data.
-            </p>
-          </div>
-        </div>
+        <BackupEmptyState hasDestinations={hasDestinations} />
       ) : (
         <>
           {/* Policies */}
