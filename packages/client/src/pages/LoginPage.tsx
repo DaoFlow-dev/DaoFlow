@@ -76,20 +76,20 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="login-page">
-      <div className="login-page__container">
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background before:pointer-events-none before:absolute before:-left-1/2 before:-top-1/2 before:h-[200%] before:w-[200%] before:bg-[radial-gradient(ellipse_at_30%_50%,_color-mix(in_oklch,var(--primary)_6%,transparent)_0%,transparent_50%),radial-gradient(ellipse_at_70%_30%,_color-mix(in_oklch,#a855f7_4%,transparent)_0%,transparent_50%)]">
+      <div className="relative z-10 flex w-full max-w-[420px] flex-col items-center px-6 py-8">
         {/* Logo */}
-        <div className="login-page__logo">
+        <div className="mb-2 flex items-center gap-3 text-foreground">
           <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 shadow-sm">
             <Hexagon size={24} strokeWidth={1.5} className="text-primary" />
           </div>
-          <h1>DaoFlow</h1>
+          <h1 className="m-0 text-[1.75rem] font-extrabold tracking-tight">DaoFlow</h1>
         </div>
-        <p className="login-page__tagline">
+        <p className="mb-6 max-w-xs text-center text-sm leading-relaxed text-muted-foreground">
           The agentic platform to host deterministic systems — from one prompt to production.
         </p>
 
-        <Card className="login-page__card overflow-hidden shadow-lg">
+        <Card className="w-full overflow-hidden border shadow-lg">
           <div className="h-1 bg-gradient-to-r from-primary via-primary/50 to-violet-500/30" />
           <CardHeader className="text-center pb-2">
             <h2 className="text-xl font-bold leading-none tracking-tight">Welcome back</h2>
@@ -105,7 +105,7 @@ export default function LoginPage() {
               </TabsList>
 
               <TabsContent value="sign-in">
-                <form className="login-page__form" onSubmit={(e) => void handleSignIn(e)}>
+                <form className="mt-4 flex flex-col gap-4" onSubmit={(e) => void handleSignIn(e)}>
                   <div className="space-y-2">
                     <Label htmlFor="signin-email">Email</Label>
                     <Input
@@ -160,7 +160,7 @@ export default function LoginPage() {
                     { label: "Deploy", completed: false, active: false }
                   ]}
                 />
-                <form className="login-page__form" onSubmit={(e) => void handleSignUp(e)}>
+                <form className="mt-4 flex flex-col gap-4" onSubmit={(e) => void handleSignUp(e)}>
                   <div className="space-y-2">
                     <Label htmlFor="signup-name">Name</Label>
                     <Input
@@ -239,7 +239,7 @@ export default function LoginPage() {
           </CardContent>
         </Card>
 
-        <p className="login-page__footer">
+        <p className="mt-8 text-center text-xs text-muted-foreground">
           Open-source Agentic DevOps — from prompts to production.
         </p>
       </div>
