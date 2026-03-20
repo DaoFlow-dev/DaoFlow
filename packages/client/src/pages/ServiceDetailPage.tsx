@@ -1,3 +1,4 @@
+import { Suspense, lazy } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { trpc } from "../lib/trpc";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -19,15 +20,26 @@ import {
 import ServiceHeader from "../components/service-detail/ServiceHeader";
 import GeneralTab from "../components/service-detail/GeneralTab";
 import DeploymentsTab from "../components/service-detail/DeploymentsTab";
-import LogsTab from "../components/service-detail/LogsTab";
 import TerminalTab from "../components/service-detail/TerminalTab";
-import MonitoringTab from "../components/service-detail/MonitoringTab";
 import EnvironmentTab from "../components/service-detail/EnvironmentTab";
 import DomainsTab from "../components/service-detail/DomainsTab";
 import AdvancedTab from "../components/service-detail/AdvancedTab";
 import ActivityTab from "../components/service-detail/ActivityTab";
-import ComposeEditorTab from "../components/service-detail/ComposeEditorTab";
 import type { ServiceRuntimeConfig } from "../components/service-detail/runtime-config";
+
+const LogsTab = lazy(() => import("../components/service-detail/LogsTab"));
+const MonitoringTab = lazy(() => import("../components/service-detail/MonitoringTab"));
+const ComposeEditorTab = lazy(() => import("../components/service-detail/ComposeEditorTab"));
+
+function LazyTabSkeleton({ testId }: { testId: string }) {
+  return (
+    <div className="space-y-3" data-testid={testId}>
+      <Skeleton className="h-10 w-40 rounded-xl" />
+      <Skeleton className="h-32 w-full rounded-xl" />
+      <Skeleton className="h-32 w-full rounded-xl" />
+    </div>
+  );
+}
 
 export default function ServiceDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -143,7 +155,9 @@ export default function ServiceDetailPage() {
         </TabsContent>
 
         <TabsContent value="logs" className="mt-4">
-          <LogsTab serviceId={svc.id} serviceName={svc.name} />
+          <Suspense fallback={<LazyTabSkeleton testId="service-detail-logs-loading" />}>
+            <LogsTab serviceId={svc.id} serviceName={svc.name} />
+          </Suspense>
         </TabsContent>
 
         <TabsContent value="terminal" className="mt-4">
@@ -151,7 +165,9 @@ export default function ServiceDetailPage() {
         </TabsContent>
 
         <TabsContent value="monitoring" className="mt-4">
-          <MonitoringTab serviceId={svc.id} serviceName={svc.name} />
+          <Suspense fallback={<LazyTabSkeleton testId="service-detail-monitoring-loading" />}>
+            <MonitoringTab serviceId={svc.id} serviceName={svc.name} />
+          </Suspense>
         </TabsContent>
 
         <TabsContent value="environment" className="mt-4">
@@ -163,13 +179,15 @@ export default function ServiceDetailPage() {
         </TabsContent>
 
         <TabsContent value="compose" className="mt-4">
-          <ComposeEditorTab
-            serviceId={svc.id}
-            serviceName={svc.name}
-            sourceType={svc.sourceType}
-            composeServiceName={svc.composeServiceName}
-            runtimeConfigPreview={svc.runtimeConfigPreview}
-          />
+          <Suspense fallback={<LazyTabSkeleton testId="service-detail-compose-loading" />}>
+            <ComposeEditorTab
+              serviceId={svc.id}
+              serviceName={svc.name}
+              sourceType={svc.sourceType}
+              composeServiceName={svc.composeServiceName}
+              runtimeConfigPreview={svc.runtimeConfigPreview}
+            />
+          </Suspense>
         </TabsContent>
 
         <TabsContent value="advanced" className="mt-4">
