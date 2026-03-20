@@ -1,25 +1,21 @@
 import { existsSync, readFileSync, unlinkSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { emitJsonSuccess } from "./command-helpers";
-import { readComposeFileSet } from "./compose-file-set";
 import {
   printComposeDeploymentPlan,
   type ComposeDeploymentPlanPreview
 } from "./compose-deployment-plan-output";
-import { analyzeComposeFileSetInputs, createContextBundle } from "./context-bundler";
+import { analyzeComposeInputs } from "./compose-input-analysis";
 import { parseSizeString } from "./config-loader";
+import { createContextBundle } from "./context-bundler";
 import type { ComposeDeployCoreOptions } from "./compose-deploy-types";
+import { assertValidComposeUploadContextRoot } from "./compose-upload-context";
 
 export interface ComposeDeploymentPlanClientLike {
   composeDeploymentPlan: {
     query(input: {
       server: string;
       compose: string;
-      composeFiles?: Array<{
-        path: string;
-        contents: string;
-      }>;
-      composeProfiles?: string[];
       composePath?: string;
       contextPath?: string;
       repoDefaultContent?: string;
@@ -52,23 +48,26 @@ export async function fetchComposeDeploymentPlan(
   trpc: ComposeDeploymentPlanClientLike,
   options: ComposeDeployCoreOptions
 ): Promise<ComposeDeploymentPlanPreview> {
-  const composeFiles =
-    options.composeFiles && options.composeFiles.length > 0
-      ? options.composeFiles
-      : readComposeFileSet({
-          composePath: options.composePath,
-          composeOverrides: options.composeOverrides
-        });
-  const primaryComposeFile = composeFiles[0];
-  const resolvedCompose = resolve(primaryComposeFile.path);
+  const resolvedCompose = resolve(options.composePath);
+  if (!existsSync(resolvedCompose)) {
+    throw new Error(`Compose file not found: ${options.composePath}`);
+  }
+
+  const composeContent = readFileSync(resolvedCompose, "utf8");
   const repoDefaultContent = readComposeRepoDefaults(resolvedCompose);
-  const composeInputs = analyzeComposeFileSetInputs(composeFiles);
+  const composeInputs = analyzeComposeInputs(composeContent);
   const buildContexts = composeInputs.localBuildContexts.map((context) => ({
     serviceName: context.serviceName,
     context: context.context,
     dockerfile: context.dockerfile ?? null
   }));
   const requiresContextUpload = composeInputs.requiresContextUpload;
+
+  assertValidComposeUploadContextRoot({
+    composePath: resolvedCompose,
+    contextPath: options.contextPath,
+    composeInputs
+  });
 
   let contextBundle:
     | {
@@ -109,10 +108,8 @@ export async function fetchComposeDeploymentPlan(
 
   return await trpc.composeDeploymentPlan.query({
     server: options.serverId,
-    compose: primaryComposeFile.contents,
-    composeFiles,
-    composeProfiles: options.composeProfiles,
-    composePath: primaryComposeFile.path,
+    compose: composeContent,
+    composePath: options.composePath,
     contextPath: options.contextPath,
     repoDefaultContent,
     localBuildContexts: buildContexts,

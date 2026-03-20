@@ -320,6 +320,32 @@ export interface DeploymentLogsOutput {
   }>;
 }
 
+export interface ComposePreviewsOutput {
+  service: {
+    id: string;
+    name: string;
+    environmentId: string;
+    projectId: string;
+  };
+  previews: Array<{
+    key: string;
+    target: "branch" | "pull-request";
+    branch: string;
+    pullRequestNumber: number | null;
+    envBranch: string;
+    stackName: string;
+    primaryDomain: string | null;
+    latestDeploymentId: string;
+    latestAction: "deploy" | "destroy";
+    latestStatus: string;
+    latestStatusLabel: string;
+    latestStatusTone: "healthy" | "running" | "failed" | "queued";
+    lastRequestedAt: string;
+    lastFinishedAt: string | null;
+    isActive: boolean;
+  }>;
+}
+
 export interface ProjectListItem {
   id: string;
   name: string;
@@ -451,7 +477,17 @@ export interface DaoFlowTRPC {
   serverReadiness: QueryProcedure<ServerReadinessOutput, { limit?: number }>;
   deploymentPlan: QueryProcedure<
     DeploymentPlanPreview,
-    { service: string; server?: string; image?: string }
+    {
+      service: string;
+      server?: string;
+      image?: string;
+      preview?: {
+        target: "branch" | "pull-request";
+        branch: string;
+        pullRequestNumber?: number;
+        action?: "deploy" | "destroy";
+      };
+    }
   >;
   composeDeploymentPlan: QueryProcedure<
     ComposeDeploymentPlanPreview,
@@ -479,6 +515,7 @@ export interface DaoFlowTRPC {
       contextBundleError?: string;
     }
   >;
+  composePreviews: QueryProcedure<ComposePreviewsOutput, { serviceId: string }>;
   composeReleaseCatalog: QueryProcedure<ComposeReleaseCatalogOutput, { limit?: number }>;
   backupOverview: QueryProcedure<BackupOverviewOutput, { limit?: number }>;
   backupDestinations: QueryProcedure<BackupDestinationOutput[], { limit?: number }>;
@@ -555,7 +592,17 @@ export interface DaoFlowTRPC {
   agentTokenInventory: QueryProcedure<AgentTokenInventoryOutput>;
   revokeAgentToken: MutationProcedure<{ tokenId: string }, { status: "ok" }>;
   triggerDeploy: MutationProcedure<
-    { serviceId: string; commitSha?: string; imageTag?: string },
+    {
+      serviceId: string;
+      commitSha?: string;
+      imageTag?: string;
+      preview?: {
+        target: "branch" | "pull-request";
+        branch: string;
+        pullRequestNumber?: number;
+        action?: "deploy" | "destroy";
+      };
+    },
     TriggerDeployOutput
   >;
   configDiff: QueryProcedure<ConfigDiffOutput, { deploymentIdA: string; deploymentIdB: string }>;

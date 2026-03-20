@@ -1,6 +1,7 @@
 import { Command } from "commander";
 import chalk from "chalk";
 import { writeFileSync, readFileSync, existsSync } from "node:fs";
+import { runCommandAction } from "../command-action";
 import {
   emitJsonError,
   emitJsonSuccess,
@@ -9,6 +10,14 @@ import {
 } from "../command-helpers";
 import { createClient } from "../trpc-client";
 import { upsertEnvFileValue } from "../local-env";
+
+interface EnvSetResult {
+  key: string;
+  source: "1password" | "inline";
+  file?: string;
+  environment?: string;
+  secretRef?: string | null;
+}
 
 export function envCommand(): Command {
   const cmd = new Command("env").description("Manage environment variables");
@@ -20,38 +29,37 @@ export function envCommand(): Command {
     .option("--output <path>", "Output file path", ".env")
     .option("--json", "Output as JSON")
     .action(async (opts: { envId?: string; output: string; json?: boolean }, command: Command) => {
-      const isJson = resolveCommandJsonOption(command, opts.json);
+      await runCommandAction({
+        command,
+        json: opts.json,
+        action: async (ctx) => {
+          const trpc = createClient();
+          const data = await trpc.environmentVariables.query({ environmentId: opts.envId });
+          const lines = data.variables.map((v) =>
+            v.isSecret ? `# ${v.key}=<secret>` : `${v.key}=${v.displayValue}`
+          );
+          const maskedSecretCount = data.variables.filter((v) => v.isSecret).length;
 
-      try {
-        const trpc = createClient();
-        const data = await trpc.environmentVariables.query({ environmentId: opts.envId });
-        const lines = data.variables.map((v) =>
-          v.isSecret ? `# ${v.key}=<secret>` : `${v.key}=${v.displayValue}`
-        );
-        const maskedSecretCount = data.variables.filter((v) => v.isSecret).length;
+          writeFileSync(opts.output, lines.join("\n") + "\n");
 
-        writeFileSync(opts.output, lines.join("\n") + "\n");
-
-        if (isJson) {
-          emitJsonSuccess({
-            environmentId: opts.envId ?? null,
-            output: opts.output,
-            variableCount: data.variables.length,
-            maskedSecretCount
-          });
-          return;
+          return ctx.success(
+            {
+              environmentId: opts.envId ?? null,
+              output: opts.output,
+              variableCount: data.variables.length,
+              maskedSecretCount
+            },
+            {
+              human: () => {
+                console.log(
+                  chalk.green(`✓ Wrote ${data.variables.length} variables to ${opts.output}`)
+                );
+                console.log(chalk.dim(`  (${maskedSecretCount} secrets masked)`));
+              }
+            }
+          );
         }
-
-        console.log(chalk.green(`✓ Wrote ${data.variables.length} variables to ${opts.output}`));
-        console.log(chalk.dim(`  (${maskedSecretCount} secrets masked)`));
-      } catch (error) {
-        if (isJson) {
-          emitJsonError(getErrorMessage(error), "API_ERROR");
-        } else {
-          console.error(chalk.red(`✗ ${getErrorMessage(error)}`));
-        }
-        process.exit(1);
-      }
+      });
     });
 
   cmd
@@ -75,96 +83,88 @@ export function envCommand(): Command {
         },
         command: Command
       ) => {
-        const isJson = resolveCommandJsonOption(command, opts.json);
+        await runCommandAction({
+          command,
+          json: opts.json,
+          action: async (ctx) => {
+            if (!existsSync(opts.input)) {
+              ctx.fail(`File not found: ${opts.input}`, { code: "FILE_NOT_FOUND" });
+            }
 
-        if (!existsSync(opts.input)) {
-          const error = `File not found: ${opts.input}`;
-          if (isJson) {
-            emitJsonError(error, "FILE_NOT_FOUND");
-          } else {
-            console.error(chalk.red(`✗ ${error}`));
+            const content = readFileSync(opts.input, "utf-8");
+            const lines = content.split("\n").filter((l) => l.trim() && !l.startsWith("#"));
+            const vars: { key: string; value: string }[] = [];
+
+            for (const line of lines) {
+              const eqIdx = line.indexOf("=");
+              if (eqIdx < 0) continue;
+              vars.push({
+                key: line.slice(0, eqIdx).trim(),
+                value: line.slice(eqIdx + 1).trim()
+              });
+            }
+
+            if (opts.dryRun) {
+              return ctx.dryRun(
+                {
+                  dryRun: true,
+                  environmentId: opts.envId,
+                  input: opts.input,
+                  variableCount: vars.length,
+                  keys: vars.map((v) => v.key),
+                  markAsSecret: opts.secret ?? false
+                },
+                {
+                  human: () => {
+                    console.log(
+                      chalk.bold(`\n  Dry-run: ${vars.length} variables from ${opts.input}\n`)
+                    );
+                    for (const v of vars) {
+                      console.log(`    ${v.key}=${opts.secret ? "***" : v.value.slice(0, 40)}`);
+                    }
+                  }
+                }
+              );
+            }
+
+            ctx.requireConfirmation(
+              opts.yes === true,
+              `This will push ${vars.length} variables to environment ${opts.envId}. Pass --yes to confirm.`,
+              {
+                humanMessage: `This will push ${vars.length} variables to environment ${opts.envId}. Pass --yes to confirm.`
+              }
+            );
+
+            const trpc = createClient();
+            let count = 0;
+            for (const v of vars) {
+              await trpc.upsertEnvironmentVariable.mutate({
+                environmentId: opts.envId,
+                key: v.key,
+                value: v.value,
+                isSecret: opts.secret ?? false,
+                category: "runtime"
+              });
+              count++;
+            }
+
+            return ctx.success(
+              {
+                environmentId: opts.envId,
+                input: opts.input,
+                variableCount: count,
+                markAsSecret: opts.secret ?? false
+              },
+              {
+                human: () => {
+                  console.log(
+                    chalk.green(`✓ Pushed ${count} variables to environment ${opts.envId}`)
+                  );
+                }
+              }
+            );
           }
-          process.exit(1);
-          return;
-        }
-
-        const content = readFileSync(opts.input, "utf-8");
-        const lines = content.split("\n").filter((l) => l.trim() && !l.startsWith("#"));
-        const vars: { key: string; value: string }[] = [];
-
-        for (const line of lines) {
-          const eqIdx = line.indexOf("=");
-          if (eqIdx < 0) continue;
-          vars.push({
-            key: line.slice(0, eqIdx).trim(),
-            value: line.slice(eqIdx + 1).trim()
-          });
-        }
-
-        if (opts.dryRun) {
-          if (isJson) {
-            emitJsonSuccess({
-              dryRun: true,
-              environmentId: opts.envId,
-              input: opts.input,
-              variableCount: vars.length,
-              keys: vars.map((v) => v.key),
-              markAsSecret: opts.secret ?? false
-            });
-            process.exit(3);
-          }
-
-          console.log(chalk.bold(`\n  Dry-run: ${vars.length} variables from ${opts.input}\n`));
-          for (const v of vars) {
-            console.log(`    ${v.key}=${opts.secret ? "***" : v.value.slice(0, 40)}`);
-          }
-          process.exit(3);
-        }
-
-        if (!opts.yes) {
-          const error = `This will push ${vars.length} variables to environment ${opts.envId}. Pass --yes to confirm.`;
-          if (isJson) {
-            emitJsonError(error, "CONFIRMATION_REQUIRED");
-          } else {
-            console.error(chalk.yellow(error));
-          }
-          process.exit(1);
-          return;
-        }
-
-        try {
-          const trpc = createClient();
-          let count = 0;
-          for (const v of vars) {
-            await trpc.upsertEnvironmentVariable.mutate({
-              environmentId: opts.envId,
-              key: v.key,
-              value: v.value,
-              isSecret: opts.secret ?? false,
-              category: "runtime"
-            });
-            count++;
-          }
-
-          if (isJson) {
-            emitJsonSuccess({
-              environmentId: opts.envId,
-              input: opts.input,
-              variableCount: count,
-              markAsSecret: opts.secret ?? false
-            });
-            return;
-          }
-
-          console.log(chalk.green(`✓ Pushed ${count} variables to environment ${opts.envId}`));
-        } catch (error) {
-          if (isJson) {
-            emitJsonError(getErrorMessage(error), "API_ERROR");
-          } else {
-            console.error(chalk.red(`✗ ${getErrorMessage(error)}`));
-          }
-          process.exit(1);
-        }
+        });
       }
     );
 
@@ -175,32 +175,28 @@ export function envCommand(): Command {
     .option("--env-id <id>", "Environment ID")
     .option("--json", "Output as JSON")
     .action(async (opts: { envId?: string; json?: boolean }, command: Command) => {
-      const isJson = resolveCommandJsonOption(command, opts.json);
+      await runCommandAction({
+        command,
+        json: opts.json,
+        action: async (ctx) => {
+          const trpc = createClient();
+          const data = await trpc.environmentVariables.query({ environmentId: opts.envId });
 
-      try {
-        const trpc = createClient();
-        const data = await trpc.environmentVariables.query({ environmentId: opts.envId });
-
-        if (isJson) {
-          emitJsonSuccess(data);
-          return;
+          return ctx.success(data, {
+            human: () => {
+              console.log(
+                chalk.bold(`\n  Environment Variables (${data.summary.totalVariables})\n`)
+              );
+              for (const v of data.variables) {
+                const value = v.isSecret ? chalk.red("***secret***") : chalk.dim(v.displayValue);
+                const cat = chalk.dim(`[${v.category}]`);
+                console.log(`  ${chalk.cyan(v.key)} = ${value}  ${cat}`);
+              }
+              console.log();
+            }
+          });
         }
-
-        console.log(chalk.bold(`\n  Environment Variables (${data.summary.totalVariables})\n`));
-        for (const v of data.variables) {
-          const value = v.isSecret ? chalk.red("***secret***") : chalk.dim(v.displayValue);
-          const cat = chalk.dim(`[${v.category}]`);
-          console.log(`  ${chalk.cyan(v.key)} = ${value}  ${cat}`);
-        }
-        console.log();
-      } catch (err) {
-        if (isJson) {
-          emitJsonError(getErrorMessage(err), "API_ERROR");
-        } else {
-          console.error(chalk.red(`✗ ${err instanceof Error ? err.message : String(err)}`));
-        }
-        process.exit(1);
-      }
+      });
     });
 
   // ── daoflow env set ──────────────────────────────────────
@@ -233,115 +229,89 @@ export function envCommand(): Command {
         },
         command: Command
       ) => {
-        const isJson = resolveCommandJsonOption(command, opts.json);
+        await runCommandAction<EnvSetResult>({
+          command,
+          json: opts.json,
+          action: async (ctx) => {
+            if (!opts.value && !opts.secretRef) {
+              ctx.fail("Either --value or --secret-ref is required.", { code: "INVALID_INPUT" });
+            }
 
-        // Validate: must have either --value or --secret-ref
-        if (!opts.value && !opts.secretRef) {
-          const msg = "Either --value or --secret-ref is required.";
-          if (isJson) {
-            emitJsonError(msg, "INVALID_INPUT");
-          } else {
-            console.error(chalk.red(`✗ ${msg}`));
-          }
-          process.exit(1);
-        }
-
-        if (!opts.local && !opts.envId) {
-          const msg = "Environment ID is required unless --local is used.";
-          if (isJson) {
-            emitJsonError(msg, "INVALID_INPUT");
-          } else {
-            console.error(chalk.red(`✗ ${msg}`));
-          }
-          process.exit(1);
-        }
-
-        // Validate op:// URI format
-        if (opts.secretRef && !/^op:\/\/[^/]+\/[^/]+\/[^/]+$/.test(opts.secretRef)) {
-          const msg = `Invalid secret reference: ${opts.secretRef}. Expected format: op://vault/item/field`;
-          if (isJson) {
-            emitJsonError(msg, "INVALID_SECRET_REF");
-          } else {
-            console.error(chalk.red(`✗ ${msg}`));
-          }
-          process.exit(1);
-        }
-
-        if (opts.local) {
-          try {
-            const storedValue = opts.secretRef ? `[1password:${opts.secretRef}]` : opts.value!;
-            upsertEnvFileValue(opts.file, opts.key, storedValue);
-
-            if (isJson) {
-              emitJsonSuccess({
-                key: opts.key,
-                file: opts.file,
-                source: opts.secretRef ? "1password" : "inline"
+            if (!opts.local && !opts.envId) {
+              ctx.fail("Environment ID is required unless --local is used.", {
+                code: "INVALID_INPUT"
               });
-            } else {
-              console.log(chalk.green(`✓ Wrote ${opts.key} to ${opts.file}`));
             }
-          } catch (err) {
-            if (isJson) {
-              emitJsonError(getErrorMessage(err), "FILE_WRITE_FAILED");
-            } else {
-              console.error(chalk.red(`✗ ${err instanceof Error ? err.message : String(err)}`));
+
+            if (opts.secretRef && !/^op:\/\/[^/]+\/[^/]+\/[^/]+$/.test(opts.secretRef)) {
+              ctx.fail(
+                `Invalid secret reference: ${opts.secretRef}. Expected format: op://vault/item/field`,
+                { code: "INVALID_SECRET_REF" }
+              );
             }
-            process.exit(1);
-          }
-          return;
-        }
 
-        if (!opts.yes) {
-          const source = opts.secretRef ? ` (1Password: ${opts.secretRef})` : "";
-          const error = `Set ${opts.key} in environment ${opts.envId}${source}. Pass --yes to confirm.`;
-          if (isJson) {
-            emitJsonError(error, "CONFIRMATION_REQUIRED");
-          } else {
-            console.error(chalk.yellow(error));
-          }
-          process.exit(1);
-          return;
-        }
+            if (opts.local) {
+              const storedValue = opts.secretRef ? `[1password:${opts.secretRef}]` : opts.value!;
+              try {
+                upsertEnvFileValue(opts.file, opts.key, storedValue);
+              } catch (err) {
+                ctx.fail(getErrorMessage(err), { code: "FILE_WRITE_FAILED" });
+              }
 
-        try {
-          const trpc = createClient();
-          await trpc.upsertEnvironmentVariable.mutate({
-            environmentId: opts.envId!,
-            key: opts.key,
-            value: opts.secretRef ? `[1password:${opts.secretRef}]` : opts.value!,
-            isSecret: opts.secret ?? !!opts.secretRef,
-            category: opts.category as "runtime" | "build",
-            source: opts.secretRef ? "1password" : "inline",
-            secretRef: opts.secretRef ?? null
-          });
+              return ctx.success(
+                {
+                  key: opts.key,
+                  file: opts.file,
+                  source: opts.secretRef ? "1password" : "inline"
+                },
+                {
+                  human: () => {
+                    console.log(chalk.green(`✓ Wrote ${opts.key} to ${opts.file}`));
+                  }
+                }
+              );
+            }
 
-          if (isJson) {
-            emitJsonSuccess({
+            const source = opts.secretRef ? ` (1Password: ${opts.secretRef})` : "";
+            ctx.requireConfirmation(
+              opts.yes === true,
+              `Set ${opts.key} in environment ${opts.envId}${source}. Pass --yes to confirm.`
+            );
+
+            const trpc = createClient();
+            await trpc.upsertEnvironmentVariable.mutate({
+              environmentId: opts.envId!,
               key: opts.key,
-              environment: opts.envId!,
+              value: opts.secretRef ? `[1password:${opts.secretRef}]` : opts.value!,
+              isSecret: opts.secret ?? !!opts.secretRef,
+              category: opts.category as "runtime" | "build",
               source: opts.secretRef ? "1password" : "inline",
               secretRef: opts.secretRef ?? null
             });
-          } else {
-            if (opts.secretRef) {
-              console.log(
-                chalk.green(
-                  `✓ Set ${opts.key} → ${chalk.cyan(opts.secretRef)} in environment ${opts.envId}`
-                )
-              );
-            } else {
-              console.log(chalk.green(`✓ Set ${opts.key} in environment ${opts.envId!}`));
-            }
+
+            return ctx.success(
+              {
+                key: opts.key,
+                environment: opts.envId!,
+                source: opts.secretRef ? "1password" : "inline",
+                secretRef: opts.secretRef ?? null
+              },
+              {
+                human: () => {
+                  if (opts.secretRef) {
+                    console.log(
+                      chalk.green(
+                        `✓ Set ${opts.key} → ${chalk.cyan(opts.secretRef)} in environment ${opts.envId}`
+                      )
+                    );
+                  } else {
+                    console.log(chalk.green(`✓ Set ${opts.key} in environment ${opts.envId!}`));
+                  }
+                }
+              }
+            );
           }
-        } catch (err) {
-          if (isJson) {
-            emitJsonError(getErrorMessage(err), "API_ERROR");
-          } else {
-            console.error(chalk.red(`✗ ${err instanceof Error ? err.message : String(err)}`));
-          }
-          process.exit(1);
-        }
+        });
       }
     );
 
@@ -358,39 +328,34 @@ export function envCommand(): Command {
         opts: { envId: string; key: string; json?: boolean; yes?: boolean },
         command: Command
       ) => {
-        const isJson = resolveCommandJsonOption(command, opts.json);
+        await runCommandAction({
+          command,
+          json: opts.json,
+          action: async (ctx) => {
+            ctx.requireConfirmation(
+              opts.yes === true,
+              `Destructive: delete ${opts.key} from environment ${opts.envId}. Pass --yes.`,
+              {
+                humanMessage: `Destructive: delete ${opts.key} from environment ${opts.envId}. Pass --yes.`
+              }
+            );
 
-        if (!opts.yes) {
-          const error = `Destructive: delete ${opts.key} from environment ${opts.envId}. Pass --yes.`;
-          if (isJson) {
-            emitJsonError(error, "CONFIRMATION_REQUIRED");
-          } else {
-            console.error(chalk.yellow(error));
-          }
-          process.exit(1);
-          return;
-        }
+            const trpc = createClient();
+            await trpc.deleteEnvironmentVariable.mutate({
+              environmentId: opts.envId,
+              key: opts.key
+            });
 
-        try {
-          const trpc = createClient();
-          await trpc.deleteEnvironmentVariable.mutate({
-            environmentId: opts.envId,
-            key: opts.key
-          });
-
-          if (isJson) {
-            emitJsonSuccess({ deleted: opts.key, environment: opts.envId });
-          } else {
-            console.log(chalk.green(`✓ Deleted ${opts.key} from environment ${opts.envId}`));
+            return ctx.success(
+              { deleted: opts.key, environment: opts.envId },
+              {
+                human: () => {
+                  console.log(chalk.green(`✓ Deleted ${opts.key} from environment ${opts.envId}`));
+                }
+              }
+            );
           }
-        } catch (err) {
-          if (isJson) {
-            emitJsonError(getErrorMessage(err), "API_ERROR");
-          } else {
-            console.error(chalk.red(`✗ ${err instanceof Error ? err.message : String(err)}`));
-          }
-          process.exit(1);
-        }
+        });
       }
     );
 

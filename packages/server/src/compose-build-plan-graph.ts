@@ -9,12 +9,7 @@ import type {
   ComposeBuildPlanSecretDefinition,
   ComposeBuildPlanVolume
 } from "./compose-build-plan-types";
-import {
-  isExternalReference,
-  readObject,
-  readServices,
-  resolveTopLevelSecretDefinition
-} from "./compose-build-plan-shared";
+import { readObject, readServices } from "./compose-build-plan-shared";
 
 function readBoolean(value: unknown): boolean | null {
   return typeof value === "boolean" ? value : null;
@@ -48,6 +43,49 @@ function readNamedRecord(value: unknown): Array<[string, Record<string, unknown>
       return entryRecord ? ([[name, entryRecord]] as Array<[string, Record<string, unknown>]>) : [];
     })
     .sort(([left], [right]) => left.localeCompare(right));
+}
+
+function isExternalReference(value: unknown): boolean {
+  return value === true || Boolean(readObject(value));
+}
+
+function classifySecretDefinition(
+  sourceName: string,
+  topLevelSecrets: Record<string, unknown>
+): Omit<ComposeBuildPlanSecretDefinition, "name" | "external"> {
+  const secret = readObject(topLevelSecrets[sourceName]);
+  if (!secret) {
+    return {
+      provider: "unknown",
+      reference: null
+    };
+  }
+
+  if (typeof secret.file === "string") {
+    return {
+      provider: "file",
+      reference: secret.file
+    };
+  }
+
+  if (typeof secret.environment === "string") {
+    return {
+      provider: "environment",
+      reference: secret.environment
+    };
+  }
+
+  if (isExternalReference(secret.external)) {
+    return {
+      provider: "external",
+      reference: typeof secret.name === "string" ? secret.name : sourceName
+    };
+  }
+
+  return {
+    provider: "unknown",
+    reference: null
+  };
 }
 
 function classifyConfigDefinition(
@@ -243,7 +281,7 @@ function buildRuntimeSecrets(
   return value
     .flatMap((entry) => {
       if (typeof entry === "string") {
-        const resolved = resolveTopLevelSecretDefinition(entry, topLevelSecrets);
+        const resolved = classifySecretDefinition(entry, topLevelSecrets);
         return [
           {
             sourceName: entry,
@@ -265,7 +303,7 @@ function buildRuntimeSecrets(
         return [];
       }
 
-      const resolved = resolveTopLevelSecretDefinition(sourceName, topLevelSecrets);
+      const resolved = classifySecretDefinition(sourceName, topLevelSecrets);
       return [
         {
           sourceName,
@@ -402,7 +440,7 @@ export function buildComposeGraph(input: { doc: Record<string, unknown>; warning
     secrets: Object.keys(topLevelSecrets)
       .sort((a, b) => a.localeCompare(b))
       .map((name) => {
-        const resolved = resolveTopLevelSecretDefinition(name, topLevelSecrets);
+        const resolved = classifySecretDefinition(name, topLevelSecrets);
         return {
           name,
           provider: resolved.provider,

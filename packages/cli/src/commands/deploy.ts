@@ -11,22 +11,26 @@
 
 import { Command } from "commander";
 import chalk from "chalk";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { createClient } from "../trpc-client";
-import { readComposeFileSet } from "../compose-file-set";
 import { loadDaoflowConfig, type DaoflowConfig } from "../config-loader";
-import { analyzeComposeFileSetInputs } from "../context-bundler";
 import {
   emitJsonError,
   emitJsonSuccess,
   getErrorMessage,
   resolveCommandJsonOption
 } from "../command-helpers";
+import { analyzeComposeInputs } from "../compose-input-analysis";
 import { executeComposeDeploy, estimateContextSize } from "../compose-deploy-execution";
 import { previewComposeDeploy } from "../compose-deploy-preview";
 import type { ComposeDeployCoreOptions } from "../compose-deploy-types";
+import {
+  assertValidComposeUploadContextRoot,
+  ComposeUploadContextValidationError
+} from "../compose-upload-context";
 import { previewServiceDeploy } from "../service-deploy-preview";
+import { buildServicePreviewTarget } from "../service-preview-target";
 
 const DEPLOY_HELP_TEXT = [
   "",
@@ -42,6 +46,8 @@ const DEPLOY_HELP_TEXT = [
   "Examples:",
   "  daoflow deploy --service svc_123 --dry-run --json",
   "  daoflow deploy --service svc_123 --yes",
+  "  daoflow deploy --service svc_123 --preview-branch feature/login --dry-run",
+  "  daoflow deploy --service svc_123 --preview-branch feature/login --preview-pr 42 --yes",
   "  daoflow deploy --compose ./compose.yaml --server srv_123 --dry-run --json",
   "  daoflow deploy --compose ./compose.yaml --server srv_123 --yes",
   "",
@@ -56,22 +62,13 @@ export function deployCommand(): Command {
     .description("Deploy a service or compose project")
     .option("--service <id>", "Service ID to deploy")
     .option("--compose <path>", "Docker Compose file path")
-    .option(
-      "--compose-override <path>",
-      "Additional Docker Compose override file, applied after --compose",
-      (value: string, previous: string[] = []) => [...previous, value],
-      []
-    )
-    .option(
-      "--profile <name>",
-      "Compose profile to enable",
-      (value: string, previous: string[] = []) => [...previous, value],
-      []
-    )
-    .option("--context <path>", "Build context path (default: .)")
+    .option("--context <path>", "Upload root for compose-local inputs (default: .)")
     .option("--server <id>", "Target server ID")
     .option("--commit <sha>", "Commit SHA to deploy")
     .option("--image <tag>", "Image tag to deploy")
+    .option("--preview-branch <branch>", "Target a compose preview for a source branch")
+    .option("--preview-pr <number>", "Associate the preview with a pull request number")
+    .option("--preview-close", "Destroy the targeted preview stack instead of deploying it")
     .option("--dry-run", "Preview deployment plan without executing")
     .option("--no-prompt", "Skip interactive prompts (for CI/agent use)")
     .option("-y, --yes", "Skip confirmation prompt")
@@ -82,12 +79,13 @@ export function deployCommand(): Command {
         opts: {
           service?: string;
           compose?: string;
-          composeOverride?: string[];
-          profile?: string[];
           context?: string;
           server?: string;
           commit?: string;
           image?: string;
+          previewBranch?: string;
+          previewPr?: string;
+          previewClose?: boolean;
           dryRun?: boolean;
           prompt?: boolean;
           yes?: boolean;
@@ -106,22 +104,39 @@ export function deployCommand(): Command {
 
         // Merge config defaults with CLI flags
         const composePath = opts.compose ?? cfg?.compose;
-        const composeOverrides =
-          opts.composeOverride && opts.composeOverride.length > 0
-            ? opts.composeOverride
-            : (cfg?.composeOverrides ?? []);
-        const composeProfiles =
-          opts.profile && opts.profile.length > 0 ? opts.profile : (cfg?.composeProfiles ?? []);
         const contextPath = opts.context ?? cfg?.context ?? ".";
         const serverId = opts.server ?? cfg?.server;
         const serviceId = opts.service;
+        const previewTargetResult = buildServicePreviewTarget({
+          previewBranch: opts.previewBranch,
+          previewPr: opts.previewPr,
+          previewClose: opts.previewClose
+        });
+        if (previewTargetResult.error) {
+          if (isJson) {
+            emitJsonError(previewTargetResult.error, "INVALID_INPUT");
+          } else {
+            console.error(chalk.red(previewTargetResult.error));
+          }
+          process.exit(1);
+          return;
+        }
+        const previewTarget = previewTargetResult.preview;
 
         // ── Route: Compose deploy (new) ──────────────────────
         if (composePath) {
+          if (previewTarget) {
+            const error = "Preview targeting is only supported with --service deployments.";
+            if (isJson) {
+              emitJsonError(error, "INVALID_INPUT");
+            } else {
+              console.error(chalk.red(error));
+            }
+            process.exit(1);
+            return;
+          }
           await handleComposeDeploy({
             composePath,
-            composeOverrides,
-            composeProfiles,
             contextPath,
             serverId,
             dryRun: opts.dryRun,
@@ -156,6 +171,7 @@ export function deployCommand(): Command {
               serviceId,
               serverId,
               imageTag: opts.image,
+              preview: previewTarget,
               json: isJson
             });
           } catch (err) {
@@ -192,7 +208,8 @@ export function deployCommand(): Command {
           const result = await trpc.triggerDeploy.mutate({
             serviceId,
             commitSha: opts.commit,
-            imageTag: opts.image
+            imageTag: opts.image,
+            preview: previewTarget
           });
 
           if (isJson) {
@@ -218,8 +235,6 @@ export function deployCommand(): Command {
 
 interface ComposeDeployOpts {
   composePath: string;
-  composeOverrides: string[];
-  composeProfiles: string[];
   contextPath: string;
   serverId?: string;
   dryRun?: boolean;
@@ -231,6 +246,7 @@ interface ComposeDeployOpts {
 
 function buildComposeUploadWarning(input: {
   buildContextCount: number;
+  buildSupportFileCount: number;
   envFileCount: number;
   sizeLabel: string;
   serverId: string;
@@ -242,6 +258,14 @@ function buildComposeUploadWarning(input: {
       `${input.buildContextCount} service(s) use local build context${
         input.buildContextCount === 1 ? "" : "s"
       }`
+    );
+  }
+
+  if (input.buildSupportFileCount > 0) {
+    parts.push(
+      `${input.buildSupportFileCount} local build support file${
+        input.buildSupportFileCount === 1 ? "" : "s"
+      } will be frozen`
     );
   }
 
@@ -275,11 +299,8 @@ async function handleComposeDeploy(opts: ComposeDeployOpts): Promise<void> {
   }
 
   // Parse compose and detect local inputs that require context artifacting.
-  const composeFiles = readComposeFileSet({
-    composePath: opts.composePath,
-    composeOverrides: opts.composeOverrides
-  });
-  const composeInputs = analyzeComposeFileSetInputs(composeFiles);
+  const composeContent = readFileSync(resolvedCompose, "utf-8");
+  const composeInputs = analyzeComposeInputs(composeContent);
 
   if (!opts.serverId) {
     const error = "--server is required for compose deployments.";
@@ -294,14 +315,28 @@ async function handleComposeDeploy(opts: ComposeDeployOpts): Promise<void> {
 
   const composeOptions: ComposeDeployCoreOptions = {
     composePath: opts.composePath,
-    composeOverrides: opts.composeOverrides,
-    composeFiles,
-    composeProfiles: opts.composeProfiles,
     contextPath: opts.contextPath,
     serverId: opts.serverId,
     json: opts.json,
     config: opts.config
   };
+
+  try {
+    assertValidComposeUploadContextRoot({
+      composePath: resolvedCompose,
+      contextPath: resolvedContext,
+      composeInputs
+    });
+  } catch (err) {
+    const message = getErrorMessage(err);
+    if (opts.json) {
+      emitJsonError(message, "INVALID_INPUT");
+    } else {
+      console.error(chalk.red(`✗ ${message}`));
+    }
+    process.exit(1);
+    return;
+  }
 
   // ── Dry-run ──────────────────────────────────────────────
   if (opts.dryRun) {
@@ -326,6 +361,7 @@ async function handleComposeDeploy(opts: ComposeDeployOpts): Promise<void> {
     const sizeMB = estimateContextSize(resolvedContext, opts.config as Record<string, unknown>);
     const error = buildComposeUploadWarning({
       buildContextCount: composeInputs.localBuildContexts.length,
+      buildSupportFileCount: composeInputs.localBuildSupportFiles.length,
       envFileCount: composeInputs.localEnvFiles.length,
       sizeLabel: sizeMB,
       serverId: opts.serverId
@@ -352,8 +388,18 @@ async function handleComposeDeploy(opts: ComposeDeployOpts): Promise<void> {
 
   // ── Execute compose deploy ───────────────────────────────
   try {
-    await executeComposeDeploy(composeInputs.requiresContextUpload, composeOptions);
+    await executeComposeDeploy(composeContent, composeInputs.requiresContextUpload, composeOptions);
   } catch (err) {
+    if (err instanceof ComposeUploadContextValidationError) {
+      if (opts.json) {
+        emitJsonError(getErrorMessage(err), "INVALID_INPUT");
+      } else {
+        console.error(chalk.red(`✗ ${getErrorMessage(err)}`));
+      }
+      process.exit(1);
+      return;
+    }
+
     if (opts.json) {
       emitJsonError(getErrorMessage(err), "DEPLOY_ERROR");
     } else {

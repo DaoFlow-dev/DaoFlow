@@ -1,7 +1,19 @@
+/**
+ * docker-executor.ts
+ *
+ * Isolated module for running Docker / Docker Compose / git commands.
+ * Each function streams output line-by-line through a callback so the
+ * log-streamer can persist them in real time.
+ *
+ * This module never touches the database directly — it only runs
+ * child processes and reports their output.
+ */
+
 import { spawn, type ChildProcess } from "node:child_process";
 import { parseComposePsOutput, type ComposeContainerStatus } from "./compose-health";
 import { formatComposeExecutionEnvSummary, prepareComposeCommandEnv } from "./compose-command-env";
 
+// Re-export git-executor functions for backward compatibility
 export {
   ensureStagingDir,
   getStagingArchivePath,
@@ -31,27 +43,10 @@ export interface ExecStreamingOptions {
   inheritParentEnv?: boolean;
 }
 
-function normalizeComposeFiles(composeFiles: string | string[]): string[] {
-  return Array.isArray(composeFiles) ? composeFiles : [composeFiles];
-}
-
-function appendComposeArgs(
-  args: string[],
-  composeFiles: string | string[],
-  composeProfiles?: string[]
-) {
-  for (const composeFile of normalizeComposeFiles(composeFiles)) {
-    args.push("-f", composeFile);
-  }
-
-  for (const profile of composeProfiles ?? []) {
-    const normalizedProfile = profile.trim();
-    if (normalizedProfile.length > 0) {
-      args.push("--profile", normalizedProfile);
-    }
-  }
-}
-
+/**
+ * Run an arbitrary command and stream output line-by-line.
+ * Returns the exit code (0 = success).
+ */
 export function execStreaming(
   command: string,
   args: string[],
@@ -100,6 +95,9 @@ export function execStreaming(
   });
 }
 
+/**
+ * Build a Docker image from a Dockerfile.
+ */
 export async function dockerBuild(
   context: string,
   dockerfile: string,
@@ -115,22 +113,19 @@ export async function dockerBuild(
   return execStreaming("docker", ["build", "-t", tag, "-f", dockerfile, "."], context, onLog);
 }
 
+/**
+ * Pull images defined in a compose file.
+ */
 export async function dockerComposePull(
-  composeFiles: string | string[],
+  composeFile: string,
   projectName: string,
   cwd: string,
   onLog: OnLog,
   envFile?: string,
   composeServiceName?: string,
-  composeProfilesOrExecRunner?: string[] | ExecRunner,
   execRunner: ExecRunner = execStreaming
 ): Promise<{ exitCode: number }> {
   const scopedServiceName = composeServiceName?.trim();
-  const composeProfiles = Array.isArray(composeProfilesOrExecRunner)
-    ? composeProfilesOrExecRunner
-    : undefined;
-  const runner =
-    typeof composeProfilesOrExecRunner === "function" ? composeProfilesOrExecRunner : execRunner;
   const composeExecutionEnv = prepareComposeCommandEnv(cwd, envFile);
   onLog({
     stream: "stdout",
@@ -145,9 +140,7 @@ export async function dockerComposePull(
     timestamp: new Date()
   });
 
-  const args = ["compose"];
-  appendComposeArgs(args, composeFiles, composeProfiles);
-  args.push("-p", projectName);
+  const args = ["compose", "-f", composeFile, "-p", projectName];
   if (envFile) {
     args.push("--env-file", envFile);
   }
@@ -157,27 +150,21 @@ export async function dockerComposePull(
     args.push(scopedServiceName);
   }
 
-  return runner("docker", args, cwd, onLog, composeExecutionEnv.env, {
+  return execRunner("docker", args, cwd, onLog, composeExecutionEnv.env, {
     inheritParentEnv: false
   });
 }
 
 export async function dockerComposeBuild(
-  composeFiles: string | string[],
+  composeFile: string,
   projectName: string,
   cwd: string,
   onLog: OnLog,
   envFile?: string,
   composeServiceName?: string,
-  composeProfilesOrExecRunner?: string[] | ExecRunner,
   execRunner: ExecRunner = execStreaming
 ): Promise<{ exitCode: number }> {
   const scopedServiceName = composeServiceName?.trim();
-  const composeProfiles = Array.isArray(composeProfilesOrExecRunner)
-    ? composeProfilesOrExecRunner
-    : undefined;
-  const runner =
-    typeof composeProfilesOrExecRunner === "function" ? composeProfilesOrExecRunner : execRunner;
   const composeExecutionEnv = prepareComposeCommandEnv(cwd, envFile);
   onLog({
     stream: "stdout",
@@ -192,9 +179,7 @@ export async function dockerComposeBuild(
     timestamp: new Date()
   });
 
-  const args = ["compose"];
-  appendComposeArgs(args, composeFiles, composeProfiles);
-  args.push("-p", projectName);
+  const args = ["compose", "-f", composeFile, "-p", projectName];
   if (envFile) {
     args.push("--env-file", envFile);
   }
@@ -204,7 +189,7 @@ export async function dockerComposeBuild(
     args.push(scopedServiceName);
   }
 
-  return runner(
+  return execRunner(
     "docker",
     args,
     cwd,
@@ -216,22 +201,19 @@ export async function dockerComposeBuild(
   );
 }
 
+/**
+ * Deploy services with docker compose up.
+ */
 export async function dockerComposeUp(
-  composeFiles: string | string[],
+  composeFile: string,
   projectName: string,
   cwd: string,
   onLog: OnLog,
   envFile?: string,
   composeServiceName?: string,
-  composeProfilesOrExecRunner?: string[] | ExecRunner,
   execRunner: ExecRunner = execStreaming
 ): Promise<{ exitCode: number }> {
   const scopedServiceName = composeServiceName?.trim();
-  const composeProfiles = Array.isArray(composeProfilesOrExecRunner)
-    ? composeProfilesOrExecRunner
-    : undefined;
-  const runner =
-    typeof composeProfilesOrExecRunner === "function" ? composeProfilesOrExecRunner : execRunner;
   const composeExecutionEnv = prepareComposeCommandEnv(cwd, envFile);
   onLog({
     stream: "stdout",
@@ -246,9 +228,7 @@ export async function dockerComposeUp(
     timestamp: new Date()
   });
 
-  const args = ["compose"];
-  appendComposeArgs(args, composeFiles, composeProfiles);
-  args.push("-p", projectName);
+  const args = ["compose", "-f", composeFile, "-p", projectName];
   if (envFile) {
     args.push("--env-file", envFile);
   }
@@ -257,30 +237,22 @@ export async function dockerComposeUp(
     args.push(scopedServiceName);
   }
 
-  return runner("docker", args, cwd, onLog, composeExecutionEnv.env, {
+  return execRunner("docker", args, cwd, onLog, composeExecutionEnv.env, {
     inheritParentEnv: false
   });
 }
 
 export async function dockerComposePs(
-  composeFiles: string | string[],
+  composeFile: string,
   projectName: string,
   cwd: string,
   onLog: OnLog,
   envFile?: string,
   composeServiceName?: string,
-  composeProfilesOrExecRunner?: string[] | ExecRunner,
   execRunner: ExecRunner = execStreaming
 ): Promise<{ exitCode: number; statuses: ComposeContainerStatus[] }> {
-  const composeProfiles = Array.isArray(composeProfilesOrExecRunner)
-    ? composeProfilesOrExecRunner
-    : undefined;
-  const runner =
-    typeof composeProfilesOrExecRunner === "function" ? composeProfilesOrExecRunner : execRunner;
   const composeExecutionEnv = prepareComposeCommandEnv(cwd, envFile);
-  const args = ["compose"];
-  appendComposeArgs(args, composeFiles, composeProfiles);
-  args.push("-p", projectName);
+  const args = ["compose", "-f", composeFile, "-p", projectName];
   if (envFile) {
     args.push("--env-file", envFile);
   }
@@ -298,7 +270,7 @@ export async function dockerComposePs(
   });
 
   const stdoutLines: string[] = [];
-  const result = await runner(
+  const result = await execRunner(
     "docker",
     args,
     cwd,
@@ -320,20 +292,17 @@ export async function dockerComposePs(
   };
 }
 
+/**
+ * Stop and remove services with docker compose down.
+ */
 export async function dockerComposeDown(
-  composeFiles: string | string[],
+  composeFile: string,
   projectName: string,
   cwd: string,
   onLog: OnLog,
   envFile?: string,
-  composeProfilesOrExecRunner?: string[] | ExecRunner,
   execRunner: ExecRunner = execStreaming
 ): Promise<{ exitCode: number }> {
-  const composeProfiles = Array.isArray(composeProfilesOrExecRunner)
-    ? composeProfilesOrExecRunner
-    : undefined;
-  const runner =
-    typeof composeProfilesOrExecRunner === "function" ? composeProfilesOrExecRunner : execRunner;
   const composeExecutionEnv = prepareComposeCommandEnv(cwd, envFile);
   onLog({
     stream: "stdout",
@@ -346,19 +315,21 @@ export async function dockerComposeDown(
     timestamp: new Date()
   });
 
-  const args = ["compose"];
-  appendComposeArgs(args, composeFiles, composeProfiles);
-  args.push("-p", projectName);
-  if (envFile) {
-    args.push("--env-file", envFile);
-  }
-  args.push("down");
-
-  return runner("docker", args, cwd, onLog, composeExecutionEnv.env, {
-    inheritParentEnv: false
-  });
+  return execRunner(
+    "docker",
+    envFile
+      ? ["compose", "-f", composeFile, "-p", projectName, "--env-file", envFile, "down"]
+      : ["compose", "-f", composeFile, "-p", projectName, "down"],
+    cwd,
+    onLog,
+    composeExecutionEnv.env,
+    { inheritParentEnv: false }
+  );
 }
 
+/**
+ * Deploy a single image-based container (non-compose path).
+ */
 export async function dockerRun(
   tag: string,
   containerName: string,
@@ -390,6 +361,9 @@ export async function dockerRun(
   return execStreaming("docker", args, STAGING_DIR, onLog);
 }
 
+/**
+ * Pull a single Docker image.
+ */
 export async function dockerPull(tag: string, onLog: OnLog): Promise<{ exitCode: number }> {
   onLog({
     stream: "stdout",
@@ -400,6 +374,10 @@ export async function dockerPull(tag: string, onLog: OnLog): Promise<{ exitCode:
   return execStreaming("docker", ["pull", tag], STAGING_DIR, onLog);
 }
 
+/**
+ * Check if a container is running and healthy.
+ * Returns true if the container is in "running" state.
+ */
 export async function checkContainerHealth(containerName: string, onLog: OnLog): Promise<boolean> {
   let healthy = false;
 
@@ -418,6 +396,9 @@ export async function checkContainerHealth(containerName: string, onLog: OnLog):
   return result.exitCode === 0 && healthy;
 }
 
+/**
+ * Stop and remove a container by name.
+ */
 export async function dockerRemoveContainer(
   containerName: string,
   onLog: OnLog
@@ -433,6 +414,10 @@ export async function dockerRemoveContainer(
   return execStreaming("docker", ["rm", "-f", containerName], STAGING_DIR, onLog);
 }
 
+/**
+ * Load a Docker image from a tarball file.
+ * Equivalent to `docker load -i <tarPath>`.
+ */
 export async function dockerLoad(tarPath: string, onLog: OnLog): Promise<{ exitCode: number }> {
   onLog({
     stream: "stdout",
@@ -443,6 +428,10 @@ export async function dockerLoad(tarPath: string, onLog: OnLog): Promise<{ exitC
   return execStreaming("docker", ["load", "-i", tarPath], STAGING_DIR, onLog);
 }
 
+/**
+ * List Docker images and return structured JSON output.
+ * Equivalent to `docker images --format json`.
+ */
 export async function dockerListImages(
   onLog: OnLog
 ): Promise<{ exitCode: number; images: DockerImageListEntry[] }> {

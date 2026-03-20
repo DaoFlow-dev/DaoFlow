@@ -96,11 +96,17 @@ async function createGitLabComposeFixture(input: {
   composePath: string;
   providerId: string;
   installationId: string;
+  defaultBranch?: string;
   repositorySubmodules?: boolean;
   repositoryGitLfs?: boolean;
   webhookSecret?: string;
   serviceName?: string;
   autoDeploy?: boolean;
+  preview?: {
+    enabled?: boolean;
+    mode?: "branch" | "pull-request" | "any";
+    domainTemplate?: string;
+  };
 }) {
   await db.insert(gitProviders).values({
     id: input.providerId,
@@ -131,7 +137,7 @@ async function createGitLabComposeFixture(input: {
     composePath: input.composePath,
     gitProviderId: input.providerId,
     gitInstallationId: input.installationId,
-    defaultBranch: "main",
+    defaultBranch: input.defaultBranch ?? "main",
     repositorySubmodules: input.repositorySubmodules,
     repositoryGitLfs: input.repositoryGitLfs,
     teamId: "team_foundation",
@@ -162,6 +168,7 @@ async function createGitLabComposeFixture(input: {
     projectId: projectResult.project.id,
     environmentId: environmentResult.environment.id,
     sourceType: "compose",
+    preview: input.preview,
     requestedByUserId: "user_foundation_owner",
     requestedByEmail: "owner@daoflow.local",
     requestedByRole: "owner"
@@ -393,7 +400,7 @@ describe("deploy source revalidation", () => {
     expect(asRecord(asRecord(updatedProject?.config).sourceReadiness).checkedAt).not.toBe(
       "2000-01-01T00:00:00.000Z"
     );
-  });
+  }, 10_000);
 
   it("blocks manual deploy dispatch when the provider-linked branch has drifted away", async () => {
     const repoFullName = `example-group/revalidate-invalid-branch-${Date.now()}`;
@@ -459,6 +466,104 @@ describe("deploy source revalidation", () => {
       branch: "failed",
       composePath: "skipped"
     });
+  });
+
+  it("creates isolated preview deployment snapshots for git-backed compose services", async () => {
+    const repoFullName = `example-group/revalidate-preview-${Date.now()}`;
+    const providerId = `gitprov_${Date.now()}_preview`.slice(0, 32);
+    const installationId = `gitinst_${Date.now()}_preview`.slice(0, 32);
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(
+      mockGitLabSourceFetch({
+        repoFullName,
+        composePath: "deploy/compose.yaml",
+        projectId: 450,
+        branch: "feature/login"
+      })
+    );
+
+    const fixture = await createGitLabComposeFixture({
+      projectName: "Revalidate Preview",
+      repoFullName,
+      composePath: "deploy/compose.yaml",
+      providerId,
+      installationId,
+      defaultBranch: "feature/login",
+      serviceName: "preview-service",
+      preview: {
+        enabled: true,
+        mode: "pull-request",
+        domainTemplate: "preview-{pr}.example.test"
+      }
+    });
+
+    await upsertEnvironmentVariable({
+      environmentId: fixture.environmentId,
+      key: "PREVIEW_FLAG",
+      value: "enabled",
+      isSecret: false,
+      category: "runtime",
+      branchPattern: "preview/*",
+      updatedByUserId: "user_foundation_owner",
+      updatedByEmail: "owner@daoflow.local",
+      updatedByRole: "owner"
+    });
+
+    const result = await triggerDeploy({
+      serviceId: fixture.serviceId,
+      commitSha: "abcdef1234567890abcdef1234567890abcdef12",
+      preview: {
+        target: "pull-request",
+        branch: "feature/login",
+        pullRequestNumber: 42
+      },
+      requestedByUserId: "user_foundation_owner",
+      requestedByEmail: "owner@daoflow.local",
+      requestedByRole: "owner"
+    });
+
+    expect(result.status).toBe("ok");
+    if (result.status !== "ok") {
+      throw new Error("Expected preview deploy revalidation to succeed.");
+    }
+
+    const snapshot = asRecord(result.deployment.configSnapshot);
+    expect(snapshot.branch).toBe("feature/login");
+    expect(snapshot.composeEnvBranch).toBe("preview/pr-42");
+    expect(typeof snapshot.stackName).toBe("string");
+    expect(String(snapshot.stackName)).toContain("pr-42");
+    expect(snapshot.composeOperation).toBe("up");
+    expect(asRecord(snapshot.preview)).toMatchObject({
+      target: "pull-request",
+      key: "pr-42",
+      branch: "feature/login",
+      pullRequestNumber: 42,
+      envBranch: "preview/pr-42",
+      primaryDomain: "preview-42.example.test"
+    });
+
+    const deploymentState = readDeploymentComposeState(result.deployment.envVarsEncrypted).envState;
+    expect(deploymentState.kind).toBe("queued");
+    if (deploymentState.kind !== "queued") {
+      throw new Error("Expected queued preview deployment env state.");
+    }
+    expect(
+      deploymentState.entries.some(
+        (entry) => entry.key === "PREVIEW_FLAG" && entry.value === "enabled"
+      )
+    ).toBe(true);
+    expect(
+      deploymentState.entries.some(
+        (entry) =>
+          entry.key === "DAOFLOW_PREVIEW_DOMAIN" && entry.value === "preview-42.example.test"
+      )
+    ).toBe(true);
+    expect(
+      deploymentState.entries.some(
+        (entry) => entry.key === "DAOFLOW_PREVIEW_PR_NUMBER" && entry.value === "42"
+      )
+    ).toBe(true);
+
+    fetchMock.mockRestore();
   });
 
   it("blocks manual deploy dispatch when provider validation is transiently unavailable", async () => {

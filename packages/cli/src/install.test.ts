@@ -3,7 +3,13 @@ import { Command } from "commander";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { installCommand, installRuntime, resolveInitialAdminCredentials } from "./commands/install";
+import { CommandActionError } from "./command-action";
+import {
+  buildInstallErrorPayload,
+  installCommand,
+  installRuntime,
+  resolveInitialAdminCredentials
+} from "./commands/install";
 import { captureCommandExecution } from "./login-test-helpers";
 import { generateEnvFile, parseEnvFile } from "./templates";
 
@@ -222,6 +228,27 @@ DEPLOY_TIMEOUT_MS=900000
       ok: false,
       error: 'Invalid port "abc". Use an integer between 1 and 65535.',
       code: "INVALID_PORT"
+    });
+  });
+
+  test("install error payload keeps canonical fields ahead of extra metadata", () => {
+    const payload = buildInstallErrorPayload(
+      new CommandActionError("Install failed", {
+        code: "START_FAILED",
+        extra: {
+          ok: true,
+          error: "overridden",
+          code: "OVERRIDDEN",
+          detail: "kept"
+        }
+      })
+    );
+
+    expect(payload).toEqual({
+      ok: false,
+      error: "Install failed",
+      code: "START_FAILED",
+      detail: "kept"
     });
   });
 });

@@ -68,6 +68,7 @@ describe("CLI JSON option coverage", () => {
     expect(help).toContain("Required scope:");
     expect(help).toContain("deploy:read");
     expect(help).toContain("Examples:");
+    expect(help).toContain("--preview-branch feature/login --preview-pr 42");
     expect(help).toContain("daoflow plan --compose ./compose.yaml --server srv_123 --json");
     expect(help).toContain("Example JSON shape:");
   });

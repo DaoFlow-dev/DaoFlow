@@ -451,6 +451,11 @@ describe("appRouter", () => {
       sourceType: "compose",
       composeServiceName: "api",
       targetServerId: "srv_foundation_1",
+      preview: {
+        enabled: true,
+        mode: "pull-request",
+        domainTemplate: "api-pr-{pr}.preview.example.com"
+      },
       readinessProbe: {
         type: "http",
         target: "published-port",
@@ -482,6 +487,11 @@ describe("appRouter", () => {
       timeoutSeconds: 60,
       intervalSeconds: 3,
       successStatusCodes: [200, 204]
+    });
+    expect(asRecord(serviceDetails.config).preview).toMatchObject({
+      enabled: true,
+      mode: "pull-request",
+      domainTemplate: "api-pr-{pr}.preview.example.com"
     });
     expect(
       listedServices.some(
@@ -838,6 +848,7 @@ describe("appRouter", () => {
     expect(deployment.serviceName).toBe("edge-worker");
     expect(deployment.projectId).toEqual(expect.any(String));
     expect(deployment.steps).toHaveLength(2);
+    expect(deployment.steps.map((step) => step.position)).toEqual([1, 2]);
   });
 
   it("creates notification channels and stores user notification preferences", async () => {

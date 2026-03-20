@@ -24,13 +24,14 @@ function resolveAuthSecret() {
 }
 
 const authBaseURL = resolveAuthBaseURL();
+export const AUTH_SECRET = resolveAuthSecret();
 const isHTTPS = authBaseURL.startsWith("https://");
 const emailSender = resolveEmailSender();
 
 export const auth = betterAuth({
   appName: "DaoFlow",
   baseURL: authBaseURL,
-  secret: resolveAuthSecret(),
+  secret: AUTH_SECRET,
   advanced: {
     // Better Auth defaults to Secure cookies in production mode, but if
     // the server is behind plain HTTP (CI, local dev without TLS), the

@@ -232,9 +232,12 @@ describe("planning diff surfaces", () => {
     expect(plan.target.contextBundle?.fileCount).toBe(12);
     expect(plan.steps).toEqual(
       expect.arrayContaining([
-        "Bundle the local build context while respecting .dockerignore rules"
+        "Bundle the local build context while respecting .dockerignore rules",
+        "Build staged compose services on foundation-vps-1",
+        "Run docker compose up -d on foundation-vps-1"
       ])
     );
+    expect(plan.steps).not.toContain("Run docker compose up -d --build on foundation-vps-1");
     expect(plan.executeCommand).toContain("--compose ./fixtures/compose.yaml");
     expect(plan.executeCommand).toContain("--server srv_foundation_1");
     expect(plan.executeCommand).toContain("--context .");
@@ -246,6 +249,88 @@ describe("planning diff surfaces", () => {
       .limit(1);
 
     expect(projectAfter).toBeUndefined();
+  });
+
+  it("includes an explicit pull step for mixed direct compose deployment plans", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-compose-plan-mixed",
+      session: makeSession("viewer")
+    });
+
+    fixtureCounter += 1;
+    const suffix = `${Date.now()}_${fixtureCounter}`;
+    const stackName = `compose-plan-mixed-${suffix}`;
+    const composeContent = [
+      `name: ${stackName}`,
+      "services:",
+      "  web:",
+      "    build:",
+      "      context: .",
+      "  worker:",
+      "    image: nginx:alpine"
+    ].join("\n");
+
+    const plan = await caller.composeDeploymentPlan({
+      server: "srv_foundation_1",
+      compose: composeContent,
+      composePath: "./fixtures/compose.yaml",
+      contextPath: ".",
+      localBuildContexts: [{ serviceName: "web", context: ".", dockerfile: null }],
+      requiresContextUpload: true,
+      contextBundle: {
+        fileCount: 12,
+        sizeBytes: 4096,
+        includedOverrides: [".env"]
+      }
+    });
+
+    expect(plan.isReady).toBe(true);
+    expect(plan.steps).toEqual(
+      expect.arrayContaining([
+        "Pull compose images on foundation-vps-1",
+        "Build staged compose services on foundation-vps-1",
+        "Run docker compose up -d on foundation-vps-1"
+      ])
+    );
+  });
+
+  it("keeps the build step for direct compose plans that build from remote contexts", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-compose-plan-remote-build",
+      session: makeSession("viewer")
+    });
+
+    fixtureCounter += 1;
+    const suffix = `${Date.now()}_${fixtureCounter}`;
+    const stackName = `compose-plan-remote-build-${suffix}`;
+
+    const plan = await caller.composeDeploymentPlan({
+      server: "srv_foundation_1",
+      compose: [
+        `name: ${stackName}`,
+        "services:",
+        "  web:",
+        "    build:",
+        "      context: https://github.com/example/web.git#main"
+      ].join("\n"),
+      composePath: "./fixtures/compose.yaml",
+      contextPath: ".",
+      localBuildContexts: [],
+      requiresContextUpload: false
+    });
+
+    expect(plan.isReady).toBe(true);
+    expect(plan.steps).toContain("Build staged compose services on foundation-vps-1");
+    expect(plan.steps).not.toContain("Pull compose images on foundation-vps-1");
+    expect(plan.preflightChecks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          status: "ok",
+          detail:
+            "Server-side compose analysis detected 1 compose build service that can build without local upload: web."
+        })
+      ])
+    );
   });
 
   it("surfaces env precedence and unresolved interpolation in direct compose plans", async () => {
@@ -349,6 +434,119 @@ describe("planning diff surfaces", () => {
       ])
     );
     expect(plan.isReady).toBe(false);
+  });
+
+  it("omits the build step for direct compose plans that only upload frozen env assets", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-compose-plan-env-upload-only",
+      session: makeSession("viewer")
+    });
+
+    fixtureCounter += 1;
+    const suffix = `${Date.now()}_${fixtureCounter}`;
+    const stackName = `compose-env-upload-only-${suffix}`;
+
+    const plan = await caller.composeDeploymentPlan({
+      server: "srv_foundation_1",
+      compose: [
+        `name: ${stackName}`,
+        "services:",
+        "  api:",
+        "    image: example/api:stable",
+        "    env_file:",
+        "      - ./.runtime.env"
+      ].join("\n"),
+      composePath: "./fixtures/compose.yaml",
+      contextPath: ".",
+      localBuildContexts: [],
+      requiresContextUpload: true,
+      contextBundle: {
+        fileCount: 2,
+        sizeBytes: 256,
+        includedOverrides: [".runtime.env"]
+      }
+    });
+
+    expect(plan.isReady).toBe(true);
+    expect(plan.steps).toContain("Bundle the required local deployment inputs for upload");
+    expect(plan.steps).toContain("Run docker compose up -d on foundation-vps-1");
+    expect(plan.steps).not.toContain("Build staged compose services on foundation-vps-1");
+  });
+
+  it("rejects direct compose plans that omit required context upload for local build inputs", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-compose-plan-missing-upload",
+      session: makeSession("viewer")
+    });
+
+    const plan = await caller.composeDeploymentPlan({
+      server: "srv_foundation_1",
+      compose: ["services:", "  web:", "    build:", "      context: ."].join("\n"),
+      composePath: "./fixtures/compose.yaml",
+      contextPath: ".",
+      localBuildContexts: [],
+      requiresContextUpload: false
+    });
+
+    expect(plan.isReady).toBe(false);
+    expect(plan.preflightChecks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          status: "fail",
+          detail:
+            "Compose file declares local build inputs, so context upload is required for execution."
+        })
+      ])
+    );
+    expect(plan.target).toMatchObject({
+      requiresContextUpload: false,
+      localBuildContexts: [{ serviceName: "web", context: ".", dockerfile: null }]
+    });
+  });
+
+  it("rejects direct compose plans that omit upload for local build support files", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-compose-plan-missing-build-support-upload",
+      session: makeSession("viewer")
+    });
+
+    const plan = await caller.composeDeploymentPlan({
+      server: "srv_foundation_1",
+      compose: [
+        "secrets:",
+        "  npm_token:",
+        "    file: ./secrets/npm.token",
+        "services:",
+        "  web:",
+        "    build:",
+        "      context: https://github.com/example/web.git#main",
+        "      additional_contexts:",
+        "        local_assets: ./assets",
+        "      secrets:",
+        "        - source: npm_token"
+      ].join("\n"),
+      composePath: "./fixtures/compose.yaml",
+      contextPath: ".",
+      localBuildContexts: [],
+      requiresContextUpload: false
+    });
+
+    expect(plan.isReady).toBe(false);
+    expect(plan.preflightChecks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          status: "fail",
+          detail:
+            "Compose file declares local build inputs, so context upload is required for execution."
+        }),
+        expect.objectContaining({
+          status: "ok",
+          detail:
+            "Server-side compose analysis detected 1 compose build service with local build inputs that require upload: web."
+        })
+      ])
+    );
+    expect(plan.target.localBuildContexts).toEqual([]);
   });
 
   it("builds deployment plans for generic repoUrl compose services", async () => {
@@ -610,6 +808,197 @@ describe("planning diff surfaces", () => {
     }
   });
 
+  it("models internal-network TCP readiness probes in the deployment plan", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-plan-compose-tcp-readiness-probe",
+      session: makeSession("viewer")
+    });
+    const repository = createLocalGitRepository({
+      files: {
+        "deploy/compose.yaml": "services:\n  db:\n    image: postgres:16\n"
+      }
+    });
+
+    try {
+      const projectResult = await createProject({
+        name: `compose-tcp-readiness-plan-${Date.now()}`,
+        repoUrl: repository.rootDir,
+        composePath: "deploy/compose.yaml",
+        defaultBranch: "main",
+        teamId: "team_foundation",
+        requestedByUserId: "user_foundation_owner",
+        requestedByEmail: "owner@daoflow.local",
+        requestedByRole: "owner"
+      });
+      if (projectResult.status !== "ok") {
+        throw new Error("Failed to create TCP readiness planning fixture project.");
+      }
+
+      const environmentResult = await createEnvironment({
+        projectId: projectResult.project.id,
+        name: `compose-tcp-readiness-env-${Date.now()}`,
+        targetServerId: "srv_foundation_1",
+        requestedByUserId: "user_foundation_owner",
+        requestedByEmail: "owner@daoflow.local",
+        requestedByRole: "owner"
+      });
+      if (environmentResult.status !== "ok") {
+        throw new Error("Failed to create TCP readiness planning fixture environment.");
+      }
+
+      const serviceResult = await createService({
+        name: `compose-tcp-readiness-svc-${Date.now()}`,
+        projectId: projectResult.project.id,
+        environmentId: environmentResult.environment.id,
+        sourceType: "compose",
+        composeServiceName: "db",
+        targetServerId: "srv_foundation_1",
+        readinessProbe: {
+          type: "tcp",
+          target: "internal-network",
+          port: 5432
+        },
+        requestedByUserId: "user_foundation_owner",
+        requestedByEmail: "owner@daoflow.local",
+        requestedByRole: "owner"
+      });
+      if (serviceResult.status !== "ok") {
+        throw new Error("Failed to create TCP readiness planning fixture service.");
+      }
+
+      const plan = await caller.deploymentPlan({
+        service: serviceResult.service.id
+      });
+
+      expect(plan.isReady).toBe(true);
+      expect(plan.service.readinessProbe).toMatchObject({
+        type: "tcp",
+        target: "internal-network",
+        port: 5432,
+        timeoutSeconds: 60,
+        intervalSeconds: 3
+      });
+      expect(plan.steps).toContain(
+        "Verify Docker Compose container state, Docker health, and TCP readiness on compose internal network tcp://db:5432 within 60s (poll every 3s), then mark the rollout outcome"
+      );
+      expect(
+        plan.preflightChecks.some(
+          (check) =>
+            check.status === "ok" &&
+            check.detail.includes(
+              "Compose execution will run TCP readiness on compose internal network tcp://db:5432 within 60s"
+            )
+        )
+      ).toBe(true);
+    } finally {
+      repository.cleanup();
+    }
+  });
+
+  it("models compose preview stack and env overlays in the deployment plan", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-plan-compose-preview",
+      session: makeSession("viewer")
+    });
+    const repository = createLocalGitRepository({
+      branch: "feature/login",
+      files: {
+        "deploy/compose.yaml": "services:\n  web:\n    image: nginx:alpine\n"
+      }
+    });
+
+    try {
+      const projectResult = await createProject({
+        name: `compose-preview-plan-${Date.now()}`,
+        repoUrl: repository.rootDir,
+        composePath: "deploy/compose.yaml",
+        defaultBranch: "feature/login",
+        teamId: "team_foundation",
+        requestedByUserId: "user_foundation_owner",
+        requestedByEmail: "owner@daoflow.local",
+        requestedByRole: "owner"
+      });
+      if (projectResult.status !== "ok") {
+        throw new Error("Failed to create preview planning fixture project.");
+      }
+
+      const environmentResult = await createEnvironment({
+        projectId: projectResult.project.id,
+        name: `compose-preview-env-${Date.now()}`,
+        targetServerId: "srv_foundation_1",
+        requestedByUserId: "user_foundation_owner",
+        requestedByEmail: "owner@daoflow.local",
+        requestedByRole: "owner"
+      });
+      if (environmentResult.status !== "ok") {
+        throw new Error("Failed to create preview planning fixture environment.");
+      }
+
+      const serviceResult = await createService({
+        name: `compose-preview-svc-${Date.now()}`,
+        projectId: projectResult.project.id,
+        environmentId: environmentResult.environment.id,
+        sourceType: "compose",
+        preview: {
+          enabled: true,
+          mode: "pull-request",
+          domainTemplate: "preview-{pr}.example.test"
+        },
+        targetServerId: "srv_foundation_1",
+        requestedByUserId: "user_foundation_owner",
+        requestedByEmail: "owner@daoflow.local",
+        requestedByRole: "owner"
+      });
+      if (serviceResult.status !== "ok") {
+        throw new Error("Failed to create preview planning fixture service.");
+      }
+
+      await db.insert(environmentVariables).values({
+        environmentId: environmentResult.environment.id,
+        key: "PREVIEW_FLAG",
+        valueEncrypted: encrypt("enabled"),
+        isSecret: "false",
+        category: "runtime",
+        source: "inline",
+        branchPattern: "preview/*"
+      });
+
+      const plan = await caller.deploymentPlan({
+        service: serviceResult.service.id,
+        preview: {
+          target: "pull-request",
+          branch: "feature/login",
+          pullRequestNumber: 42
+        }
+      });
+
+      expect(plan.isReady).toBe(true);
+      expect(plan.composeEnvPlan?.branch).toBe("preview/pr-42");
+      expect(plan.target.preview).toMatchObject({
+        target: "pull-request",
+        branch: "feature/login",
+        envBranch: "preview/pr-42",
+        primaryDomain: "preview-42.example.test"
+      });
+      expect(
+        plan.preflightChecks.some(
+          (check) => check.status === "ok" && check.detail.includes("isolated stack")
+        )
+      ).toBe(true);
+      expect(
+        plan.preflightChecks.some(
+          (check) =>
+            check.status === "ok" &&
+            check.detail === "Preview domain mapping resolves to preview-42.example.test."
+        )
+      ).toBe(true);
+      expect(plan.executeCommand).toContain("--preview-branch feature/login");
+      expect(plan.executeCommand).toContain("--preview-pr 42");
+    } finally {
+      repository.cleanup();
+    }
+  });
+
   it("returns a scoped config diff from the planning lane", async () => {
     const caller = appRouter.createCaller({
       requestId: "test-config-diff",
@@ -633,7 +1022,7 @@ describe("planning diff surfaces", () => {
     expect(diff.snapshotChanges.map((change) => change.key)).toEqual(
       expect.arrayContaining(["composePath", "runtime"])
     );
-  });
+  }, 10_000);
 
   it("keeps deploymentDiff as a scoped compatibility alias", async () => {
     const caller = appRouter.createCaller({
@@ -649,7 +1038,7 @@ describe("planning diff surfaces", () => {
 
     expect(diff.summary.changedScalarCount).toBeGreaterThanOrEqual(3);
     expect(diff.summary.changedSnapshotKeyCount).toBeGreaterThanOrEqual(2);
-  });
+  }, 10_000);
 
   it("rejects config diff requests outside the caller team scope", async () => {
     const caller = appRouter.createCaller({

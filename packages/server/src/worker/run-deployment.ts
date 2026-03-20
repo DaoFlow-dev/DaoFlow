@@ -18,6 +18,7 @@ export async function runDeployment(deployment: DeploymentRow, actorLabel = "exe
   const { onLog, flush } = createLogStreamer(deployment.id, actorLabel);
 
   const projectName = config.projectName ?? deployment.serviceName.replace(/[^a-zA-Z0-9_-]/g, "_");
+  const composeProjectName = config.stackName ?? projectName;
   const containerName = `${projectName}-${deployment.serviceName}`.toLowerCase();
   const [server] = await db
     .select()
@@ -49,7 +50,7 @@ export async function runDeployment(deployment: DeploymentRow, actorLabel = "exe
     await withPreparedExecutionTarget(target, async (preparedTarget) => {
       if (deployment.sourceType === "compose") {
         await Promise.race([
-          executeComposeDeployment(deployment, config, projectName, onLog, preparedTarget),
+          executeComposeDeployment(deployment, config, composeProjectName, onLog, preparedTarget),
           timeoutPromise
         ]);
         return;

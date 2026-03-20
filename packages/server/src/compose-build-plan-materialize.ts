@@ -10,7 +10,6 @@ import {
   classifyBuildReference,
   readObject,
   readServices,
-  resolveTopLevelSecretDefinition,
   readTopLevelSecrets
 } from "./compose-build-plan-shared";
 
@@ -109,6 +108,45 @@ function buildAdditionalContextsPlan(value: unknown): ComposeBuildPlanAdditional
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
+function resolveSecretMetadata(
+  topLevelSecrets: Record<string, unknown>,
+  sourceName: string
+): Pick<ComposeBuildPlanSecret, "provider" | "reference"> {
+  const secret = readObject(topLevelSecrets[sourceName]);
+  if (!secret) {
+    return {
+      provider: "unknown",
+      reference: null
+    };
+  }
+
+  if (typeof secret.file === "string") {
+    return {
+      provider: "file",
+      reference: secret.file
+    };
+  }
+
+  if (typeof secret.environment === "string") {
+    return {
+      provider: "environment",
+      reference: secret.environment
+    };
+  }
+
+  if (secret.external === true || readObject(secret.external)) {
+    return {
+      provider: "external",
+      reference: typeof secret.name === "string" ? secret.name : sourceName
+    };
+  }
+
+  return {
+    provider: "unknown",
+    reference: null
+  };
+}
+
 function buildSecretsPlan(
   value: unknown,
   topLevelSecrets: Record<string, unknown>
@@ -120,7 +158,7 @@ function buildSecretsPlan(
   return value
     .flatMap((entry) => {
       if (typeof entry === "string") {
-        const resolved = resolveTopLevelSecretDefinition(entry, topLevelSecrets);
+        const resolved = resolveSecretMetadata(topLevelSecrets, entry);
         return [
           {
             sourceName: entry,
@@ -145,7 +183,7 @@ function buildSecretsPlan(
         return [];
       }
 
-      const resolved = resolveTopLevelSecretDefinition(sourceName, topLevelSecrets);
+      const resolved = resolveSecretMetadata(topLevelSecrets, sourceName);
       return [
         {
           sourceName,

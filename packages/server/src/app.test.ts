@@ -8,6 +8,7 @@ import { db } from "./db/connection";
 import { deployments } from "./db/schema/deployments";
 import { gitInstallations, gitProviders } from "./db/schema/git-providers";
 import { projects } from "./db/schema/projects";
+import { users } from "./db/schema/users";
 import { encrypt } from "./db/crypto";
 import { encodeGitInstallationPermissions } from "./db/services/git-providers";
 import { createEnvironment, createProject } from "./db/services/projects";
@@ -237,6 +238,15 @@ describe("createApp", () => {
       ok: boolean;
       requestId: string;
       userCode: string;
+      pollToken: string;
+    };
+    const pendingStatusResponse = await app.request(
+      `/api/v1/cli-auth/status?requestId=${encodeURIComponent(startBody.requestId)}&userCode=${encodeURIComponent(startBody.userCode)}&pollToken=${encodeURIComponent(startBody.pollToken)}`
+    );
+    const pendingStatusBody = (await pendingStatusResponse.json()) as {
+      ok: boolean;
+      status: string;
+      exchangeCode: string | null;
     };
 
     const approveResponse = await app.request("/api/v1/cli-auth/approve", {
@@ -255,6 +265,14 @@ describe("createApp", () => {
       ok: boolean;
       exchangeCode: string;
     };
+    const approvedStatusResponse = await app.request(
+      `/api/v1/cli-auth/status?requestId=${encodeURIComponent(startBody.requestId)}&userCode=${encodeURIComponent(startBody.userCode)}&pollToken=${encodeURIComponent(startBody.pollToken)}`
+    );
+    const approvedStatusBody = (await approvedStatusResponse.json()) as {
+      ok: boolean;
+      status: string;
+      exchangeCode: string;
+    };
 
     const exchangeResponse = await app.request("/api/v1/cli-auth/exchange", {
       method: "POST",
@@ -264,7 +282,7 @@ describe("createApp", () => {
       body: JSON.stringify({
         requestId: startBody.requestId,
         userCode: startBody.userCode,
-        exchangeCode: approveBody.exchangeCode
+        exchangeCode: approvedStatusBody.exchangeCode
       })
     });
     const exchangeBody = (await exchangeResponse.json()) as {
@@ -279,10 +297,251 @@ describe("createApp", () => {
     });
 
     expect(startResponse.status).toBe(200);
+    expect(startBody.pollToken).toMatch(/^[a-f0-9]{64}$/);
+    expect(pendingStatusResponse.status).toBe(200);
+    expect(pendingStatusBody).toMatchObject({
+      ok: true,
+      status: "pending",
+      exchangeCode: null
+    });
     expect(approveResponse.status).toBe(200);
+    expect(approvedStatusResponse.status).toBe(200);
+    expect(approvedStatusBody.ok).toBe(true);
+    expect(approvedStatusBody.status).toBe("approved");
+    expect(approvedStatusBody.exchangeCode).toBe(approveBody.exchangeCode);
     expect(exchangeResponse.status).toBe(200);
     expect(exchangeBody.token).toBeTruthy();
     expect(viewerResponse.status).toBe(200);
+  });
+
+  it("rejects CLI auth status polling without the signed poll token", async () => {
+    await resetTestDatabase();
+    resetControlPlaneSeedState();
+    resetInitialOwnerBootstrapState();
+
+    const app = createApp();
+    const startResponse = await app.request("/api/v1/cli-auth/start", {
+      method: "POST"
+    });
+    const startBody = (await startResponse.json()) as {
+      requestId: string;
+      userCode: string;
+      pollToken: string;
+    };
+
+    const missingTokenResponse = await app.request(
+      `/api/v1/cli-auth/status?requestId=${encodeURIComponent(startBody.requestId)}&userCode=${encodeURIComponent(startBody.userCode)}`
+    );
+    const invalidTokenResponse = await app.request(
+      `/api/v1/cli-auth/status?requestId=${encodeURIComponent(startBody.requestId)}&userCode=${encodeURIComponent(startBody.userCode)}&pollToken=invalid-token`
+    );
+    const missingTokenBody = (await missingTokenResponse.json()) as {
+      ok: boolean;
+      error: string;
+      code: string;
+    };
+    const invalidTokenBody = (await invalidTokenResponse.json()) as {
+      ok: boolean;
+      error: string;
+      code: string;
+    };
+
+    expect(startResponse.status).toBe(200);
+    expect(missingTokenResponse.status).toBe(403);
+    expect(missingTokenBody).toEqual({
+      ok: false,
+      error: "Invalid CLI auth poll token",
+      code: "INVALID_POLL_TOKEN"
+    });
+    expect(invalidTokenResponse.status).toBe(403);
+    expect(invalidTokenBody).toEqual({
+      ok: false,
+      error: "Invalid CLI auth poll token",
+      code: "INVALID_POLL_TOKEN"
+    });
+  });
+
+  it("keeps CLI browser approval and exchange idempotent", async () => {
+    await resetTestDatabase();
+    resetControlPlaneSeedState();
+    resetInitialOwnerBootstrapState();
+
+    const app = createApp();
+    const ownerEmail = `cli-idempotent+${Date.now()}@daoflow.local`;
+    const signUpResponse = await app.request("/api/auth/sign-up/email", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Origin: "http://localhost:5173"
+      },
+      body: JSON.stringify({
+        email: ownerEmail,
+        name: "CLI Owner",
+        password: "secret1234"
+      })
+    });
+    const sessionCookie =
+      signUpResponse.headers
+        .getSetCookie?.()
+        .find((cookie) => cookie.startsWith("better-auth.session_token=")) ??
+      signUpResponse.headers.get("set-cookie")?.match(/better-auth\.session_token=[^;]+/)?.[0];
+
+    expect(sessionCookie).toBeTruthy();
+
+    const startResponse = await app.request("/api/v1/cli-auth/start", {
+      method: "POST"
+    });
+    const startBody = (await startResponse.json()) as {
+      requestId: string;
+      userCode: string;
+      pollToken: string;
+    };
+
+    const approveHeaders = {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+      Cookie: sessionCookie!
+    };
+    const approveBody = JSON.stringify({
+      requestId: startBody.requestId,
+      userCode: startBody.userCode
+    });
+
+    const firstApproveResponse = await app.request("/api/v1/cli-auth/approve", {
+      method: "POST",
+      headers: approveHeaders,
+      body: approveBody
+    });
+    const secondApproveResponse = await app.request("/api/v1/cli-auth/approve", {
+      method: "POST",
+      headers: approveHeaders,
+      body: approveBody
+    });
+    const firstApprovePayload = (await firstApproveResponse.json()) as {
+      exchangeCode: string;
+      approvedByEmail: string;
+    };
+    const secondApprovePayload = (await secondApproveResponse.json()) as {
+      exchangeCode: string;
+      approvedByEmail: string;
+    };
+
+    const exchangeBody = JSON.stringify({
+      requestId: startBody.requestId,
+      userCode: startBody.userCode,
+      exchangeCode: firstApprovePayload.exchangeCode
+    });
+
+    const firstExchangeResponse = await app.request("/api/v1/cli-auth/exchange", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: exchangeBody
+    });
+    const secondExchangeResponse = await app.request("/api/v1/cli-auth/exchange", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: exchangeBody
+    });
+    const firstExchangePayload = (await firstExchangeResponse.json()) as {
+      token: string;
+      approvedByEmail: string;
+    };
+    const secondExchangePayload = (await secondExchangeResponse.json()) as {
+      token: string;
+      approvedByEmail: string;
+    };
+
+    expect(firstApproveResponse.status).toBe(200);
+    expect(secondApproveResponse.status).toBe(200);
+    expect(firstApprovePayload.exchangeCode).toBe(secondApprovePayload.exchangeCode);
+    expect(firstApprovePayload.approvedByEmail).toBe(ownerEmail);
+    expect(secondApprovePayload.approvedByEmail).toBe(ownerEmail);
+    expect(firstExchangeResponse.status).toBe(200);
+    expect(secondExchangeResponse.status).toBe(200);
+    expect(firstExchangePayload.token).toBeTruthy();
+    expect(secondExchangePayload.token).toBe(firstExchangePayload.token);
+    expect(firstExchangePayload.approvedByEmail).toBe(ownerEmail);
+    expect(secondExchangePayload.approvedByEmail).toBe(ownerEmail);
+  });
+
+  it("rejects CLI auth exchange requests with invalid exchange code lengths", async () => {
+    await resetTestDatabase();
+    resetControlPlaneSeedState();
+    resetInitialOwnerBootstrapState();
+
+    const app = createApp();
+    const ownerEmail = `cli-invalid+${Date.now()}@daoflow.local`;
+    const signUpResponse = await app.request("/api/auth/sign-up/email", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Origin: "http://localhost:5173"
+      },
+      body: JSON.stringify({
+        email: ownerEmail,
+        name: "CLI Owner",
+        password: "secret1234"
+      })
+    });
+    const sessionCookie =
+      signUpResponse.headers
+        .getSetCookie?.()
+        .find((cookie) => cookie.startsWith("better-auth.session_token=")) ??
+      signUpResponse.headers.get("set-cookie")?.match(/better-auth\.session_token=[^;]+/)?.[0];
+
+    expect(sessionCookie).toBeTruthy();
+
+    const startResponse = await app.request("/api/v1/cli-auth/start", {
+      method: "POST"
+    });
+    const startBody = (await startResponse.json()) as {
+      requestId: string;
+      userCode: string;
+      pollToken: string;
+    };
+
+    const approveResponse = await app.request("/api/v1/cli-auth/approve", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        Cookie: sessionCookie!
+      },
+      body: JSON.stringify({
+        requestId: startBody.requestId,
+        userCode: startBody.userCode
+      })
+    });
+
+    expect(approveResponse.status).toBe(200);
+
+    const exchangeResponse = await app.request("/api/v1/cli-auth/exchange", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        requestId: startBody.requestId,
+        userCode: startBody.userCode,
+        exchangeCode: "dfcli_short"
+      })
+    });
+    const exchangeBody = (await exchangeResponse.json()) as {
+      ok: boolean;
+      error: string;
+      code: string;
+    };
+
+    expect(exchangeResponse.status).toBe(400);
+    expect(exchangeBody).toEqual({
+      ok: false,
+      error: "Invalid CLI auth code",
+      code: "INVALID_CODE"
+    });
   });
 
   it("accepts bearer API tokens on tRPC routes", async () => {
@@ -397,6 +656,62 @@ describe("createApp", () => {
     expect(body.code).toBe("AUTH_REQUIRED");
   });
 
+  it("rejects unauthenticated POST /api/v1/deploy/uploads/intake with 401", async () => {
+    const app = createApp();
+    const response = await app.request("/api/v1/deploy/uploads/intake", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        server: "test",
+        compose: "services:\n  web:\n    image: nginx:alpine\n"
+      })
+    });
+    const body = (await response.json()) as { code: string };
+
+    expect(response.status).toBe(401);
+    expect(body.code).toBe("AUTH_REQUIRED");
+  });
+
+  it("rejects malformed JSON on POST /api/v1/deploy/uploads/intake with 400", async () => {
+    await resetTestDatabase();
+    resetControlPlaneSeedState();
+
+    const app = createApp();
+    const ownerEmail = `deploy-upload-json+${Date.now()}@daoflow.local`;
+    const signUpResponse = await app.request("/api/auth/sign-up/email", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Origin: "http://localhost:5173"
+      },
+      body: JSON.stringify({
+        email: ownerEmail,
+        name: "Deploy Upload JSON Owner",
+        password: "secret1234"
+      })
+    });
+    const sessionCookie =
+      signUpResponse.headers
+        .getSetCookie?.()
+        .find((cookie) => cookie.startsWith("better-auth.session_token=")) ??
+      signUpResponse.headers.get("set-cookie")?.match(/better-auth\.session_token=[^;]+/)?.[0];
+
+    const response = await app.request("/api/v1/deploy/uploads/intake", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Cookie: sessionCookie!
+      },
+      body: "{"
+    });
+    const body = (await response.json()) as { code: string };
+
+    expect(response.status).toBe(400);
+    expect(body.code).toBe("INVALID_JSON");
+  });
+
   it("queues authenticated POST /api/v1/deploy/compose with a real deployment record", async () => {
     await resetTestDatabase();
     resetControlPlaneSeedState();
@@ -440,6 +755,168 @@ describe("createApp", () => {
     expect(response.status).toBe(200);
     expect(body.ok).toBe(true);
     expect(body.deploymentId).toEqual(expect.any(String));
+  }, 10_000);
+
+  it("queues authenticated direct compose context uploads without metadata headers", async () => {
+    await resetTestDatabase();
+    resetControlPlaneSeedState();
+
+    const app = createApp();
+    const ownerEmail = `deploy-upload-owner+${Date.now()}@daoflow.local`;
+    const signUpResponse = await app.request("/api/auth/sign-up/email", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Origin: "http://localhost:5173"
+      },
+      body: JSON.stringify({
+        email: ownerEmail,
+        name: "Deploy Upload Owner",
+        password: "secret1234"
+      })
+    });
+    const sessionCookie =
+      signUpResponse.headers
+        .getSetCookie?.()
+        .find((cookie) => cookie.startsWith("better-auth.session_token=")) ??
+      signUpResponse.headers.get("set-cookie")?.match(/better-auth\.session_token=[^;]+/)?.[0];
+    const largeCompose =
+      "services:\n  web:\n    image: nginx:alpine\n" + "# comment\n".repeat(10_000);
+
+    const intakeResponse = await app.request("/api/v1/deploy/uploads/intake", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Cookie: sessionCookie!
+      },
+      body: JSON.stringify({
+        server: "srv_foundation_1",
+        compose: largeCompose
+      })
+    });
+    const intakeBody = (await intakeResponse.json()) as {
+      ok: boolean;
+      uploadId: string;
+    };
+
+    expect(intakeResponse.status).toBe(200);
+    expect(intakeBody.ok).toBe(true);
+    expect(intakeBody.uploadId).toEqual(expect.any(String));
+
+    const uploadResponse = await app.request(`/api/v1/deploy/uploads/${intakeBody.uploadId}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/gzip",
+        Cookie: sessionCookie!
+      },
+      body: new Uint8Array([1, 2, 3, 4])
+    });
+    const uploadBody = (await uploadResponse.json()) as {
+      ok: boolean;
+      deploymentId: string;
+    };
+
+    expect(uploadResponse.status).toBe(200);
+    expect(uploadBody.ok).toBe(true);
+    expect(uploadBody.deploymentId).toBe(intakeBody.uploadId);
+
+    const [storedDeployment] = await db
+      .select({ id: deployments.id })
+      .from(deployments)
+      .where(eq(deployments.id, intakeBody.uploadId))
+      .limit(1);
+
+    expect(storedDeployment?.id).toBe(intakeBody.uploadId);
+  });
+
+  it("rejects direct compose context uploads when a different user reuses the upload id", async () => {
+    await resetTestDatabase();
+    resetControlPlaneSeedState();
+
+    const app = createApp();
+    const ownerEmail = `deploy-upload-owner+${Date.now()}@daoflow.local`;
+    const ownerSignUpResponse = await app.request("/api/auth/sign-up/email", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Origin: "http://localhost:5173"
+      },
+      body: JSON.stringify({
+        email: ownerEmail,
+        name: "Deploy Upload Owner",
+        password: "secret1234"
+      })
+    });
+    const ownerSessionCookie =
+      ownerSignUpResponse.headers
+        .getSetCookie?.()
+        .find((cookie) => cookie.startsWith("better-auth.session_token=")) ??
+      ownerSignUpResponse.headers.get("set-cookie")?.match(/better-auth\.session_token=[^;]+/)?.[0];
+    const viewerEmail = `deploy-upload-viewer+${Date.now()}@daoflow.local`;
+    await app.request("/api/auth/sign-up/email", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Origin: "http://localhost:5173"
+      },
+      body: JSON.stringify({
+        email: viewerEmail,
+        name: "Deploy Upload Viewer",
+        password: "secret1234"
+      })
+    });
+    await db.update(users).set({ role: "owner" }).where(eq(users.email, viewerEmail));
+    const viewerSignInResponse = await app.request("/api/auth/sign-in/email", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Origin: "http://localhost:5173"
+      },
+      body: JSON.stringify({
+        email: viewerEmail,
+        password: "secret1234"
+      })
+    });
+    const viewerSessionCookie =
+      viewerSignInResponse.headers
+        .getSetCookie?.()
+        .find((cookie) => cookie.startsWith("better-auth.session_token=")) ??
+      viewerSignInResponse.headers
+        .get("set-cookie")
+        ?.match(/better-auth\.session_token=[^;]+/)?.[0];
+
+    const intakeResponse = await app.request("/api/v1/deploy/uploads/intake", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Cookie: ownerSessionCookie!
+      },
+      body: JSON.stringify({
+        server: "srv_foundation_1",
+        compose: "services:\n  web:\n    image: nginx:alpine\n"
+      })
+    });
+    const intakeBody = (await intakeResponse.json()) as {
+      ok: boolean;
+      uploadId: string;
+    };
+
+    const uploadResponse = await app.request(`/api/v1/deploy/uploads/${intakeBody.uploadId}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/gzip",
+        Cookie: viewerSessionCookie!
+      },
+      body: new Uint8Array([1, 2, 3, 4])
+    });
+    const uploadBody = (await uploadResponse.json()) as {
+      ok: boolean;
+      code: string;
+    };
+
+    expect(uploadResponse.status).toBe(404);
+    expect(uploadBody.ok).toBe(false);
+    expect(uploadBody.code).toBe("UPLOAD_NOT_FOUND");
   });
 
   it("queues executable deployments for GitHub webhook auto-deploy targets", async () => {

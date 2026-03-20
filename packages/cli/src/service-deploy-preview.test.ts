@@ -18,12 +18,14 @@ async function captureConsoleLog(fn: () => Promise<void> | void): Promise<string
 
 describe("previewServiceDeploy", () => {
   test("emits the planning-lane dry-run envelope in JSON mode", async () => {
+    let receivedInput: Record<string, unknown> | undefined;
     const logs = await captureConsoleLog(async () => {
       await previewServiceDeploy(
         {
           deploymentPlan: {
-            query: () =>
-              Promise.resolve({
+            query: (input) => {
+              receivedInput = input as Record<string, unknown>;
+              return Promise.resolve({
                 isReady: true,
                 service: {
                   name: "api",
@@ -38,13 +40,19 @@ describe("previewServiceDeploy", () => {
                 preflightChecks: [{ status: "ok", detail: "Resolved target server." }],
                 steps: ["Freeze runtime spec", "Dispatch execution"],
                 executeCommand: "daoflow deploy --service svc_123 --yes"
-              })
+              });
+            }
           }
         },
         {
           serviceId: "svc_123",
           serverId: "srv_123",
           imageTag: "ghcr.io/acme/api:1.2.3",
+          preview: {
+            target: "pull-request",
+            branch: "feature/login",
+            pullRequestNumber: 42
+          },
           json: true
         }
       );
@@ -71,6 +79,16 @@ describe("previewServiceDeploy", () => {
           steps: ["Freeze runtime spec", "Dispatch execution"],
           executeCommand: "daoflow deploy --service svc_123 --yes"
         }
+      }
+    });
+    expect(receivedInput).toMatchObject({
+      service: "svc_123",
+      server: "srv_123",
+      image: "ghcr.io/acme/api:1.2.3",
+      preview: {
+        target: "pull-request",
+        branch: "feature/login",
+        pullRequestNumber: 42
       }
     });
   });

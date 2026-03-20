@@ -190,6 +190,10 @@ export function throwOnDeployResultError(result: {
       code: "BAD_REQUEST",
       message: result.message ?? "Invalid deployment source."
     },
+    invalid_preview: {
+      code: "BAD_REQUEST",
+      message: result.message ?? "Invalid preview deployment request."
+    },
     provider_unavailable: {
       code: "PRECONDITION_FAILED",
       message: result.message ?? "Provider unavailable."

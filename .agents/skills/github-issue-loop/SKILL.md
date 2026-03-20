@@ -19,6 +19,7 @@ Use this skill for DaoFlow issue and PR execution through the GitHub CLI.
 - GitHub Issues are the work tracker.
 - Use `gh` for GitHub operations unless there is a clear reason not to.
 - Default integration path is direct commit and push to `main`.
+- If the user explicitly says to stop after local completion without commit or push, honor that request: finish local validation, update the durable issue comment, and close the issue when the scoped work is complete.
 - Do not create a feature branch unless the user explicitly requests one or the work already lives on a branch or PR.
 - Keep scope tight. If you discover worthwhile extra work, open a follow-up issue instead of broadening the current one.
 - When a feature, contract, operator flow, or user-facing behavior changes, update the relevant docs in the same loop instead of leaving documentation drift behind.

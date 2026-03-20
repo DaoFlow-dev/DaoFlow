@@ -9,7 +9,9 @@ import {
   getErrorMessage,
   resolveCommandJsonOption
 } from "../command-helpers";
+import { ComposeUploadContextValidationError } from "../compose-upload-context";
 import { printDeploymentPlan } from "../deployment-plan-output";
+import { buildServicePreviewTarget } from "../service-preview-target";
 import { createClient } from "../trpc-client";
 
 const PLAN_HELP_TEXT = [
@@ -23,6 +25,7 @@ const PLAN_HELP_TEXT = [
   "",
   "Examples:",
   "  daoflow plan --service svc_123",
+  "  daoflow plan --service svc_123 --preview-branch feature/login --preview-pr 42",
   "  daoflow plan --compose ./compose.yaml --server srv_123",
   "  daoflow plan --compose ./compose.yaml --server srv_123 --json",
   "",
@@ -35,21 +38,12 @@ export function planCommand(): Command {
     .description("Preview a deployment plan without executing it")
     .option("--service <id>", "Service name or ID")
     .option("--compose <path>", "Docker Compose file path")
-    .option(
-      "--compose-override <path>",
-      "Additional Docker Compose override file, applied after --compose",
-      (value: string, previous: string[] = []) => [...previous, value],
-      []
-    )
-    .option(
-      "--profile <name>",
-      "Compose profile to enable",
-      (value: string, previous: string[] = []) => [...previous, value],
-      []
-    )
-    .option("--context <path>", "Build context path (default: .)")
+    .option("--context <path>", "Upload root for compose-local inputs (default: .)")
     .option("--server <id>", "Target server")
     .option("--image <tag>", "Image tag to deploy")
+    .option("--preview-branch <branch>", "Target a compose preview for a source branch")
+    .option("--preview-pr <number>", "Associate the preview with a pull request number")
+    .option("--preview-close", "Plan preview stack cleanup instead of deploy")
     .option("--json", "Output as JSON")
     .addHelpText("after", PLAN_HELP_TEXT)
     .action(
@@ -57,11 +51,12 @@ export function planCommand(): Command {
         opts: {
           service?: string;
           compose?: string;
-          composeOverride?: string[];
-          profile?: string[];
           context?: string;
           server?: string;
           image?: string;
+          previewBranch?: string;
+          previewPr?: string;
+          previewClose?: boolean;
           json?: boolean;
         },
         command: Command
@@ -75,14 +70,23 @@ export function planCommand(): Command {
 
         const serviceId = opts.service;
         const composePath = opts.compose ?? (serviceId ? undefined : cfg?.compose);
-        const composeOverrides =
-          opts.composeOverride && opts.composeOverride.length > 0
-            ? opts.composeOverride
-            : (cfg?.composeOverrides ?? []);
-        const composeProfiles =
-          opts.profile && opts.profile.length > 0 ? opts.profile : (cfg?.composeProfiles ?? []);
         const contextPath = opts.context ?? cfg?.context ?? ".";
         const serverId = opts.server ?? cfg?.server;
+        const previewTargetResult = buildServicePreviewTarget({
+          previewBranch: opts.previewBranch,
+          previewPr: opts.previewPr,
+          previewClose: opts.previewClose
+        });
+        if (previewTargetResult.error) {
+          if (isJson) {
+            emitJsonError(previewTargetResult.error, "INVALID_INPUT");
+          } else {
+            console.error(chalk.red(`✗ ${previewTargetResult.error}`));
+          }
+          process.exit(1);
+          return;
+        }
+        const previewTarget = previewTargetResult.preview;
 
         if (serviceId && opts.compose) {
           const error = "Choose either --service or --compose, not both.";
@@ -97,6 +101,17 @@ export function planCommand(): Command {
 
         if (!serviceId && !composePath) {
           const error = "Either --service or --compose is required.";
+          if (isJson) {
+            emitJsonError(error, "INVALID_INPUT");
+          } else {
+            console.error(chalk.red(`✗ ${error}`));
+          }
+          process.exit(1);
+          return;
+        }
+
+        if (composePath && previewTarget) {
+          const error = "Preview targeting is only supported with --service planning.";
           if (isJson) {
             emitJsonError(error, "INVALID_INPUT");
           } else {
@@ -123,7 +138,8 @@ export function planCommand(): Command {
             const plan = await trpc.deploymentPlan.query({
               service: serviceId,
               server: serverId,
-              image: opts.image
+              image: opts.image,
+              preview: previewTarget
             });
 
             if (isJson) {
@@ -144,8 +160,6 @@ export function planCommand(): Command {
             const trpc = createClient();
             const plan = await fetchComposeDeploymentPlan(trpc, {
               composePath,
-              composeOverrides,
-              composeProfiles,
               contextPath,
               serverId: composeServerId,
               json: isJson,
@@ -164,6 +178,16 @@ export function planCommand(): Command {
             return;
           }
         } catch (error) {
+          if (error instanceof ComposeUploadContextValidationError) {
+            if (isJson) {
+              emitJsonError(getErrorMessage(error), "INVALID_INPUT");
+            } else {
+              console.error(chalk.red(`✗ ${getErrorMessage(error)}`));
+            }
+            process.exit(1);
+            return;
+          }
+
           if (isJson) {
             emitJsonError(getErrorMessage(error), "API_ERROR");
           } else {

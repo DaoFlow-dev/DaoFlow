@@ -1,4 +1,4 @@
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import {
   createTarArchive,
   ensureStagingDir,
@@ -20,15 +20,12 @@ import {
 } from "../compose-env";
 import type { ComposeBuildPlan } from "../compose-build-plan";
 import type { ComposeInputManifest, FrozenComposeInputsPayload } from "../compose-inputs";
-import { normalizeRelativePath } from "../compose-build-plan-shared";
-import { normalizeComposeProfiles } from "../compose-source";
 import { materializeComposeWorkspaceArtifacts } from "../compose-workspace-artifacts";
 import type { DeploymentComposeState } from "../db/services/compose-env";
 
 interface ComposeWorkspace {
   workDir: string;
   composeFile: string;
-  composeFiles: string[];
   composeBuildPlan: ComposeBuildPlan;
   composeEnv: {
     composeEnv: ComposeEnvEvidence;
@@ -40,15 +37,8 @@ interface ComposeWorkspace {
   };
 }
 
-function resolveUploadedComposeFiles(config: ConfigSnapshot): string[] {
-  const configuredComposeFiles =
-    Array.isArray(config.uploadedComposeFileNames) && config.uploadedComposeFileNames.length > 0
-      ? config.uploadedComposeFileNames
-      : Array.isArray(config.composeFilePaths) && config.composeFilePaths.length > 0
-        ? config.composeFilePaths
-        : [config.uploadedComposeFileName ?? "compose.yaml"];
-
-  return configuredComposeFiles.map((composeFile) => normalizeRelativePath(composeFile));
+function resolveUploadedComposeFile(config: ConfigSnapshot): string {
+  return config.uploadedComposeFileName ?? "compose.yaml";
 }
 
 function resolveUploadedArchive(config: ConfigSnapshot): string | null {
@@ -67,8 +57,7 @@ function materializeComposeArtifacts(
   const artifacts = materializeComposeWorkspaceArtifacts(input);
 
   return {
-    composeFile: artifacts.composeFiles[0] ?? "docker-compose.yml",
-    composeFiles: artifacts.composeFiles,
+    composeFile: artifacts.composeFile,
     composeBuildPlan: artifacts.composeBuildPlan,
     composeEnv: artifacts.composeEnv,
     composeInputs: artifacts.composeInputs
@@ -136,19 +125,11 @@ export async function prepareComposeWorkspace(
 
     const artifacts = materializeComposeArtifacts({
       workDir: localClone.workDir,
-      composeFiles:
-        Array.isArray(config.composeFilePaths) && config.composeFilePaths.length > 0
-          ? config.composeFilePaths
-          : [config.composeFilePath ?? "docker-compose.yml"],
-      composeProfiles: normalizeComposeProfiles(
-        Array.isArray(config.composeProfiles) ? config.composeProfiles : []
-      ),
+      composeFile: config.composeFilePath ?? "docker-compose.yml",
       branch: config.composeEnvBranch ?? checkout.branch,
       sourceProvenance: "repository-checkout",
       deploymentState,
       imageOverride: config.composeImageOverride,
-      runtimeConfig: config.runtimeConfig,
-      composeServiceName: config.composeServiceName,
       existingComposeBuildPlan: config.composeBuildPlan,
       existingComposeEnv: config.composeEnv,
       existingComposeInputs: config.composeInputs
@@ -203,7 +184,7 @@ export async function prepareComposeWorkspace(
       contextArchiveName: config.uploadedContextArchiveName
     });
   }
-  const composeFiles = resolveUploadedComposeFiles(config);
+  const composeFile = basename(resolveUploadedComposeFile(config));
   const contextArchive = resolveUploadedArchive(config);
 
   if (contextArchive) {
@@ -223,16 +204,11 @@ export async function prepareComposeWorkspace(
 
   const artifacts = materializeComposeArtifacts({
     workDir: localStageDir,
-    composeFiles,
-    composeProfiles: normalizeComposeProfiles(
-      Array.isArray(config.composeProfiles) ? config.composeProfiles : []
-    ),
+    composeFile,
     branch: config.composeEnvBranch ?? config.branch ?? "main",
     sourceProvenance: "uploaded-artifact",
     deploymentState,
     imageOverride: config.composeImageOverride,
-    runtimeConfig: config.runtimeConfig,
-    composeServiceName: config.composeServiceName,
     existingComposeBuildPlan: config.composeBuildPlan,
     existingComposeEnv: config.composeEnv,
     existingComposeInputs: config.composeInputs
@@ -274,7 +250,7 @@ export async function prepareComposeWorkspace(
     localStageDir,
     target.remoteWorkDir,
     [
-      ...artifacts.composeFiles,
+      artifacts.composeFile,
       COMPOSE_ENV_FILE_NAME,
       COMPOSE_ENV_EXPORT_FILE_NAME,
       ...artifacts.composeInputs.frozenInputs.envFiles.map((envFile) => envFile.path)

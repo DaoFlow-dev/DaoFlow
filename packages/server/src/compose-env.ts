@@ -98,15 +98,24 @@ function shellEscapeEnvValue(value: string): string {
   return "'" + value.replace(/'/g, `'"'"'`) + "'";
 }
 
+function assertValidEnvKey(key: string): string {
+  if (!VALID_ENV_KEY_PATTERN.test(key)) {
+    throw new Error(`Invalid environment variable key "${key}".`);
+  }
+
+  return key;
+}
+
 export function renderComposeEnvFile(entries: ComposeEnvRenderableEntry[]): string {
   return (
     entries
       .map((entry) => {
+        const key = assertValidEnvKey(entry.key);
         const value =
           entry.origin === "environment-variable"
             ? escapeComposeInterpolation(entry.value)
             : entry.value;
-        return `${entry.key}=${formatEnvValue(value)}`;
+        return `${key}=${formatEnvValue(value)}`;
       })
       .join("\n") + "\n"
   );
@@ -114,8 +123,9 @@ export function renderComposeEnvFile(entries: ComposeEnvRenderableEntry[]): stri
 
 export function renderComposeEnvExportFile(entries: ComposeEnvRenderableEntry[]): string {
   return (
-    entries.map((entry) => `export ${entry.key}=${shellEscapeEnvValue(entry.value)}`).join("\n") +
-    "\n"
+    entries
+      .map((entry) => `export ${assertValidEnvKey(entry.key)}=${shellEscapeEnvValue(entry.value)}`)
+      .join("\n") + "\n"
   );
 }
 

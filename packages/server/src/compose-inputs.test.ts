@@ -53,11 +53,7 @@ describe("compose input materialization", () => {
       }
     });
 
-    expect(result.composeFile).toBe(".daoflow.compose.inputs/compose-01__ops.compose.yaml.yaml");
-    expect(result.composeFiles).toEqual([
-      ".daoflow.compose.inputs/compose-01__ops.compose.yaml.yaml",
-      ".daoflow.compose.inputs/compose-override__api.yaml"
-    ]);
+    expect(result.composeFile).toBe(".daoflow.compose.rendered.yaml");
     expect(result.manifest.entries).toEqual([
       expect.objectContaining({
         kind: "compose-env",
@@ -65,17 +61,8 @@ describe("compose input materialization", () => {
       }),
       expect.objectContaining({
         kind: "compose-file",
-        path: ".daoflow.compose.inputs/compose-01__ops.compose.yaml.yaml",
+        path: ".daoflow.compose.rendered.yaml",
         sourcePath: "ops.compose.yaml"
-      }),
-      expect.objectContaining({
-        kind: "compose-file",
-        path: ".daoflow.compose.inputs/compose-override__api.yaml",
-        sourcePath: null
-      }),
-      expect.objectContaining({
-        kind: "rendered-compose-file",
-        path: ".daoflow.compose.rendered.yaml"
       }),
       expect.objectContaining({
         kind: "repo-default-env",
@@ -93,9 +80,7 @@ describe("compose input materialization", () => {
       'Skipped optional env_file "./config/optional.env" for service "api" because it was not present in the frozen workspace.'
     ]);
 
-    const renderedComposePath = result.frozenInputs.renderedCompose?.path;
-    expect(renderedComposePath).toBe(".daoflow.compose.rendered.yaml");
-    const renderedCompose = readFileSync(join(workDir, renderedComposePath ?? ""), "utf8");
+    const renderedCompose = readFileSync(join(workDir, result.composeFile), "utf8");
     expect(renderedCompose).toContain(".daoflow.compose.inputs/config__runtime.env");
     expect(renderedCompose).not.toContain("./config/runtime.env");
     expect(renderedCompose).toContain("image: ghcr.io/daoflow/api:2.0.0");
@@ -165,61 +150,6 @@ describe("compose input materialization", () => {
     expect(readFileSync(join(workDir, result.composeFile), "utf8")).toBe(
       "services:\n  api:\n    image: ghcr.io/daoflow/api:rollback\n"
     );
-  });
-
-  it("adds DaoFlow-managed runtime override compose fragments into the rendered compose snapshot", () => {
-    const workDir = mkdtempSync(join(tmpdir(), "daoflow-compose-runtime-"));
-    tempDirs.push(workDir);
-
-    writeFileSync(
-      join(workDir, "compose.yaml"),
-      ["services:", "  api:", "    image: ghcr.io/daoflow/api:stable"].join("\n")
-    );
-
-    const result = materializeComposeInputs({
-      workDir,
-      composeFile: "compose.yaml",
-      sourceProvenance: "repository-checkout",
-      composeEnvFileContents: "",
-      composeServiceName: "api",
-      runtimeConfig: {
-        volumes: [
-          {
-            source: "/srv/data",
-            target: "/var/lib/postgresql/data",
-            mode: "rw"
-          }
-        ],
-        networks: ["public"],
-        restartPolicy: {
-          name: "on-failure",
-          maxRetries: 4
-        },
-        healthCheck: {
-          command: "curl -f http://localhost:3000/ready || exit 1",
-          intervalSeconds: 20,
-          timeoutSeconds: 5,
-          retries: 3,
-          startPeriodSeconds: 10
-        },
-        resources: {
-          cpuLimitCores: 1.5,
-          cpuReservationCores: 0.5,
-          memoryLimitMb: 768,
-          memoryReservationMb: 256
-        }
-      }
-    });
-
-    expect(result.composeFiles).toEqual(
-      expect.arrayContaining([".daoflow.compose.inputs/compose-runtime__api.yaml"])
-    );
-    const renderedCompose = result.frozenInputs.renderedCompose?.contents ?? "";
-    expect(renderedCompose).toContain("/srv/data:/var/lib/postgresql/data");
-    expect(renderedCompose).toContain("networks:");
-    expect(renderedCompose).toContain("restart: on-failure:4");
-    expect(renderedCompose).toContain("curl -f http://localhost:3000/ready || exit 1");
-    expect(renderedCompose).toContain('cpus: "1.5"');
   });
 
   it("replays previously frozen build contexts without renormalizing them against the original compose path", () => {

@@ -23,6 +23,7 @@ import {
   readRecordArray,
   readStringArray
 } from "./json-helpers";
+import { readComposePreviewMetadata } from "../../compose-preview";
 
 export type DeploymentStatus = DeploymentLifecycleStatus;
 export type DeploymentSourceType = "compose" | "dockerfile" | "image";
@@ -82,6 +83,7 @@ function buildDeploymentView(
   steps: (typeof deploymentSteps.$inferSelect)[]
 ) {
   const snapshot = asRecord(deployment.configSnapshot);
+  const preview = readComposePreviewMetadata(snapshot.preview);
   const status = normalizeDeploymentStatus(deployment.status, deployment.conclusion);
   const statusLabel = formatDeploymentStatusLabel(deployment.status, deployment.conclusion);
   const statusTone = getDeploymentStatusTone(deployment.status, deployment.conclusion);
@@ -99,6 +101,12 @@ function buildDeploymentView(
     projectName: project?.name ?? readString(snapshot, "projectName", deployment.projectId),
     environmentName:
       environment?.name ?? readString(snapshot, "environmentName", deployment.environmentId),
+    stackName: readString(
+      snapshot,
+      "stackName",
+      readString(snapshot, "projectName", deployment.projectId)
+    ),
+    preview,
     targetServerName:
       server?.name ?? readString(snapshot, "targetServerName", deployment.targetServerId),
     targetServerHost:
@@ -106,9 +114,9 @@ function buildDeploymentView(
     createdAt: deployment.createdAt.toISOString(),
     startedAt: deployment.createdAt.toISOString(),
     finishedAt: deployment.concludedAt?.toISOString() ?? null,
-    steps: steps.map((step) => ({
+    steps: steps.map((step, index) => ({
       ...step,
-      position: step.sortOrder,
+      position: index + 1,
       startedAt: step.startedAt?.toISOString() ?? null,
       finishedAt: step.completedAt?.toISOString() ?? null
     }))
@@ -185,7 +193,9 @@ export async function createDeploymentRecord(input: CreateDeploymentInput) {
       detail: step.detail,
       status: "completed" as const,
       completedAt: now,
-      sortOrder: index + 1
+      // Reserve negative sort orders for control-plane presteps so worker execution
+      // steps can start at 1 without colliding or reordering the visible timeline.
+      sortOrder: index - input.steps.length
     }))
   );
 

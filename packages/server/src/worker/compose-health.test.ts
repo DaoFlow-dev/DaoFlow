@@ -92,6 +92,43 @@ describe("assessComposeHealth", () => {
     });
   });
 
+  it("waits for missing dependency services in the expected compose graph scope", () => {
+    const statuses: ComposeContainerStatus[] = [
+      {
+        service: "api",
+        name: "demo-api-1",
+        state: "running",
+        status: "Up 2 seconds (healthy)",
+        health: "healthy",
+        exitCode: 0
+      }
+    ];
+
+    expect(assessComposeHealth(statuses, "compose service api", ["api", "db"])).toEqual({
+      kind: "pending",
+      summary: "compose service api are still converging: waiting for services: db"
+    });
+  });
+
+  it("waits for declared Docker health checks even when a container is already running", () => {
+    const statuses: ComposeContainerStatus[] = [
+      {
+        service: "db",
+        name: "demo-db-1",
+        state: "running",
+        status: "Up 2 seconds",
+        health: null,
+        exitCode: 0
+      }
+    ];
+
+    expect(assessComposeHealth(statuses, "compose service db", ["db"], ["db"])).toEqual({
+      kind: "pending",
+      summary:
+        "compose service db are still converging: db (demo-db-1) is still waiting for Docker health"
+    });
+  });
+
   it("fails when a service exits or reports unhealthy", () => {
     const statuses: ComposeContainerStatus[] = [
       {

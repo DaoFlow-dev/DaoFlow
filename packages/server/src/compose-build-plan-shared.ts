@@ -1,8 +1,5 @@
 import { dirname, isAbsolute, relative, resolve } from "node:path";
-import type {
-  ComposeBuildContextType,
-  ComposeBuildPlanSecretDefinition
-} from "./compose-build-plan-types";
+import type { ComposeBuildContextType } from "./compose-build-plan-types";
 
 export function normalizeRelativePath(path: string): string {
   return path.replace(/\\/g, "/");
@@ -20,10 +17,6 @@ export function readServices(doc: Record<string, unknown>): Record<string, unkno
 
 export function readTopLevelSecrets(doc: Record<string, unknown>): Record<string, unknown> {
   return readObject(doc.secrets) ?? {};
-}
-
-export function isExternalReference(value: unknown): boolean {
-  return value === true || Boolean(readObject(value));
 }
 
 function isRemoteReference(value: string): boolean {
@@ -49,45 +42,6 @@ export function classifyBuildReference(value: string): ComposeBuildContextType {
   }
 
   return "local-path";
-}
-
-export function resolveTopLevelSecretDefinition(
-  sourceName: string,
-  topLevelSecrets: Record<string, unknown>
-): Omit<ComposeBuildPlanSecretDefinition, "name" | "external"> {
-  const secret = readObject(topLevelSecrets[sourceName]);
-  if (!secret) {
-    return {
-      provider: "unknown",
-      reference: null
-    };
-  }
-
-  if (typeof secret.file === "string") {
-    return {
-      provider: "file",
-      reference: secret.file
-    };
-  }
-
-  if (typeof secret.environment === "string") {
-    return {
-      provider: "environment",
-      reference: secret.environment
-    };
-  }
-
-  if (isExternalReference(secret.external)) {
-    return {
-      provider: "external",
-      reference: typeof secret.name === "string" ? secret.name : sourceName
-    };
-  }
-
-  return {
-    provider: "unknown",
-    reference: null
-  };
 }
 
 function resolveWorkspaceRelativePath(input: {

@@ -1,9 +1,11 @@
-import { mkdir, writeFile } from "node:fs/promises";
-import { dirname, isAbsolute, join, relative, resolve } from "node:path";
+import { writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { Hono, type Context } from "hono";
+import { parse as parseYaml } from "yaml";
 import { hasAllScopes, normalizeAppRole, roleCapabilities, type AppRole } from "@daoflow/shared";
 import { auth } from "../auth";
-import { normalizeRelativePath } from "../compose-build-plan-shared";
+import { buildComposeBuildPlan } from "../compose-build-plan";
+import { deriveComposeStackName } from "../db/services/compose-deployment-plan-build";
 import { ensureControlPlaneReady } from "../db/services/seed";
 import { ensureDirectDeploymentScope } from "../db/services/direct-deployments";
 import { createDeploymentRecord } from "../db/services/deployments";
@@ -11,15 +13,13 @@ import { dispatchDeploymentExecution } from "../db/services/deployment-dispatch"
 import { newId as id } from "../db/services/json-helpers";
 import { cleanupStagingDir, ensureStagingDir } from "../worker/docker-executor";
 import { persistUploadedArtifacts } from "../worker/uploaded-artifacts";
+import {
+  createDirectContextUploadSession,
+  loadDirectContextUploadSession
+} from "./deploy-context-upload";
 import { streamBodyToFile } from "./stream-to-file";
 
 export const deployContextRouter = new Hono();
-
-const MAX_UPLOADED_COMPOSE_FILE_COUNT = 20;
-const MAX_UPLOADED_COMPOSE_FILE_PATH_LENGTH = 500;
-const MAX_UPLOADED_COMPOSE_FILE_CONTENT_LENGTH = 1_000_000;
-const MAX_UPLOADED_COMPOSE_PROFILE_COUNT = 20;
-const MAX_UPLOADED_COMPOSE_PROFILE_LENGTH = 100;
 
 interface DeployActor {
   userId: string;
@@ -27,200 +27,25 @@ interface DeployActor {
   role: AppRole;
 }
 
+interface DirectComposeRequestBody {
+  server?: string;
+  compose?: string;
+  project?: string;
+  environment?: string;
+}
+
 function readErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+async function readDirectComposeRequestBody(c: Context): Promise<DirectComposeRequestBody | null> {
+  return c.req.json<DirectComposeRequestBody>().catch(() => null);
+}
+
 function deriveStackName(composeContent: string, fallback: string): string {
-  const namedMatch = composeContent.match(/^\s*name\s*:\s*["']?([^"'#\n]+)["']?\s*$/m);
-  if (namedMatch?.[1]) {
-    return namedMatch[1].trim();
-  }
-
-  const firstServiceMatch = composeContent.match(/^\s{2}([a-zA-Z0-9._-]+)\s*:\s*$/m);
-  if (firstServiceMatch?.[1]) {
-    return firstServiceMatch[1].trim();
-  }
-
-  return fallback;
-}
-
-type UploadedComposeFile = {
-  path: string;
-  contents: string;
-};
-
-class DeployContextRequestError extends Error {
-  readonly code: string;
-
-  constructor(message: string, code = "INVALID_DEPLOY_CONTEXT_REQUEST") {
-    super(message);
-    this.name = "DeployContextRequestError";
-    this.code = code;
-  }
-}
-
-function readUploadedComposeFilesHeader(
-  encodedValue: string | undefined,
-  fallbackComposeContent: string
-): UploadedComposeFile[] {
-  if (!encodedValue) {
-    return [{ path: "compose.yaml", contents: fallbackComposeContent }];
-  }
-
-  try {
-    const parsed = JSON.parse(Buffer.from(encodedValue, "base64").toString("utf8")) as unknown;
-    if (!Array.isArray(parsed)) {
-      throw new Error("Compose file metadata was not an array.");
-    }
-
-    const composeFiles = parsed.flatMap((entry) => {
-      if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
-        return [];
-      }
-
-      const record = entry as Record<string, unknown>;
-      if (typeof record.path !== "string" || typeof record.contents !== "string") {
-        return [];
-      }
-
-      return [
-        {
-          path: record.path,
-          contents: record.contents
-        } satisfies UploadedComposeFile
-      ];
-    });
-
-    return composeFiles.length > 0
-      ? composeFiles
-      : [{ path: "compose.yaml", contents: fallbackComposeContent }];
-  } catch (error) {
-    throw new DeployContextRequestError(
-      `Invalid X-DaoFlow-Compose-Files header: ${error instanceof Error ? error.message : String(error)}`
-    );
-  }
-}
-
-function readUploadedProfilesHeader(encodedValue: string | undefined): string[] {
-  if (!encodedValue) {
-    return [];
-  }
-
-  try {
-    const parsed = JSON.parse(Buffer.from(encodedValue, "base64").toString("utf8")) as unknown;
-    return Array.isArray(parsed) ? normalizeUploadedProfiles(parsed) : [];
-  } catch (error) {
-    throw new DeployContextRequestError(
-      `Invalid X-DaoFlow-Compose-Profiles header: ${error instanceof Error ? error.message : String(error)}`
-    );
-  }
-}
-
-function validateUploadedComposeFiles(composeFiles: UploadedComposeFile[]): void {
-  if (composeFiles.length > MAX_UPLOADED_COMPOSE_FILE_COUNT) {
-    throw new DeployContextRequestError(
-      `A maximum of ${MAX_UPLOADED_COMPOSE_FILE_COUNT} compose files may be uploaded at once.`
-    );
-  }
-
-  for (const composeFile of composeFiles) {
-    if (composeFile.path.trim().length === 0) {
-      throw new DeployContextRequestError(
-        "Compose file path cannot be empty.",
-        "INVALID_COMPOSE_FILE_PATH"
-      );
-    }
-
-    if (composeFile.path.length > MAX_UPLOADED_COMPOSE_FILE_PATH_LENGTH) {
-      throw new DeployContextRequestError(
-        `Compose file path exceeds ${MAX_UPLOADED_COMPOSE_FILE_PATH_LENGTH} characters.`,
-        "INVALID_COMPOSE_FILE_PATH"
-      );
-    }
-
-    if (composeFile.contents.length === 0) {
-      throw new DeployContextRequestError("Compose file contents cannot be empty.");
-    }
-
-    if (composeFile.contents.length > MAX_UPLOADED_COMPOSE_FILE_CONTENT_LENGTH) {
-      throw new DeployContextRequestError(
-        `Compose file contents exceed ${MAX_UPLOADED_COMPOSE_FILE_CONTENT_LENGTH} bytes.`
-      );
-    }
-  }
-}
-
-function normalizeUploadedProfiles(profiles: unknown[]): string[] {
-  const normalized = profiles.filter(
-    (profile): profile is string => typeof profile === "string" && profile.trim().length > 0
-  );
-
-  if (normalized.length > MAX_UPLOADED_COMPOSE_PROFILE_COUNT) {
-    throw new DeployContextRequestError(
-      `A maximum of ${MAX_UPLOADED_COMPOSE_PROFILE_COUNT} compose profiles may be provided.`
-    );
-  }
-
-  return normalized.map((profile) => {
-    const trimmed = profile.trim();
-    if (trimmed.length > MAX_UPLOADED_COMPOSE_PROFILE_LENGTH) {
-      throw new DeployContextRequestError(
-        `Compose profile names must be ${MAX_UPLOADED_COMPOSE_PROFILE_LENGTH} characters or fewer.`
-      );
-    }
-    return trimmed;
-  });
-}
-
-function resolveUploadedComposePath(stageDir: string, inputPath: string): string {
-  const normalizedInput = normalizeRelativePath(inputPath.trim());
-  if (normalizedInput.length === 0 || normalizedInput === ".") {
-    throw new DeployContextRequestError(
-      "Compose file path cannot be empty.",
-      "INVALID_COMPOSE_FILE_PATH"
-    );
-  }
-
-  const resolvedPath = resolve(stageDir, normalizedInput);
-  const workspaceRelativePath = normalizeRelativePath(relative(stageDir, resolvedPath));
-
-  if (
-    isAbsolute(normalizedInput) ||
-    workspaceRelativePath.length === 0 ||
-    workspaceRelativePath === "." ||
-    workspaceRelativePath === ".." ||
-    workspaceRelativePath.startsWith("../") ||
-    isAbsolute(workspaceRelativePath)
-  ) {
-    throw new DeployContextRequestError(
-      `Compose file path must stay within the staged deployment workspace: ${inputPath}`,
-      "INVALID_COMPOSE_FILE_PATH"
-    );
-  }
-
-  return workspaceRelativePath;
-}
-
-async function stageUploadedComposeFiles(
-  stageDir: string,
-  composeFiles: UploadedComposeFile[]
-): Promise<UploadedComposeFile[]> {
-  validateUploadedComposeFiles(composeFiles);
-  const stagedFiles: UploadedComposeFile[] = [];
-
-  for (const composeFile of composeFiles) {
-    const safeRelativePath = resolveUploadedComposePath(stageDir, composeFile.path);
-    const destination = join(stageDir, safeRelativePath);
-    await mkdir(dirname(destination), { recursive: true });
-    await writeFile(destination, composeFile.contents, "utf8");
-    stagedFiles.push({
-      path: safeRelativePath,
-      contents: composeFile.contents
-    });
-  }
-
-  return stagedFiles;
+  const doc = (parseYaml(composeContent) as Record<string, unknown> | null) ?? {};
+  const buildPlan = buildComposeBuildPlan(doc);
+  return deriveComposeStackName(buildPlan, fallback);
 }
 
 async function requireDeployActor(c: Context) {
@@ -308,73 +133,98 @@ async function queueUploadedDeployment(input: {
   };
 }
 
-deployContextRouter.post("/", async (c) => {
+deployContextRouter.post("/uploads/intake", async (c) => {
   const actor = await requireDeployActor(c);
   if ("status" in actor) {
     return actor;
   }
 
-  const serverId = c.req.header("X-DaoFlow-Server") ?? "";
-  const composeB64 = c.req.header("X-DaoFlow-Compose") ?? "";
-  const composeFilesB64 = c.req.header("X-DaoFlow-Compose-Files") ?? undefined;
-  const composeProfilesB64 = c.req.header("X-DaoFlow-Compose-Profiles") ?? undefined;
-  const projectRef = c.req.header("X-DaoFlow-Project") ?? undefined;
-  const environmentName = c.req.header("X-DaoFlow-Environment") ?? undefined;
-
-  if (!serverId) {
-    return c.json(
-      { ok: false, error: "Missing X-DaoFlow-Server header", code: "MISSING_SERVER" },
-      400
-    );
+  const body = await readDirectComposeRequestBody(c);
+  if (!body) {
+    return c.json({ ok: false, error: "Malformed JSON body", code: "INVALID_JSON" }, 400);
   }
 
-  if (!composeB64) {
-    return c.json(
-      { ok: false, error: "Missing X-DaoFlow-Compose header", code: "MISSING_COMPOSE" },
-      400
-    );
+  if (!body.server) {
+    return c.json({ ok: false, error: "Missing server field", code: "MISSING_SERVER" }, 400);
   }
 
+  if (!body.compose) {
+    return c.json({ ok: false, error: "Missing compose field", code: "MISSING_COMPOSE" }, 400);
+  }
+
+  const uploadId = id();
+
+  try {
+    await createDirectContextUploadSession({
+      uploadId,
+      serverId: body.server,
+      composeContent: body.compose,
+      projectRef: body.project,
+      environmentName: body.environment,
+      requestedByUserId: actor.userId
+    });
+
+    return c.json({
+      ok: true,
+      uploadId
+    });
+  } catch (error) {
+    cleanupStagingDir(uploadId);
+    return c.json(
+      {
+        ok: false,
+        error: readErrorMessage(error),
+        code: "DEPLOY_CONTEXT_FAILED"
+      },
+      500
+    );
+  }
+});
+
+deployContextRouter.post("/uploads/:uploadId", async (c) => {
+  const actor = await requireDeployActor(c);
+  if ("status" in actor) {
+    return actor;
+  }
+
+  const uploadId = c.req.param("uploadId");
   const body = c.req.raw.body;
   if (!body) {
     return c.json({ ok: false, error: "No request body provided.", code: "EMPTY_BODY" }, 400);
   }
 
-  const deploymentId = id();
-  const stageDir = ensureStagingDir(deploymentId);
-  const composeFileName = "compose.yaml";
-  const archiveFileName = "context.tar.gz";
+  const upload = await loadDirectContextUploadSession(uploadId, actor.userId);
+  if (!upload) {
+    return c.json(
+      {
+        ok: false,
+        error: `Upload session "${uploadId}" was not found.`,
+        code: "UPLOAD_NOT_FOUND"
+      },
+      404
+    );
+  }
 
   try {
-    const composeContent = Buffer.from(composeB64, "base64").toString("utf8");
-    const composeFiles = await stageUploadedComposeFiles(
-      stageDir,
-      readUploadedComposeFilesHeader(composeFilesB64, composeContent)
-    );
-    const composeProfiles = readUploadedProfilesHeader(composeProfilesB64);
-    await streamBodyToFile(body, join(stageDir, archiveFileName));
+    await streamBodyToFile(body, `${upload.stageDir}/${upload.archiveFileName}`);
     const { artifactId } = await persistUploadedArtifacts({
-      sourceDir: stageDir,
-      composeFileName,
-      composeFileNames: composeFiles.map((composeFile) => composeFile.path),
-      contextArchiveName: archiveFileName
+      sourceDir: upload.stageDir,
+      composeFileName: upload.composeFileName,
+      contextArchiveName: upload.archiveFileName
     });
 
     const { deployment, scope } = await queueUploadedDeployment({
-      deploymentId,
-      serverId,
-      projectRef,
-      environmentName,
-      composeContent,
+      deploymentId: uploadId,
+      serverId: upload.serverId,
+      projectRef: upload.projectRef,
+      environmentName: upload.environmentName,
+      composeContent: upload.composeContent,
       actor,
       configSnapshot: {
         deploymentSource: "uploaded-context",
-        composeFilePath: composeFiles[0]?.path ?? composeFileName,
-        composeFilePaths: composeFiles.map((composeFile) => composeFile.path),
-        ...(composeProfiles.length > 0 ? { composeProfiles } : {}),
-        uploadedComposeFileName: composeFileName,
-        uploadedComposeFileNames: composeFiles.map((composeFile) => composeFile.path),
-        uploadedContextArchiveName: archiveFileName,
+        composeFilePath: upload.composeFileName,
+        uploadedComposeFileName: upload.composeFileName,
+        uploadedContextArchiveName: upload.archiveFileName,
         uploadedArtifactId: artifactId
       },
       steps: [
@@ -397,14 +247,14 @@ deployContextRouter.post("/", async (c) => {
       serviceId: scope.service.id
     });
   } catch (error) {
-    cleanupStagingDir(deploymentId);
+    cleanupStagingDir(uploadId);
     return c.json(
       {
         ok: false,
         error: readErrorMessage(error),
-        code: error instanceof DeployContextRequestError ? error.code : "DEPLOY_CONTEXT_FAILED"
+        code: "DEPLOY_CONTEXT_FAILED"
       },
-      error instanceof DeployContextRequestError ? 400 : 500
+      500
     );
   }
 });
@@ -415,14 +265,10 @@ deployContextRouter.post("/compose", async (c) => {
     return actor;
   }
 
-  const body = await c.req.json<{
-    server?: string;
-    compose?: string;
-    composeFiles?: UploadedComposeFile[];
-    profiles?: string[];
-    project?: string;
-    environment?: string;
-  }>();
+  const body = await readDirectComposeRequestBody(c);
+  if (!body) {
+    return c.json({ ok: false, error: "Malformed JSON body", code: "INVALID_JSON" }, 400);
+  }
 
   if (!body.server) {
     return c.json({ ok: false, error: "Missing server field", code: "MISSING_SERVER" }, 400);
@@ -432,35 +278,15 @@ deployContextRouter.post("/compose", async (c) => {
     return c.json({ ok: false, error: "Missing compose field", code: "MISSING_COMPOSE" }, 400);
   }
 
-  if (body.compose.length > MAX_UPLOADED_COMPOSE_FILE_CONTENT_LENGTH) {
-    return c.json(
-      {
-        ok: false,
-        error: `Compose file contents exceed ${MAX_UPLOADED_COMPOSE_FILE_CONTENT_LENGTH} bytes.`,
-        code: "INVALID_DEPLOY_CONTEXT_REQUEST"
-      },
-      400
-    );
-  }
-
   const deploymentId = id();
   const stageDir = ensureStagingDir(deploymentId);
   const composeFileName = "compose.yaml";
 
   try {
-    const composeFiles = await stageUploadedComposeFiles(
-      stageDir,
-      Array.isArray(body.composeFiles) && body.composeFiles.length > 0
-        ? body.composeFiles
-        : [{ path: composeFileName, contents: body.compose }]
-    );
-    const composeProfiles = Array.isArray(body.profiles)
-      ? normalizeUploadedProfiles(body.profiles)
-      : [];
+    await writeFile(join(stageDir, composeFileName), body.compose, "utf8");
     const { artifactId } = await persistUploadedArtifacts({
       sourceDir: stageDir,
-      composeFileName,
-      composeFileNames: composeFiles.map((composeFile) => composeFile.path)
+      composeFileName
     });
 
     const { deployment, scope } = await queueUploadedDeployment({
@@ -472,11 +298,8 @@ deployContextRouter.post("/compose", async (c) => {
       actor,
       configSnapshot: {
         deploymentSource: "uploaded-compose",
-        composeFilePath: composeFiles[0]?.path ?? composeFileName,
-        composeFilePaths: composeFiles.map((composeFile) => composeFile.path),
-        ...(composeProfiles.length > 0 ? { composeProfiles } : {}),
+        composeFilePath: composeFileName,
         uploadedComposeFileName: composeFileName,
-        uploadedComposeFileNames: composeFiles.map((composeFile) => composeFile.path),
         uploadedArtifactId: artifactId
       },
       steps: [
@@ -504,9 +327,9 @@ deployContextRouter.post("/compose", async (c) => {
       {
         ok: false,
         error: readErrorMessage(error),
-        code: error instanceof DeployContextRequestError ? error.code : "DEPLOY_COMPOSE_FAILED"
+        code: "DEPLOY_COMPOSE_FAILED"
       },
-      error instanceof DeployContextRequestError ? 400 : 500
+      500
     );
   }
 });

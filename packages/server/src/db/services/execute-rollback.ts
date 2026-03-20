@@ -167,10 +167,14 @@ export async function executeRollback(input: ExecuteRollbackInput) {
     envVarsEncrypted: target.envVarsEncrypted,
     configSnapshot,
     steps: [
-      { label: "Rollback preparation", detail: `Rolling back to deployment ${target.id}` },
-      { label: "Restore configuration", detail: "Applying previous deployment config" },
-      { label: "Deploy", detail: "Starting containers with previous config" },
-      { label: "Health check", detail: "Verifying rollback succeeded" }
+      {
+        label: "Rollback preparation",
+        detail: `Resolved rollback target ${target.id} and replayed its persisted deployment snapshot.`
+      },
+      {
+        label: "Queue execution handoff",
+        detail: "Dispatch the rollback deployment to the execution plane."
+      }
     ]
   };
 

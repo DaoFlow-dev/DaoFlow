@@ -6,7 +6,7 @@ sidebar_position: 8
 
 Generate a deployment plan without executing it. This is the primary planning command for AI agents.
 
-For compose-backed plans, DaoFlow now surfaces env precedence, masked provenance, and unresolved Compose interpolation before `deploy --yes`.
+For compose-backed plans, DaoFlow now surfaces env precedence, masked provenance, unresolved Compose interpolation, and checked-out `build:` execution requirements before `deploy --yes`.
 
 ## Usage
 
@@ -16,16 +16,21 @@ daoflow plan [options]
 
 ## Options
 
-| Flag               | Description                    |
-| ------------------ | ------------------------------ |
-| `--service <name>` | Registered service to plan for |
-| `--compose <path>` | Compose file to plan directly  |
-| `--context <path>` | Build context path             |
-| `--server <name>`  | Target server                  |
-| `--image <ref>`    | Docker image to plan with      |
-| `--json`           | Structured JSON output         |
+| Flag                      | Description                                  |
+| ------------------------- | -------------------------------------------- |
+| `--service <name>`        | Registered service to plan for               |
+| `--compose <path>`        | Compose file to plan directly                |
+| `--context <path>`        | Upload root for compose-local inputs         |
+| `--server <name>`         | Target server                                |
+| `--image <ref>`           | Docker image to plan with                    |
+| `--preview-branch <name>` | Preview source branch for compose services   |
+| `--preview-pr <number>`   | Preview pull request number                  |
+| `--preview-close`         | Plan preview stack cleanup instead of deploy |
+| `--json`                  | Structured JSON output                       |
 
 Provide either `--service` or `--compose`.
+
+For direct compose plans, `--context` must include every compose-relative local input that DaoFlow needs to upload. That includes local `build.context` paths, bundleable `build.additional_contexts`, file-backed build secrets, and local `env_file` assets. If the root is too narrow, the CLI now fails locally with `INVALID_INPUT` instead of sending a misleading plan request.
 
 ## Required Scope
 
@@ -35,6 +40,10 @@ Provide either `--service` or `--compose`.
 
 ```bash
 daoflow plan --service svc_123 --server prod --image ghcr.io/acme/api:1.4.2 --json
+```
+
+```bash
+daoflow plan --service svc_123 --preview-branch feature/login --preview-pr 42 --json
 ```
 
 ```bash
@@ -159,7 +168,11 @@ Service plan:
 }
 ```
 
-For compose-backed services, `healthcheckPath` remains legacy metadata. When `service.config.readinessProbe` is present, the plan shows the real execution contract that DaoFlow will enforce on the target host.
+For compose-backed services, `healthcheckPath` remains legacy metadata. When `service.config.readinessProbe` is present, the plan shows the real execution contract that DaoFlow will enforce on the target host, including `published-port` or `internal-network` targets and either HTTP or TCP transport.
+
+For git-backed Compose services, the plan also reflects when DaoFlow will build local Compose contexts before start. When the checked-out repository contains `build:` services, expect an extra preflight check describing the detected build services and a corresponding build step ahead of `docker compose up`.
+
+For preview-enabled compose services, `daoflow plan --service` can also model preview deploys and preview cleanup. The returned plan includes preview metadata under `target.preview`, uses the preview env branch when resolving environment variables, and appends `--preview-close` to `executeCommand` when the planned action is cleanup.
 
 Compose plan:
 
@@ -257,4 +270,4 @@ Compose plan:
 
 ## Agent Usage
 
-The `plan` command is safe for AI agents. For service plans it previews a registered service rollout; for compose plans it inspects local bundle metadata and adjacent repo-default `.env` content first, then asks the control plane for a non-mutating direct-deploy preview. Use it before `deploy --yes` to preview changes and catch missing interpolation inputs early.
+The `plan` command is safe for AI agents. For service plans it previews a registered service rollout; for compose plans it inspects local bundle metadata and adjacent repo-default `.env` content first, then asks the control plane for a non-mutating direct-deploy preview. When the compose spec contains `build:` services, the returned compose plan includes an explicit staged build step before `docker compose up -d`, and it warns if local build inputs still need upload. Use it before `deploy --yes` to preview changes and catch missing interpolation inputs early.

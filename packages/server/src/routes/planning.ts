@@ -75,7 +75,15 @@ export const planningRouter = t.router({
       z.object({
         service: z.string().min(1),
         server: z.string().min(1).optional(),
-        image: z.string().min(1).max(255).optional()
+        image: z.string().min(1).max(255).optional(),
+        preview: z
+          .object({
+            target: z.enum(["branch", "pull-request"]),
+            branch: z.string().min(1).max(255),
+            pullRequestNumber: z.number().int().min(1).optional(),
+            action: z.enum(["deploy", "destroy"]).optional()
+          })
+          .optional()
       })
     )
     .query(async ({ ctx, input }) => {
@@ -84,6 +92,7 @@ export const planningRouter = t.router({
           serviceRef: input.service,
           serverRef: input.server,
           imageTag: input.image,
+          preview: input.preview,
           requestedByUserId: ctx.session.user.id
         });
       } catch (error) {

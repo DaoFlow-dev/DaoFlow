@@ -1,4 +1,13 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  statSync,
+  utimesSync,
+  writeFileSync
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -47,7 +56,9 @@ describe("uploaded artifacts", () => {
 
     const restored = await restoreUploadedArtifacts({
       artifactId,
-      destinationDir
+      destinationDir,
+      composeFileName: "compose.yaml",
+      contextArchiveName: "context.tar.gz"
     });
 
     expect(restored.restoredFiles.sort()).toEqual(["compose.yaml", "context.tar.gz"]);
@@ -56,33 +67,87 @@ describe("uploaded artifacts", () => {
     expect(statSync(join(destinationDir, "compose.yaml")).mode & 0o777).toBe(0o600);
   });
 
-  it("preserves nested compose override paths when persisting and restoring artifacts", async () => {
-    const { persistUploadedArtifacts, restoreUploadedArtifacts } =
+  it("restores legacy retained artifacts when the deployment snapshot names the expected files", async () => {
+    const { restoreUploadedArtifacts } = await import("./uploaded-artifacts");
+
+    const artifactDir = join(stagingRoot, "uploaded-artifacts", "0123456789abcdef0123456789abcdef");
+    mkdirSync(artifactDir, { recursive: true });
+    writeFileSync(
+      join(artifactDir, "compose.yaml"),
+      "services:\n  app:\n    image: nginx:alpine\n"
+    );
+    writeFileSync(join(artifactDir, "context.tar.gz"), "archive bytes");
+
+    const restored = await restoreUploadedArtifacts({
+      artifactId: "0123456789abcdef0123456789abcdef",
+      destinationDir,
+      composeFileName: "compose.yaml",
+      contextArchiveName: "context.tar.gz"
+    });
+
+    expect(restored.restoredFiles.sort()).toEqual(["compose.yaml", "context.tar.gz"]);
+    expect(readFileSync(join(destinationDir, "context.tar.gz"), "utf8")).toBe("archive bytes");
+  });
+
+  it("does not publish a retained artifact until every required file is copied", async () => {
+    const { persistUploadedArtifacts } = await import("./uploaded-artifacts");
+
+    writeFileSync(join(sourceDir, "compose.yaml"), "services:\n  app:\n    image: nginx:alpine\n");
+
+    await expect(
+      persistUploadedArtifacts({
+        sourceDir,
+        composeFileName: "compose.yaml",
+        contextArchiveName: "missing.tar.gz",
+        artifactId: "fedcba9876543210fedcba9876543210"
+      })
+    ).rejects.toThrow();
+
+    const artifactsRoot = join(stagingRoot, "uploaded-artifacts");
+    expect(readdirSync(artifactsRoot)).toEqual([]);
+  });
+
+  it("prunes retained artifacts once they age past the replay window", async () => {
+    const { persistUploadedArtifacts, pruneUploadedArtifacts, UPLOADED_ARTIFACT_RETENTION_MS } =
       await import("./uploaded-artifacts");
 
-    mkdirSync(join(sourceDir, "ops"), { recursive: true });
     writeFileSync(join(sourceDir, "compose.yaml"), "services:\n  app:\n    image: nginx:alpine\n");
-    writeFileSync(
-      join(sourceDir, "ops", "compose.override.yaml"),
-      "services:\n  app:\n    environment:\n      MODE: prod\n"
-    );
 
     const { artifactId } = await persistUploadedArtifacts({
       sourceDir,
       composeFileName: "compose.yaml",
-      composeFileNames: ["compose.yaml", "ops/compose.override.yaml"]
+      artifactId: "abcdefabcdefabcdefabcdefabcdefab"
     });
 
-    rmSync(sourceDir, { recursive: true, force: true });
+    const artifactDir = join(stagingRoot, "uploaded-artifacts", artifactId);
+    const expiredAt = new Date(Date.now() - UPLOADED_ARTIFACT_RETENTION_MS - 1_000);
+    utimesSync(artifactDir, expiredAt, expiredAt);
 
-    const restored = await restoreUploadedArtifacts({
-      artifactId,
-      destinationDir
-    });
+    const pruneResult = await pruneUploadedArtifacts();
 
-    expect(restored.restoredFiles.sort()).toEqual(["compose.yaml", "ops/compose.override.yaml"]);
-    expect(readFileSync(join(destinationDir, "ops", "compose.override.yaml"), "utf8")).toContain(
-      "MODE: prod"
+    expect(pruneResult.prunedArtifacts).toBe(1);
+    expect(readdirSync(join(stagingRoot, "uploaded-artifacts"))).toEqual([]);
+  });
+
+  it("rejects incomplete retained artifacts with a clear replay error", async () => {
+    const { restoreUploadedArtifacts } = await import("./uploaded-artifacts");
+
+    const artifactDir = join(stagingRoot, "uploaded-artifacts", "11111111111111111111111111111111");
+    mkdirSync(artifactDir, { recursive: true });
+    writeFileSync(
+      join(artifactDir, "compose.yaml"),
+      "services:\n  app:\n    image: nginx:alpine\n"
+    );
+
+    await expect(
+      restoreUploadedArtifacts({
+        artifactId: "11111111111111111111111111111111",
+        destinationDir,
+        composeFileName: "compose.yaml",
+        contextArchiveName: "context.tar.gz"
+      })
+    ).rejects.toThrow(
+      'Uploaded artifact "11111111111111111111111111111111" is incomplete and cannot be replayed. Re-upload the compose source before retrying.'
     );
   });
 

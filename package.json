@@ -15,6 +15,7 @@
     "build": "bun --filter '*' build",
     "build:client": "bun --filter @daoflow/client build",
     "build:server": "bun --filter @daoflow/server build",
+    "check:server-build-references": "bun --filter @daoflow/server build && bun --filter @daoflow/client typecheck",
     "start": "NODE_ENV=production bun packages/server/dist/index.js",
     "typecheck": "tsc -b packages/shared packages/server packages/client packages/cli",
     "lint": "eslint .",

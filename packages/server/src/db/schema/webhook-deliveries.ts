@@ -1,4 +1,12 @@
-import { index, jsonb, pgTable, timestamp, uniqueIndex, varchar } from "drizzle-orm/pg-core";
+import {
+  index,
+  jsonb,
+  pgTable,
+  text,
+  timestamp,
+  uniqueIndex,
+  varchar
+} from "drizzle-orm/pg-core";
 
 export const webhookDeliveries = pgTable(
   "webhook_deliveries",
@@ -10,8 +18,11 @@ export const webhookDeliveries = pgTable(
     deliveryId: varchar("delivery_id", { length: 200 }),
     repoFullName: varchar("repo_full_name", { length: 255 }),
     externalInstallationId: varchar("external_installation_id", { length: 40 }),
+    previewKey: varchar("preview_key", { length: 80 }),
+    previewAction: varchar("preview_action", { length: 20 }),
     commitSha: varchar("commit_sha", { length: 64 }),
     status: varchar("status", { length: 20 }).default("processing").notNull(),
+    detail: text("detail"),
     metadata: jsonb("metadata"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     lastSeenAt: timestamp("last_seen_at").defaultNow().notNull(),

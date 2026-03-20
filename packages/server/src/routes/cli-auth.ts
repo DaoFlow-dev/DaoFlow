@@ -1,6 +1,8 @@
+import { createHmac, timingSafeEqual } from "node:crypto";
 import { Hono } from "hono";
-import { auth } from "../auth";
+import { AUTH_SECRET, auth } from "../auth";
 import {
+  type PendingCliAuthRequest,
   approveCliAuthRequest,
   createCliAuthRequest,
   getCliAuthRequest,
@@ -18,6 +20,29 @@ import {
 
 const cliAuthRouter = new Hono();
 
+function matchesCliAuthToken(input: string, expected: string): boolean {
+  const inputBuffer = Buffer.from(input, "utf8");
+  const expectedBuffer = Buffer.from(expected, "utf8");
+
+  if (inputBuffer.length !== expectedBuffer.length) {
+    return false;
+  }
+
+  return timingSafeEqual(inputBuffer, expectedBuffer);
+}
+
+function createPollToken(
+  request: Pick<PendingCliAuthRequest, "requestId" | "userCode" | "expiresAt">
+): string {
+  return createHmac("sha256", AUTH_SECRET)
+    .update(request.requestId)
+    .update("\0")
+    .update(request.userCode)
+    .update("\0")
+    .update(String(request.expiresAt))
+    .digest("hex");
+}
+
 function extractSessionToken(cookieHeader: string | null): string | null {
   if (!cookieHeader) {
     return null;
@@ -27,8 +52,8 @@ function extractSessionToken(cookieHeader: string | null): string | null {
   return match ? decodeURIComponent(match[1]) : null;
 }
 
-cliAuthRouter.post("/start", (c) => {
-  const request = createCliAuthRequest();
+cliAuthRouter.post("/start", async (c) => {
+  const request = await createCliAuthRequest();
   const verificationUri = new URL(`/cli/auth/device`, c.req.url);
   verificationUri.searchParams.set("requestId", request.requestId);
   verificationUri.searchParams.set("userCode", request.userCode);
@@ -37,19 +62,28 @@ cliAuthRouter.post("/start", (c) => {
     ok: true,
     requestId: request.requestId,
     userCode: request.userCode,
+    pollToken: createPollToken(request),
     verificationUri: verificationUri.toString(),
     intervalSeconds: POLL_INTERVAL_SECONDS,
     expiresAt: new Date(request.expiresAt).toISOString()
   });
 });
 
-cliAuthRouter.get("/status", (c) => {
+cliAuthRouter.get("/status", async (c) => {
   const requestId = c.req.query("requestId") ?? "";
   const userCode = c.req.query("userCode") ?? "";
-  const request = getCliAuthRequest(requestId, userCode);
+  const pollToken = c.req.query("pollToken") ?? "";
+  const request = await getCliAuthRequest(requestId, userCode);
 
   if (!request) {
     return c.json({ ok: false, error: "CLI auth request not found", code: "NOT_FOUND" }, 404);
+  }
+
+  if (!pollToken || !matchesCliAuthToken(pollToken, createPollToken(request))) {
+    return c.json(
+      { ok: false, error: "Invalid CLI auth poll token", code: "INVALID_POLL_TOKEN" },
+      403
+    );
   }
 
   return c.json({
@@ -67,9 +101,14 @@ cliAuthRouter.post("/exchange", async (c) => {
     userCode?: string;
     exchangeCode?: string;
   } | null;
-  const request = getCliAuthRequest(body?.requestId ?? "", body?.userCode ?? "");
+  const request = await getCliAuthRequest(body?.requestId ?? "", body?.userCode ?? "");
 
-  if (!request || !body?.exchangeCode || body.exchangeCode !== request.exchangeCode) {
+  if (
+    !request ||
+    !body?.exchangeCode ||
+    !request.exchangeCode ||
+    !matchesCliAuthToken(body.exchangeCode, request.exchangeCode)
+  ) {
     return c.json({ ok: false, error: "Invalid CLI auth code", code: "INVALID_CODE" }, 400);
   }
 
@@ -77,7 +116,7 @@ cliAuthRouter.post("/exchange", async (c) => {
     return c.json({ ok: false, error: "CLI auth request is not approved", code: "NOT_READY" }, 409);
   }
 
-  markCliAuthRequestExchanged(request);
+  await markCliAuthRequestExchanged(request);
 
   return c.json({
     ok: true,
@@ -96,7 +135,7 @@ cliAuthRouter.post("/approve", async (c) => {
 
   const requestId = typeof body?.requestId === "string" ? body.requestId : "";
   const userCode = typeof body?.userCode === "string" ? body.userCode : "";
-  const request = getCliAuthRequest(requestId, userCode);
+  const request = await getCliAuthRequest(requestId, userCode);
 
   if (!request) {
     const payload = { ok: false, error: "CLI auth request not found", code: "NOT_FOUND" };
@@ -117,8 +156,13 @@ cliAuthRouter.post("/approve", async (c) => {
       : c.html(renderCliAuthSignInPage(request.userCode, loginUrl, refreshUrl), 401);
   }
 
-  approveCliAuthRequest(request, sessionToken, session.user.email);
-  const exchangeCode = request.exchangeCode;
+  const approvedRequest = await approveCliAuthRequest(
+    request,
+    sessionToken,
+    session.user.id,
+    session.user.email
+  );
+  const exchangeCode = approvedRequest.exchangeCode;
 
   if (!exchangeCode) {
     return c.json(
@@ -135,7 +179,7 @@ cliAuthRouter.post("/approve", async (c) => {
     ok: true,
     exchangeCode,
     approvedByEmail: session.user.email,
-    expiresAt: new Date(request.expiresAt).toISOString()
+    expiresAt: new Date(approvedRequest.expiresAt).toISOString()
   };
 
   if (wantsJson) {
@@ -148,7 +192,7 @@ cliAuthRouter.post("/approve", async (c) => {
 cliAuthRouter.get("/device", async (c) => {
   const requestId = c.req.query("requestId") ?? "";
   const userCode = c.req.query("userCode") ?? "";
-  const request = getCliAuthRequest(requestId, userCode);
+  const request = await getCliAuthRequest(requestId, userCode);
 
   if (!request) {
     return c.html(renderCliAuthExpiredPage(), 404);

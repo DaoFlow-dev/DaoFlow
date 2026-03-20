@@ -19,7 +19,11 @@ daoflow deploy [options]
 | `--service <name>`        | Yes      | Service name                                            |
 | `--server <name>`         | Yes      | Target server                                           |
 | `--compose <path>`        | —        | Path to compose.yaml for direct Compose deployment      |
+| `--context <path>`        | —        | Upload root for compose-local inputs                    |
 | `--image <ref>`           | —        | Docker image reference                                  |
+| `--preview-branch <name>` | —        | Target a preview deployment for a compose source branch |
+| `--preview-pr <number>`   | —        | Associate the preview with a pull request               |
+| `--preview-close`         | —        | Destroy the targeted preview stack instead of deploy    |
 | `--env <key=value>`       | —        | Set environment variables (repeatable)                  |
 | `--dry-run`               | —        | Preview plan without executing (exit code 3)            |
 | `--yes`                   | —        | Skip confirmation prompt (required for non-interactive) |
@@ -39,14 +43,18 @@ daoflow deploy [options]
 daoflow deploy \
   --server production \
   --compose ./compose.yaml \
+  --context . \
   --dry-run
 
 # Execute the deployment
 daoflow deploy \
   --server production \
   --compose ./compose.yaml \
+  --context . \
   --yes
 ```
+
+For direct compose deploys, `--context` must include every compose-relative local input that needs bundling. DaoFlow validates local `build.context` paths, bundleable `build.additional_contexts`, file-backed build secrets, and local `env_file` assets before prompting or uploading anything. If the chosen root is too narrow, the CLI exits with `INVALID_INPUT`.
 
 ### Image Deployment
 
@@ -57,6 +65,33 @@ daoflow deploy \
   --image ghcr.io/myorg/my-api:v1.2.3 \
   --yes
 ```
+
+### Compose Preview Deployment
+
+```bash
+daoflow deploy \
+  --service svc_preview \
+  --preview-branch feature/login \
+  --preview-pr 42 \
+  --dry-run
+
+daoflow deploy \
+  --service svc_preview \
+  --preview-branch feature/login \
+  --preview-pr 42 \
+  --yes
+
+daoflow deploy \
+  --service svc_preview \
+  --preview-branch feature/login \
+  --preview-pr 42 \
+  --preview-close \
+  --yes
+```
+
+Preview targeting is supported only for registered compose services with `config.preview.enabled`. Direct `--compose` uploads do not support preview flags.
+
+If the backing project also has webhook auto-deploy configured, DaoFlow can queue the same preview deploy and cleanup actions automatically from GitHub pull request or GitLab merge request lifecycle events. Manual `daoflow deploy --service ... --preview-*` remains the explicit fallback for retries and operator-driven cleanup.
 
 ### With Environment Variables
 
@@ -171,7 +206,7 @@ Exit code is `3` for successful dry runs.
 
 - `daoflow deploy --service <id> --yes` deploys an existing DaoFlow service definition.
 - `daoflow deploy --compose ./compose.yaml --server <id> --yes` uploads the Compose file directly.
-- If the Compose file uses local `build.context` paths, the CLI bundles the context, respects `.dockerignore`, uploads it, and the server executes the build remotely.
+- If the Compose file uses local build inputs such as `build.context`, `build.additional_contexts`, local build secret files, or local `env_file` assets, the CLI bundles the required files, respects `.dockerignore`, uploads them, and the server executes the build remotely.
 
 ## Safety
 

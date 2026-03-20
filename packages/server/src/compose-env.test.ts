@@ -10,7 +10,9 @@ import {
   buildComposeEnvArtifact,
   buildQueuedComposeEnvEvidence,
   matchesComposeEnvBranchPattern,
-  parseComposeEnvFile
+  parseComposeEnvFile,
+  renderComposeEnvExportFile,
+  renderComposeEnvFile
 } from "./compose-env";
 
 describe("compose env resolution", () => {
@@ -138,6 +140,26 @@ bad line
         displayValue: "[secret]"
       })
     ]);
+  });
+
+  it("rejects invalid environment variable keys when rendering env files", () => {
+    expect(() =>
+      renderComposeEnvFile([
+        {
+          key: "BAD KEY",
+          value: "value"
+        }
+      ])
+    ).toThrow('Invalid environment variable key "BAD KEY".');
+
+    expect(() =>
+      renderComposeEnvExportFile([
+        {
+          key: "ALSO-BAD",
+          value: "value"
+        }
+      ])
+    ).toThrow('Invalid environment variable key "ALSO-BAD".');
   });
 
   it("reports unresolved compose interpolation during planning", () => {

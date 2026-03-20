@@ -138,7 +138,8 @@ POST /trpc/composeDeploymentPlan
           "Bundle the local build context while respecting .dockerignore rules",
           "Upload the staged archive and compose file to the DaoFlow control plane",
           "Dispatch the uploaded compose workspace to the execution plane",
-          "Run docker compose up -d --build on prod-us-west",
+          "Build staged compose services on prod-us-west",
+          "Run docker compose up -d on prod-us-west",
           "Record health checks and the final deployment outcome"
         ],
         "executeCommand": "daoflow deploy --compose ./compose.yaml --server srv_abc123 --context . --yes"
@@ -148,7 +149,7 @@ POST /trpc/composeDeploymentPlan
 }
 ```
 
-The CLI computes local bundle metadata and adjacent repo-default `.env` content first, then sends that summary to the control plane so the returned plan can stay non-mutating while still reflecting local build-context upload requirements and Compose env precedence.
+The CLI computes local bundle metadata and adjacent repo-default `.env` content first, then sends that summary to the control plane so the returned plan can stay non-mutating while still reflecting local build-input upload requirements and Compose env precedence.
 
 ## deploymentPlan
 
@@ -160,10 +161,19 @@ POST /trpc/deploymentPlan
   "json": {
     "service": "svc_abc123",
     "server": "srv_abc123",
-    "image": "ghcr.io/acme/api:1.4.2"
+    "image": "ghcr.io/acme/api:1.4.2",
+    "preview": {
+      "target": "pull-request",
+      "branch": "feature/login",
+      "pullRequestNumber": 42
+    }
   }
 }
 ```
+
+For repository-backed Compose services, the plan now materializes the rendered Compose workspace before execution and reflects whether DaoFlow will pull images only or build checked-out `build:` services first. When the rendered spec contains `build:` services, `steps` include an explicit compose build phase before `docker compose up`, and `preflightChecks` call out when local build inputs must be uploaded first.
+
+When `preview` is provided for a preview-enabled compose service, the plan also resolves the isolated stack name, preview env branch, preview domain template output, and whether the requested action is a deploy or a cleanup.
 
 **Scope:** `deploy:read`
 
@@ -290,7 +300,7 @@ POST /trpc/deploymentPlan
 }
 ```
 
-The current planning surface returns a deterministic preview from registered service, environment, server, and deployment records. For compose-backed services it also resolves masked env precedence, attempts interpolation analysis from the tracked GitHub or GitLab compose source, and exposes any explicit readiness probe that will execute from the target host. It does not execute anything.
+The current planning surface returns a deterministic preview from registered service, environment, server, and deployment records. For compose-backed services it also resolves masked env precedence, attempts interpolation analysis from the tracked GitHub or GitLab compose source, and exposes any explicit readiness probe that will execute from the target host, including `published-port` and `internal-network` targets for HTTP or TCP readiness. It does not execute anything.
 
 ## rollbackPlan
 

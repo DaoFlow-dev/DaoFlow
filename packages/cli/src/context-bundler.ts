@@ -20,11 +20,10 @@ import {
   writeFileSync,
   unlinkSync
 } from "node:fs";
-import { isAbsolute, join, relative, resolve } from "node:path";
+import { join, relative, resolve } from "node:path";
 import { tmpdir } from "node:os";
-import { execSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import dockerignore from "@balena/dockerignore";
-import { parse as parseYaml } from "yaml";
 
 export interface BundleResult {
   tarPath: string;
@@ -42,30 +41,6 @@ export interface BundleOptions {
   extraInclude?: string[];
   /** Max context size in bytes (default: 500MB) */
   maxSizeBytes?: number;
-}
-
-export interface ComposeBuildContextReference {
-  serviceName: string;
-  context: string;
-  dockerfile?: string;
-}
-
-export interface ComposeEnvFileReference {
-  serviceName: string;
-  path: string;
-  required: boolean;
-  format?: string;
-}
-
-export interface ComposeInputAnalysis {
-  localBuildContexts: ComposeBuildContextReference[];
-  localEnvFiles: ComposeEnvFileReference[];
-  requiresContextUpload: boolean;
-}
-
-export interface ComposeInputSourceFile {
-  path: string;
-  contents: string;
 }
 
 const DEFAULT_MAX_SIZE = 500 * 1024 * 1024; // 500MB
@@ -165,11 +140,29 @@ export function createContextBundle(opts: BundleOptions): BundleResult {
   const fileListPath = join(tmpdir(), `daoflow-filelist-${Date.now()}.txt`);
   writeFileSync(fileListPath, files.join("\n") + "\n");
 
-  try {
-    execSync(`tar -czf ${tarPath} -C ${contextPath} --files-from=${fileListPath}`, {
+  const tarResult = spawnSync(
+    "tar",
+    ["-czf", tarPath, "-C", contextPath, "--files-from", fileListPath],
+    {
       stdio: "pipe",
+      encoding: "utf8",
       maxBuffer: 10 * 1024 * 1024 // 10MB for stderr
-    });
+    }
+  );
+
+  try {
+    if (tarResult.error) {
+      throw tarResult.error;
+    }
+
+    if (tarResult.status !== 0) {
+      const detail = tarResult.stderr.trim() || tarResult.stdout.trim();
+      throw new Error(
+        detail
+          ? `tar exited with code ${tarResult.status}: ${detail}`
+          : `tar exited with code ${tarResult.status}`
+      );
+    }
   } catch (err) {
     throw new Error(
       `Failed to create context archive: ${err instanceof Error ? err.message : String(err)}`
@@ -203,135 +196,5 @@ export function createContextBundle(opts: BundleOptions): BundleResult {
     fileCount: files.length,
     sizeBytes,
     includedOverrides
-  };
-}
-
-/**
- * Parse a compose file and detect services with local build contexts.
- * Returns service names that use `build.context: .` or similar local paths.
- */
-export function detectLocalBuildContexts(composeContent: string): ComposeBuildContextReference[] {
-  return analyzeComposeInputs(composeContent).localBuildContexts;
-}
-
-export function isLocalComposePath(path: string): boolean {
-  if (isAbsolute(path)) {
-    return false;
-  }
-
-  return path === "." || path.startsWith("./") || path.startsWith("../") || !path.includes(":");
-}
-
-export function analyzeComposeInputs(composeContent: string): ComposeInputAnalysis {
-  const doc = parseYaml(composeContent) as Record<string, unknown> | null;
-  const localBuildContexts: ComposeBuildContextReference[] = [];
-  const localEnvFiles: ComposeEnvFileReference[] = [];
-
-  if (!doc?.services) {
-    return {
-      localBuildContexts,
-      localEnvFiles,
-      requiresContextUpload: false
-    };
-  }
-
-  for (const [name, svc] of Object.entries(doc.services)) {
-    const service = svc as Record<string, unknown>;
-    if (typeof service.build === "string") {
-      // build: .
-      if (isLocalComposePath(service.build)) {
-        localBuildContexts.push({ serviceName: name, context: service.build });
-      }
-    } else if (service.build && typeof service.build === "object") {
-      const build = service.build as Record<string, unknown>;
-      if (typeof build.context === "string" && isLocalComposePath(build.context)) {
-        localBuildContexts.push({
-          serviceName: name,
-          context: build.context,
-          dockerfile: typeof build.dockerfile === "string" ? build.dockerfile : undefined
-        });
-      }
-    }
-
-    if (typeof service.env_file === "string") {
-      if (isLocalComposePath(service.env_file)) {
-        localEnvFiles.push({
-          serviceName: name,
-          path: service.env_file,
-          required: true
-        });
-      }
-      continue;
-    }
-
-    if (!Array.isArray(service.env_file)) {
-      continue;
-    }
-
-    for (const entry of service.env_file) {
-      if (typeof entry === "string") {
-        if (isLocalComposePath(entry)) {
-          localEnvFiles.push({
-            serviceName: name,
-            path: entry,
-            required: true
-          });
-        }
-        continue;
-      }
-
-      if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
-        continue;
-      }
-
-      const record = entry as Record<string, unknown>;
-      if (typeof record.path !== "string" || !isLocalComposePath(record.path)) {
-        continue;
-      }
-
-      localEnvFiles.push({
-        serviceName: name,
-        path: record.path,
-        required: record.required !== false,
-        format: typeof record.format === "string" ? record.format : undefined
-      });
-    }
-  }
-
-  return {
-    localBuildContexts,
-    localEnvFiles,
-    requiresContextUpload: localBuildContexts.length > 0 || localEnvFiles.length > 0
-  };
-}
-
-export function analyzeComposeFileSetInputs(
-  composeFiles: ComposeInputSourceFile[]
-): ComposeInputAnalysis {
-  const buildContexts = new Map<string, ComposeBuildContextReference>();
-  const envFiles = new Map<string, ComposeEnvFileReference>();
-
-  for (const composeFile of composeFiles) {
-    const analysis = analyzeComposeInputs(composeFile.contents);
-
-    for (const buildContext of analysis.localBuildContexts) {
-      buildContexts.set(
-        `${buildContext.serviceName}:${buildContext.context}:${buildContext.dockerfile ?? ""}`,
-        buildContext
-      );
-    }
-
-    for (const envFile of analysis.localEnvFiles) {
-      envFiles.set(
-        `${envFile.serviceName}:${envFile.path}:${envFile.required ? "required" : "optional"}`,
-        envFile
-      );
-    }
-  }
-
-  return {
-    localBuildContexts: [...buildContexts.values()],
-    localEnvFiles: [...envFiles.values()],
-    requiresContextUpload: buildContexts.size > 0 || envFiles.size > 0
   };
 }

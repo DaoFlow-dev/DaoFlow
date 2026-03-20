@@ -12,23 +12,24 @@ import {
 import type { ComposeBuildPlan } from "../../compose-build-plan";
 import { resolveComposeExecutionScope } from "../../compose-build-plan-execution";
 import { buildComposeEnvPlanDiagnostics } from "../../compose-env-plan";
-import { materializeComposeWorkspaceArtifacts } from "../../compose-workspace-artifacts";
 import {
-  hasServiceRuntimeConfig,
-  readServiceRuntimeConfig,
-  readServiceRuntimeConfigFromConfig
-} from "../../service-runtime-config";
+  buildComposePreviewEnvEntries,
+  deriveComposePreviewMetadata,
+  normalizeComposePreviewRequest,
+  previewModeAllowsRequest,
+  readComposePreviewConfigFromConfig,
+  type ComposePreviewMetadata,
+  type ComposePreviewRequestInput
+} from "../../compose-preview";
+import { materializeComposeWorkspaceArtifacts } from "../../compose-workspace-artifacts";
+import { summarizeComposeGraph } from "./compose-deployment-plan-build";
 import { db } from "../connection";
 import { deployments } from "../schema/deployments";
 import { environments, projects } from "../schema/projects";
 import { servers } from "../schema/servers";
 import { asRecord } from "./json-helpers";
 import { resolveComposeDeploymentEnvEntries } from "./compose-env";
-import {
-  resolveComposeFilePaths,
-  resolveComposeImageOverride,
-  resolveComposeProfiles
-} from "./deployment-source";
+import { resolveComposeFilePath, resolveComposeImageOverride } from "./deployment-source";
 import { materializeProjectSourceInspection } from "./project-source-checkout-inspection";
 import { resolveServiceForUser } from "./scoped-services";
 
@@ -107,7 +108,6 @@ async function materializeComposePlanningPreflight(input: {
   serviceName: string;
   composeServiceName?: string | null;
   serviceImageReference?: string | null;
-  runtimeConfig?: unknown;
 }): Promise<
   | {
       status: "ok";
@@ -140,11 +140,7 @@ async function materializeComposePlanningPreflight(input: {
   }
 
   try {
-    const composeFilePaths = resolveComposeFilePaths({
-      project: input.project,
-      environment: input.environment
-    });
-    const composeProfiles = resolveComposeProfiles({
+    const composeFilePath = resolveComposeFilePath({
       project: input.project,
       environment: input.environment
     });
@@ -156,24 +152,16 @@ async function materializeComposePlanningPreflight(input: {
     });
     const materialized = materializeComposeWorkspaceArtifacts({
       workDir: inspection.workDir,
-      composeFiles: composeFilePaths,
-      composeProfiles,
+      composeFile: composeFilePath,
       branch: input.branch,
       sourceProvenance: "repository-checkout",
       deploymentState: { envState: { kind: "queued", entries: [] } },
-      imageOverride: composeImageOverride,
-      runtimeConfig: readServiceRuntimeConfig(input.runtimeConfig),
-      composeServiceName: input.composeServiceName
+      imageOverride: composeImageOverride
     });
-
-    const renderedCompose = materialized.composeInputs.frozenInputs.renderedCompose;
-    if (!renderedCompose) {
-      throw new Error("Compose planning did not produce a rendered compose snapshot.");
-    }
 
     return {
       status: "ok",
-      composeContent: renderedCompose.contents,
+      composeContent: materialized.composeInputs.frozenInputs.composeFile.contents,
       repoDefaultContent: materialized.repoDefaultContent,
       buildPlan: materialized.composeBuildPlan,
       warnings: materialized.composeInputs.manifest.warnings
@@ -235,14 +223,25 @@ function buildPlanSteps(input: {
   composeServiceName?: string | null;
   composeReadinessProbe?: ComposeReadinessProbe | null;
   composeBuildPlan?: ComposeBuildPlan | null;
+  composeOperation?: "up" | "down";
 }) {
   const serverStep = `Dispatch execution to ${input.targetServerName}`;
 
   switch (input.sourceType) {
     case "compose": {
+      if (input.composeOperation === "down") {
+        return [
+          "Freeze the compose inputs and resolved runtime spec for preview cleanup",
+          "Apply docker compose down for the preview stack",
+          serverStep
+        ];
+      }
+
       const executionScope = input.composeBuildPlan
         ? resolveComposeExecutionScope(input.composeBuildPlan, input.composeServiceName)
         : null;
+      const hasScopedBuildServices = (executionScope?.buildServiceNames.length ?? 0) > 0;
+      const needsPull = executionScope?.needsPull ?? true;
       const composeTargetLabel = input.composeServiceName
         ? `compose service ${input.composeServiceName}`
         : "compose services";
@@ -250,23 +249,23 @@ function buildPlanSteps(input: {
         ? `Apply docker compose up -d ${input.composeServiceName} with the staged configuration`
         : "Apply docker compose up -d with the staged configuration";
       const steps = ["Freeze the compose inputs and resolved runtime spec"];
-      if (executionScope?.needsPull ?? true) {
+      if (needsPull) {
         steps.push(
           input.imageTag
             ? `Pull ${input.imageTag} and refresh ${composeTargetLabel}`
             : `Resolve image references from the compose spec and refresh ${composeTargetLabel}`
         );
       }
-      if ((executionScope?.buildServiceNames.length ?? 0) > 0) {
+      if (hasScopedBuildServices) {
         steps.push(`Build ${composeTargetLabel} from the checked-out compose contexts`);
       }
+      steps.push(composeUpCommand);
       steps.push(
-        composeUpCommand,
         input.composeReadinessProbe
-          ? `Verify Docker Compose container state, Docker health, and ${describeComposeReadinessProbe(input.composeReadinessProbe)}, then mark the rollout outcome`
-          : "Verify Docker Compose container state and Docker health, then mark the rollout outcome",
-        serverStep
+          ? `Verify Docker Compose container state, Docker health, and ${describeComposeReadinessProbe(input.composeReadinessProbe, input.composeServiceName ?? undefined)}, then mark the rollout outcome`
+          : "Verify Docker Compose container state and Docker health, then mark the rollout outcome"
       );
+      steps.push(serverStep);
       return steps;
     }
     case "dockerfile":
@@ -298,6 +297,7 @@ export interface BuildDeploymentPlanInput {
   serviceRef: string;
   serverRef?: string;
   imageTag?: string;
+  preview?: ComposePreviewRequestInput;
   requestedByUserId: string;
 }
 
@@ -349,9 +349,12 @@ export async function buildDeploymentPlan(input: BuildDeploymentPlanInput) {
 
   const sourceType = normalizeSourceType(service.sourceType);
   const readinessProbe = readComposeReadinessProbeFromConfig(service.config);
-  const runtimeConfig = readServiceRuntimeConfigFromConfig(service.config);
+  const previewConfig = readComposePreviewConfigFromConfig(service.config);
   let composeEnvPlan: ReturnType<typeof buildComposeEnvPlanDiagnostics> | null = null;
   let composeBuildPlan: ComposeBuildPlan | null = null;
+  let previewRequest: ReturnType<typeof normalizeComposePreviewRequest> | null = null;
+  let previewMetadata: ComposePreviewMetadata | null = null;
+  let composeOperation: "up" | "down" = "up";
 
   const checks = [
     makeCheck("ok", `Service ${service.name} is registered in ${environment[0].name}.`),
@@ -369,26 +372,58 @@ export async function buildDeploymentPlan(input: BuildDeploymentPlanInput) {
       : makeCheck("warn", "No explicit image reference is configured; execution must derive one.")
   ];
 
+  if (input.preview && sourceType !== "compose") {
+    checks.push(makeCheck("fail", "Preview deployments are only supported for compose services."));
+  }
+
   if (sourceType === "compose") {
+    previewRequest = input.preview ? normalizeComposePreviewRequest(input.preview) : null;
+    const sourceBranch = previewRequest?.branch ?? project[0].defaultBranch ?? "main";
+    composeOperation = previewRequest?.action === "destroy" ? "down" : "up";
+
+    if (previewRequest) {
+      if (!previewConfig?.enabled) {
+        checks.push(
+          makeCheck("fail", "Preview deployments are not enabled for this compose service.")
+        );
+      } else if (!previewModeAllowsRequest(previewConfig.mode, previewRequest)) {
+        checks.push(
+          makeCheck(
+            "fail",
+            `Preview mode ${previewConfig.mode} does not allow ${previewRequest.target} preview requests.`
+          )
+        );
+      } else {
+        previewMetadata = deriveComposePreviewMetadata({
+          config: previewConfig,
+          request: previewRequest,
+          projectName: project[0].name,
+          environmentName: environment[0].name,
+          serviceName: service.name,
+          baseStackName: project[0].name
+        });
+        checks.push(
+          makeCheck(
+            "ok",
+            `Preview ${previewMetadata.target} will use source branch ${previewMetadata.branch}, env branch ${previewMetadata.envBranch}, and isolated stack ${previewMetadata.stackName}.`
+          )
+        );
+        if (previewMetadata.primaryDomain) {
+          checks.push(
+            makeCheck("ok", `Preview domain mapping resolves to ${previewMetadata.primaryDomain}.`)
+          );
+        }
+      }
+    }
+
     if (readinessProbe) {
       checks.push(
         makeCheck(
           "ok",
-          `Compose execution will run ${describeComposeReadinessProbe(readinessProbe)} after Docker Compose container state and Docker health are green.`
+          `Compose execution will run ${describeComposeReadinessProbe(readinessProbe, service.composeServiceName ?? service.name)} after Docker Compose container state and Docker health are green.`
         )
       );
-    }
-
-    if (hasServiceRuntimeConfig(runtimeConfig)) {
-      checks.push(
-        makeCheck(
-          "ok",
-          `DaoFlow-managed runtime overrides will merge into ${service.composeServiceName ?? service.name} before the compose stack is rendered.`
-        )
-      );
-    }
-
-    if (!readinessProbe && service.healthcheckPath) {
+    } else if (service.healthcheckPath) {
       checks.push(
         makeCheck(
           "warn",
@@ -406,12 +441,23 @@ export async function buildDeploymentPlan(input: BuildDeploymentPlanInput) {
       );
     }
 
-    const branch = project[0].defaultBranch ?? "main";
+    const branch = sourceBranch;
     const deploymentEntries = await resolveComposeDeploymentEnvEntries({
       environmentId: environment[0].id,
-      branch
+      branch: previewMetadata?.envBranch ?? branch,
+      additionalEntries:
+        previewMetadata !== null ? buildComposePreviewEnvEntries(previewMetadata) : undefined
     });
     const repoBacked = hasRepositorySource(project[0]);
+
+    if (previewRequest && !repoBacked) {
+      checks.push(
+        makeCheck(
+          "fail",
+          "Preview deployments require a git-backed compose service so DaoFlow can check out the requested branch."
+        )
+      );
+    }
 
     if (repoBacked) {
       const planInputs = await materializeComposePlanningPreflight({
@@ -421,20 +467,20 @@ export async function buildDeploymentPlan(input: BuildDeploymentPlanInput) {
         imageTag: effectiveImageTag,
         serviceName: service.name,
         composeServiceName: service.composeServiceName,
-        serviceImageReference: service.imageReference,
-        runtimeConfig
+        serviceImageReference: service.imageReference
       });
 
       if (planInputs.status === "ok") {
         composeBuildPlan = planInputs.buildPlan;
         composeEnvPlan = buildComposeEnvPlanDiagnostics({
-          branch,
+          branch: previewMetadata?.envBranch ?? branch,
           composeContent: planInputs.composeContent,
           repoDefaultContent: planInputs.repoDefaultContent,
           deploymentEntries,
           warnings: planInputs.warnings
         });
         checks.push(...buildComposeEnvPlanChecks(composeEnvPlan));
+        checks.push(makeCheck("ok", summarizeComposeGraph(composeBuildPlan)));
         if (composeBuildPlan.services.length > 0) {
           const buildServiceLabel = composeBuildPlan.services.length === 1 ? "service" : "services";
           checks.push(
@@ -443,13 +489,35 @@ export async function buildDeploymentPlan(input: BuildDeploymentPlanInput) {
               `Compose build plan detected ${composeBuildPlan.services.length} build ${buildServiceLabel}: ${composeBuildPlan.services.map((buildService) => buildService.serviceName).join(", ")}.`
             )
           );
+        } else {
+          checks.push(
+            makeCheck(
+              "ok",
+              "Compose build plan detected no local build contexts; execution will rely on pullable images."
+            )
+          );
+        }
+        const executionScope = resolveComposeExecutionScope(
+          composeBuildPlan,
+          service.composeServiceName
+        );
+        if (service.composeServiceName && executionScope.expectedServiceNames.length > 1) {
+          checks.push(
+            makeCheck(
+              "ok",
+              `Scoped compose execution for ${service.composeServiceName} also expects dependencies: ${executionScope.expectedServiceNames.filter((serviceName) => serviceName !== service.composeServiceName).join(", ")}.`
+            )
+          );
+        }
+        for (const warning of composeBuildPlan.warnings) {
+          checks.push(makeCheck("warn", warning));
         }
       } else {
         checks.push(makeCheck("fail", `Compose workspace preflight failed: ${planInputs.reason}`));
       }
     } else {
       composeEnvPlan = buildComposeEnvPlanDiagnostics({
-        branch,
+        branch: previewMetadata?.envBranch ?? branch,
         deploymentEntries,
         warnings: [
           "Compose workspace preflight requires a repository-backed source; this service relies on uploaded artifacts or replayable deployment state."
@@ -467,7 +535,8 @@ export async function buildDeploymentPlan(input: BuildDeploymentPlanInput) {
     targetServerName: resolvedServer?.name ?? "the configured worker",
     composeServiceName: service.composeServiceName,
     composeReadinessProbe: readinessProbe,
-    composeBuildPlan
+    composeBuildPlan,
+    composeOperation
   });
 
   const currentDeployment = latestDeployment
@@ -507,7 +576,8 @@ export async function buildDeploymentPlan(input: BuildDeploymentPlanInput) {
       serverId: resolvedServer?.id ?? null,
       serverName: resolvedServer?.name ?? null,
       serverHost: resolvedServer?.host ?? null,
-      imageTag: effectiveImageTag
+      imageTag: effectiveImageTag,
+      preview: previewMetadata
     },
     currentDeployment,
     preflightChecks: checks,
@@ -517,6 +587,11 @@ export async function buildDeploymentPlan(input: BuildDeploymentPlanInput) {
       `--service ${service.id}`,
       resolvedServer ? `--server ${resolvedServer.id}` : null,
       effectiveImageTag ? `--image ${effectiveImageTag}` : null,
+      previewRequest ? `--preview-branch ${previewRequest.branch}` : null,
+      typeof previewRequest?.pullRequestNumber === "number"
+        ? `--preview-pr ${previewRequest.pullRequestNumber}`
+        : null,
+      composeOperation === "down" ? "--preview-close" : null,
       "--yes"
     ]
       .filter(Boolean)

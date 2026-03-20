@@ -1,8 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import { Command } from "commander";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { backupCommand } from "./commands/backup";
 import { deployCommand } from "./commands/deploy";
 import { envCommand } from "./commands/env";
 import { registerConfigCommand } from "./commands/config";
@@ -69,6 +70,41 @@ async function withTempConfigDir<T>(
   }
 }
 
+async function withTempHome<T>(run: (homeDir: string) => Promise<T>): Promise<T> {
+  const originalHome = process.env.HOME;
+  const originalUrl = process.env.DAOFLOW_URL;
+  const originalToken = process.env.DAOFLOW_TOKEN;
+  const homeDir = mkdtempSync(join(tmpdir(), "daoflow-cli-home-"));
+
+  delete process.env.DAOFLOW_URL;
+  delete process.env.DAOFLOW_TOKEN;
+  process.env.HOME = homeDir;
+
+  try {
+    return await run(homeDir);
+  } finally {
+    if (originalHome) {
+      process.env.HOME = originalHome;
+    } else {
+      delete process.env.HOME;
+    }
+
+    if (originalUrl) {
+      process.env.DAOFLOW_URL = originalUrl;
+    } else {
+      delete process.env.DAOFLOW_URL;
+    }
+
+    if (originalToken) {
+      process.env.DAOFLOW_TOKEN = originalToken;
+    } else {
+      delete process.env.DAOFLOW_TOKEN;
+    }
+
+    rmSync(homeDir, { recursive: true, force: true });
+  }
+}
+
 describe("CLI JSON contract", () => {
   test("config generate-vapid emits the standard success envelope", async () => {
     const program = new Command().name("daoflow");
@@ -124,6 +160,99 @@ describe("CLI JSON contract", () => {
       error: "Set API_URL in environment env_123. Pass --yes to confirm.",
       code: "CONFIRMATION_REQUIRED"
     });
+  });
+
+  test("backup restore in JSON mode still requires --yes", async () => {
+    const program = new Command().name("daoflow");
+    program.addCommand(backupCommand());
+
+    const result = await captureCommandExecution(async () => {
+      await program.parseAsync([
+        "node",
+        "daoflow",
+        "backup",
+        "restore",
+        "--backup-run-id",
+        "bkr_123",
+        "--json"
+      ]);
+    });
+
+    expect(result.exitCode).toBe(1);
+    expect(result.errors).toEqual([]);
+    expect(result.logs).toHaveLength(1);
+    expect(JSON.parse(result.logs[0])).toEqual({
+      ok: false,
+      error: "To restore from backup bkr_123, add --yes",
+      code: "CONFIRMATION_REQUIRED"
+    });
+  });
+
+  test("backup run dry-run still emits JSON and exits 3 without --json", async () => {
+    const program = new Command().name("daoflow");
+    program.addCommand(backupCommand());
+
+    const result = await captureCommandExecution(async () => {
+      await program.parseAsync([
+        "node",
+        "daoflow",
+        "backup",
+        "run",
+        "--policy",
+        "pol_123",
+        "--dry-run"
+      ]);
+    });
+
+    expect(result.exitCode).toBe(3);
+    expect(result.errors).toEqual([]);
+    expect(result.logs).toHaveLength(1);
+    expect(JSON.parse(result.logs[0])).toEqual({
+      ok: true,
+      data: {
+        dryRun: true,
+        action: "backup.run",
+        policyId: "pol_123",
+        message: "Would trigger one-off backup for policy pol_123"
+      }
+    });
+  });
+
+  test("backup list without --json reports API errors on stderr", async () => {
+    const program = new Command().name("daoflow");
+    program.addCommand(backupCommand());
+
+    const originalUrl = process.env.DAOFLOW_URL;
+    const originalToken = process.env.DAOFLOW_TOKEN;
+
+    const result = await withTempHome(async () => {
+      process.env.DAOFLOW_URL = "http://127.0.0.1:9";
+      process.env.DAOFLOW_TOKEN = "dfl_test_token";
+
+      try {
+        return await captureCommandExecution(async () => {
+          await program.parseAsync(["node", "daoflow", "backup", "list"]);
+        });
+      } finally {
+        if (originalUrl) {
+          process.env.DAOFLOW_URL = originalUrl;
+        } else {
+          delete process.env.DAOFLOW_URL;
+        }
+
+        if (originalToken) {
+          process.env.DAOFLOW_TOKEN = originalToken;
+        } else {
+          delete process.env.DAOFLOW_TOKEN;
+        }
+      }
+    });
+
+    expect(result.exitCode).toBe(1);
+    expect(result.logs).toEqual([]);
+    expect(result.errors).toHaveLength(1);
+    const [errorLine] = result.errors;
+    expect(() => JSON.parse(errorLine ?? "")).toThrow();
   });
 
   test("token create in JSON mode still requires --yes", async () => {
@@ -242,6 +371,35 @@ describe("CLI JSON contract", () => {
     });
   });
 
+  test("compose plan in JSON mode rejects preview targeting", async () => {
+    const program = new Command().name("daoflow");
+    program.addCommand(planCommand());
+
+    const result = await captureCommandExecution(async () => {
+      await program.parseAsync([
+        "node",
+        "daoflow",
+        "plan",
+        "--compose",
+        "./compose.yaml",
+        "--server",
+        "srv_123",
+        "--preview-branch",
+        "feature/login",
+        "--json"
+      ]);
+    });
+
+    expect(result.exitCode).toBe(1);
+    expect(result.errors).toEqual([]);
+    expect(result.logs).toHaveLength(1);
+    expect(JSON.parse(result.logs[0])).toEqual({
+      ok: false,
+      error: "Preview targeting is only supported with --service planning.",
+      code: "INVALID_INPUT"
+    });
+  });
+
   test("plan in JSON mode does not pollute stdout when a config file is present", async () => {
     const program = new Command().name("daoflow");
     program.addCommand(planCommand());
@@ -326,5 +484,112 @@ describe("CLI JSON contract", () => {
         "1 local env_file asset will be frozen (0.0MB, 3 files). Context will be bundled, uploaded to DaoFlow, and deployed on server srv_123. Pass --yes to confirm, or --dry-run to preview.",
       code: "CONFIRMATION_REQUIRED"
     });
+  });
+
+  test("compose plan in JSON mode rejects context roots that omit compose-relative local inputs", async () => {
+    const program = new Command().name("daoflow");
+    program.addCommand(planCommand());
+
+    const result = await withTempConfigDir(
+      JSON.stringify({ project: "demo" }),
+      async (configDir) => {
+        const contextDir = join(configDir, "bundle");
+        mkdirSync(join(configDir, "deploy"), { recursive: true });
+        mkdirSync(contextDir, { recursive: true });
+        writeFileSync(
+          join(configDir, "deploy", "compose.yaml"),
+          [
+            "services:",
+            "  api:",
+            "    image: nginx:alpine",
+            "    env_file:",
+            "      - ./runtime.env"
+          ].join("\n"),
+          "utf8"
+        );
+        writeFileSync(join(configDir, "deploy", "runtime.env"), "API_TOKEN=secret\n", "utf8");
+
+        return await captureCommandExecution(async () => {
+          await program.parseAsync([
+            "node",
+            "daoflow",
+            "plan",
+            "--compose",
+            "./deploy/compose.yaml",
+            "--context",
+            "./bundle",
+            "--server",
+            "srv_123",
+            "--json"
+          ]);
+        });
+      }
+    );
+
+    expect(result.exitCode).toBe(1);
+    expect(result.errors).toEqual([]);
+    expect(result.logs).toHaveLength(1);
+    expect(JSON.parse(result.logs[0])).toEqual({
+      ok: false,
+      error:
+        "env_file for service api (./runtime.env) resolves outside the configured --context root ./bundle. Widen --context so every local compose input is included in the upload bundle.",
+      code: "INVALID_INPUT"
+    });
+  });
+
+  test("compose deploy in JSON mode rejects context roots that omit compose-relative local inputs", async () => {
+    const program = new Command().name("daoflow");
+    program.addCommand(deployCommand());
+
+    const result = await withTempConfigDir(
+      JSON.stringify({ project: "demo" }),
+      async (configDir) => {
+        const contextDir = join(configDir, "bundle");
+        mkdirSync(join(configDir, "deploy"), { recursive: true });
+        mkdirSync(contextDir, { recursive: true });
+        writeFileSync(
+          join(configDir, "deploy", "compose.yaml"),
+          [
+            "services:",
+            "  api:",
+            "    image: nginx:alpine",
+            "    env_file:",
+            "      - ./runtime.env"
+          ].join("\n"),
+          "utf8"
+        );
+        writeFileSync(join(configDir, "deploy", "runtime.env"), "API_TOKEN=secret\n", "utf8");
+
+        return await captureCommandExecution(async () => {
+          await program.parseAsync([
+            "node",
+            "daoflow",
+            "deploy",
+            "--compose",
+            "./deploy/compose.yaml",
+            "--context",
+            "./bundle",
+            "--server",
+            "srv_123",
+            "--yes",
+            "--json"
+          ]);
+        });
+      }
+    );
+
+    expect(result.exitCode).toBe(1);
+    expect(result.errors).toEqual([]);
+    expect(result.logs).toHaveLength(1);
+    const payload = JSON.parse(result.logs[0]) as { ok: boolean; error: string; code: string };
+    expect(payload).toMatchObject({
+      ok: false,
+      code: "INVALID_INPUT"
+    });
+    expect(payload.error).toContain(
+      "env_file for service api (./runtime.env) resolves outside the configured --context root"
+    );
+    expect(payload.error).toContain("Widen --context so every local compose input is included");
+    expect(payload.error).toContain("bundle");
   });
 });

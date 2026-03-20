@@ -7,6 +7,12 @@ export interface DeploymentPlanClientLike {
       service: string;
       server?: string;
       image?: string;
+      preview?: {
+        target: "branch" | "pull-request";
+        branch: string;
+        pullRequestNumber?: number;
+        action?: "deploy" | "destroy";
+      };
     }): Promise<DeploymentPlanPreview>;
   };
 }
@@ -15,6 +21,12 @@ export interface PreviewServiceDeployOptions {
   serviceId: string;
   serverId?: string;
   imageTag?: string;
+  preview?: {
+    target: "branch" | "pull-request";
+    branch: string;
+    pullRequestNumber?: number;
+    action?: "deploy" | "destroy";
+  };
   json?: boolean;
 }
 
@@ -25,7 +37,8 @@ export async function previewServiceDeploy(
   const plan = await trpc.deploymentPlan.query({
     service: options.serviceId,
     server: options.serverId,
-    image: options.imageTag
+    image: options.imageTag,
+    preview: options.preview
   });
 
   if (options.json) {

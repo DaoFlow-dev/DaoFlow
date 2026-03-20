@@ -17,11 +17,10 @@ import {
   type ComposeInputManifest,
   type FrozenComposeInputsPayload
 } from "./compose-inputs";
-import type { ServiceRuntimeConfig } from "./service-runtime-config";
 import type { DeploymentComposeEnvState, DeploymentComposeState } from "./db/services/compose-env";
 
 export interface MaterializedComposeWorkspaceArtifacts {
-  composeFiles: string[];
+  composeFile: string;
   repoDefaultContent: string | null;
   composeBuildPlan: ComposeBuildPlan;
   composeEnv: {
@@ -98,44 +97,37 @@ function materializeComposeEnv(input: {
 
 export function materializeComposeWorkspaceArtifacts(input: {
   workDir: string;
-  composeFiles: string[];
-  composeProfiles?: string[];
+  composeFile: string;
   branch: string;
   sourceProvenance: "repository-checkout" | "uploaded-artifact";
   deploymentState: DeploymentComposeState;
   imageOverride?: ComposeImageOverrideRequest;
-  runtimeConfig?: ServiceRuntimeConfig | null;
-  composeServiceName?: string | null;
   existingComposeBuildPlan?: ComposeBuildPlan;
   existingComposeEnv?: ComposeEnvEvidence;
   existingComposeInputs?: ComposeInputManifest;
 }): MaterializedComposeWorkspaceArtifacts {
-  const primaryComposeFile = input.composeFiles[0] ?? "docker-compose.yml";
-  const repoDefaultContent = readRepoDefaultEnvFile(input.workDir, primaryComposeFile);
+  const repoDefaultContent = readRepoDefaultEnvFile(input.workDir, input.composeFile);
   const composeEnv = materializeComposeEnv({
     workDir: input.workDir,
-    composeFile: primaryComposeFile,
+    composeFile: input.composeFile,
     branch: input.branch,
     deploymentEnvState: input.deploymentState.envState,
     existingEvidence: input.existingComposeEnv
   });
   const composeInputs = materializeComposeInputs({
     workDir: input.workDir,
-    composeFiles: input.composeFiles,
-    composeProfiles: input.composeProfiles,
+    composeFile: input.composeFile,
     sourceProvenance: input.sourceProvenance,
     repoDefaultContent,
     composeEnvFileContents: composeEnv.fileContents,
     imageOverride: input.imageOverride,
-    runtimeConfig: input.runtimeConfig,
-    composeServiceName: input.composeServiceName,
     existingBuildPlan: input.existingComposeBuildPlan,
     existingManifest: input.existingComposeInputs,
     existingFrozenInputs: input.deploymentState.frozenInputs
   });
 
   return {
-    composeFiles: composeInputs.composeFiles,
+    composeFile: composeInputs.composeFile,
     repoDefaultContent,
     composeBuildPlan: composeInputs.buildPlan,
     composeEnv: {

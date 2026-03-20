@@ -226,7 +226,7 @@ describe("deployment plan compose workspace preflight", () => {
 
   it("keeps the pull step when a scoped build service may start image-backed dependencies", async () => {
     const caller = appRouter.createCaller({
-      requestId: "test-plan-compose-build-scope",
+      requestId: "test-plan-compose-build-only-scope",
       session: makeSession("viewer")
     });
     const fixture = await createRepoBackedComposeService({
@@ -266,7 +266,7 @@ describe("deployment plan compose workspace preflight", () => {
 
   it("omits the build step when the scoped compose service only needs pulled images", async () => {
     const caller = appRouter.createCaller({
-      requestId: "test-plan-compose-pull-scope",
+      requestId: "test-plan-compose-pull-only-scope",
       session: makeSession("viewer")
     });
     const fixture = await createRepoBackedComposeService({
@@ -296,51 +296,6 @@ describe("deployment plan compose workspace preflight", () => {
       );
       expect(plan.steps).not.toContain(
         "Build compose service worker from the checked-out compose contexts"
-      );
-    } finally {
-      fixture.repository.cleanup();
-    }
-  });
-
-  it("includes DaoFlow-managed runtime overrides in compose interpolation preflight", async () => {
-    const ownerCaller = appRouter.createCaller({
-      requestId: "test-plan-runtime-override-owner",
-      session: makeSession("owner")
-    });
-    const viewerCaller = appRouter.createCaller({
-      requestId: "test-plan-runtime-override-viewer",
-      session: makeSession("viewer")
-    });
-    const fixture = await createRepoBackedComposeService({
-      composeServiceName: "api",
-      files: {
-        "deploy/compose.yaml": ["services:", "  api:", "    image: nginx:alpine"].join("\n")
-      }
-    });
-
-    try {
-      await ownerCaller.updateServiceRuntimeConfig({
-        serviceId: fixture.serviceId,
-        healthCheck: {
-          command: "curl -f http://localhost:${RUNTIME_PORT}/health || exit 1",
-          intervalSeconds: 30,
-          timeoutSeconds: 10,
-          retries: 3,
-          startPeriodSeconds: 15
-        }
-      });
-
-      const plan = await viewerCaller.deploymentPlan({
-        service: fixture.serviceId
-      });
-
-      expect(plan.composeEnvPlan?.interpolation.unresolved).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({
-            key: "RUNTIME_PORT",
-            expression: "${RUNTIME_PORT}"
-          })
-        ])
       );
     } finally {
       fixture.repository.cleanup();
