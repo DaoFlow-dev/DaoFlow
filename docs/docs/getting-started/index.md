@@ -10,11 +10,11 @@ Get up and running with DaoFlow in under 5 minutes. DaoFlow is an agent-first ho
 
 | Requirement    | Minimum Version |
 | -------------- | --------------- |
+| Bun            | 1.3+            |
 | Docker Engine  | 20.10+          |
 | Docker Compose | v2.0+           |
-| Bun            | 1.0+            |
-| PostgreSQL     | 17              |
-| Redis          | 7.0+            |
+| Git            | any recent      |
+| Temporal CLI   | recommended     |
 
 ## Quick Start
 
@@ -23,23 +23,27 @@ Get up and running with DaoFlow in under 5 minutes. DaoFlow is an agent-first ho
 git clone https://github.com/DaoFlow-dev/DaoFlow.git
 cd DaoFlow
 
-# Start infrastructure (Postgres + Redis)
-docker compose up -d
-
 # Install dependencies
 bun install
 
-# Run database migrations
-bun run db:migrate
+# Start local infrastructure
+bun run dev:infra
 
-# Seed demo data (optional)
-bun run db:seed
+# Push the schema into the local dev database
+bun run db:push
 
-# Start the development server
+# Start the API + web UI
 bun run dev
+
+# Optional: enable Temporal-backed workflows in a second terminal
+bun run dev:temporal
 ```
 
-The dashboard will be available at `http://localhost:3000`.
+Local endpoints:
+
+- API server: `http://localhost:3000`
+- Vite web UI: `http://localhost:5173`
+- Temporal UI: `http://localhost:8233` when `bun run dev:temporal` is running
 
 ## What's Included
 
@@ -57,6 +61,7 @@ DaoFlow ships as a monorepo with four packages:
 1. **[Installation](./installation)** — Detailed environment setup
 2. **[First Deployment](./first-deployment)** — Deploy your first app
 3. **[Configuration](./configuration)** — Customize your instance
+4. **[Staging Runbook](/docs/self-hosting/staging-runbook)** — Rehearse production bring-up before going live
 
 ## For AI Agents
 

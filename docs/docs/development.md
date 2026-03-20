@@ -92,7 +92,7 @@ bun build packages/cli/src/index.ts --outfile dist/daoflow --target bun
 
 ```bash
 # Sign in with email/password (captures session cookie from Better Auth)
-bun dist/daoflow login http://localhost:3000 --email you@example.com --password yourpassword
+bun dist/daoflow login --url http://localhost:3000 --email you@example.com --password yourpassword
 ```
 
 ### Run Commands
@@ -111,11 +111,11 @@ bun dist/daoflow services --json
 bun dist/daoflow projects list --json
 
 # Deployment (dry-run, exit code 3)
-bun dist/daoflow deploy --service my-svc --dry-run --json
+bun dist/daoflow deploy --service svc_my_svc --dry-run --json
 
 # Backups
 bun dist/daoflow backup list --json
-bun dist/daoflow backup run --policy-id <id> --dry-run
+bun dist/daoflow backup run --policy <id> --dry-run
 bun dist/daoflow backup restore --backup-run-id <id> --dry-run
 ```
 
@@ -180,10 +180,10 @@ docker run -p 3001:3000 nextjs-daoflow-example
 
 ```bash
 # Service deploy (dry-run first)
-bun dist/daoflow deploy --service nextjs-example --dry-run --json
+bun dist/daoflow deploy --service svc_nextjs_example --dry-run --json
 
 # When ready (requires deploy:start scope)
-bun dist/daoflow deploy --service nextjs-example --yes
+bun dist/daoflow deploy --service svc_nextjs_example --yes
 ```
 
 ### Compose Deploy with Local Context
@@ -194,10 +194,10 @@ For projects using Docker Compose with `build.context: .`, use the compose deplo
 cd examples/nextjs-docker-compose-example
 
 # Preview the deployment plan
-bun dist/daoflow deploy --compose ./compose.yaml --server my-server --dry-run
+bun dist/daoflow deploy --compose ./compose.yaml --server srv_local_dev --dry-run
 
 # Execute the deployment
-bun dist/daoflow deploy --compose ./compose.yaml --server my-server --yes
+bun dist/daoflow deploy --compose ./compose.yaml --server srv_local_dev --yes
 ```
 
 #### Ignore Files

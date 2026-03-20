@@ -32,10 +32,10 @@ Add to your agent instructions:
 You have access to DaoFlow for deployment management.
 Use the following CLI commands:
 - daoflow status --json          # Check infrastructure health
-- daoflow plan --json            # Preview deployment plans
-- daoflow deploy --dry-run --json # Preview a deployment
-- daoflow deploy --yes --json   # Execute a deployment
-- daoflow logs --json           # View deployment logs
+- daoflow plan --service svc_my_app --json            # Preview a service deployment
+- daoflow deploy --service svc_my_app --dry-run --json # Preview a deployment
+- daoflow deploy --service svc_my_app --yes --json   # Execute a deployment
+- daoflow logs --deployment dep_abc123 --json        # View deployment logs
 - daoflow doctor --json         # Diagnose issues
 
 Always use --json for structured output.
@@ -50,7 +50,7 @@ Always use --dry-run before --yes.
     DAOFLOW_TOKEN: ${{ secrets.DAOFLOW_TOKEN }}
   run: |
     daoflow login --url ${{ vars.DAOFLOW_URL }} --token $DAOFLOW_TOKEN
-    daoflow deploy --service my-app --server prod --yes --json
+    daoflow deploy --service svc_my_app --yes --json
 ```
 
 ## Step 4: Verify

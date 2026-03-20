@@ -25,24 +25,24 @@ daoflow capabilities --json
 daoflow status --json
 
 # 3. Plan the deployment
-daoflow plan --service my-app --server prod --json
+daoflow plan --service svc_my_app --json
 
 # 4. Preview execution
-daoflow deploy --service my-app --server prod --compose ./compose.yaml --dry-run --json
+daoflow deploy --service svc_my_app --dry-run --json
 
 # 5. Execute (only if dry-run looks good)
-daoflow deploy --service my-app --server prod --compose ./compose.yaml --yes --json
+daoflow deploy --service svc_my_app --yes --json
 
 # 6. Verify
 daoflow status --json
-daoflow logs --service my-app --tail 20 --json
+daoflow logs --deployment dep_abc123 --lines 20 --json
 ```
 
 ## Error Handling
 
 ```bash
 # Parse errors from JSON
-RESULT=$(daoflow deploy --service my-app --yes --json 2>/dev/null)
+RESULT=$(daoflow deploy --service svc_my_app --yes --json 2>/dev/null)
 OK=$(echo $RESULT | jq -r '.ok')
 
 if [ "$OK" = "false" ]; then
@@ -65,5 +65,5 @@ fi
 
 ```bash
 # Set a 60-second timeout for slow deployments
-daoflow deploy --service my-app --yes --timeout 60 --json
+timeout 60 daoflow deploy --service svc_my_app --yes --json
 ```

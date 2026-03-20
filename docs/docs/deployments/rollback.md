@@ -17,13 +17,13 @@ DaoFlow supports rolling back to any previous successful deployment. Rollbacks c
 
 ```bash
 # Rollback to previous successful deployment
-daoflow rollback --service my-app --yes
+daoflow rollback --service svc_my_app --yes
 
 # Rollback to a specific deployment
-daoflow rollback --service my-app --to dep_abc123 --yes
+daoflow rollback --service svc_my_app --to dep_abc123 --yes
 
 # Preview rollback without executing
-daoflow rollback --service my-app --dry-run --json
+daoflow rollback --service svc_my_app --dry-run --json
 ```
 
 ## Rollback vs Revert

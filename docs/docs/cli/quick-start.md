@@ -61,13 +61,13 @@ daoflow capabilities --json
 
 ```bash
 # Preview deployment plan (safe, read-only)
-daoflow deploy --service my-api --dry-run --json
+daoflow deploy --service svc_my_api --dry-run --json
 
 # Execute deployment
-daoflow deploy --service my-api --commit abc1234 --yes --json
+daoflow deploy --service svc_my_api --commit abc1234 --yes --json
 
 # Preview a direct compose upload path
-daoflow deploy --compose ./docker-compose.yaml --server vps1 --dry-run
+daoflow deploy --compose ./docker-compose.yaml --server srv_vps1 --dry-run
 ```
 
 ### Check Status
@@ -81,7 +81,7 @@ daoflow doctor --json
 daoflow services --json
 
 # List projects
-daoflow projects --json
+daoflow projects list --json
 ```
 
 ### View Logs
@@ -95,13 +95,13 @@ daoflow logs --deployment <id> --json
 
 ```bash
 # List available rollback targets
-daoflow rollback --service my-api --json
+daoflow rollback --service svc_my_api --json
 
 # Preview rollback plan
-daoflow rollback --service my-api --target <deployment-id> --dry-run
+daoflow rollback --service svc_my_api --target <deployment-id> --dry-run
 
 # Execute rollback
-daoflow rollback --service my-api --target <deployment-id> --yes --json
+daoflow rollback --service svc_my_api --target <deployment-id> --yes --json
 ```
 
 ### Compare Deployments
@@ -121,13 +121,13 @@ daoflow cancel --deployment <id> --yes --json
 
 ```bash
 # List env vars for an environment
-daoflow env list --environment <id> --json
+daoflow env list --env-id <id> --json
 
 # Set an env var
-daoflow env set --environment <id> --key DATABASE_URL --value "postgres://..." --yes
+daoflow env set --env-id <id> --key DATABASE_URL --value "postgres://..." --yes
 
 # Push from .env file
-daoflow env push --file .env --environment <id>
+daoflow env push --file .env --env-id <id>
 ```
 
 ### Manage Tokens

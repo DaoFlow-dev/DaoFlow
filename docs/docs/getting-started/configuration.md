@@ -8,29 +8,34 @@ DaoFlow is configured through environment variables and a CLI config file.
 
 ## Environment Variables
 
-### Required
+### Local Development
 
 | Variable             | Description                                                |
 | -------------------- | ---------------------------------------------------------- |
 | `DATABASE_URL`       | PostgreSQL connection string                               |
-| `REDIS_URL`          | Redis connection string                                    |
-| `BETTER_AUTH_SECRET` | Session signing secret (min 32 characters)                 |
 | `BETTER_AUTH_URL`    | Public-facing URL of the DaoFlow instance                  |
-| `ENCRYPTION_KEY`     | Encryption key for secrets storage (exactly 32 characters) |
+| `BETTER_AUTH_SECRET` | Optional locally, required in production                   |
+| `ENCRYPTION_KEY`     | Optional locally, recommended for realistic secret testing |
 
-### Optional
+### Production `.env`
 
-| Variable            | Default       | Description                                                 |
-| ------------------- | ------------- | ----------------------------------------------------------- |
-| `PORT`              | `3000`        | HTTP server port                                            |
-| `NODE_ENV`          | `development` | Environment mode                                            |
-| `LOG_LEVEL`         | `info`        | Logging level (`debug`, `info`, `warn`, `error`)            |
-| `TAILSCALE_AUTHKEY` | —             | Tailscale auth key for private network access               |
-| `CF_TUNNEL_TOKEN`   | —             | Cloudflare Tunnel token for secure access without public IP |
-| `S3_ENDPOINT`       | —             | S3-compatible endpoint for backup storage                   |
-| `S3_BUCKET`         | —             | S3 bucket name for backups                                  |
-| `S3_ACCESS_KEY`     | —             | S3 access key                                               |
-| `S3_SECRET_KEY`     | —             | S3 secret key                                               |
+The generated production `.env` file is intentionally smaller than the runtime environment inside the container. The compose stack derives `DATABASE_URL`, `REDIS_URL`, and most container-local defaults internally.
+
+Most operators edit only these values:
+
+| Variable                     | Default               | Description                                      |
+| ---------------------------- | --------------------- | ------------------------------------------------ |
+| `DAOFLOW_VERSION`            | `latest`              | Image tag to run                                 |
+| `BETTER_AUTH_URL`            | —                     | Public origin used for sign-in and callbacks     |
+| `DAOFLOW_PORT`               | `3000`                | Host port bound to the DaoFlow container         |
+| `BETTER_AUTH_SECRET`         | —                     | Production session signing secret                |
+| `ENCRYPTION_KEY`             | —                     | Production secret-encryption key                 |
+| `POSTGRES_PASSWORD`          | —                     | Password for the DaoFlow application database    |
+| `TEMPORAL_POSTGRES_PASSWORD` | —                     | Password for Temporal's Postgres database        |
+| `DEPLOY_TIMEOUT_MS`          | `600000`              | Timeout for a single deployment execution        |
+| `DAOFLOW_ENABLE_TEMPORAL`    | `false`               | Enables durable Temporal-backed orchestration    |
+| `TEMPORAL_NAMESPACE`         | `daoflow`             | Temporal namespace when Temporal mode is enabled |
+| `TEMPORAL_TASK_QUEUE`        | `daoflow-deployments` | Temporal task queue name                         |
 
 ### Initial Owner Bootstrap
 
@@ -43,19 +48,7 @@ These variables are optional, but when both are set DaoFlow bootstraps the first
 
 The CLI install flow also reads these same variables when `--email` and `--password` are omitted, then writes them into the generated server `.env` file.
 
-### Private Access (Tailscale / Cloudflare Tunnel)
-
-DaoFlow supports private access without exposing a public URL:
-
-```bash
-# Tailscale — connect via your tailnet
-TAILSCALE_AUTHKEY=tskey-auth-xxx
-
-# Cloudflare Tunnel — expose via Cloudflare's edge network
-CF_TUNNEL_TOKEN=eyJ...
-```
-
-When either variable is set, DaoFlow will automatically configure the tunnel on startup.
+For the full production variable reference, including SMTP and advanced worker settings, see [Self-Hosting Environment Variables](/docs/self-hosting/environment-variables).
 
 ## CLI Configuration
 
@@ -93,15 +86,15 @@ export DAOFLOW_INITIAL_ADMIN_PASSWORD=replace-this-secret
 
 ## Server Configuration
 
-Each registered server has configurable settings:
+Each registered deployment server has configurable settings in the dashboard or admin API:
 
-| Setting               | Default                | Description                      |
-| --------------------- | ---------------------- | -------------------------------- |
-| SSH Host              | —                      | IP address or hostname           |
-| SSH Port              | `22`                   | SSH port                         |
-| SSH Key               | —                      | Path to SSH private key          |
-| Health Check Interval | `60s`                  | How often to check server health |
-| Docker Socket         | `/var/run/docker.sock` | Docker socket path               |
+| Setting            | Default                | Description                       |
+| ------------------ | ---------------------- | --------------------------------- |
+| SSH Host           | —                      | IP address or hostname            |
+| SSH Port           | `22`                   | SSH port                          |
+| SSH Private Key    | —                      | Stored SSH private key material   |
+| Target Server Name | —                      | Stable name used by deploy plans  |
+| Docker Socket      | `/var/run/docker.sock` | Docker socket on the managed host |
 
 ## Security Configuration
 

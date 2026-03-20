@@ -26,7 +26,7 @@ Approval gates add a human-in-the-loop for high-risk operations, ensuring agents
 
 ```bash
 # Agent requests a restore (gated)
-daoflow backup restore --backup bkp_abc123 --yes
+daoflow backup restore --backup-run-id bkp_run_123 --yes
 # Output: "Approval required. Request: apr_xyz789"
 
 # Human reviews and approves

@@ -14,21 +14,21 @@ daoflow deploy [options]
 
 ## Options
 
-| Flag                      | Required | Description                                             |
-| ------------------------- | -------- | ------------------------------------------------------- |
-| `--service <name>`        | Yes      | Service name                                            |
-| `--server <name>`         | Yes      | Target server                                           |
-| `--compose <path>`        | —        | Path to compose.yaml for direct Compose deployment      |
-| `--context <path>`        | —        | Upload root for compose-local inputs                    |
-| `--image <ref>`           | —        | Docker image reference                                  |
-| `--preview-branch <name>` | —        | Target a preview deployment for a compose source branch |
-| `--preview-pr <number>`   | —        | Associate the preview with a pull request               |
-| `--preview-close`         | —        | Destroy the targeted preview stack instead of deploy    |
-| `--env <key=value>`       | —        | Set environment variables (repeatable)                  |
-| `--dry-run`               | —        | Preview plan without executing (exit code 3)            |
-| `--yes`                   | —        | Skip confirmation prompt (required for non-interactive) |
-| `--idempotency-key <key>` | —        | Prevent duplicate deployments                           |
-| `--json`                  | —        | Structured JSON output                                  |
+| Flag                      | Required | Description                                                       |
+| ------------------------- | -------- | ----------------------------------------------------------------- |
+| `--service <id>`          | No       | Existing DaoFlow service ID to deploy                             |
+| `--server <id>`           | No       | Target server ID. Required for direct `--compose` deploys         |
+| `--compose <path>`        | No       | Path to `compose.yaml` for a direct Compose deployment            |
+| `--context <path>`        | —        | Upload root for compose-local inputs                              |
+| `--commit <sha>`          | —        | Commit SHA override for a service deploy                          |
+| `--image <ref>`           | —        | Image tag override for a service deploy                           |
+| `--preview-branch <name>` | —        | Target a preview deployment for a registered compose service      |
+| `--preview-pr <number>`   | —        | Associate the preview with a pull request                         |
+| `--preview-close`         | —        | Destroy the targeted preview stack instead of deploy              |
+| `--dry-run`               | —        | Preview plan without executing (exit code `3`)                    |
+| `--no-prompt`             | —        | Skip interactive prompts during direct Compose upload preparation |
+| `--yes`                   | —        | Skip confirmation prompt (required for non-interactive execution) |
+| `--json`                  | —        | Structured JSON output                                            |
 
 ## Required Scope
 
@@ -41,14 +41,14 @@ daoflow deploy [options]
 ```bash
 # Preview the deployment plan
 daoflow deploy \
-  --server production \
+  --server srv_production \
   --compose ./compose.yaml \
   --context . \
   --dry-run
 
 # Execute the deployment
 daoflow deploy \
-  --server production \
+  --server srv_production \
   --compose ./compose.yaml \
   --context . \
   --yes
@@ -60,8 +60,7 @@ For direct compose deploys, `--context` must include every compose-relative loca
 
 ```bash
 daoflow deploy \
-  --service my-api \
-  --server production \
+  --service svc_my_api \
   --image ghcr.io/myorg/my-api:v1.2.3 \
   --yes
 ```
@@ -97,11 +96,8 @@ If the backing project also has webhook auto-deploy configured, DaoFlow can queu
 
 ```bash
 daoflow deploy \
-  --service my-app \
-  --server production \
+  --service svc_my_app \
   --image my-app:latest \
-  --env DATABASE_URL=postgresql://... \
-  --env REDIS_URL=redis://... \
   --yes
 ```
 
@@ -112,9 +108,8 @@ daoflow deploy \
   "ok": true,
   "deploymentId": "dep_abc123",
   "status": "queued",
-  "service": "my-app",
-  "server": "production",
-  "sourceType": "compose",
+  "service": "svc_my_app",
+  "sourceType": "service",
   "createdAt": "2026-03-15T10:30:00Z"
 }
 ```
@@ -124,7 +119,7 @@ daoflow deploy \
 When using `--dry-run` with `--service`, the CLI calls the real planning-lane deployment planner and returns that server-side preview without executing anything:
 
 ```bash
-daoflow deploy --service my-app --server prod --dry-run --json
+daoflow deploy --service svc_my_app --dry-run --json
 ```
 
 ```json
@@ -135,7 +130,7 @@ daoflow deploy --service my-app --server prod --dry-run --json
     "plan": {
       "isReady": true,
       "service": {
-        "name": "my-app",
+        "name": "svc_my_app",
         "projectName": "Acme",
         "environmentName": "production"
       },
@@ -146,7 +141,7 @@ daoflow deploy --service my-app --server prod --dry-run --json
       "currentDeployment": null,
       "preflightChecks": [{ "status": "ok", "detail": "Resolved target server." }],
       "steps": ["Freeze runtime spec", "Dispatch execution"],
-      "executeCommand": "daoflow deploy --service svc_123 --server prod --yes"
+      "executeCommand": "daoflow deploy --service svc_123 --yes"
     }
   }
 }
@@ -155,7 +150,7 @@ daoflow deploy --service my-app --server prod --dry-run --json
 When using `--dry-run` with `--compose`, the CLI calls the planning-lane `composeDeploymentPlan` route. The CLI still computes local context bundle metadata first so the server-side plan can include upload size, included override files, and local build-context requirements without mutating anything.
 
 ```bash
-daoflow deploy --compose ./compose.yaml --server prod --dry-run --json
+daoflow deploy --compose ./compose.yaml --server srv_prod --dry-run --json
 ```
 
 ```json

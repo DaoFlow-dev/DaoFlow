@@ -4,7 +4,7 @@ sidebar_position: 1
 
 # Self-Hosting
 
-DaoFlow is designed to run on your own infrastructure. This section covers production deployment requirements, Docker Compose setup, environment configuration, SSL, and upgrades.
+DaoFlow is designed to run on your own infrastructure. This section covers the current production stack, staging rehearsal, environment configuration, SSL, and incident recovery.
 
 ## Quick Start (CLI Installer)
 
@@ -29,30 +29,31 @@ Or deploy manually with Docker Compose (see [Docker Compose Setup](./docker-comp
 
 ## Contents
 
-| Guide                                            | Description                          |
-| ------------------------------------------------ | ------------------------------------ |
-| [Requirements](./requirements)                   | Hardware and software prerequisites  |
-| [Docker Compose](./docker-compose)               | Production Docker Compose deployment |
-| [Environment Variables](./environment-variables) | All configurable env vars            |
-| [SSL & Domains](./ssl-and-domains)               | HTTPS and domain configuration       |
-| [Upgrading](./upgrading)                         | Upgrading to new versions            |
+| Guide                                            | Description                           |
+| ------------------------------------------------ | ------------------------------------- |
+| [Requirements](./requirements)                   | Hardware and software prerequisites   |
+| [Docker Compose](./docker-compose)               | Production Docker Compose deployment  |
+| [Staging Runbook](./staging-runbook)             | Rehearse operator bring-up safely     |
+| [Incident Recovery](./incident-recovery)         | Recover from common operator failures |
+| [Environment Variables](./environment-variables) | All configurable env vars             |
+| [SSL & Domains](./ssl-and-domains)               | HTTPS and domain configuration        |
+| [Upgrading](./upgrading)                         | Upgrading to new versions             |
 
-## Architecture
+## Current Production Topology
 
-In production, DaoFlow runs as three services:
+The repository production stack is a normal Docker Compose project built from:
 
-1. **DaoFlow app** — API server + web dashboard
-2. **PostgreSQL 17** — persistent state
-3. **Redis 7** — background jobs and real-time streaming
+1. `daoflow` — web UI, API, and worker entrypoint
+2. `postgres` — DaoFlow application database
+3. `redis` — streaming and transient coordination
+4. `temporal-postgresql`, `temporal`, `temporal-ui` — optional durable workflow substrate
 
-## Private Access
+Temporal services are present in the default compose file, but DaoFlow only switches from the legacy worker to Temporal-backed execution when `DAOFLOW_ENABLE_TEMPORAL=true`.
 
-DaoFlow supports private access via Tailscale or Cloudflare Tunnel:
+## Recommended Operator Path
 
-```bash
-# Tailscale — no public IP needed
-TAILSCALE_AUTHKEY=tskey-auth-xxx
-
-# Cloudflare Tunnel — secure access via Cloudflare edge
-CF_TUNNEL_TOKEN=eyJ...
-```
+1. Install or copy the reference compose stack
+2. Follow the [staging runbook](./staging-runbook) on a non-production host
+3. Verify deploy, rollback, backup, and log flows end to end
+4. Promote the same operational pattern to production
+5. Keep the [incident recovery guide](./incident-recovery) nearby for break-glass situations

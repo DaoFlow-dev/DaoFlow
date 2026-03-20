@@ -18,10 +18,10 @@ daoflow plan [options]
 
 | Flag                      | Description                                  |
 | ------------------------- | -------------------------------------------- |
-| `--service <name>`        | Registered service to plan for               |
+| `--service <id>`          | Registered service ID to plan for            |
 | `--compose <path>`        | Compose file to plan directly                |
 | `--context <path>`        | Upload root for compose-local inputs         |
-| `--server <name>`         | Target server                                |
+| `--server <id>`           | Target server ID                             |
 | `--image <ref>`           | Docker image to plan with                    |
 | `--preview-branch <name>` | Preview source branch for compose services   |
 | `--preview-pr <number>`   | Preview pull request number                  |
@@ -39,7 +39,7 @@ For direct compose plans, `--context` must include every compose-relative local 
 ## Examples
 
 ```bash
-daoflow plan --service svc_123 --server prod --image ghcr.io/acme/api:1.4.2 --json
+daoflow plan --service svc_123 --server srv_prod --image ghcr.io/acme/api:1.4.2 --json
 ```
 
 ```bash
@@ -47,7 +47,7 @@ daoflow plan --service svc_123 --preview-branch feature/login --preview-pr 42 --
 ```
 
 ```bash
-daoflow plan --compose ./compose.yaml --context . --server prod --json
+daoflow plan --compose ./compose.yaml --context . --server srv_prod --json
 ```
 
 ## JSON Output

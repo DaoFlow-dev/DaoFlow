@@ -16,7 +16,7 @@ daoflow rollback [options]
 
 | Flag                       | Description                                         |
 | -------------------------- | --------------------------------------------------- |
-| `--service <name>`         | Service to rollback (required)                      |
+| `--service <id>`           | Service ID to rollback (required)                   |
 | `--target <deployment_id>` | Target deployment ID (default: previous successful) |
 | `--to <deployment_id>`     | Alias for `--target`                                |
 | `--dry-run`                | Preview rollback plan without executing             |
@@ -32,13 +32,13 @@ daoflow rollback [options]
 
 ```bash
 # Rollback to the previous successful deployment
-daoflow rollback --service my-app --yes
+daoflow rollback --service svc_my_app --yes
 
 # Rollback to a specific deployment
-daoflow rollback --service my-app --target dep_abc123 --yes
+daoflow rollback --service svc_my_app --target dep_abc123 --yes
 
 # Preview rollback
-daoflow rollback --service my-app --to dep_abc123 --dry-run --json
+daoflow rollback --service svc_my_app --to dep_abc123 --dry-run --json
 ```
 
 ## JSON Output

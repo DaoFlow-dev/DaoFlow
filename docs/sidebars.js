@@ -109,6 +109,8 @@ const sidebars = {
         "self-hosting/index",
         "self-hosting/requirements",
         "self-hosting/docker-compose",
+        "self-hosting/staging-runbook",
+        "self-hosting/incident-recovery",
         "self-hosting/environment-variables",
         "self-hosting/ssl-and-domains",
         "self-hosting/upgrading"

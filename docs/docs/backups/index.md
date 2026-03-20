@@ -27,13 +27,13 @@ Persistent data is a core feature in DaoFlow. The backup system supports databas
 
 ```bash
 # Run a manual backup
-daoflow backup run --service my-app --yes
+daoflow backup run --policy bkp_pol_123 --yes
 
 # List recent backups
 daoflow backup list --json
 
 # Restore from a backup
-daoflow backup restore --backup bkp_abc123 --yes
+daoflow backup restore --backup-run-id bkp_run_123 --yes
 ```
 
 ## Permissions

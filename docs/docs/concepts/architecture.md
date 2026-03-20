@@ -9,39 +9,42 @@ DaoFlow is split into a **control plane** and an **execution plane**, following 
 ## System Overview
 
 ```
-┌─────────────────────────────────────────────────┐
-│                  CONTROL PLANE                   │
-│                                                  │
-│  ┌──────────┐  ┌──────────┐  ┌──────────────┐  │
-│  │  Web UI   │  │ tRPC API │  │  CLI Client  │  │
-│  │ (React)   │  │ (Server) │  │  (Commander) │  │
-│  └─────┬─────┘  └─────┬────┘  └──────┬───────┘  │
-│        │              │               │          │
-│  ┌─────┴──────────────┴───────────────┴──────┐  │
-│  │           Application Core                 │  │
-│  │  • Auth (Better Auth)                      │  │
-│  │  • RBAC (roles + scoped tokens)            │  │
-│  │  • Deployment records & audit log          │  │
-│  │  • Event timeline                          │  │
-│  └─────────────┬─────────────────────────────┘  │
-│                │                                 │
-│  ┌─────────────┴─────────────────────────────┐  │
-│  │         Data Layer (Drizzle ORM)           │  │
-│  │  PostgreSQL 17  │  Redis 7                 │  │
-│  └───────────────────────────────────────────┘  │
-└─────────────────────┬───────────────────────────┘
-                      │ SSH
-┌─────────────────────┴───────────────────────────┐
-│                EXECUTION PLANE                   │
-│                                                  │
-│  ┌──────────────────────────────────────────┐   │
-│  │          Managed Server(s)                │   │
-│  │  • Docker Engine                          │   │
-│  │  • Docker Compose                         │   │
-│  │  • Container logs                         │   │
-│  │  • Volume storage                         │   │
-│  └──────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────┐
+│                   CONTROL PLANE                      │
+│                                                      │
+│  ┌──────────┐  ┌──────────┐  ┌──────────────┐       │
+│  │  Web UI  │  │ tRPC API │  │  CLI Client  │       │
+│  │ (React)  │  │ (Server) │  │  (External)  │       │
+│  └────┬─────┘  └────┬─────┘  └──────┬───────┘       │
+│       │             │                │               │
+│  ┌────┴─────────────┴────────────────┴────────────┐ │
+│  │            Control-Plane Core                   │ │
+│  │  • Better Auth + RBAC                           │ │
+│  │  • Read / planning / command lanes              │ │
+│  │  • Deployment + backup records                  │ │
+│  │  • Audit trail + event timeline                 │ │
+│  └────┬───────────────────────────────────────────┘ │
+│       │                                             │
+│  ┌────┴───────────────┐  ┌───────────────────────┐ │
+│  │ Legacy Worker      │  │ Temporal Client       │ │
+│  │ (in-process)       │  │ + Worker (opt-in)     │ │
+│  └────┬───────────────┘  └────────┬──────────────┘ │
+│       │                            │                │
+│  ┌────┴────────────────────────────┴──────────────┐ │
+│  │ PostgreSQL 17 • Redis 7 • Temporal stack       │ │
+│  └────────────────────────────────────────────────┘ │
+└────────────────────┬────────────────────────────────┘
+                     │ Docker socket / SSH
+┌────────────────────┴────────────────────────────────┐
+│                 EXECUTION PLANE                      │
+│                                                      │
+│  ┌────────────────────────────────────────────────┐ │
+│  │ Managed host(s) with Docker + Compose          │ │
+│  │ • No DaoFlow agent installation required       │ │
+│  │ • SSH-mediated command execution               │ │
+│  │ • Container logs and volume operations         │ │
+│  └────────────────────────────────────────────────┘ │
+└──────────────────────────────────────────────────────┘
 ```
 
 ## Control Plane
@@ -49,11 +52,11 @@ DaoFlow is split into a **control plane** and an **execution plane**, following 
 The control plane is responsible for:
 
 - **Web UI** — React dashboard built with Vite and shadcn/ui
-- **API** — Type-safe tRPC procedures organized into read, planning, and command lanes
-- **Authentication** — Better Auth with email/password, session management
-- **Authorization** — Role-based access control with 26 granular scopes
-- **State** — PostgreSQL for persistent data, Redis for job queues and SSE streaming
-- **Audit** — Immutable audit log for every write operation
+- **API** — type-safe tRPC procedures organized into read, planning, and command lanes
+- **Authentication** — Better Auth with email/password and session management
+- **Authorization** — role-based access control with scoped tokens
+- **State** — PostgreSQL for persistent data and Redis for coordination
+- **Audit** — immutable audit log for every write operation
 
 ### Tech Stack
 
@@ -67,34 +70,47 @@ The control plane is responsible for:
 | Cache/Queue | Redis 7                  |
 | Web UI      | React + Vite + shadcn/ui |
 
+## Execution Boundaries
+
+DaoFlow keeps orchestration and execution intentionally separate:
+
+- **API layer** accepts read, planning, and command requests, validates authz, and records intent.
+- **Legacy worker** runs inside the `daoflow` container when `/var/run/docker.sock` is mounted and executes Docker or SSH-backed operations directly.
+- **Temporal mode** is optional. When `DAOFLOW_ENABLE_TEMPORAL=true`, the API enqueues durable workflows and the Temporal worker executes the same deployment and backup activities with persistence and retries.
+- **Managed hosts** never need a DaoFlow agent installed. They only need SSH access plus Docker Engine and Docker Compose.
+
+This keeps long-running deploy, rollback, backup, and restore work out of the request-response path even though the control plane owns the records, permissions, and auditability.
+
 ## Execution Plane
 
 The execution plane runs on managed servers and handles:
 
 - Docker and Docker Compose commands
-- Log streaming from containers
-- Health checks
-- Backup execution and restores
-- Volume management
+- log streaming from containers
+- health checks
+- backup execution and restores
+- volume management
 
-### Connectivity Model
+## Connectivity Model
 
 DaoFlow connects to managed servers over **SSH**. This means:
 
-- No agent installation required on managed servers
-- Works with any Linux server that has Docker installed
+- no agent installation required on managed servers
+- works with any Linux server that has Docker installed
 - SSH key-based authentication
-- Command execution with timeout and output capture
+- command execution with timeout and output capture
+
+Local control-plane execution also relies on the Docker socket mount inside the `daoflow` container. That is how the control plane can stage artifacts, inspect Compose inputs, and drive local Docker and Compose operations without placing agent binaries on the managed host.
 
 ## API Three-Lane Model
 
 The API is organized into three lanes for safety:
 
-| Lane         | Purpose                            | Side Effects                |
-| ------------ | ---------------------------------- | --------------------------- |
-| **Read**     | Observe infrastructure state       | None                        |
-| **Planning** | Preview changes and generate plans | None                        |
-| **Command**  | Execute mutations                  | Yes — creates audit records |
+| Lane         | Purpose                            | Side Effects |
+| ------------ | ---------------------------------- | ------------ |
+| **Read**     | Observe infrastructure state       | None         |
+| **Planning** | Preview changes and generate plans | None         |
+| **Command**  | Execute mutations                  | Yes, audited |
 
 This design ensures AI agents can safely observe and plan without accidentally mutating infrastructure. See the [API Reference](/docs/api) for details.
 
@@ -105,7 +121,7 @@ Organization
   └── Members (users, agents, service accounts)
   └── API Tokens (scoped permissions)
   └── Projects
-       └── Environments (production, staging, dev)
+       └── Environments
             └── Services
                  └── Deployments
                       └── Deployment Steps
@@ -115,6 +131,7 @@ Organization
   └── Volumes
   └── Backup Policies
        └── Backup Runs
-  └── Events (operational timeline)
-  └── Audit Entries (immutable write log)
+       └── Backup Restores
+  └── Events
+  └── Audit Entries
 ```

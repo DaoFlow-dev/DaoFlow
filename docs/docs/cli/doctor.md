@@ -14,10 +14,10 @@ daoflow doctor [options]
 
 ## Options
 
-| Flag              | Description             |
-| ----------------- | ----------------------- |
-| `--server <name>` | Check a specific server |
-| `--json`          | Structured JSON output  |
+| Flag            | Description             |
+| --------------- | ----------------------- |
+| `--server <id>` | Check a specific server |
+| `--json`        | Structured JSON output  |
 
 ## Required Scope
 

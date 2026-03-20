@@ -4,7 +4,7 @@ sidebar_position: 7
 
 # daoflow env
 
-Manage environment variables for project environments.
+Manage environment variables for DaoFlow environments.
 
 ## Subcommands
 
@@ -13,7 +13,7 @@ Manage environment variables for project environments.
 List environment variables (values are masked by default).
 
 ```bash
-daoflow env list --project my-app --env production --json
+daoflow env list --env-id env_prod_123 --json
 ```
 
 **Required scope:** `env:read`
@@ -23,8 +23,10 @@ daoflow env list --project my-app --env production --json
 Set or update an environment variable.
 
 ```bash
-daoflow env set --project my-app --env production \
-  DATABASE_URL=postgresql://... --yes
+daoflow env set --env-id env_prod_123 \
+  --key DATABASE_URL \
+  --value postgresql://... \
+  --yes
 ```
 
 **Required scope:** `env:write`
@@ -34,20 +36,24 @@ daoflow env set --project my-app --env production \
 Remove an environment variable.
 
 ```bash
-daoflow env delete --project my-app --env production \
-  OLD_VARIABLE --yes
+daoflow env delete --env-id env_prod_123 \
+  --key OLD_VARIABLE \
+  --yes
 ```
 
 **Required scope:** `env:write`
 
 ## Options
 
-| Flag               | Description                                |
-| ------------------ | ------------------------------------------ |
-| `--project <name>` | Target project (required)                  |
-| `--env <name>`     | Target environment (default: `production`) |
-| `--yes`            | Skip confirmation for set/delete           |
-| `--json`           | Structured JSON output                     |
+| Flag              | Description                                |
+| ----------------- | ------------------------------------------ |
+| `--env-id <id>`   | Target environment ID                      |
+| `--key <key>`     | Variable key for set or delete             |
+| `--value <value>` | Variable value for set                     |
+| `--local`         | Write to a local `.env` instead of DaoFlow |
+| `--file <path>`   | Local `.env` path when using `--local`     |
+| `--yes`           | Skip confirmation for set or delete        |
+| `--json`          | Structured JSON output                     |
 
 ## JSON Output (list)
 

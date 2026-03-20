@@ -23,7 +23,7 @@ DaoFlow is the deployment platform built for the age of AI agents. It's what hap
 
 ```bash
 # Your AI agent deploys with one command
-daoflow deploy --service my-app --yes --json
+daoflow deploy --service svc_my_app --yes --json
 ```
 
 But unlike giving an AI agent raw SSH access, DaoFlow ensures:

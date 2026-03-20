@@ -14,14 +14,12 @@ daoflow logs [options]
 
 ## Options
 
-| Flag                | Description                                       |
-| ------------------- | ------------------------------------------------- |
-| `--deployment <id>` | Logs for a specific deployment                    |
-| `--service <name>`  | Logs for a service (latest deployment)            |
-| `--level <level>`   | Filter by level: `debug`, `info`, `warn`, `error` |
-| `--follow` / `-f`   | Stream logs in real-time                          |
-| `--tail <n>`        | Show last N lines (default: 100)                  |
-| `--json`            | Structured JSON output                            |
+| Flag                | Description                    |
+| ------------------- | ------------------------------ |
+| `--deployment <id>` | Logs for a specific deployment |
+| `--follow`          | Stream logs in real-time       |
+| `--lines <n>`       | Show last N lines              |
+| `--json`            | Structured JSON output         |
 
 ## Required Scope
 
@@ -31,10 +29,10 @@ daoflow logs [options]
 
 ```bash
 # View recent logs
-daoflow logs --service my-app --tail 50
+daoflow logs --deployment dep_abc123 --lines 50
 
 # Stream logs in real-time
-daoflow logs --service my-app --follow
+daoflow logs --deployment dep_abc123 --follow
 
 # JSON format for agent processing
 daoflow logs --deployment dep_abc123 --json

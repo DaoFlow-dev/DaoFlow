@@ -17,8 +17,8 @@ Deploy applications by building from a Dockerfile in a Git repository.
 
 ```bash
 daoflow deploy \
-  --service my-api \
-  --server prod \
+  --service svc_my_api \
+  --server srv_prod \
   --repo https://github.com/org/my-api \
   --dockerfile Dockerfile \
   --yes

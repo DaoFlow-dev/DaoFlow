@@ -75,23 +75,17 @@ services:
 
 ## Option 2: Cloudflare Tunnel
 
-No public IP or SSL setup needed:
+No public IP or reverse-proxy VM is required, but the tunnel itself is still external to DaoFlow. Run `cloudflared` separately and point it at the DaoFlow host:
 
 ```bash
-CF_TUNNEL_TOKEN=eyJ...your-tunnel-token
+cloudflared tunnel run <your-tunnel-name>
 ```
 
-DaoFlow automatically connects to the Cloudflare edge.
+Then set `BETTER_AUTH_URL` to the public origin exposed by Cloudflare.
 
 ## Option 3: Tailscale
 
-Access DaoFlow via your tailnet (private network):
-
-```bash
-TAILSCALE_AUTHKEY=tskey-auth-xxx
-```
-
-No SSL needed — Tailscale handles encryption.
+Expose the host through your tailnet and reverse proxy or MagicDNS path of choice. DaoFlow does not join the tailnet automatically; install and authorize Tailscale on the host separately.
 
 ## DNS Setup
 

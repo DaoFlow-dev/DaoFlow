@@ -39,14 +39,14 @@ If cloud providers are like conventional enterprise software — powerful but co
 curl -fsSL https://raw.githubusercontent.com/DaoFlow-dev/DaoFlow/main/scripts/install.sh | sh
 
 # Deploy from your AI agent
-daoflow deploy --service my-app --server vps1 --compose ./compose.yaml --yes
+daoflow deploy --compose ./compose.yaml --server srv_vps1 --yes
 
 # Diagnose issues
 daoflow doctor --json
 
 # Rollback safely
-daoflow rollback --service my-app --dry-run
-daoflow rollback --service my-app --yes
+daoflow rollback --service svc_my_app --json
+daoflow rollback --service svc_my_app --target dep_abc123 --yes
 ```
 
 No IAM policies. No VPC configurations. No container registry setup. No load balancer configuration. Just Docker Compose and `--yes`.

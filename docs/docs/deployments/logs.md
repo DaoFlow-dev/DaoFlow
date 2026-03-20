@@ -20,16 +20,13 @@ DaoFlow provides three layers of observability for deployments.
 
 ```bash
 # Recent logs
-daoflow logs --service my-app --tail 50
+daoflow logs --deployment dep_abc123 --lines 50
 
 # Stream in real-time
-daoflow logs --service my-app --follow
+daoflow logs --deployment dep_abc123 --follow
 
 # Specific deployment
 daoflow logs --deployment dep_abc123 --json
-
-# Filter by level
-daoflow logs --service my-app --level error
 ```
 
 ### Via Dashboard

@@ -45,14 +45,14 @@ function HomepageCode() {
 curl -fsSL https://raw.githubusercontent.com/DaoFlow-dev/DaoFlow/main/scripts/install.sh | sh`;
 
   const agentCode = `# Deploy from your AI agent
-daoflow deploy --compose ./compose.yaml --server vps1 --dry-run --json
-daoflow deploy --compose ./compose.yaml --server vps1 --yes --json
+daoflow deploy --compose ./compose.yaml --server srv_vps1 --dry-run --json
+daoflow deploy --compose ./compose.yaml --server srv_vps1 --yes --json
 
 # Diagnose failures
 daoflow doctor --json
 
 # Rollback safely
-daoflow rollback --service my-app --yes --json`;
+daoflow rollback --service svc_my_app --target dep_prev123 --yes --json`;
 
   return (
     <section className={styles.codeSection}>

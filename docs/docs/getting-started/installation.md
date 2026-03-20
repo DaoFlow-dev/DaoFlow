@@ -45,13 +45,17 @@ curl -fsSL https://raw.githubusercontent.com/DaoFlow-dev/DaoFlow/main/scripts/in
 The `.env` file contains everything — no hidden config:
 
 ```bash
-DAOFLOW_VERSION=0.1.0
-DATABASE_URL=postgresql://daoflow:GENERATED@db:5432/daoflow
-REDIS_URL=redis://redis:6379
-BETTER_AUTH_SECRET=GENERATED_64_CHAR_HEX
+DAOFLOW_VERSION=latest
 BETTER_AUTH_URL=https://deploy.example.com
-ENCRYPTION_KEY=GENERATED_32_CHAR_HEX
+DAOFLOW_PORT=3000
+DAOFLOW_INITIAL_ADMIN_EMAIL=admin@example.com
+DAOFLOW_INITIAL_ADMIN_PASSWORD=GENERATED_OR_SUPPLIED_SECRET
 POSTGRES_PASSWORD=GENERATED_32_CHAR_HEX
+TEMPORAL_POSTGRES_PASSWORD=GENERATED_32_CHAR_HEX
+BETTER_AUTH_SECRET=GENERATED_64_CHAR_HEX
+ENCRYPTION_KEY=GENERATED_32_CHAR_HEX
+DAOFLOW_ENABLE_TEMPORAL=true
+TEMPORAL_ADDRESS=temporal:7233
 ```
 
 ### Upgrading
@@ -123,10 +127,13 @@ bun install
 ### 2. Start Infrastructure
 
 ```bash
-docker compose up -d
+bun run dev:infra
+
+# Optional second terminal if you want durable Temporal-backed workflows locally
+bun run dev:temporal
 ```
 
-This starts PostgreSQL 17 (port 5432) and Redis 7 (port 6379).
+This starts PostgreSQL 17 (port 5432) and Redis 7 (port 6379). Temporal remains optional in local development unless you explicitly start it.
 
 ### 3. Configure
 
@@ -136,22 +143,24 @@ cp .env.example .env
 
 Key variables:
 
-| Variable             | Default                                                   | Description                           |
-| -------------------- | --------------------------------------------------------- | ------------------------------------- |
-| `DATABASE_URL`       | `postgresql://daoflow:daoflow_dev@localhost:5432/daoflow` | Postgres connection                   |
-| `REDIS_URL`          | `redis://localhost:6379`                                  | Redis connection                      |
-| `BETTER_AUTH_SECRET` | —                                                         | Session signing secret (min 32 chars) |
-| `BETTER_AUTH_URL`    | `http://localhost:3000`                                   | Public auth URL                       |
-| `ENCRYPTION_KEY`     | —                                                         | Encryption key (exactly 32 chars)     |
+| Variable             | Default                                                   | Description                                                         |
+| -------------------- | --------------------------------------------------------- | ------------------------------------------------------------------- |
+| `DATABASE_URL`       | `postgresql://daoflow:daoflow_dev@localhost:5432/daoflow` | Postgres connection                                                 |
+| `BETTER_AUTH_URL`    | `http://localhost:3000`                                   | Public auth URL                                                     |
+| `BETTER_AUTH_SECRET` | optional locally                                          | Session signing secret (required in production)                     |
+| `ENCRYPTION_KEY`     | optional locally                                          | Secret encryption key (recommended locally, required in production) |
 
 ### 4. Migrate and Run
 
 ```bash
-bun run db:migrate
+bun run db:push
 bun run dev
 ```
 
-Dashboard runs on `http://localhost:3000`.
+Local endpoints:
+
+- API server: `http://localhost:3000`
+- Vite web UI: `http://localhost:5173`
 
 ## Verifying Your Setup
 
@@ -167,4 +176,5 @@ curl http://localhost:3000/trpc/health
 
 - [Deploy your first application →](./first-deployment)
 - [Configure your instance →](./configuration)
+- [Rehearse a staging rollout →](/docs/self-hosting/staging-runbook)
 - [Set up SSL & domains →](/docs/self-hosting/ssl-and-domains)

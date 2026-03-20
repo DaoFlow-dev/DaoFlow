@@ -10,8 +10,8 @@ Deploy pre-built Docker images directly — the simplest deployment method.
 
 ```bash
 daoflow deploy \
-  --service my-app \
-  --server prod \
+  --service svc_my_app \
+  --server srv_prod \
   --image ghcr.io/myorg/my-app:v1.2.3 \
   --yes
 ```
@@ -41,10 +41,10 @@ Always use specific tags in production instead of `latest`:
 
 ```bash
 # Good — version pinned
-daoflow deploy --service my-app --image my-app:v1.2.3 --yes
+daoflow deploy --service svc_my_app --image my-app:v1.2.3 --yes
 
 # Avoid in production — mutable tag
-daoflow deploy --service my-app --image my-app:latest --yes
+daoflow deploy --service svc_my_app --image my-app:latest --yes
 ```
 
 DaoFlow records the exact image digest for each deployment, so you can see precisely which image version was deployed even if tags are overwritten.

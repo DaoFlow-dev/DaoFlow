@@ -10,20 +10,20 @@ Restoring from a backup creates a new operation record with full audit trail.
 
 ```bash
 # Restore from a specific backup
-daoflow backup restore --backup bkp_abc123 --yes
+daoflow backup restore --backup-run-id bkp_run_123 --yes
 
 # Preview restore plan
-daoflow backup restore --backup bkp_abc123 --dry-run --json
+daoflow backup restore --backup-run-id bkp_run_123 --dry-run --json
 ```
 
 ## Restore Process
 
-1. **Validate** — verify the backup artifact exists and is intact
-2. **Stop** — stop the current service containers
-3. **Restore** — extract backup data to volumes or import database
-4. **Start** — restart the service containers
-5. **Verify** — run health checks
-6. **Record** — create an audit record of the restore
+1. **Validate** — verify the backup run exists, succeeded, and has an artifact path
+2. **Queue** — create a restore request record with full audit trail
+3. **Fetch** — resolve the backup artifact from the configured destination
+4. **Execute** — run the restore workflow and record status updates
+5. **Verify** — capture completion or failure in restore metadata
+6. **Record** — keep the restore request and source backup run immutable
 
 ## Approval Gates
 
@@ -31,7 +31,7 @@ Restore operations may require approval depending on your configuration:
 
 ```bash
 # If approval is required
-daoflow backup restore --backup bkp_abc123 --yes
+daoflow backup restore --backup-run-id bkp_run_123 --yes
 # → "Approval required. Request created: apr_xyz789"
 
 # Another user approves
@@ -48,5 +48,5 @@ daoflow approve apr_xyz789 --yes
 
 - Restoring creates a new operation record (never modifies existing)
 - The original backup artifact is never modified
-- Post-restore health checks verify service is functional
+- Restore status is recorded even when application-specific rehydration still requires operator follow-through
 - All restores appear in the audit trail

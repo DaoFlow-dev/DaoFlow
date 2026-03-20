@@ -78,13 +78,13 @@ Rollback targets the last known-healthy deployment:
 
 ```bash
 # List rollback targets
-daoflow rollback --service my-api --json
+daoflow rollback --service svc_my_api --json
 
 # Preview rollback
-daoflow rollback --service my-api --target <id> --dry-run
+daoflow rollback --service svc_my_api --target <id> --dry-run
 
 # Execute rollback
-daoflow rollback --service my-api --target <id> --yes --json
+daoflow rollback --service svc_my_api --target <id> --yes --json
 ```
 
 A rollback creates a **new deployment record** that references the target deployment's configuration. It is not an undo — it is a forward deployment to a known-good state.

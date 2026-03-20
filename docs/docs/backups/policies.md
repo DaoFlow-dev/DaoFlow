@@ -26,14 +26,15 @@ Navigate to the service's **Backups** tab and click **Create Policy**.
 ### Via CLI
 
 ```bash
-daoflow backup policy create \
-  --service my-app \
-  --schedule "0 2 * * *" \
-  --type full \
-  --retain 7 \
-  --storage s3 \
+daoflow backup schedule enable \
+  --policy bkp_pol_123 \
+  --cron "0 2 * * *" \
   --yes
 ```
+
+Today, policy creation happens in the dashboard or admin API. The CLI manages the execution side of
+an existing policy by enabling schedules, triggering one-off runs, verifying results, and disabling
+automation when needed.
 
 ## Retention Rules
 

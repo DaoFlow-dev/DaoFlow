@@ -70,10 +70,10 @@ daoflow status --json
 daoflow services --json
 
 # 3. Agent creates a deploy plan (read-only)
-daoflow plan --service my-api --json
+daoflow plan --service svc_my_api --json
 
 # 4. Agent deploys (requires agent:minimal-write)
-daoflow deploy --service my-api --commit abc1234 --yes --json
+daoflow deploy --service svc_my_api --commit abc1234 --yes --json
 ```
 
 ## Best Practices

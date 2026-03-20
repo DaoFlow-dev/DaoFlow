@@ -46,8 +46,8 @@ daoflow capabilities --json
 # until explicitly granted those scopes
 
 # Safe deployment workflow
-daoflow deploy --service my-app --compose ./compose.yaml --dry-run  # Preview first
-daoflow deploy --service my-app --compose ./compose.yaml --yes       # Execute with confirmation
+daoflow deploy --service svc_my_app --dry-run  # Preview first
+daoflow deploy --service svc_my_app --yes      # Execute with confirmation
 ```
 
 ## When to Choose DaoFlow

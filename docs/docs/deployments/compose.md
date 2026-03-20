@@ -19,10 +19,10 @@ Docker Compose is the primary deployment method in DaoFlow. Compose files are fi
 
 ```bash
 # Preview
-daoflow deploy --service my-app --server prod --compose ./compose.yaml --dry-run
+daoflow deploy --compose ./compose.yaml --server srv_prod --dry-run
 
 # Deploy
-daoflow deploy --service my-app --server prod --compose ./compose.yaml --yes
+daoflow deploy --compose ./compose.yaml --server srv_prod --yes
 ```
 
 ## Example Compose File
@@ -111,8 +111,10 @@ Execution semantics are deterministic:
 DaoFlow injects environment variables from the project's environment configuration into the Compose file using `docker compose --env-file`:
 
 ```bash
-daoflow env set --project my-app --env production \
-  DATABASE_URL=postgresql://... --yes
+daoflow env set --env-id env_prod_123 \
+  --key DATABASE_URL \
+  --value postgresql://... \
+  --yes
 ```
 
 These are then available in your `compose.yaml` via `${DATABASE_URL}`.
