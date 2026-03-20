@@ -6,6 +6,14 @@ sidebar_position: 1
 
 The DaoFlow CLI is the primary interface for AI agents and power users. Every command supports structured JSON output for machine consumption.
 
+## Generated Contract Artifact
+
+The published CLI contract is generated from the live Commander program and committed as a static artifact:
+
+- [`cli-contract.json`](/contracts/cli-contract.json) — command inventory, subcommands, options, documented scope requirements, and machine-readable example payloads
+
+Generate it with `bun run contracts:generate` and validate it with `bun run contracts:check`.
+
 ## Installation
 
 ```bash
@@ -69,6 +77,8 @@ Every command accepts these flags:
 | `backup list`                    | read         | `backup:read`                        | no       |
 | `backup run`                     | command      | `backup:run`                         | yes      |
 | `backup restore`                 | command      | `backup:restore`, `approvals:create` | yes      |
+
+The generated contract includes additional command families not expanded into individual docs pages here, including backup destination management, backup schedule management, token management, config helpers, install/upgrade flows, and update commands.
 
 ## Configuration
 

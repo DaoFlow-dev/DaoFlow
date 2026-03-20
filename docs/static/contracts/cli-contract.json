@@ -1,0 +1,1646 @@
+{
+  "schemaVersion": 1,
+  "kind": "daoflow-cli-contract",
+  "binary": "daoflow",
+  "commands": [
+    {
+      "path": "backup",
+      "summary": "Manage backup policies and runs",
+      "lane": "local",
+      "requiredScopes": [],
+      "mutating": false,
+      "hasAction": false,
+      "hasSubcommands": true,
+      "aliases": [],
+      "arguments": [],
+      "options": [],
+      "supportsJson": false,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
+      "path": "backup destination",
+      "summary": "Manage individual backup destinations",
+      "lane": "local",
+      "requiredScopes": [],
+      "mutating": false,
+      "hasAction": false,
+      "hasSubcommands": true,
+      "aliases": [],
+      "arguments": [],
+      "options": [],
+      "supportsJson": false,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
+      "path": "backup destination add",
+      "summary": "Add a new backup destination",
+      "lane": "command",
+      "requiredScopes": ["backup:run"],
+      "mutating": true,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--name <name>",
+          "description": "Destination name",
+          "required": true
+        },
+        {
+          "flags": "--provider <provider>",
+          "description": "Provider type (s3, local, gdrive, onedrive, dropbox, sftp, rclone)",
+          "required": true
+        },
+        {
+          "flags": "--access-key <key>",
+          "description": "S3 access key",
+          "required": false
+        },
+        {
+          "flags": "--secret-key <key>",
+          "description": "S3 secret access key",
+          "required": false
+        },
+        {
+          "flags": "--bucket <bucket>",
+          "description": "S3 bucket name",
+          "required": false
+        },
+        {
+          "flags": "--region <region>",
+          "description": "S3 region",
+          "required": false
+        },
+        {
+          "flags": "--endpoint <url>",
+          "description": "S3 endpoint URL",
+          "required": false
+        },
+        {
+          "flags": "--s3-provider <provider>",
+          "description": "S3 sub-provider (AWS, Cloudflare, Minio, etc.)",
+          "required": false
+        },
+        {
+          "flags": "--local-path <path>",
+          "description": "Local filesystem path",
+          "required": false
+        },
+        {
+          "flags": "--rclone-config <config>",
+          "description": "Raw rclone config (INI format)",
+          "required": false
+        },
+        {
+          "flags": "--rclone-remote-path <path>",
+          "description": "Remote path within rclone backend",
+          "required": false
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        },
+        {
+          "flags": "--dry-run",
+          "description": "Preview without executing",
+          "required": false
+        },
+        {
+          "flags": "-y, --yes",
+          "description": "Skip confirmation",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": true,
+      "supportsYes": true
+    },
+    {
+      "path": "backup destination delete",
+      "summary": "Delete a backup destination",
+      "lane": "command",
+      "requiredScopes": ["backup:run"],
+      "mutating": true,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--id <id>",
+          "description": "Destination ID",
+          "required": true
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        },
+        {
+          "flags": "-y, --yes",
+          "description": "Skip confirmation",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": true
+    },
+    {
+      "path": "backup destination test",
+      "summary": "Test connectivity to a backup destination",
+      "lane": "command",
+      "requiredScopes": ["backup:run"],
+      "mutating": true,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--id <id>",
+          "description": "Destination ID",
+          "required": true
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
+      "path": "backup destinations",
+      "summary": "List backup destinations",
+      "lane": "read",
+      "requiredScopes": ["backup:read"],
+      "mutating": false,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
+      "path": "backup download",
+      "summary": "Get download info for a backup artifact",
+      "lane": "read",
+      "requiredScopes": ["backup:read"],
+      "mutating": false,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--backup-run-id <id>",
+          "description": "Backup run ID",
+          "required": true
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
+      "path": "backup list",
+      "summary": "List backup policies and recent runs",
+      "lane": "read",
+      "requiredScopes": ["backup:read"],
+      "mutating": false,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        },
+        {
+          "flags": "--limit <n>",
+          "description": "Max runs to show",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
+      "path": "backup restore",
+      "summary": "Queue a restore from a backup run",
+      "lane": "command",
+      "requiredScopes": ["backup:restore", "approvals:create"],
+      "mutating": true,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--backup-run-id <id>",
+          "description": "Backup run ID to restore from",
+          "required": true
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        },
+        {
+          "flags": "--dry-run",
+          "description": "Preview without executing",
+          "required": false
+        },
+        {
+          "flags": "-y, --yes",
+          "description": "Skip confirmation",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": true,
+      "supportsYes": true
+    },
+    {
+      "path": "backup run",
+      "summary": "Trigger a one-off backup immediately via Temporal",
+      "lane": "command",
+      "requiredScopes": ["backup:run"],
+      "mutating": true,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--policy <id>",
+          "description": "Backup policy ID",
+          "required": true
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        },
+        {
+          "flags": "--dry-run",
+          "description": "Preview without executing",
+          "required": false
+        },
+        {
+          "flags": "-y, --yes",
+          "description": "Skip confirmation",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": true,
+      "supportsYes": true
+    },
+    {
+      "path": "backup schedule",
+      "summary": "Manage backup cron schedules (Temporal-based)",
+      "lane": "local",
+      "requiredScopes": [],
+      "mutating": false,
+      "hasAction": false,
+      "hasSubcommands": true,
+      "aliases": [],
+      "arguments": [],
+      "options": [],
+      "supportsJson": false,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
+      "path": "backup schedule disable",
+      "summary": "Disable the cron schedule for a backup policy",
+      "lane": "command",
+      "requiredScopes": ["backup:run"],
+      "mutating": true,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--policy <id>",
+          "description": "Backup policy ID",
+          "required": true
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        },
+        {
+          "flags": "-y, --yes",
+          "description": "Skip confirmation",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": true
+    },
+    {
+      "path": "backup schedule enable",
+      "summary": "Enable a cron schedule for a backup policy",
+      "lane": "command",
+      "requiredScopes": ["backup:run"],
+      "mutating": true,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--policy <id>",
+          "description": "Backup policy ID",
+          "required": true
+        },
+        {
+          "flags": "--cron <expression>",
+          "description": "Cron expression (e.g., \"0 */6 * * *\")",
+          "required": true
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        },
+        {
+          "flags": "--dry-run",
+          "description": "Preview without executing",
+          "required": false
+        },
+        {
+          "flags": "-y, --yes",
+          "description": "Skip confirmation",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": true,
+      "supportsYes": true
+    },
+    {
+      "path": "backup verify",
+      "summary": "Verify a backup by performing a test restore",
+      "lane": "command",
+      "requiredScopes": ["backup:restore"],
+      "mutating": true,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--backup-run-id <id>",
+          "description": "Backup run ID to verify",
+          "required": true
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        },
+        {
+          "flags": "--dry-run",
+          "description": "Preview without executing",
+          "required": false
+        },
+        {
+          "flags": "-y, --yes",
+          "description": "Skip confirmation",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": true,
+      "supportsYes": true
+    },
+    {
+      "path": "cancel",
+      "summary": "Cancel an in-progress deployment",
+      "lane": "command",
+      "requiredScopes": ["deploy:cancel"],
+      "mutating": true,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--deployment <id>",
+          "description": "Deployment ID to cancel",
+          "required": true
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        },
+        {
+          "flags": "-y, --yes",
+          "description": "Skip confirmation prompt",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": true
+    },
+    {
+      "path": "capabilities",
+      "summary": "List all granted scopes for the current token",
+      "lane": "read",
+      "requiredScopes": [],
+      "mutating": false,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": ["caps"],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
+      "path": "config",
+      "summary": "Configuration management utilities",
+      "lane": "local",
+      "requiredScopes": [],
+      "mutating": false,
+      "hasAction": false,
+      "hasSubcommands": true,
+      "aliases": [],
+      "arguments": [],
+      "options": [],
+      "supportsJson": false,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
+      "path": "config generate-vapid",
+      "summary": "Generate VAPID key pair for Web Push notifications",
+      "lane": "local",
+      "requiredScopes": [],
+      "mutating": false,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
+      "path": "deploy",
+      "summary": "Deploy a service or compose project",
+      "lane": "command",
+      "requiredScopes": ["deploy:start"],
+      "mutating": true,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--service <id>",
+          "description": "Service ID to deploy",
+          "required": false
+        },
+        {
+          "flags": "--compose <path>",
+          "description": "Docker Compose file path",
+          "required": false
+        },
+        {
+          "flags": "--context <path>",
+          "description": "Upload root for compose-local inputs (default: .)",
+          "required": false
+        },
+        {
+          "flags": "--server <id>",
+          "description": "Target server ID",
+          "required": false
+        },
+        {
+          "flags": "--commit <sha>",
+          "description": "Commit SHA to deploy",
+          "required": false
+        },
+        {
+          "flags": "--image <tag>",
+          "description": "Image tag to deploy",
+          "required": false
+        },
+        {
+          "flags": "--preview-branch <branch>",
+          "description": "Target a compose preview for a source branch",
+          "required": false
+        },
+        {
+          "flags": "--preview-pr <number>",
+          "description": "Associate the preview with a pull request number",
+          "required": false
+        },
+        {
+          "flags": "--preview-close",
+          "description": "Destroy the targeted preview stack instead of deploying it",
+          "required": false
+        },
+        {
+          "flags": "--dry-run",
+          "description": "Preview deployment plan without executing",
+          "required": false
+        },
+        {
+          "flags": "--no-prompt",
+          "description": "Skip interactive prompts (for CI/agent use)",
+          "required": false
+        },
+        {
+          "flags": "-y, --yes",
+          "description": "Skip confirmation prompt",
+          "required": false
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": true,
+      "supportsYes": true
+    },
+    {
+      "path": "diff",
+      "summary": "Compare two deployments or config states",
+      "lane": "planning",
+      "requiredScopes": ["deploy:read"],
+      "mutating": false,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--a <id>",
+          "description": "First deployment ID (baseline)",
+          "required": true
+        },
+        {
+          "flags": "--b <id>",
+          "description": "Second deployment ID (comparison)",
+          "required": true
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
+      "path": "doctor",
+      "summary": "Verify DaoFlow setup and connectivity",
+      "lane": "read",
+      "requiredScopes": ["server:read", "logs:read"],
+      "mutating": false,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
+      "path": "env",
+      "summary": "Manage environment variables",
+      "lane": "local",
+      "requiredScopes": [],
+      "mutating": false,
+      "hasAction": false,
+      "hasSubcommands": true,
+      "aliases": [],
+      "arguments": [],
+      "options": [],
+      "supportsJson": false,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
+      "path": "env delete",
+      "summary": "Delete an environment variable",
+      "lane": "command",
+      "requiredScopes": ["env:write"],
+      "mutating": true,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--env-id <id>",
+          "description": "Environment ID",
+          "required": true
+        },
+        {
+          "flags": "--key <key>",
+          "description": "Variable key to delete",
+          "required": true
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        },
+        {
+          "flags": "-y, --yes",
+          "description": "Skip confirmation",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": true
+    },
+    {
+      "path": "env list",
+      "summary": "List environment variables",
+      "lane": "read",
+      "requiredScopes": ["env:read"],
+      "mutating": false,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--env-id <id>",
+          "description": "Environment ID",
+          "required": false
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
+      "path": "env pull",
+      "summary": "Download .env from DaoFlow to local filesystem",
+      "lane": "read",
+      "requiredScopes": ["env:read"],
+      "mutating": false,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--env-id <id>",
+          "description": "Environment ID",
+          "required": false
+        },
+        {
+          "flags": "--output <path>",
+          "description": "Output file path",
+          "required": false
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
+      "path": "env push",
+      "summary": "Upload local .env to DaoFlow (encrypted)",
+      "lane": "command",
+      "requiredScopes": ["env:write"],
+      "mutating": true,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--env-id <id>",
+          "description": "Environment ID",
+          "required": true
+        },
+        {
+          "flags": "--input <path>",
+          "description": "Input .env file",
+          "required": false
+        },
+        {
+          "flags": "--secret",
+          "description": "Mark all variables as secret",
+          "required": false
+        },
+        {
+          "flags": "-y, --yes",
+          "description": "Skip confirmation prompt",
+          "required": false
+        },
+        {
+          "flags": "--dry-run",
+          "description": "Preview what would be pushed",
+          "required": false
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": true,
+      "supportsYes": true
+    },
+    {
+      "path": "env resolve",
+      "summary": "Resolve all 1Password secret references for an environment",
+      "lane": "read",
+      "requiredScopes": ["secrets:read"],
+      "mutating": false,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--env-id <id>",
+          "description": "Environment ID",
+          "required": true
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
+      "path": "env set",
+      "summary": "Set an environment variable in DaoFlow or a local .env file",
+      "lane": "command",
+      "requiredScopes": ["env:write"],
+      "mutating": true,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--env-id <id>",
+          "description": "Environment ID (required unless --local)",
+          "required": false
+        },
+        {
+          "flags": "--key <key>",
+          "description": "Variable key",
+          "required": true
+        },
+        {
+          "flags": "--value <value>",
+          "description": "Variable value (required unless --secret-ref is used)",
+          "required": false
+        },
+        {
+          "flags": "--secret-ref <uri>",
+          "description": "1Password secret reference (op://vault/item/field)",
+          "required": false
+        },
+        {
+          "flags": "--secret",
+          "description": "Mark as secret (encrypted at rest)",
+          "required": false
+        },
+        {
+          "flags": "--category <cat>",
+          "description": "Category: runtime, build, secret",
+          "required": false
+        },
+        {
+          "flags": "--local",
+          "description": "Write to a local .env file instead of the DaoFlow API",
+          "required": false
+        },
+        {
+          "flags": "--file <path>",
+          "description": "Local .env file path when using --local",
+          "required": false
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        },
+        {
+          "flags": "-y, --yes",
+          "description": "Skip confirmation",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": true
+    },
+    {
+      "path": "install",
+      "summary": "Install DaoFlow on this server — creates a docker-compose project with auto-generated secrets",
+      "lane": "local",
+      "requiredScopes": [],
+      "mutating": true,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--dir <path>",
+          "description": "Installation directory",
+          "required": false
+        },
+        {
+          "flags": "--domain <hostname>",
+          "description": "Public domain (e.g., deploy.example.com)",
+          "required": false
+        },
+        {
+          "flags": "--port <number>",
+          "description": "HTTP port",
+          "required": false
+        },
+        {
+          "flags": "--email <email>",
+          "description": "Admin email for first user (defaults to DAOFLOW_INITIAL_ADMIN_EMAIL)",
+          "required": false
+        },
+        {
+          "flags": "--password <password>",
+          "description": "Admin password for first user (defaults to DAOFLOW_INITIAL_ADMIN_PASSWORD)",
+          "required": false
+        },
+        {
+          "flags": "--yes",
+          "description": "Skip confirmation prompts",
+          "required": false
+        },
+        {
+          "flags": "--json",
+          "description": "Output as structured JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": true
+    },
+    {
+      "path": "login",
+      "summary": "Authenticate with a DaoFlow server",
+      "lane": "session",
+      "requiredScopes": [],
+      "mutating": true,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--url <url>",
+          "description": "DaoFlow API URL (e.g. https://daoflow.example.com)",
+          "required": true
+        },
+        {
+          "flags": "--token <token>",
+          "description": "Session token (from browser or API)",
+          "required": false
+        },
+        {
+          "flags": "--email <email>",
+          "description": "Email address for sign-in",
+          "required": false
+        },
+        {
+          "flags": "--password <password>",
+          "description": "Password for sign-in",
+          "required": false
+        },
+        {
+          "flags": "--sso",
+          "description": "Start browser-based CLI sign-in",
+          "required": false
+        },
+        {
+          "flags": "--context <name>",
+          "description": "Context name",
+          "required": false
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
+      "path": "logs",
+      "summary": "Stream real-time deployment logs (SSE)",
+      "lane": "read",
+      "requiredScopes": ["logs:read"],
+      "mutating": false,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [
+        {
+          "name": "service",
+          "required": false,
+          "variadic": false
+        }
+      ],
+      "options": [
+        {
+          "flags": "--deployment <id>",
+          "description": "Deployment ID",
+          "required": false
+        },
+        {
+          "flags": "--follow",
+          "description": "Follow log output",
+          "required": false
+        },
+        {
+          "flags": "--lines <n>",
+          "description": "Number of lines to show",
+          "required": false
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
+      "path": "plan",
+      "summary": "Preview a deployment plan without executing it",
+      "lane": "planning",
+      "requiredScopes": ["deploy:read"],
+      "mutating": false,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--service <id>",
+          "description": "Service name or ID",
+          "required": false
+        },
+        {
+          "flags": "--compose <path>",
+          "description": "Docker Compose file path",
+          "required": false
+        },
+        {
+          "flags": "--context <path>",
+          "description": "Upload root for compose-local inputs (default: .)",
+          "required": false
+        },
+        {
+          "flags": "--server <id>",
+          "description": "Target server",
+          "required": false
+        },
+        {
+          "flags": "--image <tag>",
+          "description": "Image tag to deploy",
+          "required": false
+        },
+        {
+          "flags": "--preview-branch <branch>",
+          "description": "Target a compose preview for a source branch",
+          "required": false
+        },
+        {
+          "flags": "--preview-pr <number>",
+          "description": "Associate the preview with a pull request number",
+          "required": false
+        },
+        {
+          "flags": "--preview-close",
+          "description": "Plan preview stack cleanup instead of deploy",
+          "required": false
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
+      "path": "projects",
+      "summary": "List and manage projects",
+      "lane": "read",
+      "requiredScopes": ["deploy:read"],
+      "mutating": false,
+      "hasAction": false,
+      "hasSubcommands": true,
+      "aliases": [],
+      "arguments": [],
+      "options": [],
+      "supportsJson": false,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
+      "path": "projects list",
+      "summary": "List all projects",
+      "lane": "read",
+      "requiredScopes": ["deploy:read"],
+      "mutating": false,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": ["ls"],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
+      "path": "push",
+      "summary": "Build and push a local Docker image to DaoFlow (no registry needed)",
+      "lane": "command",
+      "requiredScopes": ["deploy:start"],
+      "mutating": true,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--tag <tag>",
+          "description": "Docker image tag",
+          "required": false
+        },
+        {
+          "flags": "--dockerfile <path>",
+          "description": "Dockerfile path",
+          "required": false
+        },
+        {
+          "flags": "--context <path>",
+          "description": "Build context",
+          "required": false
+        },
+        {
+          "flags": "--server <id>",
+          "description": "Target server ID",
+          "required": false
+        },
+        {
+          "flags": "--service <name>",
+          "description": "Service name",
+          "required": false
+        },
+        {
+          "flags": "--skip-build",
+          "description": "Skip docker build, push existing image",
+          "required": false
+        },
+        {
+          "flags": "-y, --yes",
+          "description": "Skip confirmation prompt",
+          "required": false
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": true
+    },
+    {
+      "path": "rollback",
+      "summary": "Rollback a service to a previous successful deployment",
+      "lane": "command",
+      "requiredScopes": ["deploy:rollback"],
+      "mutating": true,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--service <id>",
+          "description": "Service ID to rollback",
+          "required": true
+        },
+        {
+          "flags": "--target <deployment-id>",
+          "description": "Target deployment ID to rollback to",
+          "required": false
+        },
+        {
+          "flags": "--to <deployment-id>",
+          "description": "Alias for --target",
+          "required": false
+        },
+        {
+          "flags": "--dry-run",
+          "description": "Show rollback plan without executing",
+          "required": false
+        },
+        {
+          "flags": "-y, --yes",
+          "description": "Skip confirmation prompt",
+          "required": false
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": true,
+      "supportsYes": true
+    },
+    {
+      "path": "services",
+      "summary": "List services and their status",
+      "lane": "read",
+      "requiredScopes": ["service:read"],
+      "mutating": false,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        },
+        {
+          "flags": "--project <id>",
+          "description": "Filter by project ID",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
+      "path": "status",
+      "summary": "Show current deployment and server status",
+      "lane": "read",
+      "requiredScopes": ["server:read"],
+      "mutating": false,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
+      "path": "token",
+      "summary": "Manage agent tokens and presets",
+      "lane": "local",
+      "requiredScopes": [],
+      "mutating": false,
+      "hasAction": false,
+      "hasSubcommands": true,
+      "aliases": [],
+      "arguments": [],
+      "options": [],
+      "supportsJson": false,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
+      "path": "token create",
+      "summary": "Create an agent with a token (requires tokens:manage scope)",
+      "lane": "command",
+      "requiredScopes": ["tokens:manage"],
+      "mutating": true,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--name <name>",
+          "description": "Agent name",
+          "required": true
+        },
+        {
+          "flags": "--preset <preset>",
+          "description": "Agent preset (agent:read-only, agent:minimal-write, agent:full)",
+          "required": false
+        },
+        {
+          "flags": "--scopes <scopes>",
+          "description": "Comma-separated scopes (alternative to --preset)",
+          "required": false
+        },
+        {
+          "flags": "--description <desc>",
+          "description": "Agent description",
+          "required": false
+        },
+        {
+          "flags": "--expires <days>",
+          "description": "Token expiry in days",
+          "required": false
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        },
+        {
+          "flags": "-y, --yes",
+          "description": "Skip confirmation prompt",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": true
+    },
+    {
+      "path": "token list",
+      "summary": "List agent tokens",
+      "lane": "read",
+      "requiredScopes": ["tokens:manage"],
+      "mutating": false,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
+      "path": "token presets",
+      "summary": "List available agent token presets",
+      "lane": "local",
+      "requiredScopes": [],
+      "mutating": false,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
+      "path": "token revoke",
+      "summary": "Revoke an agent token",
+      "lane": "command",
+      "requiredScopes": ["tokens:manage"],
+      "mutating": true,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--id <tokenId>",
+          "description": "Token ID to revoke",
+          "required": true
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        },
+        {
+          "flags": "-y, --yes",
+          "description": "Skip confirmation prompt",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": true
+    },
+    {
+      "path": "uninstall",
+      "summary": "Stop DaoFlow services and optionally remove data",
+      "lane": "local",
+      "requiredScopes": [],
+      "mutating": true,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--dir <path>",
+          "description": "DaoFlow installation directory (auto-detected if omitted)",
+          "required": false
+        },
+        {
+          "flags": "--remove-data",
+          "description": "Also remove volumes and database data (destructive)",
+          "required": false
+        },
+        {
+          "flags": "--yes",
+          "description": "Skip confirmation prompts",
+          "required": false
+        },
+        {
+          "flags": "--json",
+          "description": "Output as structured JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": true
+    },
+    {
+      "path": "update",
+      "summary": "Self-update the DaoFlow CLI binary from the latest GitHub release",
+      "lane": "local",
+      "requiredScopes": [],
+      "mutating": true,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--version <tag>",
+          "description": "Target release tag (e.g. v0.3.5), default: latest",
+          "required": false
+        },
+        {
+          "flags": "--yes",
+          "description": "Skip confirmation prompts",
+          "required": false
+        },
+        {
+          "flags": "--json",
+          "description": "Output as structured JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": true
+    },
+    {
+      "path": "upgrade",
+      "summary": "Upgrade DaoFlow to the latest version (or a specific version)",
+      "lane": "local",
+      "requiredScopes": [],
+      "mutating": true,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--dir <path>",
+          "description": "DaoFlow installation directory",
+          "required": false
+        },
+        {
+          "flags": "--version <version>",
+          "description": "Target version (default: latest)",
+          "required": false
+        },
+        {
+          "flags": "--yes",
+          "description": "Skip confirmation prompts",
+          "required": false
+        },
+        {
+          "flags": "--json",
+          "description": "Output as structured JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": true
+    },
+    {
+      "path": "whoami",
+      "summary": "Show current principal, role, and scopes",
+      "lane": "read",
+      "requiredScopes": [],
+      "mutating": false,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": false
+    }
+  ],
+  "examples": [
+    {
+      "id": "auth.whoami",
+      "category": "auth",
+      "command": "daoflow whoami --json",
+      "response": {
+        "ok": true,
+        "data": {
+          "principal": {
+            "id": "usr_abc123",
+            "email": "owner@example.com",
+            "name": "Owner",
+            "type": "user"
+          },
+          "role": "admin",
+          "scopes": ["deploy:read", "deploy:start", "logs:read"],
+          "authMethod": "api-token",
+          "token": {
+            "id": "tok_abc123",
+            "name": "ci-deploy",
+            "prefix": "dfl_ci_abcd",
+            "expiresAt": "2026-06-01T00:00:00.000Z",
+            "scopes": ["deploy:read", "deploy:start", "logs:read"]
+          },
+          "session": null
+        }
+      }
+    },
+    {
+      "id": "deployment.deploy-dry-run",
+      "category": "deployment",
+      "command": "daoflow deploy --service svc_my_api --dry-run --json",
+      "response": {
+        "ok": true,
+        "data": {
+          "dryRun": true,
+          "plan": {
+            "isReady": true,
+            "executeCommand": "daoflow deploy --service svc_my_api --yes"
+          }
+        }
+      }
+    },
+    {
+      "id": "env.set-confirmation",
+      "category": "env",
+      "command": "daoflow env set --env-id env_prod --key API_URL --value https://example.com --json",
+      "response": {
+        "ok": false,
+        "error": "Set API_URL in environment env_prod. Pass --yes to confirm.",
+        "code": "CONFIRMATION_REQUIRED"
+      }
+    },
+    {
+      "id": "backup.run-dry-run",
+      "category": "backup",
+      "command": "daoflow backup run --policy pol_123 --dry-run --json",
+      "response": {
+        "ok": true,
+        "data": {
+          "dryRun": true,
+          "action": "backup.run",
+          "policyId": "pol_123",
+          "message": "Would trigger one-off backup for policy pol_123"
+        }
+      }
+    },
+    {
+      "id": "backup.restore-confirmation",
+      "category": "backup",
+      "command": "daoflow backup restore --backup-run-id bkr_123 --json",
+      "response": {
+        "ok": false,
+        "error": "To restore from backup bkr_123, add --yes",
+        "code": "CONFIRMATION_REQUIRED"
+      }
+    }
+  ]
+}

@@ -63,7 +63,7 @@ daoflow env set \
 #### Via API
 
 ```bash
-curl -X POST /api/trpc/upsertEnvironmentVariable \
+curl -X POST /trpc/upsertEnvironmentVariable \
   -H "Authorization: Bearer $TOKEN" \
   -d '{
     "environmentId": "env_abc123",

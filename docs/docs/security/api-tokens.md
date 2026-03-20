@@ -18,15 +18,27 @@ API tokens provide scoped access to the DaoFlow API for CLI, CI/CD, and AI agent
 ### Via API
 
 ```bash
-POST /trpc/createApiToken
+# 1. Create or select an agent principal
+POST /trpc/createAgent
 {
   "json": {
-    "name": "ci-deploy",
-    "scopes": ["deploy:read", "deploy:start", "logs:read"],
+    "name": "ci-deploy-agent",
+    "preset": "agent:minimal-write"
+  }
+}
+
+# 2. Generate a token for that principal
+POST /trpc/generateAgentToken
+{
+  "json": {
+    "principalId": "prin_abc123",
+    "tokenName": "ci-deploy",
     "expiresInDays": 90
   }
 }
 ```
+
+`createAgent` is role-gated to `owner` and `admin`. `generateAgentToken` requires the `tokens:manage` scope and an admin-capable role.
 
 ## Token Properties
 
@@ -65,7 +77,7 @@ daoflow login --url https://deploy.example.com --token dfl_abc123
 
 # curl
 curl -H "Authorization: Bearer dfl_abc123" \
-  https://deploy.example.com/trpc/health
+  https://deploy.example.com/trpc/viewer
 ```
 
 ## Effective Permissions

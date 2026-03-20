@@ -31,14 +31,12 @@ Navigate to **Settings → Security** to see the audit trail table.
 ### Via API
 
 ```bash
-GET /trpc/auditLog?input={"json":{"limit":50}}
+GET /trpc/auditTrail?input={"json":{"limit":50}}
 ```
 
 ### Via CLI
 
-```bash
-daoflow audit --json --limit 50
-```
+There is no dedicated `daoflow audit` command yet. Use the dashboard or query `auditTrail` directly through the API contract.
 
 ## What Gets Audited
 

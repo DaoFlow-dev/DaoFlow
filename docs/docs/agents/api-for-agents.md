@@ -19,23 +19,18 @@ Always use the appropriate API lane:
 ## Recommended API Flow
 
 ```
-1. GET /trpc/capabilities          → Know your scopes
-2. GET /trpc/infrastructureInventory → See current state
-3. POST /trpc/deploymentPlan or /trpc/composeDeploymentPlan → Preview changes
-4. POST /trpc/createDeploymentRecord → Execute (if plan is good)
-5. GET /trpc/recentDeployments     → Verify result
+1. GET /trpc/viewer                → Know your auth method, role, and granted scopes
+2. GET /trpc/infrastructureInventory or /trpc/services → See current state
+3. GET /trpc/deploymentPlan or /trpc/composeDeploymentPlan → Preview changes
+4. POST /trpc/triggerDeploy        → Execute a service deploy when the plan is acceptable
+5. GET /trpc/recentDeployments or /trpc/deploymentLogs → Verify the queued result
 ```
+
+Use [`api-contract.json`](/contracts/api-contract.json) as the authoritative machine-readable inventory instead of reverse-engineering route names from source.
 
 ## Idempotency
 
-Always include idempotency keys for command endpoints:
-
-```bash
-POST /trpc/createDeploymentRecord
-X-Idempotency-Key: deploy-my-app-2026-03-15-v3
-```
-
-This prevents duplicate deployments if the agent retries.
+Where your client stack supports idempotency or replay protection, keep the key stable across retries for the same intended mutation.
 
 ## Error Handling
 
@@ -73,6 +68,6 @@ Agent tokens have rate limits. If exceeded, wait for `retryAfter` seconds:
 
 The API provides special diagnostic endpoints for agents:
 
-- **"Why did this deploy fail?"** — use deployment logs + event timeline
+- **"Why did this deploy fail?"** — use `deploymentLogs` plus `operationsTimeline`
 - **"Compare deploys"** — use `configDiff` endpoint
-- **"What changed?"** — use `eventTimeline` filtered by service
+- **"What changed?"** — use `operationsTimeline` or `auditTrail`, depending on whether you need runtime events or write-audit history

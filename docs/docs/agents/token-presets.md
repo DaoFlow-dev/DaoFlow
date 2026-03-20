@@ -11,7 +11,7 @@ DaoFlow provides **preset token configurations** that give AI agents the exact s
 | Preset                | Scopes                                                                                                                  | Use Case                            |
 | --------------------- | ----------------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
 | `agent:read-only`     | `server:read`, `deploy:read`, `service:read`, `env:read`, `logs:read`, `events:read`, `diagnostics:read`, `backup:read` | Monitoring, diagnosis, log analysis |
-| `agent:minimal-write` | All read scopes + `deploy:start`, `deploy:cancel`, `env:write`                                                          | CI/CD deploy pipelines              |
+| `agent:minimal-write` | All read scopes + `deploy:start`, `deploy:cancel`, `deploy:rollback`, `env:write`, `secrets:read`, `approvals:create`   | CI/CD deploy pipelines              |
 | `agent:full`          | All scopes including `deploy:rollback`, `backup:run`, `backup:restore`, `volumes:write`                                 | Full autonomous operation           |
 
 ## Creating Preset Tokens
@@ -35,11 +35,17 @@ daoflow token create --name "ops-bot" --preset agent:full --yes
 ### Via API
 
 ```bash
-# Create agent principal + token with preset
-curl -X POST https://your-daoflow.com/api/trpc/createAgent \
+# Create the agent principal with the preset
+curl -X POST https://your-daoflow.com/trpc/createAgent \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"name": "deploy-agent", "preset": "agent:minimal-write"}'
+
+# Mint a token for that principal
+curl -X POST https://your-daoflow.com/trpc/generateAgentToken \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"principalId": "prin_abc123", "tokenName": "deploy-agent", "expiresInDays": 90}'
 ```
 
 ## Managing Tokens

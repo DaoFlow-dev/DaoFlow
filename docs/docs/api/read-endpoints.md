@@ -4,128 +4,51 @@ sidebar_position: 3
 
 # Read Endpoints
 
-Read endpoints are safe to call — they never modify state.
+Read endpoints are safe to call and never mutate state. The complete generated read surface, with exact JSON Schema for each procedure input, lives in [`api-contract.json`](/contracts/api-contract.json).
 
-## health
+## Public Read Procedures
 
-Check API availability.
+These routes do not require authentication:
 
-```
-GET /trpc/health
-```
+| Procedure          | Purpose                                                   |
+| ------------------ | --------------------------------------------------------- |
+| `health`           | Control-plane health probe                                |
+| `platformOverview` | Product thesis, architecture summary, and guardrails      |
+| `roadmap`          | Small public roadmap summary, optionally filtered by lane |
 
-**Scope:** None (public)
+## Authenticated Read Procedures
 
-**Response:**
+These routes currently require authentication but do not advertise a narrower token scope at the procedure layer:
 
-```json
-{ "result": { "data": { "json": { "status": "ok", "version": "0.1.0" } } } }
-```
+- Identity and governance: `viewer`, `agents`, `adminControlPlane`, `agentTokenInventory`, `principalInventory`
+- Deploy and infra observation: `recentDeployments`, `deploymentDetails`, `executionQueue`, `infrastructureInventory`, `serverReadiness`, `deploymentInsights`, `deploymentRollbackPlans`, `deploymentLogs`, `operationsTimeline`, `approvalQueue`, `auditTrail`
+- Project and service inventory: `projects`, `projectDetails`, `projectEnvironments`, `projectServices`, `services`, `serviceDetails`, `serviceDomainState`
+- Git and secret-provider inventory: `gitProviders`, `gitInstallations`, `listSecretProviders`, `validateSecretRef`
+- Backup inventory: `backupDestinations`, `backupDestination`, `backupMetrics`, `backupDiagnosis`
+- Notification reads: `listPushSubscriptions`, `listChannels`, `getUserPreferences`, `getProjectOverrides`, `listDeliveryLogs`
 
-## platformOverview
+## Scoped Read Procedures
 
-Get platform info, thesis, and product principles.
+These routes require both authentication and the listed scope set:
 
-```
-GET /trpc/platformOverview
-```
+| Procedure                      | Required Scope(s) | Notes                                                          |
+| ------------------------------ | ----------------- | -------------------------------------------------------------- |
+| `composePreviews`              | `deploy:read`     | Preview deployment inventory for one compose service           |
+| `composePreviewReconciliation` | `deploy:read`     | Desired-vs-observed preview routing and stale preview analysis |
+| `rollbackTargets`              | `deploy:read`     | Rollback candidates for one service                            |
+| `backupOverview`               | `backup:read`     | Backup policy and recent run summary                           |
+| `backupRestoreQueue`           | `backup:read`     | Restore queue inventory                                        |
+| `persistentVolumes`            | `backup:read`     | Persistent volume inventory                                    |
+| `backupRunDetails`             | `backup:read`     | One backup run with detailed metadata                          |
+| `resolveEnvironmentSecrets`    | `secrets:read`    | Secret resolution inventory for one environment                |
+| `listDestinationFiles`         | `backup:run`      | Remote file listing for one backup destination                 |
 
-**Scope:** Any valid token
+## Examples
 
-## infrastructureInventory
+The generated contract artifact also includes machine-readable examples for:
 
-List all servers, projects, and services.
-
-```
-GET /trpc/infrastructureInventory
-```
-
-**Scope:** `server:read`, `service:read`
-
-**Response includes:**
-
-- `servers[]` — name, host, status, Docker version
-- `projects[]` — name, environment count, service count, latest deployment status
-- `services[]` — name, source type, status
-
-## recentDeployments
-
-Get recent deployment history.
-
-```
-GET /trpc/recentDeployments?input={"json":{"limit":50}}
-```
-
-**Scope:** `deploy:read`
-
-## composePreviews
-
-Get the latest preview lifecycle state for a compose service.
-
-```
-GET /trpc/composePreviews?input={"json":{"serviceId":"svc_abc123"}}
-```
-
-**Scope:** `deploy:read`
-
-**Response includes:**
-
-- `service` — the scoped compose service identity
-- `previews[]` — one item per preview key with source branch, optional pull request number, isolated stack name, preview env branch, latest deploy or destroy action, normalized status, timestamps, and whether the preview is currently active
-
-## composePreviewReconciliation
-
-Compare desired preview metadata against observed tunnel-route state and stale-preview policy for a compose service.
-
-```
-GET /trpc/composePreviewReconciliation?input={"json":{"serviceId":"svc_abc123"}}
-```
-
-**Scope:** `deploy:read`
-
-**Response includes:**
-
-- `service` — the scoped compose service identity plus preview config
-- `policy.staleAfterHours` — the configured preview retention window, if any
-- `summary` — counts for in-sync, drifted, stale, unmanaged, and garbage-collectable previews
-- `previews[]` — one item per preview key with desired domain, observed tunnel route, reconciliation status, stale cutoff, and GC eligibility
-
-## backupOverview
-
-Get backup policies and recent runs.
-
-```
-GET /trpc/backupOverview?input={"json":{}}
-```
-
-**Scope:** `backup:read`
-
-## eventTimeline
-
-Get structured operational events.
-
-```
-GET /trpc/eventTimeline?input={"json":{"limit":100}}
-```
-
-**Scope:** `events:read`
-
-## auditLog
-
-Get audit trail of write operations.
-
-```
-GET /trpc/auditLog?input={"json":{"limit":50}}
-```
-
-**Scope:** `events:read`
-
-## capabilities
-
-List scopes granted to the current token.
-
-```
-GET /trpc/capabilities
-```
-
-**Scope:** Any valid token
+- `viewer` auth inspection
+- deployment planning and deploy execution
+- environment variable writes
+- backup run and restore flows
+- approval request and approval decision flows

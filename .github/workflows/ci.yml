@@ -34,6 +34,9 @@ jobs:
       - name: Typecheck
         run: bun run typecheck
 
+      - name: Check generated API and CLI contracts
+        run: bun run contracts:check
+
       - name: Check agent instructions and skills
         run: bun run skills:check
 

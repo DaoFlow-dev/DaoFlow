@@ -6,13 +6,15 @@ sidebar_position: 6
 
 These tRPC endpoints manage agent tokens and preset configurations.
 
+The authoritative generated contract artifact is [`api-contract.json`](/contracts/api-contract.json).
+
 ## Read Endpoints
 
 ### `agentTokenInventory`
 
 List all agent tokens with summary statistics.
 
-**Scope**: `tokens:manage`
+**Required role**: `owner` or `admin`
 
 ```json
 // Response
@@ -39,7 +41,7 @@ List all agent tokens with summary statistics.
 
 List all principals (users, agents, service accounts).
 
-**Scope**: `members:manage`
+**Required role**: `owner` or `admin`
 
 ```json
 // Response
@@ -62,7 +64,7 @@ List all principals (users, agents, service accounts).
 
 Create a new agent principal with preset or custom scopes.
 
-**Scope**: `admin`
+**Required role**: `owner` or `admin`
 
 ```json
 // Input — with preset
@@ -94,10 +96,7 @@ Generate an API token for an existing agent principal.
 }
 
 // Response
-{
-  "token": { "id": "tok_abc", "name": "production-token" },
-  "tokenValue": "dfl_live_abc123..."
-}
+{ "token": { "id": "tok_abc", "name": "production-token" }, "tokenValue": "dfl_live_abc123..." }
 ```
 
 :::caution
@@ -120,11 +119,11 @@ Revoke an active agent token.
 
 ## Preset Definitions
 
-| Preset                | Read Scopes                                                                                                             | Write Scopes                                                                                  |
-| --------------------- | ----------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| `agent:read-only`     | `server:read`, `deploy:read`, `service:read`, `env:read`, `logs:read`, `events:read`, `diagnostics:read`, `backup:read` | —                                                                                             |
-| `agent:minimal-write` | All read scopes                                                                                                         | `deploy:start`, `deploy:cancel`, `env:write`                                                  |
-| `agent:full`          | All read scopes                                                                                                         | All write scopes including `deploy:rollback`, `backup:run`, `backup:restore`, `volumes:write` |
+| Preset                | Read Scopes                                                                                                             | Write Scopes                                                                                        |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `agent:read-only`     | `server:read`, `deploy:read`, `service:read`, `env:read`, `logs:read`, `events:read`, `diagnostics:read`, `backup:read` | —                                                                                                   |
+| `agent:minimal-write` | All read scopes                                                                                                         | `deploy:start`, `deploy:cancel`, `deploy:rollback`, `env:write`, `secrets:read`, `approvals:create` |
+| `agent:full`          | All read scopes                                                                                                         | All write scopes including `deploy:rollback`, `backup:run`, `backup:restore`, `volumes:write`       |
 
 ## Error Responses
 

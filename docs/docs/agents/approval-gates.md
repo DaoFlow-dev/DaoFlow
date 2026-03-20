@@ -25,35 +25,36 @@ Approval gates add a human-in-the-loop for high-risk operations, ensuring agents
 ## CLI Flow
 
 ```bash
-# Agent requests a restore (gated)
-daoflow backup restore --backup-run-id bkp_run_123 --yes
-# Output: "Approval required. Request: apr_xyz789"
+# Agent requests a restore through the API-backed CLI
+daoflow backup restore --backup-run-id bkp_run_123 --yes --json
+# The response includes the queued restore or the approval-request context returned by the control plane.
 
-# Human reviews and approves
-daoflow approve apr_xyz789 --yes
-# Output: "Approved. Restore executing."
-
-# Or rejects
-daoflow reject apr_xyz789 --reason "Wrong backup" --yes
+# Human reviewer then approves through the dashboard or API.
 ```
 
 ## API Flow
 
 ```bash
-# Create approval request
-POST /trpc/createApprovalRequest
+# Create approval request for a restore
+POST /trpc/requestApproval
 {
   "json": {
-    "action": "backup:restore",
-    "targetResource": "bkp_abc123",
+    "actionType": "backup-restore",
+    "backupRunId": "bkp_run_123",
     "reason": "Restoring after failed migration"
   }
 }
 
 # Approve
-POST /trpc/updateApprovalRequest
+POST /trpc/approveApprovalRequest
 {
-  "json": { "id": "apr_xyz789", "action": "approve" }
+  "json": { "requestId": "apr_xyz789" }
+}
+
+# Reject
+POST /trpc/rejectApprovalRequest
+{
+  "json": { "requestId": "apr_xyz789" }
 }
 ```
 

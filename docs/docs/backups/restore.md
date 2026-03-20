@@ -30,13 +30,10 @@ daoflow backup restore --backup-run-id bkp_run_123 --dry-run --json
 Restore operations may require approval depending on your configuration:
 
 ```bash
-# If approval is required
+# If approval is required, the control plane records the request
 daoflow backup restore --backup-run-id bkp_run_123 --yes
-# → "Approval required. Request created: apr_xyz789"
-
-# Another user approves
-daoflow approve apr_xyz789 --yes
-# → Restore executes
+# Review and decide the request through the dashboard or the
+# `requestApproval` / `approveApprovalRequest` API procedures.
 ```
 
 ## Required Scopes

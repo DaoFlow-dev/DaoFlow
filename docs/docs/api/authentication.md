@@ -20,7 +20,7 @@ For CLI and agent access, use API tokens:
 
 ```bash
 curl -H "Authorization: Bearer dfl_your_token_here" \
-  http://localhost:3000/trpc/health
+  http://localhost:3000/trpc/viewer
 ```
 
 DaoFlow now resolves Bearer tokens directly inside the tRPC request context. Effective access is the intersection of:
@@ -32,18 +32,32 @@ That means a token can only narrow a principal, never widen it.
 
 ### Creating Tokens
 
-Tokens are created in the dashboard under **Settings → Tokens** or via the API:
+Agent tokens are created in the dashboard or through the admin API in two steps:
 
 ```bash
-POST /trpc/createApiToken
+# 1. Create the agent principal
+POST /trpc/createAgent
 {
   "json": {
-    "name": "ci-deploy-token",
-    "scopes": ["deploy:read", "deploy:start", "logs:read"],
+    "name": "ci-deploy-agent",
+    "preset": "agent:minimal-write"
+  }
+}
+
+# 2. Mint a token for that principal
+POST /trpc/generateAgentToken
+{
+  "json": {
+    "principalId": "prin_abc123",
+    "tokenName": "ci-deploy-token",
     "expiresInDays": 90
   }
 }
 ```
+
+`createAgent` is role-gated to `owner` and `admin`. `generateAgentToken` requires the `tokens:manage` scope plus an admin-capable role.
+
+For the full machine-readable contract, including the exact input JSON Schema for both procedures, use [`api-contract.json`](/contracts/api-contract.json).
 
 ### Token Format
 

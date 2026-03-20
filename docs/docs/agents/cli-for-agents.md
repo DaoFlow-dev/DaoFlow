@@ -14,6 +14,8 @@ Best practices for AI agents using the DaoFlow CLI.
 4. **Use `--quiet` for piping** — get just the value you need
 5. **Handle exit codes** — 0=success, 1=error, 2=denied, 3=dry-run
 
+Use [`cli-contract.json`](/contracts/cli-contract.json) when you need the full generated command inventory, option list, or machine-readable example payloads.
+
 ## Recommended Workflow
 
 ```bash

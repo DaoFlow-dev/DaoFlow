@@ -1,0 +1,4135 @@
+{
+  "schemaVersion": 1,
+  "kind": "daoflow-api-contract",
+  "basePath": "/trpc",
+  "procedures": [
+    {
+      "name": "addServiceDomain",
+      "summary": "add Service Domain",
+      "path": "/trpc/addServiceDomain",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator", "developer"],
+      "requiredScopes": ["service:update"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "serviceId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "hostname": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 253
+          }
+        },
+        "required": ["serviceId", "hostname"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "adminControlPlane",
+      "summary": "admin Control Plane",
+      "path": "/trpc/adminControlPlane",
+      "method": "GET",
+      "lane": "read",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin"],
+      "requiredScopes": [],
+      "inputSchema": null
+    },
+    {
+      "name": "agents",
+      "summary": "agents",
+      "path": "/trpc/agents",
+      "method": "GET",
+      "lane": "read",
+      "auth": "authenticated",
+      "requiredRoles": [],
+      "requiredScopes": [],
+      "inputSchema": null
+    },
+    {
+      "name": "agentTokenInventory",
+      "summary": "agent Token Inventory",
+      "path": "/trpc/agentTokenInventory",
+      "method": "GET",
+      "lane": "read",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin"],
+      "requiredScopes": [],
+      "inputSchema": null
+    },
+    {
+      "name": "approvalQueue",
+      "summary": "approval Queue",
+      "path": "/trpc/approvalQueue",
+      "method": "GET",
+      "lane": "read",
+      "auth": "authenticated",
+      "requiredRoles": [],
+      "requiredScopes": [],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 40
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "approveApprovalRequest",
+      "summary": "approve Approval Request",
+      "path": "/trpc/approveApprovalRequest",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator"],
+      "requiredScopes": ["approvals:decide"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "requestId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["requestId"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "auditTrail",
+      "summary": "audit Trail",
+      "path": "/trpc/auditTrail",
+      "method": "GET",
+      "lane": "read",
+      "auth": "authenticated",
+      "requiredRoles": [],
+      "requiredScopes": [],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 50
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "backupDestination",
+      "summary": "backup Destination",
+      "path": "/trpc/backupDestination",
+      "method": "GET",
+      "lane": "read",
+      "auth": "authenticated",
+      "requiredRoles": [],
+      "requiredScopes": [],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "destinationId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["destinationId"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "backupDestinations",
+      "summary": "backup Destinations",
+      "path": "/trpc/backupDestinations",
+      "method": "GET",
+      "lane": "read",
+      "auth": "authenticated",
+      "requiredRoles": [],
+      "requiredScopes": [],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 50
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "backupDiagnosis",
+      "summary": "backup Diagnosis",
+      "path": "/trpc/backupDiagnosis",
+      "method": "GET",
+      "lane": "read",
+      "auth": "authenticated",
+      "requiredRoles": [],
+      "requiredScopes": [],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "runId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["runId"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "backupMetrics",
+      "summary": "backup Metrics",
+      "path": "/trpc/backupMetrics",
+      "method": "GET",
+      "lane": "read",
+      "auth": "authenticated",
+      "requiredRoles": [],
+      "requiredScopes": [],
+      "inputSchema": null
+    },
+    {
+      "name": "backupOverview",
+      "summary": "backup Overview",
+      "path": "/trpc/backupOverview",
+      "method": "GET",
+      "lane": "read",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator", "developer", "viewer", "agent"],
+      "requiredScopes": ["backup:read"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 50
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "backupRestoreQueue",
+      "summary": "backup Restore Queue",
+      "path": "/trpc/backupRestoreQueue",
+      "method": "GET",
+      "lane": "read",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator", "developer", "viewer", "agent"],
+      "requiredScopes": ["backup:read"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 50
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "backupRunDetails",
+      "summary": "backup Run Details",
+      "path": "/trpc/backupRunDetails",
+      "method": "GET",
+      "lane": "read",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator", "developer", "viewer", "agent"],
+      "requiredScopes": ["backup:read"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "runId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["runId"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "cancelDeployment",
+      "summary": "cancel Deployment",
+      "path": "/trpc/cancelDeployment",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator", "developer"],
+      "requiredScopes": ["deploy:cancel"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "deploymentId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["deploymentId"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "completeExecutionJob",
+      "summary": "complete Execution Job",
+      "path": "/trpc/completeExecutionJob",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator", "developer"],
+      "requiredScopes": ["deploy:start"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["jobId"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "composeDeploymentPlan",
+      "summary": "compose Deployment Plan",
+      "path": "/trpc/composeDeploymentPlan",
+      "method": "GET",
+      "lane": "planning",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator", "developer", "viewer", "agent"],
+      "requiredScopes": ["deploy:read"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "server": {
+            "type": "string",
+            "minLength": 1
+          },
+          "compose": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000000
+          },
+          "composeFiles": {
+            "maxItems": 20,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 500
+                },
+                "contents": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 1000000
+                }
+              },
+              "required": ["path", "contents"],
+              "additionalProperties": false
+            }
+          },
+          "composeProfiles": {
+            "maxItems": 20,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            }
+          },
+          "composePath": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "contextPath": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "repoDefaultContent": {
+            "type": "string",
+            "maxLength": 200000
+          },
+          "localBuildContexts": {
+            "maxItems": 50,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "serviceName": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 80
+                },
+                "context": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 500
+                },
+                "dockerfile": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 500
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": ["serviceName", "context"],
+              "additionalProperties": false
+            }
+          },
+          "requiresContextUpload": {
+            "type": "boolean"
+          },
+          "contextBundle": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "fileCount": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "sizeBytes": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "includedOverrides": {
+                    "maxItems": 200,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 500
+                    }
+                  }
+                },
+                "required": ["fileCount", "sizeBytes", "includedOverrides"],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "contextBundleError": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          }
+        },
+        "required": ["server", "compose", "localBuildContexts", "requiresContextUpload"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "composeDriftReport",
+      "summary": "compose Drift Report",
+      "path": "/trpc/composeDriftReport",
+      "method": "GET",
+      "lane": "read",
+      "auth": "authenticated",
+      "requiredRoles": [],
+      "requiredScopes": [],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 40
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "composePreviewReconciliation",
+      "summary": "compose Preview Reconciliation",
+      "path": "/trpc/composePreviewReconciliation",
+      "method": "GET",
+      "lane": "read",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator", "developer", "viewer", "agent"],
+      "requiredScopes": ["deploy:read"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "serviceId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["serviceId"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "composePreviews",
+      "summary": "compose Previews",
+      "path": "/trpc/composePreviews",
+      "method": "GET",
+      "lane": "read",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator", "developer", "viewer", "agent"],
+      "requiredScopes": ["deploy:read"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "serviceId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["serviceId"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "composeReleaseCatalog",
+      "summary": "compose Release Catalog",
+      "path": "/trpc/composeReleaseCatalog",
+      "method": "GET",
+      "lane": "read",
+      "auth": "authenticated",
+      "requiredRoles": [],
+      "requiredScopes": [],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 40
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "configDiff",
+      "summary": "config Diff",
+      "path": "/trpc/configDiff",
+      "method": "GET",
+      "lane": "planning",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator", "developer", "viewer", "agent"],
+      "requiredScopes": ["deploy:read"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "deploymentIdA": {
+            "type": "string",
+            "minLength": 1
+          },
+          "deploymentIdB": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["deploymentIdA", "deploymentIdB"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "createAgent",
+      "summary": "create Agent",
+      "path": "/trpc/createAgent",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin"],
+      "requiredScopes": [],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "scopes": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "preset": {
+            "type": "string",
+            "enum": ["agent:read-only", "agent:minimal-write", "agent:full"]
+          }
+        },
+        "required": ["name"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "createBackupDestination",
+      "summary": "create Backup Destination",
+      "path": "/trpc/createBackupDestination",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator"],
+      "requiredScopes": ["backup:run"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "provider": {
+            "type": "string",
+            "enum": ["s3", "local", "gdrive", "onedrive", "dropbox", "sftp", "rclone"]
+          },
+          "accessKey": {
+            "type": "string"
+          },
+          "secretAccessKey": {
+            "type": "string"
+          },
+          "bucket": {
+            "type": "string"
+          },
+          "region": {
+            "type": "string"
+          },
+          "endpoint": {
+            "type": "string"
+          },
+          "s3Provider": {
+            "type": "string"
+          },
+          "rcloneType": {
+            "type": "string"
+          },
+          "rcloneConfig": {
+            "type": "string"
+          },
+          "rcloneRemotePath": {
+            "type": "string"
+          },
+          "oauthToken": {
+            "type": "string"
+          },
+          "localPath": {
+            "type": "string"
+          }
+        },
+        "required": ["name", "provider"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "createChannel",
+      "summary": "create Channel",
+      "path": "/trpc/createChannel",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": [],
+      "requiredScopes": [],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "channelType": {
+            "type": "string",
+            "enum": ["slack", "discord", "email", "generic_webhook", "web_push"]
+          },
+          "webhookUrl": {
+            "type": "string",
+            "format": "uri"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+          },
+          "eventSelectors": {
+            "default": ["*"],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "enabled": {
+            "default": true,
+            "type": "boolean"
+          }
+        },
+        "required": ["name", "channelType", "eventSelectors", "enabled"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "createDeploymentRecord",
+      "summary": "create Deployment Record",
+      "path": "/trpc/createDeploymentRecord",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator", "developer"],
+      "requiredScopes": ["deploy:start"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "projectName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "environmentName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "serviceName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "sourceType": {
+            "type": "string",
+            "enum": ["compose", "dockerfile", "image"]
+          },
+          "targetServerId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "commitSha": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{7,40}$"
+          },
+          "imageTag": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "steps": {
+            "minItems": 1,
+            "maxItems": 6,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "label": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 80
+                },
+                "detail": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 280
+                }
+              },
+              "required": ["label", "detail"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "projectName",
+          "environmentName",
+          "serviceName",
+          "sourceType",
+          "targetServerId",
+          "commitSha",
+          "imageTag",
+          "steps"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "createEnvironment",
+      "summary": "create Environment",
+      "path": "/trpc/createEnvironment",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator", "developer"],
+      "requiredScopes": ["deploy:start"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "projectId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "targetServerId": {
+            "type": "string"
+          },
+          "composeFiles": {
+            "maxItems": 20,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 500
+            }
+          },
+          "composeProfiles": {
+            "maxItems": 20,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 100
+            }
+          }
+        },
+        "required": ["projectId", "name"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "createGitInstallation",
+      "summary": "create Git Installation",
+      "path": "/trpc/createGitInstallation",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin"],
+      "requiredScopes": [],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "providerId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "installationId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "accountName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "accountType": {
+            "type": "string",
+            "maxLength": 20
+          },
+          "repositorySelection": {
+            "type": "string",
+            "maxLength": 20
+          },
+          "permissions": {
+            "type": "string"
+          },
+          "installedByUserId": {
+            "type": "string"
+          }
+        },
+        "required": ["providerId", "installationId", "accountName"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "createProject",
+      "summary": "create Project",
+      "path": "/trpc/createProject",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator", "developer"],
+      "requiredScopes": ["deploy:start"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "repoUrl": {
+            "type": "string",
+            "maxLength": 300
+          },
+          "repoFullName": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "composePath": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "composeFiles": {
+            "maxItems": 20,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 500
+            }
+          },
+          "composeProfiles": {
+            "maxItems": 20,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 100
+            }
+          },
+          "gitProviderId": {
+            "type": "string",
+            "maxLength": 32
+          },
+          "gitInstallationId": {
+            "type": "string",
+            "maxLength": 32
+          },
+          "defaultBranch": {
+            "type": "string",
+            "maxLength": 80
+          },
+          "autoDeploy": {
+            "type": "boolean"
+          },
+          "autoDeployBranch": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "webhookWatchedPaths": {
+            "maxItems": 50,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 500
+            }
+          },
+          "repositorySubmodules": {
+            "type": "boolean"
+          },
+          "repositoryGitLfs": {
+            "type": "boolean"
+          },
+          "teamId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["name"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "createSecretProvider",
+      "summary": "create Secret Provider",
+      "path": "/trpc/createSecretProvider",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin"],
+      "requiredScopes": [],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "type": {
+            "type": "string",
+            "enum": ["1password"]
+          },
+          "serviceAccountToken": {
+            "type": "string",
+            "minLength": 10
+          }
+        },
+        "required": ["name", "type", "serviceAccountToken"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "createService",
+      "summary": "create Service",
+      "path": "/trpc/createService",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator", "developer"],
+      "requiredScopes": ["service:update"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "environmentId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "projectId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "sourceType": {
+            "type": "string",
+            "enum": ["compose", "dockerfile", "image"]
+          },
+          "imageReference": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "dockerfilePath": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "composeServiceName": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "port": {
+            "type": "string",
+            "maxLength": 20
+          },
+          "healthcheckPath": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "readinessProbe": {
+            "anyOf": [
+              {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "const": "http"
+                      },
+                      "target": {
+                        "type": "string",
+                        "const": "published-port"
+                      },
+                      "port": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 65535
+                      },
+                      "timeoutSeconds": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 300
+                      },
+                      "intervalSeconds": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 30
+                      },
+                      "path": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 255
+                      },
+                      "host": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 255
+                      },
+                      "scheme": {
+                        "type": "string",
+                        "enum": ["http", "https"]
+                      },
+                      "successStatusCodes": {
+                        "maxItems": 20,
+                        "type": "array",
+                        "items": {
+                          "type": "integer",
+                          "minimum": 100,
+                          "maximum": 599
+                        }
+                      }
+                    },
+                    "required": ["type", "target", "port", "path"],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "const": "http"
+                      },
+                      "target": {
+                        "type": "string",
+                        "const": "internal-network"
+                      },
+                      "port": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 65535
+                      },
+                      "timeoutSeconds": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 300
+                      },
+                      "intervalSeconds": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 30
+                      },
+                      "path": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 255
+                      },
+                      "scheme": {
+                        "type": "string",
+                        "enum": ["http", "https"]
+                      },
+                      "successStatusCodes": {
+                        "maxItems": 20,
+                        "type": "array",
+                        "items": {
+                          "type": "integer",
+                          "minimum": 100,
+                          "maximum": 599
+                        }
+                      }
+                    },
+                    "required": ["type", "target", "port", "path"],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "const": "tcp"
+                      },
+                      "target": {
+                        "type": "string",
+                        "const": "published-port"
+                      },
+                      "port": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 65535
+                      },
+                      "timeoutSeconds": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 300
+                      },
+                      "intervalSeconds": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 30
+                      },
+                      "host": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 255
+                      }
+                    },
+                    "required": ["type", "target", "port"],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "const": "tcp"
+                      },
+                      "target": {
+                        "type": "string",
+                        "const": "internal-network"
+                      },
+                      "port": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 65535
+                      },
+                      "timeoutSeconds": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 300
+                      },
+                      "intervalSeconds": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 30
+                      }
+                    },
+                    "required": ["type", "target", "port"],
+                    "additionalProperties": false
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "preview": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "enabled": {
+                    "type": "boolean"
+                  },
+                  "mode": {
+                    "type": "string",
+                    "enum": ["branch", "pull-request", "any"]
+                  },
+                  "domainTemplate": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 255
+                  },
+                  "staleAfterHours": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 720
+                  }
+                },
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "targetServerId": {
+            "type": "string"
+          }
+        },
+        "required": ["name", "environmentId", "projectId", "sourceType"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "deleteBackupDestination",
+      "summary": "delete Backup Destination",
+      "path": "/trpc/deleteBackupDestination",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator"],
+      "requiredScopes": ["backup:run"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["id"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "deleteChannel",
+      "summary": "delete Channel",
+      "path": "/trpc/deleteChannel",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": [],
+      "requiredScopes": [],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": ["id"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "deleteEnvironment",
+      "summary": "delete Environment",
+      "path": "/trpc/deleteEnvironment",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin"],
+      "requiredScopes": [],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "environmentId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["environmentId"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "deleteEnvironmentVariable",
+      "summary": "delete Environment Variable",
+      "path": "/trpc/deleteEnvironmentVariable",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator", "developer"],
+      "requiredScopes": ["env:write"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "environmentId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "key": {
+            "type": "string",
+            "maxLength": 80,
+            "pattern": "^[A-Z_][A-Z0-9_]*$"
+          }
+        },
+        "required": ["environmentId", "key"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "deleteGitProvider",
+      "summary": "delete Git Provider",
+      "path": "/trpc/deleteGitProvider",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin"],
+      "requiredScopes": [],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "providerId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["providerId"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "deleteProject",
+      "summary": "delete Project",
+      "path": "/trpc/deleteProject",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin"],
+      "requiredScopes": [],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "projectId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["projectId"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "deleteSecretProvider",
+      "summary": "delete Secret Provider",
+      "path": "/trpc/deleteSecretProvider",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin"],
+      "requiredScopes": [],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "providerId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["providerId"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "deleteServer",
+      "summary": "delete Server",
+      "path": "/trpc/deleteServer",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin"],
+      "requiredScopes": ["server:write"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "serverId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["serverId"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "deleteService",
+      "summary": "delete Service",
+      "path": "/trpc/deleteService",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin"],
+      "requiredScopes": [],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "serviceId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["serviceId"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "deploymentDetails",
+      "summary": "deployment Details",
+      "path": "/trpc/deploymentDetails",
+      "method": "GET",
+      "lane": "read",
+      "auth": "authenticated",
+      "requiredRoles": [],
+      "requiredScopes": [],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "deploymentId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["deploymentId"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "deploymentDiff",
+      "summary": "deployment Diff",
+      "path": "/trpc/deploymentDiff",
+      "method": "GET",
+      "lane": "read",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator", "developer", "viewer", "agent"],
+      "requiredScopes": ["deploy:read"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "deploymentIdA": {
+            "type": "string",
+            "minLength": 1
+          },
+          "deploymentIdB": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["deploymentIdA", "deploymentIdB"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "deploymentInsights",
+      "summary": "deployment Insights",
+      "path": "/trpc/deploymentInsights",
+      "method": "GET",
+      "lane": "read",
+      "auth": "authenticated",
+      "requiredRoles": [],
+      "requiredScopes": [],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 12
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "deploymentLogs",
+      "summary": "deployment Logs",
+      "path": "/trpc/deploymentLogs",
+      "method": "GET",
+      "lane": "read",
+      "auth": "authenticated",
+      "requiredRoles": [],
+      "requiredScopes": [],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "deploymentId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "deploymentPlan",
+      "summary": "deployment Plan",
+      "path": "/trpc/deploymentPlan",
+      "method": "GET",
+      "lane": "planning",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator", "developer", "viewer", "agent"],
+      "requiredScopes": ["deploy:read"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "service": {
+            "type": "string",
+            "minLength": 1
+          },
+          "server": {
+            "type": "string",
+            "minLength": 1
+          },
+          "image": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "preview": {
+            "type": "object",
+            "properties": {
+              "target": {
+                "type": "string",
+                "enum": ["branch", "pull-request"]
+              },
+              "branch": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 255
+              },
+              "pullRequestNumber": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              "action": {
+                "type": "string",
+                "enum": ["deploy", "destroy"]
+              }
+            },
+            "required": ["target", "branch"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["service"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "deploymentRollbackPlans",
+      "summary": "deployment Rollback Plans",
+      "path": "/trpc/deploymentRollbackPlans",
+      "method": "GET",
+      "lane": "read",
+      "auth": "authenticated",
+      "requiredRoles": [],
+      "requiredScopes": [],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 12
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "disableBackupSchedule",
+      "summary": "disable Backup Schedule",
+      "path": "/trpc/disableBackupSchedule",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator"],
+      "requiredScopes": ["backup:run"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "policyId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["policyId"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "dispatchExecutionJob",
+      "summary": "dispatch Execution Job",
+      "path": "/trpc/dispatchExecutionJob",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator", "developer"],
+      "requiredScopes": ["deploy:start"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["jobId"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "enableBackupSchedule",
+      "summary": "enable Backup Schedule",
+      "path": "/trpc/enableBackupSchedule",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator"],
+      "requiredScopes": ["backup:run"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "policyId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "schedule": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["policyId", "schedule"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "environmentVariables",
+      "summary": "environment Variables",
+      "path": "/trpc/environmentVariables",
+      "method": "GET",
+      "lane": "read",
+      "auth": "authenticated",
+      "requiredRoles": [],
+      "requiredScopes": [],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "environmentId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "exchangeGitLabCode",
+      "summary": "exchange Git Lab Code",
+      "path": "/trpc/exchangeGitLabCode",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin"],
+      "requiredScopes": [],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "minLength": 1
+          },
+          "providerId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["code", "providerId"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "executeRollback",
+      "summary": "execute Rollback",
+      "path": "/trpc/executeRollback",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator", "developer"],
+      "requiredScopes": ["deploy:rollback"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "serviceId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "targetDeploymentId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["serviceId", "targetDeploymentId"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "executionQueue",
+      "summary": "execution Queue",
+      "path": "/trpc/executionQueue",
+      "method": "GET",
+      "lane": "read",
+      "auth": "authenticated",
+      "requiredRoles": [],
+      "requiredScopes": [],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": ["pending", "dispatched", "completed", "failed"]
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 50
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "failExecutionJob",
+      "summary": "fail Execution Job",
+      "path": "/trpc/failExecutionJob",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator", "developer"],
+      "requiredScopes": ["deploy:start"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 280
+          }
+        },
+        "required": ["jobId"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "generateAgentToken",
+      "summary": "generate Agent Token",
+      "path": "/trpc/generateAgentToken",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin"],
+      "requiredScopes": ["tokens:manage"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "principalId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "tokenName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "expiresInDays": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 365
+          }
+        },
+        "required": ["principalId", "tokenName"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "getProjectOverrides",
+      "summary": "get Project Overrides",
+      "path": "/trpc/getProjectOverrides",
+      "method": "GET",
+      "lane": "read",
+      "auth": "authenticated",
+      "requiredRoles": [],
+      "requiredScopes": [],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "projectId": {
+            "type": "string"
+          }
+        },
+        "required": ["projectId"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "getUserPreferences",
+      "summary": "get User Preferences",
+      "path": "/trpc/getUserPreferences",
+      "method": "GET",
+      "lane": "read",
+      "auth": "authenticated",
+      "requiredRoles": [],
+      "requiredScopes": [],
+      "inputSchema": null
+    },
+    {
+      "name": "gitInstallations",
+      "summary": "git Installations",
+      "path": "/trpc/gitInstallations",
+      "method": "GET",
+      "lane": "read",
+      "auth": "authenticated",
+      "requiredRoles": [],
+      "requiredScopes": [],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "providerId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "gitProviders",
+      "summary": "git Providers",
+      "path": "/trpc/gitProviders",
+      "method": "GET",
+      "lane": "read",
+      "auth": "authenticated",
+      "requiredRoles": [],
+      "requiredScopes": [],
+      "inputSchema": null
+    },
+    {
+      "name": "health",
+      "summary": "health",
+      "path": "/trpc/health",
+      "method": "GET",
+      "lane": "read",
+      "auth": "public",
+      "requiredRoles": [],
+      "requiredScopes": [],
+      "inputSchema": null
+    },
+    {
+      "name": "infrastructureInventory",
+      "summary": "infrastructure Inventory",
+      "path": "/trpc/infrastructureInventory",
+      "method": "GET",
+      "lane": "read",
+      "auth": "authenticated",
+      "requiredRoles": [],
+      "requiredScopes": [],
+      "inputSchema": null
+    },
+    {
+      "name": "listChannels",
+      "summary": "list Channels",
+      "path": "/trpc/listChannels",
+      "method": "GET",
+      "lane": "read",
+      "auth": "authenticated",
+      "requiredRoles": [],
+      "requiredScopes": [],
+      "inputSchema": null
+    },
+    {
+      "name": "listDeliveryLogs",
+      "summary": "list Delivery Logs",
+      "path": "/trpc/listDeliveryLogs",
+      "method": "GET",
+      "lane": "read",
+      "auth": "authenticated",
+      "requiredRoles": [],
+      "requiredScopes": [],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "limit": {
+            "default": 20,
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          }
+        },
+        "required": ["limit"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "listDestinationFiles",
+      "summary": "list Destination Files",
+      "path": "/trpc/listDestinationFiles",
+      "method": "GET",
+      "lane": "read",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator"],
+      "requiredScopes": ["backup:run"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "path": {
+            "type": "string"
+          }
+        },
+        "required": ["id"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "listPushSubscriptions",
+      "summary": "list Push Subscriptions",
+      "path": "/trpc/listPushSubscriptions",
+      "method": "GET",
+      "lane": "read",
+      "auth": "authenticated",
+      "requiredRoles": [],
+      "requiredScopes": [],
+      "inputSchema": null
+    },
+    {
+      "name": "listSecretProviders",
+      "summary": "list Secret Providers",
+      "path": "/trpc/listSecretProviders",
+      "method": "GET",
+      "lane": "read",
+      "auth": "authenticated",
+      "requiredRoles": [],
+      "requiredScopes": [],
+      "inputSchema": null
+    },
+    {
+      "name": "operationsTimeline",
+      "summary": "operations Timeline",
+      "path": "/trpc/operationsTimeline",
+      "method": "GET",
+      "lane": "read",
+      "auth": "authenticated",
+      "requiredRoles": [],
+      "requiredScopes": [],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "deploymentId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 50
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "persistentVolumes",
+      "summary": "persistent Volumes",
+      "path": "/trpc/persistentVolumes",
+      "method": "GET",
+      "lane": "read",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator", "developer", "viewer", "agent"],
+      "requiredScopes": ["backup:read"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 24
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "platformOverview",
+      "summary": "platform Overview",
+      "path": "/trpc/platformOverview",
+      "method": "GET",
+      "lane": "read",
+      "auth": "public",
+      "requiredRoles": [],
+      "requiredScopes": [],
+      "inputSchema": null
+    },
+    {
+      "name": "principalInventory",
+      "summary": "principal Inventory",
+      "path": "/trpc/principalInventory",
+      "method": "GET",
+      "lane": "read",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin"],
+      "requiredScopes": [],
+      "inputSchema": null
+    },
+    {
+      "name": "projectDetails",
+      "summary": "project Details",
+      "path": "/trpc/projectDetails",
+      "method": "GET",
+      "lane": "read",
+      "auth": "authenticated",
+      "requiredRoles": [],
+      "requiredScopes": [],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "projectId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["projectId"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "projectEnvironments",
+      "summary": "project Environments",
+      "path": "/trpc/projectEnvironments",
+      "method": "GET",
+      "lane": "read",
+      "auth": "authenticated",
+      "requiredRoles": [],
+      "requiredScopes": [],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "projectId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["projectId"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "projects",
+      "summary": "projects",
+      "path": "/trpc/projects",
+      "method": "GET",
+      "lane": "read",
+      "auth": "authenticated",
+      "requiredRoles": [],
+      "requiredScopes": [],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 50
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "projectServices",
+      "summary": "project Services",
+      "path": "/trpc/projectServices",
+      "method": "GET",
+      "lane": "read",
+      "auth": "authenticated",
+      "requiredRoles": [],
+      "requiredScopes": [],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "projectId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["projectId"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "queueBackupRestore",
+      "summary": "queue Backup Restore",
+      "path": "/trpc/queueBackupRestore",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator"],
+      "requiredScopes": ["backup:restore"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "backupRunId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["backupRunId"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "queueComposeRelease",
+      "summary": "queue Compose Release",
+      "path": "/trpc/queueComposeRelease",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator", "developer"],
+      "requiredScopes": ["deploy:start"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "composeServiceId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "commitSha": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{7,40}$"
+          },
+          "imageTag": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          }
+        },
+        "required": ["composeServiceId", "commitSha"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "recentDeployments",
+      "summary": "recent Deployments",
+      "path": "/trpc/recentDeployments",
+      "method": "GET",
+      "lane": "read",
+      "auth": "authenticated",
+      "requiredRoles": [],
+      "requiredScopes": [],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": ["healthy", "failed", "running", "queued"]
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 50
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "reconcileComposePreviews",
+      "summary": "reconcile Compose Previews",
+      "path": "/trpc/reconcileComposePreviews",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator", "developer"],
+      "requiredScopes": ["deploy:start"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "serviceId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "dryRun": {
+            "type": "boolean"
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          }
+        },
+        "required": ["serviceId"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "registerGitProvider",
+      "summary": "register Git Provider",
+      "path": "/trpc/registerGitProvider",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin"],
+      "requiredScopes": [],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": ["github", "gitlab"]
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "appId": {
+            "type": "string",
+            "maxLength": 40
+          },
+          "clientId": {
+            "type": "string",
+            "maxLength": 80
+          },
+          "clientSecret": {
+            "type": "string"
+          },
+          "privateKey": {
+            "type": "string"
+          },
+          "webhookSecret": {
+            "type": "string",
+            "maxLength": 128
+          },
+          "baseUrl": {
+            "type": "string",
+            "maxLength": 255
+          }
+        },
+        "required": ["type", "name"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "registerServer",
+      "summary": "register Server",
+      "path": "/trpc/registerServer",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin"],
+      "requiredScopes": ["server:write"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "host": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "region": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 60
+          },
+          "sshPort": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 65535
+          },
+          "sshUser": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "sshPrivateKey": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 20000
+          },
+          "kind": {
+            "type": "string",
+            "enum": ["docker-engine", "docker-swarm-manager"]
+          }
+        },
+        "required": ["name", "host", "region", "sshPort", "kind"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "rejectApprovalRequest",
+      "summary": "reject Approval Request",
+      "path": "/trpc/rejectApprovalRequest",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator"],
+      "requiredScopes": ["approvals:decide"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "requestId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["requestId"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "removeServiceDomain",
+      "summary": "remove Service Domain",
+      "path": "/trpc/removeServiceDomain",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator", "developer"],
+      "requiredScopes": ["service:update"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "serviceId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "domainId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          }
+        },
+        "required": ["serviceId", "domainId"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "requestApproval",
+      "summary": "request Approval",
+      "path": "/trpc/requestApproval",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator", "developer", "agent"],
+      "requiredScopes": ["approvals:create"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "actionType": {
+                "type": "string",
+                "const": "compose-release"
+              },
+              "composeServiceId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "commitSha": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{7,40}$"
+              },
+              "imageTag": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 12,
+                "maxLength": 280
+              }
+            },
+            "required": ["actionType", "composeServiceId", "commitSha", "reason"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "actionType": {
+                "type": "string",
+                "const": "backup-restore"
+              },
+              "backupRunId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 12,
+                "maxLength": 280
+              }
+            },
+            "required": ["actionType", "backupRunId", "reason"],
+            "additionalProperties": false
+          }
+        ]
+      }
+    },
+    {
+      "name": "resolveEnvironmentSecrets",
+      "summary": "resolve Environment Secrets",
+      "path": "/trpc/resolveEnvironmentSecrets",
+      "method": "GET",
+      "lane": "read",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator", "developer", "agent"],
+      "requiredScopes": ["secrets:read"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "environmentId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["environmentId"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "revokeAgentToken",
+      "summary": "revoke Agent Token",
+      "path": "/trpc/revokeAgentToken",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin"],
+      "requiredScopes": ["tokens:manage"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "tokenId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["tokenId"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "roadmap",
+      "summary": "roadmap",
+      "path": "/trpc/roadmap",
+      "method": "GET",
+      "lane": "read",
+      "auth": "public",
+      "requiredRoles": [],
+      "requiredScopes": [],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "lane": {
+            "type": "string",
+            "enum": ["control-plane", "execution-plane", "agent-safety"]
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "rollbackPlan",
+      "summary": "rollback Plan",
+      "path": "/trpc/rollbackPlan",
+      "method": "GET",
+      "lane": "planning",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator", "developer", "viewer", "agent"],
+      "requiredScopes": ["deploy:read"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "service": {
+            "type": "string",
+            "minLength": 1
+          },
+          "target": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["service"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "rollbackTargets",
+      "summary": "rollback Targets",
+      "path": "/trpc/rollbackTargets",
+      "method": "GET",
+      "lane": "read",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator", "developer", "viewer", "agent"],
+      "requiredScopes": ["deploy:read"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "serviceId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["serviceId"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "serverReadiness",
+      "summary": "server Readiness",
+      "path": "/trpc/serverReadiness",
+      "method": "GET",
+      "lane": "read",
+      "auth": "authenticated",
+      "requiredRoles": [],
+      "requiredScopes": [],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 24
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "serviceDetails",
+      "summary": "service Details",
+      "path": "/trpc/serviceDetails",
+      "method": "GET",
+      "lane": "read",
+      "auth": "authenticated",
+      "requiredRoles": [],
+      "requiredScopes": [],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "serviceId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["serviceId"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "serviceDomainState",
+      "summary": "service Domain State",
+      "path": "/trpc/serviceDomainState",
+      "method": "GET",
+      "lane": "read",
+      "auth": "authenticated",
+      "requiredRoles": [],
+      "requiredScopes": [],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "serviceId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["serviceId"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "services",
+      "summary": "services",
+      "path": "/trpc/services",
+      "method": "GET",
+      "lane": "read",
+      "auth": "authenticated",
+      "requiredRoles": [],
+      "requiredScopes": [],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "environmentId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "setPrimaryServiceDomain",
+      "summary": "set Primary Service Domain",
+      "path": "/trpc/setPrimaryServiceDomain",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator", "developer"],
+      "requiredScopes": ["service:update"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "serviceId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "domainId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          }
+        },
+        "required": ["serviceId", "domainId"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "setProjectOverride",
+      "summary": "set Project Override",
+      "path": "/trpc/setProjectOverride",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": [],
+      "requiredScopes": [],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "projectId": {
+            "type": "string"
+          },
+          "eventType": {
+            "type": "string"
+          },
+          "channelType": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          }
+        },
+        "required": ["projectId", "eventType", "channelType", "enabled"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "setUserPreference",
+      "summary": "set User Preference",
+      "path": "/trpc/setUserPreference",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": [],
+      "requiredScopes": [],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "eventType": {
+            "type": "string"
+          },
+          "channelType": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          }
+        },
+        "required": ["eventType", "channelType", "enabled"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "subscribePush",
+      "summary": "subscribe Push",
+      "path": "/trpc/subscribePush",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": [],
+      "requiredScopes": [],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "subscription": {
+            "type": "object",
+            "properties": {
+              "endpoint": {
+                "type": "string",
+                "format": "uri"
+              },
+              "keys": {
+                "type": "object",
+                "properties": {
+                  "p256dh": {
+                    "type": "string"
+                  },
+                  "auth": {
+                    "type": "string"
+                  }
+                },
+                "required": ["p256dh", "auth"],
+                "additionalProperties": false
+              }
+            },
+            "required": ["endpoint", "keys"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["subscription"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "testBackupDestination",
+      "summary": "test Backup Destination",
+      "path": "/trpc/testBackupDestination",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator"],
+      "requiredScopes": ["backup:run"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["id"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "testSecretProvider",
+      "summary": "test Secret Provider",
+      "path": "/trpc/testSecretProvider",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin"],
+      "requiredScopes": [],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "providerId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["providerId"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "toggleChannel",
+      "summary": "toggle Channel",
+      "path": "/trpc/toggleChannel",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": [],
+      "requiredScopes": [],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          }
+        },
+        "required": ["id", "enabled"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "triggerBackupNow",
+      "summary": "trigger Backup Now",
+      "path": "/trpc/triggerBackupNow",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator"],
+      "requiredScopes": ["backup:run"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "policyId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["policyId"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "triggerBackupRun",
+      "summary": "trigger Backup Run",
+      "path": "/trpc/triggerBackupRun",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator"],
+      "requiredScopes": ["backup:run"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "policyId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["policyId"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "triggerDeploy",
+      "summary": "trigger Deploy",
+      "path": "/trpc/triggerDeploy",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator", "developer"],
+      "requiredScopes": ["deploy:start"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "serviceId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "commitSha": {
+            "type": "string"
+          },
+          "imageTag": {
+            "type": "string"
+          },
+          "preview": {
+            "type": "object",
+            "properties": {
+              "target": {
+                "type": "string",
+                "enum": ["branch", "pull-request"]
+              },
+              "branch": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 255
+              },
+              "pullRequestNumber": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              "action": {
+                "type": "string",
+                "enum": ["deploy", "destroy"]
+              }
+            },
+            "required": ["target", "branch"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["serviceId"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "triggerTestRestore",
+      "summary": "trigger Test Restore",
+      "path": "/trpc/triggerTestRestore",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator"],
+      "requiredScopes": ["backup:restore"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "backupRunId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["backupRunId"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "unsubscribePush",
+      "summary": "unsubscribe Push",
+      "path": "/trpc/unsubscribePush",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": [],
+      "requiredScopes": [],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "endpoint": {
+            "type": "string"
+          }
+        },
+        "required": ["endpoint"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "updateBackupDestination",
+      "summary": "update Backup Destination",
+      "path": "/trpc/updateBackupDestination",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator"],
+      "requiredScopes": ["backup:run"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "provider": {
+            "type": "string",
+            "enum": ["s3", "local", "gdrive", "onedrive", "dropbox", "sftp", "rclone"]
+          },
+          "accessKey": {
+            "type": "string"
+          },
+          "secretAccessKey": {
+            "type": "string"
+          },
+          "bucket": {
+            "type": "string"
+          },
+          "region": {
+            "type": "string"
+          },
+          "endpoint": {
+            "type": "string"
+          },
+          "s3Provider": {
+            "type": "string"
+          },
+          "rcloneType": {
+            "type": "string"
+          },
+          "rcloneConfig": {
+            "type": "string"
+          },
+          "rcloneRemotePath": {
+            "type": "string"
+          },
+          "oauthToken": {
+            "type": "string"
+          },
+          "localPath": {
+            "type": "string"
+          }
+        },
+        "required": ["id"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "updateChannel",
+      "summary": "update Channel",
+      "path": "/trpc/updateChannel",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": [],
+      "requiredScopes": [],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "webhookUrl": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uri"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "eventSelectors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "enabled": {
+            "type": "boolean"
+          }
+        },
+        "required": ["id"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "updateEnvironment",
+      "summary": "update Environment",
+      "path": "/trpc/updateEnvironment",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator", "developer"],
+      "requiredScopes": ["service:update"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "environmentId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "status": {
+            "type": "string",
+            "maxLength": 40
+          },
+          "targetServerId": {
+            "type": "string"
+          },
+          "composeFiles": {
+            "maxItems": 20,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 500
+            }
+          },
+          "composeProfiles": {
+            "maxItems": 20,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 100
+            }
+          }
+        },
+        "required": ["environmentId"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "updateProject",
+      "summary": "update Project",
+      "path": "/trpc/updateProject",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator", "developer"],
+      "requiredScopes": ["service:update"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "projectId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "repoUrl": {
+            "type": "string",
+            "maxLength": 300
+          },
+          "repoFullName": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "composePath": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "composeFiles": {
+            "maxItems": 20,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 500
+            }
+          },
+          "composeProfiles": {
+            "maxItems": 20,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 100
+            }
+          },
+          "gitProviderId": {
+            "type": "string",
+            "maxLength": 32
+          },
+          "gitInstallationId": {
+            "type": "string",
+            "maxLength": 32
+          },
+          "defaultBranch": {
+            "type": "string",
+            "maxLength": 80
+          },
+          "autoDeploy": {
+            "type": "boolean"
+          },
+          "autoDeployBranch": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "webhookWatchedPaths": {
+            "maxItems": 50,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 500
+            }
+          },
+          "repositorySubmodules": {
+            "type": "boolean"
+          },
+          "repositoryGitLfs": {
+            "type": "boolean"
+          }
+        },
+        "required": ["projectId"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "updateService",
+      "summary": "update Service",
+      "path": "/trpc/updateService",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator", "developer"],
+      "requiredScopes": ["service:update"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "serviceId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "sourceType": {
+            "type": "string",
+            "enum": ["compose", "dockerfile", "image"]
+          },
+          "imageReference": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "dockerfilePath": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "composeServiceName": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "port": {
+            "type": "string",
+            "maxLength": 20
+          },
+          "healthcheckPath": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "readinessProbe": {
+            "anyOf": [
+              {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "const": "http"
+                      },
+                      "target": {
+                        "type": "string",
+                        "const": "published-port"
+                      },
+                      "port": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 65535
+                      },
+                      "timeoutSeconds": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 300
+                      },
+                      "intervalSeconds": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 30
+                      },
+                      "path": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 255
+                      },
+                      "host": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 255
+                      },
+                      "scheme": {
+                        "type": "string",
+                        "enum": ["http", "https"]
+                      },
+                      "successStatusCodes": {
+                        "maxItems": 20,
+                        "type": "array",
+                        "items": {
+                          "type": "integer",
+                          "minimum": 100,
+                          "maximum": 599
+                        }
+                      }
+                    },
+                    "required": ["type", "target", "port", "path"],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "const": "http"
+                      },
+                      "target": {
+                        "type": "string",
+                        "const": "internal-network"
+                      },
+                      "port": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 65535
+                      },
+                      "timeoutSeconds": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 300
+                      },
+                      "intervalSeconds": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 30
+                      },
+                      "path": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 255
+                      },
+                      "scheme": {
+                        "type": "string",
+                        "enum": ["http", "https"]
+                      },
+                      "successStatusCodes": {
+                        "maxItems": 20,
+                        "type": "array",
+                        "items": {
+                          "type": "integer",
+                          "minimum": 100,
+                          "maximum": 599
+                        }
+                      }
+                    },
+                    "required": ["type", "target", "port", "path"],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "const": "tcp"
+                      },
+                      "target": {
+                        "type": "string",
+                        "const": "published-port"
+                      },
+                      "port": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 65535
+                      },
+                      "timeoutSeconds": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 300
+                      },
+                      "intervalSeconds": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 30
+                      },
+                      "host": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 255
+                      }
+                    },
+                    "required": ["type", "target", "port"],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "const": "tcp"
+                      },
+                      "target": {
+                        "type": "string",
+                        "const": "internal-network"
+                      },
+                      "port": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 65535
+                      },
+                      "timeoutSeconds": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 300
+                      },
+                      "intervalSeconds": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 30
+                      }
+                    },
+                    "required": ["type", "target", "port"],
+                    "additionalProperties": false
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "preview": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "enabled": {
+                    "type": "boolean"
+                  },
+                  "mode": {
+                    "type": "string",
+                    "enum": ["branch", "pull-request", "any"]
+                  },
+                  "domainTemplate": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 255
+                  },
+                  "staleAfterHours": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 720
+                  }
+                },
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "replicaCount": {
+            "type": "string",
+            "maxLength": 5
+          },
+          "targetServerId": {
+            "type": "string"
+          }
+        },
+        "required": ["serviceId"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "updateServicePortMappings",
+      "summary": "update Service Port Mappings",
+      "path": "/trpc/updateServicePortMappings",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator", "developer"],
+      "requiredScopes": ["service:update"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "serviceId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "portMappings": {
+            "maxItems": 50,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                },
+                "hostPort": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 65535
+                },
+                "containerPort": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 65535
+                },
+                "protocol": {
+                  "default": "tcp",
+                  "type": "string",
+                  "enum": ["tcp", "udp"]
+                }
+              },
+              "required": ["hostPort", "containerPort", "protocol"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["serviceId", "portMappings"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "updateServiceRuntimeConfig",
+      "summary": "update Service Runtime Config",
+      "path": "/trpc/updateServiceRuntimeConfig",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator", "developer"],
+      "requiredScopes": ["service:update"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "serviceId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "volumes": {
+            "anyOf": [
+              {
+                "maxItems": 50,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "source": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 500
+                    },
+                    "target": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 500
+                    },
+                    "mode": {
+                      "default": "rw",
+                      "type": "string",
+                      "enum": ["rw", "ro"]
+                    }
+                  },
+                  "required": ["source", "target", "mode"],
+                  "additionalProperties": false
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "networks": {
+            "anyOf": [
+              {
+                "maxItems": 50,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 120
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "restartPolicy": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "enum": ["always", "unless-stopped", "on-failure", "no"]
+                  },
+                  "maxRetries": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 100
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": ["name"],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "healthCheck": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "command": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2000
+                  },
+                  "intervalSeconds": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 3600
+                  },
+                  "timeoutSeconds": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 3600
+                  },
+                  "retries": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100
+                  },
+                  "startPeriodSeconds": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 3600
+                  }
+                },
+                "required": [
+                  "command",
+                  "intervalSeconds",
+                  "timeoutSeconds",
+                  "retries",
+                  "startPeriodSeconds"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "resources": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "cpuLimitCores": {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                        "exclusiveMinimum": 0,
+                        "maximum": 256
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "cpuReservationCores": {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                        "exclusiveMinimum": 0,
+                        "maximum": 256
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "memoryLimitMb": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 1048576
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "memoryReservationMb": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 1048576
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": ["serviceId"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "upsertEnvironmentVariable",
+      "summary": "upsert Environment Variable",
+      "path": "/trpc/upsertEnvironmentVariable",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator", "developer"],
+      "requiredScopes": ["env:write"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "environmentId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "key": {
+            "type": "string",
+            "maxLength": 80,
+            "pattern": "^[A-Z_][A-Z0-9_]*$"
+          },
+          "value": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4000
+          },
+          "isSecret": {
+            "type": "boolean"
+          },
+          "category": {
+            "type": "string",
+            "enum": ["runtime", "build"]
+          },
+          "source": {
+            "type": "string",
+            "enum": ["inline", "1password"]
+          },
+          "secretRef": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "branchPattern": {
+            "type": "string",
+            "maxLength": 120
+          }
+        },
+        "required": ["environmentId", "key", "value", "isSecret", "category"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "validateSecretRef",
+      "summary": "validate Secret Ref",
+      "path": "/trpc/validateSecretRef",
+      "method": "GET",
+      "lane": "read",
+      "auth": "authenticated",
+      "requiredRoles": [],
+      "requiredScopes": [],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "ref": {
+            "type": "string"
+          }
+        },
+        "required": ["ref"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "viewer",
+      "summary": "viewer",
+      "path": "/trpc/viewer",
+      "method": "GET",
+      "lane": "read",
+      "auth": "authenticated",
+      "requiredRoles": [],
+      "requiredScopes": [],
+      "inputSchema": null
+    }
+  ],
+  "examples": [
+    {
+      "id": "auth.viewer",
+      "category": "auth",
+      "procedure": "viewer",
+      "request": {
+        "method": "GET",
+        "path": "/trpc/viewer"
+      },
+      "response": {
+        "principal": {
+          "id": "usr_abc123",
+          "email": "owner@example.com",
+          "name": "Owner",
+          "type": "user",
+          "linkedUserId": "usr_abc123"
+        },
+        "session": {
+          "id": "sess_abc123",
+          "expiresAt": "2026-03-20T18:00:00.000Z"
+        },
+        "authz": {
+          "authMethod": "api-token",
+          "role": "admin",
+          "capabilities": ["deploy:read", "deploy:start", "service:update", "logs:read"],
+          "token": {
+            "id": "tok_abc123",
+            "name": "ci-deploy",
+            "prefix": "dfl_ci_abcd",
+            "expiresAt": "2026-06-01T00:00:00.000Z",
+            "scopes": ["deploy:read", "deploy:start", "service:update", "logs:read"]
+          }
+        }
+      }
+    },
+    {
+      "id": "deployment.compose-plan",
+      "category": "deployment",
+      "procedure": "composeDeploymentPlan",
+      "request": {
+        "method": "GET",
+        "path": "/trpc/composeDeploymentPlan",
+        "input": {
+          "server": "srv_prod",
+          "compose": "services:\\n  web:\\n    image: ghcr.io/acme/web:main\\n",
+          "composePath": "./compose.yaml",
+          "contextPath": ".",
+          "localBuildContexts": [],
+          "requiresContextUpload": false
+        }
+      },
+      "response": {
+        "isReady": true,
+        "deploymentSource": "uploaded-compose",
+        "service": {
+          "id": null,
+          "name": "web",
+          "action": "create",
+          "sourceType": "compose"
+        },
+        "target": {
+          "serverId": "srv_prod",
+          "serverName": "prod-us-west",
+          "serverHost": "10.0.0.42"
+        },
+        "steps": [
+          "Freeze the compose file",
+          "Dispatch the staged workspace",
+          "Run docker compose up -d"
+        ]
+      }
+    },
+    {
+      "id": "deployment.trigger-deploy",
+      "category": "deployment",
+      "procedure": "triggerDeploy",
+      "request": {
+        "method": "POST",
+        "path": "/trpc/triggerDeploy",
+        "input": {
+          "serviceId": "svc_my_api",
+          "imageTag": "ghcr.io/acme/api:1.4.2"
+        }
+      },
+      "response": {
+        "id": "dep_abc123",
+        "serviceName": "api",
+        "status": "queued",
+        "createdAt": "2026-03-20T12:00:00.000Z"
+      }
+    },
+    {
+      "id": "env.upsert",
+      "category": "env",
+      "procedure": "upsertEnvironmentVariable",
+      "request": {
+        "method": "POST",
+        "path": "/trpc/upsertEnvironmentVariable",
+        "input": {
+          "environmentId": "env_prod",
+          "key": "DATABASE_URL",
+          "value": "postgresql://app:secret@db:5432/app",
+          "isSecret": true,
+          "category": "runtime",
+          "source": "inline"
+        }
+      },
+      "response": {
+        "id": "envvar_abc123",
+        "environmentId": "env_prod",
+        "key": "DATABASE_URL",
+        "isSecret": true,
+        "category": "runtime"
+      }
+    },
+    {
+      "id": "backup.run",
+      "category": "backup",
+      "procedure": "triggerBackupNow",
+      "request": {
+        "method": "POST",
+        "path": "/trpc/triggerBackupNow",
+        "input": {
+          "policyId": "bkp_pol_123"
+        }
+      },
+      "response": {
+        "id": "bkp_run_123",
+        "status": "queued",
+        "triggerKind": "manual",
+        "createdAt": "2026-03-20T12:05:00.000Z"
+      }
+    },
+    {
+      "id": "backup.restore",
+      "category": "backup",
+      "procedure": "queueBackupRestore",
+      "request": {
+        "method": "POST",
+        "path": "/trpc/queueBackupRestore",
+        "input": {
+          "backupRunId": "bkp_run_123"
+        }
+      },
+      "response": {
+        "id": "rst_abc123",
+        "backupRunId": "bkp_run_123",
+        "status": "queued"
+      }
+    },
+    {
+      "id": "approval.request",
+      "category": "approval",
+      "procedure": "requestApproval",
+      "request": {
+        "method": "POST",
+        "path": "/trpc/requestApproval",
+        "input": {
+          "actionType": "compose-release",
+          "composeServiceId": "svc_my_api",
+          "commitSha": "abcdef1",
+          "imageTag": "ghcr.io/acme/api:1.4.2",
+          "reason": "Production deploy approved by release checklist."
+        }
+      },
+      "response": {
+        "id": "apr_abc123",
+        "status": "pending"
+      }
+    },
+    {
+      "id": "approval.approve",
+      "category": "approval",
+      "procedure": "approveApprovalRequest",
+      "request": {
+        "method": "POST",
+        "path": "/trpc/approveApprovalRequest",
+        "input": {
+          "requestId": "apr_abc123"
+        }
+      },
+      "response": {
+        "id": "apr_abc123",
+        "status": "approved"
+      }
+    }
+  ]
+}
