@@ -9,6 +9,7 @@ const ProjectDetailPage = lazy(() => import("./pages/ProjectDetailPage"));
 const ServersPage = lazy(() => import("./pages/ServersPage"));
 const DeploymentsPage = lazy(() => import("./pages/DeploymentsPage"));
 const BackupsPage = lazy(() => import("./pages/BackupsPage"));
+const BackupRunPage = lazy(() => import("./pages/BackupRunPage"));
 const DestinationsPage = lazy(() => import("./pages/DestinationsPage"));
 const DestinationBrowserPage = lazy(() => import("./pages/DestinationBrowserPage"));
 const SettingsPage = lazy(() => import("./pages/SettingsPage"));
@@ -52,6 +53,7 @@ export const router = createBrowserRouter([
       { path: "servers", element: routeElement(ServersPage) },
       { path: "deployments", element: routeElement(DeploymentsPage) },
       { path: "backups", element: routeElement(BackupsPage) },
+      { path: "backups/runs/:runId", element: routeElement(BackupRunPage) },
       { path: "destinations", element: routeElement(DestinationsPage) },
       { path: "destinations/:id/browse", element: routeElement(DestinationBrowserPage) },
       { path: "agents", element: routeElement(AgentsPage) },

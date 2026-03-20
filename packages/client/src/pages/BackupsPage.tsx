@@ -1,11 +1,10 @@
-import { useEffect, useState } from "react";
-import { trpc } from "../lib/trpc";
-import { useSession } from "../lib/auth-client";
+import { useState } from "react";
 import { BackupRunDetailsSheet } from "@/components/backups/BackupRunDetailsSheet";
 import { BackupEmptyState } from "@/components/backups/BackupEmptyState";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button-variants";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -17,8 +16,11 @@ import {
 } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Plus, Clock, PlayCircle, StopCircle, RotateCcw } from "lucide-react";
-import { getBackupOperationBadgeVariant, formatBytes } from "../lib/tone-utils";
-import { isTRPCClientError } from "@trpc/client";
+import { Link } from "react-router-dom";
+import { useBackupRunDetails } from "@/features/backups/useBackupRunDetails";
+import { useSession } from "@/lib/auth-client";
+import { trpc } from "@/lib/trpc";
+import { getBackupOperationBadgeVariant, formatBytes } from "@/lib/tone-utils";
 
 export default function BackupsPage() {
   const session = useSession();
@@ -47,43 +49,10 @@ export default function BackupsPage() {
 
   const [cronInputs, setCronInputs] = useState<Record<string, string>>({});
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
-  const backupRunDetails = trpc.backupRunDetails.useQuery(
-    {
-      runId: selectedRunId ?? ""
-    },
-    {
-      enabled: Boolean(session.data && selectedRunId)
-    }
-  );
-  const backupRunDetailStatus = backupRunDetails.data?.status;
-  const refetchBackupRunDetails = backupRunDetails.refetch;
-
-  useEffect(() => {
-    if (!selectedRunId) {
-      return;
-    }
-
-    if (!backupRunDetailStatus) {
-      return;
-    }
-
-    if (!["queued", "running"].includes(backupRunDetailStatus)) {
-      return;
-    }
-
-    const interval = window.setInterval(() => {
-      void refetchBackupRunDetails();
-    }, 5000);
-
-    return () => window.clearInterval(interval);
-  }, [backupRunDetailStatus, refetchBackupRunDetails, selectedRunId]);
+  const { errorMessage: detailsErrorMessage, query: backupRunDetails } =
+    useBackupRunDetails(selectedRunId);
 
   const hasDestinations = (backupDestinations.data?.length ?? 0) > 0;
-  const detailsErrorMessage = isTRPCClientError(backupRunDetails.error)
-    ? backupRunDetails.error.message
-    : backupRunDetails.error
-      ? "Unable to load backup run diagnostics right now."
-      : null;
 
   return (
     <main className="shell space-y-6" data-testid="backup-overview">
@@ -263,13 +232,23 @@ export default function BackupsPage() {
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-2">
+                            <Link
+                              to={`/backups/runs/${String(r.id)}`}
+                              className={buttonVariants({
+                                size: "sm",
+                                variant: String(r.status) === "failed" ? "default" : "outline"
+                              })}
+                              data-testid={`backup-run-open-page-${String(r.id)}`}
+                            >
+                              Diagnostics
+                            </Link>
                             <Button
                               size="sm"
-                              variant={String(r.status) === "failed" ? "default" : "outline"}
+                              variant="ghost"
                               data-testid={`backup-run-inspect-${String(r.id)}`}
                               onClick={() => setSelectedRunId(String(r.id))}
                             >
-                              Inspect
+                              Quick inspect
                             </Button>
                             {String(r.status) === "succeeded" && (
                               <Button

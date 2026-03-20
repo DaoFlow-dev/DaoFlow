@@ -24,7 +24,7 @@ const {
   refetchBackupRunDetailsMock: vi.fn()
 }));
 
-vi.mock("../lib/auth-client", () => ({
+vi.mock("@/lib/auth-client", () => ({
   useSession: () => ({
     data: {
       user: {
@@ -34,7 +34,7 @@ vi.mock("../lib/auth-client", () => ({
   })
 }));
 
-vi.mock("../lib/trpc", () => ({
+vi.mock("@/lib/trpc", () => ({
   trpc: {
     backupOverview: {
       useQuery: backupOverviewUseQueryMock
@@ -171,6 +171,10 @@ describe("BackupsPage", () => {
 
     expect(screen.getByTestId("backup-run-details-sheet")).toBeInTheDocument();
     expect(screen.getByTestId("backup-run-details-title")).toHaveTextContent("postgres");
+    expect(screen.getByTestId("backup-run-open-page-run_failed")).toHaveAttribute(
+      "href",
+      "/backups/runs/run_failed"
+    );
     expect(
       screen.getByText("Resolved policy control-plane-db for foundation-vps-1.")
     ).toBeVisible();
