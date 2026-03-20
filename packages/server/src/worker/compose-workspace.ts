@@ -147,6 +147,8 @@ export async function prepareComposeWorkspace(
       sourceProvenance: "repository-checkout",
       deploymentState,
       imageOverride: config.composeImageOverride,
+      runtimeConfig: config.runtimeConfig,
+      composeServiceName: config.composeServiceName,
       existingComposeBuildPlan: config.composeBuildPlan,
       existingComposeEnv: config.composeEnv,
       existingComposeInputs: config.composeInputs
@@ -229,6 +231,8 @@ export async function prepareComposeWorkspace(
     sourceProvenance: "uploaded-artifact",
     deploymentState,
     imageOverride: config.composeImageOverride,
+    runtimeConfig: config.runtimeConfig,
+    composeServiceName: config.composeServiceName,
     existingComposeBuildPlan: config.composeBuildPlan,
     existingComposeEnv: config.composeEnv,
     existingComposeInputs: config.composeInputs

@@ -14,6 +14,7 @@ import type { ComposeEnvEvidence } from "../compose-env";
 import type { ComposeInputManifest } from "../compose-inputs";
 import type { ComposePreviewMetadata } from "../compose-preview";
 import type { ComposeReadinessProbeSnapshot } from "../compose-readiness";
+import type { ServiceRuntimeConfig } from "../service-runtime-config";
 
 export type DeploymentRow = typeof deployments.$inferSelect;
 
@@ -160,6 +161,7 @@ export interface ConfigSnapshot extends Record<string, unknown> {
   composeBuildPlan?: ComposeBuildPlan;
   composeEnv?: ComposeEnvEvidence;
   composeInputs?: ComposeInputManifest;
+  runtimeConfig?: ServiceRuntimeConfig;
 }
 
 export function readConfig(deployment: DeploymentRow): ConfigSnapshot {

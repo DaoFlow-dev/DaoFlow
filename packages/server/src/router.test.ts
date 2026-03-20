@@ -493,6 +493,93 @@ describe("appRouter", () => {
     ).toBe(true);
   });
 
+  it("persists DaoFlow-managed runtime overrides for compose services", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-runtime-overrides",
+      session: makeSession("owner")
+    });
+
+    const projectResult = await createProject({
+      name: `service-runtime-project-${Date.now()}`,
+      description: "Runtime override fixture",
+      teamId: "team_foundation",
+      requestedByUserId: "user_foundation_owner",
+      requestedByEmail: "owner@daoflow.local",
+      requestedByRole: "owner"
+    });
+    expect(projectResult.status).toBe("ok");
+    if (projectResult.status !== "ok") {
+      throw new Error("Failed to create runtime override project fixture.");
+    }
+
+    const environmentResult = await createEnvironment({
+      projectId: projectResult.project.id,
+      name: `runtime-overrides-env-${Date.now()}`,
+      targetServerId: "srv_foundation_1",
+      requestedByUserId: "user_foundation_owner",
+      requestedByEmail: "owner@daoflow.local",
+      requestedByRole: "owner"
+    });
+    expect(environmentResult.status).toBe("ok");
+    if (environmentResult.status !== "ok") {
+      throw new Error("Failed to create runtime override environment fixture.");
+    }
+
+    const serviceResult = await createService({
+      name: `runtime-overrides-svc-${Date.now()}`,
+      projectId: projectResult.project.id,
+      environmentId: environmentResult.environment.id,
+      sourceType: "compose",
+      composeServiceName: "api",
+      targetServerId: "srv_foundation_1",
+      requestedByUserId: "user_foundation_owner",
+      requestedByEmail: "owner@daoflow.local",
+      requestedByRole: "owner"
+    });
+    expect(serviceResult.status).toBe("ok");
+    if (serviceResult.status !== "ok") {
+      throw new Error("Failed to create runtime override service fixture.");
+    }
+
+    const updated = await caller.updateServiceRuntimeConfig({
+      serviceId: serviceResult.service.id,
+      volumes: [
+        {
+          source: "/srv/data",
+          target: "/var/lib/postgresql/data",
+          mode: "rw"
+        }
+      ],
+      networks: ["public"],
+      restartPolicy: {
+        name: "on-failure",
+        maxRetries: 5
+      }
+    });
+
+    expect(updated.runtimeConfig).toMatchObject({
+      volumes: [
+        {
+          source: "/srv/data",
+          target: "/var/lib/postgresql/data",
+          mode: "rw"
+        }
+      ],
+      networks: ["public"],
+      restartPolicy: {
+        name: "on-failure",
+        maxRetries: 5
+      }
+    });
+    expect(updated.runtimeConfigPreview).toContain("restart: on-failure:5");
+
+    const details = await caller.serviceDetails({ serviceId: serviceResult.service.id });
+    expect(asRecord(details.config).runtimeConfig).toMatchObject({
+      networks: ["public"]
+    });
+    expect(details.runtimeConfigPreview).toContain("services:");
+  });
+
   it("returns a real deployment plan from the planning lane", async () => {
     const caller = appRouter.createCaller({
       requestId: "test-plan",

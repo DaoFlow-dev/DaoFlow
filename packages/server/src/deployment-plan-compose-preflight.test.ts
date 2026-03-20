@@ -301,4 +301,49 @@ describe("deployment plan compose workspace preflight", () => {
       fixture.repository.cleanup();
     }
   });
+
+  it("includes DaoFlow-managed runtime overrides in compose interpolation preflight", async () => {
+    const ownerCaller = appRouter.createCaller({
+      requestId: "test-plan-runtime-override-owner",
+      session: makeSession("owner")
+    });
+    const viewerCaller = appRouter.createCaller({
+      requestId: "test-plan-runtime-override-viewer",
+      session: makeSession("viewer")
+    });
+    const fixture = await createRepoBackedComposeService({
+      composeServiceName: "api",
+      files: {
+        "deploy/compose.yaml": ["services:", "  api:", "    image: nginx:alpine"].join("\n")
+      }
+    });
+
+    try {
+      await ownerCaller.updateServiceRuntimeConfig({
+        serviceId: fixture.serviceId,
+        healthCheck: {
+          command: "curl -f http://localhost:${RUNTIME_PORT}/health || exit 1",
+          intervalSeconds: 30,
+          timeoutSeconds: 10,
+          retries: 3,
+          startPeriodSeconds: 15
+        }
+      });
+
+      const plan = await viewerCaller.deploymentPlan({
+        service: fixture.serviceId
+      });
+
+      expect(plan.composeEnvPlan?.interpolation.unresolved).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            key: "RUNTIME_PORT",
+            expression: "${RUNTIME_PORT}"
+          })
+        ])
+      );
+    } finally {
+      fixture.repository.cleanup();
+    }
+  });
 });

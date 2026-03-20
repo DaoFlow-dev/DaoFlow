@@ -13,6 +13,11 @@ import type { ComposeBuildPlan } from "../../compose-build-plan";
 import { resolveComposeExecutionScope } from "../../compose-build-plan-execution";
 import { buildComposeEnvPlanDiagnostics } from "../../compose-env-plan";
 import { materializeComposeWorkspaceArtifacts } from "../../compose-workspace-artifacts";
+import {
+  hasServiceRuntimeConfig,
+  readServiceRuntimeConfig,
+  readServiceRuntimeConfigFromConfig
+} from "../../service-runtime-config";
 import { db } from "../connection";
 import { deployments } from "../schema/deployments";
 import { environments, projects } from "../schema/projects";
@@ -102,6 +107,7 @@ async function materializeComposePlanningPreflight(input: {
   serviceName: string;
   composeServiceName?: string | null;
   serviceImageReference?: string | null;
+  runtimeConfig?: unknown;
 }): Promise<
   | {
       status: "ok";
@@ -155,7 +161,9 @@ async function materializeComposePlanningPreflight(input: {
       branch: input.branch,
       sourceProvenance: "repository-checkout",
       deploymentState: { envState: { kind: "queued", entries: [] } },
-      imageOverride: composeImageOverride
+      imageOverride: composeImageOverride,
+      runtimeConfig: readServiceRuntimeConfig(input.runtimeConfig),
+      composeServiceName: input.composeServiceName
     });
 
     const renderedCompose = materialized.composeInputs.frozenInputs.renderedCompose;
@@ -341,6 +349,7 @@ export async function buildDeploymentPlan(input: BuildDeploymentPlanInput) {
 
   const sourceType = normalizeSourceType(service.sourceType);
   const readinessProbe = readComposeReadinessProbeFromConfig(service.config);
+  const runtimeConfig = readServiceRuntimeConfigFromConfig(service.config);
   let composeEnvPlan: ReturnType<typeof buildComposeEnvPlanDiagnostics> | null = null;
   let composeBuildPlan: ComposeBuildPlan | null = null;
 
@@ -368,7 +377,18 @@ export async function buildDeploymentPlan(input: BuildDeploymentPlanInput) {
           `Compose execution will run ${describeComposeReadinessProbe(readinessProbe)} after Docker Compose container state and Docker health are green.`
         )
       );
-    } else if (service.healthcheckPath) {
+    }
+
+    if (hasServiceRuntimeConfig(runtimeConfig)) {
+      checks.push(
+        makeCheck(
+          "ok",
+          `DaoFlow-managed runtime overrides will merge into ${service.composeServiceName ?? service.name} before the compose stack is rendered.`
+        )
+      );
+    }
+
+    if (!readinessProbe && service.healthcheckPath) {
       checks.push(
         makeCheck(
           "warn",
@@ -401,7 +421,8 @@ export async function buildDeploymentPlan(input: BuildDeploymentPlanInput) {
         imageTag: effectiveImageTag,
         serviceName: service.name,
         composeServiceName: service.composeServiceName,
-        serviceImageReference: service.imageReference
+        serviceImageReference: service.imageReference,
+        runtimeConfig
       });
 
       if (planInputs.status === "ok") {

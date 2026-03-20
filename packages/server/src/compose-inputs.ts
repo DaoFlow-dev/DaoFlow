@@ -10,6 +10,10 @@ import {
 import { COMPOSE_ENV_FILE_NAME } from "./compose-env";
 import { mergeComposeDocuments } from "./compose-merge";
 import { normalizeComposeProfiles } from "./compose-source";
+import {
+  buildServiceRuntimeOverrideComposeDocument,
+  type ServiceRuntimeConfig
+} from "./service-runtime-config";
 
 export const RENDERED_COMPOSE_FILE_NAME = ".daoflow.compose.rendered.yaml";
 export const FROZEN_COMPOSE_INPUT_DIR = ".daoflow.compose.inputs";
@@ -240,6 +244,13 @@ function buildGeneratedOverrideComposeFilePath(serviceName: string): string {
   const sanitizedServiceName = sanitizeFrozenPath(serviceName).replace(/\//g, "__");
   return normalizeRelativePath(
     join(FROZEN_COMPOSE_INPUT_DIR, `compose-override__${sanitizedServiceName}.yaml`)
+  );
+}
+
+function buildGeneratedRuntimeOverrideComposeFilePath(serviceName: string): string {
+  const sanitizedServiceName = sanitizeFrozenPath(serviceName).replace(/\//g, "__");
+  return normalizeRelativePath(
+    join(FROZEN_COMPOSE_INPUT_DIR, `compose-runtime__${sanitizedServiceName}.yaml`)
   );
 }
 
@@ -590,6 +601,8 @@ export function materializeComposeInputs(input: {
   existingFrozenInputs?: FrozenComposeInputsPayload;
   existingBuildPlan?: ComposeBuildPlan;
   imageOverride?: ComposeImageOverrideRequest;
+  runtimeConfig?: ServiceRuntimeConfig | null;
+  composeServiceName?: string | null;
 }): MaterializedComposeInputs {
   const composeFiles =
     input.composeFiles && input.composeFiles.length > 0
@@ -654,6 +667,19 @@ export function materializeComposeInputs(input: {
       contents: stringifyYaml(overrideDoc)
     });
     composeDocs.push(overrideDoc);
+  }
+
+  const runtimeOverrideDoc = buildServiceRuntimeOverrideComposeDocument({
+    composeServiceName: input.composeServiceName,
+    runtimeConfig: input.runtimeConfig
+  });
+  if (runtimeOverrideDoc) {
+    frozenComposeFiles.push({
+      path: buildGeneratedRuntimeOverrideComposeFilePath(input.composeServiceName ?? "service"),
+      sourcePath: null,
+      contents: stringifyYaml(runtimeOverrideDoc)
+    });
+    composeDocs.push(runtimeOverrideDoc);
   }
 
   const requestedProfiles = normalizeComposeProfiles(input.composeProfiles);

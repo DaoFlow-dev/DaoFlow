@@ -10,6 +10,7 @@ import {
   deleteEnvironment
 } from "../db/services/projects";
 import { createService, updateService, deleteService } from "../db/services/services";
+import { updateServiceRuntimeConfig } from "../db/services/service-runtime-config";
 import { createAgentPrincipal, generateAgentToken, revokeAgentToken } from "../db/services/agents";
 import {
   approveApprovalRequest,
@@ -76,6 +77,44 @@ const composePreviewConfigSchema = z.object({
     .int()
     .min(1)
     .max(24 * 30)
+    .optional()
+});
+
+const serviceRuntimeVolumeSchema = z.object({
+  source: z.string().min(1).max(500),
+  target: z.string().min(1).max(500),
+  mode: z.enum(["rw", "ro"]).default("rw")
+});
+
+const serviceRuntimeRestartPolicySchema = z.object({
+  name: z.enum(["always", "unless-stopped", "on-failure", "no"]),
+  maxRetries: z.number().int().min(1).max(100).nullable().optional()
+});
+
+const serviceRuntimeHealthCheckSchema = z.object({
+  command: z.string().min(1).max(2_000),
+  intervalSeconds: z.number().int().min(1).max(3_600),
+  timeoutSeconds: z.number().int().min(1).max(3_600),
+  retries: z.number().int().min(1).max(100),
+  startPeriodSeconds: z.number().int().min(1).max(3_600)
+});
+
+const serviceRuntimeResourcesSchema = z.object({
+  cpuLimitCores: z.number().positive().max(256).nullable().optional(),
+  cpuReservationCores: z.number().positive().max(256).nullable().optional(),
+  memoryLimitMb: z
+    .number()
+    .int()
+    .min(1)
+    .max(1024 * 1024)
+    .nullable()
+    .optional(),
+  memoryReservationMb: z
+    .number()
+    .int()
+    .min(1)
+    .max(1024 * 1024)
+    .nullable()
     .optional()
 });
 
@@ -376,6 +415,58 @@ export const adminRouter = t.router({
       if (result.status === "invalid_config") {
         throw new TRPCError({ code: "BAD_REQUEST", message: result.message });
       }
+      return result.service;
+    }),
+
+  updateServiceRuntimeConfig: serviceUpdateProcedure
+    .input(
+      z.object({
+        serviceId: z.string().min(1),
+        volumes: z.array(serviceRuntimeVolumeSchema).max(50).nullable().optional(),
+        networks: z.array(z.string().min(1).max(120)).max(50).nullable().optional(),
+        restartPolicy: serviceRuntimeRestartPolicySchema.nullable().optional(),
+        healthCheck: serviceRuntimeHealthCheckSchema.nullable().optional(),
+        resources: serviceRuntimeResourcesSchema.nullable().optional()
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const result = await updateServiceRuntimeConfig({
+        serviceId: input.serviceId,
+        volumes: input.volumes,
+        networks: input.networks,
+        restartPolicy: input.restartPolicy
+          ? {
+              name: input.restartPolicy.name,
+              maxRetries: input.restartPolicy.maxRetries ?? null
+            }
+          : input.restartPolicy,
+        healthCheck: input.healthCheck
+          ? {
+              command: input.healthCheck.command,
+              intervalSeconds: input.healthCheck.intervalSeconds,
+              timeoutSeconds: input.healthCheck.timeoutSeconds,
+              retries: input.healthCheck.retries,
+              startPeriodSeconds: input.healthCheck.startPeriodSeconds
+            }
+          : input.healthCheck,
+        resources: input.resources
+          ? {
+              cpuLimitCores: input.resources.cpuLimitCores ?? null,
+              cpuReservationCores: input.resources.cpuReservationCores ?? null,
+              memoryLimitMb: input.resources.memoryLimitMb ?? null,
+              memoryReservationMb: input.resources.memoryReservationMb ?? null
+            }
+          : input.resources,
+        ...getActorContext(ctx)
+      });
+
+      if (result.status === "not_found") {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Service not found." });
+      }
+      if (result.status === "unsupported") {
+        throw new TRPCError({ code: "BAD_REQUEST", message: result.message });
+      }
+
       return result.service;
     }),
 

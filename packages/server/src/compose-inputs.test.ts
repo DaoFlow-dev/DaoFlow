@@ -167,6 +167,61 @@ describe("compose input materialization", () => {
     );
   });
 
+  it("adds DaoFlow-managed runtime override compose fragments into the rendered compose snapshot", () => {
+    const workDir = mkdtempSync(join(tmpdir(), "daoflow-compose-runtime-"));
+    tempDirs.push(workDir);
+
+    writeFileSync(
+      join(workDir, "compose.yaml"),
+      ["services:", "  api:", "    image: ghcr.io/daoflow/api:stable"].join("\n")
+    );
+
+    const result = materializeComposeInputs({
+      workDir,
+      composeFile: "compose.yaml",
+      sourceProvenance: "repository-checkout",
+      composeEnvFileContents: "",
+      composeServiceName: "api",
+      runtimeConfig: {
+        volumes: [
+          {
+            source: "/srv/data",
+            target: "/var/lib/postgresql/data",
+            mode: "rw"
+          }
+        ],
+        networks: ["public"],
+        restartPolicy: {
+          name: "on-failure",
+          maxRetries: 4
+        },
+        healthCheck: {
+          command: "curl -f http://localhost:3000/ready || exit 1",
+          intervalSeconds: 20,
+          timeoutSeconds: 5,
+          retries: 3,
+          startPeriodSeconds: 10
+        },
+        resources: {
+          cpuLimitCores: 1.5,
+          cpuReservationCores: 0.5,
+          memoryLimitMb: 768,
+          memoryReservationMb: 256
+        }
+      }
+    });
+
+    expect(result.composeFiles).toEqual(
+      expect.arrayContaining([".daoflow.compose.inputs/compose-runtime__api.yaml"])
+    );
+    const renderedCompose = result.frozenInputs.renderedCompose?.contents ?? "";
+    expect(renderedCompose).toContain("/srv/data:/var/lib/postgresql/data");
+    expect(renderedCompose).toContain("networks:");
+    expect(renderedCompose).toContain("restart: on-failure:4");
+    expect(renderedCompose).toContain("curl -f http://localhost:3000/ready || exit 1");
+    expect(renderedCompose).toContain('cpus: "1.5"');
+  });
+
   it("replays previously frozen build contexts without renormalizing them against the original compose path", () => {
     const workDir = mkdtempSync(join(tmpdir(), "daoflow-compose-replay-build-"));
     tempDirs.push(workDir);

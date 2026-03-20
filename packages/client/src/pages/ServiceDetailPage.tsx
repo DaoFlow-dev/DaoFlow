@@ -27,6 +27,7 @@ import DomainsTab from "../components/service-detail/DomainsTab";
 import AdvancedTab from "../components/service-detail/AdvancedTab";
 import ActivityTab from "../components/service-detail/ActivityTab";
 import ComposeEditorTab from "../components/service-detail/ComposeEditorTab";
+import type { ServiceRuntimeConfig } from "../components/service-detail/runtime-config";
 
 export default function ServiceDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -79,6 +80,8 @@ export default function ServiceDetailPage() {
     targetServerId: string | null;
     createdAt: string;
     updatedAt: string;
+    runtimeConfig: ServiceRuntimeConfig | null;
+    runtimeConfigPreview: string | null;
   };
 
   return (
@@ -160,11 +163,22 @@ export default function ServiceDetailPage() {
         </TabsContent>
 
         <TabsContent value="compose" className="mt-4">
-          <ComposeEditorTab serviceId={svc.id} serviceName={svc.name} />
+          <ComposeEditorTab
+            serviceId={svc.id}
+            serviceName={svc.name}
+            sourceType={svc.sourceType}
+            composeServiceName={svc.composeServiceName}
+            runtimeConfigPreview={svc.runtimeConfigPreview}
+          />
         </TabsContent>
 
         <TabsContent value="advanced" className="mt-4">
-          <AdvancedTab serviceId={svc.id} service={svc} />
+          <AdvancedTab
+            serviceId={svc.id}
+            service={svc}
+            runtimeConfig={svc.runtimeConfig}
+            onConfigSaved={() => service.refetch()}
+          />
         </TabsContent>
 
         <TabsContent value="activity" className="mt-4">

@@ -39,6 +39,7 @@ import {
   readComposePreviewConfigFromConfig,
   type ComposePreviewRequestInput
 } from "../../compose-preview";
+import { readServiceRuntimeConfigFromConfig } from "../../service-runtime-config";
 
 export interface TriggerDeployInput {
   serviceId: string;
@@ -206,6 +207,7 @@ export async function triggerDeploy(input: TriggerDeployInput) {
   const buildConfig = asRecord(svc.config);
   const readinessProbe = readComposeReadinessProbeFromConfig(buildConfig);
   const previewConfig = readComposePreviewConfigFromConfig(buildConfig);
+  const runtimeConfig = readServiceRuntimeConfigFromConfig(buildConfig);
   const configSnapshot: Record<string, unknown> = composeProjectHasRepositorySource
     ? buildRepositorySourceSnapshot(project)
     : {};
@@ -308,6 +310,9 @@ export async function triggerDeploy(input: TriggerDeployInput) {
       probe: readinessProbe,
       serviceName: svc.composeServiceName ?? svc.name
     });
+  }
+  if (runtimeConfig) {
+    configSnapshot.runtimeConfig = runtimeConfig;
   }
 
   if (svc.sourceType === "dockerfile") {

@@ -17,6 +17,7 @@ import {
   type ComposeInputManifest,
   type FrozenComposeInputsPayload
 } from "./compose-inputs";
+import type { ServiceRuntimeConfig } from "./service-runtime-config";
 import type { DeploymentComposeEnvState, DeploymentComposeState } from "./db/services/compose-env";
 
 export interface MaterializedComposeWorkspaceArtifacts {
@@ -103,6 +104,8 @@ export function materializeComposeWorkspaceArtifacts(input: {
   sourceProvenance: "repository-checkout" | "uploaded-artifact";
   deploymentState: DeploymentComposeState;
   imageOverride?: ComposeImageOverrideRequest;
+  runtimeConfig?: ServiceRuntimeConfig | null;
+  composeServiceName?: string | null;
   existingComposeBuildPlan?: ComposeBuildPlan;
   existingComposeEnv?: ComposeEnvEvidence;
   existingComposeInputs?: ComposeInputManifest;
@@ -124,6 +127,8 @@ export function materializeComposeWorkspaceArtifacts(input: {
     repoDefaultContent,
     composeEnvFileContents: composeEnv.fileContents,
     imageOverride: input.imageOverride,
+    runtimeConfig: input.runtimeConfig,
+    composeServiceName: input.composeServiceName,
     existingBuildPlan: input.existingComposeBuildPlan,
     existingManifest: input.existingComposeInputs,
     existingFrozenInputs: input.deploymentState.frozenInputs
