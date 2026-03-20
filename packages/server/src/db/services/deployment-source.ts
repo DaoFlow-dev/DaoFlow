@@ -1,6 +1,6 @@
 import { asRecord, readString } from "./json-helpers";
 import type { ComposeImageOverride, ConfigSnapshot } from "../../worker/step-management";
-import { basename, isAbsolute } from "node:path";
+import { readComposeSourceSelection } from "../../compose-source";
 import {
   hasRepositoryPreparation,
   readRepositoryPreparationConfig
@@ -37,11 +37,6 @@ const EXECUTION_ONLY_SNAPSHOT_KEYS = new Set([
   "temporalRunId"
 ]);
 
-function normalizeRepositoryPath(path: string, fallback: string): string {
-  if (!path) return fallback;
-  return isAbsolute(path) ? basename(path) : path;
-}
-
 function resolveProjectBranch(project: ProjectRow): string {
   return project.defaultBranch ?? readString(asRecord(project.config), "defaultBranch", "main");
 }
@@ -50,14 +45,24 @@ function readNonEmptyString(value: unknown): string | undefined {
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
 }
 
-export function resolveComposeFilePath(input: ComposeSourceSnapshotInput): string {
-  const environmentConfig = asRecord(input.environment?.config);
+export function resolveComposeFilePaths(input: ComposeSourceSnapshotInput): string[] {
+  return readComposeSourceSelection({
+    composePath: input.project.composePath,
+    projectConfig: input.project.config,
+    environmentConfig: input.environment?.config
+  }).composeFiles;
+}
 
-  return normalizeRepositoryPath(
-    input.project.composePath ??
-      readString(environmentConfig, "composeFilePath", "docker-compose.yml"),
-    "docker-compose.yml"
-  );
+export function resolveComposeProfiles(input: ComposeSourceSnapshotInput): string[] {
+  return readComposeSourceSelection({
+    composePath: input.project.composePath,
+    projectConfig: input.project.config,
+    environmentConfig: input.environment?.config
+  }).composeProfiles;
+}
+
+export function resolveComposeFilePath(input: ComposeSourceSnapshotInput): string {
+  return resolveComposeFilePaths(input)[0] ?? "docker-compose.yml";
 }
 
 export function buildRepositorySourceSnapshot(project: ProjectRow): ConfigSnapshot {
@@ -82,9 +87,14 @@ export function buildRepositorySourceSnapshot(project: ProjectRow): ConfigSnapsh
 }
 
 export function buildComposeSourceSnapshot(input: ComposeSourceSnapshotInput): ConfigSnapshot {
+  const composeFilePaths = resolveComposeFilePaths(input);
+  const composeProfiles = resolveComposeProfiles(input);
+
   return {
     ...buildRepositorySourceSnapshot(input.project),
-    composeFilePath: resolveComposeFilePath(input),
+    composeFilePath: composeFilePaths[0],
+    composeFilePaths,
+    ...(composeProfiles.length > 0 ? { composeProfiles } : {}),
     ...(input.composeServiceName ? { composeServiceName: input.composeServiceName } : {})
   };
 }

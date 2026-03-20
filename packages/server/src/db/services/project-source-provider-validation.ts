@@ -102,6 +102,8 @@ function invalidReadiness(
     repoUrl: null,
     branch: source.defaultBranch,
     composePath: source.composePath,
+    composeFiles: source.composeFiles,
+    ...(source.composeProfiles.length > 0 ? { composeProfiles: source.composeProfiles } : {}),
     checkedAt: new Date().toISOString(),
     message,
     checks
@@ -345,28 +347,30 @@ async function validateGitHubSource(
     );
   }
 
-  const composeResponse = await fetchWithProviderTimeout(
-    "github",
-    "compose file access",
-    `${buildGitHubApiBaseUrl(provider.baseUrl)}/repos/${repoPath}/contents/${encodeURIComponent(source.composePath)}?ref=${encodeURIComponent(source.defaultBranch)}`,
-    {
-      headers: repoHeaders
-    }
-  );
-  if (!(composeResponse instanceof Response)) {
-    return composeResponse;
-  }
-  if (!composeResponse.ok) {
-    return invalidResult(
-      source,
+  for (const composeFile of source.composeFiles) {
+    const composeResponse = await fetchWithProviderTimeout(
       "github",
-      `Compose file ${source.composePath} was not found in ${source.repoFullName}@${source.defaultBranch}.`,
+      "compose file access",
+      `${buildGitHubApiBaseUrl(provider.baseUrl)}/repos/${repoPath}/contents/${encodeURIComponent(composeFile)}?ref=${encodeURIComponent(source.defaultBranch)}`,
       {
-        repository: "ok",
-        branch: "ok",
-        composePath: "failed"
+        headers: repoHeaders
       }
     );
+    if (!(composeResponse instanceof Response)) {
+      return composeResponse;
+    }
+    if (!composeResponse.ok) {
+      return invalidResult(
+        source,
+        "github",
+        `Compose file ${composeFile} was not found in ${source.repoFullName}@${source.defaultBranch}.`,
+        {
+          repository: "ok",
+          branch: "ok",
+          composePath: "failed"
+        }
+      );
+    }
   }
 
   return {
@@ -379,6 +383,8 @@ async function validateGitHubSource(
       repoUrl: null,
       branch: source.defaultBranch,
       composePath: source.composePath,
+      composeFiles: source.composeFiles,
+      ...(source.composeProfiles.length > 0 ? { composeProfiles: source.composeProfiles } : {}),
       checkedAt: new Date().toISOString(),
       message: `Validated GitHub repository source ${source.repoFullName}@${source.defaultBranch}.`,
       checks: {
@@ -503,28 +509,30 @@ async function validateGitLabSource(
     );
   }
 
-  const composeResponse = await fetchWithProviderTimeout(
-    "gitlab",
-    "compose file access",
-    `${buildGitLabApiBaseUrl(provider.baseUrl)}/projects/${encodeURIComponent(projectId)}/repository/files/${encodeURIComponent(source.composePath)}?ref=${encodeURIComponent(source.defaultBranch)}`,
-    {
-      headers
-    }
-  );
-  if (!(composeResponse instanceof Response)) {
-    return composeResponse;
-  }
-  if (!composeResponse.ok) {
-    return invalidResult(
-      source,
+  for (const composeFile of source.composeFiles) {
+    const composeResponse = await fetchWithProviderTimeout(
       "gitlab",
-      `Compose file ${source.composePath} was not found in ${source.repoFullName}@${source.defaultBranch}.`,
+      "compose file access",
+      `${buildGitLabApiBaseUrl(provider.baseUrl)}/projects/${encodeURIComponent(projectId)}/repository/files/${encodeURIComponent(composeFile)}?ref=${encodeURIComponent(source.defaultBranch)}`,
       {
-        repository: "ok",
-        branch: "ok",
-        composePath: "failed"
+        headers
       }
     );
+    if (!(composeResponse instanceof Response)) {
+      return composeResponse;
+    }
+    if (!composeResponse.ok) {
+      return invalidResult(
+        source,
+        "gitlab",
+        `Compose file ${composeFile} was not found in ${source.repoFullName}@${source.defaultBranch}.`,
+        {
+          repository: "ok",
+          branch: "ok",
+          composePath: "failed"
+        }
+      );
+    }
   }
 
   return {
@@ -537,6 +545,8 @@ async function validateGitLabSource(
       repoUrl: null,
       branch: source.defaultBranch,
       composePath: source.composePath,
+      composeFiles: source.composeFiles,
+      ...(source.composeProfiles.length > 0 ? { composeProfiles: source.composeProfiles } : {}),
       checkedAt: new Date().toISOString(),
       message: `Validated GitLab repository source ${source.repoFullName}@${source.defaultBranch}.`,
       checks: {

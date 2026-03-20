@@ -1,5 +1,8 @@
 import { and, eq } from "drizzle-orm";
+import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 import { buildComposeEnvPlanDiagnostics } from "../../compose-env-plan";
+import { mergeComposeDocuments } from "../../compose-merge";
+import { normalizeComposeProfiles } from "../../compose-source";
 import { db } from "../connection";
 import { environments, projects } from "../schema/projects";
 import { servers } from "../schema/servers";
@@ -101,6 +104,56 @@ function deriveStackName(composeContent: string, fallback: string): string {
   }
 
   return fallback;
+}
+
+function mergeComposePlanContents(
+  composeFiles: Array<{ path: string; contents: string }>
+): Record<string, unknown> {
+  return mergeComposeDocuments(
+    composeFiles.map(
+      (composeFile) =>
+        ((parseYaml(composeFile.contents) as Record<string, unknown> | null) ??
+          {}) satisfies Record<string, unknown>
+    )
+  );
+}
+
+function stringifyMergedComposeDoc(doc: Record<string, unknown>): string {
+  return stringifyYaml(doc);
+}
+
+function validateRequestedComposeProfiles(
+  doc: Record<string, unknown>,
+  composeProfiles: string[]
+): string[] {
+  if (composeProfiles.length === 0) {
+    return [];
+  }
+
+  const services =
+    doc.services && typeof doc.services === "object" && !Array.isArray(doc.services)
+      ? (doc.services as Record<string, unknown>)
+      : {};
+  const availableProfiles = new Set<string>();
+
+  for (const value of Object.values(services)) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      continue;
+    }
+
+    const profiles = (value as Record<string, unknown>).profiles;
+    if (!Array.isArray(profiles)) {
+      continue;
+    }
+
+    for (const profile of profiles) {
+      if (typeof profile === "string" && profile.trim().length > 0) {
+        availableProfiles.add(profile.trim());
+      }
+    }
+  }
+
+  return composeProfiles.filter((profile) => !availableProfiles.has(profile));
 }
 
 function formatBytes(sizeBytes: number): string {
@@ -249,41 +302,71 @@ async function resolveExistingScope(input: {
 function buildComposePlanSteps(input: {
   requiresContextUpload: boolean;
   targetServerName: string;
+  composeFileCount: number;
+  composeProfiles: string[];
 }) {
+  const freezeLabel =
+    input.composeFileCount > 1
+      ? "Freeze the compose file set and local build-context manifest"
+      : "Freeze the compose file and local build-context manifest";
+  const uploadLabel =
+    input.composeFileCount > 1
+      ? "Upload the staged archive and compose file set to the DaoFlow control plane"
+      : "Upload the staged archive and compose file to the DaoFlow control plane";
+  const composeCommand =
+    input.composeProfiles.length > 0
+      ? `Run docker compose up -d --build on ${input.targetServerName} with profiles ${input.composeProfiles.join(", ")}`
+      : `Run docker compose up -d --build on ${input.targetServerName}`;
+
   if (input.requiresContextUpload) {
     return [
-      "Freeze the compose file and local build-context manifest",
+      freezeLabel,
       "Bundle the local build context while respecting .dockerignore rules",
-      "Upload the staged archive and compose file to the DaoFlow control plane",
+      uploadLabel,
       "Dispatch the uploaded compose workspace to the execution plane",
-      `Run docker compose up -d --build on ${input.targetServerName}`,
+      composeCommand,
       "Record health checks and the final deployment outcome"
     ];
   }
 
   return [
-    "Freeze the compose file for an immutable deployment record",
-    "Stage the compose file in durable control-plane storage",
+    input.composeFileCount > 1
+      ? "Freeze the compose file set for an immutable deployment record"
+      : "Freeze the compose file for an immutable deployment record",
+    input.composeFileCount > 1
+      ? "Stage the compose file set in durable control-plane storage"
+      : "Stage the compose file in durable control-plane storage",
     "Dispatch the compose deployment to the execution plane",
-    `Run docker compose up -d --build on ${input.targetServerName}`,
+    composeCommand,
     "Record health checks and the final deployment outcome"
   ];
 }
 
 function buildExecuteCommand(input: {
   composePath?: string;
+  composeFiles: string[];
+  composeProfiles: string[];
   contextPath?: string;
   requiresContextUpload: boolean;
   serverId: string;
 }) {
+  const [primaryComposePath, ...overrideComposeFiles] = input.composeFiles;
   const command = [
     "daoflow deploy",
-    `--compose ${input.composePath ?? "<compose-path>"}`,
+    `--compose ${primaryComposePath ?? input.composePath ?? "<compose-path>"}`,
     `--server ${input.serverId}`
   ];
 
   if (input.requiresContextUpload || (input.contextPath && input.contextPath !== ".")) {
     command.push(`--context ${input.contextPath ?? "."}`);
+  }
+
+  for (const composeFile of overrideComposeFiles) {
+    command.push(`--compose-override ${composeFile}`);
+  }
+
+  for (const profile of input.composeProfiles) {
+    command.push(`--profile ${profile}`);
   }
 
   command.push("--yes");
@@ -292,6 +375,11 @@ function buildExecuteCommand(input: {
 
 export interface ComposeDeploymentPlanInput {
   composeContent: string;
+  composeFiles?: Array<{
+    path: string;
+    contents: string;
+  }>;
+  composeProfiles?: string[];
   composePath?: string;
   contextPath?: string;
   repoDefaultContent?: string;
@@ -312,15 +400,36 @@ export interface ComposeDeploymentPlanInput {
 }
 
 export async function buildComposeDeploymentPlan(input: ComposeDeploymentPlanInput) {
-  const composeContent = input.composeContent.trim();
-  if (!composeContent) {
+  const composeFileSet =
+    input.composeFiles && input.composeFiles.length > 0
+      ? input.composeFiles.filter(
+          (composeFile) =>
+            composeFile.path.trim().length > 0 && composeFile.contents.trim().length > 0
+        )
+      : input.composeContent.trim().length > 0
+        ? [
+            {
+              path: input.composePath ?? "compose.yaml",
+              contents: input.composeContent
+            }
+          ]
+        : [];
+
+  if (composeFileSet.length === 0) {
     throw new Error("Compose content is required.");
   }
+
+  const composeProfiles = normalizeComposeProfiles(input.composeProfiles);
+  const mergedComposeDoc = mergeComposePlanContents(composeFileSet);
+  const unsupportedProfiles = validateRequestedComposeProfiles(mergedComposeDoc, composeProfiles);
+  const mergedComposeContent = input.composeFiles?.length
+    ? stringifyMergedComposeDoc(mergedComposeDoc)
+    : input.composeContent.trim();
 
   const resolvedServer = await resolveServer(input.serverRef);
   const teamId = await resolveTeamIdForUser(input.requestedByUserId);
 
-  const derivedName = deriveStackName(composeContent, "uploaded-compose");
+  const derivedName = deriveStackName(mergedComposeContent, "uploaded-compose");
   const projectName = sanitizeName(derivedName, "uploaded-compose");
   const environmentName = "production";
   const serviceName = sanitizeName(derivedName, projectName);
@@ -338,7 +447,7 @@ export async function buildComposeDeploymentPlan(input: ComposeDeploymentPlanInp
     : [];
   const composeEnvPlan = buildComposeEnvPlanDiagnostics({
     branch,
-    composeContent,
+    composeContent: mergedComposeContent,
     repoDefaultContent: input.repoDefaultContent,
     deploymentEntries
   });
@@ -362,6 +471,24 @@ export async function buildComposeDeploymentPlan(input: ComposeDeploymentPlanInp
       : makeCheck("warn", `Service ${scope.service.name} will be created during execution.`)
   ];
   checks.push(...buildComposeEnvPlanChecks(composeEnvPlan));
+  if (composeFileSet.length > 1) {
+    checks.push(
+      makeCheck(
+        "ok",
+        `Compose file order is frozen as: ${composeFileSet.map((composeFile) => composeFile.path).join(" -> ")}.`
+      )
+    );
+  }
+  if (composeProfiles.length > 0) {
+    checks.push(
+      unsupportedProfiles.length === 0
+        ? makeCheck("ok", `Compose execution will enable profiles: ${composeProfiles.join(", ")}.`)
+        : makeCheck(
+            "fail",
+            `Compose profiles not found in the staged compose files: ${unsupportedProfiles.join(", ")}.`
+          )
+    );
+  }
 
   if (
     scope.environment.currentTargetServerId &&
@@ -422,7 +549,9 @@ export async function buildComposeDeploymentPlan(input: ComposeDeploymentPlanInp
 
   const steps = buildComposePlanSteps({
     requiresContextUpload: input.requiresContextUpload,
-    targetServerName: resolvedServer.name
+    targetServerName: resolvedServer.name,
+    composeFileCount: composeFileSet.length,
+    composeProfiles
   });
   const deploymentSource: "uploaded-context" | "uploaded-compose" = input.requiresContextUpload
     ? "uploaded-context"
@@ -452,7 +581,9 @@ export async function buildComposeDeploymentPlan(input: ComposeDeploymentPlanInp
       serverId: resolvedServer.id,
       serverName: resolvedServer.name,
       serverHost: resolvedServer.host,
-      composePath: input.composePath ?? null,
+      composePath: composeFileSet[0]?.path ?? input.composePath ?? null,
+      composeFiles: composeFileSet.map((composeFile) => composeFile.path),
+      composeProfiles,
       contextPath: input.contextPath ?? null,
       requiresContextUpload: input.requiresContextUpload,
       localBuildContexts: input.localBuildContexts,
@@ -462,6 +593,8 @@ export async function buildComposeDeploymentPlan(input: ComposeDeploymentPlanInp
     steps,
     executeCommand: buildExecuteCommand({
       composePath: input.composePath,
+      composeFiles: composeFileSet.map((composeFile) => composeFile.path),
+      composeProfiles,
       contextPath: input.contextPath,
       requiresContextUpload: input.requiresContextUpload,
       serverId: resolvedServer.id

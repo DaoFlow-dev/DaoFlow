@@ -148,6 +148,8 @@ export const adminRouter = t.router({
         repoUrl: z.string().max(300).optional(),
         repoFullName: z.string().max(255).optional(),
         composePath: z.string().max(500).optional(),
+        composeFiles: z.array(z.string().max(500)).max(20).optional(),
+        composeProfiles: z.array(z.string().max(100)).max(20).optional(),
         gitProviderId: z.string().max(32).optional(),
         gitInstallationId: z.string().max(32).optional(),
         defaultBranch: z.string().max(80).optional(),
@@ -200,6 +202,8 @@ export const adminRouter = t.router({
         repoUrl: z.string().max(300).optional(),
         repoFullName: z.string().max(255).optional(),
         composePath: z.string().max(500).optional(),
+        composeFiles: z.array(z.string().max(500)).max(20).optional(),
+        composeProfiles: z.array(z.string().max(100)).max(20).optional(),
         gitProviderId: z.string().max(32).optional(),
         gitInstallationId: z.string().max(32).optional(),
         defaultBranch: z.string().max(80).optional(),
@@ -255,7 +259,9 @@ export const adminRouter = t.router({
       z.object({
         projectId: z.string().min(1),
         name: z.string().min(1).max(80),
-        targetServerId: z.string().optional()
+        targetServerId: z.string().optional(),
+        composeFiles: z.array(z.string().max(500)).max(20).optional(),
+        composeProfiles: z.array(z.string().max(100)).max(20).optional()
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -275,7 +281,9 @@ export const adminRouter = t.router({
         environmentId: z.string().min(1),
         name: z.string().min(1).max(80).optional(),
         status: z.string().max(40).optional(),
-        targetServerId: z.string().optional()
+        targetServerId: z.string().optional(),
+        composeFiles: z.array(z.string().max(500)).max(20).optional(),
+        composeProfiles: z.array(z.string().max(100)).max(20).optional()
       })
     )
     .mutation(async ({ ctx, input }) => {

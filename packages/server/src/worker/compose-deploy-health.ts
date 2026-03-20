@@ -13,31 +13,42 @@ const HEALTH_CHECK_TIMEOUT_MS = 60_000;
 const HEALTH_CHECK_INTERVAL_MS = 3_000;
 
 async function readComposeHealthStatuses(
-  composeFile: string,
+  composeFiles: string[],
   projectName: string,
   workDir: string,
   onLog: OnLog,
   target: ExecutionTarget,
   envFile?: string,
   envExportFile?: string,
+  composeProfiles?: string[],
   composeServiceName?: string
 ): Promise<{ exitCode: number; statuses: ComposeContainerStatus[] }> {
   return target.mode === "remote"
     ? remoteDockerComposePs(
         target.ssh,
-        composeFile,
+        composeFiles,
         projectName,
         workDir,
         onLog,
         envFile,
         envExportFile,
-        composeServiceName
+        composeServiceName,
+        composeProfiles
       )
-    : dockerComposePs(composeFile, projectName, workDir, onLog, envFile, composeServiceName);
+    : dockerComposePs(
+        composeFiles,
+        projectName,
+        workDir,
+        onLog,
+        envFile,
+        composeServiceName,
+        composeProfiles
+      );
 }
 
 export async function waitForComposeHealthy(input: {
-  composeFile: string;
+  composeFiles: string[];
+  composeProfiles?: string[];
   projectName: string;
   workDir: string;
   composeTargetLabel: string;
@@ -86,13 +97,14 @@ export async function waitForComposeHealthy(input: {
     }
 
     const statusResult = await readComposeHealthStatuses(
-      input.composeFile,
+      input.composeFiles,
       input.projectName,
       input.workDir,
       input.onLog,
       input.target,
       input.composeEnvFile,
       input.composeEnvExportFile,
+      input.composeProfiles,
       composePsScopeServiceName
     );
     if (statusResult.exitCode !== 0) {

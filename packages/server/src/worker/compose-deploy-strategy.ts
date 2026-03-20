@@ -2,6 +2,7 @@ import { COMPOSE_ENV_EXPORT_FILE_NAME, COMPOSE_ENV_FILE_NAME } from "../compose-
 import type { ComposeBuildPlan } from "../compose-build-plan";
 import { resolveComposeExecutionScope } from "../compose-build-plan-execution";
 import { readComposeReadinessProbeSnapshot } from "../compose-readiness";
+import { normalizeComposeProfiles } from "../compose-source";
 import {
   persistDeploymentComposeEnvState,
   readDeploymentComposeState
@@ -60,7 +61,10 @@ export async function executeComposeDeployment(
   await markStepRunning(cloneStepId);
 
   let workDir: string;
-  let composeFile: string;
+  let composeFiles: string[];
+  let composeProfiles: string[] = normalizeComposeProfiles(
+    Array.isArray(config.composeProfiles) ? config.composeProfiles : []
+  );
   let composeEnvFile: string | undefined;
   let composeEnvExportFile: string | undefined;
   let composeBuildPlan: ComposeBuildPlan;
@@ -75,7 +79,8 @@ export async function executeComposeDeployment(
       deployment.commitSha ?? undefined
     );
     workDir = workspace.workDir;
-    composeFile = workspace.composeFile;
+    composeFiles = workspace.composeFiles;
+    composeProfiles = normalizeComposeProfiles(workspace.composeInputs.frozenInputs.profiles);
     composeBuildPlan = workspace.composeBuildPlan;
     composeEnvFile = COMPOSE_ENV_FILE_NAME;
     composeEnvExportFile = COMPOSE_ENV_EXPORT_FILE_NAME;
@@ -103,14 +108,22 @@ export async function executeComposeDeployment(
       target.mode === "remote"
         ? await remoteDockerComposeDown(
             target.ssh,
-            composeFile,
+            composeFiles,
             projectName,
             workDir,
             onLog,
             composeEnvFile,
-            composeEnvExportFile
+            composeEnvExportFile,
+            composeProfiles
           )
-        : await dockerComposeDown(composeFile, projectName, workDir, onLog, composeEnvFile);
+        : await dockerComposeDown(
+            composeFiles,
+            projectName,
+            workDir,
+            onLog,
+            composeEnvFile,
+            composeProfiles
+          );
     if (downResult.exitCode !== 0) {
       await markStepFailed(
         stopStepId,
@@ -123,7 +136,11 @@ export async function executeComposeDeployment(
     return;
   }
 
-  const executionScope = resolveComposeExecutionScope(composeBuildPlan, composeServiceName);
+  const executionScope = resolveComposeExecutionScope(
+    composeBuildPlan,
+    composeServiceName,
+    composeProfiles
+  );
   let nextSortOrder = 2;
 
   if (executionScope.needsPull) {
@@ -139,21 +156,23 @@ export async function executeComposeDeployment(
       target.mode === "remote"
         ? await remoteDockerComposePull(
             target.ssh,
-            composeFile,
+            composeFiles,
             projectName,
             workDir,
             onLog,
             composeEnvFile,
             composeEnvExportFile,
-            composeServiceName
+            composeServiceName,
+            composeProfiles
           )
         : await dockerComposePull(
-            composeFile,
+            composeFiles,
             projectName,
             workDir,
             onLog,
             composeEnvFile,
-            composeServiceName
+            composeServiceName,
+            composeProfiles
           );
     if (pullResult.exitCode !== 0) {
       await markStepFailed(
@@ -178,21 +197,23 @@ export async function executeComposeDeployment(
       target.mode === "remote"
         ? await remoteDockerComposeBuild(
             target.ssh,
-            composeFile,
+            composeFiles,
             projectName,
             workDir,
             onLog,
             composeEnvFile,
             composeEnvExportFile,
-            executionScope.requestedServiceName ?? undefined
+            executionScope.requestedServiceName ?? undefined,
+            composeProfiles
           )
         : await dockerComposeBuild(
-            composeFile,
+            composeFiles,
             projectName,
             workDir,
             onLog,
             composeEnvFile,
-            executionScope.requestedServiceName ?? undefined
+            executionScope.requestedServiceName ?? undefined,
+            composeProfiles
           );
     if (buildResult.exitCode !== 0) {
       await markStepFailed(
@@ -217,21 +238,23 @@ export async function executeComposeDeployment(
     target.mode === "remote"
       ? await remoteDockerComposeUp(
           target.ssh,
-          composeFile,
+          composeFiles,
           projectName,
           workDir,
           onLog,
           composeEnvFile,
           composeEnvExportFile,
-          composeServiceName
+          composeServiceName,
+          composeProfiles
         )
       : await dockerComposeUp(
-          composeFile,
+          composeFiles,
           projectName,
           workDir,
           onLog,
           composeEnvFile,
-          composeServiceName
+          composeServiceName,
+          composeProfiles
         );
   if (upResult.exitCode !== 0) {
     await markStepFailed(deployStepId, `docker compose up exited with code ${upResult.exitCode}`);
@@ -242,7 +265,8 @@ export async function executeComposeDeployment(
   const healthStepId = await createStep(deployment.id, "Health check", nextSortOrder);
   await markStepRunning(healthStepId);
   await waitForComposeHealthy({
-    composeFile,
+    composeFiles,
+    composeProfiles,
     projectName,
     workDir,
     composeTargetLabel,

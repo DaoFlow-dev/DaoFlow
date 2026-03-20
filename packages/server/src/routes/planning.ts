@@ -13,6 +13,16 @@ export const planningRouter = t.router({
       z.object({
         server: z.string().min(1),
         compose: z.string().min(1).max(1_000_000),
+        composeFiles: z
+          .array(
+            z.object({
+              path: z.string().min(1).max(500),
+              contents: z.string().min(1).max(1_000_000)
+            })
+          )
+          .max(20)
+          .optional(),
+        composeProfiles: z.array(z.string().min(1).max(100)).max(20).optional(),
         composePath: z.string().min(1).max(500).optional(),
         contextPath: z.string().min(1).max(500).optional(),
         repoDefaultContent: z.string().max(200_000).optional(),
@@ -41,6 +51,8 @@ export const planningRouter = t.router({
       try {
         return await buildComposeDeploymentPlan({
           composeContent: input.compose,
+          composeFiles: input.composeFiles,
+          composeProfiles: input.composeProfiles,
           composePath: input.composePath,
           contextPath: input.contextPath,
           repoDefaultContent: input.repoDefaultContent,

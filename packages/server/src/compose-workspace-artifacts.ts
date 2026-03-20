@@ -20,7 +20,7 @@ import {
 import type { DeploymentComposeEnvState, DeploymentComposeState } from "./db/services/compose-env";
 
 export interface MaterializedComposeWorkspaceArtifacts {
-  composeFile: string;
+  composeFiles: string[];
   repoDefaultContent: string | null;
   composeBuildPlan: ComposeBuildPlan;
   composeEnv: {
@@ -97,7 +97,8 @@ function materializeComposeEnv(input: {
 
 export function materializeComposeWorkspaceArtifacts(input: {
   workDir: string;
-  composeFile: string;
+  composeFiles: string[];
+  composeProfiles?: string[];
   branch: string;
   sourceProvenance: "repository-checkout" | "uploaded-artifact";
   deploymentState: DeploymentComposeState;
@@ -106,17 +107,19 @@ export function materializeComposeWorkspaceArtifacts(input: {
   existingComposeEnv?: ComposeEnvEvidence;
   existingComposeInputs?: ComposeInputManifest;
 }): MaterializedComposeWorkspaceArtifacts {
-  const repoDefaultContent = readRepoDefaultEnvFile(input.workDir, input.composeFile);
+  const primaryComposeFile = input.composeFiles[0] ?? "docker-compose.yml";
+  const repoDefaultContent = readRepoDefaultEnvFile(input.workDir, primaryComposeFile);
   const composeEnv = materializeComposeEnv({
     workDir: input.workDir,
-    composeFile: input.composeFile,
+    composeFile: primaryComposeFile,
     branch: input.branch,
     deploymentEnvState: input.deploymentState.envState,
     existingEvidence: input.existingComposeEnv
   });
   const composeInputs = materializeComposeInputs({
     workDir: input.workDir,
-    composeFile: input.composeFile,
+    composeFiles: input.composeFiles,
+    composeProfiles: input.composeProfiles,
     sourceProvenance: input.sourceProvenance,
     repoDefaultContent,
     composeEnvFileContents: composeEnv.fileContents,
@@ -127,7 +130,7 @@ export function materializeComposeWorkspaceArtifacts(input: {
   });
 
   return {
-    composeFile: composeInputs.composeFile,
+    composeFiles: composeInputs.composeFiles,
     repoDefaultContent,
     composeBuildPlan: composeInputs.buildPlan,
     composeEnv: {

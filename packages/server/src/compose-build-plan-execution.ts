@@ -62,9 +62,25 @@ function resolveDependencyClosure(
   return [...visited].sort((a, b) => a.localeCompare(b));
 }
 
+function isComposeProfileEnabled(
+  service: ComposeBuildPlanGraphService,
+  composeProfiles: string[]
+): boolean {
+  if (service.profiles.length === 0) {
+    return true;
+  }
+
+  if (composeProfiles.length === 0) {
+    return false;
+  }
+
+  return service.profiles.some((profile) => composeProfiles.includes(profile));
+}
+
 export function resolveComposeExecutionScope(
   plan: ComposeBuildPlan,
-  composeServiceName?: string | null
+  composeServiceName?: string | null,
+  composeProfiles: string[] = []
 ): ComposeExecutionScope {
   const graphServices = resolveGraphServices(plan);
   const scopedServiceName = composeServiceName?.trim() || null;
@@ -92,9 +108,12 @@ export function resolveComposeExecutionScope(
     };
   }
 
+  const activeGraphServices = graphServices.filter((service) =>
+    isComposeProfileEnabled(service, composeProfiles)
+  );
   const expectedServiceNames = scopedServiceName
     ? resolveDependencyClosure(graphServices, scopedServiceName)
-    : graphServices.map((service) => service.serviceName).sort((a, b) => a.localeCompare(b));
+    : activeGraphServices.map((service) => service.serviceName).sort((a, b) => a.localeCompare(b));
   const expectedServiceNameSet = new Set(expectedServiceNames);
   const buildServiceNames = graphServices
     .filter((service) => expectedServiceNameSet.has(service.serviceName) && service.hasBuild)

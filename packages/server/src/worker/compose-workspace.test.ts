@@ -89,11 +89,14 @@ describe("prepareComposeWorkspace", () => {
     expect(callOrder.indexOf("extract-local-context")).toBeLessThan(
       callOrder.indexOf("upload:context.tar.gz")
     );
-    expect(callOrder).toContain("upload:.daoflow.compose.rendered.yaml");
+    expect(callOrder).toContain(`upload:${workspace.composeFile}`);
     expect(callOrder).toContain("upload:.daoflow.compose.inputs/config__runtime.env");
     expect(callOrder).toContain("upload:.daoflow.compose.env");
     expect(callOrder).toContain("upload:.daoflow.compose.export.sh");
-    expect(workspace.composeFile).toBe(".daoflow.compose.rendered.yaml");
+    expect(workspace.composeFile).toBe(".daoflow.compose.inputs/compose-01__compose.yaml.yaml");
+    expect(workspace.composeInputs.frozenInputs.renderedCompose?.path).toBe(
+      ".daoflow.compose.rendered.yaml"
+    );
     expect(workspace.composeEnv.composeEnv.counts.repoDefaults).toBe(1);
     expect(workspace.composeEnv.payloadEntries.map((entry) => entry.key)).toEqual(["FROM_ARCHIVE"]);
     expect(workspace.composeInputs.manifest.entries).toEqual(
@@ -118,11 +121,16 @@ describe("prepareComposeWorkspace", () => {
           "      - ./config/runtime.env"
         ].join("\n")
       );
+      mkdirSync(join(destinationDir, "ops"), { recursive: true });
+      writeFileSync(
+        join(destinationDir, "ops", "compose.override.yaml"),
+        "services:\n  app:\n    environment:\n      MODE: restored\n"
+      );
       writeFileSync(join(destinationDir, "context.tar.gz"), "placeholder archive");
       mkdirSync(join(destinationDir, "config"), { recursive: true });
       writeFileSync(join(destinationDir, ".env"), "FROM_RESTORED=1\n");
       writeFileSync(join(destinationDir, "config", "runtime.env"), "API_TOKEN=secret\n");
-      return { restoredFiles: ["compose.yaml", "context.tar.gz"] };
+      return { restoredFiles: ["compose.yaml", "ops/compose.override.yaml", "context.tar.gz"] };
     });
 
     vi.doMock("./docker-executor", () => ({
@@ -155,6 +163,7 @@ describe("prepareComposeWorkspace", () => {
         deploymentSource: "uploaded-context",
         uploadedArtifactId: "0123456789abcdef0123456789abcdef",
         uploadedComposeFileName: "compose.yaml",
+        uploadedComposeFileNames: ["compose.yaml", "ops/compose.override.yaml"],
         uploadedContextArchiveName: "context.tar.gz"
       },
       { mode: "local" },
@@ -178,6 +187,9 @@ describe("prepareComposeWorkspace", () => {
         })
       ])
     );
+    expect(
+      workspace.composeInputs.frozenInputs.composeFiles?.map((file) => file.sourcePath)
+    ).toEqual(["compose.yaml", "ops/compose.override.yaml"]);
   });
 
   it("renders git-backed compose deployments through the frozen compose manifest", async () => {
@@ -256,7 +268,9 @@ describe("prepareComposeWorkspace", () => {
         commitSha: "abcdef1234567890abcdef1234567890abcdef12"
       })
     );
-    expect(workspace.composeFile).toBe(".daoflow.compose.rendered.yaml");
+    expect(workspace.composeFile).toBe(
+      ".daoflow.compose.inputs/compose-01__ops__compose.yaml.yaml"
+    );
     expect(workspace.composeEnv.payloadEntries.map((entry) => entry.key)).toEqual(["ROOT_ONLY"]);
     expect(workspace.composeInputs.manifest.entries).toEqual(
       expect.arrayContaining([
@@ -268,7 +282,9 @@ describe("prepareComposeWorkspace", () => {
       ])
     );
 
-    const renderedCompose = readFileSync(join(stageDir, workspace.composeFile), "utf8");
+    const renderedComposePath = workspace.composeInputs.frozenInputs.renderedCompose?.path;
+    expect(renderedComposePath).toBe(".daoflow.compose.rendered.yaml");
+    const renderedCompose = readFileSync(join(stageDir, renderedComposePath ?? ""), "utf8");
     expect(renderedCompose).toContain("image: ghcr.io/daoflow/control-plane:2.0.0");
     expect(renderedCompose).toContain(".daoflow.compose.inputs/config__runtime.env");
   });
@@ -352,7 +368,9 @@ describe("prepareComposeWorkspace", () => {
       () => {}
     );
 
-    const renderedCompose = readFileSync(join(stageDir, workspace.composeFile), "utf8");
+    const renderedComposePath = workspace.composeInputs.frozenInputs.renderedCompose?.path;
+    expect(renderedComposePath).toBe(".daoflow.compose.rendered.yaml");
+    const renderedCompose = readFileSync(join(stageDir, renderedComposePath ?? ""), "utf8");
     const exportedEnv = readFileSync(join(stageDir, ".daoflow.compose.export.sh"), "utf8");
 
     expect(renderedCompose).toContain("context: ops");

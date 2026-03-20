@@ -1,8 +1,12 @@
-import { basename, isAbsolute, posix } from "node:path";
 import { eq } from "drizzle-orm";
 import { db } from "../connection";
 import { gitProviders } from "../schema/git-providers";
 import { asRecord } from "./json-helpers";
+import {
+  normalizeComposeFilePath,
+  normalizeComposeFilePaths,
+  normalizeComposeProfiles
+} from "../../compose-source";
 import { validateGenericGitProjectSource } from "./project-source-generic-validation";
 import { validateProviderLinkedProjectSource } from "./project-source-provider-validation";
 
@@ -15,6 +19,8 @@ export interface ProjectSourceReadiness {
   repoUrl: string | null;
   branch: string;
   composePath: string;
+  composeFiles?: string[];
+  composeProfiles?: string[];
   checkedAt: string;
   message: string;
   checks: {
@@ -30,6 +36,8 @@ export interface ProviderLinkedProjectSource {
   gitInstallationId: string;
   defaultBranch: string;
   composePath: string;
+  composeFiles: string[];
+  composeProfiles: string[];
 }
 
 export interface GenericGitProjectSource {
@@ -37,6 +45,8 @@ export interface GenericGitProjectSource {
   repoFullName: string | null;
   defaultBranch: string;
   composePath: string;
+  composeFiles: string[];
+  composeProfiles: string[];
   repositoryPreparation?: unknown;
 }
 
@@ -66,6 +76,8 @@ type SourceValidationInput = {
   gitInstallationId?: string | null;
   defaultBranch?: string | null;
   composePath?: string | null;
+  composeFiles?: string[] | null;
+  composeProfiles?: string[] | null;
   repositoryPreparation?: unknown;
   genericGitMode?: "best-effort" | "strict";
 };
@@ -77,6 +89,8 @@ type ProjectSourceReadinessRecord = Record<string, unknown> & {
   repoUrl?: unknown;
   branch?: unknown;
   composePath?: unknown;
+  composeFiles?: unknown;
+  composeProfiles?: unknown;
   checkedAt?: unknown;
   message?: unknown;
   checks?: unknown;
@@ -102,19 +116,6 @@ function normalizeRepoFullName(
     status: "ok",
     value: segments.join("/")
   };
-}
-
-function normalizeComposePath(composePath: string | null | undefined): string {
-  const raw = composePath?.trim() ?? "";
-  if (!raw) {
-    return "docker-compose.yml";
-  }
-
-  const maybeAbsolute = raw.replace(/\\/g, "/");
-  const relative = isAbsolute(maybeAbsolute) ? basename(maybeAbsolute) : maybeAbsolute;
-  const normalized = posix.normalize(relative).replace(/^(\.\/)+/, "");
-
-  return !normalized || normalized === "." ? "docker-compose.yml" : normalized;
 }
 
 function isProviderLinkedSourceCandidate(input: SourceValidationInput): boolean {
@@ -146,8 +147,18 @@ function toProviderLinkedSource(
     return repoFullName;
   }
 
-  const composePath = normalizeComposePath(input.composePath);
+  const composeFiles = normalizeComposeFilePaths({
+    composeFiles: input.composeFiles,
+    composePath: input.composePath
+  });
+  const composePath = composeFiles[0] ?? normalizeComposeFilePath(input.composePath);
   if (composePath === ".." || composePath.startsWith("../")) {
+    return {
+      status: "invalid",
+      message: "Compose paths must stay within the repository root."
+    };
+  }
+  if (composeFiles.some((file) => file === ".." || file.startsWith("../"))) {
     return {
       status: "invalid",
       message: "Compose paths must stay within the repository root."
@@ -161,7 +172,9 @@ function toProviderLinkedSource(
       gitProviderId,
       gitInstallationId,
       defaultBranch: input.defaultBranch?.trim() || "main",
-      composePath
+      composePath,
+      composeFiles,
+      composeProfiles: normalizeComposeProfiles(input.composeProfiles)
     }
   };
 }
@@ -191,8 +204,18 @@ function toGenericGitSource(
     return repoUrl;
   }
 
-  const composePath = normalizeComposePath(input.composePath);
+  const composeFiles = normalizeComposeFilePaths({
+    composeFiles: input.composeFiles,
+    composePath: input.composePath
+  });
+  const composePath = composeFiles[0] ?? normalizeComposeFilePath(input.composePath);
   if (composePath === ".." || composePath.startsWith("../")) {
+    return {
+      status: "invalid",
+      message: "Compose paths must stay within the repository root."
+    };
+  }
+  if (composeFiles.some((file) => file === ".." || file.startsWith("../"))) {
     return {
       status: "invalid",
       message: "Compose paths must stay within the repository root."
@@ -206,6 +229,8 @@ function toGenericGitSource(
       repoFullName: input.repoFullName?.trim() || null,
       defaultBranch: input.defaultBranch?.trim() || "main",
       composePath,
+      composeFiles,
+      composeProfiles: normalizeComposeProfiles(input.composeProfiles),
       repositoryPreparation: input.repositoryPreparation
     }
   };
@@ -294,6 +319,19 @@ export function readProjectSourceReadiness(config: unknown): ProjectSourceReadin
   const repoFullName =
     typeof sourceReadiness.repoFullName === "string" ? sourceReadiness.repoFullName : null;
   const repoUrl = typeof sourceReadiness.repoUrl === "string" ? sourceReadiness.repoUrl : null;
+  const composeFiles = normalizeComposeFilePaths({
+    composeFiles: Array.isArray(sourceReadiness.composeFiles)
+      ? sourceReadiness.composeFiles.filter((entry): entry is string => typeof entry === "string")
+      : undefined,
+    composePath: sourceReadiness.composePath
+  });
+  const composeProfiles = normalizeComposeProfiles(
+    Array.isArray(sourceReadiness.composeProfiles)
+      ? sourceReadiness.composeProfiles.filter(
+          (entry): entry is string => typeof entry === "string"
+        )
+      : []
+  );
 
   if (sourceReadiness.providerType === "generic-git" && !repoUrl) {
     return null;
@@ -322,6 +360,8 @@ export function readProjectSourceReadiness(config: unknown): ProjectSourceReadin
     repoUrl,
     branch: sourceReadiness.branch,
     composePath: sourceReadiness.composePath,
+    composeFiles,
+    ...(composeProfiles.length > 0 ? { composeProfiles } : {}),
     checkedAt: sourceReadiness.checkedAt,
     message: sourceReadiness.message,
     checks: {

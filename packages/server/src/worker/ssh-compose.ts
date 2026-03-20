@@ -11,25 +11,38 @@ function buildRemoteComposeEnvPrefix(): string {
   return `env -i DOCKER_CLI_HINTS=false ${preserved}`.trimEnd();
 }
 
+function normalizeComposeFiles(composeFiles: string | string[]): string[] {
+  return Array.isArray(composeFiles) ? composeFiles : [composeFiles];
+}
+
 function buildRemoteComposeCommand(input: {
-  composeFile: string;
+  composeFiles: string | string[];
   projectName: string;
   workDir: string;
   envFile?: string;
   envExportFile?: string;
+  composeProfiles?: string[];
   subcommand: string;
   serviceName?: string;
   buildMode?: boolean;
 }): string {
   const envFileArg = input.envFile ? ` --env-file ${shellQuote(input.envFile)}` : "";
+  const composeFileArgs = normalizeComposeFiles(input.composeFiles)
+    .map((composeFile) => ` -f ${shellQuote(composeFile)}`)
+    .join("");
+  const composeProfileArgs = (input.composeProfiles ?? [])
+    .map((profile) => profile.trim())
+    .filter((profile) => profile.length > 0)
+    .map((profile) => ` --profile ${shellQuote(profile)}`)
+    .join("");
   const serviceArg = input.serviceName ? ` ${shellQuote(input.serviceName)}` : "";
   const buildPrefix = input.buildMode ? "DOCKER_BUILDKIT=1 COMPOSE_DOCKER_CLI_BUILD=1 " : "";
   const exportPrefix = input.envExportFile
     ? `set -a && . ${shellQuote(input.envExportFile)} && set +a && `
     : "";
   const dockerComposeCommand =
-    `${buildPrefix}docker compose -f ${shellQuote(input.composeFile)} -p ` +
-    `${shellQuote(input.projectName)}${envFileArg} ${input.subcommand}${serviceArg}`;
+    `${buildPrefix}docker compose${composeFileArgs} -p ${shellQuote(input.projectName)}` +
+    `${composeProfileArgs}${envFileArg} ${input.subcommand}${serviceArg}`;
   return (
     `cd ${shellQuote(input.workDir)} && ${buildRemoteComposeEnvPrefix()} sh -lc ` +
     shellQuote(`${exportPrefix}${dockerComposeCommand}`)
@@ -38,15 +51,18 @@ function buildRemoteComposeCommand(input: {
 
 export async function remoteDockerComposePull(
   target: SSHTarget,
-  composeFile: string,
+  composeFiles: string | string[],
   projectName: string,
   workDir: string,
   onLog: OnLog,
   envFile?: string,
   envExportFile?: string,
   serviceName?: string,
+  composeProfilesOrExec?: string[] | typeof execRemote,
   exec: typeof execRemote = execRemote
 ): Promise<{ exitCode: number }> {
+  const composeProfiles = Array.isArray(composeProfilesOrExec) ? composeProfilesOrExec : undefined;
+  const execImpl = typeof composeProfilesOrExec === "function" ? composeProfilesOrExec : exec;
   onLog({
     stream: "stdout",
     message: formatRemoteComposeExecutionEnvSummary(envFile),
@@ -56,29 +72,33 @@ export async function remoteDockerComposePull(
     ? "pull --ignore-buildable --include-deps"
     : "pull --ignore-buildable";
   const cmd = buildRemoteComposeCommand({
-    composeFile,
+    composeFiles,
     projectName,
     workDir,
     envFile,
     envExportFile,
+    composeProfiles,
     subcommand,
     serviceName
   });
-  const result = await exec(target, cmd, onLog);
+  const result = await execImpl(target, cmd, onLog);
   return { exitCode: result.exitCode };
 }
 
 export async function remoteDockerComposeBuild(
   target: SSHTarget,
-  composeFile: string,
+  composeFiles: string | string[],
   projectName: string,
   workDir: string,
   onLog: OnLog,
   envFile?: string,
   envExportFile?: string,
   serviceName?: string,
+  composeProfilesOrExec?: string[] | typeof execRemote,
   exec: typeof execRemote = execRemote
 ): Promise<{ exitCode: number }> {
+  const composeProfiles = Array.isArray(composeProfilesOrExec) ? composeProfilesOrExec : undefined;
+  const execImpl = typeof composeProfilesOrExec === "function" ? composeProfilesOrExec : exec;
   onLog({
     stream: "stdout",
     message: formatRemoteComposeExecutionEnvSummary(envFile),
@@ -86,76 +106,85 @@ export async function remoteDockerComposeBuild(
   });
   const subcommand = serviceName ? "build --with-dependencies" : "build";
   const cmd = buildRemoteComposeCommand({
-    composeFile,
+    composeFiles,
     projectName,
     workDir,
     envFile,
     envExportFile,
+    composeProfiles,
     subcommand,
     serviceName,
     buildMode: true
   });
-  const result = await exec(target, cmd, onLog);
+  const result = await execImpl(target, cmd, onLog);
   return { exitCode: result.exitCode };
 }
 
 export async function remoteDockerComposeUp(
   target: SSHTarget,
-  composeFile: string,
+  composeFiles: string | string[],
   projectName: string,
   workDir: string,
   onLog: OnLog,
   envFile?: string,
   envExportFile?: string,
   serviceName?: string,
+  composeProfilesOrExec?: string[] | typeof execRemote,
   exec: typeof execRemote = execRemote
 ): Promise<{ exitCode: number }> {
+  const composeProfiles = Array.isArray(composeProfilesOrExec) ? composeProfilesOrExec : undefined;
+  const execImpl = typeof composeProfilesOrExec === "function" ? composeProfilesOrExec : exec;
   onLog({
     stream: "stdout",
     message: formatRemoteComposeExecutionEnvSummary(envFile),
     timestamp: new Date()
   });
   const cmd = buildRemoteComposeCommand({
-    composeFile,
+    composeFiles,
     projectName,
     workDir,
     envFile,
     envExportFile,
+    composeProfiles,
     subcommand: "up -d --remove-orphans",
     serviceName
   });
-  const result = await exec(target, cmd, onLog);
+  const result = await execImpl(target, cmd, onLog);
   return { exitCode: result.exitCode };
 }
 
 export async function remoteDockerComposePs(
   target: SSHTarget,
-  composeFile: string,
+  composeFiles: string | string[],
   projectName: string,
   workDir: string,
   onLog: OnLog,
   envFile?: string,
   envExportFile?: string,
   serviceName?: string,
+  composeProfilesOrExec?: string[] | typeof execRemote,
   exec: typeof execRemote = execRemote
 ): Promise<{ exitCode: number; statuses: ComposeContainerStatus[] }> {
+  const composeProfiles = Array.isArray(composeProfilesOrExec) ? composeProfilesOrExec : undefined;
+  const execImpl = typeof composeProfilesOrExec === "function" ? composeProfilesOrExec : exec;
   onLog({
     stream: "stdout",
     message: formatRemoteComposeExecutionEnvSummary(envFile),
     timestamp: new Date()
   });
   const cmd = buildRemoteComposeCommand({
-    composeFile,
+    composeFiles,
     projectName,
     workDir,
     envFile,
     envExportFile,
+    composeProfiles,
     subcommand: "ps --format json",
     serviceName
   });
 
   const stdoutLines: string[] = [];
-  const result = await exec(target, cmd, (line) => {
+  const result = await execImpl(target, cmd, (line) => {
     if (line.stream === "stdout") {
       stdoutLines.push(line.message);
       return;
@@ -172,27 +201,31 @@ export async function remoteDockerComposePs(
 
 export async function remoteDockerComposeDown(
   target: SSHTarget,
-  composeFile: string,
+  composeFiles: string | string[],
   projectName: string,
   workDir: string,
   onLog: OnLog,
   envFile?: string,
   envExportFile?: string,
+  composeProfilesOrExec?: string[] | typeof execRemote,
   exec: typeof execRemote = execRemote
 ): Promise<{ exitCode: number }> {
+  const composeProfiles = Array.isArray(composeProfilesOrExec) ? composeProfilesOrExec : undefined;
+  const execImpl = typeof composeProfilesOrExec === "function" ? composeProfilesOrExec : exec;
   onLog({
     stream: "stdout",
     message: formatRemoteComposeExecutionEnvSummary(envFile),
     timestamp: new Date()
   });
   const cmd = buildRemoteComposeCommand({
-    composeFile,
+    composeFiles,
     projectName,
     workDir,
     envFile,
     envExportFile,
+    composeProfiles,
     subcommand: "down"
   });
-  const result = await exec(target, cmd, onLog);
+  const result = await execImpl(target, cmd, onLog);
   return { exitCode: result.exitCode };
 }

@@ -19,7 +19,11 @@ import { environments, projects } from "../schema/projects";
 import { servers } from "../schema/servers";
 import { asRecord } from "./json-helpers";
 import { resolveComposeDeploymentEnvEntries } from "./compose-env";
-import { resolveComposeFilePath, resolveComposeImageOverride } from "./deployment-source";
+import {
+  resolveComposeFilePaths,
+  resolveComposeImageOverride,
+  resolveComposeProfiles
+} from "./deployment-source";
 import { materializeProjectSourceInspection } from "./project-source-checkout-inspection";
 import { resolveServiceForUser } from "./scoped-services";
 
@@ -130,7 +134,11 @@ async function materializeComposePlanningPreflight(input: {
   }
 
   try {
-    const composeFilePath = resolveComposeFilePath({
+    const composeFilePaths = resolveComposeFilePaths({
+      project: input.project,
+      environment: input.environment
+    });
+    const composeProfiles = resolveComposeProfiles({
       project: input.project,
       environment: input.environment
     });
@@ -142,16 +150,22 @@ async function materializeComposePlanningPreflight(input: {
     });
     const materialized = materializeComposeWorkspaceArtifacts({
       workDir: inspection.workDir,
-      composeFile: composeFilePath,
+      composeFiles: composeFilePaths,
+      composeProfiles,
       branch: input.branch,
       sourceProvenance: "repository-checkout",
       deploymentState: { envState: { kind: "queued", entries: [] } },
       imageOverride: composeImageOverride
     });
 
+    const renderedCompose = materialized.composeInputs.frozenInputs.renderedCompose;
+    if (!renderedCompose) {
+      throw new Error("Compose planning did not produce a rendered compose snapshot.");
+    }
+
     return {
       status: "ok",
-      composeContent: materialized.composeInputs.frozenInputs.composeFile.contents,
+      composeContent: renderedCompose.contents,
       repoDefaultContent: materialized.repoDefaultContent,
       buildPlan: materialized.composeBuildPlan,
       warnings: materialized.composeInputs.manifest.warnings

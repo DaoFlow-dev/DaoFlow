@@ -56,6 +56,36 @@ describe("uploaded artifacts", () => {
     expect(statSync(join(destinationDir, "compose.yaml")).mode & 0o777).toBe(0o600);
   });
 
+  it("preserves nested compose override paths when persisting and restoring artifacts", async () => {
+    const { persistUploadedArtifacts, restoreUploadedArtifacts } =
+      await import("./uploaded-artifacts");
+
+    mkdirSync(join(sourceDir, "ops"), { recursive: true });
+    writeFileSync(join(sourceDir, "compose.yaml"), "services:\n  app:\n    image: nginx:alpine\n");
+    writeFileSync(
+      join(sourceDir, "ops", "compose.override.yaml"),
+      "services:\n  app:\n    environment:\n      MODE: prod\n"
+    );
+
+    const { artifactId } = await persistUploadedArtifacts({
+      sourceDir,
+      composeFileName: "compose.yaml",
+      composeFileNames: ["compose.yaml", "ops/compose.override.yaml"]
+    });
+
+    rmSync(sourceDir, { recursive: true, force: true });
+
+    const restored = await restoreUploadedArtifacts({
+      artifactId,
+      destinationDir
+    });
+
+    expect(restored.restoredFiles.sort()).toEqual(["compose.yaml", "ops/compose.override.yaml"]);
+    expect(readFileSync(join(destinationDir, "ops", "compose.override.yaml"), "utf8")).toContain(
+      "MODE: prod"
+    );
+  });
+
   it("rejects invalid replay ids before touching the filesystem", async () => {
     const { restoreUploadedArtifacts } = await import("./uploaded-artifacts");
 

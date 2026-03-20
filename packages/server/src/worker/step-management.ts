@@ -132,6 +132,8 @@ export interface ConfigSnapshot extends Record<string, unknown> {
   targetServerHost?: string;
   stackName?: string;
   composeFilePath?: string;
+  composeFilePaths?: string[];
+  composeProfiles?: string[];
   composeServiceName?: string;
   repoUrl?: string;
   repoFullName?: string;
@@ -148,6 +150,7 @@ export interface ConfigSnapshot extends Record<string, unknown> {
   deploymentSource?: string;
   repositoryPreparation?: RepositoryPreparationConfig;
   uploadedComposeFileName?: string;
+  uploadedComposeFileNames?: string[];
   uploadedContextArchiveName?: string;
   uploadedArtifactId?: string;
   composeOperation?: "up" | "down";

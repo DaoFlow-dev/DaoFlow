@@ -8,12 +8,15 @@ import {
   type ComposeBuildPlan
 } from "./compose-build-plan";
 import { COMPOSE_ENV_FILE_NAME } from "./compose-env";
+import { mergeComposeDocuments } from "./compose-merge";
+import { normalizeComposeProfiles } from "./compose-source";
 
 export const RENDERED_COMPOSE_FILE_NAME = ".daoflow.compose.rendered.yaml";
 export const FROZEN_COMPOSE_INPUT_DIR = ".daoflow.compose.inputs";
 
 export type ComposeInputManifestEntryKind =
   | "compose-file"
+  | "rendered-compose-file"
   | "repo-default-env"
   | "compose-env"
   | "service-env-file";
@@ -40,6 +43,12 @@ export interface ComposeInputManifest {
   warnings: string[];
 }
 
+export interface FrozenComposeFilePayload {
+  path: string;
+  sourcePath: string | null;
+  contents: string;
+}
+
 export interface FrozenComposeEnvFilePayload {
   path: string;
   sourcePath: string;
@@ -53,16 +62,19 @@ export interface ComposeImageOverrideRequest {
 }
 
 export interface FrozenComposeInputsPayload {
-  composeFile: {
+  composeFiles?: FrozenComposeFilePayload[];
+  composeFile?: FrozenComposeFilePayload;
+  envFiles: FrozenComposeEnvFilePayload[];
+  profiles?: string[];
+  renderedCompose?: {
     path: string;
-    sourcePath: string;
     contents: string;
   };
-  envFiles: FrozenComposeEnvFilePayload[];
 }
 
 export interface MaterializedComposeInputs {
   composeFile: string;
+  composeFiles: string[];
   buildPlan: ComposeBuildPlan;
   manifest: ComposeInputManifest;
   frozenInputs: FrozenComposeInputsPayload;
@@ -89,6 +101,10 @@ function sanitizeFrozenPath(path: string): string {
     .replace(/\.\.\//g, "__up__/")
     .replace(/^\//, "root/")
     .replace(/[^A-Za-z0-9._/-]+/g, "_");
+}
+
+function parseComposeDocument(contents: string): Record<string, unknown> {
+  return (parseYaml(contents) as Record<string, unknown> | null) ?? {};
 }
 
 function resolveComposeRelativePath(workDir: string, composeFile: string, path: string): string {
@@ -201,35 +217,6 @@ function collectServiceEnvFileReferences(
   return results;
 }
 
-function applyComposeImageOverride(
-  doc: Record<string, unknown>,
-  imageOverride?: ComposeImageOverrideRequest
-): void {
-  const serviceName = imageOverride?.serviceName?.trim();
-  const imageReference = imageOverride?.imageReference?.trim();
-  if (!serviceName || !imageReference) {
-    return;
-  }
-
-  const services =
-    doc.services && typeof doc.services === "object" && !Array.isArray(doc.services)
-      ? (doc.services as Record<string, unknown>)
-      : null;
-  if (!services) {
-    throw new Error("Compose image override requires a compose document with services.");
-  }
-
-  const serviceValue = services[serviceName];
-  if (!serviceValue || typeof serviceValue !== "object" || Array.isArray(serviceValue)) {
-    throw new Error(
-      `Compose image override targets unknown service "${serviceName}" in the rendered compose file.`
-    );
-  }
-
-  const service = serviceValue as Record<string, unknown>;
-  service.image = imageReference;
-}
-
 function buildFrozenEnvFilePath(originalPath: string): string {
   const sanitizedPath = sanitizeFrozenPath(originalPath);
   const fileName = basename(sanitizedPath) || "env-file";
@@ -238,139 +225,124 @@ function buildFrozenEnvFilePath(originalPath: string): string {
   return normalizeRelativePath(join(FROZEN_COMPOSE_INPUT_DIR, `${prefix}${fileName}`));
 }
 
-export function materializeFrozenComposeInputs(
-  workDir: string,
-  payload: FrozenComposeInputsPayload
-): string {
-  writeFrozenFile(workDir, payload.composeFile.path, payload.composeFile.contents);
-
-  for (const envFile of payload.envFiles) {
-    writeFrozenFile(workDir, envFile.path, envFile.contents);
-  }
-
-  return payload.composeFile.path;
+function buildFrozenComposeFilePath(originalPath: string, index: number): string {
+  const sanitizedPath = sanitizeFrozenPath(originalPath).replace(/\//g, "__");
+  const extension = basename(originalPath).match(/\.(ya?ml)$/i)?.[0] ?? ".yaml";
+  return normalizeRelativePath(
+    join(
+      FROZEN_COMPOSE_INPUT_DIR,
+      `compose-${String(index + 1).padStart(2, "0")}__${sanitizedPath}${extension}`
+    )
+  );
 }
 
-export function materializeComposeInputs(input: {
-  workDir: string;
-  composeFile: string;
-  sourceProvenance: Exclude<ComposeInputManifestProvenance, "daoflow-generated">;
-  repoDefaultContent?: string | null;
-  composeEnvFileContents: string;
-  existingManifest?: ComposeInputManifest;
-  existingFrozenInputs?: FrozenComposeInputsPayload;
-  existingBuildPlan?: ComposeBuildPlan;
-  imageOverride?: ComposeImageOverrideRequest;
-}): MaterializedComposeInputs {
-  if (input.existingFrozenInputs) {
-    const doc =
-      (parseYaml(input.existingFrozenInputs.composeFile.contents) as Record<
-        string,
-        unknown
-      > | null) ?? {};
-    applyComposeImageOverride(doc, input.imageOverride);
-    const buildPlan = buildComposeBuildPlan(doc, input.existingBuildPlan?.warnings ?? []);
-    const renderedComposeContents = stringifyYaml(doc);
-    const frozenInputs: FrozenComposeInputsPayload = {
-      composeFile: {
-        ...input.existingFrozenInputs.composeFile,
-        contents: renderedComposeContents
-      },
-      envFiles: input.existingFrozenInputs.envFiles
-    };
-    const composeFile = materializeFrozenComposeInputs(input.workDir, frozenInputs);
-    const preservedEntries =
-      input.existingManifest?.entries.filter((entry) => entry.kind === "repo-default-env") ?? [];
-    const mergedWarnings = [...(input.existingManifest?.warnings ?? [])];
-    const manifest: ComposeInputManifest = input.existingManifest
-      ? {
-          ...input.existingManifest,
-          warnings: mergedWarnings,
-          entries: [
-            buildManifestEntry({
-              kind: "compose-file",
-              path: frozenInputs.composeFile.path,
-              sourcePath: frozenInputs.composeFile.sourcePath,
-              contents: frozenInputs.composeFile.contents,
-              provenance: "daoflow-generated"
-            }),
-            ...frozenInputs.envFiles.map((envFile) =>
-              buildManifestEntry({
-                kind: "service-env-file",
-                path: envFile.path,
-                sourcePath: envFile.sourcePath,
-                contents: envFile.contents,
-                provenance: "daoflow-generated",
-                services: envFile.services
-              })
-            ),
-            buildManifestEntry({
-              kind: "compose-env",
-              path: COMPOSE_ENV_FILE_NAME,
-              contents: input.composeEnvFileContents,
-              provenance: "daoflow-generated"
-            }),
-            ...preservedEntries
-          ].sort((a, b) => `${a.kind}:${a.path}`.localeCompare(`${b.kind}:${b.path}`))
-        }
-      : {
-          status: "materialized",
-          version: 1,
-          warnings: mergedWarnings,
-          entries: [
-            buildManifestEntry({
-              kind: "compose-file",
-              path: frozenInputs.composeFile.path,
-              sourcePath: frozenInputs.composeFile.sourcePath,
-              contents: frozenInputs.composeFile.contents,
-              provenance: "daoflow-generated"
-            }),
-            ...frozenInputs.envFiles.map((envFile) =>
-              buildManifestEntry({
-                kind: "service-env-file",
-                path: envFile.path,
-                sourcePath: envFile.sourcePath,
-                contents: envFile.contents,
-                provenance: "daoflow-generated",
-                services: envFile.services
-              })
-            ),
-            buildManifestEntry({
-              kind: "compose-env",
-              path: COMPOSE_ENV_FILE_NAME,
-              contents: input.composeEnvFileContents,
-              provenance: "daoflow-generated"
-            })
-          ].sort((a, b) => `${a.kind}:${a.path}`.localeCompare(`${b.kind}:${b.path}`))
-        };
+function buildGeneratedOverrideComposeFilePath(serviceName: string): string {
+  const sanitizedServiceName = sanitizeFrozenPath(serviceName).replace(/\//g, "__");
+  return normalizeRelativePath(
+    join(FROZEN_COMPOSE_INPUT_DIR, `compose-override__${sanitizedServiceName}.yaml`)
+  );
+}
 
-    return {
-      composeFile,
-      buildPlan,
-      manifest,
-      frozenInputs
-    };
+function resolveFrozenComposeFiles(
+  payload: FrozenComposeInputsPayload
+): FrozenComposeFilePayload[] {
+  if (Array.isArray(payload.composeFiles) && payload.composeFiles.length > 0) {
+    return payload.composeFiles;
   }
 
-  const composePath = join(input.workDir, input.composeFile);
-  const originalComposeContents = readFileSync(composePath, "utf8");
-  const doc = (parseYaml(originalComposeContents) as Record<string, unknown> | null) ?? {};
-  const buildWarnings = rewriteComposeBuildAndSecretReferences({
-    doc,
-    workDir: input.workDir,
-    composeFile: input.composeFile
-  });
-  applyComposeImageOverride(doc, input.imageOverride);
-  const buildPlan = buildComposeBuildPlan(doc, buildWarnings);
+  return payload.composeFile ? [payload.composeFile] : [];
+}
+
+function resolveFrozenComposeProfiles(payload: FrozenComposeInputsPayload): string[] {
+  return normalizeComposeProfiles(payload.profiles);
+}
+
+function resolveRenderedComposePayload(
+  payload: FrozenComposeInputsPayload,
+  fallbackContents: string
+): { path: string; contents: string } {
+  return (
+    payload.renderedCompose ?? {
+      path: RENDERED_COMPOSE_FILE_NAME,
+      contents: fallbackContents
+    }
+  );
+}
+
+function buildImageOverrideComposeDoc(
+  imageOverride?: ComposeImageOverrideRequest
+): Record<string, unknown> | null {
+  const serviceName = imageOverride?.serviceName?.trim();
+  const imageReference = imageOverride?.imageReference?.trim();
+  if (!serviceName || !imageReference) {
+    return null;
+  }
+
+  return {
+    services: {
+      [serviceName]: {
+        image: imageReference
+      }
+    }
+  };
+}
+
+function validateRequestedComposeProfiles(
+  doc: Record<string, unknown>,
+  requestedProfiles: string[]
+): void {
+  if (requestedProfiles.length === 0) {
+    return;
+  }
+
   const services =
     doc.services && typeof doc.services === "object" && !Array.isArray(doc.services)
       ? (doc.services as Record<string, unknown>)
-      : null;
-  const envFileReferences = collectServiceEnvFileReferences(doc);
-  const warnings: string[] = [...buildWarnings];
-  const envFilesBySource = new Map<string, FrozenComposeEnvFilePayload>();
+      : {};
+  const availableProfiles = new Set<string>();
 
-  for (const [serviceName, references] of envFileReferences.entries()) {
+  for (const value of Object.values(services)) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      continue;
+    }
+
+    const profiles = (value as Record<string, unknown>).profiles;
+    if (!Array.isArray(profiles)) {
+      continue;
+    }
+
+    for (const profile of profiles) {
+      if (typeof profile === "string" && profile.trim().length > 0) {
+        availableProfiles.add(profile.trim());
+      }
+    }
+  }
+
+  const unsupportedProfiles = requestedProfiles.filter(
+    (profile) => !availableProfiles.has(profile)
+  );
+  if (unsupportedProfiles.length > 0) {
+    throw new Error(
+      `Compose profiles not found in the staged compose files: ${unsupportedProfiles.join(", ")}.`
+    );
+  }
+}
+
+function materializeEnvFileReferences(input: {
+  workDir: string;
+  composeFile: string;
+  doc: Record<string, unknown>;
+  warnings: string[];
+  envFilesBySource: Map<string, FrozenComposeEnvFilePayload>;
+}): void {
+  const services =
+    input.doc.services &&
+    typeof input.doc.services === "object" &&
+    !Array.isArray(input.doc.services)
+      ? (input.doc.services as Record<string, unknown>)
+      : null;
+
+  for (const [serviceName, references] of collectServiceEnvFileReferences(input.doc).entries()) {
     const serviceValue = services?.[serviceName];
     if (!serviceValue || typeof serviceValue !== "object" || Array.isArray(serviceValue)) {
       continue;
@@ -392,20 +364,20 @@ export function materializeComposeInputs(input: {
           );
         }
 
-        warnings.push(
+        input.warnings.push(
           `Skipped optional env_file "${reference.path}" for service "${serviceName}" because it was not present in the frozen workspace.`
         );
         continue;
       }
 
-      const existing = envFilesBySource.get(reference.path);
+      const existing = input.envFilesBySource.get(reference.path);
       if (existing) {
         if (!existing.services.includes(serviceName)) {
           existing.services.push(serviceName);
           existing.services.sort((a, b) => a.localeCompare(b));
         }
       } else {
-        envFilesBySource.set(reference.path, {
+        input.envFilesBySource.set(reference.path, {
           path: buildFrozenEnvFilePath(reference.path),
           sourcePath: normalizeRelativePath(reference.path),
           contents: readFileSync(resolvedPath, "utf8"),
@@ -414,7 +386,7 @@ export function materializeComposeInputs(input: {
       }
 
       const frozenPath =
-        envFilesBySource.get(reference.path)?.path ?? buildFrozenEnvFilePath(reference.path);
+        input.envFilesBySource.get(reference.path)?.path ?? buildFrozenEnvFilePath(reference.path);
       if (reference.format || !reference.required) {
         const record: Record<string, unknown> = { path: frozenPath };
         if (!reference.required) {
@@ -437,25 +409,35 @@ export function materializeComposeInputs(input: {
       service.env_file = rewrittenEnvFile;
     }
   }
+}
 
-  const renderedComposeFile = RENDERED_COMPOSE_FILE_NAME;
-  const renderedComposeContents = stringifyYaml(doc);
-  const frozenInputs: FrozenComposeInputsPayload = {
-    composeFile: {
-      path: renderedComposeFile,
-      sourcePath: normalizeRelativePath(input.composeFile),
-      contents: renderedComposeContents
-    },
-    envFiles: [...envFilesBySource.values()].sort((a, b) => a.path.localeCompare(b.path))
-  };
-
-  const composeFile = materializeFrozenComposeInputs(input.workDir, frozenInputs);
+function buildManifestFromFrozenInputs(input: {
+  frozenInputs: FrozenComposeInputsPayload;
+  composeEnvFileContents: string;
+  provenance: ComposeInputManifestProvenance;
+  repoDefaultContent?: string | null;
+  primaryComposeFileSourcePath: string;
+  warnings: string[];
+}): ComposeInputManifest {
+  const composeFiles = resolveFrozenComposeFiles(input.frozenInputs);
+  const renderedCompose = resolveRenderedComposePayload(
+    input.frozenInputs,
+    composeFiles.map((composeFile) => composeFile.contents).join("\n")
+  );
   const entries: ComposeInputManifestEntry[] = [
+    ...composeFiles.map((composeFile) =>
+      buildManifestEntry({
+        kind: "compose-file",
+        path: composeFile.path,
+        sourcePath: composeFile.sourcePath,
+        contents: composeFile.contents,
+        provenance: "daoflow-generated"
+      })
+    ),
     buildManifestEntry({
-      kind: "compose-file",
-      path: renderedComposeFile,
-      sourcePath: input.composeFile,
-      contents: renderedComposeContents,
+      kind: "rendered-compose-file",
+      path: renderedCompose.path,
+      contents: renderedCompose.contents,
       provenance: "daoflow-generated"
     }),
     buildManifestEntry({
@@ -470,14 +452,14 @@ export function materializeComposeInputs(input: {
     entries.push(
       buildManifestEntry({
         kind: "repo-default-env",
-        path: normalizeRelativePath(join(dirname(input.composeFile), ".env")),
+        path: normalizeRelativePath(join(dirname(input.primaryComposeFileSourcePath), ".env")),
         contents: input.repoDefaultContent,
-        provenance: input.sourceProvenance
+        provenance: input.provenance
       })
     );
   }
 
-  for (const envFile of frozenInputs.envFiles) {
+  for (const envFile of input.frozenInputs.envFiles) {
     entries.push(
       buildManifestEntry({
         kind: "service-env-file",
@@ -491,14 +473,219 @@ export function materializeComposeInputs(input: {
   }
 
   return {
-    composeFile,
+    status: "materialized",
+    version: 1,
+    warnings: input.warnings,
+    entries: entries.sort((a, b) => `${a.kind}:${a.path}`.localeCompare(`${b.kind}:${b.path}`))
+  };
+}
+
+export function materializeFrozenComposeInputs(
+  workDir: string,
+  payload: FrozenComposeInputsPayload
+): string[] {
+  const composeFiles = resolveFrozenComposeFiles(payload);
+  const renderedCompose = resolveRenderedComposePayload(
+    payload,
+    composeFiles.map((composeFile) => composeFile.contents).join("\n")
+  );
+
+  for (const composeFile of composeFiles) {
+    writeFrozenFile(workDir, composeFile.path, composeFile.contents);
+  }
+
+  writeFrozenFile(workDir, renderedCompose.path, renderedCompose.contents);
+
+  for (const envFile of payload.envFiles) {
+    writeFrozenFile(workDir, envFile.path, envFile.contents);
+  }
+
+  return composeFiles.map((composeFile) => composeFile.path);
+}
+
+function materializeComposeInputsFromExistingPayload(input: {
+  workDir: string;
+  composeEnvFileContents: string;
+  existingManifest?: ComposeInputManifest;
+  existingFrozenInputs: FrozenComposeInputsPayload;
+  existingBuildPlan?: ComposeBuildPlan;
+  imageOverride?: ComposeImageOverrideRequest;
+}): MaterializedComposeInputs {
+  const warnings = [
+    ...(input.existingManifest?.warnings ?? input.existingBuildPlan?.warnings ?? [])
+  ];
+  const persistedComposeFiles = resolveFrozenComposeFiles(input.existingFrozenInputs).filter(
+    (composeFile) => composeFile.sourcePath !== null
+  );
+  const docs = persistedComposeFiles.map((composeFile) =>
+    parseComposeDocument(composeFile.contents)
+  );
+  const overrideDoc = buildImageOverrideComposeDoc(input.imageOverride);
+  const composeFiles = [...persistedComposeFiles];
+
+  if (overrideDoc) {
+    composeFiles.push({
+      path: buildGeneratedOverrideComposeFilePath(input.imageOverride?.serviceName ?? "service"),
+      sourcePath: null,
+      contents: stringifyYaml(overrideDoc)
+    });
+    docs.push(overrideDoc);
+  }
+
+  const mergedDoc = mergeComposeDocuments(docs);
+  const requestedProfiles = resolveFrozenComposeProfiles(input.existingFrozenInputs);
+  validateRequestedComposeProfiles(mergedDoc, requestedProfiles);
+  const renderedComposeContents = stringifyYaml(mergedDoc);
+  const frozenInputs: FrozenComposeInputsPayload = {
+    composeFiles,
+    composeFile: composeFiles[0],
+    envFiles: input.existingFrozenInputs.envFiles,
+    profiles: requestedProfiles,
+    renderedCompose: {
+      path: RENDERED_COMPOSE_FILE_NAME,
+      contents: renderedComposeContents
+    }
+  };
+  const materializedComposeFiles = materializeFrozenComposeInputs(input.workDir, frozenInputs);
+  const buildPlan = buildComposeBuildPlan(mergedDoc, warnings);
+  const primaryComposeSourcePath =
+    persistedComposeFiles[0]?.sourcePath ??
+    input.existingManifest?.entries[0]?.sourcePath ??
+    "docker-compose.yml";
+  const manifest = buildManifestFromFrozenInputs({
+    frozenInputs,
+    composeEnvFileContents: input.composeEnvFileContents,
+    provenance: "daoflow-generated",
+    repoDefaultContent: null,
+    primaryComposeFileSourcePath: primaryComposeSourcePath,
+    warnings
+  });
+
+  const preservedRepoDefaultEntries =
+    input.existingManifest?.entries.filter((entry) => entry.kind === "repo-default-env") ?? [];
+  if (preservedRepoDefaultEntries.length > 0) {
+    manifest.entries = [...manifest.entries, ...preservedRepoDefaultEntries].sort((a, b) =>
+      `${a.kind}:${a.path}`.localeCompare(`${b.kind}:${b.path}`)
+    );
+  }
+
+  return {
+    composeFile: materializedComposeFiles[0] ?? RENDERED_COMPOSE_FILE_NAME,
+    composeFiles: materializedComposeFiles,
     buildPlan,
-    manifest: {
-      status: "materialized",
-      version: 1,
+    manifest,
+    frozenInputs
+  };
+}
+
+export function materializeComposeInputs(input: {
+  workDir: string;
+  composeFiles?: string[];
+  composeFile?: string;
+  composeProfiles?: string[];
+  sourceProvenance: Exclude<ComposeInputManifestProvenance, "daoflow-generated">;
+  repoDefaultContent?: string | null;
+  composeEnvFileContents: string;
+  existingManifest?: ComposeInputManifest;
+  existingFrozenInputs?: FrozenComposeInputsPayload;
+  existingBuildPlan?: ComposeBuildPlan;
+  imageOverride?: ComposeImageOverrideRequest;
+}): MaterializedComposeInputs {
+  const composeFiles =
+    input.composeFiles && input.composeFiles.length > 0
+      ? input.composeFiles
+      : input.composeFile
+        ? [input.composeFile]
+        : [];
+
+  if (composeFiles.length === 0) {
+    throw new Error("At least one compose file is required to materialize compose inputs.");
+  }
+
+  if (input.existingFrozenInputs) {
+    return materializeComposeInputsFromExistingPayload({
+      workDir: input.workDir,
+      composeEnvFileContents: input.composeEnvFileContents,
+      existingManifest: input.existingManifest,
+      existingFrozenInputs: input.existingFrozenInputs,
+      existingBuildPlan: input.existingBuildPlan,
+      imageOverride: input.imageOverride
+    });
+  }
+
+  const warnings: string[] = [];
+  const envFilesBySource = new Map<string, FrozenComposeEnvFilePayload>();
+  const frozenComposeFiles: FrozenComposeFilePayload[] = [];
+  const composeDocs: Record<string, unknown>[] = [];
+
+  for (const [index, composeFile] of composeFiles.entries()) {
+    const composePath = join(input.workDir, composeFile);
+    const originalComposeContents = readFileSync(composePath, "utf8");
+    const doc = parseComposeDocument(originalComposeContents);
+    warnings.push(
+      ...rewriteComposeBuildAndSecretReferences({
+        doc,
+        workDir: input.workDir,
+        composeFile
+      })
+    );
+    materializeEnvFileReferences({
+      workDir: input.workDir,
+      composeFile,
+      doc,
       warnings,
-      entries: entries.sort((a, b) => `${a.kind}:${a.path}`.localeCompare(`${b.kind}:${b.path}`))
-    },
+      envFilesBySource
+    });
+
+    const contents = stringifyYaml(doc);
+    frozenComposeFiles.push({
+      path: buildFrozenComposeFilePath(composeFile, index),
+      sourcePath: normalizeRelativePath(composeFile),
+      contents
+    });
+    composeDocs.push(doc);
+  }
+
+  const overrideDoc = buildImageOverrideComposeDoc(input.imageOverride);
+  if (overrideDoc) {
+    frozenComposeFiles.push({
+      path: buildGeneratedOverrideComposeFilePath(input.imageOverride?.serviceName ?? "service"),
+      sourcePath: null,
+      contents: stringifyYaml(overrideDoc)
+    });
+    composeDocs.push(overrideDoc);
+  }
+
+  const requestedProfiles = normalizeComposeProfiles(input.composeProfiles);
+  const mergedDoc = mergeComposeDocuments(composeDocs);
+  validateRequestedComposeProfiles(mergedDoc, requestedProfiles);
+  const renderedComposeContents = stringifyYaml(mergedDoc);
+  const frozenInputs: FrozenComposeInputsPayload = {
+    composeFiles: frozenComposeFiles,
+    composeFile: frozenComposeFiles[0],
+    envFiles: [...envFilesBySource.values()].sort((a, b) => a.path.localeCompare(b.path)),
+    profiles: requestedProfiles,
+    renderedCompose: {
+      path: RENDERED_COMPOSE_FILE_NAME,
+      contents: renderedComposeContents
+    }
+  };
+  const materializedComposeFiles = materializeFrozenComposeInputs(input.workDir, frozenInputs);
+  const buildPlan = buildComposeBuildPlan(mergedDoc, warnings);
+  const manifest = buildManifestFromFrozenInputs({
+    frozenInputs,
+    composeEnvFileContents: input.composeEnvFileContents,
+    provenance: input.sourceProvenance,
+    repoDefaultContent: input.repoDefaultContent,
+    primaryComposeFileSourcePath: composeFiles[0] ?? "docker-compose.yml",
+    warnings
+  });
+
+  return {
+    composeFile: materializedComposeFiles[0] ?? RENDERED_COMPOSE_FILE_NAME,
+    composeFiles: materializedComposeFiles,
+    buildPlan,
+    manifest,
     frozenInputs
   };
 }

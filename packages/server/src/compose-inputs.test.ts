@@ -53,7 +53,11 @@ describe("compose input materialization", () => {
       }
     });
 
-    expect(result.composeFile).toBe(".daoflow.compose.rendered.yaml");
+    expect(result.composeFile).toBe(".daoflow.compose.inputs/compose-01__ops.compose.yaml.yaml");
+    expect(result.composeFiles).toEqual([
+      ".daoflow.compose.inputs/compose-01__ops.compose.yaml.yaml",
+      ".daoflow.compose.inputs/compose-override__api.yaml"
+    ]);
     expect(result.manifest.entries).toEqual([
       expect.objectContaining({
         kind: "compose-env",
@@ -61,8 +65,17 @@ describe("compose input materialization", () => {
       }),
       expect.objectContaining({
         kind: "compose-file",
-        path: ".daoflow.compose.rendered.yaml",
+        path: ".daoflow.compose.inputs/compose-01__ops.compose.yaml.yaml",
         sourcePath: "ops.compose.yaml"
+      }),
+      expect.objectContaining({
+        kind: "compose-file",
+        path: ".daoflow.compose.inputs/compose-override__api.yaml",
+        sourcePath: null
+      }),
+      expect.objectContaining({
+        kind: "rendered-compose-file",
+        path: ".daoflow.compose.rendered.yaml"
       }),
       expect.objectContaining({
         kind: "repo-default-env",
@@ -80,7 +93,9 @@ describe("compose input materialization", () => {
       'Skipped optional env_file "./config/optional.env" for service "api" because it was not present in the frozen workspace.'
     ]);
 
-    const renderedCompose = readFileSync(join(workDir, result.composeFile), "utf8");
+    const renderedComposePath = result.frozenInputs.renderedCompose?.path;
+    expect(renderedComposePath).toBe(".daoflow.compose.rendered.yaml");
+    const renderedCompose = readFileSync(join(workDir, renderedComposePath ?? ""), "utf8");
     expect(renderedCompose).toContain(".daoflow.compose.inputs/config__runtime.env");
     expect(renderedCompose).not.toContain("./config/runtime.env");
     expect(renderedCompose).toContain("image: ghcr.io/daoflow/api:2.0.0");

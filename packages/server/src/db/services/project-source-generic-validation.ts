@@ -31,6 +31,8 @@ function buildGenericReadiness(
     repoUrl: source.repoUrl,
     branch: source.defaultBranch,
     composePath: source.composePath,
+    composeFiles: source.composeFiles,
+    ...(source.composeProfiles.length > 0 ? { composeProfiles: source.composeProfiles } : {}),
     checkedAt: new Date().toISOString(),
     message,
     checks
@@ -72,9 +74,11 @@ export async function validateGenericGitProjectSource(
   }
 
   try {
-    const composeFilePath = join(inspection.workDir, source.composePath);
-    if (!existsSync(composeFilePath)) {
-      const message = `Compose file ${source.composePath} was not found in ${describeGenericSource(source)}@${source.defaultBranch}.`;
+    const missingComposeFile = source.composeFiles.find(
+      (composeFile) => !existsSync(join(inspection.workDir, composeFile))
+    );
+    if (missingComposeFile) {
+      const message = `Compose file ${missingComposeFile} was not found in ${describeGenericSource(source)}@${source.defaultBranch}.`;
       return {
         status: "invalid",
         message,

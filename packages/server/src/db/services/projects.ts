@@ -5,6 +5,11 @@ import { projects, environments, environmentVariables } from "../schema/projects
 import type { AppRole } from "@daoflow/shared";
 import { asRecord, newId as id } from "./json-helpers";
 import {
+  normalizeComposeFilePaths,
+  normalizeComposeProfiles,
+  writeComposeSourceSelectionToConfig
+} from "../../compose-source";
+import {
   mergeProjectSourceReadiness,
   readProjectSourceReadiness,
   validateProjectSourceReadiness
@@ -19,6 +24,8 @@ export interface CreateProjectInput {
   repoUrl?: string;
   repoFullName?: string;
   composePath?: string;
+  composeFiles?: string[];
+  composeProfiles?: string[];
   gitProviderId?: string;
   gitInstallationId?: string;
   defaultBranch?: string;
@@ -46,6 +53,8 @@ export interface UpdateProjectInput {
   repoUrl?: string;
   repoFullName?: string;
   composePath?: string;
+  composeFiles?: string[];
+  composeProfiles?: string[];
   gitProviderId?: string;
   gitInstallationId?: string;
   defaultBranch?: string;
@@ -67,6 +76,8 @@ export interface CreateEnvironmentInput {
   projectId: string;
   name: string;
   targetServerId?: string;
+  composeFiles?: string[];
+  composeProfiles?: string[];
   requestedByUserId: string;
   requestedByEmail: string;
   requestedByRole: AppRole;
@@ -77,6 +88,8 @@ export interface UpdateEnvironmentInput {
   name?: string;
   status?: string;
   targetServerId?: string;
+  composeFiles?: string[];
+  composeProfiles?: string[];
   requestedByUserId: string;
   requestedByEmail: string;
   requestedByRole: AppRole;
@@ -95,13 +108,22 @@ export async function createProject(input: CreateProjectInput) {
   const byName = await db.select().from(projects).where(eq(projects.name, input.name)).limit(1);
   if (byName[0]) return { status: "conflict" as const, conflictField: "name" };
 
+  const composeFiles = normalizeComposeFilePaths({
+    composeFiles: input.composeFiles,
+    composePath: input.composePath
+  });
+  const composeProfiles = normalizeComposeProfiles(input.composeProfiles);
   const baseConfig = {
     description: input.description ?? "",
     latestDeploymentStatus: "new"
   };
-  const configWithRepositoryPreparation = mergeRepositoryPreparationConfig(baseConfig, {
-    submodules: input.repositorySubmodules,
-    gitLfs: input.repositoryGitLfs
+  const configWithComposeSource = writeComposeSourceSelectionToConfig({
+    config: mergeRepositoryPreparationConfig(baseConfig, {
+      submodules: input.repositorySubmodules,
+      gitLfs: input.repositoryGitLfs
+    }),
+    composeFiles,
+    composeProfiles
   });
   const sourceValidation = await validateProjectSourceReadiness({
     repoUrl: input.repoUrl,
@@ -109,8 +131,10 @@ export async function createProject(input: CreateProjectInput) {
     gitProviderId: input.gitProviderId,
     gitInstallationId: input.gitInstallationId,
     defaultBranch: input.defaultBranch,
-    composePath: input.composePath,
-    repositoryPreparation: asRecord(configWithRepositoryPreparation).repositoryPreparation,
+    composePath: composeFiles[0],
+    composeFiles,
+    composeProfiles,
+    repositoryPreparation: asRecord(configWithComposeSource).repositoryPreparation,
     genericGitMode: "best-effort"
   });
   if (sourceValidation.status === "invalid") {
@@ -137,13 +161,13 @@ export async function createProject(input: CreateProjectInput) {
       repoFullName: input.repoFullName ?? null,
       repoUrl: input.repoUrl ?? null,
       sourceType: "compose",
-      composePath: input.composePath ?? null,
+      composePath: composeFiles[0] ?? null,
       gitProviderId: input.gitProviderId ?? null,
       gitInstallationId: input.gitInstallationId ?? null,
       defaultBranch: input.defaultBranch ?? "main",
       createdByUserId: input.requestedByUserId,
       config: mergeProjectSourceReadiness(
-        configWithRepositoryPreparation,
+        configWithComposeSource,
         sourceValidation.status === "ready" ? sourceValidation.readiness : null
       ),
       updatedAt: new Date()
@@ -187,10 +211,35 @@ export async function updateProject(input: UpdateProjectInput) {
     input.gitProviderId !== undefined ||
     input.gitInstallationId !== undefined ||
     input.defaultBranch !== undefined ||
-    input.composePath !== undefined;
+    input.composePath !== undefined ||
+    input.composeFiles !== undefined ||
+    input.composeProfiles !== undefined;
   const repositoryPreparationTouched =
     input.repositorySubmodules !== undefined || input.repositoryGitLfs !== undefined;
   const existingConfig = asRecord(existing[0].config);
+  const composeFiles = normalizeComposeFilePaths({
+    composeFiles:
+      input.composeFiles !== undefined
+        ? input.composeFiles
+        : input.composePath !== undefined
+          ? undefined
+          : Array.isArray(existingConfig.composeFilePaths)
+            ? existingConfig.composeFilePaths.filter(
+                (entry): entry is string => typeof entry === "string"
+              )
+            : undefined,
+    composePath: input.composePath ?? existing[0].composePath
+  });
+  const composeProfiles =
+    input.composeProfiles !== undefined
+      ? normalizeComposeProfiles(input.composeProfiles)
+      : Array.isArray(existingConfig.composeProfiles)
+        ? normalizeComposeProfiles(
+            existingConfig.composeProfiles.filter(
+              (entry): entry is string => typeof entry === "string"
+            )
+          )
+        : [];
   const nextConfig =
     input.description !== undefined
       ? {
@@ -198,9 +247,13 @@ export async function updateProject(input: UpdateProjectInput) {
           description: input.description
         }
       : existingConfig;
-  const nextConfigWithRepositoryPreparation = mergeRepositoryPreparationConfig(nextConfig, {
-    submodules: input.repositorySubmodules,
-    gitLfs: input.repositoryGitLfs
+  const nextConfigWithComposeSource = writeComposeSourceSelectionToConfig({
+    config: mergeRepositoryPreparationConfig(nextConfig, {
+      submodules: input.repositorySubmodules,
+      gitLfs: input.repositoryGitLfs
+    }),
+    composeFiles,
+    composeProfiles
   });
 
   const sourceValidation = sourceFieldsTouched
@@ -210,8 +263,10 @@ export async function updateProject(input: UpdateProjectInput) {
         gitProviderId: input.gitProviderId ?? existing[0].gitProviderId,
         gitInstallationId: input.gitInstallationId ?? existing[0].gitInstallationId,
         defaultBranch: input.defaultBranch ?? existing[0].defaultBranch,
-        composePath: input.composePath ?? existing[0].composePath,
-        repositoryPreparation: asRecord(nextConfigWithRepositoryPreparation).repositoryPreparation,
+        composePath: composeFiles[0] ?? existing[0].composePath,
+        composeFiles,
+        composeProfiles,
+        repositoryPreparation: asRecord(nextConfigWithComposeSource).repositoryPreparation,
         genericGitMode: "best-effort"
       })
     : null;
@@ -233,13 +288,19 @@ export async function updateProject(input: UpdateProjectInput) {
   if (input.name !== undefined) updates.name = input.name;
   if (input.repoUrl !== undefined) updates.repoUrl = input.repoUrl;
   if (input.repoFullName !== undefined) updates.repoFullName = input.repoFullName;
-  if (input.composePath !== undefined) updates.composePath = input.composePath;
+  if (
+    input.composePath !== undefined ||
+    input.composeFiles !== undefined ||
+    input.composeProfiles !== undefined
+  ) {
+    updates.composePath = composeFiles[0] ?? existing[0].composePath;
+  }
   if (input.gitProviderId !== undefined) updates.gitProviderId = input.gitProviderId;
   if (input.gitInstallationId !== undefined) updates.gitInstallationId = input.gitInstallationId;
   if (input.defaultBranch !== undefined) updates.defaultBranch = input.defaultBranch;
   if (input.description !== undefined || sourceFieldsTouched || repositoryPreparationTouched) {
     updates.config = mergeProjectSourceReadiness(
-      nextConfigWithRepositoryPreparation,
+      nextConfigWithComposeSource,
       sourceValidation?.status === "ready"
         ? sourceValidation.readiness
         : sourceFieldsTouched
@@ -337,6 +398,13 @@ export async function createEnvironment(input: CreateEnvironmentInput) {
   const project = await db.select().from(projects).where(eq(projects.id, input.projectId)).limit(1);
   if (!project[0]) return { status: "not_found" as const, entity: "project" };
 
+  const environmentConfig = writeComposeSourceSelectionToConfig({
+    config: {
+      targetServerId: input.targetServerId ?? null
+    },
+    composeFiles: input.composeFiles,
+    composeProfiles: input.composeProfiles
+  });
   const environmentId = id();
   const [environment] = await db
     .insert(environments)
@@ -346,9 +414,7 @@ export async function createEnvironment(input: CreateEnvironmentInput) {
       name: input.name,
       slug: toSlug(input.name),
       status: "active",
-      config: {
-        targetServerId: input.targetServerId ?? null
-      },
+      config: environmentConfig,
       updatedAt: new Date()
     })
     .returning();
@@ -384,10 +450,23 @@ export async function updateEnvironment(input: UpdateEnvironmentInput) {
   const updates: Partial<typeof environments.$inferInsert> = { updatedAt: new Date() };
   if (input.name !== undefined) updates.name = input.name;
   if (input.status !== undefined) updates.status = input.status;
-  if (input.targetServerId !== undefined) {
+  if (
+    input.targetServerId !== undefined ||
+    input.composeFiles !== undefined ||
+    input.composeProfiles !== undefined
+  ) {
     const existingConfig =
-      existing[0].config && typeof existing[0].config === "object" ? existing[0].config : {};
-    updates.config = { ...existingConfig, targetServerId: input.targetServerId };
+      existing[0].config && typeof existing[0].config === "object"
+        ? (existing[0].config as Record<string, unknown>)
+        : {};
+    updates.config = writeComposeSourceSelectionToConfig({
+      config:
+        input.targetServerId !== undefined
+          ? { ...existingConfig, targetServerId: input.targetServerId }
+          : existingConfig,
+      composeFiles: input.composeFiles,
+      composeProfiles: input.composeProfiles
+    });
   }
 
   const [environment] = await db

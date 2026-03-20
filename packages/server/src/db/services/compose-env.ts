@@ -14,6 +14,7 @@ import {
 } from "../../compose-env";
 import type {
   ComposeInputManifest,
+  FrozenComposeFilePayload,
   FrozenComposeEnvFilePayload,
   FrozenComposeInputsPayload
 } from "../../compose-inputs";
@@ -42,6 +43,31 @@ interface SerializedComposeDeploymentState {
   version: 1;
   composeEnvEntries: Array<ComposeEnvPayloadEntry | ComposeEnvMaterializedEntry>;
   frozenInputs?: FrozenComposeInputsPayload;
+}
+
+function parseFrozenComposeFilePayloads(value: unknown): FrozenComposeFilePayload[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.flatMap((entry) => {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+      return [];
+    }
+
+    const record = entry as Record<string, unknown>;
+    if (typeof record.path !== "string" || typeof record.contents !== "string") {
+      return [];
+    }
+
+    return [
+      {
+        path: record.path,
+        sourcePath: typeof record.sourcePath === "string" ? record.sourcePath : null,
+        contents: record.contents
+      } satisfies FrozenComposeFilePayload
+    ];
+  });
 }
 
 function parseFrozenEnvFilePayloads(value: unknown): FrozenComposeEnvFilePayload[] {
@@ -84,29 +110,84 @@ function parseFrozenComposeInputsPayload(value: unknown): FrozenComposeInputsPay
   }
 
   const record = value as Record<string, unknown>;
-  const composeFileRecord =
+  const composeFiles = parseFrozenComposeFilePayloads(record.composeFiles);
+  const legacyComposeFileRecord =
     record.composeFile &&
     typeof record.composeFile === "object" &&
     !Array.isArray(record.composeFile)
       ? (record.composeFile as Record<string, unknown>)
       : null;
 
-  if (
-    !composeFileRecord ||
-    typeof composeFileRecord.path !== "string" ||
-    typeof composeFileRecord.sourcePath !== "string" ||
-    typeof composeFileRecord.contents !== "string"
-  ) {
+  if (composeFiles.length === 0 && legacyComposeFileRecord) {
+    if (
+      typeof legacyComposeFileRecord.path !== "string" ||
+      typeof legacyComposeFileRecord.sourcePath !== "string" ||
+      typeof legacyComposeFileRecord.contents !== "string"
+    ) {
+      return undefined;
+    }
+
+    composeFiles.push({
+      path: legacyComposeFileRecord.path,
+      sourcePath: legacyComposeFileRecord.sourcePath,
+      contents: legacyComposeFileRecord.contents
+    });
+  }
+
+  if (composeFiles.length === 0) {
+    return undefined;
+  }
+
+  const renderedComposeRecord =
+    record.renderedCompose &&
+    typeof record.renderedCompose === "object" &&
+    !Array.isArray(record.renderedCompose)
+      ? (record.renderedCompose as Record<string, unknown>)
+      : null;
+  const profiles = Array.isArray(record.profiles)
+    ? record.profiles.filter((profile): profile is string => typeof profile === "string")
+    : [];
+
+  return {
+    composeFiles,
+    envFiles: parseFrozenEnvFilePayloads(record.envFiles),
+    profiles,
+    renderedCompose:
+      renderedComposeRecord &&
+      typeof renderedComposeRecord.path === "string" &&
+      typeof renderedComposeRecord.contents === "string"
+        ? {
+            path: renderedComposeRecord.path,
+            contents: renderedComposeRecord.contents
+          }
+        : {
+            path: ".daoflow.compose.rendered.yaml",
+            contents: composeFiles.map((composeFile) => composeFile.contents).join("\n")
+          }
+  };
+}
+
+function normalizeFrozenInputsForSerialization(
+  frozenInputs: FrozenComposeInputsPayload | undefined
+): FrozenComposeInputsPayload | undefined {
+  if (!frozenInputs) {
     return undefined;
   }
 
   return {
-    composeFile: {
-      path: composeFileRecord.path,
-      sourcePath: composeFileRecord.sourcePath,
-      contents: composeFileRecord.contents
-    },
-    envFiles: parseFrozenEnvFilePayloads(record.envFiles)
+    composeFiles:
+      frozenInputs.composeFiles ??
+      (frozenInputs.composeFile ? [frozenInputs.composeFile] : undefined),
+    envFiles: frozenInputs.envFiles,
+    profiles: frozenInputs.profiles,
+    renderedCompose: {
+      path: frozenInputs.renderedCompose?.path ?? ".daoflow.compose.rendered.yaml",
+      contents:
+        frozenInputs.renderedCompose?.contents ??
+        frozenInputs.composeFiles?.[0]?.contents ??
+        frozenInputs.composeFile?.contents ??
+        ""
+    }
   };
 }
 
@@ -174,7 +255,9 @@ export function encryptComposeDeploymentState(input: {
     JSON.stringify({
       version: 1,
       composeEnvEntries: input.envEntries,
-      ...(input.frozenInputs ? { frozenInputs: input.frozenInputs } : {})
+      ...(input.frozenInputs
+        ? { frozenInputs: normalizeFrozenInputsForSerialization(input.frozenInputs) }
+        : {})
     } satisfies SerializedComposeDeploymentState)
   );
 }

@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { db } from "../connection";
 import { projects } from "../schema/projects";
-import { resolveComposeFilePath } from "./deployment-source";
+import { resolveComposeFilePaths, resolveComposeProfiles } from "./deployment-source";
 import { asRecord } from "./json-helpers";
 import {
   mergeProjectSourceReadiness,
@@ -55,7 +55,15 @@ export async function revalidateProjectSourceForExecution(input: {
     gitProviderId: input.project.gitProviderId,
     gitInstallationId: input.project.gitInstallationId,
     defaultBranch: input.project.defaultBranch,
-    composePath: resolveComposeFilePath({
+    composePath: resolveComposeFilePaths({
+      project: input.project,
+      environment: input.environment
+    })[0],
+    composeFiles: resolveComposeFilePaths({
+      project: input.project,
+      environment: input.environment
+    }),
+    composeProfiles: resolveComposeProfiles({
       project: input.project,
       environment: input.environment
     }),

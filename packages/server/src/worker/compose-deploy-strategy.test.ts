@@ -33,7 +33,8 @@ function createHealthyStatus(service: string) {
 function createComposeWorkspace(buildPlan: ComposeBuildPlan) {
   return {
     workDir: "/tmp/daoflow-build",
-    composeFile: ".daoflow.compose.rendered.yaml",
+    composeFile: ".daoflow.compose.inputs/compose-01__deploy__compose.yaml.yaml",
+    composeFiles: [".daoflow.compose.inputs/compose-01__deploy__compose.yaml.yaml"],
     composeBuildPlan: buildPlan,
     composeEnv: {
       composeEnv: {
@@ -63,9 +64,20 @@ function createComposeWorkspace(buildPlan: ComposeBuildPlan) {
         entries: []
       },
       frozenInputs: {
+        composeFiles: [
+          {
+            path: ".daoflow.compose.inputs/compose-01__deploy__compose.yaml.yaml",
+            sourcePath: "deploy/compose.yaml",
+            contents: "services:\n  api:\n    build: .\n"
+          }
+        ],
         composeFile: {
-          path: ".daoflow.compose.rendered.yaml",
+          path: ".daoflow.compose.inputs/compose-01__deploy__compose.yaml.yaml",
           sourcePath: "deploy/compose.yaml",
+          contents: "services:\n  api:\n    build: .\n"
+        },
+        renderedCompose: {
+          path: ".daoflow.compose.rendered.yaml",
           contents: "services:\n  api:\n    build: .\n"
         },
         envFiles: []
@@ -213,20 +225,22 @@ describe("executeComposeDeployment", () => {
 
     expect(dockerComposePull).not.toHaveBeenCalled();
     expect(dockerComposeBuild).toHaveBeenCalledWith(
-      ".daoflow.compose.rendered.yaml",
+      [".daoflow.compose.inputs/compose-01__deploy__compose.yaml.yaml"],
       "demo",
       "/tmp/daoflow-build",
       expect.any(Function),
       ".daoflow.compose.env",
-      undefined
+      undefined,
+      []
     );
     expect(dockerComposeUp).toHaveBeenCalledWith(
-      ".daoflow.compose.rendered.yaml",
+      [".daoflow.compose.inputs/compose-01__deploy__compose.yaml.yaml"],
       "demo",
       "/tmp/daoflow-build",
       expect.any(Function),
       ".daoflow.compose.env",
-      undefined
+      undefined,
+      []
     );
     expect(dockerComposeBuild.mock.invocationCallOrder[0]).toBeLessThan(
       dockerComposeUp.mock.invocationCallOrder[0]
@@ -267,20 +281,22 @@ describe("executeComposeDeployment", () => {
     );
 
     expect(dockerComposePull).toHaveBeenCalledWith(
-      ".daoflow.compose.rendered.yaml",
+      [".daoflow.compose.inputs/compose-01__deploy__compose.yaml.yaml"],
       "demo",
       "/tmp/daoflow-build",
       expect.any(Function),
       ".daoflow.compose.env",
-      undefined
+      undefined,
+      []
     );
     expect(dockerComposeBuild).toHaveBeenCalledWith(
-      ".daoflow.compose.rendered.yaml",
+      [".daoflow.compose.inputs/compose-01__deploy__compose.yaml.yaml"],
       "demo",
       "/tmp/daoflow-build",
       expect.any(Function),
       ".daoflow.compose.env",
-      undefined
+      undefined,
+      []
     );
     expect(dockerComposePull.mock.invocationCallOrder[0]).toBeLessThan(
       dockerComposeBuild.mock.invocationCallOrder[0]
@@ -317,21 +333,23 @@ describe("executeComposeDeployment", () => {
     );
 
     expect(dockerComposePull).toHaveBeenCalledWith(
-      ".daoflow.compose.rendered.yaml",
+      [".daoflow.compose.inputs/compose-01__deploy__compose.yaml.yaml"],
       "demo",
       "/tmp/daoflow-build",
       expect.any(Function),
       ".daoflow.compose.env",
-      "worker"
+      "worker",
+      []
     );
     expect(dockerComposeBuild).not.toHaveBeenCalled();
     expect(dockerComposeUp).toHaveBeenCalledWith(
-      ".daoflow.compose.rendered.yaml",
+      [".daoflow.compose.inputs/compose-01__deploy__compose.yaml.yaml"],
       "demo",
       "/tmp/daoflow-build",
       expect.any(Function),
       ".daoflow.compose.env",
-      "worker"
+      "worker",
+      []
     );
   });
 
@@ -414,28 +432,31 @@ describe("executeComposeDeployment", () => {
     );
 
     expect(dockerComposePull).toHaveBeenCalledWith(
-      ".daoflow.compose.rendered.yaml",
+      [".daoflow.compose.inputs/compose-01__deploy__compose.yaml.yaml"],
       "demo",
       "/tmp/daoflow-build",
       expect.any(Function),
       ".daoflow.compose.env",
-      "api"
+      "api",
+      []
     );
     expect(dockerComposeBuild).toHaveBeenCalledWith(
-      ".daoflow.compose.rendered.yaml",
+      [".daoflow.compose.inputs/compose-01__deploy__compose.yaml.yaml"],
       "demo",
       "/tmp/daoflow-build",
       expect.any(Function),
       ".daoflow.compose.env",
-      "api"
+      "api",
+      []
     );
     expect(dockerComposePs).toHaveBeenCalledWith(
-      ".daoflow.compose.rendered.yaml",
+      [".daoflow.compose.inputs/compose-01__deploy__compose.yaml.yaml"],
       "demo",
       "/tmp/daoflow-build",
       expect.any(Function),
       ".daoflow.compose.env",
-      undefined
+      undefined,
+      []
     );
   });
 
@@ -467,11 +488,12 @@ describe("executeComposeDeployment", () => {
     expect(dockerComposePull).not.toHaveBeenCalled();
     expect(dockerComposeBuild).not.toHaveBeenCalled();
     expect(dockerComposeDown).toHaveBeenCalledWith(
-      ".daoflow.compose.rendered.yaml",
+      [".daoflow.compose.inputs/compose-01__deploy__compose.yaml.yaml"],
       "demo-pr-42",
       "/tmp/daoflow-build",
       expect.any(Function),
-      ".daoflow.compose.env"
+      ".daoflow.compose.env",
+      []
     );
   });
 });
