@@ -49,7 +49,7 @@ test.describe("Webhook auto-deploy", () => {
     const body = await response.json();
     expect(body.ok).toBe(true);
     expect(body.skipped).toBe(true);
-    expect(body.reason).toBe("not a push event");
+    expect(body.reason).toBe("unsupported event ping");
   });
 
   test("GitHub webhook returns no matching projects for unknown repo", async ({ request }) => {

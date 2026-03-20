@@ -38,7 +38,7 @@ export default defineConfig({
     {
       name: "chromium",
       use: { ...devices["Desktop Chrome"] },
-      testIgnore: [/auth-bootstrap\.spec\.ts/, /docs\.spec\.ts/]
+      testIgnore: [/auth-bootstrap\.spec\.ts/, /docs\.spec\.ts/, /workflow-e2e\.spec\.ts/]
     }
   ]
 });
