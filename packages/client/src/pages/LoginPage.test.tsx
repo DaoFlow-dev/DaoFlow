@@ -85,4 +85,15 @@ describe("LoginPage", () => {
     expect(signUpEmailMock).not.toHaveBeenCalled();
     expect(screen.queryByTestId("login-signin-email-error")).not.toBeInTheDocument();
   });
+
+  it("uses a wider responsive auth shell on large screens", () => {
+    renderLoginPage();
+
+    const authShell = screen.getByTestId("login-auth-shell");
+    const authCard = screen.getByTestId("login-auth-card");
+
+    expect(authShell).toHaveClass("max-w-[460px]", "lg:max-w-[560px]");
+    expect(authShell).toHaveClass("px-6", "py-8");
+    expect(authCard).toHaveClass("lg:shadow-xl");
+  });
 });
