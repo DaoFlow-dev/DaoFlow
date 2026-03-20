@@ -10,6 +10,12 @@ import {
   deleteEnvironment
 } from "../db/services/projects";
 import { createService, updateService, deleteService } from "../db/services/services";
+import {
+  addServiceDomain,
+  removeServiceDomain,
+  setPrimaryServiceDomain,
+  updateServicePortMappings
+} from "../db/services/service-domains";
 import { updateServiceRuntimeConfig } from "../db/services/service-runtime-config";
 import { createAgentPrincipal, generateAgentToken, revokeAgentToken } from "../db/services/agents";
 import {
@@ -116,6 +122,13 @@ const serviceRuntimeResourcesSchema = z.object({
     .max(1024 * 1024)
     .nullable()
     .optional()
+});
+
+const servicePortMappingSchema = z.object({
+  id: z.string().min(1).max(64).optional(),
+  hostPort: z.number().int().min(1).max(65535),
+  containerPort: z.number().int().min(1).max(65535),
+  protocol: z.enum(["tcp", "udp"]).default("tcp")
 });
 
 export const adminRouter = t.router({
@@ -468,6 +481,98 @@ export const adminRouter = t.router({
       }
 
       return result.service;
+    }),
+  addServiceDomain: serviceUpdateProcedure
+    .input(
+      z.object({
+        serviceId: z.string().min(1),
+        hostname: z.string().min(1).max(253)
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const result = await addServiceDomain({
+        serviceId: input.serviceId,
+        hostname: input.hostname,
+        ...getActorContext(ctx)
+      });
+
+      if (result.status === "not_found") {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Service not found." });
+      }
+      if (result.status === "invalid" || result.status === "conflict") {
+        throw new TRPCError({ code: "BAD_REQUEST", message: result.message });
+      }
+
+      return result.state;
+    }),
+  removeServiceDomain: serviceUpdateProcedure
+    .input(
+      z.object({
+        serviceId: z.string().min(1),
+        domainId: z.string().min(1).max(64)
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const result = await removeServiceDomain({
+        serviceId: input.serviceId,
+        domainId: input.domainId,
+        ...getActorContext(ctx)
+      });
+
+      if (result.status === "not_found") {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Service not found." });
+      }
+      if (result.status === "domain_not_found") {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Domain not found." });
+      }
+
+      return result.state;
+    }),
+  setPrimaryServiceDomain: serviceUpdateProcedure
+    .input(
+      z.object({
+        serviceId: z.string().min(1),
+        domainId: z.string().min(1).max(64)
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const result = await setPrimaryServiceDomain({
+        serviceId: input.serviceId,
+        domainId: input.domainId,
+        ...getActorContext(ctx)
+      });
+
+      if (result.status === "not_found") {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Service not found." });
+      }
+      if (result.status === "domain_not_found") {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Domain not found." });
+      }
+
+      return result.state;
+    }),
+  updateServicePortMappings: serviceUpdateProcedure
+    .input(
+      z.object({
+        serviceId: z.string().min(1),
+        portMappings: z.array(servicePortMappingSchema).max(50)
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const result = await updateServicePortMappings({
+        serviceId: input.serviceId,
+        portMappings: input.portMappings,
+        ...getActorContext(ctx)
+      });
+
+      if (result.status === "not_found") {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Service not found." });
+      }
+      if (result.status === "invalid" || result.status === "conflict") {
+        throw new TRPCError({ code: "BAD_REQUEST", message: result.message });
+      }
+
+      return result.state;
     }),
 
   deleteService: adminProcedure

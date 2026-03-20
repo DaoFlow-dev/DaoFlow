@@ -19,6 +19,7 @@ import { listEnvironmentVariableInventory } from "../db/services/envvars";
 import { listExecutionQueue } from "../db/services/execution";
 import { listInfrastructureInventory, listServerReadiness } from "../db/services/servers";
 import { listProjects, getProject, listEnvironments } from "../db/services/projects";
+import { getServiceDomainState } from "../db/services/service-domains";
 import { listServices, listServicesByProject, getService } from "../db/services/services";
 import { listRollbackTargets } from "../db/services/execute-rollback";
 import { listAgentPrincipals } from "../db/services/agents";
@@ -238,6 +239,17 @@ const coreReadRouter = t.router({
         throw new TRPCError({ code: "NOT_FOUND", message: "Service not found." });
       }
       return service;
+    }),
+  serviceDomainState: protectedProcedure
+    .input(z.object({ serviceId: z.string().min(1) }))
+    .query(async ({ input }) => {
+      const state = await getServiceDomainState({
+        serviceId: input.serviceId
+      });
+      if (!state) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Service not found." });
+      }
+      return state;
     }),
   projectServices: protectedProcedure
     .input(z.object({ projectId: z.string().min(1) }))

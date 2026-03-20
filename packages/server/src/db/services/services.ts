@@ -20,6 +20,10 @@ import {
   renderServiceRuntimeOverrideComposePreview,
   writeServiceRuntimeConfigToConfig
 } from "../../service-runtime-config";
+import {
+  readServiceDomainConfigFromConfig,
+  writeServiceDomainConfigToConfig
+} from "../../service-domain-config";
 
 /* ──────────────────────── Helpers ──────────────────────── */
 
@@ -79,10 +83,12 @@ export interface DeleteServiceInput {
 /* ──────────────────────── Service CRUD ──────────────────────── */
 
 export function normalizeServiceRecord(service: typeof services.$inferSelect) {
-  const config = writeServiceRuntimeConfigToConfig({
-    config: writeComposePreviewConfigToConfig({
-      config: writeComposeReadinessProbeToConfig({
-        config: service.config
+  const config = writeServiceDomainConfigToConfig({
+    config: writeServiceRuntimeConfigToConfig({
+      config: writeComposePreviewConfigToConfig({
+        config: writeComposeReadinessProbeToConfig({
+          config: service.config
+        })
       })
     })
   });
@@ -90,6 +96,7 @@ export function normalizeServiceRecord(service: typeof services.$inferSelect) {
   return {
     ...service,
     config,
+    domainConfig: readServiceDomainConfigFromConfig(config),
     runtimeConfig: readServiceRuntimeConfigFromConfig(config),
     runtimeConfigPreview: renderServiceRuntimeOverrideComposePreview({
       composeServiceName: service.composeServiceName,
