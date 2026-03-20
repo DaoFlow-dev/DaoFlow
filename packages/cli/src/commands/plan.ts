@@ -1,5 +1,8 @@
 import { Command } from "commander";
 import chalk from "chalk";
+import { existsSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { analyzeComposeInputs } from "../compose-input-analysis";
 import { fetchComposeDeploymentPlan } from "../compose-deploy-preview";
 import { printComposeDeploymentPlan } from "../compose-deployment-plan-output";
 import { loadDaoflowConfig } from "../config-loader";
@@ -9,7 +12,10 @@ import {
   getErrorMessage,
   resolveCommandJsonOption
 } from "../command-helpers";
-import { ComposeUploadContextValidationError } from "../compose-upload-context";
+import {
+  assertValidComposeUploadContextRoot,
+  ComposeUploadContextValidationError
+} from "../compose-upload-context";
 import { printDeploymentPlan } from "../deployment-plan-output";
 import { buildServicePreviewTarget } from "../service-preview-target";
 import { createClient } from "../trpc-client";
@@ -156,6 +162,26 @@ export function planCommand(): Command {
             if (!composeServerId) {
               throw new Error("--server is required for compose planning.");
             }
+
+            const resolvedComposePath = resolve(composePath);
+            if (!existsSync(resolvedComposePath)) {
+              const error = `Compose file not found: ${composePath}`;
+              if (isJson) {
+                emitJsonError(error, "FILE_NOT_FOUND");
+              } else {
+                console.error(chalk.red(`✗ ${error}`));
+              }
+              process.exit(1);
+              return;
+            }
+
+            const composeContent = readFileSync(resolvedComposePath, "utf8");
+            const composeInputs = analyzeComposeInputs(composeContent);
+            assertValidComposeUploadContextRoot({
+              composePath: resolvedComposePath,
+              contextPath,
+              composeInputs
+            });
 
             const trpc = createClient();
             const plan = await fetchComposeDeploymentPlan(trpc, {
