@@ -264,6 +264,11 @@ function buildExecuteCommand(input: {
 
 export interface ComposeDeploymentPlanInput {
   composeContent: string;
+  composeFiles?: Array<{
+    path: string;
+    contents: string;
+  }>;
+  composeProfiles?: string[];
   composePath?: string;
   contextPath?: string;
   repoDefaultContent?: string;
@@ -469,6 +474,10 @@ export async function buildComposeDeploymentPlan(input: ComposeDeploymentPlanInp
       serverName: resolvedServer.name,
       serverHost: resolvedServer.host,
       composePath: input.composePath ?? null,
+      composeFiles:
+        input.composeFiles?.map((composeFile) => composeFile.path) ??
+        (input.composePath ? [input.composePath] : []),
+      composeProfiles: input.composeProfiles ?? [],
       contextPath: input.contextPath ?? null,
       requiresContextUpload: input.requiresContextUpload,
       localBuildContexts: derivedLocalBuildContexts,

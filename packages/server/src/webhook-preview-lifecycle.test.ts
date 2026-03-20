@@ -337,7 +337,7 @@ describe("preview lifecycle webhooks", () => {
           deliveryKey: "gh-preview-open-1",
           previewKey: "pr-42",
           previewAction: "deploy",
-          outcome: "queued"
+          status: "queued"
         })
       ])
     );
@@ -429,11 +429,11 @@ describe("preview lifecycle webhooks", () => {
       expect.arrayContaining([
         expect.objectContaining({
           deliveryKey: "gh-preview-dup-1",
-          outcome: "queued"
+          status: "queued"
         }),
         expect.objectContaining({
           deliveryKey: "gh-preview-dup-2",
-          outcome: "deduped"
+          status: "deduped"
         })
       ])
     );

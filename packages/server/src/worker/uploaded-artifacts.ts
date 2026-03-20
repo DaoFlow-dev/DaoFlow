@@ -9,7 +9,7 @@ import {
   stat,
   writeFile
 } from "node:fs/promises";
-import { basename, join } from "node:path";
+import { dirname, join, normalize } from "node:path";
 import { newId } from "../db/services/json-helpers";
 
 const UPLOADED_ARTIFACTS_DIR = "uploaded-artifacts";
@@ -47,12 +47,20 @@ function normalizeArtifactId(artifactId: string): string {
   return artifactId.toLowerCase();
 }
 
-function normalizeArtifactFileName(fileName: string): string {
-  const normalized = basename(fileName);
-  if (!normalized || normalized === "." || normalized === "..") {
+function normalizeArtifactFilePath(fileName: string): string {
+  const normalized = normalize(fileName)
+    .replace(/\\/g, "/")
+    .replace(/^(\.\/)+/, "");
+  if (!normalized || normalized === "." || normalized === ".." || normalized.startsWith("/")) {
     throw new Error(`Invalid uploaded artifact file "${fileName}".`);
   }
-  return normalized;
+
+  const segments = normalized.split("/").filter((segment) => segment.length > 0);
+  if (segments.length === 0 || segments.some((segment) => segment === "." || segment === "..")) {
+    throw new Error(`Invalid uploaded artifact file "${fileName}".`);
+  }
+
+  return segments.join("/");
 }
 
 async function resolveArtifactDir(artifactId: string): Promise<string> {
@@ -76,17 +84,23 @@ async function pathExists(path: string): Promise<boolean> {
 }
 
 async function copyArtifactFile(sourcePath: string, destinationPath: string): Promise<void> {
+  await mkdir(dirname(destinationPath), { recursive: true, mode: ARTIFACT_DIR_MODE });
   await copyFile(sourcePath, destinationPath);
   await chmod(destinationPath, ARTIFACT_FILE_MODE);
 }
 
 function buildLegacyArtifactFileList(input: {
   composeFileName?: string;
+  composeFileNames?: string[];
   contextArchiveName?: string | null;
 }): string[] {
-  const files = [input.composeFileName, input.contextArchiveName ?? undefined]
+  const files = [
+    ...(input.composeFileNames ?? []),
+    input.composeFileName,
+    input.contextArchiveName ?? undefined
+  ]
     .filter((value): value is string => typeof value === "string" && value.length > 0)
-    .map(normalizeArtifactFileName);
+    .map(normalizeArtifactFilePath);
 
   return Array.from(new Set(files));
 }
@@ -117,7 +131,7 @@ async function readArtifactManifest(artifactDir: string): Promise<UploadedArtifa
   const files = Array.isArray(parsed.files)
     ? parsed.files
         .filter((file): file is string => typeof file === "string")
-        .map(normalizeArtifactFileName)
+        .map(normalizeArtifactFilePath)
     : [];
 
   if (parsed.version !== 1 || files.length === 0 || typeof parsed.createdAt !== "string") {
@@ -176,6 +190,7 @@ export async function pruneUploadedArtifacts(
 export async function persistUploadedArtifacts(input: {
   sourceDir: string;
   composeFileName: string;
+  composeFileNames?: string[];
   contextArchiveName?: string | null;
   artifactId?: string;
 }): Promise<{ artifactId: string }> {
@@ -189,10 +204,17 @@ export async function persistUploadedArtifacts(input: {
     throw new Error(`Uploaded artifact "${artifactId}" already exists.`);
   }
 
-  const composeFileName = normalizeArtifactFileName(input.composeFileName);
-  const persistedFiles = [composeFileName];
+  const composeFileNames = Array.from(
+    new Set(
+      (input.composeFileNames && input.composeFileNames.length > 0
+        ? input.composeFileNames
+        : [input.composeFileName]
+      ).map(normalizeArtifactFilePath)
+    )
+  );
+  const persistedFiles = [...composeFileNames];
   const contextArchiveName = input.contextArchiveName
-    ? normalizeArtifactFileName(input.contextArchiveName)
+    ? normalizeArtifactFilePath(input.contextArchiveName)
     : null;
   if (contextArchiveName) {
     persistedFiles.push(contextArchiveName);
@@ -202,10 +224,12 @@ export async function persistUploadedArtifacts(input: {
   await chmod(temporaryArtifactDir, ARTIFACT_DIR_MODE);
 
   try {
-    await copyArtifactFile(
-      join(input.sourceDir, composeFileName),
-      join(temporaryArtifactDir, composeFileName)
-    );
+    for (const composeFileName of composeFileNames) {
+      await copyArtifactFile(
+        join(input.sourceDir, composeFileName),
+        join(temporaryArtifactDir, composeFileName)
+      );
+    }
 
     if (contextArchiveName) {
       await copyArtifactFile(
@@ -227,6 +251,7 @@ export async function restoreUploadedArtifacts(input: {
   artifactId: string;
   destinationDir: string;
   composeFileName?: string;
+  composeFileNames?: string[];
   contextArchiveName?: string | null;
 }): Promise<{
   restoredFiles: string[];

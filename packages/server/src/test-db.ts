@@ -5,8 +5,10 @@ import pg from "pg";
 import { ensureDatabaseExists, resetDatabaseSchema } from "./db/reset-database";
 
 const { Client } = pg;
+const TEST_DB_PREPARE_LOCK_ID = 8_705_231;
 
 let prepared = false;
+let preparePromise: Promise<string> | null = null;
 
 function resolveBaseDatabaseUrl() {
   return process.env.DATABASE_URL ?? "postgresql://daoflow:daoflow_dev@localhost:5432/daoflow";
@@ -48,6 +50,47 @@ async function applyMigrations(connectionString: string) {
   }
 }
 
+async function withTestDatabaseLock<T>(
+  connectionString: string,
+  callback: () => Promise<T>
+): Promise<T> {
+  const client = new Client({ connectionString });
+  await client.connect();
+
+  try {
+    await client.query("SELECT pg_advisory_lock($1)", [TEST_DB_PREPARE_LOCK_ID]);
+    return await callback();
+  } finally {
+    try {
+      await client.query("SELECT pg_advisory_unlock($1)", [TEST_DB_PREPARE_LOCK_ID]);
+    } finally {
+      await client.end();
+    }
+  }
+}
+
+async function isTestSchemaReady(connectionString: string): Promise<boolean> {
+  const client = new Client({ connectionString });
+  await client.connect();
+
+  try {
+    const result = await client.query<{
+      users: string | null;
+      deployments: string | null;
+      cliAuthRequests: string | null;
+    }>(`
+      SELECT
+        to_regclass('public.users') AS "users",
+        to_regclass('public.deployments') AS "deployments",
+        to_regclass('public.cli_auth_requests') AS "cliAuthRequests"
+    `);
+    const row = result.rows[0];
+    return Boolean(row?.users && row.deployments && row.cliAuthRequests);
+  } finally {
+    await client.end();
+  }
+}
+
 export async function ensureTestDatabaseReady() {
   const connectionString = resolveTestDatabaseUrl();
   process.env.DATABASE_URL = connectionString;
@@ -56,14 +99,29 @@ export async function ensureTestDatabaseReady() {
     return connectionString;
   }
 
-  await ensureDatabaseExists(connectionString);
-  await applyMigrations(connectionString);
-  prepared = true;
+  if (!preparePromise) {
+    preparePromise = (async () => {
+      await ensureDatabaseExists(connectionString);
+      await withTestDatabaseLock(connectionString, async () => {
+        if (!(await isTestSchemaReady(connectionString))) {
+          await applyMigrations(connectionString);
+        }
+      });
+      prepared = true;
+      return connectionString;
+    })().finally(() => {
+      preparePromise = null;
+    });
+  }
+
+  await preparePromise;
 
   return connectionString;
 }
 
 export async function resetTestDatabase() {
   const connectionString = await ensureTestDatabaseReady();
-  await applyMigrations(connectionString);
+  await withTestDatabaseLock(connectionString, async () => {
+    await applyMigrations(connectionString);
+  });
 }

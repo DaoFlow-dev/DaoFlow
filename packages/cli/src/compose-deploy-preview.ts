@@ -16,6 +16,11 @@ export interface ComposeDeploymentPlanClientLike {
     query(input: {
       server: string;
       compose: string;
+      composeFiles?: Array<{
+        path: string;
+        contents: string;
+      }>;
+      composeProfiles?: string[];
       composePath?: string;
       contextPath?: string;
       repoDefaultContent?: string;
@@ -49,12 +54,19 @@ export async function fetchComposeDeploymentPlan(
   options: ComposeDeployCoreOptions
 ): Promise<ComposeDeploymentPlanPreview> {
   const resolvedCompose = resolve(options.composePath);
-  if (!existsSync(resolvedCompose)) {
+  const providedComposeFiles =
+    options.composeFiles && options.composeFiles.length > 0 ? options.composeFiles : undefined;
+  const primaryComposeFile = providedComposeFiles?.[0];
+  const composePathExists = existsSync(resolvedCompose);
+
+  if (!primaryComposeFile && !composePathExists) {
     throw new Error(`Compose file not found: ${options.composePath}`);
   }
 
-  const composeContent = readFileSync(resolvedCompose, "utf8");
-  const repoDefaultContent = readComposeRepoDefaults(resolvedCompose);
+  const composeContent = primaryComposeFile?.contents ?? readFileSync(resolvedCompose, "utf8");
+  const composePathForPlan = primaryComposeFile?.path ?? options.composePath;
+  const repoDefaultContent =
+    !primaryComposeFile && composePathExists ? readComposeRepoDefaults(resolvedCompose) : undefined;
   const composeInputs = analyzeComposeInputs(composeContent);
   const buildContexts = composeInputs.localBuildContexts.map((context) => ({
     serviceName: context.serviceName,
@@ -63,11 +75,15 @@ export async function fetchComposeDeploymentPlan(
   }));
   const requiresContextUpload = composeInputs.requiresContextUpload;
 
-  assertValidComposeUploadContextRoot({
-    composePath: resolvedCompose,
-    contextPath: options.contextPath,
-    composeInputs
-  });
+  if (composePathExists) {
+    assertValidComposeUploadContextRoot({
+      composePath: resolvedCompose,
+      contextPath: options.contextPath,
+      composeInputs
+    });
+  } else if (requiresContextUpload) {
+    throw new Error(`Compose file not found: ${options.composePath}`);
+  }
 
   let contextBundle:
     | {
@@ -109,7 +125,9 @@ export async function fetchComposeDeploymentPlan(
   return await trpc.composeDeploymentPlan.query({
     server: options.serverId,
     compose: composeContent,
-    composePath: options.composePath,
+    composeFiles: providedComposeFiles,
+    composeProfiles: options.composeProfiles,
+    composePath: composePathForPlan,
     contextPath: options.contextPath,
     repoDefaultContent,
     localBuildContexts: buildContexts,

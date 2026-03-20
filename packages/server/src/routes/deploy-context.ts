@@ -1,5 +1,5 @@
-import { writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { mkdir, writeFile } from "node:fs/promises";
+import { dirname, join, normalize, relative, resolve } from "node:path";
 import { Hono, type Context } from "hono";
 import { parse as parseYaml } from "yaml";
 import { hasAllScopes, normalizeAppRole, roleCapabilities, type AppRole } from "@daoflow/shared";
@@ -30,8 +30,23 @@ interface DeployActor {
 interface DirectComposeRequestBody {
   server?: string;
   compose?: string;
+  composeFiles?: Array<{
+    path?: string;
+    contents?: string;
+  }>;
   project?: string;
   environment?: string;
+}
+
+const MAX_DIRECT_COMPOSE_BYTES = 1_000_000;
+
+class DirectComposeRequestError extends Error {
+  constructor(
+    readonly code: "INVALID_COMPOSE_FILE_PATH" | "INVALID_DEPLOY_CONTEXT_REQUEST",
+    message: string
+  ) {
+    super(message);
+  }
 }
 
 function readErrorMessage(error: unknown): string {
@@ -46,6 +61,118 @@ function deriveStackName(composeContent: string, fallback: string): string {
   const doc = (parseYaml(composeContent) as Record<string, unknown> | null) ?? {};
   const buildPlan = buildComposeBuildPlan(doc);
   return deriveComposeStackName(buildPlan, fallback);
+}
+
+function ensureComposeBodySize(contents: string, label: string): void {
+  if (Buffer.byteLength(contents, "utf8") > MAX_DIRECT_COMPOSE_BYTES) {
+    throw new DirectComposeRequestError(
+      "INVALID_DEPLOY_CONTEXT_REQUEST",
+      `${label} cannot exceed ${MAX_DIRECT_COMPOSE_BYTES} bytes.`
+    );
+  }
+}
+
+function normalizeStagedComposePath(stageDir: string, composePath: string): string {
+  const normalizedInput = normalize(composePath)
+    .replace(/\\/g, "/")
+    .replace(/^(\.\/)+/, "");
+  if (
+    !normalizedInput ||
+    normalizedInput === "." ||
+    normalizedInput === ".." ||
+    normalizedInput.startsWith("/")
+  ) {
+    throw new DirectComposeRequestError(
+      "INVALID_COMPOSE_FILE_PATH",
+      `Compose file path "${composePath}" must stay within the staged deployment workspace.`
+    );
+  }
+
+  const absoluteTarget = resolve(stageDir, normalizedInput);
+  const workspaceRelative = relative(resolve(stageDir), absoluteTarget).replace(/\\/g, "/");
+  if (
+    !workspaceRelative ||
+    workspaceRelative === "." ||
+    workspaceRelative === ".." ||
+    workspaceRelative.startsWith("../") ||
+    workspaceRelative.startsWith("/")
+  ) {
+    throw new DirectComposeRequestError(
+      "INVALID_COMPOSE_FILE_PATH",
+      `Compose file path "${composePath}" must stay within the staged deployment workspace.`
+    );
+  }
+
+  return workspaceRelative;
+}
+
+function resolveUploadedComposeFiles(
+  stageDir: string,
+  body: DirectComposeRequestBody
+): Array<{
+  path: string;
+  contents: string;
+}> {
+  if (typeof body.compose !== "string" || body.compose.length === 0) {
+    throw new DirectComposeRequestError("INVALID_DEPLOY_CONTEXT_REQUEST", "Missing compose field.");
+  }
+
+  ensureComposeBodySize(body.compose, "Compose file");
+
+  if (!body.composeFiles || body.composeFiles.length === 0) {
+    return [
+      {
+        path: "compose.yaml",
+        contents: body.compose
+      }
+    ];
+  }
+
+  const composeFiles: Array<{
+    path: string;
+    contents: string;
+  }> = [];
+  const seenPaths = new Set<string>();
+
+  for (const entry of body.composeFiles) {
+    if (!entry || typeof entry !== "object") {
+      throw new DirectComposeRequestError(
+        "INVALID_DEPLOY_CONTEXT_REQUEST",
+        "composeFiles entries must be objects with path and contents."
+      );
+    }
+
+    if (typeof entry.path !== "string" || entry.path.trim().length === 0) {
+      throw new DirectComposeRequestError(
+        "INVALID_COMPOSE_FILE_PATH",
+        "Each uploaded compose file must include a non-empty relative path."
+      );
+    }
+
+    if (typeof entry.contents !== "string") {
+      throw new DirectComposeRequestError(
+        "INVALID_DEPLOY_CONTEXT_REQUEST",
+        `Compose file "${entry.path}" must include string contents.`
+      );
+    }
+
+    ensureComposeBodySize(entry.contents, `Compose file "${entry.path}"`);
+    const normalizedPath = normalizeStagedComposePath(stageDir, entry.path);
+    if (seenPaths.has(normalizedPath)) {
+      throw new DirectComposeRequestError(
+        "INVALID_COMPOSE_FILE_PATH",
+        `Compose file path "${entry.path}" was provided more than once.`
+      );
+    }
+
+    seenPaths.add(normalizedPath);
+    composeFiles.push({
+      path: normalizedPath,
+      contents: entry.contents
+    });
+  }
+
+  return composeFiles;
 }
 
 async function requireDeployActor(c: Context) {
@@ -280,13 +407,26 @@ deployContextRouter.post("/compose", async (c) => {
 
   const deploymentId = id();
   const stageDir = ensureStagingDir(deploymentId);
-  const composeFileName = "compose.yaml";
 
   try {
-    await writeFile(join(stageDir, composeFileName), body.compose, "utf8");
+    const composeFiles = resolveUploadedComposeFiles(stageDir, body);
+    for (const composeFile of composeFiles) {
+      await mkdir(dirname(join(stageDir, composeFile.path)), { recursive: true });
+      await writeFile(join(stageDir, composeFile.path), composeFile.contents, "utf8");
+    }
+
+    const primaryComposeFile = composeFiles[0];
+    if (!primaryComposeFile) {
+      throw new DirectComposeRequestError(
+        "INVALID_DEPLOY_CONTEXT_REQUEST",
+        "At least one compose file is required."
+      );
+    }
+
     const { artifactId } = await persistUploadedArtifacts({
       sourceDir: stageDir,
-      composeFileName
+      composeFileName: primaryComposeFile.path,
+      composeFileNames: composeFiles.map((composeFile) => composeFile.path)
     });
 
     const { deployment, scope } = await queueUploadedDeployment({
@@ -294,12 +434,14 @@ deployContextRouter.post("/compose", async (c) => {
       serverId: body.server,
       projectRef: body.project,
       environmentName: body.environment,
-      composeContent: body.compose,
+      composeContent: primaryComposeFile.contents,
       actor,
       configSnapshot: {
         deploymentSource: "uploaded-compose",
-        composeFilePath: composeFileName,
-        uploadedComposeFileName: composeFileName,
+        composeFilePath: primaryComposeFile.path,
+        composeFilePaths: composeFiles.map((composeFile) => composeFile.path),
+        uploadedComposeFileName: primaryComposeFile.path,
+        uploadedComposeFileNames: composeFiles.map((composeFile) => composeFile.path),
         uploadedArtifactId: artifactId
       },
       steps: [
@@ -323,6 +465,16 @@ deployContextRouter.post("/compose", async (c) => {
     });
   } catch (error) {
     cleanupStagingDir(deploymentId);
+    if (error instanceof DirectComposeRequestError) {
+      return c.json(
+        {
+          ok: false,
+          error: error.message,
+          code: error.code
+        },
+        400
+      );
+    }
     return c.json(
       {
         ok: false,

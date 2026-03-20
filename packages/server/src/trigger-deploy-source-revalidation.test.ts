@@ -856,19 +856,12 @@ describe("deploy source revalidation", () => {
         ]
       },
       frozenInputs: {
-        composeFiles: [
-          {
-            path: ".daoflow.compose.rendered.yaml",
-            sourcePath: "compose.yaml",
-            contents: "services:\n  app:\n    image: nginx:alpine\n"
-          }
-        ],
-        envFiles: [],
-        profiles: [],
-        renderedCompose: {
+        composeFile: {
           path: ".daoflow.compose.rendered.yaml",
+          sourcePath: "compose.yaml",
           contents: "services:\n  app:\n    image: nginx:alpine\n"
-        }
+        },
+        envFiles: []
       }
     });
   });

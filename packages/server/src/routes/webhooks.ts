@@ -12,12 +12,13 @@ import { Hono } from "hono";
 import { and, eq, inArray } from "drizzle-orm";
 import { db } from "../db/connection";
 import { auditEntries } from "../db/schema/audit";
-import { gitProviders } from "../db/schema/git-providers";
+import { gitInstallations, gitProviders } from "../db/schema/git-providers";
 import { projects } from "../db/schema/projects";
-import { services } from "../db/schema/services";
 import {
   beginWebhookDelivery,
+  claimWebhookDelivery,
   completeWebhookDelivery,
+  finalizeWebhookDelivery,
   findLatestPreviewDeploymentForService,
   listEligiblePreviewWebhookServices,
   recordPreviewWebhookLifecycleEvent
@@ -26,6 +27,11 @@ import { triggerDeploy } from "../db/services/trigger-deploy";
 import { asRecord } from "../db/services/json-helpers";
 import { readComposePreviewMetadata } from "../compose-preview";
 import {
+  collectChangedPaths,
+  determineWebhookDeliveryStatus,
+  processWebhookPushTargets
+} from "./webhooks-shared";
+import {
   buildWebhookDeliveryKey,
   readGitHubPreviewLifecycle,
   readGitLabPreviewLifecycle
@@ -33,18 +39,28 @@ import {
 
 type ProviderType = "github" | "gitlab";
 
+interface WebhookCommitChangeSet {
+  added?: string[];
+  modified?: string[];
+  removed?: string[];
+}
+
 interface GitHubPushEvent {
   ref?: string;
   after?: string;
   repository?: { full_name?: string };
   sender?: { login?: string };
+  installation?: { id?: number };
+  commits?: WebhookCommitChangeSet[];
 }
 
 interface GitLabPushEvent {
   ref?: string;
   after?: string;
+  checkout_sha?: string;
   project?: { path_with_namespace?: string };
   user_name?: string;
+  commits?: WebhookCommitChangeSet[];
 }
 
 interface WebhookDeployFailure {
@@ -57,6 +73,7 @@ interface WebhookDeployFailure {
 type WebhookTarget = {
   project: typeof projects.$inferSelect;
   provider: typeof gitProviders.$inferSelect;
+  installation: typeof gitInstallations.$inferSelect | null;
 };
 
 function verifyGitHubSignature(payload: string, signature: string, secret: string): boolean {
@@ -148,6 +165,7 @@ function resolvePreviewDeliveryOutcome(input: {
 async function listWebhookTargets(input: {
   repoFullName: string;
   providerType: ProviderType;
+  externalInstallationId?: string | null;
 }): Promise<WebhookTarget[]> {
   const matchingProjects = await db
     .select()
@@ -161,16 +179,28 @@ async function listWebhookTargets(input: {
         .filter((providerId): providerId is string => Boolean(providerId))
     )
   ];
+  const installationIds = [
+    ...new Set(
+      matchingProjects
+        .map((project) => project.gitInstallationId)
+        .filter((installationId): installationId is string => Boolean(installationId))
+    )
+  ];
 
   if (providerIds.length === 0) {
     return [];
   }
 
-  const providerRows = await db
-    .select()
-    .from(gitProviders)
-    .where(inArray(gitProviders.id, providerIds));
+  const [providerRows, installationRows] = await Promise.all([
+    db.select().from(gitProviders).where(inArray(gitProviders.id, providerIds)),
+    installationIds.length > 0
+      ? db.select().from(gitInstallations).where(inArray(gitInstallations.id, installationIds))
+      : Promise.resolve([])
+  ]);
   const providerById = new Map(providerRows.map((provider) => [provider.id, provider]));
+  const installationById = new Map(
+    installationRows.map((installation) => [installation.id, installation])
+  );
 
   return matchingProjects.flatMap((project) => {
     if (!project.gitProviderId) {
@@ -182,52 +212,19 @@ async function listWebhookTargets(input: {
       return [];
     }
 
-    return [{ project, provider }];
-  });
-}
+    const installation = project.gitInstallationId
+      ? (installationById.get(project.gitInstallationId) ?? null)
+      : null;
 
-async function triggerWebhookDeploys(input: {
-  projectId: string;
-  commitSha: string;
-  requestedByEmail: string;
-}) {
-  const matchingServices = await db
-    .select({ id: services.id })
-    .from(services)
-    .where(eq(services.projectId, input.projectId));
-
-  const queuedDeployments = [];
-  const failures: WebhookDeployFailure[] = [];
-  for (const service of matchingServices) {
-    const result = await triggerDeploy({
-      serviceId: service.id,
-      commitSha: input.commitSha,
-      requestedByUserId: null,
-      requestedByEmail: input.requestedByEmail,
-      requestedByRole: "agent",
-      trigger: "webhook"
-    });
-
-    if (result.status === "ok" && result.deployment) {
-      queuedDeployments.push(result.deployment);
-      continue;
+    if (
+      input.externalInstallationId &&
+      installation?.installationId !== input.externalInstallationId
+    ) {
+      return [];
     }
 
-    failures.push({
-      serviceId: service.id,
-      status: result.status,
-      entity: result.status === "not_found" ? result.entity : undefined,
-      message:
-        result.status === "invalid_source" || result.status === "provider_unavailable"
-          ? result.message
-          : undefined
-    });
-  }
-
-  return {
-    deployments: queuedDeployments,
-    failures
-  };
+    return [{ project, provider, installation }];
+  });
 }
 
 async function triggerPreviewWebhookDeploys(input: {
@@ -483,27 +480,25 @@ async function handlePushWebhook(input: {
   repoFullName: string;
   branch: string;
   commitSha: string;
+  changedPaths: string[];
+  deliveryId?: string | null;
+  deliveryKey: string;
+  externalInstallationId?: string | null;
   requestedByEmail: string;
   matchingTargets: WebhookTarget[];
 }) {
-  const deployments = [];
-  const failedTargets: WebhookDeployFailure[] = [];
-  for (const { project } of input.matchingTargets) {
-    const targetBranch = project.autoDeployBranch || project.defaultBranch || "main";
-    if (input.branch !== targetBranch) {
-      continue;
-    }
+  const result = await processWebhookPushTargets({
+    providerType: input.providerType,
+    repoFullName: input.repoFullName,
+    branch: input.branch,
+    commitSha: input.commitSha,
+    changedPaths: input.changedPaths,
+    requestedByEmail: input.requestedByEmail,
+    matchingTargets: input.matchingTargets,
+    deliveryKey: input.deliveryKey
+  });
 
-    const projectResult = await triggerWebhookDeploys({
-      projectId: project.id,
-      commitSha: input.commitSha,
-      requestedByEmail: input.requestedByEmail
-    });
-    deployments.push(...projectResult.deployments);
-    failedTargets.push(...projectResult.failures);
-  }
-
-  if (failedTargets.length > 0) {
+  if (result.failedTargets.length > 0) {
     console.warn(
       JSON.stringify({
         level: "warn",
@@ -511,7 +506,8 @@ async function handlePushWebhook(input: {
         repoFullName: input.repoFullName,
         branch: input.branch,
         commitSha: input.commitSha,
-        failedTargets
+        failedTargets: result.failedTargets,
+        ignoredTargets: result.ignoredTargets
       })
     );
   }
@@ -523,25 +519,39 @@ async function handlePushWebhook(input: {
     actorRole: "agent",
     targetResource: `webhook/${input.providerType}/${input.repoFullName}`,
     action: "webhook.push",
-    inputSummary: `Push to ${input.branch} (${summarizeCommit(input.commitSha)}) → ${deployments.length} deployments, ${failedTargets.length} failures`,
+    inputSummary:
+      result.ignoredTargets.length > 0
+        ? `Push to ${input.branch} (${summarizeCommit(input.commitSha)}) → ${result.deployments.length} deployments, ${result.ignoredTargets.length} ignored targets, ${result.failedTargets.length} failures`
+        : `Push to ${input.branch} (${summarizeCommit(input.commitSha)}) → ${result.deployments.length} deployments, ${result.failedTargets.length} failures`,
     permissionScope: "deploy:start",
     outcome: "success",
     metadata: {
       repoFullName: input.repoFullName,
       branch: input.branch,
       commitSha: input.commitSha,
-      deploymentCount: deployments.length,
-      failedTargetCount: failedTargets.length,
-      failedTargets
+      deliveryId: input.deliveryId ?? null,
+      deliveryKey: input.deliveryKey,
+      externalInstallationId: input.externalInstallationId ?? null,
+      changedPaths: input.changedPaths,
+      deploymentCount: result.deployments.length,
+      failedTargetCount: result.failedTargets.length,
+      ignoredTargetCount: result.ignoredTargets.length,
+      failedTargets: result.failedTargets,
+      ignoredTargets: result.ignoredTargets
     }
   });
 
   return {
     ok: true,
-    deployments: deployments.length,
-    failedTargets: failedTargets.length,
+    deployments: result.deployments.length,
+    failedTargets: result.failedTargets.length,
+    ignoredTargets: result.ignoredTargets.length,
     branch: input.branch,
-    commit: summarizeCommit(input.commitSha)
+    commit: summarizeCommit(input.commitSha),
+    deliveryStatus: determineWebhookDeliveryStatus({
+      deploymentCount: result.deployments.length,
+      failedTargetCount: result.failedTargets.length
+    })
   };
 }
 
@@ -570,20 +580,25 @@ webhooksRouter.post("/github", async (c) => {
       return c.json({ ok: false, error: "Missing repository" }, 400);
     }
 
+    const externalInstallationId = payload.installation?.id
+      ? String(payload.installation.id)
+      : null;
+
     const matchingTargets = await listWebhookTargets({
       repoFullName,
-      providerType: "github"
+      providerType: "github",
+      externalInstallationId
     });
     if (matchingTargets.length === 0) {
       return c.json({ ok: true, skipped: true, reason: "no matching projects" });
     }
 
-    const signatureValid = matchingTargets.some(
+    const verifiedTargets = matchingTargets.filter(
       ({ provider }) =>
         Boolean(provider.webhookSecret) &&
         verifyGitHubSignature(rawBody, signature, provider.webhookSecret!)
     );
-    if (!signatureValid) {
+    if (verifiedTargets.length === 0) {
       return c.json({ ok: false, error: "Invalid signature" }, 401);
     }
 
@@ -599,7 +614,7 @@ webhooksRouter.post("/github", async (c) => {
         await triggerPreviewWebhookDeploys({
           providerType: "github",
           repoFullName,
-          matchingTargets,
+          matchingTargets: verifiedTargets,
           deliveryKey: buildWebhookDeliveryKey({
             providerType: "github",
             headerValue: c.req.header("x-github-delivery"),
@@ -620,16 +635,69 @@ webhooksRouter.post("/github", async (c) => {
     }
 
     const pushPayload = JSON.parse(rawBody) as GitHubPushEvent;
-    return c.json(
-      await handlePushWebhook({
-        providerType: "github",
+    const deliveryId = c.req.header("x-github-delivery");
+    const branch = (pushPayload.ref ?? "").replace("refs/heads/", "");
+    const commitSha = pushPayload.after ?? "";
+    const changedPaths = collectChangedPaths(pushPayload.commits);
+    const requestedByEmail = pushPayload.sender?.login ?? "github-webhook";
+    const deliveryClaim = await claimWebhookDelivery({
+      providerType: "github",
+      eventType: event,
+      rawBody,
+      deliveryId,
+      repoFullName,
+      externalInstallationId,
+      commitSha,
+      metadata: {
         repoFullName,
-        branch: (pushPayload.ref ?? "").replace("refs/heads/", ""),
-        commitSha: pushPayload.after ?? "",
-        requestedByEmail: pushPayload.sender?.login ?? "github-webhook",
-        matchingTargets
-      })
-    );
+        branch,
+        commitSha,
+        changedPaths
+      }
+    });
+
+    if (deliveryClaim.status === "duplicate") {
+      return c.json({ ok: true, skipped: true, reason: "duplicate delivery" });
+    }
+
+    const response = await handlePushWebhook({
+      providerType: "github",
+      repoFullName,
+      branch,
+      commitSha,
+      changedPaths,
+      deliveryId,
+      deliveryKey: deliveryClaim.deliveryKey,
+      externalInstallationId,
+      requestedByEmail,
+      matchingTargets: verifiedTargets
+    });
+    await finalizeWebhookDelivery({
+      providerType: "github",
+      deliveryKey: deliveryClaim.deliveryKey,
+      status: response.deliveryStatus,
+      metadata: {
+        repoFullName,
+        branch,
+        commitSha,
+        deliveryId: deliveryId ?? null,
+        deliveryKey: deliveryClaim.deliveryKey,
+        externalInstallationId,
+        deploymentCount: response.deployments,
+        failedTargetCount: response.failedTargets,
+        ignoredTargetCount: response.ignoredTargets,
+        changedPaths
+      }
+    });
+
+    return c.json({
+      ok: response.ok,
+      deployments: response.deployments,
+      failedTargets: response.failedTargets,
+      ignoredTargets: response.ignoredTargets,
+      branch: response.branch,
+      commit: response.commit
+    });
   } catch (err) {
     console.error("[webhook/github] Error:", err);
     return c.json({ ok: false, error: "Internal error" }, 500);
@@ -658,11 +726,11 @@ webhooksRouter.post("/gitlab", async (c) => {
       return c.json({ ok: true, skipped: true, reason: "no matching projects" });
     }
 
-    const tokenValid = matchingTargets.some(
+    const verifiedTargets = matchingTargets.filter(
       ({ provider }) =>
         Boolean(provider.webhookSecret) && verifyGitLabToken(token, provider.webhookSecret!)
     );
-    if (!tokenValid) {
+    if (verifiedTargets.length === 0) {
       return c.json({ ok: false, error: "Invalid token" }, 401);
     }
 
@@ -679,7 +747,7 @@ webhooksRouter.post("/gitlab", async (c) => {
         await triggerPreviewWebhookDeploys({
           providerType: "gitlab",
           repoFullName,
-          matchingTargets,
+          matchingTargets: verifiedTargets,
           deliveryKey: buildWebhookDeliveryKey({
             providerType: "gitlab",
             headerValue:
@@ -701,16 +769,66 @@ webhooksRouter.post("/gitlab", async (c) => {
     }
 
     const pushPayload = JSON.parse(rawBody) as GitLabPushEvent;
-    return c.json(
-      await handlePushWebhook({
-        providerType: "gitlab",
+    const deliveryId = c.req.header("x-gitlab-event-uuid") ?? c.req.header("x-gitlab-webhook-uuid");
+    const branch = (pushPayload.ref ?? "").replace("refs/heads/", "");
+    const commitSha = pushPayload.checkout_sha ?? pushPayload.after ?? "";
+    const changedPaths = collectChangedPaths(pushPayload.commits);
+    const requestedByEmail = pushPayload.user_name ?? "gitlab-webhook";
+    const deliveryClaim = await claimWebhookDelivery({
+      providerType: "gitlab",
+      eventType: "push",
+      rawBody,
+      deliveryId,
+      repoFullName,
+      commitSha,
+      metadata: {
         repoFullName,
-        branch: (pushPayload.ref ?? "").replace("refs/heads/", ""),
-        commitSha: pushPayload.after ?? "",
-        requestedByEmail: pushPayload.user_name ?? "gitlab-webhook",
-        matchingTargets
-      })
-    );
+        branch,
+        commitSha,
+        changedPaths
+      }
+    });
+
+    if (deliveryClaim.status === "duplicate") {
+      return c.json({ ok: true, skipped: true, reason: "duplicate delivery" });
+    }
+
+    const response = await handlePushWebhook({
+      providerType: "gitlab",
+      repoFullName,
+      branch,
+      commitSha,
+      changedPaths,
+      deliveryId,
+      deliveryKey: deliveryClaim.deliveryKey,
+      requestedByEmail,
+      matchingTargets: verifiedTargets
+    });
+    await finalizeWebhookDelivery({
+      providerType: "gitlab",
+      deliveryKey: deliveryClaim.deliveryKey,
+      status: response.deliveryStatus,
+      metadata: {
+        repoFullName,
+        branch,
+        commitSha,
+        deliveryId: deliveryId ?? null,
+        deliveryKey: deliveryClaim.deliveryKey,
+        deploymentCount: response.deployments,
+        failedTargetCount: response.failedTargets,
+        ignoredTargetCount: response.ignoredTargets,
+        changedPaths
+      }
+    });
+
+    return c.json({
+      ok: response.ok,
+      deployments: response.deployments,
+      failedTargets: response.failedTargets,
+      ignoredTargets: response.ignoredTargets,
+      branch: response.branch,
+      commit: response.commit
+    });
   } catch (err) {
     console.error("[webhook/gitlab] Error:", err);
     return c.json({ ok: false, error: "Internal error" }, 500);

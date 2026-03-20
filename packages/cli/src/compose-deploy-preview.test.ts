@@ -354,6 +354,8 @@ describe("previewComposeDeploy", () => {
                 serverName: "prod-west",
                 serverHost: "203.0.113.10",
                 composePath,
+                composeFiles: [composePath],
+                composeProfiles: [],
                 contextPath: contextDir,
                 requiresContextUpload: true,
                 localBuildContexts: [],

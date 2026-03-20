@@ -289,13 +289,11 @@ bad line
         ]
       },
       frozenInputs: {
-        composeFiles: [
-          {
-            path: ".daoflow.compose.rendered.yaml",
-            sourcePath: "compose.yaml",
-            contents: "services:\n  api:\n    image: nginx:alpine\n"
-          }
-        ],
+        composeFile: {
+          path: ".daoflow.compose.rendered.yaml",
+          sourcePath: "compose.yaml",
+          contents: "services:\n  api:\n    image: nginx:alpine\n"
+        },
         envFiles: [
           {
             path: ".daoflow.compose.inputs/runtime.env",
@@ -303,12 +301,7 @@ bad line
             contents: "API_TOKEN=secret\n",
             services: ["api"]
           }
-        ],
-        profiles: [],
-        renderedCompose: {
-          path: ".daoflow.compose.rendered.yaml",
-          contents: "services:\n  api:\n    image: nginx:alpine\n"
-        }
+        ]
       }
     });
   });
