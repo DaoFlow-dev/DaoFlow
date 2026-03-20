@@ -133,7 +133,9 @@ export function DashboardLayout() {
         {/* ── Sidebar ── */}
         <aside className="sidebar">
           <div className="sidebar__brand">
-            <Hexagon size={24} strokeWidth={1.5} />
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
+              <Hexagon size={18} strokeWidth={1.5} className="text-primary" />
+            </div>
             {!collapsed && <span className="sidebar__title">DaoFlow</span>}
           </div>
 
@@ -142,7 +144,7 @@ export function DashboardLayout() {
             onClick={() => setCollapsed(!collapsed)}
             aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
           >
-            {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+            {collapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
           </button>
 
           <TooltipProvider delayDuration={0}>
@@ -232,9 +234,11 @@ export function DashboardLayout() {
               })()}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <button className="sidebar__user-card">
-                    <Avatar className="h-8 w-8">
-                      <AvatarFallback className="text-xs">{userInitial}</AvatarFallback>
+                  <button className="sidebar__user-card group">
+                    <Avatar className="h-8 w-8 ring-2 ring-transparent transition-all group-hover:ring-primary/20">
+                      <AvatarFallback className="bg-primary/10 text-xs font-semibold text-primary">
+                        {userInitial}
+                      </AvatarFallback>
                     </Avatar>
                     {!collapsed && (
                       <>
@@ -247,7 +251,7 @@ export function DashboardLayout() {
                     )}
                   </button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent side="top" className="w-56" align="start">
+                <DropdownMenuContent side="top" className="w-56 backdrop-blur-xl" align="start">
                   <DropdownMenuLabel>
                     <p className="font-medium">{session.data.user.name}</p>
                     <p className="text-xs text-muted-foreground">{session.data.user.email}</p>
@@ -273,7 +277,7 @@ export function DashboardLayout() {
 
         {/* ── Main content ── */}
         <section className="layout__content">
-          <header className="topbar">
+          <header className="topbar" role="banner">
             <nav className="topbar__breadcrumb" aria-label="Breadcrumb">
               {crumbs.map((crumb, i) => {
                 const path =
@@ -307,7 +311,7 @@ export function DashboardLayout() {
 
           <div className="page-content" id="main-content">
             {isOffline && (
-              <div className="mb-4 rounded-md border border-yellow-500/50 bg-yellow-500/10 px-4 py-2 text-sm text-yellow-600 dark:text-yellow-400">
+              <div className="mb-4 flex items-center gap-2 rounded-lg border border-yellow-500/30 bg-yellow-500/5 px-4 py-3 text-sm text-yellow-600 backdrop-blur-sm dark:text-yellow-400">
                 You appear to be offline. Some features may not work until your connection is
                 restored.
               </div>

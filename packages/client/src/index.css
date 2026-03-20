@@ -75,6 +75,15 @@
   --df-topbar-height: 56px;
   --df-transition-fast: 150ms ease;
   --df-transition-default: 250ms ease;
+
+  /* ── Enhanced Surface Effects ── */
+  --df-shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --df-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+  --df-shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+  --df-shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.04);
+  --df-shadow-glow: 0 0 20px rgba(99, 102, 241, 0.08);
+  --df-gradient-subtle: linear-gradient(135deg, rgba(99, 102, 241, 0.03), rgba(168, 85, 247, 0.03));
+  --df-gradient-card: linear-gradient(180deg, var(--df-bg-card) 0%, rgba(250, 250, 250, 0.5) 100%);
 }
 
 .dark {
@@ -123,6 +132,15 @@
   --df-status-queued: #fbbf24;
   --df-status-failed: #f87171;
   --df-status-inactive: #71717a;
+
+  /* ── Enhanced Surface Effects (Dark) ── */
+  --df-shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.2);
+  --df-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2);
+  --df-shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.35), 0 2px 4px -2px rgba(0, 0, 0, 0.25);
+  --df-shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -4px rgba(0, 0, 0, 0.2);
+  --df-shadow-glow: 0 0 20px rgba(99, 102, 241, 0.15);
+  --df-gradient-subtle: linear-gradient(135deg, rgba(99, 102, 241, 0.06), rgba(168, 85, 247, 0.06));
+  --df-gradient-card: linear-gradient(180deg, var(--df-bg-card) 0%, rgba(20, 20, 25, 0.8) 100%);
 }
 
 * {
@@ -164,8 +182,13 @@ body {
   height: 100vh;
   display: flex;
   flex-direction: column;
-  background: var(--sidebar);
+  background: linear-gradient(
+    180deg,
+    var(--sidebar) 0%,
+    color-mix(in oklch, var(--sidebar) 97%, var(--sidebar-primary)) 100%
+  );
   border-right: 1px solid var(--sidebar-border);
+  box-shadow: 1px 0 8px rgba(0, 0, 0, 0.03);
   overflow-y: auto;
   overflow-x: hidden;
   transition: width 0.2s ease;
@@ -179,6 +202,11 @@ body {
   gap: 0.6rem;
   padding: 1rem 0.85rem;
   border-bottom: 1px solid var(--sidebar-border);
+  background: linear-gradient(
+    135deg,
+    color-mix(in oklch, var(--sidebar-primary) 6%, transparent),
+    transparent
+  );
   min-height: 56px;
 }
 
@@ -270,6 +298,8 @@ body {
   background: color-mix(in oklch, var(--sidebar-primary) 12%, transparent);
   color: var(--sidebar-primary);
   font-weight: 600;
+  box-shadow: inset 3px 0 0 var(--sidebar-primary);
+  border-radius: 0 6px 6px 0;
 }
 
 .sidebar__link-icon {
@@ -351,11 +381,17 @@ body {
 .topbar {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   padding: 0 1.5rem;
   height: 48px;
   border-bottom: 1px solid var(--border);
-  background: var(--background);
+  background: color-mix(in oklch, var(--background) 85%, transparent);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  z-index: 10;
 }
 
 .topbar__breadcrumb {
@@ -386,17 +422,19 @@ body {
   max-width: 1280px;
   width: 100%;
   margin: 0 auto;
-  animation: page-fade-in 0.2s ease-out;
+  animation: page-fade-in 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @keyframes page-fade-in {
   from {
     opacity: 0;
-    transform: translateY(4px);
+    transform: translateY(6px);
+    filter: blur(2px);
   }
   to {
     opacity: 1;
     transform: translateY(0);
+    filter: blur(0);
   }
 }
 
@@ -1585,55 +1623,77 @@ body {
   color: hsl(215 16% 47%);
   line-height: 1.45;
 }
-/* ========= Login page ========= */
+/* ========= Premium Login Page ========= */
 .login-page {
-  min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #09090b;
-  background-image:
-    radial-gradient(ellipse at 50% 0%, rgba(99, 152, 255, 0.08) 0%, transparent 60%),
-    radial-gradient(ellipse at 80% 50%, rgba(168, 85, 247, 0.04) 0%, transparent 50%);
-  padding: 1.5rem;
+  min-height: 100vh;
+  background: var(--background);
+  position: relative;
+  overflow: hidden;
+}
+
+.login-page::before {
+  content: "";
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background:
+    radial-gradient(
+      ellipse at 30% 50%,
+      color-mix(in oklch, var(--primary) 6%, transparent) 0%,
+      transparent 50%
+    ),
+    radial-gradient(
+      ellipse at 70% 30%,
+      color-mix(in oklch, #a855f7 4%, transparent) 0%,
+      transparent 50%
+    );
+  pointer-events: none;
 }
 
 .login-page__container {
-  width: 100%;
-  max-width: 420px;
+  position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 1rem;
+  width: 100%;
+  max-width: 420px;
+  padding: 2rem 1.5rem;
 }
 
 .login-page__logo {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
-  color: #e4e4e7;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+  color: var(--foreground);
 }
 
 .login-page__logo h1 {
-  margin: 0;
-  font-size: 1.6rem;
+  font-size: 1.75rem;
   font-weight: 800;
   letter-spacing: -0.03em;
+  margin: 0;
 }
 
 .login-page__tagline {
-  margin: 0;
   text-align: center;
-  font-size: 0.88rem;
-  color: #71717a;
+  color: var(--muted-foreground);
+  font-size: 0.875rem;
+  margin: 0 0 1.5rem;
+  max-width: 320px;
   line-height: 1.5;
 }
 
 .login-page__card {
   width: 100%;
-  border: 1px solid rgba(255, 255, 255, 0.06) !important;
-  background: #141419 !important;
-  backdrop-filter: blur(20px);
+  box-shadow: var(--df-shadow-lg, 0 10px 15px -3px rgba(0, 0, 0, 0.08));
+  border: 1px solid var(--border);
 }
 
 .login-page__form {
@@ -1644,10 +1704,10 @@ body {
 }
 
 .login-page__footer {
-  margin: 0;
-  font-size: 0.75rem;
-  color: #52525b;
+  margin-top: 2rem;
   text-align: center;
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
 }
 
 /* ========= Tailwind theme vars ========= */
@@ -2336,4 +2396,96 @@ button:focus-visible {
   padding: var(--df-spacing-xl);
   color: var(--df-text-muted);
   font-size: 0.88rem;
+}
+
+/* ========= Premium UI Utilities ========= */
+.df-glass {
+  background: color-mix(in oklch, var(--background) 80%, transparent);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--df-border-subtle);
+}
+
+.df-card-hover {
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.df-card-hover:hover {
+  box-shadow: var(--df-shadow-md);
+  border-color: color-mix(in oklch, var(--primary) 20%, var(--border));
+  transform: translateY(-1px);
+}
+
+.df-gradient-border {
+  position: relative;
+}
+
+.df-gradient-border::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    var(--primary),
+    color-mix(in oklch, var(--primary) 60%, #a855f7)
+  );
+  border-radius: inherit;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+
+.df-gradient-border:hover::before {
+  opacity: 1;
+}
+
+.df-stat-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  transition: all 0.25s ease;
+}
+
+.df-pulse-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  animation: df-pulse 2s infinite;
+}
+
+@keyframes df-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.6;
+    transform: scale(1.15);
+  }
+}
+
+.df-shimmer {
+  background: linear-gradient(
+    110deg,
+    transparent 25%,
+    color-mix(in oklch, var(--primary) 5%, transparent) 37%,
+    transparent 63%
+  );
+  background-size: 200% 100%;
+  animation: df-shimmer 2s ease-in-out infinite;
+}
+
+@keyframes df-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
 }

@@ -103,15 +103,20 @@ export default function DashboardPage() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
-          <p className="text-muted-foreground text-sm">
+          <p className="text-sm text-muted-foreground/80">
             Overview of your infrastructure and recent activity.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button size="sm" onClick={() => void navigate("/projects")}>
+          <Button size="sm" className="shadow-sm" onClick={() => void navigate("/projects")}>
             <Plus className="mr-1.5 h-4 w-4" /> New Project
           </Button>
-          <Button size="sm" variant="outline" onClick={() => void navigate("/servers")}>
+          <Button
+            size="sm"
+            variant="outline"
+            className="shadow-sm"
+            onClick={() => void navigate("/servers")}
+          >
             <Server className="mr-1.5 h-4 w-4" /> Add Server
           </Button>
         </div>
@@ -121,18 +126,24 @@ export default function DashboardPage() {
         {stats.map((s) => (
           <Card
             key={s.label}
-            className="cursor-pointer transition-colors hover:bg-accent/50"
+            className="group relative cursor-pointer overflow-hidden border-transparent bg-gradient-to-br from-card to-card/80 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md hover:border-primary/10"
             onClick={() => void navigate(s.href)}
           >
-            <CardContent className="flex items-center gap-4 p-4">
+            <div
+              className="absolute inset-0 bg-gradient-to-br from-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+              style={{
+                backgroundImage: `linear-gradient(135deg, transparent 60%, ${s.color.includes("blue") ? "rgba(59,130,246,0.04)" : s.color.includes("purple") ? "rgba(168,85,247,0.04)" : s.color.includes("amber") ? "rgba(245,158,11,0.04)" : "rgba(16,185,129,0.04)"})`
+              }}
+            />
+            <CardContent className="relative flex items-center gap-4 p-5">
               <div
-                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${s.bg}`}
+                className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${s.bg} transition-transform duration-300 group-hover:scale-110`}
               >
                 <s.icon size={20} className={s.color} />
               </div>
               <div>
-                <p className="text-2xl font-bold">{s.value}</p>
-                <p className="text-xs text-muted-foreground">{s.label}</p>
+                <p className="text-2xl font-bold tracking-tight">{s.value}</p>
+                <p className="text-xs font-medium text-muted-foreground">{s.label}</p>
               </div>
             </CardContent>
           </Card>
@@ -143,7 +154,7 @@ export default function DashboardPage() {
       {checks.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Server Health</CardTitle>
+            <CardTitle className="text-base font-semibold">Server Health</CardTitle>
             <CardDescription>Connectivity status of registered servers</CardDescription>
           </CardHeader>
           <CardContent>
@@ -151,7 +162,7 @@ export default function DashboardPage() {
               {checks.map((s) => (
                 <div
                   key={String(s.serverId)}
-                  className="flex items-center gap-3 rounded-lg border p-3"
+                  className="flex items-center gap-3 rounded-xl border bg-card/50 p-4 transition-all duration-200 hover:border-primary/10 hover:shadow-sm"
                 >
                   {s.sshReachable ? (
                     <CheckCircle2 size={18} className="text-emerald-500" />
@@ -175,10 +186,15 @@ export default function DashboardPage() {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
-            <CardTitle className="text-base">Recent Activity</CardTitle>
+            <CardTitle className="text-base font-semibold">Recent Activity</CardTitle>
             <CardDescription>Latest deployment and build events</CardDescription>
           </div>
-          <Button size="sm" variant="ghost" onClick={() => void navigate("/deployments")}>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="text-xs"
+            onClick={() => void navigate("/deployments")}
+          >
             View all
           </Button>
         </CardHeader>
@@ -190,13 +206,13 @@ export default function DashboardPage() {
               ))}
             </div>
           ) : deployments.length === 0 ? (
-            <div className="flex flex-col items-center justify-center gap-3 py-12 text-muted-foreground">
-              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted">
-                <Rocket size={28} />
+            <div className="flex flex-col items-center justify-center gap-4 py-16 text-muted-foreground">
+              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/10 to-primary/5">
+                <Rocket size={28} className="text-primary/60" />
               </div>
               <div className="text-center">
                 <p className="font-medium text-foreground">No deployments yet</p>
-                <p className="text-sm mt-1">
+                <p className="text-sm mt-1.5 max-w-xs text-muted-foreground/80">
                   Create a project and deploy your first service to see activity here.
                 </p>
               </div>
@@ -229,12 +245,12 @@ export default function DashboardPage() {
                   filteredDeployments.map((d) => (
                     <div
                       key={String(d.id)}
-                      className="flex cursor-pointer items-center gap-4 rounded-lg border p-3 transition-colors hover:bg-accent/50"
+                      className="group flex cursor-pointer items-center gap-4 rounded-xl border border-transparent bg-muted/30 p-4 transition-all duration-200 hover:border-border hover:bg-accent/50 hover:shadow-sm"
                       onClick={() => {
                         if (d.serviceId) void navigate(`/services/${d.serviceId}`);
                       }}
                     >
-                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-muted transition-transform duration-200 group-hover:scale-105">
                         <Rocket size={16} className={getToneTextClass(d.statusTone)} />
                       </div>
 

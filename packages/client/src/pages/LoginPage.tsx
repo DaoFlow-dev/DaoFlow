@@ -80,18 +80,22 @@ export default function LoginPage() {
       <div className="login-page__container">
         {/* Logo */}
         <div className="login-page__logo">
-          <Hexagon size={40} strokeWidth={1.5} />
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 shadow-sm">
+            <Hexagon size={24} strokeWidth={1.5} className="text-primary" />
+          </div>
           <h1>DaoFlow</h1>
         </div>
         <p className="login-page__tagline">
           The agentic platform to host deterministic systems — from one prompt to production.
         </p>
 
-        <Card className="login-page__card overflow-hidden">
-          <div className="h-1.5 bg-gradient-to-r from-primary via-primary/60 to-primary/20" />
-          <CardHeader className="text-center">
-            <h2 className="text-xl font-semibold leading-none tracking-tight">Welcome</h2>
-            <CardDescription>Sign in to your account or create a new one</CardDescription>
+        <Card className="login-page__card overflow-hidden shadow-lg">
+          <div className="h-1 bg-gradient-to-r from-primary via-primary/50 to-violet-500/30" />
+          <CardHeader className="text-center pb-2">
+            <h2 className="text-xl font-bold leading-none tracking-tight">Welcome back</h2>
+            <CardDescription className="mt-1.5">
+              Sign in to your account or create a new one
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <Tabs defaultValue="sign-in">
@@ -134,11 +138,14 @@ export default function LoginPage() {
                       </button>
                     </div>
                   </div>
-                  <Button type="submit" className="w-full" disabled={loading}>
+                  <Button type="submit" className="w-full shadow-sm" disabled={loading}>
                     {loading ? "Signing in…" : "Sign in"}
                   </Button>
-                  <p className="text-center text-sm text-muted-foreground">
-                    <a href="/forgot-password" className="underline hover:text-foreground">
+                  <p className="text-center text-sm">
+                    <a
+                      href="/forgot-password"
+                      className="text-muted-foreground transition-colors hover:text-foreground"
+                    >
                       Forgot your password?
                     </a>
                   </p>
@@ -198,23 +205,25 @@ export default function LoginPage() {
                       (() => {
                         const strength = getPasswordStrength(password);
                         return (
-                          <div className="space-y-1">
+                          <div className="space-y-1.5">
                             <div className="flex gap-1">
                               {[1, 2, 3, 4, 5].map((i) => (
                                 <div
                                   key={i}
-                                  className={`h-1 flex-1 rounded-full transition-colors ${
+                                  className={`h-1.5 flex-1 rounded-full transition-all duration-300 ${
                                     i <= strength.score ? strength.color : "bg-muted"
                                   }`}
                                 />
                               ))}
                             </div>
-                            <p className="text-xs text-muted-foreground">{strength.label}</p>
+                            <p className="text-xs font-medium text-muted-foreground">
+                              {strength.label}
+                            </p>
                           </div>
                         );
                       })()}
                   </div>
-                  <Button type="submit" className="w-full" disabled={loading}>
+                  <Button type="submit" className="w-full shadow-sm" disabled={loading}>
                     {loading ? "Creating account…" : "Create account"}
                   </Button>
                 </form>
@@ -231,7 +240,7 @@ export default function LoginPage() {
         </Card>
 
         <p className="login-page__footer">
-          Open-source Agentic DevOps System — from prompts to production.
+          Open-source Agentic DevOps — from prompts to production.
         </p>
       </div>
     </div>

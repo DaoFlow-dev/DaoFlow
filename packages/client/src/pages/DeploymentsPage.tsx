@@ -54,14 +54,14 @@ export default function DeploymentsPage() {
     <main className="shell space-y-6" data-testid="deployments-page">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Deployments</h1>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-sm text-muted-foreground/80">
           View deployment history, logs, and rollback options.
         </p>
       </div>
 
-      <Card>
+      <Card className="shadow-sm">
         <CardHeader>
-          <CardTitle className="text-base">Deployment History</CardTitle>
+          <CardTitle className="text-base font-semibold">Deployment History</CardTitle>
           <CardDescription>
             {deployments.length} deployment
             {deployments.length !== 1 ? "s" : ""}
@@ -75,11 +75,16 @@ export default function DeploymentsPage() {
               <Skeleton className="h-8 w-full" />
             </div>
           ) : deployments.length === 0 ? (
-            <div className="flex flex-col items-center gap-2 py-12 text-center">
-              <Rocket size={32} className="text-muted-foreground" />
-              <p className="text-sm text-muted-foreground">
-                No deployments yet. Queue your first deployment to get started.
-              </p>
+            <div className="flex flex-col items-center gap-4 py-16 text-center">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/10 to-primary/5">
+                <Rocket size={28} className="text-primary/50" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-foreground">No deployments yet</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Queue your first deployment to get started.
+                </p>
+              </div>
             </div>
           ) : (
             <Table>
@@ -108,7 +113,7 @@ export default function DeploymentsPage() {
                   return (
                     <Fragment key={id}>
                       <TableRow
-                        className="cursor-pointer hover:bg-muted/50"
+                        className="cursor-pointer transition-colors hover:bg-muted/40"
                         onClick={() => toggleExpand(id)}
                       >
                         <TableCell className="px-2">
@@ -191,16 +196,16 @@ export default function DeploymentsPage() {
                       {isExpanded && (
                         <TableRow>
                           <TableCell colSpan={6} className="p-0">
-                            <div className="space-y-4 bg-muted/20 p-4">
+                            <div className="space-y-4 bg-muted/10 p-5 backdrop-blur-sm">
                               <div className="grid gap-3 md:grid-cols-4">
                                 <div>
-                                  <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                                  <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground/70">
                                     Actor
                                   </p>
                                   <p className="text-sm font-medium">{actorLabel}</p>
                                 </div>
                                 <div>
-                                  <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                                  <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground/70">
                                     Commit
                                   </p>
                                   <p className="text-sm font-medium">
@@ -208,7 +213,7 @@ export default function DeploymentsPage() {
                                   </p>
                                 </div>
                                 <div>
-                                  <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                                  <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground/70">
                                     Image
                                   </p>
                                   <p className="truncate text-sm font-medium">
@@ -216,7 +221,7 @@ export default function DeploymentsPage() {
                                   </p>
                                 </div>
                                 <div>
-                                  <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                                  <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground/70">
                                     Outcome
                                   </p>
                                   <p className="text-sm font-medium">
@@ -226,14 +231,14 @@ export default function DeploymentsPage() {
                               </div>
                               {Array.isArray(d.steps) && d.steps.length > 0 ? (
                                 <div className="space-y-2">
-                                  <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                                  <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground/70">
                                     Structured steps
                                   </p>
                                   <div className="grid gap-2 md:grid-cols-2">
                                     {d.steps.map((step) => (
                                       <div
                                         key={String(step.id)}
-                                        className="rounded-md border bg-background p-3"
+                                        className="rounded-lg border border-border/50 bg-background p-4 shadow-sm"
                                       >
                                         <div className="flex items-center justify-between gap-2">
                                           <p className="text-sm font-medium">

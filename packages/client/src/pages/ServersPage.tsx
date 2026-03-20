@@ -45,7 +45,7 @@ export default function ServersPage() {
       <div className="flex items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Servers</h1>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-muted-foreground/80">
             Manage Docker hosts, inspect readiness checks, and register new targets.
           </p>
         </div>
@@ -97,17 +97,25 @@ export default function ServersPage() {
           ) : null}
 
           {checks.length === 0 ? (
-            <div className="flex flex-col items-center gap-2 py-12 text-center">
-              <Server size={32} className="text-muted-foreground" />
-              <p className="text-sm text-muted-foreground">
-                No servers registered yet. Add the first target to start deploying.
-              </p>
+            <div className="flex flex-col items-center gap-4 py-16 text-center">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/10 to-primary/5">
+                <Server size={28} className="text-primary/50" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-foreground">No servers registered</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Add your first target to start deploying.
+                </p>
+              </div>
             </div>
           ) : (
             <TooltipProvider delayDuration={0}>
               <div className="grid gap-4 lg:grid-cols-2">
                 {checks.map((check) => (
-                  <Card key={String(check.serverId)}>
+                  <Card
+                    key={String(check.serverId)}
+                    className="border-border/50 shadow-sm transition-all duration-200 hover:shadow-md"
+                  >
                     <CardHeader className="gap-2">
                       <div className="flex items-center justify-between gap-3">
                         <div>
@@ -200,10 +208,12 @@ export default function ServersPage() {
 
 function SummaryCard({ label, value }: { label: string; value: string | number }) {
   return (
-    <Card>
-      <CardContent className="p-4">
-        <p className="text-xs text-muted-foreground">{label}</p>
-        <p className="text-2xl font-bold">{value}</p>
+    <Card className="border-border/50 shadow-sm transition-all duration-200 hover:shadow-md">
+      <CardContent className="p-5">
+        <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground/70">
+          {label}
+        </p>
+        <p className="mt-1 text-2xl font-bold tracking-tight">{value}</p>
       </CardContent>
     </Card>
   );
@@ -211,13 +221,15 @@ function SummaryCard({ label, value }: { label: string; value: string | number }
 
 function CapabilityBadge({ ok, label }: { ok: boolean; label: string }) {
   return (
-    <div className="flex items-center gap-2 rounded-full border px-3 py-1 text-sm">
+    <div
+      className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm transition-colors ${ok ? "border-emerald-500/20 bg-emerald-500/5" : "border-red-500/20 bg-red-500/5"}`}
+    >
       {ok ? (
         <CheckCircle2 size={14} className="text-emerald-500" />
       ) : (
         <XCircle size={14} className="text-red-500" />
       )}
-      <span>{label}</span>
+      <span className="font-medium">{label}</span>
     </div>
   );
 }
@@ -239,16 +251,16 @@ function ResourceBars({ check }: { check: Record<string, unknown> }) {
 }
 
 function UsageBar({ label, value }: { label: string; value: number }) {
-  const color = value >= 85 ? "bg-red-500" : value >= 60 ? "bg-yellow-500" : "bg-emerald-500";
+  const color = value >= 85 ? "bg-red-500" : value >= 60 ? "bg-amber-500" : "bg-emerald-500";
   return (
     <div>
-      <div className="flex justify-between text-xs text-muted-foreground mb-1">
-        <span>{label}</span>
-        <span>{value.toFixed(0)}%</span>
+      <div className="flex justify-between text-xs text-muted-foreground mb-1.5">
+        <span className="font-medium">{label}</span>
+        <span className="tabular-nums">{value.toFixed(0)}%</span>
       </div>
-      <div className="h-1.5 w-full rounded-full bg-muted">
+      <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
         <div
-          className={`h-full rounded-full ${color}`}
+          className={`h-full rounded-full ${color} transition-all duration-500`}
           style={{ width: `${Math.min(value, 100)}%` }}
         />
       </div>
