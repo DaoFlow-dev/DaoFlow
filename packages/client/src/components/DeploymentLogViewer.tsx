@@ -38,7 +38,7 @@ export default function DeploymentLogViewer({ deploymentId }: Props) {
     <div
       role="log"
       aria-live="polite"
-      className="bg-black/90 rounded-md p-3 max-h-72 overflow-y-auto font-mono text-xs leading-relaxed"
+      className="bg-zinc-950 text-zinc-200 border border-zinc-800 dark:bg-black/90 rounded-md p-3 max-h-72 overflow-y-auto font-mono text-xs leading-relaxed"
     >
       {entries.map((entry, i) => {
         const level = typeof entry.level === "string" ? entry.level : "info";
@@ -57,8 +57,8 @@ export default function DeploymentLogViewer({ deploymentId }: Props) {
         const timestamp = timestampValue ? new Date(timestampValue).toLocaleTimeString() : "";
 
         return (
-          <div key={i} className="flex gap-2 hover:bg-white/5 px-1 py-0.5">
-            {timestamp && <span className="text-gray-500 shrink-0">{timestamp}</span>}
+          <div key={i} className="flex gap-2 hover:bg-muted/50 px-1 py-0.5">
+            {timestamp && <span className="text-muted-foreground shrink-0">{timestamp}</span>}
             <Badge
               variant={
                 level === "error" ? "destructive" : level === "warn" ? "secondary" : "outline"
@@ -70,10 +70,10 @@ export default function DeploymentLogViewer({ deploymentId }: Props) {
             <span
               className={
                 level === "error"
-                  ? "text-red-400"
+                  ? "text-red-600 dark:text-red-400"
                   : level === "warn"
-                    ? "text-yellow-400"
-                    : "text-gray-300"
+                    ? "text-yellow-600 dark:text-yellow-400"
+                    : "text-foreground/80"
               }
             >
               {message}

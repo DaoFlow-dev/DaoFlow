@@ -1,3 +1,7 @@
+import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
+import { getBadgeVariantFromTone } from "@/lib/tone-utils";
+
 interface AuditEntry {
   id: string;
   actorLabel: string;
@@ -28,60 +32,76 @@ export interface AuditTrailProps {
 
 export function AuditTrail({ session, auditTrail, auditMessage }: AuditTrailProps) {
   return (
-    <section className="audit-trail">
-      <div className="roadmap__header">
-        <p className="roadmap__kicker">Auditability before convenience</p>
-        <h2>Immutable control-plane audit trail</h2>
+    <section className="space-y-6">
+      <div className="space-y-1">
+        <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+          Auditability before convenience
+        </p>
+        <h2 className="text-2xl font-semibold tracking-tight text-foreground">
+          Immutable control-plane audit trail
+        </h2>
       </div>
 
       {session.data && auditTrail.data ? (
         <>
-          <div className="audit-summary" data-testid="audit-summary">
-            <div className="token-summary__item">
-              <span className="metric__label">Entries</span>
-              <strong>{auditTrail.data.summary.totalEntries}</strong>
-            </div>
-            <div className="token-summary__item">
-              <span className="metric__label">Deploy</span>
-              <strong>{auditTrail.data.summary.deploymentActions}</strong>
-            </div>
-            <div className="token-summary__item">
-              <span className="metric__label">Execution</span>
-              <strong>{auditTrail.data.summary.executionActions}</strong>
-            </div>
-            <div className="token-summary__item">
-              <span className="metric__label">Backup</span>
-              <strong>{auditTrail.data.summary.backupActions}</strong>
-            </div>
+          <div className="grid grid-cols-4 gap-3 mb-3" data-testid="audit-summary">
+            <Card className="p-4">
+              <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Entries
+              </span>
+              <strong className="mt-1 block text-2xl font-bold">
+                {auditTrail.data.summary.totalEntries}
+              </strong>
+            </Card>
+            <Card className="p-4">
+              <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Deploy
+              </span>
+              <strong className="mt-1 block text-2xl font-bold">
+                {auditTrail.data.summary.deploymentActions}
+              </strong>
+            </Card>
+            <Card className="p-4">
+              <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Execution
+              </span>
+              <strong className="mt-1 block text-2xl font-bold">
+                {auditTrail.data.summary.executionActions}
+              </strong>
+            </Card>
+            <Card className="p-4">
+              <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Backup
+              </span>
+              <strong className="mt-1 block text-2xl font-bold">
+                {auditTrail.data.summary.backupActions}
+              </strong>
+            </Card>
           </div>
 
-          <div className="audit-list">
+          <div className="space-y-3">
             {auditTrail.data.entries.map((entry) => (
-              <article
-                className="timeline-event"
-                data-testid={`audit-entry-${entry.id}`}
-                key={entry.id}
-              >
-                <div className="timeline-event__top">
+              <Card className="p-5" data-testid={`audit-entry-${entry.id}`} key={entry.id}>
+                <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="roadmap-item__lane">
+                    <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
                       {entry.actorLabel}
                       {entry.actorRole ? ` · ${entry.actorRole}` : ` · ${entry.actorType}`}
                     </p>
-                    <h3>{entry.action}</h3>
+                    <h3 className="text-base font-semibold text-foreground">{entry.action}</h3>
                   </div>
-                  <span className={`deployment-status deployment-status--${entry.statusTone}`}>
+                  <Badge variant={getBadgeVariantFromTone(entry.statusTone)}>
                     {entry.resourceType}
-                  </span>
+                  </Badge>
                 </div>
-                <p className="deployment-card__meta">{entry.resourceLabel}</p>
-                <p className="deployment-card__meta">{entry.detail}</p>
-              </article>
+                <p className="mt-2 text-sm text-muted-foreground">{entry.resourceLabel}</p>
+                <p className="mt-2 text-sm text-muted-foreground">{entry.detail}</p>
+              </Card>
             ))}
           </div>
         </>
       ) : (
-        <p className="viewer-empty">
+        <p className="py-10 text-center text-sm text-muted-foreground">
           {auditMessage ?? "Sign in to inspect immutable control-plane audit entries."}
         </p>
       )}

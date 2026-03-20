@@ -467,14 +467,14 @@ body {
   font-size: 1.6rem;
   font-weight: 800;
   letter-spacing: -0.02em;
-  color: #e4e4e7;
+  color: var(--foreground);
 }
 
 .hero__lede {
   margin: 0;
   font-size: 0.88rem;
   line-height: 1.55;
-  color: #71717a;
+  color: var(--muted-foreground);
   max-width: 38rem;
 }
 
@@ -490,9 +490,9 @@ body {
 .auth-panel,
 .status-card,
 .roadmap-item {
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border);
   border-radius: 8px;
-  background: #141419;
+  background: var(--card);
 }
 
 /* ========= Kicker / eyebrow text ========= */
@@ -506,15 +506,15 @@ body {
   letter-spacing: 0.12em;
   font-size: 0.68rem;
   font-weight: 600;
-  color: #52525b;
+  color: var(--muted-foreground);
 }
 
 /* ========= Metrics ========= */
 .metric {
   padding: 0.85rem 1rem;
   border-radius: 8px;
-  background: #141419;
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: var(--card);
+  border: 1px solid var(--border);
 }
 
 .metric__value {
@@ -522,12 +522,12 @@ body {
   margin-top: 0.3rem;
   font-size: 1.35rem;
   font-weight: 700;
-  color: #e4e4e7;
+  color: var(--foreground);
 }
 
 .metric__detail {
   margin: 0.35rem 0 0;
-  color: #71717a;
+  color: var(--muted-foreground);
   font-size: 0.82rem;
   line-height: 1.45;
 }
@@ -542,9 +542,9 @@ body {
 
 .auth-panel {
   padding: 1.25rem;
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border);
   border-radius: 8px;
-  background: #141419;
+  background: var(--card);
 }
 
 .auth-panel__header {
@@ -558,7 +558,7 @@ body {
   margin: 0.25rem 0 0;
   font-size: 1.15rem;
   font-weight: 700;
-  color: #e4e4e7;
+  color: var(--foreground);
 }
 
 .auth-panel__switches {
@@ -581,7 +581,7 @@ body {
   padding: 0.45rem 0.85rem;
   border-radius: 6px;
   background: transparent;
-  color: #71717a;
+  color: var(--muted-foreground);
   font-weight: 600;
   font-size: 0.82rem;
   transition:
@@ -590,8 +590,8 @@ body {
 }
 
 .tab--active {
-  background: #6d9fff;
-  color: #09090b;
+  background: var(--primary);
+  color: var(--primary-foreground);
 }
 
 .auth-form {
@@ -604,31 +604,31 @@ body {
   display: grid;
   gap: 0.25rem;
   font-size: 0.82rem;
-  color: #a1a1aa;
+  color: var(--muted-foreground);
 }
 
 .auth-form input {
   width: 100%;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border);
   border-radius: 8px;
   padding: 0.65rem 0.8rem;
-  background: #1a1a22;
-  color: #e4e4e7;
+  background: var(--df-bg-input);
+  color: var(--foreground);
   font: inherit;
   font-size: 0.88rem;
   transition: border-color 0.15s;
 }
 
 .auth-form input:focus {
-  border-color: #6d9fff;
+  border-color: var(--primary);
 }
 
 .action-button {
   margin-top: 0.15rem;
   padding: 0.65rem 1rem;
   border-radius: 8px;
-  background: #6d9fff;
-  color: #09090b;
+  background: var(--primary);
+  color: var(--primary-foreground);
   font-weight: 700;
   font-size: 0.88rem;
   transition: background 0.15s;
@@ -703,10 +703,10 @@ body {
   grid-template-columns: 1.4fr repeat(3, minmax(0, 1fr)) auto;
   gap: 0.75rem;
   align-items: end;
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border);
   border-radius: 12px;
-  background: #141419;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  background: var(--card);
+  box-shadow: var(--df-shadow-sm);
   padding: 1.25rem;
 }
 
@@ -716,10 +716,10 @@ body {
   grid-template-columns: 1.4fr repeat(3, minmax(0, 1fr)) auto;
   gap: 0.75rem;
   align-items: end;
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border);
   border-radius: 12px;
-  background: #141419;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  background: var(--card);
+  box-shadow: var(--df-shadow-sm);
   padding: 1.25rem;
 }
 
@@ -728,7 +728,7 @@ body {
   margin: 0.3rem 0 0;
   font-size: 1.05rem;
   font-weight: 700;
-  color: #e4e4e7;
+  color: var(--foreground);
 }
 
 .compose-release-composer label,
@@ -736,18 +736,18 @@ body {
   display: grid;
   gap: 0.25rem;
   font-size: 0.82rem;
-  color: #a1a1aa;
+  color: var(--muted-foreground);
 }
 
 .compose-release-composer input,
 .compose-release-composer select,
 .deployment-composer input {
   width: 100%;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border);
   border-radius: 8px;
   padding: 0.65rem 0.8rem;
-  background: #1a1a22;
-  color: #e4e4e7;
+  background: var(--df-bg-input);
+  color: var(--foreground);
   font: inherit;
   font-size: 0.88rem;
 }
@@ -758,10 +758,10 @@ body {
   grid-template-columns: 1.3fr repeat(5, minmax(0, 1fr)) auto auto;
   gap: 0.75rem;
   align-items: end;
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border);
   border-radius: 12px;
-  background: #141419;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  background: var(--card);
+  box-shadow: var(--df-shadow-sm);
   padding: 1.25rem;
 }
 
@@ -769,24 +769,24 @@ body {
   margin: 0.3rem 0 0;
   font-size: 1.05rem;
   font-weight: 700;
-  color: #e4e4e7;
+  color: var(--foreground);
 }
 
 .environment-variable-composer label {
   display: grid;
   gap: 0.25rem;
   font-size: 0.82rem;
-  color: #a1a1aa;
+  color: var(--muted-foreground);
 }
 
 .environment-variable-composer input,
 .environment-variable-composer select {
   width: 100%;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border);
   border-radius: 8px;
   padding: 0.65rem 0.8rem;
-  background: #1a1a22;
-  color: #e4e4e7;
+  background: var(--df-bg-input);
+  color: var(--foreground);
   font: inherit;
   font-size: 0.88rem;
 }
@@ -797,10 +797,10 @@ body {
   grid-template-columns: 1.4fr repeat(5, minmax(0, 1fr)) auto;
   gap: 0.75rem;
   align-items: end;
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border);
   border-radius: 12px;
-  background: #141419;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  background: var(--card);
+  box-shadow: var(--df-shadow-sm);
   padding: 1.25rem;
 }
 
@@ -808,24 +808,24 @@ body {
   margin: 0.3rem 0 0;
   font-size: 1.05rem;
   font-weight: 700;
-  color: #e4e4e7;
+  color: var(--foreground);
 }
 
 .server-onboarding label {
   display: grid;
   gap: 0.25rem;
   font-size: 0.82rem;
-  color: #a1a1aa;
+  color: var(--muted-foreground);
 }
 
 .server-onboarding input,
 .server-onboarding select {
   width: 100%;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border);
   border-radius: 8px;
   padding: 0.65rem 0.8rem;
-  background: #1a1a22;
-  color: #e4e4e7;
+  background: var(--df-bg-input);
+  color: var(--foreground);
   font: inherit;
   font-size: 0.88rem;
 }
@@ -879,7 +879,7 @@ body {
   margin: 0.25rem 0 0;
   font-size: 1.1rem;
   font-weight: 700;
-  color: #0f172a;
+  color: var(--foreground);
 }
 
 .inventory-list {
@@ -956,10 +956,10 @@ body {
 .deployment-card,
 .token-card,
 .timeline-event {
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border);
   border-radius: 12px;
-  background: #141419;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  background: var(--card);
+  box-shadow: var(--df-shadow-sm);
   padding: 1.25rem;
 }
 
@@ -967,14 +967,14 @@ body {
   margin: 0.3rem 0 0;
   font-size: 1.1rem;
   font-weight: 700;
-  color: #e4e4e7;
+  color: var(--foreground);
 }
 
 .token-card h3 {
   margin: 0.3rem 0 0;
   font-size: 1.05rem;
   font-weight: 700;
-  color: #0f172a;
+  color: var(--foreground);
 }
 
 .deployment-card__top,
@@ -994,10 +994,10 @@ body {
 }
 
 .token-summary__item {
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border);
   border-radius: 10px;
-  background: #f8fafc;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  background: var(--card);
+  box-shadow: var(--df-shadow-sm);
   padding: 0.85rem;
 }
 
@@ -1005,7 +1005,7 @@ body {
   display: block;
   margin-top: 0.35rem;
   font-size: 1.5rem;
-  color: #0f172a;
+  color: var(--foreground);
 }
 
 .token-card__chips {

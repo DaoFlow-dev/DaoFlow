@@ -1,6 +1,10 @@
 import { useState } from "react";
 import { isTRPCClientError } from "@trpc/client";
 import { trpc } from "../../lib/trpc";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { getBadgeVariantFromTone } from "@/lib/tone-utils";
 
 interface ApprovalRequest {
   id: string;
@@ -94,105 +98,121 @@ export function ApprovalQueue({
   const displayedFeedback = approvalFeedback ?? externalFeedback;
 
   return (
-    <section className="approval-queue">
-      <div className="roadmap__header">
-        <p className="roadmap__kicker">Agent-safe command gates</p>
-        <h2>Approval queue</h2>
+    <section className="space-y-6">
+      <div className="space-y-1">
+        <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+          Agent-safe command gates
+        </p>
+        <h2 className="text-2xl font-semibold tracking-tight text-foreground">Approval queue</h2>
       </div>
 
       {displayedFeedback ? (
-        <p className="auth-feedback" data-testid="approval-feedback">
+        <p
+          className="rounded-lg border border-border bg-muted px-4 py-2 text-sm text-muted-foreground"
+          data-testid="approval-feedback"
+        >
           {displayedFeedback}
         </p>
       ) : null}
 
       {session.data && approvalQueue.data ? (
         <>
-          <div className="approval-summary" data-testid="approval-summary">
-            <div className="token-summary__item">
-              <span className="metric__label">Requests</span>
-              <strong>{approvalQueue.data.summary.totalRequests}</strong>
-            </div>
-            <div className="token-summary__item">
-              <span className="metric__label">Pending</span>
-              <strong>{approvalQueue.data.summary.pendingRequests}</strong>
-            </div>
-            <div className="token-summary__item">
-              <span className="metric__label">Approved</span>
-              <strong>{approvalQueue.data.summary.approvedRequests}</strong>
-            </div>
-            <div className="token-summary__item">
-              <span className="metric__label">Critical</span>
-              <strong>{approvalQueue.data.summary.criticalRequests}</strong>
-            </div>
+          <div className="grid grid-cols-4 gap-3 mb-3" data-testid="approval-summary">
+            <Card className="p-4">
+              <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Requests
+              </span>
+              <strong className="mt-1 block text-2xl font-bold">
+                {approvalQueue.data.summary.totalRequests}
+              </strong>
+            </Card>
+            <Card className="p-4">
+              <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Pending
+              </span>
+              <strong className="mt-1 block text-2xl font-bold">
+                {approvalQueue.data.summary.pendingRequests}
+              </strong>
+            </Card>
+            <Card className="p-4">
+              <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Approved
+              </span>
+              <strong className="mt-1 block text-2xl font-bold">
+                {approvalQueue.data.summary.approvedRequests}
+              </strong>
+            </Card>
+            <Card className="p-4">
+              <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Critical
+              </span>
+              <strong className="mt-1 block text-2xl font-bold">
+                {approvalQueue.data.summary.criticalRequests}
+              </strong>
+            </Card>
           </div>
 
-          <div className="approval-list">
+          <div className="space-y-3">
             {approvalQueue.data.requests.map((request) => (
-              <article
-                className="token-card"
-                data-testid={`approval-request-${request.id}`}
-                key={request.id}
-              >
-                <div className="token-card__top">
+              <Card className="p-5" data-testid={`approval-request-${request.id}`} key={request.id}>
+                <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="roadmap-item__lane">
+                    <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
                       {request.requestedBy} · {request.requestedByRole}
                     </p>
-                    <h3>{request.actionType}</h3>
+                    <h3 className="text-base font-semibold text-foreground">
+                      {request.actionType}
+                    </h3>
                   </div>
-                  <span className={`deployment-status deployment-status--${request.statusTone}`}>
+                  <Badge variant={getBadgeVariantFromTone(request.statusTone)}>
                     {request.status}
-                  </span>
+                  </Badge>
                 </div>
-                <p className="deployment-card__meta">
+                <p className="mt-2 text-sm text-muted-foreground">
                   {request.resourceLabel} · Risk: {request.riskLevel}
                 </p>
-                <p className="deployment-card__meta">{request.reason}</p>
-                <p className="deployment-card__meta">{request.commandSummary}</p>
-                <p className="deployment-card__meta">
+                <p className="mt-2 text-sm text-muted-foreground">{request.reason}</p>
+                <p className="mt-2 text-sm text-muted-foreground">{request.commandSummary}</p>
+                <p className="mt-2 text-sm text-muted-foreground">
                   Requested: {request.requestedAt} · Expires: {request.expiresAt}
                 </p>
                 {request.decidedBy ? (
-                  <p className="deployment-card__meta">
+                  <p className="mt-2 text-sm text-muted-foreground">
                     Decision: {request.decidedBy} · {request.decidedAt}
                   </p>
                 ) : null}
-                <ul className="deployment-card__steps">
+                <ul className="mt-3 list-disc pl-5 text-sm text-muted-foreground space-y-1">
                   {request.recommendedChecks.map((check) => (
                     <li key={check}>{check}</li>
                   ))}
                 </ul>
                 {canOperateExecutionJobs && request.status === "pending" ? (
-                  <div className="job-actions">
-                    <button
-                      className="action-button"
+                  <div className="mt-4 flex gap-2">
+                    <Button
                       disabled={approvalMutationPending}
                       onClick={() => {
                         void handleApproveApproval(request.id, request.resourceLabel);
                       }}
-                      type="button"
                     >
                       {approvalMutationPending ? "Applying..." : "Approve"}
-                    </button>
-                    <button
-                      className="action-button action-button--muted"
+                    </Button>
+                    <Button
+                      variant="outline"
                       disabled={approvalMutationPending}
                       onClick={() => {
                         void handleRejectApproval(request.id, request.resourceLabel);
                       }}
-                      type="button"
                     >
                       {approvalMutationPending ? "Applying..." : "Reject"}
-                    </button>
+                    </Button>
                   </div>
                 ) : null}
-              </article>
+              </Card>
             ))}
           </div>
         </>
       ) : (
-        <p className="viewer-empty">
+        <p className="py-10 text-center text-sm text-muted-foreground">
           {approvalMessage ?? "Sign in to inspect high-risk actions waiting for human approval."}
         </p>
       )}
