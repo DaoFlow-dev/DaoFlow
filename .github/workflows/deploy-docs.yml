@@ -116,9 +116,9 @@ jobs:
                 "Content-Type": "application/json",
               },
               body: JSON.stringify({
-                workflowRunBackendId,
-                workflowJobRunBackendId,
-                nameFilter: { value: "github-pages" },
+                workflow_run_backend_id: workflowRunBackendId,
+                workflow_job_run_backend_id: workflowJobRunBackendId,
+                name_filter: "github-pages",
               }),
             });
 
@@ -132,13 +132,16 @@ jobs:
             const artifacts = JSON.parse(responseText).artifacts ?? [];
             const artifact = artifacts
               .filter((entry) => entry.name === "github-pages")
-              .sort((left, right) => Number(right.databaseId) - Number(left.databaseId))[0];
+              .sort(
+                (left, right) =>
+                  Number(right.database_id) - Number(left.database_id),
+              )[0];
 
-            if (!artifact?.databaseId) {
+            if (!artifact?.database_id) {
               throw new Error('No "github-pages" artifact was found for this workflow run.');
             }
 
-            return String(artifact.databaseId);
+            return String(artifact.database_id);
 
       - name: Deploy to GitHub Pages
         id: deployment
