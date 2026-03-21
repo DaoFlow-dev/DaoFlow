@@ -66,17 +66,10 @@ api_json() {
   rm -f "${body_file}"
 }
 
-oidc_request_url="${ACTIONS_ID_TOKEN_REQUEST_URL}"
-if [[ "${oidc_request_url}" == *\?* ]]; then
-  oidc_request_url="${oidc_request_url}&audience=pages.github.io"
-else
-  oidc_request_url="${oidc_request_url}?audience=pages.github.io"
-fi
-
 oidc_token="$(
   curl --fail --silent --show-error \
     -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
-    "${oidc_request_url}" \
+    "${ACTIONS_ID_TOKEN_REQUEST_URL}" \
     | jq -er '.value'
 )"
 
