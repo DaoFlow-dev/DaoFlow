@@ -2125,10 +2125,15 @@
           "flags": "-y, --yes",
           "description": "Skip confirmation prompt",
           "required": false
+        },
+        {
+          "flags": "--dry-run",
+          "description": "Preview the token creation payload without mutating",
+          "required": false
         }
       ],
       "supportsJson": true,
-      "supportsDryRun": false,
+      "supportsDryRun": true,
       "supportsYes": true
     },
     {
