@@ -45,3 +45,26 @@ export async function resetDatabaseSchema(connectionString: string) {
     await client.end();
   }
 }
+
+export async function truncateDatabaseTables(connectionString: string) {
+  const client = new Client({ connectionString });
+  await client.connect();
+
+  try {
+    const result = await client.query<{ qualifiedName: string }>(`
+      SELECT format('%I.%I', schemaname, tablename) AS "qualifiedName"
+      FROM pg_tables
+      WHERE schemaname = 'public'
+    `);
+
+    if (result.rows.length === 0) {
+      return;
+    }
+
+    await client.query(
+      `TRUNCATE TABLE ${result.rows.map((row) => row.qualifiedName).join(", ")} RESTART IDENTITY CASCADE`
+    );
+  } finally {
+    await client.end();
+  }
+}

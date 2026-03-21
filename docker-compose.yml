@@ -95,6 +95,7 @@ services:
       - POSTGRES_USER=temporal
       - POSTGRES_PWD=${TEMPORAL_POSTGRES_PASSWORD}
       - POSTGRES_SEEDS=temporal-postgresql
+      - DEFAULT_NAMESPACE=${TEMPORAL_NAMESPACE:-daoflow}
       - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/docker.yaml
     depends_on:
       temporal-postgresql:

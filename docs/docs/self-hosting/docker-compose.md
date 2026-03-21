@@ -51,6 +51,8 @@ services:
 
   temporal:
     image: temporalio/auto-setup:latest
+    environment:
+      DEFAULT_NAMESPACE: ${TEMPORAL_NAMESPACE:-daoflow}
 
   temporal-ui:
     image: temporalio/ui:2.34.0
@@ -107,5 +109,7 @@ When you are ready to test durable orchestration, set:
 ```bash
 DAOFLOW_ENABLE_TEMPORAL=true
 ```
+
+The reference stack registers `${TEMPORAL_NAMESPACE:-daoflow}` during Temporal auto-setup so the app and worker can start workflows without manual namespace bootstrapping.
 
 then restart the `daoflow` service with `docker compose up -d daoflow`.

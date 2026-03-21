@@ -2,7 +2,11 @@ import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import pg from "pg";
-import { ensureDatabaseExists, resetDatabaseSchema } from "./db/reset-database";
+import {
+  ensureDatabaseExists,
+  resetDatabaseSchema,
+  truncateDatabaseTables
+} from "./db/reset-database";
 import { resetControlPlaneSeedState } from "./db/services/seed";
 
 const { Client } = pg;
@@ -124,6 +128,11 @@ export async function resetTestDatabase() {
   const connectionString = await ensureTestDatabaseReady();
   resetControlPlaneSeedState();
   await withTestDatabaseLock(connectionString, async () => {
-    await applyMigrations(connectionString);
+    if (!(await isTestSchemaReady(connectionString))) {
+      await applyMigrations(connectionString);
+      return;
+    }
+
+    await truncateDatabaseTables(connectionString);
   });
 }

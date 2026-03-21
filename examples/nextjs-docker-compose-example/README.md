@@ -10,6 +10,8 @@ When you run `daoflow deploy --compose ./compose.yaml --server <server-id> --yes
 4. **SCP** the context to your target server
 5. **Build** and start containers via `docker compose up -d --build`
 
+The sample maps host port `3002` to container port `3000` so it does not collide with a DaoFlow control plane that is already listening on `3000`.
+
 ## Quick Start
 
 ```bash
