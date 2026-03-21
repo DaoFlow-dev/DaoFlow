@@ -25,6 +25,7 @@ import { cancelCommand } from "./commands/cancel";
 import { serverCommand } from "./commands/server";
 import { volumesCommand } from "./commands/volumes";
 import { notificationsCommand } from "./commands/notifications";
+import { templatesCommand } from "./commands/templates";
 import { registerConfigCommand } from "./commands/config";
 import { emitJsonError, getErrorMessage } from "./command-helpers";
 
@@ -67,6 +68,7 @@ export function createProgram(): Command {
   program.addCommand(serverCommand());
   program.addCommand(volumesCommand());
   program.addCommand(notificationsCommand());
+  program.addCommand(templatesCommand());
   program.addCommand(updateCommand());
   registerConfigCommand(program);
 

@@ -26,8 +26,8 @@ Coolify and Dokploy are open-source, self-hosted PaaS platforms. Like DaoFlow, t
 | **Dry-run previews**    | Every mutating command supports `--dry-run`                               | Not available              | Not available                  |
 | **Approval gates**      | Built-in for high-risk operations (backup restore, production deploys)    | Not available              | Not available                  |
 | **Docker Compose**      | First-class, preserves original + resolved spec                           | Supported                  | Strong native support          |
-| **Docker Swarm**        | Experimental manager registration; stack execution planned                | Supported                  | Native integration             |
-| **One-click templates** | Focused on Compose patterns                                               | 280+ templates             | 200+ templates                 |
+| **Docker Swarm**        | Manager registration plus stack deploy and rollback semantics             | Supported                  | Native integration             |
+| **One-click templates** | Curated Compose-first starter catalog with preview-before-apply flows     | 280+ templates             | 200+ templates                 |
 | **Monitoring**          | Structured event timeline + agent-ready summaries                         | Container metrics          | Real-time per-resource metrics |
 | **Backups**             | Typed policies, S3 storage, restore workflows with approval gates         | S3 backups                 | Unlimited S3 backups           |
 
@@ -55,6 +55,7 @@ daoflow deploy --service svc_my_app --yes      # Execute with confirmation
 - You use **AI coding agents** (Cursor, Copilot, custom) to manage infrastructure
 - You need **fine-grained permissions** — not just admin/member, but scoped capabilities
 - You want agents that can **observe and plan without accidentally mutating** production
+- You want curated **Compose-first starter templates** that still land as normal DaoFlow plans
 - **Secret protection** is critical — agents should never see production credentials unless explicitly authorized
 - You need an **immutable audit trail** of every action taken by humans and agents
 - You want **approval gates** for dangerous operations like backup restores
@@ -62,9 +63,8 @@ daoflow deploy --service svc_my_app --yes      # Execute with confirmation
 ## When to Choose Coolify or Dokploy
 
 - You manage infrastructure **manually through a dashboard** and don't use AI agents
-- You want **one-click app templates** for quick setup (WordPress, Ghost, etc.)
 - You need **Docker Swarm** clustering today with real stack deploy semantics (DaoFlow currently
-  only exposes experimental manager registration and inspection)
+  still trails the ecosystem on broader cluster UX and ecosystem maturity)
 - You prefer a **mature ecosystem** with larger community and extensive templates
 
 ## The DaoFlow Advantage

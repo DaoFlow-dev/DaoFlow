@@ -60,35 +60,36 @@ This file holds the detailed CLI contract, scope map, and agent-facing command r
 
 ## Command Scope Map
 
-| Command              | Lane         | Required Scope(s)                               | Mutating |
-| -------------------- | ------------ | ----------------------------------------------- | -------- |
-| `login`              | session      | none                                            | yes      |
-| `whoami`             | read         | any valid token                                 | no       |
-| `capabilities`       | read         | any valid token                                 | no       |
-| `status`             | read         | `server:read`                                   | no       |
-| `server add`         | command      | `server:write`                                  | yes      |
-| `services`           | read         | `service:read`                                  | no       |
-| `projects`           | read/command | `deploy:read`, `deploy:start`, `service:update` | varies   |
-| `logs`               | read         | `logs:read`                                     | no       |
-| `plan`               | planning     | `deploy:read`                                   | no       |
-| `diff`               | planning     | `deploy:read`                                   | no       |
-| `doctor`             | read         | `server:read`, `logs:read`                      | no       |
-| `deploy`             | command      | `deploy:start`                                  | yes      |
-| `push`               | command      | `deploy:start`                                  | yes      |
-| `rollback`           | command      | `deploy:rollback`                               | yes      |
-| `env list`           | read         | `env:read`                                      | no       |
-| `env set`            | command      | `env:write`                                     | yes      |
-| `env delete`         | command      | `env:write`                                     | yes      |
-| `volumes list`       | read         | `volumes:read`                                  | no       |
-| `volumes register`   | command      | `volumes:write`                                 | yes      |
-| `volumes update`     | command      | `volumes:write`                                 | yes      |
-| `volumes delete`     | command      | `volumes:write`                                 | yes      |
-| `backup list`        | read         | `backup:read`                                   | no       |
-| `backup policy`      | command      | `backup:run`                                    | yes      |
-| `backup run`         | command      | `backup:run`                                    | yes      |
-| `backup restore`     | command      | `backup:restore`                                | yes      |
-| `notifications list` | read         | any valid token                                 | no       |
-| `notifications logs` | read         | any valid token                                 | no       |
+| Command              | Lane                  | Required Scope(s)                               | Mutating |
+| -------------------- | --------------------- | ----------------------------------------------- | -------- |
+| `login`              | session               | none                                            | yes      |
+| `whoami`             | read                  | any valid token                                 | no       |
+| `capabilities`       | read                  | any valid token                                 | no       |
+| `status`             | read                  | `server:read`                                   | no       |
+| `server add`         | command               | `server:write`                                  | yes      |
+| `services`           | read                  | `service:read`                                  | no       |
+| `projects`           | read/command          | `deploy:read`, `deploy:start`, `service:update` | varies   |
+| `templates`          | read/planning/command | none, `deploy:read`, `deploy:start`             | varies   |
+| `logs`               | read                  | `logs:read`                                     | no       |
+| `plan`               | planning              | `deploy:read`                                   | no       |
+| `diff`               | planning              | `deploy:read`                                   | no       |
+| `doctor`             | read                  | `server:read`, `logs:read`                      | no       |
+| `deploy`             | command               | `deploy:start`                                  | yes      |
+| `push`               | command               | `deploy:start`                                  | yes      |
+| `rollback`           | command               | `deploy:rollback`                               | yes      |
+| `env list`           | read                  | `env:read`                                      | no       |
+| `env set`            | command               | `env:write`                                     | yes      |
+| `env delete`         | command               | `env:write`                                     | yes      |
+| `volumes list`       | read                  | `volumes:read`                                  | no       |
+| `volumes register`   | command               | `volumes:write`                                 | yes      |
+| `volumes update`     | command               | `volumes:write`                                 | yes      |
+| `volumes delete`     | command               | `volumes:write`                                 | yes      |
+| `backup list`        | read                  | `backup:read`                                   | no       |
+| `backup policy`      | command               | `backup:run`                                    | yes      |
+| `backup run`         | command               | `backup:run`                                    | yes      |
+| `backup restore`     | command               | `backup:restore`                                | yes      |
+| `notifications list` | read                  | any valid token                                 | no       |
+| `notifications logs` | read                  | any valid token                                 | no       |
 
 - `daoflow backup restore --dry-run` is a planning-lane preview backed by `backupRestorePlan` and requires only `backup:read`
 - `daoflow backup restore --yes` queues the restore and requires `backup:restore`
@@ -258,6 +259,19 @@ This file holds the detailed CLI contract, scope map, and agent-facing command r
 - `daoflow projects delete --yes` writes through `deleteProject` and requires `service:update`
 - `daoflow projects env list --project <id>` reads scoped environments for the project and requires `deploy:read`
 - `daoflow projects env create --dry-run` must return a local preview and exit with code `3`
+
+## Templates Contract
+
+- `daoflow templates list` and `daoflow templates show <slug>` are local catalog reads and do not require API access
+- `daoflow templates plan <slug>` is a planning-lane command backed by the existing `composeDeploymentPlan` route and requires `deploy:read`
+- `daoflow templates apply <slug> --yes` is a command-lane write that queues the existing direct compose deploy workflow and requires `deploy:start`
+- Template overrides use repeated `--set key=value`
+- Unknown template keys must fail fast before any network request
+- Secret template fields must stay masked in human and JSON CLI summaries even though the underlying rendered compose uses the provided value
+- `templates plan` JSON success shape:
+  - `{ "ok": true, "data": { "template": { "slug": string, "name": string }, "projectName": string, "inputs": [{ "key": string, "label": string, "kind": "string" | "secret" | "domain" | "port", "value": string, "isSecret": boolean }], "plan": { ...compose plan... } } }`
+- `templates apply` JSON success shape:
+  - `{ "ok": true, "data": { "template": { "slug": string, "name": string }, "projectName": string, "serverId": string, "deploymentId": string, "inputs": [{ "key": string, "label": string, "kind": "string" | "secret" | "domain" | "port", "value": string, "isSecret": boolean }] } }`
 - `daoflow projects env create --yes` writes through `createEnvironment` and requires `deploy:start`
 - `daoflow projects env update --dry-run` must return a local preview and exit with code `3`
 - `daoflow projects env update --yes` writes through `updateEnvironment` and requires `service:update`

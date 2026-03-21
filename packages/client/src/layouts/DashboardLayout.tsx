@@ -20,6 +20,7 @@ import {
 import {
   LayoutDashboard,
   FolderKanban,
+  LayoutTemplate,
   Server,
   Rocket,
   DatabaseBackup,
@@ -44,6 +45,7 @@ import {
 const homeNav = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true },
   { to: "/projects", label: "Projects", icon: FolderKanban },
+  { to: "/templates", label: "Templates", icon: LayoutTemplate },
   { to: "/servers", label: "Servers", icon: Server },
   { to: "/deployments", label: "Deployments", icon: Rocket },
   { to: "/backups", label: "Backups", icon: DatabaseBackup },

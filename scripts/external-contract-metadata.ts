@@ -572,6 +572,10 @@ export const cliCommandMeta: Record<string, CliCommandMeta> = {
     requiredScopes: ["service:update"],
     mutating: true
   },
+  "templates list": { lane: "local", requiredScopes: [], mutating: false },
+  "templates show": { lane: "local", requiredScopes: [], mutating: false },
+  "templates plan": { lane: "planning", requiredScopes: ["deploy:read"], mutating: false },
+  "templates apply": { lane: "command", requiredScopes: ["deploy:start"], mutating: true },
   doctor: { lane: "read", requiredScopes: ["server:read", "logs:read"], mutating: false },
   whoami: { lane: "read", requiredScopes: [], mutating: false },
   capabilities: { lane: "read", requiredScopes: [], mutating: false },
@@ -658,6 +662,32 @@ export const cliExamples = [
       data: {
         dryRun: true,
         plan: { isReady: true, executeCommand: "daoflow deploy --service svc_my_api --yes" }
+      }
+    }
+  },
+  {
+    id: "deployment.template-plan",
+    category: "deployment",
+    command:
+      "daoflow templates plan postgres --server srv_db_1 --project-name analytics-db --set postgres_password=replace-me --json",
+    response: {
+      ok: true,
+      data: {
+        template: { slug: "postgres", name: "PostgreSQL" },
+        projectName: "analytics-db",
+        inputs: [
+          {
+            key: "postgres_password",
+            label: "Database password",
+            kind: "secret",
+            value: "••••••••",
+            isSecret: true
+          }
+        ],
+        plan: {
+          isReady: true,
+          executeCommand: "daoflow deploy --compose templates/postgres.yaml --server srv_db_1"
+        }
       }
     }
   },

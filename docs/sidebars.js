@@ -34,6 +34,7 @@ const sidebars = {
         "cli/auth",
         "cli/deploy",
         "cli/projects",
+        "cli/templates",
         "cli/status",
         "cli/rollback",
         "cli/logs",

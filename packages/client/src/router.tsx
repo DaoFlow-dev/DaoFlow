@@ -5,6 +5,7 @@ import { DashboardLayout } from "./layouts/DashboardLayout";
 
 const DashboardPage = lazy(() => import("./pages/DashboardPage"));
 const ProjectsPage = lazy(() => import("./pages/ProjectsPage"));
+const TemplatesPage = lazy(() => import("./pages/TemplatesPage"));
 const ProjectDetailPage = lazy(() => import("./pages/ProjectDetailPage"));
 const ServersPage = lazy(() => import("./pages/ServersPage"));
 const DeploymentsPage = lazy(() => import("./pages/DeploymentsPage"));
@@ -50,6 +51,7 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: routeElement(DashboardPage) },
       { path: "projects", element: routeElement(ProjectsPage) },
+      { path: "templates", element: routeElement(TemplatesPage) },
       { path: "projects/:id", element: routeElement(ProjectDetailPage) },
       { path: "services/:id", element: routeElement(ServiceDetailPage) },
       { path: "servers", element: routeElement(ServersPage) },

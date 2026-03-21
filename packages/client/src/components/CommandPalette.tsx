@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import {
   LayoutDashboard,
   FolderKanban,
+  LayoutTemplate,
   Server,
   DatabaseBackup,
   Bell,
@@ -44,6 +45,13 @@ const NAVIGATION_ITEMS: PaletteItem[] = [
     label: "Projects",
     path: "/projects",
     icon: <FolderKanban size={14} />,
+    section: "Navigation"
+  },
+  {
+    id: "tmpl",
+    label: "Templates",
+    path: "/templates",
+    icon: <LayoutTemplate size={14} />,
     section: "Navigation"
   },
   {
@@ -92,6 +100,13 @@ const QUICK_ACTION_ITEMS: PaletteItem[] = [
     section: "Quick Actions"
   },
   {
+    id: "qa-browse-templates",
+    label: "Browse Templates",
+    path: "/templates",
+    icon: <LayoutTemplate size={14} />,
+    section: "Quick Actions"
+  },
+  {
     id: "qa-trigger-deploy",
     label: "Trigger Deployment",
     path: "/deployments",
@@ -117,6 +132,7 @@ const COMMAND_PALETTE_LISTBOX_ID = "command-palette-listbox";
 const LABEL_MAP: Record<string, string> = {
   "/": "Dashboard",
   "/projects": "Projects",
+  "/templates": "Templates",
   "/servers": "Servers",
   "/backups": "Backups",
   "/notifications": "Notifications",
@@ -128,6 +144,7 @@ const LABEL_MAP: Record<string, string> = {
 const ICON_MAP: Record<string, React.ReactNode> = {
   "/": <LayoutDashboard size={14} />,
   "/projects": <FolderKanban size={14} />,
+  "/templates": <LayoutTemplate size={14} />,
   "/servers": <Server size={14} />,
   "/backups": <DatabaseBackup size={14} />,
   "/notifications": <Bell size={14} />,

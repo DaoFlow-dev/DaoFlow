@@ -68,6 +68,7 @@ Every command accepts these flags:
 | [`server add`](./server)         | command      | `server:write`                                  | yes      |
 | `services`                       | read         | `service:read`                                  | no       |
 | [`projects`](./projects)         | read/command | `deploy:read`, `deploy:start`, `service:update` | varies   |
+| [`templates`](./templates)       | varies       | none / `deploy:read` / `deploy:start`           | varies   |
 | [`deploy`](./deploy)             | command      | `deploy:start`                                  | yes      |
 | [`rollback`](./rollback)         | command      | `deploy:rollback`                               | yes      |
 | [`diff`](./diff)                 | planning     | `deploy:read`                                   | no       |
@@ -80,6 +81,8 @@ Every command accepts these flags:
 | `backup restore`                 | command      | `backup:restore`                                | yes      |
 
 The generated contract includes additional command families not expanded into individual docs pages here, including backup destination management, backup schedule management, token management, config helpers, install/upgrade flows, and update commands.
+
+`templates` is the new curated catalog worth calling out separately: it renders shared starter stacks into the same direct Compose planning and execution flows DaoFlow already uses elsewhere.
 
 `backup restore --dry-run` is the exception worth noting: it uses the API planning lane through `backupRestorePlan`, exits with code `3`, and only requires `backup:read`.
 

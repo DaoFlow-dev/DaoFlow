@@ -2066,6 +2066,158 @@
       "supportsYes": false
     },
     {
+      "path": "templates",
+      "summary": "Browse and instantiate curated Compose app templates",
+      "lane": "local",
+      "requiredScopes": [],
+      "mutating": false,
+      "hasAction": false,
+      "hasSubcommands": true,
+      "aliases": [],
+      "arguments": [],
+      "options": [],
+      "supportsJson": false,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
+      "path": "templates apply",
+      "summary": "Render a template and queue a normal direct compose deployment",
+      "lane": "command",
+      "requiredScopes": ["deploy:start"],
+      "mutating": true,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [
+        {
+          "name": "slug",
+          "required": true,
+          "variadic": false
+        }
+      ],
+      "options": [
+        {
+          "flags": "--server <id>",
+          "description": "Target server ID",
+          "required": true
+        },
+        {
+          "flags": "--project-name <name>",
+          "description": "Project and stack name override",
+          "required": false
+        },
+        {
+          "flags": "--set <key=value>",
+          "description": "Template field override",
+          "required": false
+        },
+        {
+          "flags": "-y, --yes",
+          "description": "Skip confirmation prompt",
+          "required": false
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": true
+    },
+    {
+      "path": "templates list",
+      "summary": "List curated app templates",
+      "lane": "local",
+      "requiredScopes": [],
+      "mutating": false,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
+      "path": "templates plan",
+      "summary": "Render a template into a normal direct compose deployment plan",
+      "lane": "planning",
+      "requiredScopes": ["deploy:read"],
+      "mutating": false,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [
+        {
+          "name": "slug",
+          "required": true,
+          "variadic": false
+        }
+      ],
+      "options": [
+        {
+          "flags": "--server <id>",
+          "description": "Target server ID",
+          "required": true
+        },
+        {
+          "flags": "--project-name <name>",
+          "description": "Project and stack name override",
+          "required": false
+        },
+        {
+          "flags": "--set <key=value>",
+          "description": "Template field override",
+          "required": false
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
+      "path": "templates show",
+      "summary": "Inspect one app template",
+      "lane": "local",
+      "requiredScopes": [],
+      "mutating": false,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [
+        {
+          "name": "slug",
+          "required": true,
+          "variadic": false
+        }
+      ],
+      "options": [
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
       "path": "token",
       "summary": "Manage agent tokens and presets",
       "lane": "local",
@@ -2592,6 +2744,34 @@
           "plan": {
             "isReady": true,
             "executeCommand": "daoflow deploy --service svc_my_api --yes"
+          }
+        }
+      }
+    },
+    {
+      "id": "deployment.template-plan",
+      "category": "deployment",
+      "command": "daoflow templates plan postgres --server srv_db_1 --project-name analytics-db --set postgres_password=replace-me --json",
+      "response": {
+        "ok": true,
+        "data": {
+          "template": {
+            "slug": "postgres",
+            "name": "PostgreSQL"
+          },
+          "projectName": "analytics-db",
+          "inputs": [
+            {
+              "key": "postgres_password",
+              "label": "Database password",
+              "kind": "secret",
+              "value": "••••••••",
+              "isSecret": true
+            }
+          ],
+          "plan": {
+            "isReady": true,
+            "executeCommand": "daoflow deploy --compose templates/postgres.yaml --server srv_db_1"
           }
         }
       }
