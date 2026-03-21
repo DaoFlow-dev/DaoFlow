@@ -90,5 +90,7 @@ daoflow server add \
 - Registration immediately runs the same readiness verification flow used by the dashboard.
 - If SSH works but Docker or Compose does not, the command returns structured issues and recommended actions instead of a silent partial success.
 - Read-only principals still use [`daoflow status`](./status) and [`daoflow doctor`](./doctor) for inspection without mutation.
-- `docker-swarm-manager` currently covers target registration plus readiness inspection only. Swarm
-  stack deploy and rollback semantics remain a separate follow-up track.
+- `docker-swarm-manager` targets participate in Swarm stack deploy and rollback flows once a
+  compose-backed service points at them.
+- Swarm execution currently requires published-port readiness probes; internal-network probes still
+  fail planning and execution.

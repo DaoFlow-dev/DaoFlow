@@ -134,6 +134,7 @@ Service plan:
       "serverId": "srv_123",
       "serverName": "prod",
       "serverHost": "10.0.0.42",
+      "targetKind": "docker-swarm-manager",
       "imageTag": "ghcr.io/acme/api:1.4.2"
     },
     "currentDeployment": {
@@ -242,6 +243,7 @@ Compose plan:
       "serverId": "srv_prod",
       "serverName": "prod",
       "serverHost": "203.0.113.10",
+      "targetKind": "docker-swarm-manager",
       "composePath": "./compose.yaml",
       "contextPath": ".",
       "requiresContextUpload": true,
@@ -267,6 +269,10 @@ Compose plan:
   }
 }
 ```
+
+When `target.targetKind` is `docker-swarm-manager`, the human preview output also prints
+`Docker Swarm stack workflow` before the planned steps so operators can distinguish stack execution
+from a normal Docker Compose host rollout at a glance.
 
 ## Agent Usage
 

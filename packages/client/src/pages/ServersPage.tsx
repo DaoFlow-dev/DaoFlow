@@ -171,6 +171,13 @@ export const ServerCheckCard = memo(function ServerCheckCard({ check }: ServerCh
             label={`Target ${String(check.targetKind)}`}
             dataTestId={`server-target-kind-${String(check.serverId)}`}
           />
+          {String(check.targetKind) === "docker-swarm-manager" ? (
+            <CapabilityBadge
+              ok={true}
+              label="Stack deploy + rollback"
+              dataTestId={`server-swarm-capability-${String(check.serverId)}`}
+            />
+          ) : null}
           <CapabilityBadge
             ok={check.sshReachable}
             label={`SSH ${check.sshReachable ? "reachable" : "blocked"}`}

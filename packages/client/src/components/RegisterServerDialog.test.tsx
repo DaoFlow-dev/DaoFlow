@@ -32,7 +32,7 @@ describe("RegisterServerDialog", () => {
       })
     );
     expect(screen.getByTestId("register-server-kind-note")).toHaveTextContent(
-      "Swarm manager targets currently support registration and readiness inspection."
+      "Swarm manager targets run stack deploy and rollback through `docker stack`."
     );
   });
 });

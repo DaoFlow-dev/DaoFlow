@@ -25,6 +25,7 @@ export interface ComposeDeploymentPlanPreview {
     serverId: string;
     serverName: string;
     serverHost: string;
+    targetKind?: string;
     composePath: string | null;
     composeFiles: string[];
     composeProfiles: string[];
@@ -66,6 +67,14 @@ function formatScopeAction(action: "reuse" | "create") {
   return action === "reuse" ? chalk.green("reuse") : chalk.yellow("create");
 }
 
+function describeComposeDeploymentMode(
+  targetKind: ComposeDeploymentPlanPreview["target"]["targetKind"]
+) {
+  return targetKind === "docker-swarm-manager"
+    ? "Docker Swarm stack workflow"
+    : "Docker Compose host workflow";
+}
+
 export function printComposeDeploymentPlan(
   plan: ComposeDeploymentPlanPreview,
   options?: { title?: string; subtitle?: string }
@@ -86,6 +95,10 @@ export function printComposeDeploymentPlan(
     `  ${chalk.bold("Service:")}  ${plan.service.name} (${formatScopeAction(plan.service.action)})`
   );
   console.log(`  ${chalk.bold("Server:")}   ${plan.target.serverName} (${plan.target.serverHost})`);
+  console.log(`  ${chalk.bold("Kind:")}     ${plan.target.targetKind ?? "unassigned"}`);
+  console.log(
+    `  ${chalk.bold("Mode:")}     ${describeComposeDeploymentMode(plan.target.targetKind)}`
+  );
   console.log(`  ${chalk.bold("Compose:")}  ${plan.target.composePath ?? "<compose-path>"}`);
   if (plan.target.composeFiles.length > 1) {
     console.log(`  ${chalk.bold("Overrides:")} ${plan.target.composeFiles.slice(1).join(", ")}`);

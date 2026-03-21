@@ -31,9 +31,9 @@ The CLI registration flow returns the same readiness status, issues, and recomme
 the dashboard uses after registration.
 
 For `docker-swarm-manager` targets, DaoFlow also persists a Swarm topology snapshot in server
-metadata. The current post-MVP slice is inspection-oriented: the stored topology can describe the
-manager, workers, cluster name, and namespace, but DaoFlow does not yet execute `docker stack`
-rollouts from that model.
+metadata. DaoFlow uses that persisted topology to keep target kind and cluster context visible in
+CLI and dashboard inspection flows, and compose-backed deploy or rollback execution now runs
+through `docker stack` semantics on those managers.
 
 ## Connectivity
 
@@ -113,6 +113,12 @@ When a target is a Swarm manager, `swarmTopology` exposes the persisted cluster 
 - default namespace for future stack grouping
 - node membership with manager/worker roles
 - safe summary counts for managers, workers, active nodes, and reachable nodes
+
+Current Swarm execution boundary:
+
+- compose-backed deploys and rollbacks use `docker stack`
+- readiness must be probeable through published ports
+- internal-network readiness probes remain unsupported for Swarm execution
 
 ## Server Permissions
 

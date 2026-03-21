@@ -180,8 +180,8 @@ export function RegisterServerDialog({
               </SelectContent>
             </Select>
             <p className="text-sm text-muted-foreground" data-testid="register-server-kind-note">
-              Swarm manager targets currently support registration and readiness inspection. Stack
-              deploy and rollback semantics are tracked separately.
+              Swarm manager targets run stack deploy and rollback through `docker stack`. Use
+              published-port readiness probes for Swarm-backed compose services.
             </p>
           </div>
           <DialogFooter>

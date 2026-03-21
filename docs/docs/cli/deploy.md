@@ -136,6 +136,7 @@ daoflow deploy --service svc_my_app --dry-run --json
       },
       "target": {
         "serverName": "prod",
+        "targetKind": "docker-swarm-manager",
         "imageTag": "ghcr.io/acme/my-app:stable"
       },
       "currentDeployment": null,
@@ -173,6 +174,7 @@ daoflow deploy --compose ./compose.yaml --server srv_prod --dry-run --json
         "serverId": "srv_prod",
         "serverName": "prod",
         "serverHost": "203.0.113.10",
+        "targetKind": "docker-swarm-manager",
         "composePath": "./compose.yaml",
         "contextPath": ".",
         "requiresContextUpload": true,
@@ -196,6 +198,10 @@ daoflow deploy --compose ./compose.yaml --server srv_prod --dry-run --json
 ```
 
 Exit code is `3` for successful dry runs.
+
+For Swarm-backed compose services or direct compose uploads to `docker-swarm-manager` targets,
+dry-run output now makes the stack workflow explicit before execution. The server-side steps and
+checks also call out when DaoFlow will use `docker stack deploy` semantics instead of `docker compose up`.
 
 ## Current Support
 

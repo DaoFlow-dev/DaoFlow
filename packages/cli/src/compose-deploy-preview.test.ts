@@ -622,6 +622,7 @@ describe("previewComposeDeploy", () => {
                   serverId: "srv_123",
                   serverName: "prod-west",
                   serverHost: "203.0.113.10",
+                  targetKind: "docker-swarm-manager",
                   composePath,
                   composeFiles: [composePath],
                   composeProfiles: [],
@@ -739,6 +740,7 @@ describe("previewComposeDeploy", () => {
             serverId: "srv_123",
             serverName: "prod-west",
             serverHost: "203.0.113.10",
+            targetKind: "docker-swarm-manager",
             composePath,
             composeFiles: [composePath],
             composeProfiles: [],
@@ -849,5 +851,94 @@ describe("previewComposeDeploy", () => {
     expect(receivedInput?.compose).toContain("nginx:alpine");
     expect(receivedInput?.composePath).toBe("compose.yaml");
     expect(receivedInput?.requiresContextUpload).toBe(false);
+  });
+
+  test("prints target kind and rollout mode in human dry-run output", async () => {
+    const contextDir = mkdtempSync(join(tmpdir(), "daoflow-compose-human-preview-"));
+    tempDirs.push(contextDir);
+
+    const composePath = join(contextDir, "compose.yaml");
+    writeFileSync(composePath, "services:\n  web:\n    image: nginx:alpine\n");
+
+    const logs = await captureConsoleLog(async () => {
+      await previewComposeDeploy(
+        {
+          composeDeploymentPlan: {
+            query: () =>
+              Promise.resolve({
+                isReady: true,
+                deploymentSource: "uploaded-compose",
+                project: { id: null, name: "preview-stack", action: "create" },
+                environment: { id: null, name: "production", action: "create" },
+                service: {
+                  id: null,
+                  name: "preview-stack",
+                  action: "create",
+                  sourceType: "compose"
+                },
+                composeEnvPlan: {
+                  branch: "main",
+                  matchedBranchOverrideCount: 0,
+                  composeEnv: {
+                    precedence: [],
+                    counts: {
+                      total: 0,
+                      repoDefaults: 0,
+                      environmentVariables: 0,
+                      runtime: 0,
+                      build: 0,
+                      secrets: 0,
+                      overriddenRepoDefaults: 0
+                    },
+                    warnings: [],
+                    entries: []
+                  },
+                  interpolation: {
+                    status: "ok",
+                    summary: {
+                      totalReferences: 0,
+                      unresolved: 0,
+                      requiredMissing: 0,
+                      optionalMissing: 0
+                    },
+                    warnings: [],
+                    unresolved: []
+                  }
+                },
+                target: {
+                  serverId: "srv_123",
+                  serverName: "swarm-mgr-1",
+                  serverHost: "10.0.0.25",
+                  targetKind: "docker-swarm-manager",
+                  composePath,
+                  composeFiles: [composePath],
+                  composeProfiles: [],
+                  contextPath: contextDir,
+                  requiresContextUpload: false,
+                  localBuildContexts: [],
+                  contextBundle: null
+                },
+                preflightChecks: [
+                  { status: "ok", detail: "Target server resolved to swarm-mgr-1 (10.0.0.25)." }
+                ],
+                steps: ["Run docker stack deploy for preview-stack on swarm-mgr-1"],
+                executeCommand: "daoflow deploy --compose ./compose.yaml --server srv_123 --yes"
+              })
+          }
+        },
+        {
+          composePath,
+          contextPath: contextDir,
+          serverId: "srv_123"
+        }
+      );
+    });
+
+    expect(
+      logs.some((line) => line.includes("Kind:") && line.includes("docker-swarm-manager"))
+    ).toBe(true);
+    expect(
+      logs.some((line) => line.includes("Mode:") && line.includes("Docker Swarm stack workflow"))
+    ).toBe(true);
   });
 });

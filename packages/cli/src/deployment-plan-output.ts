@@ -7,10 +7,12 @@ export interface DeploymentPlanPreview {
     name: string;
     projectName: string;
     environmentName: string;
+    sourceType?: string;
   };
   composeEnvPlan?: ComposeEnvPlanPreview | null;
   target: {
     serverName: string | null;
+    targetKind?: string | null;
     imageTag: string | null;
   };
   currentDeployment: {
@@ -23,6 +25,18 @@ export interface DeploymentPlanPreview {
   }>;
   steps: string[];
   executeCommand: string;
+}
+
+function describeDeploymentMode(plan: DeploymentPlanPreview): string {
+  if (plan.target.targetKind === "docker-swarm-manager" && plan.service.sourceType === "compose") {
+    return "Docker Swarm stack workflow";
+  }
+
+  if (plan.service.sourceType === "compose") {
+    return "Docker Compose host workflow";
+  }
+
+  return "Docker host workflow";
 }
 
 export function printDeploymentPlan(
@@ -39,6 +53,8 @@ export function printDeploymentPlan(
   console.log(`  ${chalk.bold("Project:")}   ${plan.service.projectName}`);
   console.log(`  ${chalk.bold("Env:")}       ${plan.service.environmentName}`);
   console.log(`  ${chalk.bold("Server:")}    ${plan.target.serverName ?? "unassigned"}`);
+  console.log(`  ${chalk.bold("Kind:")}      ${plan.target.targetKind ?? "unassigned"}`);
+  console.log(`  ${chalk.bold("Mode:")}      ${describeDeploymentMode(plan)}`);
   console.log(`  ${chalk.bold("Image:")}     ${plan.target.imageTag ?? "derived at runtime"}`);
   console.log(
     `  ${chalk.bold("Ready:")}     ${plan.isReady ? chalk.green("yes") : chalk.red("no")}`

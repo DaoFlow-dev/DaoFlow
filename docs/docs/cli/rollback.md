@@ -94,3 +94,7 @@ daoflow rollback --service svc_my_app --to dep_abc123 --dry-run --json
   }
 }
 ```
+
+If the selected rollback target is a compose deployment on a `docker-swarm-manager`, the returned
+steps and preflight checks call out the same `docker stack` execution semantics that the deploy
+planner uses.
