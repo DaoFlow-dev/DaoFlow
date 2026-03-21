@@ -532,6 +532,25 @@ export const cliCommandMeta: Record<string, CliCommandMeta> = {
   "server add": { lane: "command", requiredScopes: ["server:write"], mutating: true },
   projects: { lane: "read", requiredScopes: ["deploy:read"], mutating: false },
   "projects list": { lane: "read", requiredScopes: ["deploy:read"], mutating: false },
+  "projects show": { lane: "read", requiredScopes: ["deploy:read"], mutating: false },
+  "projects create": { lane: "command", requiredScopes: ["deploy:start"], mutating: true },
+  "projects delete": { lane: "command", requiredScopes: ["service:update"], mutating: true },
+  "projects env list": { lane: "read", requiredScopes: ["deploy:read"], mutating: false },
+  "projects env create": {
+    lane: "command",
+    requiredScopes: ["deploy:start"],
+    mutating: true
+  },
+  "projects env update": {
+    lane: "command",
+    requiredScopes: ["service:update"],
+    mutating: true
+  },
+  "projects env delete": {
+    lane: "command",
+    requiredScopes: ["service:update"],
+    mutating: true
+  },
   doctor: { lane: "read", requiredScopes: ["server:read", "logs:read"], mutating: false },
   whoami: { lane: "read", requiredScopes: [], mutating: false },
   capabilities: { lane: "read", requiredScopes: [], mutating: false },

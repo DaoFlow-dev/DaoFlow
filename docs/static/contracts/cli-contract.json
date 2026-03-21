@@ -1128,7 +1128,7 @@
     },
     {
       "path": "projects",
-      "summary": "List and manage projects",
+      "summary": "List and manage projects and environments",
       "lane": "read",
       "requiredScopes": ["deploy:read"],
       "mutating": false,
@@ -1142,8 +1142,324 @@
       "supportsYes": false
     },
     {
+      "path": "projects create",
+      "summary": "Create a project",
+      "lane": "command",
+      "requiredScopes": ["deploy:start"],
+      "mutating": true,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--name <name>",
+          "description": "Project name",
+          "required": true
+        },
+        {
+          "flags": "--description <text>",
+          "description": "Project description",
+          "required": false
+        },
+        {
+          "flags": "--repo-url <url>",
+          "description": "Repository URL",
+          "required": false
+        },
+        {
+          "flags": "--repo-full-name <owner/repo>",
+          "description": "Repository full name",
+          "required": false
+        },
+        {
+          "flags": "--default-branch <name>",
+          "description": "Default branch",
+          "required": false
+        },
+        {
+          "flags": "--compose-file <path>",
+          "description": "Compose file override",
+          "required": false
+        },
+        {
+          "flags": "--compose-profile <name>",
+          "description": "Compose profile override",
+          "required": false
+        },
+        {
+          "flags": "--auto-deploy",
+          "description": "Enable webhook auto-deploy",
+          "required": false
+        },
+        {
+          "flags": "--auto-deploy-branch <branch>",
+          "description": "Auto-deploy branch",
+          "required": false
+        },
+        {
+          "flags": "--dry-run",
+          "description": "Preview the project payload without mutating",
+          "required": false
+        },
+        {
+          "flags": "-y, --yes",
+          "description": "Skip confirmation prompt",
+          "required": false
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": true,
+      "supportsYes": true
+    },
+    {
+      "path": "projects delete",
+      "summary": "Delete a project",
+      "lane": "command",
+      "requiredScopes": ["service:update"],
+      "mutating": true,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--project <id>",
+          "description": "Project ID",
+          "required": true
+        },
+        {
+          "flags": "--dry-run",
+          "description": "Preview the deletion without mutating",
+          "required": false
+        },
+        {
+          "flags": "-y, --yes",
+          "description": "Skip confirmation prompt",
+          "required": false
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": true,
+      "supportsYes": true
+    },
+    {
+      "path": "projects env",
+      "summary": "Manage project environments",
+      "lane": "local",
+      "requiredScopes": [],
+      "mutating": false,
+      "hasAction": false,
+      "hasSubcommands": true,
+      "aliases": [],
+      "arguments": [],
+      "options": [],
+      "supportsJson": false,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
+      "path": "projects env create",
+      "summary": "Create an environment inside a project",
+      "lane": "command",
+      "requiredScopes": ["deploy:start"],
+      "mutating": true,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--project <id>",
+          "description": "Project ID",
+          "required": true
+        },
+        {
+          "flags": "--name <name>",
+          "description": "Environment name",
+          "required": true
+        },
+        {
+          "flags": "--server <id>",
+          "description": "Target server ID override",
+          "required": false
+        },
+        {
+          "flags": "--compose-file <path>",
+          "description": "Compose file override",
+          "required": false
+        },
+        {
+          "flags": "--compose-profile <name>",
+          "description": "Compose profile override",
+          "required": false
+        },
+        {
+          "flags": "--dry-run",
+          "description": "Preview the environment payload without mutating",
+          "required": false
+        },
+        {
+          "flags": "-y, --yes",
+          "description": "Skip confirmation prompt",
+          "required": false
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": true,
+      "supportsYes": true
+    },
+    {
+      "path": "projects env delete",
+      "summary": "Delete an environment",
+      "lane": "command",
+      "requiredScopes": ["service:update"],
+      "mutating": true,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--environment <id>",
+          "description": "Environment ID",
+          "required": true
+        },
+        {
+          "flags": "--dry-run",
+          "description": "Preview the deletion without mutating",
+          "required": false
+        },
+        {
+          "flags": "-y, --yes",
+          "description": "Skip confirmation prompt",
+          "required": false
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": true,
+      "supportsYes": true
+    },
+    {
+      "path": "projects env list",
+      "summary": "List environments for a project",
+      "lane": "read",
+      "requiredScopes": ["deploy:read"],
+      "mutating": false,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--project <id>",
+          "description": "Project ID",
+          "required": true
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
+      "path": "projects env update",
+      "summary": "Update environment overrides",
+      "lane": "command",
+      "requiredScopes": ["service:update"],
+      "mutating": true,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--environment <id>",
+          "description": "Environment ID",
+          "required": true
+        },
+        {
+          "flags": "--name <name>",
+          "description": "Rename the environment",
+          "required": false
+        },
+        {
+          "flags": "--status <status>",
+          "description": "Set environment status",
+          "required": false
+        },
+        {
+          "flags": "--server <id>",
+          "description": "Set a target server override",
+          "required": false
+        },
+        {
+          "flags": "--clear-server",
+          "description": "Remove the target server override",
+          "required": false
+        },
+        {
+          "flags": "--compose-file <path>",
+          "description": "Replace compose file overrides",
+          "required": false
+        },
+        {
+          "flags": "--compose-profile <name>",
+          "description": "Replace compose profile overrides",
+          "required": false
+        },
+        {
+          "flags": "--clear-compose-overrides",
+          "description": "Remove compose file/profile overrides",
+          "required": false
+        },
+        {
+          "flags": "--dry-run",
+          "description": "Preview the environment update without mutating",
+          "required": false
+        },
+        {
+          "flags": "-y, --yes",
+          "description": "Skip confirmation prompt",
+          "required": false
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": true,
+      "supportsYes": true
+    },
+    {
       "path": "projects list",
-      "summary": "List all projects",
+      "summary": "List accessible projects",
       "lane": "read",
       "requiredScopes": ["deploy:read"],
       "mutating": false,
@@ -1151,6 +1467,33 @@
       "hasSubcommands": false,
       "aliases": ["ls"],
       "arguments": [],
+      "options": [
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
+      "path": "projects show",
+      "summary": "Show project metadata and environments",
+      "lane": "read",
+      "requiredScopes": ["deploy:read"],
+      "mutating": false,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [
+        {
+          "name": "project-id",
+          "required": true,
+          "variadic": false
+        }
+      ],
       "options": [
         {
           "flags": "--json",
