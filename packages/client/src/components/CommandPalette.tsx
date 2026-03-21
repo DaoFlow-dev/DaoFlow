@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useCallback, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
   Dialog,
@@ -8,172 +8,16 @@ import {
   DialogTitle
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Search } from "lucide-react";
 import {
-  LayoutDashboard,
-  FolderKanban,
-  LayoutTemplate,
-  Server,
-  DatabaseBackup,
-  Bell,
-  Settings,
-  User,
-  Search,
-  Plus,
-  Rocket,
-  Clock,
-  Archive
-} from "lucide-react";
-
-interface PaletteItem {
-  id: string;
-  label: string;
-  path: string;
-  icon: React.ReactNode;
-  section: string;
-}
-
-const NAVIGATION_ITEMS: PaletteItem[] = [
-  {
-    id: "dash",
-    label: "Dashboard",
-    path: "/",
-    icon: <LayoutDashboard size={14} />,
-    section: "Navigation"
-  },
-  {
-    id: "proj",
-    label: "Projects",
-    path: "/projects",
-    icon: <FolderKanban size={14} />,
-    section: "Navigation"
-  },
-  {
-    id: "tmpl",
-    label: "Templates",
-    path: "/templates",
-    icon: <LayoutTemplate size={14} />,
-    section: "Navigation"
-  },
-  {
-    id: "serv",
-    label: "Servers",
-    path: "/servers",
-    icon: <Server size={14} />,
-    section: "Navigation"
-  },
-  {
-    id: "back",
-    label: "Backups",
-    path: "/backups",
-    icon: <DatabaseBackup size={14} />,
-    section: "Navigation"
-  },
-  {
-    id: "notif",
-    label: "Notifications",
-    path: "/notifications",
-    icon: <Bell size={14} />,
-    section: "Navigation"
-  },
-  {
-    id: "sett",
-    label: "Settings",
-    path: "/settings",
-    icon: <Settings size={14} />,
-    section: "Navigation"
-  },
-  {
-    id: "prof",
-    label: "Profile",
-    path: "/profile",
-    icon: <User size={14} />,
-    section: "Navigation"
-  }
-];
-
-const QUICK_ACTION_ITEMS: PaletteItem[] = [
-  {
-    id: "qa-create-project",
-    label: "Create Project",
-    path: "/projects?action=new",
-    icon: <Plus size={14} />,
-    section: "Quick Actions"
-  },
-  {
-    id: "qa-browse-templates",
-    label: "Browse Templates",
-    path: "/templates",
-    icon: <LayoutTemplate size={14} />,
-    section: "Quick Actions"
-  },
-  {
-    id: "qa-trigger-deploy",
-    label: "Trigger Deployment",
-    path: "/deployments",
-    icon: <Rocket size={14} />,
-    section: "Quick Actions"
-  },
-  {
-    id: "qa-view-backups",
-    label: "View Backups",
-    path: "/backups",
-    icon: <Archive size={14} />,
-    section: "Quick Actions"
-  }
-];
-
-const ALL_ITEMS: PaletteItem[] = [...QUICK_ACTION_ITEMS, ...NAVIGATION_ITEMS];
-
-const RECENT_STORAGE_KEY = "daoflow-recent-pages";
-const MAX_RECENT = 5;
-const COMMAND_PALETTE_INPUT_ID = "command-palette-input";
-const COMMAND_PALETTE_LISTBOX_ID = "command-palette-listbox";
-
-const LABEL_MAP: Record<string, string> = {
-  "/": "Dashboard",
-  "/projects": "Projects",
-  "/templates": "Templates",
-  "/servers": "Servers",
-  "/backups": "Backups",
-  "/notifications": "Notifications",
-  "/settings": "Settings",
-  "/profile": "Profile",
-  "/deployments": "Deployments"
-};
-
-const ICON_MAP: Record<string, React.ReactNode> = {
-  "/": <LayoutDashboard size={14} />,
-  "/projects": <FolderKanban size={14} />,
-  "/templates": <LayoutTemplate size={14} />,
-  "/servers": <Server size={14} />,
-  "/backups": <DatabaseBackup size={14} />,
-  "/notifications": <Bell size={14} />,
-  "/settings": <Settings size={14} />,
-  "/profile": <User size={14} />,
-  "/deployments": <Rocket size={14} />
-};
-
-function loadRecentPages(): string[] {
-  try {
-    const raw = localStorage.getItem(RECENT_STORAGE_KEY);
-    if (!raw) return [];
-    const parsed: unknown = JSON.parse(raw);
-    if (Array.isArray(parsed)) return parsed.filter((p): p is string => typeof p === "string");
-    return [];
-  } catch {
-    return [];
-  }
-}
-
-function saveRecentPage(path: string) {
-  const recent = loadRecentPages().filter((p) => p !== path);
-  recent.unshift(path);
-  localStorage.setItem(RECENT_STORAGE_KEY, JSON.stringify(recent.slice(0, MAX_RECENT)));
-}
-
-function getPaletteOptionId(item: PaletteItem) {
-  return `command-palette-option-${item.id}`;
-}
+  ALL_ITEMS,
+  buildRecentItems,
+  COMMAND_PALETTE_INPUT_ID,
+  COMMAND_PALETTE_LISTBOX_ID,
+  getPaletteOptionId
+} from "@/components/command-palette/data";
+import { loadRecentPages, saveRecentPage } from "@/components/command-palette/storage";
+import type { PaletteItem } from "@/components/command-palette/types";
 
 export function CommandPalette() {
   const [open, setOpen] = useState(false);
@@ -209,19 +53,7 @@ export function CommandPalette() {
   }, []);
 
   // Build the recent items from stored paths
-  const recentItems: PaletteItem[] = useMemo(
-    () =>
-      recentPages
-        .filter((p) => LABEL_MAP[p])
-        .map((p) => ({
-          id: `recent-${p}`,
-          label: LABEL_MAP[p] ?? p,
-          path: p,
-          icon: ICON_MAP[p] ?? <Clock size={14} />,
-          section: "Recent"
-        })),
-    [recentPages]
-  );
+  const recentItems: PaletteItem[] = useMemo(() => buildRecentItems(recentPages), [recentPages]);
 
   // Filter all items (recent + quick actions + navigation)
   const filtered = useMemo(() => {
@@ -355,6 +187,7 @@ export function CommandPalette() {
                 {group.items.map((item) => {
                   const idx = flatItems.indexOf(item);
                   const isActive = idx === activeIndex;
+                  const ItemIcon = item.icon;
                   return (
                     <button
                       key={item.id}
@@ -368,7 +201,9 @@ export function CommandPalette() {
                         isActive ? "bg-accent" : "hover:bg-accent"
                       }`}
                     >
-                      <span className="text-muted-foreground">{item.icon}</span>
+                      <span className="text-muted-foreground">
+                        <ItemIcon size={14} />
+                      </span>
                       <span>{item.label}</span>
                       <span className="ml-auto text-xs text-muted-foreground">{item.path}</span>
                     </button>
