@@ -13,6 +13,7 @@ import { webhooksRouter } from "./routes/webhooks";
 import { deployContextRouter } from "./routes/deploy-context";
 import { cliAuthRouter } from "./routes/cli-auth";
 import { serviceObservabilityRouter } from "./routes/service-observability";
+import { legacyOauthRouter, LEGACY_OAUTH_TOKEN_PATH } from "./routes/legacy-oauth";
 import { authorizeRequest } from "./routes/request-auth";
 import { ensureInitialOwnerFromEnv } from "./bootstrap-initial-owner";
 
@@ -43,7 +44,15 @@ export function createApp() {
       credentials: true
     })
   );
-  app.use("*", logger());
+  app.use(
+    "*",
+    logger((message, ...rest) => {
+      if (message.includes(` ${LEGACY_OAUTH_TOKEN_PATH}`)) {
+        return;
+      }
+      console.log(message, ...rest);
+    })
+  );
 
   // ── Auth rate limiting (credential endpoints only) ──────
   const authRateLimitMap = new Map<string, { count: number; reset: number }>();
@@ -130,6 +139,9 @@ export function createApp() {
   // ── CLI device/browser auth ───────────────────────────────
   app.route("/api/v1/cli-auth", cliAuthRouter);
   app.route("/cli/auth", cliAuthRouter);
+
+  // ── Legacy OAuth compatibility ────────────────────────────
+  app.route("/api/v1/oauth", legacyOauthRouter);
 
   // ── Service observability (REST API) ──────────────────────
   app.route("/api/v1", serviceObservabilityRouter);
