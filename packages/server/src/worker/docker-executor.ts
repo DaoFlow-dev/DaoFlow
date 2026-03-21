@@ -10,8 +10,10 @@
  */
 
 import { spawn, type ChildProcess } from "node:child_process";
+import { existsSync, mkdirSync } from "node:fs";
 import { parseComposePsOutput, type ComposeContainerStatus } from "./compose-health";
 import { formatComposeExecutionEnvSummary, prepareComposeCommandEnv } from "./compose-command-env";
+import { dockerCommand, withCommandPath } from "./command-env";
 
 // Re-export git-executor functions for backward compatibility
 export {
@@ -58,6 +60,9 @@ export function execStreaming(
   return new Promise((resolve, reject) => {
     let child: ChildProcess;
     try {
+      if (cwd === STAGING_DIR && !existsSync(cwd)) {
+        mkdirSync(cwd, { recursive: true });
+      }
       const env =
         options?.inheritParentEnv === false
           ? (envOverrides ?? {})
@@ -65,7 +70,7 @@ export function execStreaming(
       child = spawn(command, args, {
         cwd,
         stdio: ["ignore", "pipe", "pipe"],
-        env
+        env: withCommandPath(env)
       });
     } catch (err) {
       reject(err instanceof Error ? err : new Error(String(err)));
@@ -110,7 +115,7 @@ export async function dockerBuild(
     timestamp: new Date()
   });
 
-  return execStreaming("docker", ["build", "-t", tag, "-f", dockerfile, "."], context, onLog);
+  return execStreaming(dockerCommand, ["build", "-t", tag, "-f", dockerfile, "."], context, onLog);
 }
 
 /**
@@ -150,7 +155,7 @@ export async function dockerComposePull(
     args.push(scopedServiceName);
   }
 
-  return execRunner("docker", args, cwd, onLog, composeExecutionEnv.env, {
+  return execRunner(dockerCommand, args, cwd, onLog, composeExecutionEnv.env, {
     inheritParentEnv: false
   });
 }
@@ -190,7 +195,7 @@ export async function dockerComposeBuild(
   }
 
   return execRunner(
-    "docker",
+    dockerCommand,
     args,
     cwd,
     onLog,
@@ -237,7 +242,7 @@ export async function dockerComposeUp(
     args.push(scopedServiceName);
   }
 
-  return execRunner("docker", args, cwd, onLog, composeExecutionEnv.env, {
+  return execRunner(dockerCommand, args, cwd, onLog, composeExecutionEnv.env, {
     inheritParentEnv: false
   });
 }
@@ -271,7 +276,7 @@ export async function dockerComposePs(
 
   const stdoutLines: string[] = [];
   const result = await execRunner(
-    "docker",
+    dockerCommand,
     args,
     cwd,
     (line) => {
@@ -316,7 +321,7 @@ export async function dockerComposeDown(
   });
 
   return execRunner(
-    "docker",
+    dockerCommand,
     envFile
       ? ["compose", "-f", composeFile, "-p", projectName, "--env-file", envFile, "down"]
       : ["compose", "-f", composeFile, "-p", projectName, "down"],
@@ -358,7 +363,7 @@ export async function dockerRun(
     timestamp: new Date()
   });
 
-  return execStreaming("docker", args, STAGING_DIR, onLog);
+  return execStreaming(dockerCommand, args, STAGING_DIR, onLog);
 }
 
 /**
@@ -371,7 +376,7 @@ export async function dockerPull(tag: string, onLog: OnLog): Promise<{ exitCode:
     timestamp: new Date()
   });
 
-  return execStreaming("docker", ["pull", tag], STAGING_DIR, onLog);
+  return execStreaming(dockerCommand, ["pull", tag], STAGING_DIR, onLog);
 }
 
 /**
@@ -382,7 +387,7 @@ export async function checkContainerHealth(containerName: string, onLog: OnLog):
   let healthy = false;
 
   const result = await execStreaming(
-    "docker",
+    dockerCommand,
     ["inspect", "--format", "{{.State.Status}}", containerName],
     STAGING_DIR,
     (line) => {
@@ -410,8 +415,8 @@ export async function dockerRemoveContainer(
   });
 
   // Stop first, then remove
-  await execStreaming("docker", ["stop", containerName], STAGING_DIR, onLog);
-  return execStreaming("docker", ["rm", "-f", containerName], STAGING_DIR, onLog);
+  await execStreaming(dockerCommand, ["stop", containerName], STAGING_DIR, onLog);
+  return execStreaming(dockerCommand, ["rm", "-f", containerName], STAGING_DIR, onLog);
 }
 
 /**
@@ -425,7 +430,7 @@ export async function dockerLoad(tarPath: string, onLog: OnLog): Promise<{ exitC
     timestamp: new Date()
   });
 
-  return execStreaming("docker", ["load", "-i", tarPath], STAGING_DIR, onLog);
+  return execStreaming(dockerCommand, ["load", "-i", tarPath], STAGING_DIR, onLog);
 }
 
 /**
@@ -438,7 +443,7 @@ export async function dockerListImages(
   let rawOutput = "";
 
   const result = await execStreaming(
-    "docker",
+    dockerCommand,
     ["images", "--format", "json"],
     STAGING_DIR,
     (line) => {
@@ -469,7 +474,7 @@ export async function detectLocalRuntimeVersions(
   const versions: { docker?: string; compose?: string } = {};
 
   await execStreaming(
-    "docker",
+    dockerCommand,
     ["version", "--format", "{{.Server.Version}}"],
     STAGING_DIR,
     (line) => {
@@ -480,7 +485,7 @@ export async function detectLocalRuntimeVersions(
     }
   );
 
-  await execStreaming("docker", ["compose", "version", "--short"], STAGING_DIR, (line) => {
+  await execStreaming(dockerCommand, ["compose", "version", "--short"], STAGING_DIR, (line) => {
     onLog(line);
     if (line.stream === "stdout" && line.message.match(/^\d+\.\d+/)) {
       versions.compose = line.message.trim();

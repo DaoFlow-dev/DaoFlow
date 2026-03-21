@@ -1,4 +1,5 @@
 import { execStreaming, type OnLog } from "./docker-executor";
+import { dockerCommand } from "./command-env";
 import { formatComposeExecutionEnvSummary, prepareComposeCommandEnv } from "./compose-command-env";
 import {
   parseSwarmServiceLsOutput,
@@ -30,7 +31,7 @@ export async function dockerStackDeploy(
   });
 
   return execRunner(
-    "docker",
+    dockerCommand,
     ["stack", "deploy", "--compose-file", composeFile, "--prune", stackName],
     cwd,
     onLog,
@@ -57,7 +58,7 @@ export async function dockerStackRemove(
     timestamp: new Date()
   });
 
-  return execRunner("docker", ["stack", "rm", stackName], cwd, onLog, executionEnv.env, {
+  return execRunner(dockerCommand, ["stack", "rm", stackName], cwd, onLog, executionEnv.env, {
     inheritParentEnv: false
   });
 }
@@ -77,7 +78,7 @@ export async function dockerStackServices(
 
   const stdoutLines: string[] = [];
   const result = await execRunner(
-    "docker",
+    dockerCommand,
     ["stack", "services", stackName, "--format", "json"],
     cwd,
     (line) => {
@@ -113,7 +114,7 @@ export async function dockerStackPs(
 
   const stdoutLines: string[] = [];
   const result = await execRunner(
-    "docker",
+    dockerCommand,
     ["stack", "ps", stackName, "--filter", "desired-state=running", "--format", "json"],
     cwd,
     (line) => {

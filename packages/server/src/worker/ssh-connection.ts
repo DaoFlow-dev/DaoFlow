@@ -11,6 +11,7 @@ import { randomUUID } from "node:crypto";
 import { mkdirSync, existsSync, writeFileSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 import type { OnLog } from "./docker-executor";
+import { scpCommand, sshCommand, withCommandPath } from "./command-env";
 
 const SSH_CONTROL_DIR = process.env.SSH_CONTROL_DIR ?? "/tmp/daoflow-ssh";
 const SSH_KEY_DIR = process.env.SSH_KEY_DIR ?? "/tmp/daoflow-ssh-keys";
@@ -96,9 +97,9 @@ export function execRemote(
 
     let child: ChildProcess;
     try {
-      child = spawn("ssh", args, {
+      child = spawn(sshCommand, args, {
         stdio: ["ignore", "pipe", "pipe"],
-        env: { ...process.env }
+        env: withCommandPath(process.env)
       });
     } catch (err) {
       reject(err instanceof Error ? err : new Error(String(err)));
@@ -260,9 +261,9 @@ export function scpUpload(
 
     let child: ChildProcess;
     try {
-      child = spawn("scp", args, {
+      child = spawn(scpCommand, args, {
         stdio: ["ignore", "pipe", "pipe"],
-        env: { ...process.env }
+        env: withCommandPath(process.env)
       });
     } catch (err) {
       reject(err instanceof Error ? err : new Error(String(err)));

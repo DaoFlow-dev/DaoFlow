@@ -20,6 +20,7 @@ import {
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createHash } from "node:crypto";
+import { dockerCommand, withCommandPath } from "../../command-env";
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -106,8 +107,9 @@ export async function executeDatabaseDump(input: DatabaseDumpInput): Promise<Dat
     // Stream stdout directly to file (memory-safe for large dumps)
     await new Promise<void>((resolve, reject) => {
       const outStream = createWriteStream(dumpFile, { mode: 0o600 });
-      const proc = spawn("docker", fullArgs, {
+      const proc = spawn(dockerCommand, fullArgs, {
         stdio: ["pipe", "pipe", "pipe"],
+        env: withCommandPath(process.env),
         timeout: 600_000 // 10 min
       });
 
@@ -261,16 +263,18 @@ function buildDockerExecArgs(input: DatabaseDumpInput): {
 export function stopContainer(containerName: string): Promise<ContainerLifecycleResult> {
   try {
     const state = (
-      execFileSync("docker", ["inspect", "--format", "{{.State.Status}}", containerName], {
+      execFileSync(dockerCommand, ["inspect", "--format", "{{.State.Status}}", containerName], {
         encoding: "utf-8",
-        timeout: 10_000
+        timeout: 10_000,
+        env: withCommandPath(process.env)
       }) as unknown as string
     ).trim();
 
     if (state === "running") {
-      execFileSync("docker", ["stop", "--time", "30", containerName], {
+      execFileSync(dockerCommand, ["stop", "--time", "30", containerName], {
         timeout: 60_000,
-        stdio: ["pipe", "pipe", "pipe"]
+        stdio: ["pipe", "pipe", "pipe"],
+        env: withCommandPath(process.env)
       });
     }
 
@@ -295,9 +299,10 @@ export function stopContainer(containerName: string): Promise<ContainerLifecycle
  */
 export function startContainer(containerName: string): Promise<ContainerLifecycleResult> {
   try {
-    execFileSync("docker", ["start", containerName], {
+    execFileSync(dockerCommand, ["start", containerName], {
       timeout: 60_000,
-      stdio: ["pipe", "pipe", "pipe"]
+      stdio: ["pipe", "pipe", "pipe"],
+      env: withCommandPath(process.env)
     });
 
     return Promise.resolve({ success: true, containerName, action: "start" });
@@ -317,9 +322,10 @@ export function startContainer(containerName: string): Promise<ContainerLifecycl
 export function detectDatabaseEngine(containerName: string): Promise<DatabaseEngine | null> {
   try {
     const image = (
-      execFileSync("docker", ["inspect", "--format", "{{.Config.Image}}", containerName], {
+      execFileSync(dockerCommand, ["inspect", "--format", "{{.Config.Image}}", containerName], {
         encoding: "utf-8",
-        timeout: 10_000
+        timeout: 10_000,
+        env: withCommandPath(process.env)
       }) as unknown as string
     ).trim();
 

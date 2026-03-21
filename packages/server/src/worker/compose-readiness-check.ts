@@ -8,6 +8,7 @@ import {
   type ComposeTcpPublishedPortReadinessProbe
 } from "../compose-readiness";
 import { type ComposeContainerStatus } from "./compose-health";
+import { dockerCommand } from "./command-env";
 import { execStreaming, type OnLog } from "./docker-executor";
 import { execRemote, shellQuote, type SSHTarget } from "./ssh-connection";
 
@@ -101,7 +102,7 @@ async function readLocalContainerAddresses(
 ): Promise<string[]> {
   const stdoutLines: string[] = [];
   const result = await execRunner(
-    "docker",
+    dockerCommand,
     [
       "inspect",
       "--format",

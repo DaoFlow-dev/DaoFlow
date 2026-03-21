@@ -7,7 +7,7 @@
  * - Docker socket available
  * - DISABLE_WORKER not set
  *
- * Run via: bunx playwright test --config playwright.worker.config.ts
+ * Run via: bun run test:e2e:worker
  */
 import { test, expect } from "@playwright/test";
 import { signInAsOwner, trpcRequest } from "./helpers";

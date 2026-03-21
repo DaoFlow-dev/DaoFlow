@@ -5,6 +5,7 @@ import {
   e2eOperatorUser,
   type E2EAuthUser
 } from "../packages/server/src/testing/e2e-auth-users";
+import { PLAYWRIGHT_SESSION_URL } from "./runtime";
 
 /** Auth operations can be slow in CI — use a generous timeout. */
 const AUTH_TIMEOUT = 30_000;
@@ -79,7 +80,7 @@ export async function signOut(page: Page) {
 }
 
 export async function getCurrentSession(page: Page) {
-  const response = await page.context().request.get("http://127.0.0.1:3000/api/auth/get-session");
+  const response = await page.context().request.get(PLAYWRIGHT_SESSION_URL);
 
   if (!response.ok()) {
     throw new Error(`get-session failed (${response.status()}): ${await response.text()}`);

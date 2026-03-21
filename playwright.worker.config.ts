@@ -1,4 +1,9 @@
 import { defineConfig, devices } from "@playwright/test";
+import {
+  playwrightBaseUrl,
+  playwrightHealthcheckUrl,
+  playwrightServerPort
+} from "./playwright.shared";
 
 /**
  * Playwright config for worker E2E tests.
@@ -23,7 +28,7 @@ export default defineConfig({
   workers: 1,
   retries: process.env.CI ? 1 : 0,
   use: {
-    baseURL: "http://127.0.0.1:3000",
+    baseURL: playwrightBaseUrl,
     trace: "on-first-retry"
   },
   webServer: {
@@ -34,16 +39,17 @@ export default defineConfig({
       DATABASE_URL: DB_URL,
       REDIS_URL: process.env.REDIS_URL ?? "redis://localhost:6379",
       BETTER_AUTH_SECRET: process.env.BETTER_AUTH_SECRET ?? "daoflow-e2e-worker-secret-2026",
-      BETTER_AUTH_URL: "http://127.0.0.1:3000",
+      BETTER_AUTH_URL: playwrightBaseUrl,
       ENCRYPTION_KEY: process.env.ENCRYPTION_KEY ?? "daoflow-e2e-encryption-key-32chars00",
       TEMPORAL_ADDRESS: process.env.TEMPORAL_ADDRESS ?? "localhost:7233",
       TEMPORAL_NAMESPACE: process.env.TEMPORAL_NAMESPACE ?? "daoflow",
-      TEMPORAL_TASK_QUEUE: "daoflow-deployments",
+      TEMPORAL_TASK_QUEUE: process.env.TEMPORAL_TASK_QUEUE ?? "daoflow-deployments",
       DAOFLOW_ENABLE_TEMPORAL: "true",
-      NODE_ENV: "production"
+      NODE_ENV: "production",
+      PORT: playwrightServerPort
       // NOTE: DISABLE_WORKER is intentionally NOT set
     },
-    url: "http://127.0.0.1:3000/trpc/health",
+    url: playwrightHealthcheckUrl,
     reuseExistingServer: false,
     timeout: 120_000
   },

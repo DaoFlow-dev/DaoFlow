@@ -1,6 +1,6 @@
 {
   "name": "daoflow",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "private": true,
   "type": "module",
   "workspaces": [
@@ -29,7 +29,7 @@
     "test:e2e": "bun run test:e2e:main && bun run test:e2e:bootstrap",
     "test:e2e:main": "sh ./scripts/run-e2e-main.sh",
     "test:e2e:bootstrap": "sh ./scripts/run-e2e-bootstrap.sh",
-    "test:e2e:worker": "bunx playwright test --config playwright.worker.config.ts",
+    "test:e2e:worker": "./node_modules/.bin/playwright test --config playwright.worker.config.ts",
     "verify": "bun run format:check && bun run lint && bun run typecheck && bun run contracts:check && bun run test:unit",
     "db:generate": "drizzle-kit generate",
     "db:generate:fresh": "bun packages/server/src/db/regenerate-migrations.ts",

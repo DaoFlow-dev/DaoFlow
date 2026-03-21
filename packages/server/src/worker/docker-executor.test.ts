@@ -15,6 +15,9 @@ import {
   prepareClonedRepository,
   type LogLine
 } from "./docker-executor";
+import { dockerCommand } from "./command-env";
+
+const originalPath = process.env.PATH;
 
 function createLogCollector() {
   const lines: LogLine[] = [];
@@ -25,6 +28,15 @@ function createLogCollector() {
     }
   };
 }
+
+afterEach(() => {
+  if (originalPath === undefined) {
+    delete process.env.PATH;
+    return;
+  }
+
+  process.env.PATH = originalPath;
+});
 
 describe("prepareClonedRepository", () => {
   it("runs recursive submodule and Git LFS hydration in order", async () => {
@@ -94,7 +106,6 @@ describe("prepareClonedRepository", () => {
 
 describe("buildComposeCommandEnv", () => {
   const originalHome = process.env.HOME;
-  const originalPath = process.env.PATH;
   const originalDockerConfig = process.env.DOCKER_CONFIG;
   const originalApiKey = process.env.API_KEY;
   const originalAmbientOnly = process.env.AMBIENT_ONLY;
@@ -233,7 +244,7 @@ describe("dockerComposePull", () => {
     );
 
     expect(execRunner).toHaveBeenCalledWith(
-      "docker",
+      dockerCommand,
       [
         "compose",
         "-f",
@@ -250,7 +261,8 @@ describe("dockerComposePull", () => {
       "/tmp/demo",
       collector.onLog,
       expect.objectContaining({
-        DOCKER_CLI_HINTS: "false"
+        DOCKER_CLI_HINTS: "false",
+        PATH: "/usr/bin:/bin"
       }),
       {
         inheritParentEnv: false
@@ -281,7 +293,7 @@ describe("dockerComposeBuild", () => {
     );
 
     expect(execRunner).toHaveBeenCalledWith(
-      "docker",
+      dockerCommand,
       [
         "compose",
         "-f",
@@ -299,7 +311,8 @@ describe("dockerComposeBuild", () => {
       expect.objectContaining({
         DOCKER_CLI_HINTS: "false",
         DOCKER_BUILDKIT: "1",
-        COMPOSE_DOCKER_CLI_BUILD: "1"
+        COMPOSE_DOCKER_CLI_BUILD: "1",
+        PATH: "/usr/bin:/bin"
       }),
       {
         inheritParentEnv: false
@@ -330,7 +343,7 @@ describe("dockerComposeUp", () => {
     );
 
     expect(execRunner).toHaveBeenCalledWith(
-      "docker",
+      dockerCommand,
       [
         "compose",
         "-f",
@@ -347,7 +360,8 @@ describe("dockerComposeUp", () => {
       "/tmp/demo",
       collector.onLog,
       expect.objectContaining({
-        DOCKER_CLI_HINTS: "false"
+        DOCKER_CLI_HINTS: "false",
+        PATH: "/usr/bin:/bin"
       }),
       {
         inheritParentEnv: false
@@ -388,7 +402,7 @@ describe("dockerComposePs", () => {
     );
 
     expect(execRunner).toHaveBeenCalledWith(
-      "docker",
+      dockerCommand,
       [
         "compose",
         "-f",
@@ -443,7 +457,7 @@ describe("dockerComposeDown", () => {
     );
 
     expect(execRunner).toHaveBeenCalledWith(
-      "docker",
+      dockerCommand,
       [
         "compose",
         "-f",
@@ -457,7 +471,8 @@ describe("dockerComposeDown", () => {
       "/tmp/demo",
       collector.onLog,
       expect.objectContaining({
-        DOCKER_CLI_HINTS: "false"
+        DOCKER_CLI_HINTS: "false",
+        PATH: "/usr/bin:/bin"
       }),
       {
         inheritParentEnv: false

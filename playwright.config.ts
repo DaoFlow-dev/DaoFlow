@@ -1,4 +1,9 @@
 import { defineConfig, devices } from "@playwright/test";
+import {
+  playwrightBaseUrl,
+  playwrightHealthcheckUrl,
+  playwrightServerPort
+} from "./playwright.shared";
 
 const PLAYWRIGHT_DATABASE_URL =
   process.env.PLAYWRIGHT_DATABASE_URL ??
@@ -13,7 +18,7 @@ export default defineConfig({
   workers: 1,
   retries: process.env.CI ? 1 : 0,
   use: {
-    baseURL: "http://127.0.0.1:3000",
+    baseURL: playwrightBaseUrl,
     trace: "on-first-retry"
   },
   webServer: {
@@ -25,12 +30,13 @@ export default defineConfig({
       REDIS_URL: process.env.REDIS_URL ?? "redis://localhost:6379",
       BETTER_AUTH_SECRET:
         process.env.BETTER_AUTH_SECRET ?? "daoflow-e2e-secret-with-enough-entropy-2026",
-      BETTER_AUTH_URL: "http://127.0.0.1:3000",
+      BETTER_AUTH_URL: playwrightBaseUrl,
       ENCRYPTION_KEY: process.env.ENCRYPTION_KEY ?? "daoflow-e2e-encryption-key-32chars00",
       DISABLE_WORKER: "true",
-      NODE_ENV: "production"
+      NODE_ENV: "production",
+      PORT: playwrightServerPort
     },
-    url: "http://127.0.0.1:3000/trpc/health",
+    url: playwrightHealthcheckUrl,
     reuseExistingServer: false,
     timeout: 120_000
   },

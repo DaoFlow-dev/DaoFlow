@@ -1,7 +1,8 @@
 import { expect, test } from "@playwright/test";
 import { createHmac } from "crypto";
+import { PLAYWRIGHT_BASE_URL } from "./runtime";
 
-const BASE_URL = "http://127.0.0.1:3000";
+const BASE_URL = PLAYWRIGHT_BASE_URL;
 
 /**
  * Webhook E2E tests — validates the webhook receiver endpoints

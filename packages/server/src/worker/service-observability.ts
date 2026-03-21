@@ -1,5 +1,6 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import type { ExecutionTarget } from "./execution-target";
+import { dockerCommand, sshCommand, withCommandPath } from "./command-env";
 import { removeSSHKey, shellQuote, sshArgs, writeSSHKey } from "./ssh-connection";
 import type { ResolvedServiceRuntime } from "../db/services/service-runtime";
 import {
@@ -48,9 +49,9 @@ function spawnTargetCommand(
 ): { child: ChildProcess; cleanup: () => void } {
   if (target.mode === "local") {
     return {
-      child: spawn("docker", dockerArgs, {
+      child: spawn(dockerCommand, dockerArgs, {
         stdio: ["pipe", "pipe", "pipe"],
-        env: { ...process.env }
+        env: withCommandPath(process.env)
       }),
       cleanup: () => {}
     };
@@ -65,9 +66,9 @@ function spawnTargetCommand(
       : target.ssh;
 
   return {
-    child: spawn("ssh", [...sshArgs(sshTarget), buildDockerCommand(dockerArgs)], {
+    child: spawn(sshCommand, [...sshArgs(sshTarget), buildDockerCommand(dockerArgs)], {
       stdio: ["pipe", "pipe", "pipe"],
-      env: { ...process.env }
+      env: withCommandPath(process.env)
     }),
     cleanup: () => {
       if (sshTarget.privateKeyPath && sshTarget.privateKeyPath !== target.ssh.privateKeyPath) {
