@@ -1,8 +1,9 @@
 import { db } from "../connection";
-import { backupPolicies, volumes } from "../schema/storage";
+import { backupPolicies, backupRuns, volumes } from "../schema/storage";
 import { backupDestinations } from "../schema/destinations";
 import { servers } from "../schema/servers";
 import { users } from "../schema/users";
+import { buildBackupCronWorkflowId, buildOneOffBackupWorkflowId } from "../../worker";
 import { asRecord, readString } from "./json-helpers";
 
 const SEEDED_POLICY_VIEW: Record<
@@ -107,4 +108,31 @@ export function readRequestedByEmail(
 export async function loadUsersById() {
   const userRows = await db.select().from(users);
   return new Map(userRows.map((user) => [user.id, user]));
+}
+
+export function readBackupPolicyWorkflowId(policy: typeof backupPolicies.$inferSelect) {
+  return (
+    policy.temporalWorkflowId ?? (policy.schedule ? buildBackupCronWorkflowId(policy.id) : null)
+  );
+}
+
+export function readBackupRunWorkflowId(
+  run:
+    | typeof backupRuns.$inferSelect
+    | { id: string; policyId: string; triggeredByUserId: string | null },
+  policy?: typeof backupPolicies.$inferSelect
+) {
+  if (run.triggeredByUserId) {
+    return buildOneOffBackupWorkflowId(run.policyId, run.id);
+  }
+
+  if (!policy) {
+    return null;
+  }
+
+  return readBackupPolicyWorkflowId(policy);
+}
+
+export function readBackupExecutionEngine(workflowId: string | null) {
+  return workflowId ? ("temporal" as const) : ("legacy" as const);
 }

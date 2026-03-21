@@ -148,9 +148,38 @@ export async function resolveBackupPolicy(policyId: string): Promise<BackupPolic
 /**
  * Create a new backup run record in the database.
  */
-export async function createBackupRun(policyId: string, triggeredBy: string): Promise<string> {
-  const runId = newId();
+export async function createBackupRun(
+  policyId: string,
+  triggeredBy: string,
+  requestedRunId?: string
+): Promise<string> {
+  const runId = requestedRunId ?? newId();
   const now = new Date();
+
+  if (requestedRunId) {
+    const [existingRun] = await db
+      .select()
+      .from(backupRuns)
+      .where(eq(backupRuns.id, requestedRunId))
+      .limit(1);
+
+    if (existingRun) {
+      await db
+        .update(backupRuns)
+        .set({
+          policyId,
+          status: "running",
+          triggeredByUserId: triggeredBy === "scheduler" ? null : triggeredBy,
+          logEntries: [],
+          error: null,
+          startedAt: now,
+          completedAt: null
+        })
+        .where(eq(backupRuns.id, requestedRunId));
+
+      return requestedRunId;
+    }
+  }
 
   await db.insert(backupRuns).values({
     id: runId,

@@ -95,6 +95,8 @@ export interface BackupCronWorkflowInput {
   policyId: string;
   /** "scheduler" for cron-triggered, or a userId for manual triggers */
   triggeredBy: string;
+  /** Existing manual run record to adopt when the caller needs a stable run ID before execution. */
+  requestedRunId?: string;
 }
 
 /**
@@ -104,7 +106,7 @@ export interface BackupCronWorkflowInput {
  * Each invocation is a single backup execution cycle.
  */
 export async function backupCronWorkflow(input: BackupCronWorkflowInput): Promise<void> {
-  const { policyId, triggeredBy } = input;
+  const { policyId, triggeredBy, requestedRunId } = input;
   // NOTE: Do NOT use Date.now() in workflows — it breaks Temporal determinism.
   // Duration tracking is handled by activities and Temporal's own event history.
 
@@ -150,7 +152,7 @@ export async function backupCronWorkflow(input: BackupCronWorkflowInput): Promis
 
   try {
     // Phase 2: Create backup run record
-    runId = await createBackupRun(policyId, triggeredBy);
+    runId = await createBackupRun(policyId, triggeredBy, requestedRunId);
     await writeRunLog({
       runId,
       level: "info",

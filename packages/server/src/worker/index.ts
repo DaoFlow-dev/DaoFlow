@@ -9,6 +9,8 @@ export { startTemporalWorker, stopTemporalWorker } from "./temporal/worker";
 export {
   startDeploymentWorkflow,
   getDeploymentWorkflowStatus,
+  buildBackupCronWorkflowId,
+  buildOneOffBackupWorkflowId,
   startBackupCronWorkflow,
   cancelBackupCronWorkflow,
   startOneOffBackupWorkflow,

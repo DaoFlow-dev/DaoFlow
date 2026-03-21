@@ -88,7 +88,7 @@ export function BackupCatalog({
 }: BackupCatalogProps) {
   const [backupFeedback, setBackupFeedback] = useState<string | null>(null);
   const [backupRestoreFeedback, setBackupRestoreFeedback] = useState<string | null>(null);
-  const triggerBackupRun = trpc.triggerBackupRun.useMutation();
+  const triggerBackupRun = trpc.triggerBackupNow.useMutation();
   const queueBackupRestore = trpc.queueBackupRestore.useMutation();
   const requestApproval = trpc.requestApproval.useMutation();
 
@@ -100,7 +100,7 @@ export function BackupCatalog({
         policyId
       });
       await refreshOperationalViews();
-      setBackupFeedback(`Queued backup run for ${service}.`);
+      setBackupFeedback(`Queued Temporal backup run for ${service}.`);
     } catch (error) {
       setBackupFeedback(
         isTRPCClientError(error) ? error.message : "Unable to queue the backup run right now."

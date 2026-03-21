@@ -6,6 +6,14 @@ sidebar_position: 1
 
 Persistent data is a core feature in DaoFlow. The backup system supports database dumps, volume archives, and S3-compatible remote storage.
 
+When `DAOFLOW_ENABLE_TEMPORAL=true`, both scheduled backups and one-off `backup run` executions are
+dispatched through Temporal. The operator backup surfaces expose the backing workflow ID so you can
+jump directly into Temporal Web when a run needs deeper diagnosis.
+
+When Temporal mode is disabled, one-off backup requests fail fast instead of being silently queued
+without an execution engine behind them. Enable `DAOFLOW_ENABLE_TEMPORAL=true` before relying on
+manual `backup run` operations.
+
 ## Overview
 
 | Feature                    | Description                                      |

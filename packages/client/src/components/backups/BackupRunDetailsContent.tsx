@@ -20,6 +20,8 @@ export interface BackupRunDetailsView {
   retentionCount: number | null;
   status: string;
   triggerKind: string;
+  executionEngine?: "temporal" | "legacy";
+  temporalWorkflowId?: string | null;
   requestedBy: string;
   artifactPath: string | null;
   bytesWritten: number | null;
@@ -130,6 +132,12 @@ export function BackupRunDetailsContent({
                   <p className="text-xs uppercase tracking-wider text-muted-foreground">Finished</p>
                   <p>{formatBackupRunDateTime(run.finishedAt)}</p>
                 </div>
+                <div>
+                  <p className="text-xs uppercase tracking-wider text-muted-foreground">
+                    Execution engine
+                  </p>
+                  <p>{run.executionEngine ?? "legacy"}</p>
+                </div>
               </CardContent>
             </Card>
 
@@ -157,6 +165,10 @@ export function BackupRunDetailsContent({
                 <div>
                   <p className="text-xs uppercase tracking-wider text-muted-foreground">Artifact</p>
                   <p className="break-all">{run.artifactPath || "Not created"}</p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-wider text-muted-foreground">Workflow</p>
+                  <p className="break-all">{run.temporalWorkflowId || "Not tracked in Temporal"}</p>
                 </div>
                 <div>
                   <p className="text-xs uppercase tracking-wider text-muted-foreground">

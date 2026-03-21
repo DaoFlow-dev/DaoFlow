@@ -103,6 +103,8 @@ function buildDeploymentView(
     deploymentSnapshot: deployment.configSnapshot,
     healthcheckPath: service?.healthcheckPath ?? null
   });
+  const temporalWorkflowId = readString(snapshot, "temporalWorkflowId") || null;
+  const temporalRunId = readString(snapshot, "temporalRunId") || null;
 
   return {
     ...deployment,
@@ -124,6 +126,9 @@ function buildDeploymentView(
       readString(snapshot, "projectName", deployment.projectId)
     ),
     preview,
+    executionEngine: temporalWorkflowId ? ("temporal" as const) : ("legacy" as const),
+    temporalWorkflowId,
+    temporalRunId,
     targetServerName:
       server?.name ?? readString(snapshot, "targetServerName", deployment.targetServerId),
     targetServerHost:

@@ -2,10 +2,12 @@ import { eq } from "drizzle-orm";
 import { db } from "../connection";
 import { backupRestores, backupRuns, type BackupRunLogEntry } from "../schema/storage";
 import {
+  readBackupExecutionEngine,
   getBackupOperationStatusTone,
   getPolicyView,
   loadBackupRelations,
   loadUsersById,
+  readBackupRunWorkflowId,
   readRequestedByEmail
 } from "./backup-view-helpers";
 
@@ -85,6 +87,7 @@ export async function getBackupRunDetails(runId: string) {
   const view = policy ? getPolicyView(policy, volume, destination) : null;
   const requestedBy = readRequestedByEmail(run.triggeredByUserId, usersById);
   const logEntries = Array.isArray(run.logEntries) ? run.logEntries : null;
+  const workflowId = readBackupRunWorkflowId(run, policy);
 
   return {
     id: run.id,
@@ -105,6 +108,8 @@ export async function getBackupRunDetails(runId: string) {
     status: run.status,
     statusTone: getBackupOperationStatusTone(run.status),
     triggerKind: run.triggeredByUserId ? ("manual" as const) : ("scheduled" as const),
+    executionEngine: readBackupExecutionEngine(workflowId),
+    temporalWorkflowId: workflowId,
     requestedBy,
     artifactPath: run.artifactPath,
     bytesWritten: run.sizeBytes ? Number(run.sizeBytes) : null,

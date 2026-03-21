@@ -148,6 +148,15 @@ export default function BackupsPage() {
                           )}{" "}
                           · Retention: {p.retentionCount} backups
                         </p>
+                        <p className="text-xs text-muted-foreground">
+                          Last run: {p.lastRunAt ? new Date(p.lastRunAt).toLocaleString() : "—"}
+                        </p>
+                        {p.temporalWorkflowId ? (
+                          <p className="text-xs text-muted-foreground break-all">
+                            Temporal: {p.temporalWorkflowId}
+                            {p.temporalWorkflowStatus ? ` · ${p.temporalWorkflowStatus}` : ""}
+                          </p>
+                        ) : null}
 
                         {/* Schedule Controls */}
                         <div className="flex items-center gap-2 pt-1">
@@ -248,12 +257,13 @@ export default function BackupsPage() {
                           </Badge>
                         </TableCell>
                         <TableCell className="text-muted-foreground font-mono text-xs">
-                          {(r as Record<string, unknown>).sizeBytes
-                            ? formatBytes(Number((r as Record<string, unknown>).sizeBytes))
-                            : "—"}
+                          {r.bytesWritten ? formatBytes(Number(r.bytesWritten)) : "—"}
                         </TableCell>
                         <TableCell className="text-muted-foreground">
                           {String(r.triggerKind)}
+                          {r.temporalWorkflowId ? (
+                            <div className="break-all text-xs">{String(r.temporalWorkflowId)}</div>
+                          ) : null}
                         </TableCell>
                         <TableCell className="text-muted-foreground">
                           {r.finishedAt ? new Date(r.finishedAt).toLocaleString() : "—"}

@@ -449,6 +449,9 @@ describe("appRouter", () => {
     expect(deployment.rolloutStrategy?.downtimeRisk).toEqual(expect.any(String));
     expect(deployment.rolloutStrategy?.supportsZeroDowntime).toEqual(expect.any(Boolean));
     expect(Array.isArray(deployment.steps)).toBe(true);
+    expect(
+      deployment.executionEngine === "legacy" || deployment.executionEngine === "temporal"
+    ).toBe(true);
 
     const details = await caller.deploymentDetails({
       deploymentId: deployment.id
@@ -456,6 +459,9 @@ describe("appRouter", () => {
 
     expect(details.id).toBe(deployment.id);
     expect(Array.isArray(details.steps)).toBe(true);
+    expect(details.executionEngine === "legacy" || details.executionEngine === "temporal").toBe(
+      true
+    );
   });
 
   it("returns current compose release catalog and drift report shapes", async () => {
@@ -1291,6 +1297,7 @@ describe("appRouter", () => {
     const run = overview.runs[0];
     if (run) {
       expect(run.statusTone).toEqual(expect.any(String));
+      expect(run.executionEngine === "legacy" || run.executionEngine === "temporal").toBe(true);
     }
 
     const request = restoreQueue.requests[0];
@@ -1301,6 +1308,13 @@ describe("appRouter", () => {
     const volume = persistentVolumes.volumes[0];
     if (volume) {
       expect(volume.statusTone).toEqual(expect.any(String));
+    }
+
+    const policy = overview.policies[0];
+    if (policy) {
+      expect(policy.executionEngine === "legacy" || policy.executionEngine === "temporal").toBe(
+        true
+      );
     }
   });
 

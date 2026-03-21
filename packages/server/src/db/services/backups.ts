@@ -12,9 +12,14 @@ import {
   getPersistentVolumeStatusTone,
   getPolicyView,
   loadBackupRelations,
+  readBackupExecutionEngine,
+  readBackupPolicyWorkflowId,
+  readBackupRunWorkflowId,
   readRequestedByEmail
 } from "./backup-view-helpers";
 import { getBackupRunDetails } from "./backup-run-details";
+import { getBackupCronStatus, startOneOffBackupWorkflow } from "../../worker";
+import { isTemporalEnabled } from "../../worker/temporal/temporal-config";
 
 export async function listBackupOverview(limit = 12) {
   const [policies, runs, relations, triggeredByUsers] = await Promise.all([
@@ -25,6 +30,20 @@ export async function listBackupOverview(limit = 12) {
   ]);
 
   const usersById = new Map(triggeredByUsers.map((user) => [user.id, user]));
+  const latestRunByPolicyId = new Map<string, typeof backupRuns.$inferSelect>();
+  for (const run of runs) {
+    if (!latestRunByPolicyId.has(run.policyId)) {
+      latestRunByPolicyId.set(run.policyId, run);
+    }
+  }
+
+  const temporalStatuses =
+    isTemporalEnabled() && policies.some((policy) => readBackupPolicyWorkflowId(policy))
+      ? await Promise.all(
+          policies.map(async (policy) => [policy.id, await getBackupCronStatus(policy.id)] as const)
+        )
+      : [];
+  const temporalStatusByPolicyId = new Map(temporalStatuses);
 
   return {
     summary: {
@@ -40,6 +59,9 @@ export async function listBackupOverview(limit = 12) {
         ? relations.destinationsById.get(policy.destinationId)
         : null;
       const view = getPolicyView(policy, volume, destination);
+      const latestRun = latestRunByPolicyId.get(policy.id);
+      const workflowId = readBackupPolicyWorkflowId(policy);
+      const workflowStatus = temporalStatusByPolicyId.get(policy.id)?.status ?? null;
       return {
         id: policy.id,
         projectName: view.projectName,
@@ -50,13 +72,17 @@ export async function listBackupOverview(limit = 12) {
         scheduleLabel: policy.schedule,
         retentionCount: policy.retentionDays,
         nextRunAt: null as string | null,
-        lastRunAt: null as string | null
+        lastRunAt: latestRun?.createdAt.toISOString() ?? null,
+        executionEngine: readBackupExecutionEngine(workflowId),
+        temporalWorkflowId: workflowId,
+        temporalWorkflowStatus: workflowStatus
       };
     }),
     runs: runs.map((run) => {
       const policy = relations.policiesById.get(run.policyId);
       const volume = policy ? relations.volumesById.get(policy.volumeId) : undefined;
       const view = policy ? getPolicyView(policy, volume) : null;
+      const workflowId = readBackupRunWorkflowId(run, policy);
       return {
         id: run.id,
         policyId: run.policyId,
@@ -71,7 +97,9 @@ export async function listBackupOverview(limit = 12) {
         artifactPath: run.artifactPath,
         bytesWritten: run.sizeBytes ? Number(run.sizeBytes) : null,
         startedAt: run.startedAt?.toISOString() ?? run.createdAt.toISOString(),
-        finishedAt: run.completedAt?.toISOString() ?? null
+        finishedAt: run.completedAt?.toISOString() ?? null,
+        executionEngine: readBackupExecutionEngine(workflowId),
+        temporalWorkflowId: workflowId
       };
     })
   };
@@ -83,6 +111,12 @@ export async function triggerBackupRun(
   email: string,
   role: AppRole
 ) {
+  if (!isTemporalEnabled()) {
+    throw new Error(
+      "Manual backup execution requires Temporal mode. Set DAOFLOW_ENABLE_TEMPORAL=true and ensure TEMPORAL_ADDRESS is configured."
+    );
+  }
+
   const policy = await db
     .select()
     .from(backupPolicies)
@@ -126,7 +160,24 @@ export async function triggerBackupRun(
     }
   });
 
-  return run;
+  try {
+    const workflow = await startOneOffBackupWorkflow(policyId, userId, runId);
+    return {
+      ...run,
+      workflowId: workflow.workflowId
+    };
+  } catch (error) {
+    await db
+      .update(backupRuns)
+      .set({
+        status: "failed",
+        error: error instanceof Error ? error.message : String(error),
+        completedAt: new Date()
+      })
+      .where(eq(backupRuns.id, runId));
+
+    throw error;
+  }
 }
 
 export async function buildBackupRestorePlan(backupRunId: string) {

@@ -85,6 +85,18 @@ export async function closeTemporalClient(): Promise<void> {
 
 // ── Backup Cron Scheduling ───────────────────────────────────
 
+export function buildBackupCronWorkflowId(policyId: string): string {
+  return `backup-cron-${policyId}`;
+}
+
+export function buildOneOffBackupWorkflowId(policyId: string, requestedRunId?: string): string {
+  if (requestedRunId) {
+    return `backup-run-${requestedRunId}`;
+  }
+
+  return `backup-oneoff-${policyId}-${Date.now()}`;
+}
+
 /**
  * Start a backup cron workflow for a policy.
  * Uses Temporal's built-in cron scheduling with a stable workflow ID.
@@ -95,7 +107,7 @@ export async function startBackupCronWorkflow(
 ): Promise<{ workflowId: string; runId: string }> {
   const tc = await getTemporalClient();
 
-  const workflowId = `backup-cron-${policyId}`;
+  const workflowId = buildBackupCronWorkflowId(policyId);
 
   const handle = await tc.workflow.start("backupCronWorkflow", {
     taskQueue: TEMPORAL_TASK_QUEUE,
@@ -122,7 +134,7 @@ export async function startBackupCronWorkflow(
 export async function cancelBackupCronWorkflow(policyId: string): Promise<void> {
   try {
     const tc = await getTemporalClient();
-    const handle = tc.workflow.getHandle(`backup-cron-${policyId}`);
+    const handle = tc.workflow.getHandle(buildBackupCronWorkflowId(policyId));
     await handle.cancel();
     console.log(`[temporal-client] Cancelled backup cron for policy: ${policyId}`);
   } catch {
@@ -135,16 +147,17 @@ export async function cancelBackupCronWorkflow(policyId: string): Promise<void> 
  */
 export async function startOneOffBackupWorkflow(
   policyId: string,
-  triggeredBy: string
+  triggeredBy: string,
+  requestedRunId?: string
 ): Promise<{ workflowId: string; runId: string }> {
   const tc = await getTemporalClient();
 
-  const workflowId = `backup-oneoff-${policyId}-${Date.now()}`;
+  const workflowId = buildOneOffBackupWorkflowId(policyId, requestedRunId);
 
   const handle = await tc.workflow.start("backupCronWorkflow", {
     taskQueue: TEMPORAL_TASK_QUEUE,
     workflowId,
-    args: [{ policyId, triggeredBy }],
+    args: [{ policyId, triggeredBy, requestedRunId }],
     workflowExecutionTimeout: "1h"
   });
 
@@ -165,7 +178,7 @@ export async function getBackupCronStatus(policyId: string): Promise<{
 } | null> {
   try {
     const tc = await getTemporalClient();
-    const handle = tc.workflow.getHandle(`backup-cron-${policyId}`);
+    const handle = tc.workflow.getHandle(buildBackupCronWorkflowId(policyId));
     const desc = await handle.describe();
 
     return {

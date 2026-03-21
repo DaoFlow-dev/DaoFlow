@@ -248,6 +248,9 @@ interface DeploymentRowData {
   requestedByEmail?: string | null;
   commitSha?: string | null;
   imageTag?: string | null;
+  executionEngine?: "temporal" | "legacy";
+  temporalWorkflowId?: string | null;
+  temporalRunId?: string | null;
   steps?: DeploymentStepData[];
 }
 
@@ -392,6 +395,26 @@ export const DeploymentRow = memo(function DeploymentRow({
                   </p>
                 </div>
               </div>
+              {deployment.executionEngine === "temporal" ? (
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div>
+                    <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                      Temporal workflow
+                    </p>
+                    <p className="break-all text-sm font-medium">
+                      {deployment.temporalWorkflowId ?? "—"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                      Temporal run
+                    </p>
+                    <p className="break-all text-sm font-medium">
+                      {deployment.temporalRunId ?? "—"}
+                    </p>
+                  </div>
+                </div>
+              ) : null}
               {Array.isArray(deployment.steps) && deployment.steps.length > 0 ? (
                 <div className="space-y-2">
                   <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
