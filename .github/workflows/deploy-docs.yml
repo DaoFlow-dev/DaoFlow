@@ -29,7 +29,7 @@ jobs:
     name: Build Docusaurus
     runs-on: ubuntu-latest
     outputs:
-      artifact-id: ${{ steps.upload.outputs.artifact-id }}
+      artifact-id: ${{ steps.upload.outputs.artifact_id }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -47,25 +47,12 @@ jobs:
         run: bun run build
         working-directory: docs
 
-      - name: Archive Pages artifact
-        run: |
-          tar \
-            --dereference --hard-dereference \
-            --directory docs/build \
-            -cvf "$RUNNER_TEMP/artifact.tar" \
-            --exclude=.git \
-            --exclude=.github \
-            --exclude=".[^/]*" \
-            .
-
       - name: Upload Pages artifact
         id: upload
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-pages-artifact@v4
         with:
-          name: github-pages
-          path: ${{ runner.temp }}/artifact.tar
+          path: docs/build
           retention-days: 1
-          if-no-files-found: error
 
   deploy:
     name: Deploy to GitHub Pages
