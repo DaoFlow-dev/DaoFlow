@@ -45,7 +45,8 @@ export default function ServersPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Servers</h1>
           <p className="text-sm text-muted-foreground">
-            Manage Docker hosts, inspect readiness checks, and register new targets.
+            Manage Docker hosts, inspect readiness checks, and register new engine or Swarm manager
+            targets.
           </p>
         </div>
         {canManageServers ? (
@@ -124,6 +125,7 @@ interface ServerCheck {
   serverId: unknown;
   serverName: unknown;
   serverHost: unknown;
+  targetKind: unknown;
   sshPort: unknown;
   readinessStatus: unknown;
   sshReachable: boolean;
@@ -150,7 +152,7 @@ export const ServerCheckCard = memo(function ServerCheckCard({ check }: ServerCh
           <div>
             <CardTitle className="text-base">{String(check.serverName)}</CardTitle>
             <CardDescription>
-              {String(check.serverHost)} · SSH {String(check.sshPort)}
+              {String(check.serverHost)} · {String(check.targetKind)} · SSH {String(check.sshPort)}
             </CardDescription>
           </div>
           <ServerReadinessIndicator
@@ -161,6 +163,11 @@ export const ServerCheckCard = memo(function ServerCheckCard({ check }: ServerCh
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex flex-wrap gap-2">
+          <CapabilityBadge
+            ok={true}
+            label={`Target ${String(check.targetKind)}`}
+            dataTestId={`server-target-kind-${String(check.serverId)}`}
+          />
           <CapabilityBadge
             ok={check.sshReachable}
             label={`SSH ${check.sshReachable ? "reachable" : "blocked"}`}
@@ -224,10 +231,19 @@ function SummaryCard({ label, value }: { label: string; value: string | number }
   );
 }
 
-function CapabilityBadge({ ok, label }: { ok: boolean; label: string }) {
+function CapabilityBadge({
+  ok,
+  label,
+  dataTestId
+}: {
+  ok: boolean;
+  label: string;
+  dataTestId?: string;
+}) {
   return (
     <div
       className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm transition-colors ${ok ? "border-emerald-500/20 bg-emerald-500/5" : "border-red-500/20 bg-red-500/5"}`}
+      data-testid={dataTestId}
     >
       {ok ? (
         <CheckCircle2 size={14} className="text-emerald-500" />

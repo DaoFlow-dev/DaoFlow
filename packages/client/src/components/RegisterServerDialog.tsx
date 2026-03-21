@@ -2,6 +2,13 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
@@ -14,6 +21,8 @@ import {
 } from "@/components/ui/dialog";
 import { Plus } from "lucide-react";
 
+export type RegisterServerKind = "docker-engine" | "docker-swarm-manager";
+
 export interface RegisterServerFormData {
   name: string;
   host: string;
@@ -21,7 +30,7 @@ export interface RegisterServerFormData {
   sshPort: number;
   sshUser?: string;
   sshPrivateKey?: string;
-  kind: "docker-engine";
+  kind: RegisterServerKind;
 }
 
 interface RegisterServerDialogProps {
@@ -43,7 +52,8 @@ export function RegisterServerDialog({
     region: "",
     sshPort: "22",
     sshUser: "root",
-    sshPrivateKey: ""
+    sshPrivateKey: "",
+    kind: "docker-engine" as RegisterServerKind
   });
 
   return (
@@ -71,7 +81,7 @@ export function RegisterServerDialog({
               sshPort: Number.parseInt(form.sshPort, 10) || 22,
               sshUser: form.sshUser.trim() || undefined,
               sshPrivateKey: form.sshPrivateKey.trim() || undefined,
-              kind: "docker-engine"
+              kind: form.kind
             });
           }}
         >
@@ -142,11 +152,43 @@ export function RegisterServerDialog({
               rows={8}
             />
           </div>
+          <div className="space-y-2">
+            <Label htmlFor="server-kind">Target Kind</Label>
+            <Select
+              value={form.kind}
+              onValueChange={(value) =>
+                setForm((current) => ({ ...current, kind: value as RegisterServerKind }))
+              }
+            >
+              <SelectTrigger
+                id="server-kind"
+                aria-label="Target kind"
+                data-testid="register-server-kind"
+              >
+                <SelectValue placeholder="Select target kind" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="docker-engine" data-testid="register-server-kind-engine">
+                  docker-engine
+                </SelectItem>
+                <SelectItem
+                  value="docker-swarm-manager"
+                  data-testid="register-server-kind-swarm-manager"
+                >
+                  docker-swarm-manager
+                </SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-sm text-muted-foreground" data-testid="register-server-kind-note">
+              Swarm manager targets currently support registration and readiness inspection. Stack
+              deploy and rollback semantics are tracked separately.
+            </p>
+          </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={isPending}>
+            <Button type="submit" disabled={isPending} data-testid="register-server-submit">
               {isPending ? "Registering…" : "Register Server"}
             </Button>
           </DialogFooter>

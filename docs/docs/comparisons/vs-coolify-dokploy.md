@@ -26,7 +26,7 @@ Coolify and Dokploy are open-source, self-hosted PaaS platforms. Like DaoFlow, t
 | **Dry-run previews**    | Every mutating command supports `--dry-run`                               | Not available              | Not available                  |
 | **Approval gates**      | Built-in for high-risk operations (backup restore, production deploys)    | Not available              | Not available                  |
 | **Docker Compose**      | First-class, preserves original + resolved spec                           | Supported                  | Strong native support          |
-| **Docker Swarm**        | Planned (standalone Docker first)                                         | Supported                  | Native integration             |
+| **Docker Swarm**        | Experimental manager registration; stack execution planned                | Supported                  | Native integration             |
 | **One-click templates** | Focused on Compose patterns                                               | 280+ templates             | 200+ templates                 |
 | **Monitoring**          | Structured event timeline + agent-ready summaries                         | Container metrics          | Real-time per-resource metrics |
 | **Backups**             | Typed policies, S3 storage, restore workflows with approval gates         | S3 backups                 | Unlimited S3 backups           |
@@ -63,7 +63,8 @@ daoflow deploy --service svc_my_app --yes      # Execute with confirmation
 
 - You manage infrastructure **manually through a dashboard** and don't use AI agents
 - You want **one-click app templates** for quick setup (WordPress, Ghost, etc.)
-- You need **Docker Swarm** clustering today (DaoFlow MVP focuses on standalone Docker)
+- You need **Docker Swarm** clustering today with real stack deploy semantics (DaoFlow currently
+  only exposes experimental manager registration and inspection)
 - You prefer a **mature ecosystem** with larger community and extensive templates
 
 ## The DaoFlow Advantage

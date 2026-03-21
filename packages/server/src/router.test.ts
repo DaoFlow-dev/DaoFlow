@@ -1037,6 +1037,28 @@ describe("appRouter", () => {
     expect(["ready", "attention", "pending verification"]).toContain(server.status);
   });
 
+  it("registers a docker-swarm-manager target and returns it through server readiness", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-register-swarm-server",
+      session: makeSession("admin")
+    });
+    const suffix = Date.now().toString(36);
+    const server = await caller.registerServer({
+      name: `swarm-mgr-${suffix}`,
+      host: `10.0.10.${Math.floor(Math.random() * 200) + 10}`,
+      region: "us-test-1",
+      sshPort: 22,
+      kind: "docker-swarm-manager"
+    });
+
+    expect(server.kind).toBe("docker-swarm-manager");
+
+    const readiness = await caller.serverReadiness({});
+    const check = readiness.checks.find((entry) => entry.serverId === server.id);
+
+    expect(check?.targetKind).toBe("docker-swarm-manager");
+  });
+
   it("creates deployment records and returns expanded steps from the mutation", async () => {
     const caller = appRouter.createCaller({
       requestId: "test-create-deployment",
