@@ -24,19 +24,35 @@ test.describe("Backup and restore workflows", () => {
     expect(hasContent).toBeGreaterThanOrEqual(0); // At minimum the page renders
   });
 
-  test("trigger a backup run from policy", async ({ page }) => {
+  test("manual backup runs require Temporal mode in the non-worker E2E lane", async ({ page }) => {
     await signInAsOwner(page);
 
-    const run = await trpcRequest<{ id: string; policyId: string; status: string }>(
-      page,
-      "triggerBackupNow",
-      {
-        policyId: "bpol_foundation_volume_daily"
-      }
-    );
+    const response = await page.evaluate(async (policyId) => {
+      const res = await fetch("/trpc/triggerBackupNow", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ policyId }),
+        credentials: "include"
+      });
 
-    expect(run.policyId).toBe("bpol_foundation_volume_daily");
-    expect(run.status).toBe("queued");
+      return {
+        ok: res.ok,
+        status: res.status,
+        body: await res.text()
+      };
+    }, "bpol_foundation_volume_daily");
+
+    expect(response.ok).toBe(false);
+    expect(response.status).toBe(500);
+    expect(response.body).toContain("Manual backup execution requires Temporal mode");
+
+    await expect(
+      trpcRequest<{ id: string; policyId: string; status: string }>(page, "triggerBackupNow", {
+        policyId: "bpol_foundation_volume_daily"
+      })
+    ).rejects.toThrow("Request to triggerBackupNow failed with status 500");
 
     await page.goto("/backups");
     await expect(page.getByRole("heading", { name: "Backups" })).toBeVisible();

@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AppRole } from "@daoflow/shared";
@@ -29,11 +30,82 @@ vi.mock("../../worker/temporal/temporal-config", async () => {
 });
 
 import { db } from "../connection";
-import { backupRuns } from "../schema/storage";
+import { backupPolicies, backupRuns, volumes } from "../schema/storage";
+import { servers } from "../schema/servers";
+import { users } from "../schema/users";
+import { resetTestDatabase } from "../../test-db";
 import { listBackupOverview, triggerBackupRun } from "./backups";
 
+function createFixtureSuffix() {
+  return randomUUID().replace(/-/g, "").slice(0, 8);
+}
+
+async function createBackupPolicyFixture() {
+  const suffix = createFixtureSuffix();
+  const userId = `usrbk${suffix}`;
+  const serverId = `srvbk${suffix}`;
+  const volumeId = `volbk${suffix}`;
+  const policyId = `bpolbk${suffix}`;
+  const now = new Date("2026-03-21T06:00:00.000Z");
+
+  await db.insert(users).values({
+    id: userId,
+    email: `${userId}@daoflow.local`,
+    name: `Backup Fixture ${suffix}`,
+    username: userId,
+    emailVerified: true,
+    role: "owner",
+    status: "active",
+    createdAt: now,
+    updatedAt: now
+  });
+
+  await db.insert(servers).values({
+    id: serverId,
+    name: `backup-fixture-${suffix}`,
+    host: `backup-fixture-${suffix}.test`,
+    sshPort: 22,
+    kind: "docker-engine",
+    status: "ready",
+    metadata: {},
+    registeredByUserId: userId,
+    createdAt: now,
+    updatedAt: now
+  });
+
+  await db.insert(volumes).values({
+    id: volumeId,
+    name: `postgres-volume-${suffix}`,
+    serverId,
+    mountPath: "/var/lib/postgresql/data",
+    status: "active",
+    metadata: {
+      projectName: "DaoFlow",
+      environmentName: "staging"
+    },
+    createdAt: now,
+    updatedAt: now
+  });
+
+  await db.insert(backupPolicies).values({
+    id: policyId,
+    name: `control-plane-db-${suffix}`,
+    volumeId,
+    backupType: "database",
+    databaseEngine: "postgres",
+    schedule: "0 * * * *",
+    retentionDays: 14,
+    status: "active",
+    createdAt: now,
+    updatedAt: now
+  });
+
+  return { userId, policyId };
+}
+
 describe("triggerBackupRun", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    await resetTestDatabase();
     getBackupCronStatusMock.mockReset();
     startOneOffBackupWorkflowMock.mockReset();
     isTemporalEnabledMock.mockReset();
@@ -46,20 +118,21 @@ describe("triggerBackupRun", () => {
   });
 
   it("queues a stable run record and dispatches the one-off backup through Temporal", async () => {
+    const fixture = await createBackupPolicyFixture();
     const run = await triggerBackupRun(
-      "bpol_foundation_db_hourly",
-      "user_foundation_owner",
-      "owner@daoflow.local",
+      fixture.policyId,
+      fixture.userId,
+      `${fixture.userId}@daoflow.local`,
       "owner" as AppRole
     );
 
     expect(run).toBeTruthy();
     expect(run?.status).toBe("queued");
-    expect(run?.policyId).toBe("bpol_foundation_db_hourly");
+    expect(run?.policyId).toBe(fixture.policyId);
     expect(run).toHaveProperty("workflowId", "backup-run-test");
     expect(startOneOffBackupWorkflowMock).toHaveBeenCalledWith(
-      "bpol_foundation_db_hourly",
-      "user_foundation_owner",
+      fixture.policyId,
+      fixture.userId,
       run?.id
     );
 
@@ -70,22 +143,21 @@ describe("triggerBackupRun", () => {
       .limit(1);
 
     expect(persisted?.status).toBe("queued");
-    expect(persisted?.triggeredByUserId).toBe("user_foundation_owner");
-
-    await db.delete(backupRuns).where(eq(backupRuns.id, run!.id));
+    expect(persisted?.triggeredByUserId).toBe(fixture.userId);
   });
 
   it("reports cron workflow status for scheduled policies when Temporal mode is enabled", async () => {
+    const fixture = await createBackupPolicyFixture();
     getBackupCronStatusMock.mockResolvedValue({
       status: "RUNNING",
-      workflowId: "backup-cron-bpol_foundation_db_hourly"
+      workflowId: `backup-cron-${fixture.policyId}`
     });
 
     const overview = await listBackupOverview();
-    const policy = overview.policies.find((entry) => entry.id === "bpol_foundation_db_hourly");
+    const policy = overview.policies.find((entry) => entry.id === fixture.policyId);
 
-    expect(policy?.temporalWorkflowId).toBe("backup-cron-bpol_foundation_db_hourly");
+    expect(policy?.temporalWorkflowId).toBe(`backup-cron-${fixture.policyId}`);
     expect(policy?.temporalWorkflowStatus).toBe("RUNNING");
-    expect(getBackupCronStatusMock).toHaveBeenCalledWith("bpol_foundation_db_hourly");
+    expect(getBackupCronStatusMock).toHaveBeenCalledWith(fixture.policyId);
   });
 });
