@@ -1,6 +1,10 @@
 import { expect, type Page } from "@playwright/test";
 import { execFileSync } from "node:child_process";
-import { e2eAdminUser, type E2EAuthUser } from "../packages/server/src/testing/e2e-auth-users";
+import {
+  e2eAdminUser,
+  e2eOperatorUser,
+  type E2EAuthUser
+} from "../packages/server/src/testing/e2e-auth-users";
 
 /** Auth operations can be slow in CI — use a generous timeout. */
 const AUTH_TIMEOUT = 30_000;
@@ -47,6 +51,10 @@ export async function signInWithEmailPassword(
 
 export async function signInAsAdmin(page: Page) {
   await signInWithEmailPassword(page, e2eAdminUser);
+}
+
+export async function signInAsOperator(page: Page) {
+  await signInWithEmailPassword(page, e2eOperatorUser);
 }
 
 // Compatibility alias while the suite transitions away from owner-named helpers.

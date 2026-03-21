@@ -31,3 +31,4 @@ export const e2eAuthUsers: readonly E2EAuthUser[] = [
 ];
 
 export const e2eAdminUser = e2eAuthUsers[0];
+export const e2eOperatorUser = e2eAuthUsers[1];

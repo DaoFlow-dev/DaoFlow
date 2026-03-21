@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { signInAsOwner, trpcRequest } from "./helpers";
+import { signInAsOperator, signInAsOwner, trpcRequest } from "./helpers";
 
 test.describe("Environment variables", () => {
   test("settings page has environment configuration access", async ({ page }) => {
@@ -25,8 +25,10 @@ test.describe("Environment variables", () => {
     });
   });
 
-  test("env var write path stores metadata and masks secrets on read", async ({ page }) => {
-    await signInAsOwner(page);
+  test("env var write path stores metadata and masks secrets without secret-read access", async ({
+    page
+  }) => {
+    await signInAsOperator(page);
 
     const project = await trpcRequest<{ id: string }>(page, "createProject", {
       name: `E2E Env ${Date.now()}`
