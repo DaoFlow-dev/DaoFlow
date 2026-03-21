@@ -27,6 +27,7 @@ import {
   listGitInstallationSummaries,
   listGitProviderSummaries
 } from "../db/services/git-providers";
+import { resolveTeamIdForUser } from "../db/services/teams";
 import { t, protectedProcedure, deployReadProcedure } from "../trpc";
 import { limitInput, statusLimitInput } from "../schemas";
 import { backupReadRouter } from "./read-backups";
@@ -41,6 +42,18 @@ const productPrinciples = [
 ] as const;
 
 const agentApiLanes = ["read APIs", "planning APIs", "command APIs"] as const;
+
+async function requireViewerTeamId(userId: string) {
+  const teamId = await resolveTeamIdForUser(userId);
+  if (!teamId) {
+    throw new TRPCError({
+      code: "PRECONDITION_FAILED",
+      message: "No organization is available for this user."
+    });
+  }
+
+  return teamId;
+}
 
 const coreReadRouter = t.router({
   health: t.procedure.query(() => ({
@@ -213,22 +226,29 @@ const coreReadRouter = t.router({
     .query(async ({ input }) => {
       return listOperationsTimeline(input.deploymentId, input.limit ?? 12);
     }),
-  projects: protectedProcedure.input(limitInput(50)).query(async ({ input }) => {
-    return listProjects(input.limit ?? 50);
+  projects: deployReadProcedure.input(limitInput(50)).query(async ({ ctx, input }) => {
+    const teamId = await requireViewerTeamId(ctx.session.user.id);
+    return listProjects(teamId, input.limit ?? 50);
   }),
-  projectDetails: protectedProcedure
+  projectDetails: deployReadProcedure
     .input(z.object({ projectId: z.string().min(1) }))
-    .query(async ({ input }) => {
-      const project = await getProject(input.projectId);
+    .query(async ({ ctx, input }) => {
+      const teamId = await requireViewerTeamId(ctx.session.user.id);
+      const project = await getProject(input.projectId, teamId);
       if (!project) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Project not found." });
       }
       return project;
     }),
-  projectEnvironments: protectedProcedure
+  projectEnvironments: deployReadProcedure
     .input(z.object({ projectId: z.string().min(1) }))
-    .query(async ({ input }) => {
-      return listEnvironments(input.projectId);
+    .query(async ({ ctx, input }) => {
+      const teamId = await requireViewerTeamId(ctx.session.user.id);
+      const project = await getProject(input.projectId, teamId);
+      if (!project) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Project not found." });
+      }
+      return listEnvironments(input.projectId, teamId);
     }),
   services: protectedProcedure
     .input(
@@ -260,9 +280,14 @@ const coreReadRouter = t.router({
       }
       return state;
     }),
-  projectServices: protectedProcedure
+  projectServices: deployReadProcedure
     .input(z.object({ projectId: z.string().min(1) }))
-    .query(async ({ input }) => {
+    .query(async ({ ctx, input }) => {
+      const teamId = await requireViewerTeamId(ctx.session.user.id);
+      const project = await getProject(input.projectId, teamId);
+      if (!project) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Project not found." });
+      }
       return listServicesByProject(input.projectId);
     }),
   rollbackTargets: deployReadProcedure

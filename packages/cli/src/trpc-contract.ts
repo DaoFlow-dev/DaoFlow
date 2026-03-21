@@ -424,16 +424,80 @@ export interface ComposePreviewsOutput {
 
 export interface ProjectListItem {
   id: string;
+  slug: string | null;
+  teamId: string;
   name: string;
   description: string | null;
+  repoFullName: string | null;
   repoUrl: string | null;
+  sourceType: string;
+  status: string;
+  statusTone: string;
   defaultBranch: string | null;
   composePath: string | null;
-  autoDeploy: boolean | null;
+  autoDeploy: boolean;
+  autoDeployBranch: string | null;
   createdByUserId: string | null;
   config: unknown;
-  createdAt: Date;
-  updatedAt: Date;
+  composeFiles: string[];
+  composeProfiles: string[];
+  environmentCount: number;
+  serviceCount: number;
+  sourceReadiness: unknown;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProjectEnvironmentItem {
+  id: string;
+  projectId: string;
+  name: string;
+  slug: string;
+  status: string;
+  statusTone: string;
+  targetServerId: string | null;
+  composeFiles: string[];
+  composeProfiles: string[];
+  serviceCount: number;
+  config: unknown;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProjectDetailsOutput extends ProjectListItem {
+  environments: ProjectEnvironmentItem[];
+}
+
+export interface ProjectMutationOutput {
+  id: string;
+  name: string;
+  slug: string | null;
+  teamId: string;
+  repoFullName: string | null;
+  repoUrl: string | null;
+  sourceType: string;
+  composePath: string | null;
+  status: string;
+  gitProviderId: string | null;
+  gitInstallationId: string | null;
+  defaultBranch: string | null;
+  autoDeploy: boolean;
+  autoDeployBranch: string | null;
+  createdByUserId: string | null;
+  config: unknown;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface EnvironmentMutationOutput {
+  id: string;
+  projectId: string;
+  name: string;
+  slug: string;
+  status: string;
+  config: unknown;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface CreateAgentInput {
@@ -678,6 +742,46 @@ export interface DaoFlowTRPC {
     }
   >;
   projects: QueryProcedure<ProjectListItem[], { limit?: number }>;
+  projectDetails: QueryProcedure<ProjectDetailsOutput, { projectId: string }>;
+  projectEnvironments: QueryProcedure<ProjectEnvironmentItem[], { projectId: string }>;
+  createProject: MutationProcedure<
+    {
+      name: string;
+      description?: string;
+      repoUrl?: string;
+      repoFullName?: string;
+      composePath?: string;
+      composeFiles?: string[];
+      composeProfiles?: string[];
+      defaultBranch?: string;
+      autoDeploy?: boolean;
+      autoDeployBranch?: string;
+    },
+    ProjectMutationOutput
+  >;
+  deleteProject: MutationProcedure<{ projectId: string }, { deleted: boolean }>;
+  createEnvironment: MutationProcedure<
+    {
+      projectId: string;
+      name: string;
+      targetServerId?: string;
+      composeFiles?: string[];
+      composeProfiles?: string[];
+    },
+    EnvironmentMutationOutput
+  >;
+  updateEnvironment: MutationProcedure<
+    {
+      environmentId: string;
+      name?: string;
+      status?: string;
+      targetServerId?: string;
+      composeFiles?: string[];
+      composeProfiles?: string[];
+    },
+    EnvironmentMutationOutput
+  >;
+  deleteEnvironment: MutationProcedure<{ environmentId: string }, { deleted: boolean }>;
   cancelDeployment: MutationProcedure<
     { deploymentId: string },
     { status: "cancelled"; deploymentId: string }

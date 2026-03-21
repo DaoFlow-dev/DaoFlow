@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import AddServiceDialog from "../components/AddServiceDialog";
 import { ProjectOverviewCards } from "@/components/project/ProjectOverviewCards";
+import { ProjectEnvironmentsPanel } from "@/components/project/ProjectEnvironmentsPanel";
 import { ProjectServicesList } from "@/components/project/ProjectServicesList";
 import { ProjectSettingsPanel } from "@/components/project/ProjectSettingsPanel";
 import { ProjectGitCard } from "@/components/project/ProjectGitCard";
@@ -38,7 +39,16 @@ export default function ProjectDetailPage() {
   const project = trpc.projectDetails.useQuery({ projectId: id! }, { enabled: !!id });
   const services = trpc.projectServices.useQuery({ projectId: id! }, { enabled: !!id });
   const environments = trpc.projectEnvironments.useQuery({ projectId: id! }, { enabled: !!id });
+  const infrastructure = trpc.infrastructureInventory.useQuery(undefined, { enabled: !!id });
   const deployments = trpc.recentDeployments.useQuery({ limit: 20 });
+  const refreshProjectViews = async () => {
+    await Promise.all([
+      project.refetch(),
+      services.refetch(),
+      environments.refetch(),
+      utils.projects.invalidate()
+    ]);
+  };
   const updateProject = trpc.updateProject.useMutation({
     onSuccess: async () => {
       await Promise.all([project.refetch(), utils.projects.invalidate()]);
@@ -50,6 +60,24 @@ export default function ProjectDetailPage() {
       await utils.projects.invalidate();
       setShowDeleteDialog(false);
       void navigate("/projects");
+    }
+  });
+  const createEnvironment = trpc.createEnvironment.useMutation({
+    onSuccess: async () => {
+      await refreshProjectViews();
+    }
+  });
+  const updateEnvironment = trpc.updateEnvironment.useMutation({
+    onSuccess: async () => {
+      await refreshProjectViews();
+    }
+  });
+  const deleteEnvironment = trpc.deleteEnvironment.useMutation({
+    onSuccess: async (_, variables) => {
+      if (variables.environmentId === activeEnv) {
+        setActiveEnv(null);
+      }
+      await refreshProjectViews();
     }
   });
 
@@ -92,8 +120,30 @@ export default function ProjectDetailPage() {
     id: string;
     name: string;
     slug: string;
+    status: string;
+    statusTone?: string;
+    targetServerId?: string | null;
+    composeFiles?: string[];
+    composeProfiles?: string[];
+    serviceCount?: number;
     createdAt: string;
   }[];
+  const serverList = (
+    (infrastructure.data?.servers ?? []) as {
+      id: string;
+      name: string;
+      host?: string | null;
+    }[]
+  ).map((server) => ({
+    id: server.id,
+    name: server.name,
+    host: server.host
+  }));
+  const environmentErrorMessage =
+    createEnvironment.error?.message ??
+    updateEnvironment.error?.message ??
+    deleteEnvironment.error?.message ??
+    null;
 
   const filteredServices = activeEnv
     ? serviceList.filter((s) => s.environmentId === activeEnv)
@@ -253,7 +303,13 @@ export default function ProjectDetailPage() {
         />
       )}
 
-      <ProjectGitCard config={config} />
+      <ProjectGitCard
+        config={config}
+        repoUrl={p.repoUrl}
+        repoFullName={p.repoFullName}
+        defaultBranch={p.defaultBranch}
+        autoDeploy={p.autoDeploy}
+      />
 
       <ProjectOverviewCards
         serviceCount={serviceList.length}
@@ -261,6 +317,47 @@ export default function ProjectDetailPage() {
         unhealthyCount={unhealthyCount}
         envCount={envList.length}
         lastDeploy={lastDeploy}
+      />
+
+      <ProjectEnvironmentsPanel
+        projectId={p.id}
+        environments={envList}
+        servers={serverList}
+        createPending={createEnvironment.isPending}
+        updatePending={updateEnvironment.isPending}
+        deletePending={deleteEnvironment.isPending}
+        errorMessage={environmentErrorMessage}
+        onCreate={(input) => {
+          createEnvironment.reset();
+          updateEnvironment.reset();
+          deleteEnvironment.reset();
+          createEnvironment.mutate({
+            projectId: input.projectId,
+            name: input.name,
+            targetServerId: input.targetServerId || undefined,
+            composeFiles: input.composeFiles?.length ? input.composeFiles : undefined,
+            composeProfiles: input.composeProfiles?.length ? input.composeProfiles : undefined
+          });
+        }}
+        onUpdate={(input) => {
+          createEnvironment.reset();
+          updateEnvironment.reset();
+          deleteEnvironment.reset();
+          updateEnvironment.mutate({
+            environmentId: input.environmentId,
+            name: input.name,
+            status: input.status,
+            targetServerId: input.targetServerId,
+            composeFiles: input.composeFiles,
+            composeProfiles: input.composeProfiles
+          });
+        }}
+        onDelete={(environmentId) => {
+          createEnvironment.reset();
+          updateEnvironment.reset();
+          deleteEnvironment.reset();
+          deleteEnvironment.mutate({ environmentId });
+        }}
       />
 
       {/* Environment switcher */}

@@ -59,25 +59,25 @@ Every command accepts these flags:
 
 ## Command Overview
 
-| Command                          | Lane         | Scope Required             | Mutating |
-| -------------------------------- | ------------ | -------------------------- | -------- |
-| [`login`](./auth)                | —            | none (creates session)     | yes      |
-| [`whoami`](./whoami)             | read         | any valid token            | no       |
-| [`capabilities`](./capabilities) | read         | any valid token            | no       |
-| [`status`](./status)             | read         | `server:read`              | no       |
-| [`server add`](./server)         | command      | `server:write`             | yes      |
-| `services`                       | read         | `service:read`             | no       |
-| `projects`                       | read         | `deploy:read`              | no       |
-| [`deploy`](./deploy)             | command      | `deploy:start`             | yes      |
-| [`rollback`](./rollback)         | command      | `deploy:rollback`          | yes      |
-| [`diff`](./diff)                 | planning     | `deploy:read`              | no       |
-| [`logs`](./logs)                 | read         | `logs:read`                | no       |
-| [`env`](./env)                   | read/command | `env:read` / `env:write`   | varies   |
-| [`plan`](./plan)                 | planning     | `deploy:read`              | no       |
-| [`doctor`](./doctor)             | read         | `server:read`, `logs:read` | no       |
-| `backup list`                    | read         | `backup:read`              | no       |
-| `backup run`                     | command      | `backup:run`               | yes      |
-| `backup restore`                 | command      | `backup:restore`           | yes      |
+| Command                          | Lane         | Scope Required                                  | Mutating |
+| -------------------------------- | ------------ | ----------------------------------------------- | -------- |
+| [`login`](./auth)                | —            | none (creates session)                          | yes      |
+| [`whoami`](./whoami)             | read         | any valid token                                 | no       |
+| [`capabilities`](./capabilities) | read         | any valid token                                 | no       |
+| [`status`](./status)             | read         | `server:read`                                   | no       |
+| [`server add`](./server)         | command      | `server:write`                                  | yes      |
+| `services`                       | read         | `service:read`                                  | no       |
+| [`projects`](./projects)         | read/command | `deploy:read`, `deploy:start`, `service:update` | varies   |
+| [`deploy`](./deploy)             | command      | `deploy:start`                                  | yes      |
+| [`rollback`](./rollback)         | command      | `deploy:rollback`                               | yes      |
+| [`diff`](./diff)                 | planning     | `deploy:read`                                   | no       |
+| [`logs`](./logs)                 | read         | `logs:read`                                     | no       |
+| [`env`](./env)                   | read/command | `env:read` / `env:write`                        | varies   |
+| [`plan`](./plan)                 | planning     | `deploy:read`                                   | no       |
+| [`doctor`](./doctor)             | read         | `server:read`, `logs:read`                      | no       |
+| `backup list`                    | read         | `backup:read`                                   | no       |
+| `backup run`                     | command      | `backup:run`                                    | yes      |
+| `backup restore`                 | command      | `backup:restore`                                | yes      |
 
 The generated contract includes additional command families not expanded into individual docs pages here, including backup destination management, backup schedule management, token management, config helpers, install/upgrade flows, and update commands.
 

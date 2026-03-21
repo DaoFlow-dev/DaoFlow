@@ -51,28 +51,28 @@ This file holds the detailed CLI contract, scope map, and agent-facing command r
 
 ## Command Scope Map
 
-| Command          | Lane     | Required Scope(s)          | Mutating |
-| ---------------- | -------- | -------------------------- | -------- |
-| `login`          | session  | none                       | yes      |
-| `whoami`         | read     | any valid token            | no       |
-| `capabilities`   | read     | any valid token            | no       |
-| `status`         | read     | `server:read`              | no       |
-| `server add`     | command  | `server:write`             | yes      |
-| `services`       | read     | `service:read`             | no       |
-| `projects`       | read     | `deploy:read`              | no       |
-| `logs`           | read     | `logs:read`                | no       |
-| `plan`           | planning | `deploy:read`              | no       |
-| `diff`           | planning | `deploy:read`              | no       |
-| `doctor`         | read     | `server:read`, `logs:read` | no       |
-| `deploy`         | command  | `deploy:start`             | yes      |
-| `push`           | command  | `deploy:start`             | yes      |
-| `rollback`       | command  | `deploy:rollback`          | yes      |
-| `env list`       | read     | `env:read`                 | no       |
-| `env set`        | command  | `env:write`                | yes      |
-| `env delete`     | command  | `env:write`                | yes      |
-| `backup list`    | read     | `backup:read`              | no       |
-| `backup run`     | command  | `backup:run`               | yes      |
-| `backup restore` | command  | `backup:restore`           | yes      |
+| Command          | Lane         | Required Scope(s)                               | Mutating |
+| ---------------- | ------------ | ----------------------------------------------- | -------- |
+| `login`          | session      | none                                            | yes      |
+| `whoami`         | read         | any valid token                                 | no       |
+| `capabilities`   | read         | any valid token                                 | no       |
+| `status`         | read         | `server:read`                                   | no       |
+| `server add`     | command      | `server:write`                                  | yes      |
+| `services`       | read         | `service:read`                                  | no       |
+| `projects`       | read/command | `deploy:read`, `deploy:start`, `service:update` | varies   |
+| `logs`           | read         | `logs:read`                                     | no       |
+| `plan`           | planning     | `deploy:read`                                   | no       |
+| `diff`           | planning     | `deploy:read`                                   | no       |
+| `doctor`         | read         | `server:read`, `logs:read`                      | no       |
+| `deploy`         | command      | `deploy:start`                                  | yes      |
+| `push`           | command      | `deploy:start`                                  | yes      |
+| `rollback`       | command      | `deploy:rollback`                               | yes      |
+| `env list`       | read         | `env:read`                                      | no       |
+| `env set`        | command      | `env:write`                                     | yes      |
+| `env delete`     | command      | `env:write`                                     | yes      |
+| `backup list`    | read         | `backup:read`                                   | no       |
+| `backup run`     | command      | `backup:run`                                    | yes      |
+| `backup restore` | command      | `backup:restore`                                | yes      |
 
 - `daoflow backup restore --dry-run` is a planning-lane preview backed by `backupRestorePlan` and requires only `backup:read`
 - `daoflow backup restore --yes` queues the restore and requires `backup:restore`
@@ -161,6 +161,31 @@ This file holds the detailed CLI contract, scope map, and agent-facing command r
   - total ready vs attention servers
   - configured poll interval and average latency when available
   - per-server readiness state, Docker/Compose versions, last check timestamp, and issues
+
+## Projects Contract
+
+- `daoflow projects list` reads the scoped project inventory
+- `daoflow projects show <project-id>` reads one scoped project plus its environments
+- `daoflow projects create --dry-run` must return a local preview and exit with code `3`
+- `daoflow projects create --yes` writes through `createProject` and requires `deploy:start`
+- `daoflow projects delete --dry-run` must return a local preview and exit with code `3`
+- `daoflow projects delete --yes` writes through `deleteProject` and requires `service:update`
+- `daoflow projects env list --project <id>` reads scoped environments for the project and requires `deploy:read`
+- `daoflow projects env create --dry-run` must return a local preview and exit with code `3`
+- `daoflow projects env create --yes` writes through `createEnvironment` and requires `deploy:start`
+- `daoflow projects env update --dry-run` must return a local preview and exit with code `3`
+- `daoflow projects env update --yes` writes through `updateEnvironment` and requires `service:update`
+- `daoflow projects env delete --dry-run` must return a local preview and exit with code `3`
+- `daoflow projects env delete --yes` writes through `deleteEnvironment` and requires `service:update`
+- JSON list success shape:
+  - `{ "ok": true, "data": { "summary": { "totalProjects": number, "totalEnvironments": number, "totalServices": number }, "projects": [{ "id": string, "name": string, "description": string | null, "repoFullName": string | null, "repoUrl": string | null, "sourceType": string, "status": string, "statusTone": string, "defaultBranch": string | null, "autoDeploy": boolean, "composeFiles": string[], "composeProfiles": string[], "environmentCount": number, "serviceCount": number, "createdAt": string, "updatedAt": string }] } }`
+- JSON show success shape:
+  - `{ "ok": true, "data": { "project": { ...project summary... }, "environments": [{ "id": string, "projectId": string, "name": string, "status": string, "statusTone": string, "targetServerId": string | null, "composeFiles": string[], "composeProfiles": string[], "serviceCount": number, "createdAt": string, "updatedAt": string }] } }`
+- JSON mutation success shapes:
+  - `projects create`: `{ "ok": true, "data": { "project": { "id": string, "name": string, "repoFullName": string | null, "repoUrl": string | null, "status": string } } }`
+  - `projects delete`: `{ "ok": true, "data": { "deleted": true, "projectId": string } }`
+  - `projects env create|update`: `{ "ok": true, "data": { "environment": { "id": string, "projectId": string, "name": string, "status": string } } }`
+  - `projects env delete`: `{ "ok": true, "data": { "deleted": true, "environmentId": string } }`
 
 ## Doctor Contract
 

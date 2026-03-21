@@ -37,6 +37,18 @@ import {
   throwOnOperationError
 } from "../trpc";
 
+async function requireActorTeamId(userId: string) {
+  const teamId = await resolveTeamIdForUser(userId);
+  if (!teamId) {
+    throw new TRPCError({
+      code: "PRECONDITION_FAILED",
+      message: "No organization is available for this user."
+    });
+  }
+
+  return teamId;
+}
+
 const composeReadinessProbeBaseSchema = {
   port: z.number().int().min(1).max(65535),
   timeoutSeconds: z.number().int().min(1).max(300).optional(),
@@ -214,13 +226,7 @@ export const adminRouter = t.router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const teamId = input.teamId ?? (await resolveTeamIdForUser(ctx.session.user.id));
-      if (!teamId) {
-        throw new TRPCError({
-          code: "PRECONDITION_FAILED",
-          message: "No organization is available for this user."
-        });
-      }
+      const teamId = input.teamId ?? (await requireActorTeamId(ctx.session.user.id));
 
       const result = await createProject({
         ...input,
@@ -270,8 +276,10 @@ export const adminRouter = t.router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      const teamId = await requireActorTeamId(ctx.session.user.id);
       const result = await updateProject({
         ...input,
+        teamId,
         ...getActorContext(ctx)
       });
       if (result.status === "not_found") {
@@ -298,11 +306,13 @@ export const adminRouter = t.router({
       return result.project;
     }),
 
-  deleteProject: adminProcedure
+  deleteProject: serviceUpdateProcedure
     .input(z.object({ projectId: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => {
+      const teamId = await requireActorTeamId(ctx.session.user.id);
       const result = await deleteProject({
         ...input,
+        teamId,
         ...getActorContext(ctx)
       });
       if (result.status === "not_found") {
@@ -323,12 +333,20 @@ export const adminRouter = t.router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      const teamId = await requireActorTeamId(ctx.session.user.id);
       const result = await createEnvironment({
         ...input,
+        teamId,
         ...getActorContext(ctx)
       });
       if (result.status === "not_found") {
         throw new TRPCError({ code: "NOT_FOUND", message: "Parent project not found." });
+      }
+      if (result.status === "conflict") {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: `An environment named "${input.name}" already exists in this project.`
+        });
       }
       return result.environment;
     }),
@@ -345,21 +363,31 @@ export const adminRouter = t.router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      const teamId = await requireActorTeamId(ctx.session.user.id);
       const result = await updateEnvironment({
         ...input,
+        teamId,
         ...getActorContext(ctx)
       });
       if (result.status === "not_found") {
         throw new TRPCError({ code: "NOT_FOUND", message: "Environment not found." });
       }
+      if (result.status === "conflict") {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: `An environment named "${input.name}" already exists in this project.`
+        });
+      }
       return result.environment;
     }),
 
-  deleteEnvironment: adminProcedure
+  deleteEnvironment: serviceUpdateProcedure
     .input(z.object({ environmentId: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => {
+      const teamId = await requireActorTeamId(ctx.session.user.id);
       const result = await deleteEnvironment({
         ...input,
+        teamId,
         ...getActorContext(ctx)
       });
       if (result.status === "not_found") {

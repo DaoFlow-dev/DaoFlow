@@ -4,9 +4,16 @@
   "private": true,
   "type": "module",
   "main": "./src/index.ts",
+  "types": "./dist/src/index.d.ts",
   "exports": {
-    ".": "./src/index.ts",
-    "./router": "./src/router.ts"
+    ".": {
+      "types": "./dist/src/index.d.ts",
+      "default": "./src/index.ts"
+    },
+    "./router": {
+      "types": "./dist/src/router.d.ts",
+      "default": "./src/router.ts"
+    }
   },
   "scripts": {
     "dev": "bun --watch src/index.ts",

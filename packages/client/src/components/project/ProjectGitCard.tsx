@@ -5,13 +5,25 @@ import { GitBranch, ExternalLink, Copy, RefreshCw } from "lucide-react";
 
 interface ProjectGitCardProps {
   config: Record<string, unknown>;
+  repoUrl?: string | null;
+  repoFullName?: string | null;
+  defaultBranch?: string | null;
+  autoDeploy?: boolean;
 }
 
-export function ProjectGitCard({ config }: ProjectGitCardProps) {
-  const repoUrl = typeof config.repositoryUrl === "string" ? config.repositoryUrl : null;
-  const branch = typeof config.branch === "string" ? config.branch : "main";
+export function ProjectGitCard({
+  config,
+  repoUrl: repoUrlProp,
+  repoFullName,
+  defaultBranch,
+  autoDeploy: autoDeployProp
+}: ProjectGitCardProps) {
+  const repoUrl =
+    repoUrlProp ?? (typeof config.repositoryUrl === "string" ? config.repositoryUrl : null);
+  const branch = defaultBranch ?? (typeof config.branch === "string" ? config.branch : "main");
   const commitSha = typeof config.lastCommitSha === "string" ? config.lastCommitSha : null;
-  const autoDeploy = Boolean(config.autoDeploy);
+  const autoDeploy =
+    autoDeployProp ?? (typeof config.autoDeploy === "boolean" ? config.autoDeploy : false);
   const provider =
     typeof config.gitProvider === "string"
       ? config.gitProvider
@@ -25,7 +37,7 @@ export function ProjectGitCard({ config }: ProjectGitCardProps) {
 
   if (!repoUrl) return null;
 
-  const shortUrl = repoUrl.replace(/^https?:\/\//, "").replace(/\.git$/, "");
+  const shortUrl = repoFullName ?? repoUrl.replace(/^https?:\/\//, "").replace(/\.git$/, "");
 
   return (
     <Card className="shadow-sm">

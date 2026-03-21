@@ -293,6 +293,9 @@ interface ProjectCardProject {
   status: string;
   repoFullName?: string | null;
   repoUrl?: string | null;
+  environmentCount?: number | null;
+  serviceCount?: number | null;
+  defaultBranch?: string | null;
 }
 
 interface ProjectCardProps {
@@ -322,6 +325,11 @@ export const ProjectCard = memo(function ProjectCard({ project, onOpenProject }:
         <p className="truncate text-xs text-muted-foreground">
           {project.repoFullName ?? project.repoUrl ?? "No repository linked"}
         </p>
+        <div className="mt-3 flex items-center gap-3 text-xs text-muted-foreground">
+          <span>{project.environmentCount ?? 0} env</span>
+          <span>{project.serviceCount ?? 0} svc</span>
+          <span>{project.defaultBranch ?? "main"}</span>
+        </div>
       </CardContent>
     </Card>
   );

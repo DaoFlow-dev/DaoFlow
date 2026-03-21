@@ -6,12 +6,15 @@ import type { Context, RequestAuthContext } from "./context";
 import { db } from "./db/connection";
 import { deployments } from "./db/schema/deployments";
 import { backupRestores } from "./db/schema/storage";
+import { teamMembers, teams } from "./db/schema/teams";
+import { users } from "./db/schema/users";
 import { createEnvironment, createProject } from "./db/services/projects";
 import { asRecord } from "./db/services/json-helpers";
 import { createService } from "./db/services/services";
 import { appRouter } from "./router";
 
 let rollbackFixtureCounter = 0;
+let otherTeamFixtureCounter = 0;
 
 function makeSession(role: string): NonNullable<Context["session"]> {
   const seededUsers = {
@@ -64,6 +67,36 @@ function makeSession(role: string): NonNullable<Context["session"]> {
       userId: actor.id,
       expiresAt: new Date(),
       token: `token_${role}`,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      ipAddress: null,
+      userAgent: null
+    }
+  } as unknown as NonNullable<Context["session"]>;
+}
+
+function makeCustomSession(input: {
+  id: string;
+  email: string;
+  name: string;
+  role: string;
+}): NonNullable<Context["session"]> {
+  return {
+    user: {
+      id: input.id,
+      email: input.email,
+      name: input.name,
+      emailVerified: true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      image: null,
+      role: input.role
+    },
+    session: {
+      id: `session_${input.id}`,
+      userId: input.id,
+      expiresAt: new Date(),
+      token: `token_${input.id}`,
       createdAt: new Date(),
       updatedAt: new Date(),
       ipAddress: null,
@@ -206,6 +239,78 @@ async function createRollbackFixture() {
     serviceId: serviceResult.service.id,
     successDeploymentId,
     failedDeploymentId
+  };
+}
+
+async function createOtherTeamFixture() {
+  otherTeamFixtureCounter += 1;
+  const suffix = `${Date.now().toString(36)}_${otherTeamFixtureCounter}`;
+  const teamId = `team_other_${suffix}`.slice(0, 32);
+  const userId = `user_other_${suffix}`.slice(0, 32);
+  const projectName = `other-team-project-${suffix}`;
+  const environmentName = `other-team-env-${suffix}`;
+
+  await db.insert(users).values({
+    id: userId,
+    email: `${userId}@daoflow.local`,
+    name: `Other Team Admin ${suffix}`,
+    username: userId,
+    emailVerified: true,
+    role: "admin",
+    status: "active",
+    defaultTeamId: teamId,
+    createdAt: new Date(),
+    updatedAt: new Date()
+  });
+
+  await db.insert(teams).values({
+    id: teamId,
+    name: `Other Team ${suffix}`,
+    slug: `other-team-${suffix}`.slice(0, 40),
+    status: "active",
+    createdByUserId: userId,
+    createdAt: new Date(),
+    updatedAt: new Date()
+  });
+
+  await db.insert(teamMembers).values({
+    id: Math.floor(Math.random() * 1_000_000_000),
+    teamId,
+    userId,
+    role: "owner",
+    createdAt: new Date()
+  });
+
+  const projectResult = await createProject({
+    name: projectName,
+    description: "Cross-team access fixture",
+    teamId,
+    requestedByUserId: userId,
+    requestedByEmail: `${userId}@daoflow.local`,
+    requestedByRole: "owner"
+  });
+  if (projectResult.status !== "ok") {
+    throw new Error("Failed to create cross-team fixture project.");
+  }
+
+  const environmentResult = await createEnvironment({
+    projectId: projectResult.project.id,
+    teamId,
+    name: environmentName,
+    targetServerId: "srv_foundation_1",
+    requestedByUserId: userId,
+    requestedByEmail: `${userId}@daoflow.local`,
+    requestedByRole: "owner"
+  });
+  if (environmentResult.status !== "ok") {
+    throw new Error("Failed to create cross-team fixture environment.");
+  }
+
+  return {
+    teamId,
+    userId,
+    projectId: projectResult.project.id,
+    environmentId: environmentResult.environment.id
   };
 }
 
@@ -1142,6 +1247,66 @@ describe("appRouter", () => {
     expect(token.name).toEqual(expect.any(String));
     expect(token.label).toEqual(expect.any(String));
     expect(token.statusTone).toEqual(expect.any(String));
+  });
+
+  it("filters project inventory to the caller's active team", async () => {
+    const fixture = await createOtherTeamFixture();
+    const caller = appRouter.createCaller({
+      requestId: "test-project-team-scope-list",
+      session: makeSession("owner")
+    });
+
+    const response = await caller.projects({ limit: 50 });
+
+    expect(response.some((project) => project.id === fixture.projectId)).toBe(false);
+  });
+
+  it("rejects project detail reads outside the caller's team", async () => {
+    const fixture = await createOtherTeamFixture();
+    const caller = appRouter.createCaller({
+      requestId: "test-project-team-scope-detail",
+      session: makeSession("owner")
+    });
+
+    await expect(caller.projectDetails({ projectId: fixture.projectId })).rejects.toMatchObject({
+      code: "NOT_FOUND"
+    } satisfies Partial<TRPCError>);
+    await expect(
+      caller.projectEnvironments({ projectId: fixture.projectId })
+    ).rejects.toMatchObject({
+      code: "NOT_FOUND"
+    } satisfies Partial<TRPCError>);
+    await expect(caller.projectServices({ projectId: fixture.projectId })).rejects.toMatchObject({
+      code: "NOT_FOUND"
+    } satisfies Partial<TRPCError>);
+  });
+
+  it("rejects project and environment mutations outside the caller's team", async () => {
+    const fixture = await createOtherTeamFixture();
+    const caller = appRouter.createCaller({
+      requestId: "test-project-team-scope-mutation",
+      session: makeCustomSession({
+        id: fixture.userId,
+        email: `${fixture.userId}@daoflow.local`,
+        name: "Other Team Admin",
+        role: "admin"
+      })
+    });
+
+    await expect(caller.deleteProject({ projectId: "proj_foundation_1" })).rejects.toMatchObject({
+      code: "NOT_FOUND"
+    } satisfies Partial<TRPCError>);
+    await expect(
+      caller.createEnvironment({
+        projectId: "proj_foundation_1",
+        name: "blocked-env"
+      })
+    ).rejects.toMatchObject({
+      code: "NOT_FOUND"
+    } satisfies Partial<TRPCError>);
+    await expect(caller.deleteEnvironment({ environmentId: "env_prod_1" })).rejects.toMatchObject({
+      code: "NOT_FOUND"
+    } satisfies Partial<TRPCError>);
   });
 
   // ─── RBAC enforcement tests ─────────────────────────────────

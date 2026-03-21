@@ -82,6 +82,15 @@ daoflow services --json
 
 # List projects
 daoflow projects list --json
+
+# Inspect one project plus its environments
+daoflow projects show proj_123 --json
+
+# Create a project
+daoflow projects create --name demo --repo-url https://github.com/acme/demo --yes --json
+
+# Create a staging environment override
+daoflow projects env create --project proj_123 --name staging --server srv_vps1 --yes --json
 ```
 
 ### View Logs
