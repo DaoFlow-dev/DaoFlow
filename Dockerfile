@@ -31,9 +31,9 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3000
 
-# Execution plane dependencies: Docker CLI, Compose, git, SSH
+# Execution plane dependencies: Docker CLI, Compose, git, SSH, backup tooling
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates curl gnupg git openssh-client \
+    ca-certificates curl gnupg git openssh-client p7zip-full rclone \
   && install -m 0755 -d /etc/apt/keyrings \
   && curl -fsSL https://download.docker.com/linux/debian/gpg \
      | gpg --dearmor -o /etc/apt/keyrings/docker.gpg \
