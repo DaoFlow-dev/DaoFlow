@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { signInAsOwner, trpcRequest } from "./helpers";
+import { signInAsOperator, signInAsOwner, signOut, trpcRequest } from "./helpers";
 
 test.describe("Approval workflows", () => {
   test("settings page security tab shows audit and approval context", async ({ page }) => {
@@ -13,7 +13,9 @@ test.describe("Approval workflows", () => {
     await expect(page.getByText("Security & Audit")).toBeVisible();
   });
 
-  test("approval request can be created and approved end-to-end", async ({ page }) => {
+  test("approval request must be handed off to a different operator for approval", async ({
+    page
+  }) => {
     await signInAsOwner(page);
 
     const request = await trpcRequest<{ id: string; status: string; actionType: string }>(
@@ -27,6 +29,26 @@ test.describe("Approval workflows", () => {
     );
 
     expect(request.status).toBe("pending");
+
+    const blockedApproval = await page.evaluate(async (requestId) => {
+      const res = await fetch("/trpc/approveApprovalRequest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ requestId }),
+        credentials: "include"
+      });
+
+      return {
+        status: res.status,
+        body: await res.text()
+      };
+    }, request.id);
+
+    expect(blockedApproval.status).toBe(412);
+    expect(blockedApproval.body).toContain("different principal");
+
+    await signOut(page);
+    await signInAsOperator(page);
 
     const approved = await trpcRequest<{ id: string; status: string }>(
       page,

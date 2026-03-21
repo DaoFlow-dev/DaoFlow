@@ -10,8 +10,11 @@ Approval gates add a human-in-the-loop for high-risk operations, ensuring agents
 
 1. Agent previews or prepares a risky action (e.g., backup restore)
 2. The agent or UI creates a `requestApproval` record instead of executing immediately
-3. A human with `approvals:decide` scope reviews and approves/rejects
+3. A different human with `approvals:decide` scope reviews and approves/rejects
 4. If approved, the action executes automatically
+
+The requester cannot approve their own pending request. Approval handoff is part of the safety
+model, not an optional convention.
 
 ## Gated Actions
 
@@ -34,7 +37,7 @@ daoflow backup restore --backup-run-id bkp_run_123 --dry-run --json
 # Once approved, an operator or agent with restore scope can queue the restore
 daoflow backup restore --backup-run-id bkp_run_123 --yes --json
 
-# Human reviewer then approves through the dashboard or API.
+# A different human reviewer then approves through the dashboard or API.
 ```
 
 ## API Flow

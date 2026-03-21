@@ -5,6 +5,7 @@ import { getEffectiveTokenCapabilities, type ApiTokenScope } from "@daoflow/shar
 import type { Context, RequestAuthContext } from "./context";
 import { db } from "./db/connection";
 import { deployments } from "./db/schema/deployments";
+import { approvalRequests, auditEntries } from "./db/schema/audit";
 import { backupRestores } from "./db/schema/storage";
 import { teamMembers, teams } from "./db/schema/teams";
 import { users } from "./db/schema/users";
@@ -1303,6 +1304,58 @@ describe("appRouter", () => {
     expect(request.targetResource).toEqual(expect.any(String));
     expect(request.resourceLabel).toEqual(expect.any(String));
     expect(request.statusTone).toEqual(expect.any(String));
+  });
+
+  it("blocks self-approval and records the failed decision attempt", async () => {
+    const requester = appRouter.createCaller({
+      requestId: "test-approval-self-block-request",
+      session: makeSession("admin")
+    });
+
+    const catalog = await requester.composeReleaseCatalog({});
+    const service = catalog.services.find((candidate) => candidate.imageReference.length > 0);
+
+    if (!service) {
+      return;
+    }
+
+    const request = await requester.requestApproval({
+      actionType: "compose-release",
+      composeServiceId: service.id,
+      commitSha: "abcdef1",
+      imageTag: `${service.imageReference}-candidate`,
+      reason: "Need a second operator before promoting this compose release."
+    });
+
+    const approver = appRouter.createCaller({
+      requestId: "test-approval-self-block-approve",
+      session: makeSession("admin")
+    });
+
+    await expect(
+      approver.approveApprovalRequest({
+        requestId: request.id
+      })
+    ).rejects.toMatchObject({
+      code: "PRECONDITION_FAILED",
+      message: "Approval request must be decided by a different principal."
+    } satisfies Partial<TRPCError>);
+
+    const [storedRequest] = await db
+      .select()
+      .from(approvalRequests)
+      .where(eq(approvalRequests.id, request.id))
+      .limit(1);
+    expect(storedRequest?.status).toBe("pending");
+
+    const auditRows = await db
+      .select()
+      .from(auditEntries)
+      .where(eq(auditEntries.targetResource, `approval-request/${request.id}`));
+    const failedDecision = auditRows.find(
+      (row) => row.action === "approval.approve" && row.outcome === "failure"
+    );
+    expect(failedDecision?.inputSummary).toContain("Blocked self-approval");
   });
 
   it("returns token inventory entries keyed by name", async () => {

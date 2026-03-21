@@ -202,6 +202,28 @@ export async function approveApprovalRequest(
   if (request.status !== "pending") {
     return { status: "invalid-state" as const, currentStatus: request.status };
   }
+  if (request.requestedByUserId === userId) {
+    const summary = asRecord(request.inputSummary);
+    await db.insert(auditEntries).values({
+      actorType: "user",
+      actorId: userId,
+      actorEmail: email,
+      actorRole: role,
+      targetResource: `approval-request/${requestId}`,
+      action: "approval.approve",
+      inputSummary: `Blocked self-approval for ${readString(summary, "resourceLabel", request.targetResource)}.`,
+      permissionScope: "policy:override",
+      outcome: "failure",
+      metadata: {
+        resourceType: "approval-request",
+        resourceId: requestId,
+        resourceLabel: readString(summary, "resourceLabel", request.targetResource),
+        detail: `Blocked self-approval for ${readString(summary, "resourceLabel", request.targetResource)}.`
+      }
+    });
+
+    return { status: "self-approval" as const };
+  }
 
   await db
     .update(approvalRequests)

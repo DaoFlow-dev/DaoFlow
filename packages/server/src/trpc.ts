@@ -169,6 +169,13 @@ export function throwOnOperationError(
       message: `${resourceLabel} is already ${result.currentStatus}.`
     });
   }
+
+  if (result.status === "self-approval") {
+    throw new TRPCError({
+      code: "PRECONDITION_FAILED",
+      message: `${resourceLabel} must be decided by a different principal.`
+    });
+  }
 }
 
 /** Helper for delete/cancel mutations that carry userId, email, and role. */
