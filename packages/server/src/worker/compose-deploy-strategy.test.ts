@@ -122,6 +122,24 @@ async function loadHarness(input: {
     health: string | null;
     exitCode: number | null;
   }>;
+  swarmServiceStatuses?: Array<{
+    id: string;
+    name: string;
+    mode: string;
+    replicas: string;
+    image: string;
+    ports: string | null;
+  }>;
+  swarmTaskStatuses?: Array<{
+    id: string;
+    name: string;
+    image: string;
+    node: string | null;
+    desiredState: string;
+    currentState: string;
+    error: string | null;
+    ports: string | null;
+  }>;
 }) {
   const persistDeploymentComposeEnvState = vi.fn();
   const dockerComposePull = vi.fn().mockResolvedValue({ exitCode: 0 });
@@ -131,6 +149,36 @@ async function loadHarness(input: {
   const dockerComposePs = vi.fn().mockResolvedValue({
     exitCode: 0,
     statuses: input.composeStatuses ?? [createHealthyStatus("api")]
+  });
+  const dockerStackDeploy = vi.fn().mockResolvedValue({ exitCode: 0 });
+  const dockerStackRemove = vi.fn().mockResolvedValue({ exitCode: 0 });
+  const dockerStackServices = vi.fn().mockResolvedValue({
+    exitCode: 0,
+    services: input.swarmServiceStatuses ?? [
+      {
+        id: "stack_api",
+        name: "demo_api",
+        mode: "replicated",
+        replicas: "1/1",
+        image: "ghcr.io/example/api:stable",
+        ports: null
+      }
+    ]
+  });
+  const dockerStackPs = vi.fn().mockResolvedValue({
+    exitCode: 0,
+    tasks: input.swarmTaskStatuses ?? [
+      {
+        id: "task_api_1",
+        name: "demo_api.1",
+        image: "ghcr.io/example/api:stable",
+        node: "manager-1",
+        desiredState: "Running",
+        currentState: "Running 3 seconds ago",
+        error: null,
+        ports: null
+      }
+    ]
   });
 
   vi.doMock("../db/services/compose-env", () => ({
@@ -159,12 +207,23 @@ async function loadHarness(input: {
     dockerComposeUp
   }));
 
+  vi.doMock("./swarm-executor", () => ({
+    dockerStackDeploy,
+    dockerStackRemove,
+    dockerStackServices,
+    dockerStackPs
+  }));
+
   vi.doMock("./ssh-executor", () => ({
     remoteDockerComposeBuild: vi.fn(),
     remoteDockerComposeDown: vi.fn(),
     remoteDockerComposePs: vi.fn(),
     remoteDockerComposePull: vi.fn(),
-    remoteDockerComposeUp: vi.fn()
+    remoteDockerComposeUp: vi.fn(),
+    remoteDockerStackDeploy: vi.fn(),
+    remoteDockerStackRemove: vi.fn(),
+    remoteDockerStackServices: vi.fn(),
+    remoteDockerStackPs: vi.fn()
   }));
 
   vi.doMock("./step-management", () => ({
@@ -184,7 +243,11 @@ async function loadHarness(input: {
     dockerComposeDown,
     dockerComposePs,
     dockerComposePull,
-    dockerComposeUp
+    dockerComposeUp,
+    dockerStackDeploy,
+    dockerStackRemove,
+    dockerStackServices,
+    dockerStackPs
   };
 }
 
@@ -484,6 +547,87 @@ describe("executeComposeDeployment", () => {
       "/tmp/daoflow-build",
       expect.any(Function),
       ".daoflow.compose.env"
+    );
+  });
+
+  it("deploys Swarm manager targets with docker stack deploy semantics", async () => {
+    const {
+      executeComposeDeployment,
+      dockerComposeUp,
+      dockerStackDeploy,
+      dockerStackServices,
+      dockerStackPs
+    } = await loadHarness({
+      buildPlan: createBuildPlan({
+        strategy: "pull-only",
+        services: []
+      })
+    });
+
+    await executeComposeDeployment(
+      {
+        id: "dep_swarm_stack",
+        serviceName: "api",
+        envVarsEncrypted: null
+      } as never,
+      {
+        deploymentSource: "git-repository",
+        composeFilePath: "deploy/compose.yaml"
+      },
+      "demo-stack",
+      () => undefined,
+      { mode: "local", serverKind: "docker-swarm-manager" }
+    );
+
+    expect(dockerComposeUp).not.toHaveBeenCalled();
+    expect(dockerStackDeploy).toHaveBeenCalledWith(
+      ".daoflow.compose.inputs/compose-01__deploy__compose.yaml.yaml",
+      "demo-stack",
+      "/tmp/daoflow-build",
+      expect.any(Function),
+      ".daoflow.compose.env"
+    );
+    expect(dockerStackServices).toHaveBeenCalledWith(
+      "demo-stack",
+      "/tmp/daoflow-build",
+      expect.any(Function)
+    );
+    expect(dockerStackPs).toHaveBeenCalledWith(
+      "demo-stack",
+      "/tmp/daoflow-build",
+      expect.any(Function)
+    );
+  });
+
+  it("removes preview stacks with docker stack rm on Swarm manager targets", async () => {
+    const { executeComposeDeployment, dockerComposeDown, dockerStackRemove } = await loadHarness({
+      buildPlan: createBuildPlan({
+        strategy: "pull-only",
+        services: []
+      })
+    });
+
+    await executeComposeDeployment(
+      {
+        id: "dep_swarm_cleanup",
+        serviceName: "api",
+        envVarsEncrypted: null
+      } as never,
+      {
+        deploymentSource: "git-repository",
+        composeFilePath: "deploy/compose.yaml",
+        composeOperation: "down"
+      },
+      "demo-stack-pr-42",
+      () => undefined,
+      { mode: "local", serverKind: "docker-swarm-manager" }
+    );
+
+    expect(dockerComposeDown).not.toHaveBeenCalled();
+    expect(dockerStackRemove).toHaveBeenCalledWith(
+      "demo-stack-pr-42",
+      "/tmp/daoflow-build",
+      expect.any(Function)
     );
   });
 });

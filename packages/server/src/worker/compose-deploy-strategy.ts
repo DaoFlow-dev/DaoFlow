@@ -7,7 +7,7 @@ import {
   readDeploymentComposeState
 } from "../db/services/compose-env";
 import { prepareComposeWorkspace } from "./compose-workspace";
-import { waitForComposeHealthy } from "./compose-deploy-health";
+import { waitForComposeHealthy, waitForSwarmStackHealthy } from "./compose-deploy-health";
 import {
   dockerComposeBuild,
   dockerComposeDown,
@@ -15,12 +15,15 @@ import {
   dockerComposeUp,
   type OnLog
 } from "./docker-executor";
+import { dockerStackDeploy, dockerStackRemove } from "./swarm-executor";
 import type { ExecutionTarget } from "./execution-target";
 import {
   remoteDockerComposeBuild,
   remoteDockerComposeDown,
   remoteDockerComposePull,
-  remoteDockerComposeUp
+  remoteDockerComposeUp,
+  remoteDockerStackDeploy,
+  remoteDockerStackRemove
 } from "./ssh-executor";
 import {
   createStep,
@@ -32,6 +35,10 @@ import {
   type DeploymentRow
 } from "./step-management";
 import { throwIfDeploymentCancellationRequested } from "../db/services/deployment-execution-control";
+
+function isSwarmManagerTarget(target: ExecutionTarget): boolean {
+  return target.serverKind === "docker-swarm-manager";
+}
 
 export async function executeComposeDeployment(
   deployment: DeploymentRow,
@@ -50,8 +57,10 @@ export async function executeComposeDeployment(
   const composeTargetLabel = composeServiceName
     ? `compose service ${composeServiceName}`
     : "compose services";
+  const swarmTargetLabel = `swarm stack ${projectName}`;
   const readinessProbe = readComposeReadinessProbeSnapshot(config.readinessProbe);
   const composeOperation = config.composeOperation === "down" ? "down" : "up";
+  const swarmManagerTarget = isSwarmManagerTarget(target);
 
   const cloneStepId = await createStep(
     deployment.id,
@@ -99,11 +108,18 @@ export async function executeComposeDeployment(
 
   if (composeOperation === "down") {
     await transitionDeployment(deployment.id, "deploy");
-    const stopStepId = await createStep(deployment.id, "Stop preview stack", 2);
+    const stopStepId = await createStep(
+      deployment.id,
+      swarmManagerTarget ? "Remove preview stack" : "Stop preview stack",
+      2
+    );
     await markStepRunning(stopStepId);
 
-    const downResult =
-      target.mode === "remote"
+    const downResult = swarmManagerTarget
+      ? target.mode === "remote"
+        ? await remoteDockerStackRemove(target.ssh, projectName, workDir, onLog)
+        : await dockerStackRemove(projectName, workDir, onLog)
+      : target.mode === "remote"
         ? await remoteDockerComposeDown(
             target.ssh,
             composeFile,
@@ -117,12 +133,23 @@ export async function executeComposeDeployment(
     if (downResult.exitCode !== 0) {
       await markStepFailed(
         stopStepId,
-        `docker compose down exited with code ${downResult.exitCode}`
+        swarmManagerTarget
+          ? `docker stack rm exited with code ${downResult.exitCode}`
+          : `docker compose down exited with code ${downResult.exitCode}`
       );
-      throw new Error(`docker compose down failed with exit code ${downResult.exitCode}`);
+      throw new Error(
+        swarmManagerTarget
+          ? `docker stack rm failed with exit code ${downResult.exitCode}`
+          : `docker compose down failed with exit code ${downResult.exitCode}`
+      );
     }
 
-    await markStepComplete(stopStepId, `Stopped compose project ${projectName}`);
+    await markStepComplete(
+      stopStepId,
+      swarmManagerTarget
+        ? `Removed swarm stack ${projectName}`
+        : `Stopped compose project ${projectName}`
+    );
     return;
   }
 
@@ -212,14 +239,29 @@ export async function executeComposeDeployment(
   await transitionDeployment(deployment.id, "deploy");
   const deployStepId = await createStep(
     deployment.id,
-    composeServiceName ? `Start ${composeServiceName}` : "Start services",
+    swarmManagerTarget
+      ? "Deploy swarm stack"
+      : composeServiceName
+        ? `Start ${composeServiceName}`
+        : "Start services",
     nextSortOrder
   );
   nextSortOrder += 1;
   await markStepRunning(deployStepId);
 
-  const upResult =
-    target.mode === "remote"
+  const upResult = swarmManagerTarget
+    ? target.mode === "remote"
+      ? await remoteDockerStackDeploy(
+          target.ssh,
+          composeFile,
+          projectName,
+          workDir,
+          onLog,
+          composeEnvFile,
+          composeEnvExportFile
+        )
+      : await dockerStackDeploy(composeFile, projectName, workDir, onLog, composeEnvFile)
+    : target.mode === "remote"
       ? await remoteDockerComposeUp(
           target.ssh,
           composeFile,
@@ -239,14 +281,40 @@ export async function executeComposeDeployment(
           composeServiceName
         );
   if (upResult.exitCode !== 0) {
-    await markStepFailed(deployStepId, `docker compose up exited with code ${upResult.exitCode}`);
-    throw new Error(`docker compose up failed with exit code ${upResult.exitCode}`);
+    await markStepFailed(
+      deployStepId,
+      swarmManagerTarget
+        ? `docker stack deploy exited with code ${upResult.exitCode}`
+        : `docker compose up exited with code ${upResult.exitCode}`
+    );
+    throw new Error(
+      swarmManagerTarget
+        ? `docker stack deploy failed with exit code ${upResult.exitCode}`
+        : `docker compose up failed with exit code ${upResult.exitCode}`
+    );
   }
-  await markStepComplete(deployStepId, `Started ${composeTargetLabel}`);
+  await markStepComplete(
+    deployStepId,
+    swarmManagerTarget ? `Deployed ${swarmTargetLabel}` : `Started ${composeTargetLabel}`
+  );
   await throwIfDeploymentCancellationRequested(deployment.id);
 
   const healthStepId = await createStep(deployment.id, "Health check", nextSortOrder);
   await markStepRunning(healthStepId);
+  if (swarmManagerTarget) {
+    await waitForSwarmStackHealthy({
+      deploymentId: deployment.id,
+      stackName: projectName,
+      workDir,
+      stackTargetLabel: swarmTargetLabel,
+      onLog,
+      target,
+      healthStepId,
+      readinessProbe
+    });
+    return;
+  }
+
   await waitForComposeHealthy({
     composeFile,
     projectName,

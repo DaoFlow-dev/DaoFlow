@@ -190,8 +190,9 @@ export async function createDeploymentRecord(input: CreateDeploymentInput) {
       environmentName: input.environmentName,
       targetServerName: server[0].name,
       targetServerHost: server[0].host,
+      targetServerKind: server[0].kind,
       queueName: "docker-ssh",
-      workerHint: `ssh://${server[0].name}/docker-engine`,
+      workerHint: `ssh://${server[0].name}/${server[0].kind}`,
       ...(input.configSnapshot ?? {})
     },
     envVarsEncrypted: input.envVarsEncrypted ?? null,

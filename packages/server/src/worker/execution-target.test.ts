@@ -26,7 +26,7 @@ describe("resolveExecutionTarget", () => {
       "dep_123"
     );
 
-    expect(target).toEqual({ mode: "local" });
+    expect(target).toEqual({ mode: "local", serverKind: "docker-engine" });
   });
 
   it("routes non-local servers through SSH with a deterministic remote workdir", () => {
@@ -63,5 +63,6 @@ describe("resolveExecutionTarget", () => {
     expect(target.ssh.port).toBe(2222);
     expect(target.ssh.user).toBe("deploy");
     expect(target.remoteWorkDir).toBe("/tmp/daoflow-staging/dep_456");
+    expect(target.serverKind).toBe("docker-engine");
   });
 });

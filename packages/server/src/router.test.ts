@@ -790,6 +790,46 @@ describe("appRouter", () => {
     }
   });
 
+  it("returns Swarm-specific deployment and rollback plans for swarm manager targets", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-plan-swarm",
+      session: makeSession("viewer")
+    });
+
+    // Force the lazy foundation seed to materialize before mutating the shared server row.
+    await caller.services({});
+
+    await db
+      .update(servers)
+      .set({ kind: "docker-swarm-manager" })
+      .where(eq(servers.id, "srv_foundation_1"));
+
+    try {
+      const fixture = await createRollbackFixture();
+
+      const deploymentPlan = await caller.deploymentPlan({
+        service: fixture.serviceId
+      });
+      expect(deploymentPlan.target.targetKind).toBe("docker-swarm-manager");
+      expect(deploymentPlan.steps).toEqual(
+        expect.arrayContaining([expect.stringContaining("docker stack deploy")])
+      );
+
+      const rollbackPlan = await caller.rollbackPlan({
+        service: fixture.serviceId,
+        target: fixture.successDeploymentId
+      });
+      expect(rollbackPlan.steps).toEqual(
+        expect.arrayContaining([expect.stringContaining("docker stack deploy semantics")])
+      );
+    } finally {
+      await db
+        .update(servers)
+        .set({ kind: "docker-engine" })
+        .where(eq(servers.id, "srv_foundation_1"));
+    }
+  });
+
   it("rejects planning requests that override the configured target server", async () => {
     const caller = appRouter.createCaller({
       requestId: "test-plan-server-mismatch",

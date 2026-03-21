@@ -30,6 +30,13 @@ export {
 } from "./ssh-compose";
 
 export {
+  remoteDockerStackDeploy,
+  remoteDockerStackRemove,
+  remoteDockerStackServices,
+  remoteDockerStackPs
+} from "./ssh-swarm";
+
+export {
   remoteDockerPull,
   remoteDockerRun,
   remoteDockerBuild,

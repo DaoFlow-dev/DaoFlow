@@ -5,10 +5,16 @@ import {
   runRemoteComposeReadinessCheck
 } from "./compose-readiness-check";
 import { dockerComposePs, type OnLog } from "./docker-executor";
+import { dockerStackPs, dockerStackServices } from "./swarm-executor";
 import type { ExecutionTarget } from "./execution-target";
-import { remoteDockerComposePs } from "./ssh-executor";
+import {
+  remoteDockerComposePs,
+  remoteDockerStackPs,
+  remoteDockerStackServices
+} from "./ssh-executor";
 import { markStepComplete, markStepFailed } from "./step-management";
 import { throwIfDeploymentCancellationRequested } from "../db/services/deployment-execution-control";
+import { assessSwarmStackHealth } from "./swarm-health";
 
 const HEALTH_CHECK_TIMEOUT_MS = 60_000;
 const HEALTH_CHECK_INTERVAL_MS = 3_000;
@@ -35,6 +41,27 @@ async function readComposeHealthStatuses(
         composeServiceName
       )
     : dockerComposePs(composeFile, projectName, workDir, onLog, envFile, composeServiceName);
+}
+
+async function readSwarmHealthStatuses(
+  stackName: string,
+  workDir: string,
+  onLog: OnLog,
+  target: ExecutionTarget
+) {
+  const [serviceResult, taskResult] = await Promise.all([
+    target.mode === "remote"
+      ? remoteDockerStackServices(target.ssh, stackName, workDir, onLog)
+      : dockerStackServices(stackName, workDir, onLog),
+    target.mode === "remote"
+      ? remoteDockerStackPs(target.ssh, stackName, workDir, onLog)
+      : dockerStackPs(stackName, workDir, onLog)
+  ]);
+
+  return {
+    serviceResult,
+    taskResult
+  };
 }
 
 export async function waitForComposeHealthy(input: {
@@ -128,6 +155,127 @@ export async function waitForComposeHealthy(input: {
               input.onLog
             )
           : await runLocalComposeReadinessCheck(input.readinessProbe, statusResult.statuses);
+
+      if (readinessAttempt.kind === "success") {
+        await markStepComplete(
+          input.healthStepId,
+          `${assessment.summary}; ${readinessAttempt.summary}`
+        );
+        return;
+      }
+
+      if (readinessAttempt.kind === "failed") {
+        await markStepFailed(input.healthStepId, readinessAttempt.summary);
+        throw new Error(readinessAttempt.summary);
+      }
+
+      lastPendingSummary = readinessAttempt.summary;
+      await new Promise((resolve) => setTimeout(resolve, intervalMs));
+      continue;
+    }
+
+    if (assessment.kind === "failed") {
+      await markStepFailed(input.healthStepId, assessment.summary);
+      throw new Error(assessment.summary);
+    }
+
+    lastPendingSummary = assessment.summary;
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+  }
+}
+
+export async function waitForSwarmStackHealthy(input: {
+  deploymentId: string;
+  stackName: string;
+  workDir: string;
+  stackTargetLabel: string;
+  onLog: OnLog;
+  target: ExecutionTarget;
+  healthStepId: number;
+  readinessProbe: ComposeReadinessProbeSnapshot | null;
+}): Promise<void> {
+  const swarmStart = Date.now();
+  let readinessStart: number | null = null;
+  let lastPendingSummary = `${input.stackTargetLabel} is still converging`;
+  const intervalMs = input.readinessProbe
+    ? input.readinessProbe.intervalSeconds * 1_000
+    : HEALTH_CHECK_INTERVAL_MS;
+
+  while (true) {
+    await throwIfDeploymentCancellationRequested(input.deploymentId);
+    const now = Date.now();
+    if (!readinessStart && now - swarmStart >= HEALTH_CHECK_TIMEOUT_MS) {
+      await markStepFailed(
+        input.healthStepId,
+        `Timed out after ${HEALTH_CHECK_TIMEOUT_MS / 1000}s: ${lastPendingSummary}`
+      );
+      throw new Error(`Health check timeout for ${input.stackTargetLabel}`);
+    }
+
+    if (
+      input.readinessProbe &&
+      readinessStart !== null &&
+      now - readinessStart >= input.readinessProbe.timeoutSeconds * 1_000
+    ) {
+      await markStepFailed(
+        input.healthStepId,
+        `Timed out after ${input.readinessProbe.timeoutSeconds}s: ${lastPendingSummary}`
+      );
+      throw new Error(`Health check timeout for ${input.stackTargetLabel}`);
+    }
+
+    const { serviceResult, taskResult } = await readSwarmHealthStatuses(
+      input.stackName,
+      input.workDir,
+      input.onLog,
+      input.target
+    );
+
+    if (serviceResult.exitCode !== 0) {
+      await markStepFailed(
+        input.healthStepId,
+        `docker stack services exited with code ${serviceResult.exitCode}`
+      );
+      throw new Error(`docker stack services failed with exit code ${serviceResult.exitCode}`);
+    }
+
+    if (taskResult.exitCode !== 0) {
+      await markStepFailed(
+        input.healthStepId,
+        `docker stack ps exited with code ${taskResult.exitCode}`
+      );
+      throw new Error(`docker stack ps failed with exit code ${taskResult.exitCode}`);
+    }
+
+    const assessment = assessSwarmStackHealth(
+      serviceResult.services,
+      taskResult.tasks,
+      input.stackTargetLabel
+    );
+    if (assessment.kind === "healthy") {
+      if (!input.readinessProbe) {
+        await markStepComplete(input.healthStepId, assessment.summary);
+        return;
+      }
+
+      if (input.readinessProbe.target === "internal-network") {
+        const detail =
+          `Docker Swarm stack execution supports published-port readiness probes only; ` +
+          `internal-network probes for ${input.readinessProbe.serviceName} cannot resolve task addresses yet.`;
+        await markStepFailed(input.healthStepId, detail);
+        throw new Error(detail);
+      }
+
+      readinessStart ??= Date.now();
+      const readinessAttempt =
+        input.target.mode === "remote"
+          ? await runRemoteComposeReadinessCheck(
+              input.target.ssh,
+              input.readinessProbe,
+              [],
+              input.onLog
+            )
+          : await runLocalComposeReadinessCheck(input.readinessProbe, []);
 
       if (readinessAttempt.kind === "success") {
         await markStepComplete(

@@ -82,12 +82,16 @@ export function buildComposePlanSteps(input: {
   requiresContextUpload: boolean;
   buildPlan: ComposeBuildPlan;
   targetServerName: string;
+  targetServerKind?: string | null;
+  stackName?: string | null;
   composeServiceName?: string | null;
 }) {
   const hasBundleableLocalBuildInputs = hasBundleableBuildInputs(input.buildPlan);
   const executionScope = resolveComposeExecutionScope(input.buildPlan, input.composeServiceName);
   const hasBuildServices = executionScope.buildServiceNames.length > 0;
   const needsPull = executionScope.needsPull;
+  const isSwarmManager = input.targetServerKind === "docker-swarm-manager";
+  const resolvedStackName = input.stackName?.trim() || "the staged stack";
 
   if (input.requiresContextUpload) {
     const steps = hasBundleableLocalBuildInputs
@@ -112,7 +116,11 @@ export function buildComposePlanSteps(input: {
       steps.push(`Build staged compose services on ${input.targetServerName}`);
     }
 
-    steps.push(`Run docker compose up -d on ${input.targetServerName}`);
+    steps.push(
+      isSwarmManager
+        ? `Run docker stack deploy for ${resolvedStackName} on ${input.targetServerName}`
+        : `Run docker compose up -d on ${input.targetServerName}`
+    );
     steps.push("Record health checks and the final deployment outcome");
     return steps;
   }
@@ -131,7 +139,11 @@ export function buildComposePlanSteps(input: {
     steps.push(`Build staged compose services on ${input.targetServerName}`);
   }
 
-  steps.push(`Run docker compose up -d on ${input.targetServerName}`);
+  steps.push(
+    isSwarmManager
+      ? `Run docker stack deploy for ${resolvedStackName} on ${input.targetServerName}`
+      : `Run docker compose up -d on ${input.targetServerName}`
+  );
   steps.push("Record health checks and the final deployment outcome");
   return steps;
 }

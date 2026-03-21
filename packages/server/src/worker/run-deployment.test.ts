@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import { db } from "../db/connection";
 import { deployments } from "../db/schema/deployments";
+import { servers } from "../db/schema/servers";
 import { createEnvironment, createProject } from "../db/services/projects";
 import { createService } from "../db/services/services";
 import { cancelDeployment } from "../db/services/deployments";
@@ -19,10 +20,15 @@ const {
     onLog: vi.fn(),
     flush: vi.fn().mockResolvedValue(undefined)
   })),
-  resolveExecutionTargetMock: vi.fn(() => ({ mode: "local" as const })),
-  withPreparedExecutionTargetMock: vi.fn(async (_target, callback: () => Promise<void>) => {
-    await callback();
-  }),
+  resolveExecutionTargetMock: vi.fn(() => ({
+    mode: "local" as const,
+    serverKind: undefined as string | undefined
+  })),
+  withPreparedExecutionTargetMock: vi.fn(
+    async (target, callback: (target: unknown) => Promise<void>) => {
+      await callback(target);
+    }
+  ),
   executeComposeDeploymentMock: vi.fn(),
   cleanupStagingDirMock: vi.fn()
 }));
@@ -155,5 +161,39 @@ describe("runDeployment", () => {
     expect(updated?.status).toBe("failed");
     expect(updated?.conclusion).toBe("cancelled");
     expect(cleanupStagingDirMock).toHaveBeenCalledWith(deployment.id);
+  });
+
+  it("passes the resolved Swarm manager target kind into compose execution", async () => {
+    await db
+      .update(servers)
+      .set({ kind: "docker-swarm-manager" })
+      .where(eq(servers.id, "srv_foundation_1"));
+    resolveExecutionTargetMock.mockReturnValueOnce({
+      mode: "local",
+      serverKind: "docker-swarm-manager"
+    });
+
+    const deployment = await createDeploymentRecordFixture();
+
+    const { runDeployment } = await import("./run-deployment");
+    const outcome = await runDeployment(deployment, "test-worker");
+
+    expect(outcome).toBe("succeeded");
+    expect(resolveExecutionTargetMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: "srv_foundation_1",
+        kind: "docker-swarm-manager"
+      }),
+      deployment.id
+    );
+    expect(executeComposeDeploymentMock).toHaveBeenCalledWith(
+      deployment,
+      expect.any(Object),
+      expect.any(String),
+      expect.any(Function),
+      expect.objectContaining({
+        serverKind: "docker-swarm-manager"
+      })
+    );
   });
 });

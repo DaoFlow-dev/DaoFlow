@@ -6,6 +6,7 @@ import { db } from "./db/connection";
 import { encrypt } from "./db/crypto";
 import { deployments } from "./db/schema/deployments";
 import { environmentVariables, projects } from "./db/schema/projects";
+import { servers } from "./db/schema/servers";
 import { teams } from "./db/schema/teams";
 import { createEnvironment, createProject } from "./db/services/projects";
 import { ensureControlPlaneReady } from "./db/services/seed";
@@ -292,6 +293,46 @@ describe("planning diff surfaces", () => {
         "Run docker compose up -d on foundation-vps-1"
       ])
     );
+  });
+
+  it("uses docker stack deploy wording for swarm manager direct compose plans", async () => {
+    await db
+      .update(servers)
+      .set({ kind: "docker-swarm-manager" })
+      .where(eq(servers.id, "srv_foundation_1"));
+
+    try {
+      const caller = appRouter.createCaller({
+        requestId: "test-compose-plan-swarm",
+        session: makeSession("viewer")
+      });
+
+      fixtureCounter += 1;
+      const suffix = `${Date.now()}_${fixtureCounter}`;
+      const stackName = `compose-plan-swarm-${suffix}`;
+
+      const plan = await caller.composeDeploymentPlan({
+        server: "srv_foundation_1",
+        compose: [`name: ${stackName}`, "services:", "  web:", "    image: nginx:alpine"].join(
+          "\n"
+        ),
+        composePath: "./fixtures/compose.yaml",
+        requiresContextUpload: false,
+        localBuildContexts: []
+      });
+
+      expect(plan.isReady).toBe(true);
+      expect(plan.target.targetKind).toBe("docker-swarm-manager");
+      expect(plan.steps).toContain(`Run docker stack deploy for ${stackName} on foundation-vps-1`);
+      expect(
+        plan.preflightChecks.some((check) => check.detail.includes("docker-swarm-manager"))
+      ).toBe(true);
+    } finally {
+      await db
+        .update(servers)
+        .set({ kind: "docker-engine" })
+        .where(eq(servers.id, "srv_foundation_1"));
+    }
   });
 
   it("keeps the build step for direct compose plans that build from remote contexts", async () => {

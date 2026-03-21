@@ -220,6 +220,8 @@ function buildPlanSteps(input: {
   hasDockerfilePath: boolean;
   hasHealthcheck: boolean;
   targetServerName: string;
+  targetServerKind?: string | null;
+  stackName?: string | null;
   composeServiceName?: string | null;
   composeReadinessProbe?: ComposeReadinessProbe | null;
   composeBuildPlan?: ComposeBuildPlan | null;
@@ -229,10 +231,14 @@ function buildPlanSteps(input: {
 
   switch (input.sourceType) {
     case "compose": {
+      const isSwarmManager = input.targetServerKind === "docker-swarm-manager";
+      const stackName = input.stackName?.trim() || "the staged stack";
       if (input.composeOperation === "down") {
         return [
           "Freeze the compose inputs and resolved runtime spec for preview cleanup",
-          "Apply docker compose down for the preview stack",
+          isSwarmManager
+            ? `Apply docker stack rm for preview stack ${stackName}`
+            : "Apply docker compose down for the preview stack",
           serverStep
         ];
       }
@@ -259,11 +265,19 @@ function buildPlanSteps(input: {
       if (hasScopedBuildServices) {
         steps.push(`Build ${composeTargetLabel} from the checked-out compose contexts`);
       }
-      steps.push(composeUpCommand);
       steps.push(
-        input.composeReadinessProbe
-          ? `Verify Docker Compose container state, Docker health, and ${describeComposeReadinessProbe(input.composeReadinessProbe, input.composeServiceName ?? undefined)}, then mark the rollout outcome`
-          : "Verify Docker Compose container state and Docker health, then mark the rollout outcome"
+        isSwarmManager
+          ? `Apply docker stack deploy for ${stackName} with the staged configuration`
+          : composeUpCommand
+      );
+      steps.push(
+        isSwarmManager
+          ? input.composeReadinessProbe
+            ? `Verify Docker Swarm service replicas, running tasks, and ${describeComposeReadinessProbe(input.composeReadinessProbe, input.composeServiceName ?? undefined)}, then mark the rollout outcome`
+            : "Verify Docker Swarm service replicas and running tasks, then mark the rollout outcome"
+          : input.composeReadinessProbe
+            ? `Verify Docker Compose container state, Docker health, and ${describeComposeReadinessProbe(input.composeReadinessProbe, input.composeServiceName ?? undefined)}, then mark the rollout outcome`
+            : "Verify Docker Compose container state and Docker health, then mark the rollout outcome"
       );
       steps.push(serverStep);
       return steps;
@@ -361,7 +375,7 @@ export async function buildDeploymentPlan(input: BuildDeploymentPlanInput) {
     resolvedServer
       ? makeCheck(
           "ok",
-          `Target server resolved to ${resolvedServer.name} (${resolvedServer.host}).`
+          `Target server resolved to ${resolvedServer.name} (${resolvedServer.host}) as ${resolvedServer.kind}.`
         )
       : makeCheck("fail", "No target server is configured for this service or environment."),
     sourceType === "dockerfile" && !service.dockerfilePath
@@ -417,12 +431,26 @@ export async function buildDeploymentPlan(input: BuildDeploymentPlanInput) {
     }
 
     if (readinessProbe) {
-      checks.push(
-        makeCheck(
-          "ok",
-          `Compose execution will run ${describeComposeReadinessProbe(readinessProbe, service.composeServiceName ?? service.name)} after Docker Compose container state and Docker health are green.`
-        )
-      );
+      if (
+        resolvedServer?.kind === "docker-swarm-manager" &&
+        readinessProbe.target === "internal-network"
+      ) {
+        checks.push(
+          makeCheck(
+            "fail",
+            `Docker Swarm execution currently supports published-port readiness probes only; ${describeComposeReadinessProbe(readinessProbe, service.composeServiceName ?? service.name)} cannot resolve task addresses yet.`
+          )
+        );
+      } else {
+        checks.push(
+          makeCheck(
+            "ok",
+            resolvedServer?.kind === "docker-swarm-manager"
+              ? `Swarm execution will run ${describeComposeReadinessProbe(readinessProbe, service.composeServiceName ?? service.name)} after Docker Swarm service replicas and running tasks converge.`
+              : `Compose execution will run ${describeComposeReadinessProbe(readinessProbe, service.composeServiceName ?? service.name)} after Docker Compose container state and Docker health are green.`
+          )
+        );
+      }
     } else if (service.healthcheckPath) {
       checks.push(
         makeCheck(
@@ -525,6 +553,15 @@ export async function buildDeploymentPlan(input: BuildDeploymentPlanInput) {
       });
       checks.push(...buildComposeEnvPlanChecks(composeEnvPlan));
     }
+
+    if (resolvedServer?.kind === "docker-swarm-manager") {
+      checks.push(
+        makeCheck(
+          "ok",
+          `Swarm manager targets reconcile the full stack ${previewMetadata?.stackName ?? project[0].name} with docker stack deploy semantics.`
+        )
+      );
+    }
   }
 
   const steps = buildPlanSteps({
@@ -533,6 +570,8 @@ export async function buildDeploymentPlan(input: BuildDeploymentPlanInput) {
     hasDockerfilePath: Boolean(service.dockerfilePath),
     hasHealthcheck: Boolean(service.healthcheckPath),
     targetServerName: resolvedServer?.name ?? "the configured worker",
+    targetServerKind: resolvedServer?.kind,
+    stackName: previewMetadata?.stackName ?? project[0].name,
     composeServiceName: service.composeServiceName,
     composeReadinessProbe: readinessProbe,
     composeBuildPlan,
@@ -576,6 +615,7 @@ export async function buildDeploymentPlan(input: BuildDeploymentPlanInput) {
       serverId: resolvedServer?.id ?? null,
       serverName: resolvedServer?.name ?? null,
       serverHost: resolvedServer?.host ?? null,
+      targetKind: resolvedServer?.kind ?? null,
       imageTag: effectiveImageTag,
       preview: previewMetadata
     },

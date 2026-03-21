@@ -6,11 +6,13 @@ import { hostname } from "node:os";
 export type ExecutionTarget =
   | {
       mode: "local";
+      serverKind?: string;
     }
   | {
       mode: "remote";
       ssh: SSHTarget;
       remoteWorkDir: string;
+      serverKind?: string;
     };
 
 const REMOTE_STAGING_ROOT = process.env.REMOTE_GIT_WORK_DIR ?? "/tmp/daoflow-staging";
@@ -34,11 +36,15 @@ export function resolveExecutionTarget(
   deploymentId: string
 ): ExecutionTarget {
   if (isLocalHost(server.host)) {
-    return { mode: "local" };
+    return {
+      mode: "local",
+      serverKind: server.kind
+    };
   }
 
   return {
     mode: "remote",
+    serverKind: server.kind,
     ssh: {
       serverName: server.name,
       host: server.host,

@@ -12,6 +12,7 @@ import { and, desc, eq } from "drizzle-orm";
 import { db } from "../connection";
 import { deployments } from "../schema/deployments";
 import { environments, projects } from "../schema/projects";
+import { servers } from "../schema/servers";
 import { services } from "../schema/services";
 import { createDeploymentRecord, type CreateDeploymentInput } from "./deployments";
 import { dispatchDeploymentExecution } from "./deployment-dispatch";
@@ -154,6 +155,11 @@ export async function executeRollback(input: ExecuteRollbackInput) {
   } else {
     delete configSnapshot.composeImageOverride;
   }
+  const [targetServer] = await db
+    .select()
+    .from(servers)
+    .where(eq(servers.id, target.targetServerId))
+    .limit(1);
 
   const deployInput: CreateDeploymentInput = {
     projectName: readString(snapshot, "projectName", project[0].name),
@@ -175,7 +181,10 @@ export async function executeRollback(input: ExecuteRollbackInput) {
       },
       {
         label: "Queue execution handoff",
-        detail: "Dispatch the rollback deployment to the execution plane."
+        detail:
+          target.sourceType === "compose" && targetServer?.kind === "docker-swarm-manager"
+            ? "Dispatch the rollback deployment to the execution plane as a Docker Swarm stack update."
+            : "Dispatch the rollback deployment to the execution plane."
       }
     ]
   };

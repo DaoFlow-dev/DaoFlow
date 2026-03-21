@@ -4,6 +4,7 @@ import {
   getDeploymentStatusTone,
   normalizeDeploymentStatus
 } from "@daoflow/shared";
+import { readComposeReadinessProbeFromConfig } from "../../compose-readiness";
 import { db } from "../connection";
 import { deployments } from "../schema/deployments";
 import { environments, projects } from "../schema/projects";
@@ -57,6 +58,9 @@ export async function buildRollbackPlan(input: BuildRollbackPlanInput) {
         .where(eq(servers.id, latestDeployment[0]?.targetServerId ?? service.targetServerId ?? ""))
         .limit(1)
     : [];
+  const readinessProbe = readComposeReadinessProbeFromConfig(service.config);
+  const isSwarmRollback =
+    selectedTarget?.sourceType === "compose" && targetServer?.kind === "docker-swarm-manager";
 
   const checks = [
     latestDeployment[0]
@@ -105,15 +109,28 @@ export async function buildRollbackPlan(input: BuildRollbackPlanInput) {
         }
   ];
 
+  if (isSwarmRollback && readinessProbe && readinessProbe.target === "internal-network") {
+    checks.push({
+      status: "fail" as const,
+      detail:
+        `Docker Swarm rollback currently supports published-port readiness probes only; ` +
+        `${service.name} uses an internal-network probe.`
+    });
+  }
+
   const steps = selectedTarget
     ? [
         `Freeze the current deployment state for ${service.name}`,
         `Rehydrate runtime inputs from deployment ${selectedTarget.deploymentId}`,
         "Queue a new rollback deployment record with the preserved configuration",
         targetServer
-          ? `Dispatch rollback execution to ${targetServer.name}`
+          ? isSwarmRollback
+            ? `Dispatch rollback execution to ${targetServer.name} with docker stack deploy semantics`
+            : `Dispatch rollback execution to ${targetServer.name}`
           : "Dispatch rollback execution to the configured target server",
-        "Run health checks before promoting the rollback as healthy"
+        isSwarmRollback
+          ? "Run Docker Swarm service and task health checks before promoting the rollback as healthy"
+          : "Run health checks before promoting the rollback as healthy"
       ]
     : [];
 

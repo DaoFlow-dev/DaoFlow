@@ -9,8 +9,9 @@ import { and, desc, eq } from "drizzle-orm";
 import { basename, isAbsolute } from "node:path";
 import { db } from "../connection";
 import { deployments } from "../schema/deployments";
-import { services } from "../schema/services";
 import { environments, projects } from "../schema/projects";
+import { servers } from "../schema/servers";
+import { services } from "../schema/services";
 import {
   createDeploymentRecord,
   type CreateDeploymentInput,
@@ -55,9 +56,12 @@ export interface TriggerDeployInput {
 /** Generate deployment steps based on sourceType. */
 function stepsForSourceType(input: {
   sourceType: string;
+  targetKind?: string | null;
   composeOperation?: "up" | "down";
   hasPreview?: boolean;
 }): { label: string; detail: string }[] {
+  const isSwarmCompose =
+    input.sourceType === "compose" && input.targetKind === "docker-swarm-manager";
   switch (input.sourceType) {
     case "compose":
       return [
@@ -71,8 +75,12 @@ function stepsForSourceType(input: {
           label: "Queue execution handoff",
           detail:
             input.composeOperation === "down"
-              ? "Dispatch the compose preview cleanup to the execution plane."
-              : "Dispatch the compose deployment to the execution plane."
+              ? isSwarmCompose
+                ? "Dispatch the Swarm preview cleanup to the execution plane."
+                : "Dispatch the compose preview cleanup to the execution plane."
+              : isSwarmCompose
+                ? "Dispatch the Swarm stack deployment to the execution plane."
+                : "Dispatch the compose deployment to the execution plane."
         }
       ];
     case "dockerfile":
@@ -178,6 +186,15 @@ export async function triggerDeploy(input: TriggerDeployInput) {
     ((envConfig as Record<string, unknown>).targetServerId as string | undefined);
 
   if (!targetServerId) {
+    return { status: "no_server" as const };
+  }
+  const [targetServer] = await db
+    .select()
+    .from(servers)
+    .where(eq(servers.id, targetServerId))
+    .limit(1);
+
+  if (!targetServer) {
     return { status: "no_server" as const };
   }
 
@@ -361,6 +378,7 @@ export async function triggerDeploy(input: TriggerDeployInput) {
     trigger: input.trigger ?? "user",
     steps: stepsForSourceType({
       sourceType: svc.sourceType,
+      targetKind: targetServer.kind,
       composeOperation: configSnapshot.composeOperation === "down" ? "down" : "up",
       hasPreview: configSnapshot.preview !== undefined
     }),

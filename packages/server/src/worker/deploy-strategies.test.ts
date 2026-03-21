@@ -87,6 +87,24 @@ async function loadHarness(input: {
       entries: [];
     };
   };
+  swarmServiceStatuses?: Array<{
+    id: string;
+    name: string;
+    mode: string;
+    replicas: string;
+    image: string;
+    ports: string | null;
+  }>;
+  swarmTaskStatuses?: Array<{
+    id: string;
+    name: string;
+    image: string;
+    node: string | null;
+    desiredState: string;
+    currentState: string;
+    error: string | null;
+    ports: string | null;
+  }>;
 }) {
   const persistDeploymentComposeEnvState = vi.fn();
   const dockerComposePull = vi.fn().mockResolvedValue({ exitCode: 0 });
@@ -103,6 +121,36 @@ async function loadHarness(input: {
         status: "Up 2 seconds (healthy)",
         health: "healthy",
         exitCode: 0
+      }
+    ]
+  });
+  const dockerStackDeploy = vi.fn().mockResolvedValue({ exitCode: 0 });
+  const dockerStackRemove = vi.fn().mockResolvedValue({ exitCode: 0 });
+  const dockerStackServices = vi.fn().mockResolvedValue({
+    exitCode: 0,
+    services: input.swarmServiceStatuses ?? [
+      {
+        id: "stack_api",
+        name: "demo_api",
+        mode: "replicated",
+        replicas: "1/1",
+        image: "ghcr.io/example/api:stable",
+        ports: null
+      }
+    ]
+  });
+  const dockerStackPs = vi.fn().mockResolvedValue({
+    exitCode: 0,
+    tasks: input.swarmTaskStatuses ?? [
+      {
+        id: "task_api_1",
+        name: "demo_api.1",
+        image: "ghcr.io/example/api:stable",
+        node: "manager-1",
+        desiredState: "Running",
+        currentState: "Running 3 seconds ago",
+        error: null,
+        ports: null
       }
     ]
   });
@@ -158,6 +206,13 @@ async function loadHarness(input: {
     ensureStagingDir: vi.fn()
   }));
 
+  vi.doMock("./swarm-executor", () => ({
+    dockerStackDeploy,
+    dockerStackRemove,
+    dockerStackServices,
+    dockerStackPs
+  }));
+
   vi.doMock("./ssh-executor", () => ({
     remoteCheckContainerHealth: vi.fn(),
     remoteDockerBuild: vi.fn(),
@@ -166,6 +221,10 @@ async function loadHarness(input: {
     remoteDockerComposePs: vi.fn(),
     remoteDockerComposePull: vi.fn(),
     remoteDockerComposeUp: vi.fn(),
+    remoteDockerStackDeploy: vi.fn(),
+    remoteDockerStackRemove: vi.fn(),
+    remoteDockerStackServices: vi.fn(),
+    remoteDockerStackPs: vi.fn(),
     remoteDockerPull: vi.fn(),
     remoteDockerRun: vi.fn(),
     remoteGitClone: vi.fn()

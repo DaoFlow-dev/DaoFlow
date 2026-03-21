@@ -329,7 +329,10 @@ export async function buildComposeDeploymentPlan(input: ComposeDeploymentPlanInp
     teamId
       ? makeCheck("ok", "Organization scope resolved for direct compose deployment.")
       : makeCheck("fail", "No organization is available for this user."),
-    makeCheck("ok", `Target server resolved to ${resolvedServer.name} (${resolvedServer.host}).`),
+    makeCheck(
+      "ok",
+      `Target server resolved to ${resolvedServer.name} (${resolvedServer.host}) as ${resolvedServer.kind}.`
+    ),
     scope.project.action === "reuse"
       ? makeCheck("ok", `Project ${scope.project.name} will be reused.`)
       : makeCheck("warn", `Project ${scope.project.name} will be created during execution.`),
@@ -346,6 +349,14 @@ export async function buildComposeDeploymentPlan(input: ComposeDeploymentPlanInp
   checks.push(...buildComposeEnvPlanChecks(composeEnvPlan));
   checks.push(makeCheck("ok", summarizeComposeGraph(buildPlan)));
   checks.push(makeCheck("ok", summarizeDerivedBuildPlan(buildPlan)));
+  if (resolvedServer.kind === "docker-swarm-manager") {
+    checks.push(
+      makeCheck(
+        "ok",
+        `Swarm manager targets reconcile the full stack ${projectName} with docker stack deploy semantics.`
+      )
+    );
+  }
   for (const warning of buildPlan.warnings) {
     checks.push(makeCheck("warn", warning));
   }
@@ -443,7 +454,9 @@ export async function buildComposeDeploymentPlan(input: ComposeDeploymentPlanInp
   const steps = buildComposePlanSteps({
     requiresContextUpload: input.requiresContextUpload,
     buildPlan,
-    targetServerName: resolvedServer.name
+    targetServerName: resolvedServer.name,
+    targetServerKind: resolvedServer.kind,
+    stackName: projectName
   });
   const deploymentSource: "uploaded-context" | "uploaded-compose" = input.requiresContextUpload
     ? "uploaded-context"
@@ -473,6 +486,7 @@ export async function buildComposeDeploymentPlan(input: ComposeDeploymentPlanInp
       serverId: resolvedServer.id,
       serverName: resolvedServer.name,
       serverHost: resolvedServer.host,
+      targetKind: resolvedServer.kind,
       composePath: input.composePath ?? null,
       composeFiles:
         input.composeFiles?.map((composeFile) => composeFile.path) ??
