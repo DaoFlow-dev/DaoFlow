@@ -1,6 +1,7 @@
 import { Command } from "commander";
 import chalk from "chalk";
 import { runCommandAction } from "../command-action";
+import { normalizeCliInput, normalizeOptionalCliInput } from "../command-helpers";
 import { createClient } from "../trpc-client";
 import type { PersistentVolumeRegistryOutput, VolumeMutationOutput } from "../trpc-contract";
 
@@ -32,11 +33,6 @@ function parseVolumeStatus(value: string): "active" | "inactive" | "paused" {
   }
 
   throw new Error(`Unsupported volume status: ${value}`);
-}
-
-function trimOrUndefined(value?: string) {
-  const trimmed = value?.trim();
-  return trimmed ? trimmed : undefined;
 }
 
 function renderVolumeListHuman(data: PersistentVolumeRegistryOutput) {
@@ -142,11 +138,13 @@ export function volumesCommand(): Command {
           json: opts.json,
           action: async (ctx) => {
             const payload = {
-              name: opts.name.trim(),
-              serverId: opts.serverId.trim(),
-              mountPath: opts.mountPath.trim(),
-              serviceId: trimOrUndefined(opts.serviceId),
-              driver: opts.driver.trim(),
+              name: normalizeCliInput(opts.name, "Volume name"),
+              serverId: normalizeCliInput(opts.serverId, "Server ID"),
+              mountPath: normalizeCliInput(opts.mountPath, "Mount path", {
+                maxLength: 1024
+              }),
+              serviceId: normalizeOptionalCliInput(opts.serviceId, "Service ID"),
+              driver: normalizeCliInput(opts.driver, "Volume driver"),
               sizeBytes: opts.sizeBytes,
               status: opts.status
             };
@@ -184,6 +182,7 @@ export function volumesCommand(): Command {
                 volume
               },
               {
+                quiet: () => volume.id,
                 human: () => renderVolumeMutationHuman("registered", volume)
               }
             );
@@ -230,12 +229,16 @@ export function volumesCommand(): Command {
           json: opts.json,
           action: async (ctx) => {
             const payload = {
-              volumeId: opts.volumeId.trim(),
-              name: trimOrUndefined(opts.name),
-              serverId: trimOrUndefined(opts.serverId),
-              mountPath: trimOrUndefined(opts.mountPath),
-              serviceId: opts.detachService ? "" : trimOrUndefined(opts.serviceId),
-              driver: trimOrUndefined(opts.driver),
+              volumeId: normalizeCliInput(opts.volumeId, "Volume ID"),
+              name: normalizeOptionalCliInput(opts.name, "Volume name"),
+              serverId: normalizeOptionalCliInput(opts.serverId, "Server ID"),
+              mountPath: normalizeOptionalCliInput(opts.mountPath, "Mount path", {
+                maxLength: 1024
+              }),
+              serviceId: opts.detachService
+                ? ""
+                : normalizeOptionalCliInput(opts.serviceId, "Service ID"),
+              driver: normalizeOptionalCliInput(opts.driver, "Volume driver"),
               sizeBytes: opts.sizeBytes,
               status: opts.status
             };
@@ -265,6 +268,7 @@ export function volumesCommand(): Command {
                 volume
               },
               {
+                quiet: () => volume.id,
                 human: () => renderVolumeMutationHuman("updated", volume)
               }
             );
@@ -289,7 +293,7 @@ export function volumesCommand(): Command {
           command,
           json: opts.json,
           action: async (ctx) => {
-            const volumeId = opts.volumeId.trim();
+            const volumeId = normalizeCliInput(opts.volumeId, "Volume ID");
 
             if (opts.dryRun) {
               return ctx.dryRun(
@@ -320,6 +324,7 @@ export function volumesCommand(): Command {
             const result = await trpc.deleteVolume.mutate({ volumeId });
 
             return ctx.success(result, {
+              quiet: () => volumeId,
               human: () => {
                 console.log(chalk.green(`✓ Deleted volume ${volumeId}`));
                 console.log();

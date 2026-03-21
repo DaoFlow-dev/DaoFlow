@@ -41,7 +41,8 @@ export function createProgram(): Command {
     .version(CLI_VERSION)
     .option("--json", "Output as structured JSON (stdout)")
     .option("-q, --quiet", "Output bare values only")
-    .option("--timeout <seconds>", "API request timeout in seconds", "30");
+    .option("--timeout <seconds>", "API request timeout in seconds", "30")
+    .option("--idempotency-key <key>", "Replay-safe key for write commands");
 
   program.addCommand(loginCommand());
   program.addCommand(servicesCommand());

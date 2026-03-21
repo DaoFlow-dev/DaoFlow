@@ -7,12 +7,8 @@
 
 import { Command } from "commander";
 import chalk from "chalk";
-import {
-  emitJsonError,
-  emitJsonSuccess,
-  getErrorMessage,
-  resolveCommandJsonOption
-} from "../command-helpers";
+import { runCommandAction } from "../command-action";
+import { getErrorMessage, normalizeCliInput } from "../command-helpers";
 import { createClient } from "../trpc-client";
 
 export function cancelCommand(): Command {
@@ -23,46 +19,39 @@ export function cancelCommand(): Command {
     .option("-y, --yes", "Skip confirmation prompt")
     .action(
       async (opts: { deployment: string; json?: boolean; yes?: boolean }, command: Command) => {
-        const isJson = resolveCommandJsonOption(command, opts.json);
+        await runCommandAction({
+          command,
+          json: opts.json,
+          action: async (ctx) => {
+            const deploymentId = normalizeCliInput(opts.deployment, "Deployment ID");
 
-        if (!opts.yes) {
-          const error = `Destructive: cancel deployment ${opts.deployment}. Pass --yes to confirm.`;
-          if (isJson) {
-            emitJsonError(error, "CONFIRMATION_REQUIRED");
-          } else {
-            console.error(chalk.yellow(error));
+            ctx.requireConfirmation(
+              opts.yes === true,
+              `Destructive: cancel deployment ${deploymentId}. Pass --yes to confirm.`
+            );
+
+            try {
+              const trpc = createClient();
+
+              const result = await trpc.cancelDeployment.mutate({
+                deploymentId
+              });
+
+              return ctx.success(result, {
+                quiet: () => deploymentId,
+                human: () => {
+                  console.log(chalk.blue(`⟳ Cancelling deployment ${deploymentId}...`));
+                  console.log(chalk.green(`✓ Deployment ${deploymentId} cancelled`));
+                }
+              });
+            } catch (error) {
+              const message = getErrorMessage(error);
+              ctx.fail(message, {
+                code: message.includes("already") ? "CONFLICT" : "API_ERROR"
+              });
+            }
           }
-          process.exit(1);
-          return;
-        }
-
-        try {
-          const trpc = createClient();
-
-          if (!isJson) {
-            console.log(chalk.blue(`⟳ Cancelling deployment ${opts.deployment}...`));
-          }
-
-          const result = await trpc.cancelDeployment.mutate({
-            deploymentId: opts.deployment
-          });
-
-          if (isJson) {
-            emitJsonSuccess(result);
-          } else {
-            console.log(chalk.green(`✓ Deployment ${opts.deployment} cancelled`));
-          }
-        } catch (err) {
-          const message = getErrorMessage(err);
-          const isConflict = message.includes("already");
-
-          if (isJson) {
-            emitJsonError(message, isConflict ? "CONFLICT" : "API_ERROR");
-          } else {
-            console.error(chalk.red(`✗ ${message}`));
-          }
-          process.exit(isConflict ? 1 : 1);
-        }
+        });
       }
     );
 }

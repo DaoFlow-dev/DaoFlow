@@ -1,7 +1,11 @@
 import { Command } from "commander";
 import type { RouterOutputs } from "../trpc-client";
 import { getCurrentContext, loadConfig } from "../config";
-import { getErrorMessage, resolveCommandJsonOption } from "../command-helpers";
+import {
+  getErrorMessage,
+  resolveCommandJsonOption,
+  withResolvedCommandRequestOptions
+} from "../command-helpers";
 import { createClient } from "../trpc-client";
 
 type DoctorContext = NonNullable<ReturnType<typeof getCurrentContext>>;
@@ -157,43 +161,45 @@ export function doctorCommand(): Command {
         console.log("\n🩺 DaoFlow Doctor\n");
       }
 
-      const config = loadConfig();
-      const ctx = getCurrentContext();
-      const { checks, summary } = await collectDoctorChecks({
-        ctx,
-        currentContext: config.currentContext
-      });
-      const failures = checks.filter((check) => check.status === "fail");
+      await withResolvedCommandRequestOptions(command, async () => {
+        const config = loadConfig();
+        const ctx = getCurrentContext();
+        const { checks, summary } = await collectDoctorChecks({
+          ctx,
+          currentContext: config.currentContext
+        });
+        const failures = checks.filter((check) => check.status === "fail");
 
-      if (isJson) {
+        if (isJson) {
+          if (failures.length > 0) {
+            console.log(
+              JSON.stringify({
+                ok: false,
+                error: `Found ${failures.length} issue(s)`,
+                code: "DOCTOR_FAILED",
+                data: { checks, summary }
+              })
+            );
+            process.exit(1);
+          }
+
+          console.log(JSON.stringify({ ok: true, data: { checks, summary } }));
+          return;
+        }
+
+        const icons = { ok: "✅", warn: "⚠️ ", fail: "❌" };
+        for (const check of checks) {
+          console.log(`  ${icons[check.status]}  ${check.name}: ${check.detail}`);
+        }
+
+        console.log("");
         if (failures.length > 0) {
-          console.log(
-            JSON.stringify({
-              ok: false,
-              error: `Found ${failures.length} issue(s)`,
-              code: "DOCTOR_FAILED",
-              data: { checks, summary }
-            })
-          );
+          console.log(`Found ${failures.length} issue(s). Resolve them and re-run daoflow doctor.`);
           process.exit(1);
         }
 
-        console.log(JSON.stringify({ ok: true, data: { checks, summary } }));
-        return;
-      }
-
-      const icons = { ok: "✅", warn: "⚠️ ", fail: "❌" };
-      for (const check of checks) {
-        console.log(`  ${icons[check.status]}  ${check.name}: ${check.detail}`);
-      }
-
-      console.log("");
-      if (failures.length > 0) {
-        console.log(`Found ${failures.length} issue(s). Resolve them and re-run daoflow doctor.`);
-        process.exit(1);
-      }
-
-      console.log("All checks passed! DaoFlow is ready.");
+        console.log("All checks passed! DaoFlow is ready.");
+      });
     });
 
   return cmd;

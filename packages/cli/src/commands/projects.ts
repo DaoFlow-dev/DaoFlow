@@ -1,6 +1,7 @@
 import { Command } from "commander";
 import chalk from "chalk";
 import { runCommandAction } from "../command-action";
+import { normalizeCliInput, normalizeOptionalCliInput } from "../command-helpers";
 import { createClient } from "../trpc-client";
 import type {
   ProjectDetailsOutput,
@@ -13,13 +14,8 @@ function collectValues(value: string, previous: string[] = []) {
   return previous;
 }
 
-function trimOrUndefined(value?: string) {
-  const trimmed = value?.trim();
-  return trimmed ? trimmed : undefined;
-}
-
-function normalizeRepeatedValues(values?: string[]) {
-  return (values ?? []).map((value) => value.trim()).filter(Boolean);
+function normalizeRepeatedValues(values: string[] | undefined, field: string) {
+  return (values ?? []).map((value) => normalizeCliInput(value, field)).filter(Boolean);
 }
 
 function summarizeProject(project: ProjectListItem | ProjectDetailsOutput) {
@@ -193,7 +189,8 @@ export function projectsCommand(): Command {
         json: opts.json,
         action: async (ctx) => {
           const trpc = createClient();
-          const project = await trpc.projectDetails.query({ projectId: projectId.trim() });
+          const normalizedProjectId = normalizeCliInput(projectId, "Project ID");
+          const project = await trpc.projectDetails.query({ projectId: normalizedProjectId });
 
           return ctx.success(
             {
@@ -246,15 +243,24 @@ export function projectsCommand(): Command {
           json: opts.json,
           action: async (ctx) => {
             const payload = {
-              name: opts.name.trim(),
-              description: trimOrUndefined(opts.description),
-              repoUrl: trimOrUndefined(opts.repoUrl),
-              repoFullName: trimOrUndefined(opts.repoFullName),
-              defaultBranch: trimOrUndefined(opts.defaultBranch),
-              composeFiles: normalizeRepeatedValues(opts.composeFile),
-              composeProfiles: normalizeRepeatedValues(opts.composeProfile),
+              name: normalizeCliInput(opts.name, "Project name"),
+              description: normalizeOptionalCliInput(opts.description, "Project description", {
+                maxLength: 512
+              }),
+              repoUrl: normalizeOptionalCliInput(opts.repoUrl, "Repository URL", {
+                allowPathTraversal: true,
+                allowShellMetacharacters: true,
+                maxLength: 2048
+              }),
+              repoFullName: normalizeOptionalCliInput(opts.repoFullName, "Repository full name"),
+              defaultBranch: normalizeOptionalCliInput(opts.defaultBranch, "Default branch"),
+              composeFiles: normalizeRepeatedValues(opts.composeFile, "Compose file"),
+              composeProfiles: normalizeRepeatedValues(opts.composeProfile, "Compose profile"),
               autoDeploy: opts.autoDeploy ?? false,
-              autoDeployBranch: trimOrUndefined(opts.autoDeployBranch)
+              autoDeployBranch: normalizeOptionalCliInput(
+                opts.autoDeployBranch,
+                "Auto-deploy branch"
+              )
             };
 
             if (opts.dryRun) {
@@ -310,6 +316,7 @@ export function projectsCommand(): Command {
                 }
               },
               {
+                quiet: () => project.id,
                 human: () => {
                   console.log(chalk.green(`✓ Created project ${project.name} (${project.id})`));
                   if (project.repoFullName || project.repoUrl) {
@@ -340,7 +347,7 @@ export function projectsCommand(): Command {
           command,
           json: opts.json,
           action: async (ctx) => {
-            const projectId = opts.project.trim();
+            const projectId = normalizeCliInput(opts.project, "Project ID");
             if (opts.dryRun) {
               return ctx.dryRun(
                 { dryRun: true, projectId },
@@ -366,6 +373,7 @@ export function projectsCommand(): Command {
             return ctx.success(
               { deleted: true, projectId },
               {
+                quiet: () => projectId,
                 human: () => {
                   console.log(chalk.green(`✓ Deleted project ${projectId}`));
                 }
@@ -389,13 +397,14 @@ export function projectsCommand(): Command {
         json: opts.json,
         action: async (ctx) => {
           const trpc = createClient();
+          const projectId = normalizeCliInput(opts.project, "Project ID");
           const environments = await trpc.projectEnvironments.query({
-            projectId: opts.project.trim()
+            projectId
           });
 
           return ctx.success(
             {
-              projectId: opts.project.trim(),
+              projectId,
               summary: {
                 totalEnvironments: environments.length,
                 totalServices: environments.reduce(
@@ -443,11 +452,11 @@ export function projectsCommand(): Command {
           json: opts.json,
           action: async (ctx) => {
             const payload = {
-              projectId: opts.project.trim(),
-              name: opts.name.trim(),
-              targetServerId: trimOrUndefined(opts.server),
-              composeFiles: normalizeRepeatedValues(opts.composeFile),
-              composeProfiles: normalizeRepeatedValues(opts.composeProfile)
+              projectId: normalizeCliInput(opts.project, "Project ID"),
+              name: normalizeCliInput(opts.name, "Environment name"),
+              targetServerId: normalizeOptionalCliInput(opts.server, "Target server ID"),
+              composeFiles: normalizeRepeatedValues(opts.composeFile, "Compose file"),
+              composeProfiles: normalizeRepeatedValues(opts.composeProfile, "Compose profile")
             };
 
             if (opts.dryRun) {
@@ -500,6 +509,7 @@ export function projectsCommand(): Command {
                 }
               },
               {
+                quiet: () => environment.id,
                 human: () => {
                   console.log(
                     chalk.green(`✓ Created environment ${environment.name} (${environment.id})`)
@@ -549,13 +559,15 @@ export function projectsCommand(): Command {
           command,
           json: opts.json,
           action: async (ctx) => {
-            const composeFiles = normalizeRepeatedValues(opts.composeFile);
-            const composeProfiles = normalizeRepeatedValues(opts.composeProfile);
+            const composeFiles = normalizeRepeatedValues(opts.composeFile, "Compose file");
+            const composeProfiles = normalizeRepeatedValues(opts.composeProfile, "Compose profile");
             const payload = {
-              environmentId: opts.environment.trim(),
-              name: trimOrUndefined(opts.name),
-              status: trimOrUndefined(opts.status),
-              targetServerId: opts.clearServer ? "" : trimOrUndefined(opts.server),
+              environmentId: normalizeCliInput(opts.environment, "Environment ID"),
+              name: normalizeOptionalCliInput(opts.name, "Environment name"),
+              status: normalizeOptionalCliInput(opts.status, "Environment status"),
+              targetServerId: opts.clearServer
+                ? ""
+                : normalizeOptionalCliInput(opts.server, "Target server ID"),
               composeFiles: opts.clearComposeOverrides ? [] : composeFiles,
               composeProfiles: opts.clearComposeOverrides ? [] : composeProfiles
             };
@@ -637,6 +649,7 @@ export function projectsCommand(): Command {
                 }
               },
               {
+                quiet: () => environment.id,
                 human: () => {
                   console.log(
                     chalk.green(`✓ Updated environment ${environment.name} (${environment.id})`)
@@ -666,7 +679,7 @@ export function projectsCommand(): Command {
           command,
           json: opts.json,
           action: async (ctx) => {
-            const environmentId = opts.environment.trim();
+            const environmentId = normalizeCliInput(opts.environment, "Environment ID");
             if (opts.dryRun) {
               return ctx.dryRun(
                 { dryRun: true, environmentId },
@@ -692,6 +705,7 @@ export function projectsCommand(): Command {
             return ctx.success(
               { deleted: true, environmentId },
               {
+                quiet: () => environmentId,
                 human: () => {
                   console.log(chalk.green(`✓ Deleted environment ${environmentId}`));
                 }

@@ -19,7 +19,10 @@ import {
   emitJsonError,
   emitJsonSuccess,
   getErrorMessage,
-  resolveCommandJsonOption
+  normalizeCliInput,
+  resolveCommandJsonOption,
+  resolveCommandQuietOption,
+  withResolvedCommandRequestOptions
 } from "../command-helpers";
 import { analyzeComposeInputs } from "../compose-input-analysis";
 import { executeComposeDeploy, estimateContextSize } from "../compose-deploy-execution";
@@ -94,139 +97,150 @@ export function deployCommand(): Command {
         command: Command
       ) => {
         const isJson = resolveCommandJsonOption(command, opts.json);
+        const isQuiet = resolveCommandQuietOption(command);
 
-        // ── Load config defaults ─────────────────────────────
-        const configResult = loadDaoflowConfig();
-        const cfg = configResult?.config;
-        if (configResult && !isJson) {
-          console.error(chalk.dim(`  Using config: ${configResult.filePath}`));
-        }
-
-        // Merge config defaults with CLI flags
-        const composePath = opts.compose ?? cfg?.compose;
-        const contextPath = opts.context ?? cfg?.context ?? ".";
-        const serverId = opts.server ?? cfg?.server;
-        const serviceId = opts.service;
-        const previewTargetResult = buildServicePreviewTarget({
-          previewBranch: opts.previewBranch,
-          previewPr: opts.previewPr,
-          previewClose: opts.previewClose
-        });
-        if (previewTargetResult.error) {
-          if (isJson) {
-            emitJsonError(previewTargetResult.error, "INVALID_INPUT");
-          } else {
-            console.error(chalk.red(previewTargetResult.error));
+        await withResolvedCommandRequestOptions(command, async () => {
+          const configResult = loadDaoflowConfig();
+          const cfg = configResult?.config;
+          if (configResult && !isJson && !isQuiet) {
+            console.error(chalk.dim(`  Using config: ${configResult.filePath}`));
           }
-          process.exit(1);
-          return;
-        }
-        const previewTarget = previewTargetResult.preview;
 
-        // ── Route: Compose deploy (new) ──────────────────────
-        if (composePath) {
-          if (previewTarget) {
-            const error = "Preview targeting is only supported with --service deployments.";
+          const composePath = opts.compose ?? cfg?.compose;
+          const contextPath = opts.context ?? cfg?.context ?? ".";
+          const serverId = opts.server ?? cfg?.server;
+          const serviceId = opts.service
+            ? normalizeCliInput(opts.service, "Service ID")
+            : undefined;
+          const previewTargetResult = buildServicePreviewTarget({
+            previewBranch: opts.previewBranch,
+            previewPr: opts.previewPr,
+            previewClose: opts.previewClose
+          });
+          if (previewTargetResult.error) {
+            if (isJson) {
+              emitJsonError(previewTargetResult.error, "INVALID_INPUT");
+            } else {
+              console.error(chalk.red(previewTargetResult.error));
+            }
+            process.exit(1);
+            return;
+          }
+          const previewTarget = previewTargetResult.preview;
+
+          if (composePath) {
+            if (previewTarget) {
+              const error = "Preview targeting is only supported with --service deployments.";
+              if (isJson) {
+                emitJsonError(error, "INVALID_INPUT");
+              } else {
+                console.error(chalk.red(error));
+              }
+              process.exit(1);
+              return;
+            }
+            await handleComposeDeploy({
+              composePath: normalizeCliInput(composePath, "Compose path", {
+                allowPathTraversal: true,
+                maxLength: 1024
+              }),
+              contextPath: normalizeCliInput(contextPath, "Context path", {
+                allowPathTraversal: true,
+                maxLength: 1024
+              }),
+              serverId: serverId ? normalizeCliInput(serverId, "Server ID") : undefined,
+              dryRun: opts.dryRun,
+              prompt: opts.prompt !== false,
+              yes: opts.yes,
+              json: isJson,
+              config: cfg
+            });
+            return;
+          }
+
+          if (!serviceId) {
+            const error = "Either --service or --compose is required.";
             if (isJson) {
               emitJsonError(error, "INVALID_INPUT");
             } else {
               console.error(chalk.red(error));
+              console.error(chalk.dim("  daoflow deploy --service <id> --yes"));
+              console.error(
+                chalk.dim("  daoflow deploy --compose ./compose.yaml --server <id> --yes")
+              );
             }
             process.exit(1);
             return;
           }
-          await handleComposeDeploy({
-            composePath,
-            contextPath,
-            serverId,
-            dryRun: opts.dryRun,
-            prompt: opts.prompt !== false,
-            yes: opts.yes,
-            json: isJson,
-            config: cfg
-          });
-          return;
-        }
 
-        // ── Route: Service deploy (existing) ─────────────────
-        if (!serviceId) {
-          const error = "Either --service or --compose is required.";
-          if (isJson) {
-            emitJsonError(error, "INVALID_INPUT");
-          } else {
-            console.error(chalk.red(error));
-            console.error(chalk.dim("  daoflow deploy --service <id> --yes"));
-            console.error(
-              chalk.dim("  daoflow deploy --compose ./compose.yaml --server <id> --yes")
-            );
+          if (opts.dryRun) {
+            try {
+              const trpc = createClient();
+              await previewServiceDeploy(trpc, {
+                serviceId,
+                serverId: serverId ? normalizeCliInput(serverId, "Server ID") : undefined,
+                imageTag: opts.image,
+                preview: previewTarget,
+                json: isJson
+              });
+            } catch (err) {
+              if (isJson) {
+                emitJsonError(getErrorMessage(err), "API_ERROR");
+              } else {
+                console.error(chalk.red(`✗ ${err instanceof Error ? err.message : String(err)}`));
+              }
+              process.exit(1);
+              return;
+            }
+
+            process.exit(3);
           }
-          process.exit(1);
-          return;
-        }
 
-        if (opts.dryRun) {
+          if (!opts.yes) {
+            const error =
+              "Destructive operation. Pass --yes to confirm, or use --dry-run to preview.";
+            if (isJson) {
+              emitJsonError(error, "CONFIRMATION_REQUIRED");
+            } else {
+              console.error(chalk.yellow(error));
+            }
+            process.exit(1);
+            return;
+          }
+
           try {
             const trpc = createClient();
-            await previewServiceDeploy(trpc, {
+            if (!isJson && !isQuiet) {
+              console.log(chalk.blue(`⟳ Deploying service ${serviceId}...`));
+            }
+
+            const result = await trpc.triggerDeploy.mutate({
               serviceId,
-              serverId,
+              commitSha: opts.commit,
               imageTag: opts.image,
-              preview: previewTarget,
-              json: isJson
+              preview: previewTarget
             });
+
+            if (isJson) {
+              emitJsonSuccess(result);
+            } else if (isQuiet) {
+              console.log(result.id);
+            } else {
+              console.log(chalk.green("✓ Deployment queued"));
+              console.log(chalk.dim(`  ID: ${result.id}`));
+              console.log(chalk.dim(`  Service: ${result.serviceName}`));
+            }
           } catch (err) {
             if (isJson) {
               emitJsonError(getErrorMessage(err), "API_ERROR");
             } else {
-              console.error(chalk.red(`✗ ${err instanceof Error ? err.message : String(err)}`));
+              console.error(
+                chalk.red(`Error: ${err instanceof Error ? err.message : String(err)}`)
+              );
             }
             process.exit(1);
-            return;
           }
-
-          process.exit(3); // dry-run exit code per AGENTS.md §12
-        }
-
-        if (!opts.yes) {
-          const error =
-            "Destructive operation. Pass --yes to confirm, or use --dry-run to preview.";
-          if (isJson) {
-            emitJsonError(error, "CONFIRMATION_REQUIRED");
-          } else {
-            console.error(chalk.yellow(error));
-          }
-          process.exit(1);
-          return;
-        }
-
-        try {
-          const trpc = createClient();
-          if (!isJson) {
-            console.log(chalk.blue(`⟳ Deploying service ${serviceId}...`));
-          }
-
-          const result = await trpc.triggerDeploy.mutate({
-            serviceId,
-            commitSha: opts.commit,
-            imageTag: opts.image,
-            preview: previewTarget
-          });
-
-          if (isJson) {
-            emitJsonSuccess(result);
-          } else {
-            console.log(chalk.green("✓ Deployment queued"));
-            console.log(chalk.dim(`  ID: ${result.id}`));
-            console.log(chalk.dim(`  Service: ${result.serviceName}`));
-          }
-        } catch (err) {
-          if (isJson) {
-            emitJsonError(getErrorMessage(err), "API_ERROR");
-          } else {
-            console.error(chalk.red(`Error: ${err instanceof Error ? err.message : String(err)}`));
-          }
-          process.exit(1);
-        }
+        });
       }
     );
 }

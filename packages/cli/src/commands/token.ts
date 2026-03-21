@@ -12,10 +12,13 @@
 
 import { Command } from "commander";
 import chalk from "chalk";
+import { runCommandAction } from "../command-action";
 import {
   emitJsonError,
   emitJsonSuccess,
   getErrorMessage,
+  normalizeCliInput,
+  normalizeOptionalCliInput,
   resolveCommandJsonOption
 } from "../command-helpers";
 import { createClient, type CreateAgentInput } from "../trpc-client";
@@ -146,6 +149,7 @@ export function tokenCommand(): Command {
     .option("--expires <days>", "Token expiry in days", parseInt)
     .option("--json", "Output as JSON")
     .option("-y, --yes", "Skip confirmation prompt")
+    .option("--dry-run", "Preview the token creation payload without mutating")
     .action(
       async (
         opts: {
@@ -156,131 +160,131 @@ export function tokenCommand(): Command {
           expires?: number;
           json?: boolean;
           yes?: boolean;
+          dryRun?: boolean;
         },
         command: Command
       ) => {
-        const isJson = resolveCommandJsonOption(command, opts.json);
-
-        // Validate preset name
-        if (opts.preset && !PRESET_NAMES.includes(opts.preset as PresetName)) {
-          const msg = `Invalid preset "${opts.preset}". Use: ${PRESET_NAMES.join(", ")}`;
-          if (isJson) {
-            emitJsonError(msg, "INVALID_PRESET");
-          } else {
-            console.error(chalk.red(`✗ ${msg}`));
-          }
-          process.exit(1);
-        }
-
-        // Require either preset or scopes
-        if (!opts.preset && !opts.scopes) {
-          const msg = "Either --preset or --scopes is required.";
-          if (isJson) {
-            emitJsonError(msg, "MISSING_SCOPES");
-          } else {
-            console.error(chalk.red(`✗ ${msg}`));
-            console.error(
-              chalk.dim("  daoflow token create --name my-agent --preset agent:read-only")
-            );
-          }
-          process.exit(1);
-        }
-
-        // Cannot use both
-        if (opts.preset && opts.scopes) {
-          const msg = "Use either --preset or --scopes, not both.";
-          if (isJson) {
-            emitJsonError(msg, "AMBIGUOUS_SCOPES");
-          } else {
-            console.error(chalk.red(`✗ ${msg}`));
-          }
-          process.exit(1);
-        }
-
-        // Show confirmation
-        if (!opts.yes) {
-          if (isJson) {
-            emitJsonError(
-              `Creating agent token ${opts.name} requires --yes to confirm.`,
-              "CONFIRMATION_REQUIRED"
-            );
-            process.exit(1);
-            return;
-          }
-
-          const presetInfo = opts.preset ? PRESETS[opts.preset as PresetName] : null;
-          const scopeList = presetInfo
-            ? presetInfo.scopes
-            : (opts.scopes ?? "").split(",").map((s) => s.trim());
-
-          console.log(chalk.bold("\n  Create Agent Token\n"));
-          console.log(`  Name:     ${opts.name}`);
-          if (opts.preset) console.log(`  Preset:   ${chalk.cyan(opts.preset)}`);
-          if (opts.description) console.log(`  Desc:     ${opts.description}`);
-          console.log(`  Scopes:   ${scopeList.length} scope(s)`);
-          if (opts.expires) console.log(`  Expires:  ${opts.expires} days`);
-          console.log();
-          console.error(chalk.yellow("  Pass --yes to confirm, or --dry-run to preview."));
-          process.exit(1);
-        }
-
-        try {
-          const trpc = createClient();
-
-          if (!isJson) console.log(chalk.blue("⟳ Creating agent..."));
-
-          // Step 1: Create agent principal
-          const createInput: CreateAgentInput = {
-            name: opts.name,
-            description: opts.description
-          };
-          if (opts.preset) {
-            createInput.preset = opts.preset;
-          } else if (opts.scopes) {
-            createInput.scopes = opts.scopes.split(",").map((s) => s.trim());
-          }
-
-          const agent = await trpc.createAgent.mutate(createInput);
-
-          // Step 2: Generate token
-          const tokenResult = await trpc.generateAgentToken.mutate({
-            principalId: agent.id,
-            tokenName: `${opts.name}-token`,
-            expiresInDays: opts.expires
-          });
-
-          if (isJson) {
-            emitJsonSuccess({
-              agent: {
-                id: agent.id,
-                name: agent.name,
-                scopes: (agent.defaultScopes ?? "").split(",").filter(Boolean)
-              },
-              token: {
-                id: tokenResult.token.id,
-                value: tokenResult.tokenValue,
-                prefix: tokenResult.token.tokenPrefix
-              },
-              preset: opts.preset ?? null
+        await runCommandAction<unknown>({
+          command,
+          json: opts.json,
+          action: async (ctx) => {
+            const name = normalizeCliInput(opts.name, "Agent name");
+            const description = normalizeOptionalCliInput(opts.description, "Agent description", {
+              maxLength: 512
             });
-          } else {
-            console.log(chalk.green("✓ Agent created and token generated\n"));
-            console.log(`  Agent ID:  ${chalk.dim(agent.id)}`);
-            console.log(`  Name:      ${agent.name}`);
-            if (opts.preset) console.log(`  Preset:    ${chalk.cyan(opts.preset)}`);
-            console.log(`  Token:     ${chalk.yellow(tokenResult.tokenValue)}`);
-            console.log();
-            console.log(chalk.red("  ⚠ Save this token — it will not be shown again."));
-            console.log();
+
+            if (opts.preset && !PRESET_NAMES.includes(opts.preset as PresetName)) {
+              ctx.fail(`Invalid preset "${opts.preset}". Use: ${PRESET_NAMES.join(", ")}`, {
+                code: "INVALID_PRESET"
+              });
+            }
+
+            if (!opts.preset && !opts.scopes) {
+              ctx.fail("Either --preset or --scopes is required.", {
+                code: "MISSING_SCOPES"
+              });
+            }
+
+            if (opts.preset && opts.scopes) {
+              ctx.fail("Use either --preset or --scopes, not both.", {
+                code: "AMBIGUOUS_SCOPES"
+              });
+            }
+
+            const scopes = opts.scopes
+              ? opts.scopes
+                  .split(",")
+                  .map((scope) => normalizeCliInput(scope, "Scope", { allowPathTraversal: true }))
+              : undefined;
+            const presetInfo = opts.preset ? PRESETS[opts.preset as PresetName] : null;
+            const scopeList = presetInfo ? presetInfo.scopes : (scopes ?? []);
+
+            if (opts.dryRun) {
+              return ctx.dryRun(
+                {
+                  dryRun: true,
+                  name,
+                  description: description ?? null,
+                  preset: opts.preset ?? null,
+                  scopes: scopeList,
+                  expiresInDays: opts.expires ?? null
+                },
+                {
+                  quiet: () => name,
+                  human: () => {
+                    console.log(chalk.bold("\n  Create Agent Token (dry-run)\n"));
+                    console.log(`  Name:     ${name}`);
+                    if (opts.preset) console.log(`  Preset:   ${chalk.cyan(opts.preset)}`);
+                    if (description) console.log(`  Desc:     ${description}`);
+                    console.log(`  Scopes:   ${scopeList.length} scope(s)`);
+                    if (opts.expires) console.log(`  Expires:  ${opts.expires} days`);
+                    console.log();
+                  }
+                }
+              );
+            }
+
+            ctx.requireConfirmation(
+              opts.yes === true,
+              `Creating agent token ${name} requires --yes to confirm.`,
+              {
+                humanMessage: `Creating agent token ${name} requires --yes to confirm.`
+              }
+            );
+
+            try {
+              const trpc = createClient();
+
+              const createInput: CreateAgentInput = {
+                name,
+                description
+              };
+              if (opts.preset) {
+                createInput.preset = opts.preset;
+              } else if (scopes) {
+                createInput.scopes = scopes;
+              }
+
+              const agent = await trpc.createAgent.mutate(createInput);
+              const tokenResult = await trpc.generateAgentToken.mutate({
+                principalId: agent.id,
+                tokenName: `${name}-token`,
+                expiresInDays: opts.expires
+              });
+
+              return ctx.success(
+                {
+                  agent: {
+                    id: agent.id,
+                    name: agent.name,
+                    scopes: (agent.defaultScopes ?? "").split(",").filter(Boolean)
+                  },
+                  token: {
+                    id: tokenResult.token.id,
+                    value: tokenResult.tokenValue,
+                    prefix: tokenResult.token.tokenPrefix
+                  },
+                  preset: opts.preset ?? null
+                },
+                {
+                  quiet: () => tokenResult.tokenValue,
+                  human: () => {
+                    console.log(chalk.green("✓ Agent created and token generated\n"));
+                    console.log(`  Agent ID:  ${chalk.dim(agent.id)}`);
+                    console.log(`  Name:      ${agent.name}`);
+                    if (opts.preset) console.log(`  Preset:    ${chalk.cyan(opts.preset)}`);
+                    console.log(`  Token:     ${chalk.yellow(tokenResult.tokenValue)}`);
+                    console.log();
+                    console.log(chalk.red("  ⚠ Save this token — it will not be shown again."));
+                    console.log();
+                  }
+                }
+              );
+            } catch (error) {
+              ctx.fail(getErrorMessage(error), { code: "API_ERROR" });
+            }
           }
-        } catch (err) {
-          if (isJson) {
-            emitJsonError(getErrorMessage(err), "API_ERROR");
-          } else {
-            console.error(chalk.red(`✗ ${err instanceof Error ? err.message : String(err)}`));
-          }
-          process.exit(1);
-        }
+        });
       }
     );
 
@@ -334,36 +338,32 @@ export function tokenCommand(): Command {
     .option("--json", "Output as JSON")
     .option("-y, --yes", "Skip confirmation prompt")
     .action(async (opts: { id: string; json?: boolean; yes?: boolean }, command: Command) => {
-      const isJson = resolveCommandJsonOption(command, opts.json);
+      await runCommandAction({
+        command,
+        json: opts.json,
+        action: async (ctx) => {
+          const tokenId = normalizeCliInput(opts.id, "Token ID");
 
-      if (!opts.yes) {
-        const error = `Destructive operation — revoking token ${opts.id}. Pass --yes to confirm.`;
-        if (isJson) {
-          emitJsonError(error, "CONFIRMATION_REQUIRED");
-        } else {
-          console.error(chalk.yellow(error));
-        }
-        process.exit(1);
-        return;
-      }
+          ctx.requireConfirmation(
+            opts.yes === true,
+            `Destructive operation — revoking token ${tokenId}. Pass --yes to confirm.`
+          );
 
-      try {
-        const trpc = createClient();
-        const result = await trpc.revokeAgentToken.mutate({ tokenId: opts.id });
+          try {
+            const trpc = createClient();
+            const result = await trpc.revokeAgentToken.mutate({ tokenId });
 
-        if (isJson) {
-          emitJsonSuccess(result);
-        } else {
-          console.log(chalk.green(`✓ Token ${opts.id} revoked`));
+            return ctx.success(result, {
+              quiet: () => tokenId,
+              human: () => {
+                console.log(chalk.green(`✓ Token ${tokenId} revoked`));
+              }
+            });
+          } catch (error) {
+            ctx.fail(getErrorMessage(error), { code: "API_ERROR" });
+          }
         }
-      } catch (err) {
-        if (isJson) {
-          emitJsonError(getErrorMessage(err), "API_ERROR");
-        } else {
-          console.error(chalk.red(`✗ ${err instanceof Error ? err.message : String(err)}`));
-        }
-        process.exit(1);
-      }
+      });
     });
 
   return cmd;

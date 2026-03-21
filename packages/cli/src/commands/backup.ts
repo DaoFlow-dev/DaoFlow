@@ -17,6 +17,8 @@ import {
   emitJsonError,
   emitJsonSuccess,
   getErrorMessage,
+  normalizeCliInput,
+  normalizeOptionalCliInput,
   resolveCommandJsonOption
 } from "../command-helpers";
 import type { BackupRestorePlanOutput, QueueRestoreOutput } from "../trpc-contract";
@@ -168,7 +170,7 @@ export function backupCommand(): Command {
               try {
                 const trpc = createClient();
                 const plan = await trpc.backupRestorePlan.query({
-                  backupRunId: opts.backupRunId
+                  backupRunId: normalizeCliInput(opts.backupRunId, "Backup run ID")
                 });
 
                 return ctx.dryRun(
@@ -190,16 +192,18 @@ export function backupCommand(): Command {
 
             ctx.requireConfirmation(
               opts.yes === true,
-              `To restore from backup ${opts.backupRunId}, add --yes`
+              `To restore from backup ${normalizeCliInput(opts.backupRunId, "Backup run ID")}, add --yes`
             );
 
             try {
               const trpc = createClient();
+              const backupRunId = normalizeCliInput(opts.backupRunId, "Backup run ID");
               const result = await trpc.queueBackupRestore.mutate({
-                backupRunId: opts.backupRunId
+                backupRunId
               });
 
               return ctx.success(result, {
+                quiet: () => result.id,
                 human: () => {
                   console.log(chalk.green(`✅ Restore queued: ${result.id}`));
                 }
@@ -312,41 +316,67 @@ export function backupCommand(): Command {
               return emitDryRunResult(ctx, {
                 dryRun: true,
                 action: "destination.create",
-                name: opts.name,
-                provider: opts.provider,
-                message: `Would create backup destination "${opts.name}" (${opts.provider})`
+                name: normalizeCliInput(opts.name, "Destination name"),
+                provider: normalizeCliInput(opts.provider, "Destination provider", {
+                  allowPathTraversal: true
+                }),
+                message: `Would create backup destination "${normalizeCliInput(opts.name, "Destination name")}" (${normalizeCliInput(opts.provider, "Destination provider", { allowPathTraversal: true })})`
               });
             }
 
             ctx.requireConfirmation(
               opts.yes === true,
-              `To create destination "${opts.name}", add --yes`
+              `To create destination "${normalizeCliInput(opts.name, "Destination name")}", add --yes`
             );
 
             try {
               const trpc = createClient();
               const result = await trpc.createBackupDestination.mutate({
-                name: opts.name,
-                provider: opts.provider as
-                  | "s3"
-                  | "local"
-                  | "gdrive"
-                  | "onedrive"
-                  | "dropbox"
-                  | "sftp"
-                  | "rclone",
-                accessKey: opts.accessKey,
-                secretAccessKey: opts.secretKey,
-                bucket: opts.bucket,
-                region: opts.region,
-                endpoint: opts.endpoint,
-                s3Provider: opts.s3Provider,
-                localPath: opts.localPath,
-                rcloneConfig: opts.rcloneConfig,
-                rcloneRemotePath: opts.rcloneRemotePath
+                name: normalizeCliInput(opts.name, "Destination name"),
+                provider: normalizeCliInput(opts.provider, "Destination provider", {
+                  allowPathTraversal: true
+                }) as "s3" | "local" | "gdrive" | "onedrive" | "dropbox" | "sftp" | "rclone",
+                accessKey: normalizeOptionalCliInput(opts.accessKey, "Access key", {
+                  allowPathTraversal: true,
+                  allowShellMetacharacters: true,
+                  maxLength: 512
+                }),
+                secretAccessKey: normalizeOptionalCliInput(opts.secretKey, "Secret access key", {
+                  allowPathTraversal: true,
+                  allowShellMetacharacters: true,
+                  maxLength: 512
+                }),
+                bucket: normalizeOptionalCliInput(opts.bucket, "Bucket"),
+                region: normalizeOptionalCliInput(opts.region, "Region", {
+                  allowPathTraversal: true
+                }),
+                endpoint: normalizeOptionalCliInput(opts.endpoint, "Endpoint", {
+                  allowPathTraversal: true,
+                  allowShellMetacharacters: true,
+                  maxLength: 2048
+                }),
+                s3Provider: normalizeOptionalCliInput(opts.s3Provider, "S3 provider", {
+                  allowPathTraversal: true
+                }),
+                localPath: normalizeOptionalCliInput(opts.localPath, "Local path", {
+                  maxLength: 1024
+                }),
+                rcloneConfig: normalizeOptionalCliInput(opts.rcloneConfig, "rclone config", {
+                  allowPathTraversal: true,
+                  allowShellMetacharacters: true,
+                  maxLength: 4096
+                }),
+                rcloneRemotePath: normalizeOptionalCliInput(
+                  opts.rcloneRemotePath,
+                  "rclone remote path",
+                  {
+                    maxLength: 1024
+                  }
+                )
               });
 
               return ctx.success(result, {
+                quiet: () => result.id,
                 human: () => {
                   console.log(chalk.green(`✅ Destination created: ${result.id}`));
                 }
@@ -402,32 +432,33 @@ export function backupCommand(): Command {
     .option("--json", "Output as JSON")
     .option("-y, --yes", "Skip confirmation")
     .action(async (opts: { id: string; json?: boolean; yes?: boolean }, command: Command) => {
-      const isJson = resolveCommandJsonOption(command, opts.json);
+      await runCommandAction({
+        command,
+        json: opts.json,
+        renderError: renderBackupError,
+        action: async (ctx) => {
+          const destinationId = normalizeCliInput(opts.id, "Destination ID");
 
-      if (!opts.yes) {
-        const error = `To delete destination ${opts.id}, add --yes`;
-        if (isJson) {
-          emitJsonError(error, "CONFIRMATION_REQUIRED");
-        } else {
-          console.error(error);
+          ctx.requireConfirmation(
+            opts.yes === true,
+            `To delete destination ${destinationId}, add --yes`
+          );
+
+          try {
+            const trpc = createClient();
+            const result = await trpc.deleteBackupDestination.mutate({ id: destinationId });
+
+            return ctx.success(result, {
+              quiet: () => destinationId,
+              human: () => {
+                console.log(chalk.green("✅ Destination deleted"));
+              }
+            });
+          } catch (error) {
+            ctx.fail(getErrorMessage(error), { code: "API_ERROR" });
+          }
         }
-        process.exit(1);
-        return;
-      }
-
-      try {
-        const trpc = createClient();
-        const result = await trpc.deleteBackupDestination.mutate({ id: opts.id });
-
-        if (isJson) {
-          emitJsonSuccess(result);
-        } else {
-          console.log(chalk.green(`✅ Destination deleted`));
-        }
-      } catch (err) {
-        emitJsonError(getErrorMessage(err), "API_ERROR");
-        process.exit(1);
-      }
+      });
     });
 
   // ── backup schedule ───────────────────────────────────────
@@ -454,50 +485,55 @@ export function backupCommand(): Command {
         },
         command: Command
       ) => {
-        const isJson = resolveCommandJsonOption(command, opts.json);
+        await runCommandAction({
+          command,
+          json: opts.json,
+          renderError: renderBackupError,
+          action: async (ctx) => {
+            const policyId = normalizeCliInput(opts.policy, "Policy ID");
+            const schedule = normalizeCliInput(opts.cron, "Cron schedule", {
+              allowPathTraversal: true,
+              allowShellMetacharacters: true,
+              maxLength: 256
+            });
 
-        if (opts.dryRun) {
-          emitJsonSuccess({
-            dryRun: true,
-            action: "backup.schedule.enable",
-            policyId: opts.policy,
-            schedule: opts.cron,
-            message: `Would enable cron schedule "${opts.cron}" for policy ${opts.policy}`
-          });
-          process.exit(3);
-        }
+            if (opts.dryRun) {
+              return emitDryRunResult(ctx, {
+                dryRun: true,
+                action: "backup.schedule.enable",
+                policyId,
+                schedule,
+                message: `Would enable cron schedule "${schedule}" for policy ${policyId}`
+              });
+            }
 
-        if (!opts.yes) {
-          const error = `To enable schedule for policy ${opts.policy}, add --yes`;
-          if (isJson) {
-            emitJsonError(error, "CONFIRMATION_REQUIRED");
-          } else {
-            console.error(error);
-          }
-          process.exit(1);
-          return;
-        }
-
-        try {
-          const trpc = createClient();
-          const result = await trpc.enableBackupSchedule.mutate({
-            policyId: opts.policy,
-            schedule: opts.cron
-          });
-
-          if (isJson) {
-            emitJsonSuccess(result);
-          } else {
-            console.log(
-              chalk.green(
-                `✅ Schedule enabled: ${result.schedule} (workflow: ${result.workflowId})`
-              )
+            ctx.requireConfirmation(
+              opts.yes === true,
+              `To enable schedule for policy ${policyId}, add --yes`
             );
+
+            try {
+              const trpc = createClient();
+              const result = await trpc.enableBackupSchedule.mutate({
+                policyId,
+                schedule
+              });
+
+              return ctx.success(result, {
+                quiet: () => result.workflowId,
+                human: () => {
+                  console.log(
+                    chalk.green(
+                      `✅ Schedule enabled: ${result.schedule} (workflow: ${result.workflowId})`
+                    )
+                  );
+                }
+              });
+            } catch (error) {
+              ctx.fail(getErrorMessage(error), { code: "API_ERROR" });
+            }
           }
-        } catch (err) {
-          emitJsonError(getErrorMessage(err), "API_ERROR");
-          process.exit(1);
-        }
+        });
       }
     );
 
@@ -508,34 +544,35 @@ export function backupCommand(): Command {
     .option("--json", "Output as JSON")
     .option("-y, --yes", "Skip confirmation")
     .action(async (opts: { policy: string; json?: boolean; yes?: boolean }, command: Command) => {
-      const isJson = resolveCommandJsonOption(command, opts.json);
+      await runCommandAction({
+        command,
+        json: opts.json,
+        renderError: renderBackupError,
+        action: async (ctx) => {
+          const policyId = normalizeCliInput(opts.policy, "Policy ID");
 
-      if (!opts.yes) {
-        const error = `To disable schedule for policy ${opts.policy}, add --yes`;
-        if (isJson) {
-          emitJsonError(error, "CONFIRMATION_REQUIRED");
-        } else {
-          console.error(error);
+          ctx.requireConfirmation(
+            opts.yes === true,
+            `To disable schedule for policy ${policyId}, add --yes`
+          );
+
+          try {
+            const trpc = createClient();
+            const result = await trpc.disableBackupSchedule.mutate({
+              policyId
+            });
+
+            return ctx.success(result, {
+              quiet: () => policyId,
+              human: () => {
+                console.log(chalk.green("✅ Schedule disabled"));
+              }
+            });
+          } catch (error) {
+            ctx.fail(getErrorMessage(error), { code: "API_ERROR" });
+          }
         }
-        process.exit(1);
-        return;
-      }
-
-      try {
-        const trpc = createClient();
-        const result = await trpc.disableBackupSchedule.mutate({
-          policyId: opts.policy
-        });
-
-        if (isJson) {
-          emitJsonSuccess(result);
-        } else {
-          console.log(chalk.green("✅ Schedule disabled"));
-        }
-      } catch (err) {
-        emitJsonError(getErrorMessage(err), "API_ERROR");
-        process.exit(1);
-      }
+      });
     });
 
   // ── backup run ─────────────────────────────────────────────
@@ -560,23 +597,25 @@ export function backupCommand(): Command {
               return emitDryRunResult(ctx, {
                 dryRun: true,
                 action: "backup.run",
-                policyId: opts.policy,
-                message: `Would trigger one-off backup for policy ${opts.policy}`
+                policyId: normalizeCliInput(opts.policy, "Policy ID"),
+                message: `Would trigger one-off backup for policy ${normalizeCliInput(opts.policy, "Policy ID")}`
               });
             }
 
             ctx.requireConfirmation(
               opts.yes === true,
-              `To trigger backup for policy ${opts.policy}, add --yes`
+              `To trigger backup for policy ${normalizeCliInput(opts.policy, "Policy ID")}, add --yes`
             );
 
             try {
               const trpc = createClient();
+              const policyId = normalizeCliInput(opts.policy, "Policy ID");
               const result = await trpc.triggerBackupNow.mutate({
-                policyId: opts.policy
+                policyId
               });
 
               return ctx.success(result, {
+                quiet: () => result.id,
                 human: () => {
                   console.log(chalk.green(`✅ Backup triggered (run: ${result.id})`));
                 }
@@ -612,23 +651,25 @@ export function backupCommand(): Command {
               return emitDryRunResult(ctx, {
                 dryRun: true,
                 action: "backup.verify",
-                backupRunId: opts.backupRunId,
+                backupRunId: normalizeCliInput(opts.backupRunId, "Backup run ID"),
                 message: "Would trigger a test restore to verify this backup"
               });
             }
 
             ctx.requireConfirmation(
               opts.yes === true,
-              `To verify backup ${opts.backupRunId}, add --yes`
+              `To verify backup ${normalizeCliInput(opts.backupRunId, "Backup run ID")}, add --yes`
             );
 
             try {
               const trpc = createClient();
+              const backupRunId = normalizeCliInput(opts.backupRunId, "Backup run ID");
               const result = await trpc.triggerTestRestore.mutate({
-                backupRunId: opts.backupRunId
+                backupRunId
               });
 
               return ctx.success(result, {
+                quiet: () => result.id,
                 human: () => {
                   console.log(chalk.green(`✅ Test restore queued: ${result.id}`));
                   console.log(

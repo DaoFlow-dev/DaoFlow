@@ -10,7 +10,9 @@ import {
   emitJsonError,
   emitJsonSuccess,
   getErrorMessage,
-  resolveCommandJsonOption
+  normalizeCliInput,
+  resolveCommandJsonOption,
+  withResolvedCommandRequestOptions
 } from "../command-helpers";
 import {
   assertValidComposeUploadContextRoot,
@@ -68,159 +70,173 @@ export function planCommand(): Command {
         command: Command
       ) => {
         const isJson = resolveCommandJsonOption(command, opts.json);
-        const configResult = loadDaoflowConfig();
-        const cfg = configResult?.config;
-        if (configResult && !isJson) {
-          console.error(chalk.dim(`  Using config: ${configResult.filePath}`));
-        }
 
-        const serviceId = opts.service;
-        const composePath = opts.compose ?? (serviceId ? undefined : cfg?.compose);
-        const contextPath = opts.context ?? cfg?.context ?? ".";
-        const serverId = opts.server ?? cfg?.server;
-        const previewTargetResult = buildServicePreviewTarget({
-          previewBranch: opts.previewBranch,
-          previewPr: opts.previewPr,
-          previewClose: opts.previewClose
-        });
-        if (previewTargetResult.error) {
-          if (isJson) {
-            emitJsonError(previewTargetResult.error, "INVALID_INPUT");
-          } else {
-            console.error(chalk.red(`✗ ${previewTargetResult.error}`));
+        await withResolvedCommandRequestOptions(command, async () => {
+          const configResult = loadDaoflowConfig();
+          const cfg = configResult?.config;
+          if (configResult && !isJson) {
+            console.error(chalk.dim(`  Using config: ${configResult.filePath}`));
           }
-          process.exit(1);
-          return;
-        }
-        const previewTarget = previewTargetResult.preview;
 
-        if (serviceId && opts.compose) {
-          const error = "Choose either --service or --compose, not both.";
-          if (isJson) {
-            emitJsonError(error, "INVALID_INPUT");
-          } else {
-            console.error(chalk.red(`✗ ${error}`));
-          }
-          process.exit(1);
-          return;
-        }
-
-        if (!serviceId && !composePath) {
-          const error = "Either --service or --compose is required.";
-          if (isJson) {
-            emitJsonError(error, "INVALID_INPUT");
-          } else {
-            console.error(chalk.red(`✗ ${error}`));
-          }
-          process.exit(1);
-          return;
-        }
-
-        if (composePath && previewTarget) {
-          const error = "Preview targeting is only supported with --service planning.";
-          if (isJson) {
-            emitJsonError(error, "INVALID_INPUT");
-          } else {
-            console.error(chalk.red(`✗ ${error}`));
-          }
-          process.exit(1);
-          return;
-        }
-
-        if (!serviceId && composePath && !serverId) {
-          const error = "--server is required for compose planning.";
-          if (isJson) {
-            emitJsonError(error, "INVALID_INPUT");
-          } else {
-            console.error(chalk.red(`✗ ${error}`));
-          }
-          process.exit(1);
-          return;
-        }
-
-        try {
-          if (serviceId) {
-            const trpc = createClient();
-            const plan = await trpc.deploymentPlan.query({
-              service: serviceId,
-              server: serverId,
-              image: opts.image,
-              preview: previewTarget
-            });
-
+          const serviceId = opts.service;
+          const composePath = opts.compose ?? (serviceId ? undefined : cfg?.compose);
+          const contextPath = normalizeCliInput(
+            opts.context ?? cfg?.context ?? ".",
+            "Context path",
+            {
+              allowPathTraversal: true,
+              maxLength: 1024
+            }
+          );
+          const serverId = opts.server ?? cfg?.server;
+          const previewTargetResult = buildServicePreviewTarget({
+            previewBranch: opts.previewBranch,
+            previewPr: opts.previewPr,
+            previewClose: opts.previewClose
+          });
+          if (previewTargetResult.error) {
             if (isJson) {
-              emitJsonSuccess(plan);
-              return;
-            }
-
-            printDeploymentPlan(plan, { subtitle: "This plan will NOT be executed." });
-            return;
-          }
-
-          if (composePath) {
-            const composeServerId = serverId;
-            if (!composeServerId) {
-              throw new Error("--server is required for compose planning.");
-            }
-
-            const resolvedComposePath = resolve(composePath);
-            if (!existsSync(resolvedComposePath)) {
-              const error = `Compose file not found: ${composePath}`;
-              if (isJson) {
-                emitJsonError(error, "FILE_NOT_FOUND");
-              } else {
-                console.error(chalk.red(`✗ ${error}`));
-              }
-              process.exit(1);
-              return;
-            }
-
-            const composeContent = readFileSync(resolvedComposePath, "utf8");
-            const composeInputs = analyzeComposeInputs(composeContent);
-            assertValidComposeUploadContextRoot({
-              composePath: resolvedComposePath,
-              contextPath,
-              composeInputs
-            });
-
-            const trpc = createClient();
-            const plan = await fetchComposeDeploymentPlan(trpc, {
-              composePath,
-              contextPath,
-              serverId: composeServerId,
-              json: isJson,
-              config: cfg
-            });
-
-            if (isJson) {
-              emitJsonSuccess(plan);
-              return;
-            }
-
-            printComposeDeploymentPlan(plan, {
-              title: "Compose Deployment Plan",
-              subtitle: "This plan will NOT be executed."
-            });
-            return;
-          }
-        } catch (error) {
-          if (error instanceof ComposeUploadContextValidationError) {
-            if (isJson) {
-              emitJsonError(getErrorMessage(error), "INVALID_INPUT");
+              emitJsonError(previewTargetResult.error, "INVALID_INPUT");
             } else {
-              console.error(chalk.red(`✗ ${getErrorMessage(error)}`));
+              console.error(chalk.red(`✗ ${previewTargetResult.error}`));
+            }
+            process.exit(1);
+            return;
+          }
+          const previewTarget = previewTargetResult.preview;
+
+          if (serviceId && opts.compose) {
+            const error = "Choose either --service or --compose, not both.";
+            if (isJson) {
+              emitJsonError(error, "INVALID_INPUT");
+            } else {
+              console.error(chalk.red(`✗ ${error}`));
             }
             process.exit(1);
             return;
           }
 
-          if (isJson) {
-            emitJsonError(getErrorMessage(error), "API_ERROR");
-          } else {
-            console.error(chalk.red(`✗ ${getErrorMessage(error)}`));
+          if (!serviceId && !composePath) {
+            const error = "Either --service or --compose is required.";
+            if (isJson) {
+              emitJsonError(error, "INVALID_INPUT");
+            } else {
+              console.error(chalk.red(`✗ ${error}`));
+            }
+            process.exit(1);
+            return;
           }
-          process.exit(1);
-        }
+
+          if (composePath && previewTarget) {
+            const error = "Preview targeting is only supported with --service planning.";
+            if (isJson) {
+              emitJsonError(error, "INVALID_INPUT");
+            } else {
+              console.error(chalk.red(`✗ ${error}`));
+            }
+            process.exit(1);
+            return;
+          }
+
+          if (!serviceId && composePath && !serverId) {
+            const error = "--server is required for compose planning.";
+            if (isJson) {
+              emitJsonError(error, "INVALID_INPUT");
+            } else {
+              console.error(chalk.red(`✗ ${error}`));
+            }
+            process.exit(1);
+            return;
+          }
+
+          try {
+            if (serviceId) {
+              const trpc = createClient();
+              const plan = await trpc.deploymentPlan.query({
+                service: serviceId,
+                server: serverId,
+                image: opts.image,
+                preview: previewTarget
+              });
+
+              if (isJson) {
+                emitJsonSuccess(plan);
+                return;
+              }
+
+              printDeploymentPlan(plan, { subtitle: "This plan will NOT be executed." });
+              return;
+            }
+
+            if (composePath) {
+              const composeServerId = serverId;
+              if (!composeServerId) {
+                throw new Error("--server is required for compose planning.");
+              }
+
+              const normalizedComposePath = normalizeCliInput(composePath, "Compose path", {
+                allowPathTraversal: true,
+                maxLength: 1024
+              });
+              const resolvedComposePath = resolve(normalizedComposePath);
+              if (!existsSync(resolvedComposePath)) {
+                const error = `Compose file not found: ${normalizedComposePath}`;
+                if (isJson) {
+                  emitJsonError(error, "FILE_NOT_FOUND");
+                } else {
+                  console.error(chalk.red(`✗ ${error}`));
+                }
+                process.exit(1);
+                return;
+              }
+
+              const composeContent = readFileSync(resolvedComposePath, "utf8");
+              const composeInputs = analyzeComposeInputs(composeContent);
+              assertValidComposeUploadContextRoot({
+                composePath: resolvedComposePath,
+                contextPath,
+                composeInputs
+              });
+
+              const trpc = createClient();
+              const plan = await fetchComposeDeploymentPlan(trpc, {
+                composePath: normalizedComposePath,
+                contextPath,
+                serverId: composeServerId,
+                json: isJson,
+                config: cfg
+              });
+
+              if (isJson) {
+                emitJsonSuccess(plan);
+                return;
+              }
+
+              printComposeDeploymentPlan(plan, {
+                title: "Compose Deployment Plan",
+                subtitle: "This plan will NOT be executed."
+              });
+              return;
+            }
+          } catch (error) {
+            if (error instanceof ComposeUploadContextValidationError) {
+              if (isJson) {
+                emitJsonError(getErrorMessage(error), "INVALID_INPUT");
+              } else {
+                console.error(chalk.red(`✗ ${getErrorMessage(error)}`));
+              }
+              process.exit(1);
+              return;
+            }
+
+            if (isJson) {
+              emitJsonError(getErrorMessage(error), "API_ERROR");
+            } else {
+              console.error(chalk.red(`✗ ${getErrorMessage(error)}`));
+            }
+            process.exit(1);
+          }
+        });
       }
     );
 }

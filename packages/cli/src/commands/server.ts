@@ -2,7 +2,7 @@ import { Command } from "commander";
 import { readFileSync } from "node:fs";
 import chalk from "chalk";
 import { runCommandAction } from "../command-action";
-import { getErrorMessage } from "../command-helpers";
+import { getErrorMessage, normalizeCliInput, normalizeOptionalCliInput } from "../command-helpers";
 import { createClient, type RegisterServerOutput } from "../trpc-client";
 
 const SERVER_ADD_HELP_TEXT = [
@@ -75,7 +75,10 @@ function readPrivateKey(
   }
 
   if (keyPath) {
-    return readFileSync(keyPath, "utf8").trim();
+    return readFileSync(
+      normalizeCliInput(keyPath, "SSH key path", { allowPathTraversal: true }),
+      "utf8"
+    ).trim();
   }
 
   return inlineKey?.trim() || undefined;
@@ -146,11 +149,16 @@ export function serverCommand(): Command {
             }
 
             const payload = {
-              name: opts.name.trim(),
-              host: opts.host.trim(),
-              region: opts.region.trim() || "default",
+              name: normalizeCliInput(opts.name, "Server name"),
+              host: normalizeCliInput(opts.host, "Server host"),
+              region:
+                normalizeOptionalCliInput(opts.region, "Region", {
+                  allowPathTraversal: true
+                }) ?? "default",
               sshPort: opts.sshPort,
-              sshUser: opts.sshUser?.trim() || undefined,
+              sshUser: normalizeOptionalCliInput(opts.sshUser, "SSH user", {
+                allowPathTraversal: true
+              }),
               sshPrivateKey,
               kind: opts.kind as "docker-engine" | "docker-swarm-manager"
             };
@@ -210,6 +218,7 @@ export function serverCommand(): Command {
                 readiness
               },
               {
+                quiet: () => server.id,
                 human: () => {
                   console.log(chalk.green(`✓ Registered ${server.name} (${server.id})`));
                   console.log(

@@ -1,6 +1,10 @@
 import { Command, Option } from "commander";
 import chalk from "chalk";
-import { getErrorMessage, resolveCommandJsonOption } from "../command-helpers";
+import {
+  getErrorMessage,
+  resolveCommandJsonOption,
+  withResolvedCommandRequestOptions
+} from "../command-helpers";
 import { createClient } from "../trpc-client";
 
 export function logsCommand(): Command {
@@ -31,66 +35,67 @@ export function logsCommand(): Command {
         command: Command
       ) => {
         const isJson = resolveCommandJsonOption(command, opts.json);
-
-        if (opts.follow) {
-          const error =
-            "Log streaming (--follow) is not yet implemented. Use without --follow for historical logs.";
-          if (isJson) {
-            console.log(JSON.stringify({ ok: false, error, code: "NOT_IMPLEMENTED" }));
-          } else {
-            console.error(chalk.yellow(error));
-          }
-          process.exit(1);
-          return;
-        }
-
-        try {
-          const trpc = createClient();
-          const data = await trpc.deploymentLogs.query({
-            deploymentId: opts.deployment,
-            service,
-            query: opts.query,
-            stream: opts.stream,
-            limit: Number(opts.lines)
-          });
-
-          if (isJson) {
-            console.log(
-              JSON.stringify({
-                ok: true,
-                data: {
-                  service: service ?? null,
-                  deploymentId: opts.deployment ?? null,
-                  query: opts.query ?? null,
-                  stream: opts.stream ?? "all",
-                  limit: Number(opts.lines),
-                  summary: data.summary,
-                  lines: data.lines
-                }
-              })
-            );
+        await withResolvedCommandRequestOptions(command, async () => {
+          if (opts.follow) {
+            const error =
+              "Log streaming (--follow) is not yet implemented. Use without --follow for historical logs.";
+            if (isJson) {
+              console.log(JSON.stringify({ ok: false, error, code: "NOT_IMPLEMENTED" }));
+            } else {
+              console.error(chalk.yellow(error));
+            }
+            process.exit(1);
             return;
           }
 
-          for (const line of data.lines) {
-            const ts = chalk.dim(line.createdAt.slice(11, 23));
-            const level = line.stream === "stderr" ? chalk.red("ERR") : chalk.blue("OUT");
-            console.log(`${ts} ${level} ${line.message}`);
+          try {
+            const trpc = createClient();
+            const data = await trpc.deploymentLogs.query({
+              deploymentId: opts.deployment,
+              service,
+              query: opts.query,
+              stream: opts.stream,
+              limit: Number(opts.lines)
+            });
+
+            if (isJson) {
+              console.log(
+                JSON.stringify({
+                  ok: true,
+                  data: {
+                    service: service ?? null,
+                    deploymentId: opts.deployment ?? null,
+                    query: opts.query ?? null,
+                    stream: opts.stream ?? "all",
+                    limit: Number(opts.lines),
+                    summary: data.summary,
+                    lines: data.lines
+                  }
+                })
+              );
+              return;
+            }
+
+            for (const line of data.lines) {
+              const ts = chalk.dim(line.createdAt.slice(11, 23));
+              const level = line.stream === "stderr" ? chalk.red("ERR") : chalk.blue("OUT");
+              console.log(`${ts} ${level} ${line.message}`);
+            }
+          } catch (error) {
+            if (isJson) {
+              console.log(
+                JSON.stringify({
+                  ok: false,
+                  error: getErrorMessage(error),
+                  code: "API_ERROR"
+                })
+              );
+            } else {
+              console.error(chalk.red(`✗ ${getErrorMessage(error)}`));
+            }
+            process.exit(1);
           }
-        } catch (error) {
-          if (isJson) {
-            console.log(
-              JSON.stringify({
-                ok: false,
-                error: getErrorMessage(error),
-                code: "API_ERROR"
-              })
-            );
-          } else {
-            console.error(chalk.red(`✗ ${getErrorMessage(error)}`));
-          }
-          process.exit(1);
-        }
+        });
       }
     );
 }

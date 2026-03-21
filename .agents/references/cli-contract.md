@@ -31,9 +31,18 @@ This file holds the detailed CLI contract, scope map, and agent-facing command r
 ## Composability
 
 - Support `--quiet` / `-q` for bare value output
+- `--quiet` should print the primary machine-consumable value for the command without prose when a single value is available
 - Support stdin for batch operations where appropriate
 - Commands must be idempotent where possible
 - All write commands must accept `--idempotency-key`
+- All networked commands must honor the global `--timeout <seconds>` budget
+
+## Global Automation Flags
+
+- `--json` returns the standard `{ "ok": true|false }` envelope on stdout
+- `--quiet` suppresses prose and prints the command's primary scalar value or one value per line
+- `--timeout <seconds>` applies to CLI network calls across read, planning, and command lanes
+- `--idempotency-key <key>` is forwarded on write requests so retries can be replay-safe
 
 ## Adversarial Input Safety
 

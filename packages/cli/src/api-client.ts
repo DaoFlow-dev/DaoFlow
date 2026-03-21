@@ -1,11 +1,12 @@
 import { getCurrentContext, type DaoFlowContext } from "./config";
 import { buildAuthHeaders } from "./auth-headers";
+import { getCurrentCommandRequestOptions } from "./command-helpers";
 
 export class ApiClient {
   private ctx: DaoFlowContext;
   private timeoutMs: number;
 
-  constructor(ctx?: DaoFlowContext, timeoutMs = 30_000) {
+  constructor(ctx?: DaoFlowContext, timeoutMs = getCurrentCommandRequestOptions().timeoutMs) {
     const resolved = ctx ?? getCurrentContext();
     if (!resolved) {
       throw new Error("Not logged in. Run `daoflow login` first.");

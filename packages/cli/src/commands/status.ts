@@ -1,6 +1,10 @@
 import { Command } from "commander";
 import chalk from "chalk";
-import { getErrorMessage, resolveCommandJsonOption } from "../command-helpers";
+import {
+  getErrorMessage,
+  resolveCommandJsonOption,
+  withResolvedCommandRequestOptions
+} from "../command-helpers";
 import { createClient, type RouterOutputs } from "../trpc-client";
 import { getCurrentContext, loadConfig } from "../config";
 
@@ -29,80 +33,83 @@ export function statusCommand(): Command {
         process.exit(1);
       }
 
-      const trpc = createClient(ctx);
+      await withResolvedCommandRequestOptions(command, async () => {
+        const trpc = createClient(ctx);
 
-      try {
-        const [servers, health] = await Promise.allSettled([
-          trpc.serverReadiness.query({}),
-          trpc.health.query()
-        ]);
+        try {
+          const [servers, health] = await Promise.allSettled([
+            trpc.serverReadiness.query({}),
+            trpc.health.query()
+          ]);
 
-        const serverData: RouterOutputs["serverReadiness"] | null =
-          servers.status === "fulfilled" ? servers.value : null;
-        const healthData: RouterOutputs["health"] | null =
-          health.status === "fulfilled" ? health.value : null;
+          const serverData: RouterOutputs["serverReadiness"] | null =
+            servers.status === "fulfilled" ? servers.value : null;
+          const healthData: RouterOutputs["health"] | null =
+            health.status === "fulfilled" ? health.value : null;
 
-        if (isJson) {
-          console.log(
-            JSON.stringify({
-              ok: true,
-              data: {
-                context: config.currentContext,
-                apiUrl: ctx.apiUrl,
-                health: healthData,
-                servers: serverData
-              }
-            })
-          );
-        } else {
-          console.log(chalk.bold("\n  DaoFlow Status\n"));
-          console.log(`  Context:  ${chalk.cyan(config.currentContext)}`);
-          console.log(`  API URL:  ${ctx.apiUrl}`);
-          console.log(
-            `  Health:   ${healthData ? chalk.green("● healthy") : chalk.yellow("● unknown")}`
-          );
-          console.log();
-
-          if (serverData) {
-            console.log(chalk.bold("  Servers"));
+          if (isJson) {
             console.log(
-              `  Total: ${serverData.summary.totalServers}  Ready: ${chalk.green(serverData.summary.readyServers)}  Attention: ${chalk.yellow(serverData.summary.attentionServers)}  Poll: ${Math.round(serverData.summary.pollIntervalMs / 1000)}s`
+              JSON.stringify({
+                ok: true,
+                data: {
+                  context: config.currentContext,
+                  apiUrl: ctx.apiUrl,
+                  health: healthData,
+                  servers: serverData
+                }
+              })
             );
-            if (serverData.summary.averageLatencyMs !== null) {
-              console.log(`  Average latency: ${serverData.summary.averageLatencyMs}ms`);
-            }
+          } else {
+            console.log(chalk.bold("\n  DaoFlow Status\n"));
+            console.log(`  Context:  ${chalk.cyan(config.currentContext)}`);
+            console.log(`  API URL:  ${ctx.apiUrl}`);
+            console.log(
+              `  Health:   ${healthData ? chalk.green("● healthy") : chalk.yellow("● unknown")}`
+            );
             console.log();
 
-            for (const check of serverData.checks) {
-              const icon = check.readinessStatus === "ready" ? chalk.green("●") : chalk.yellow("●");
+            if (serverData) {
+              console.log(chalk.bold("  Servers"));
               console.log(
-                `  ${icon} ${check.serverName.padEnd(20)} ${check.serverHost}  ${check.readinessStatus}`
+                `  Total: ${serverData.summary.totalServers}  Ready: ${chalk.green(serverData.summary.readyServers)}  Attention: ${chalk.yellow(serverData.summary.attentionServers)}  Poll: ${Math.round(serverData.summary.pollIntervalMs / 1000)}s`
               );
-              console.log(chalk.dim(`    ${formatServerRuntime(check)}`));
-              console.log(
-                `    SSH ${check.sshReachable ? "ok" : "blocked"} · Docker ${check.dockerReachable ? "ok" : "blocked"} · Compose ${check.composeReachable ? "ok" : "blocked"}`
-              );
-              if (check.issues.length > 0) {
-                console.log(chalk.yellow(`    Issues: ${check.issues.join("; ")}`));
+              if (serverData.summary.averageLatencyMs !== null) {
+                console.log(`  Average latency: ${serverData.summary.averageLatencyMs}ms`);
+              }
+              console.log();
+
+              for (const check of serverData.checks) {
+                const icon =
+                  check.readinessStatus === "ready" ? chalk.green("●") : chalk.yellow("●");
+                console.log(
+                  `  ${icon} ${check.serverName.padEnd(20)} ${check.serverHost}  ${check.readinessStatus}`
+                );
+                console.log(chalk.dim(`    ${formatServerRuntime(check)}`));
+                console.log(
+                  `    SSH ${check.sshReachable ? "ok" : "blocked"} · Docker ${check.dockerReachable ? "ok" : "blocked"} · Compose ${check.composeReachable ? "ok" : "blocked"}`
+                );
+                if (check.issues.length > 0) {
+                  console.log(chalk.yellow(`    Issues: ${check.issues.join("; ")}`));
+                }
               }
             }
-          }
 
-          console.log();
+            console.log();
+          }
+        } catch (err) {
+          if (isJson) {
+            console.log(
+              JSON.stringify({
+                ok: false,
+                error: getErrorMessage(err),
+                code: "API_ERROR"
+              })
+            );
+          } else {
+            console.error(chalk.red(`Error: ${getErrorMessage(err)}`));
+          }
+          process.exit(1);
         }
-      } catch (err) {
-        if (isJson) {
-          console.log(
-            JSON.stringify({
-              ok: false,
-              error: getErrorMessage(err),
-              code: "API_ERROR"
-            })
-          );
-        } else {
-          console.error(chalk.red(`Error: ${getErrorMessage(err)}`));
-        }
-        process.exit(1);
-      }
+      });
     });
 }

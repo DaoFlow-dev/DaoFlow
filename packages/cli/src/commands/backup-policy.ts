@@ -1,6 +1,7 @@
 import type { Command } from "commander";
 import chalk from "chalk";
 import { runCommandAction } from "../command-action";
+import { normalizeCliInput, normalizeOptionalCliInput } from "../command-helpers";
 import { createClient } from "../trpc-client";
 import type { BackupPolicyMutationOutput } from "../trpc-contract";
 
@@ -17,11 +18,6 @@ const BACKUP_POLICY_CREATE_HELP_TEXT = [
   '  dry-run: { "ok": true, "data": { "dryRun": true, "name": "nightly-db", "volumeId": "vol_123" } }',
   '  execute: { "ok": true, "data": { "policy": { "id": "bpol_123", "name": "nightly-db", "volumeId": "vol_123" } } }'
 ].join("\n");
-
-function trimOrUndefined(value?: string) {
-  const trimmed = value?.trim();
-  return trimmed ? trimmed : undefined;
-}
 
 function parsePositiveInt(value: string) {
   const parsed = Number.parseInt(value, 10);
@@ -105,13 +101,19 @@ export function registerBackupPolicySubcommands(backup: Command) {
           json: opts.json,
           action: async (ctx) => {
             const payload = {
-              name: opts.name.trim(),
-              volumeId: opts.volumeId.trim(),
-              destinationId: trimOrUndefined(opts.destinationId),
+              name: normalizeCliInput(opts.name, "Policy name"),
+              volumeId: normalizeCliInput(opts.volumeId, "Volume ID"),
+              destinationId: normalizeOptionalCliInput(opts.destinationId, "Destination ID"),
               backupType: opts.backupType,
-              databaseEngine: opts.databaseEngine,
+              databaseEngine: normalizeOptionalCliInput(opts.databaseEngine, "Database engine", {
+                allowPathTraversal: true
+              }) as "postgres" | "mysql" | "mariadb" | "mongo" | undefined,
               turnOff: opts.turnOff ?? false,
-              schedule: trimOrUndefined(opts.schedule),
+              schedule: normalizeOptionalCliInput(opts.schedule, "Backup schedule", {
+                allowPathTraversal: true,
+                allowShellMetacharacters: true,
+                maxLength: 256
+              }),
               retentionDays: opts.retentionDays,
               retentionDaily: opts.retentionDaily,
               retentionWeekly: opts.retentionWeekly,
@@ -145,6 +147,7 @@ export function registerBackupPolicySubcommands(backup: Command) {
                 policy: created
               },
               {
+                quiet: () => created.id,
                 human: () => renderPolicyHuman("created", created)
               }
             );
@@ -207,14 +210,24 @@ export function registerBackupPolicySubcommands(backup: Command) {
           json: opts.json,
           action: async (ctx) => {
             const payload = {
-              policyId: opts.policyId.trim(),
-              name: trimOrUndefined(opts.name),
-              volumeId: trimOrUndefined(opts.volumeId),
-              destinationId: opts.clearDestination ? "" : trimOrUndefined(opts.destinationId),
+              policyId: normalizeCliInput(opts.policyId, "Policy ID"),
+              name: normalizeOptionalCliInput(opts.name, "Policy name"),
+              volumeId: normalizeOptionalCliInput(opts.volumeId, "Volume ID"),
+              destinationId: opts.clearDestination
+                ? ""
+                : normalizeOptionalCliInput(opts.destinationId, "Destination ID"),
               backupType: opts.backupType,
-              databaseEngine: opts.databaseEngine,
+              databaseEngine: normalizeOptionalCliInput(opts.databaseEngine, "Database engine", {
+                allowPathTraversal: true
+              }) as "postgres" | "mysql" | "mariadb" | "mongo" | undefined,
               turnOff: opts.turnOff ? true : opts.turnOn ? false : undefined,
-              schedule: opts.clearSchedule ? "" : trimOrUndefined(opts.schedule),
+              schedule: opts.clearSchedule
+                ? ""
+                : normalizeOptionalCliInput(opts.schedule, "Backup schedule", {
+                    allowPathTraversal: true,
+                    allowShellMetacharacters: true,
+                    maxLength: 256
+                  }),
               retentionDays: opts.retentionDays,
               retentionDaily: opts.retentionDaily,
               retentionWeekly: opts.retentionWeekly,
@@ -248,6 +261,7 @@ export function registerBackupPolicySubcommands(backup: Command) {
                 policy: updated
               },
               {
+                quiet: () => updated.id,
                 human: () => renderPolicyHuman("updated", updated)
               }
             );
@@ -272,7 +286,7 @@ export function registerBackupPolicySubcommands(backup: Command) {
           command,
           json: opts.json,
           action: async (ctx) => {
-            const policyId = opts.policyId.trim();
+            const policyId = normalizeCliInput(opts.policyId, "Policy ID");
 
             if (opts.dryRun) {
               return ctx.dryRun(
@@ -303,6 +317,7 @@ export function registerBackupPolicySubcommands(backup: Command) {
             const result = await trpc.deleteBackupPolicy.mutate({ policyId });
 
             return ctx.success(result, {
+              quiet: () => policyId,
               human: () => {
                 console.log(chalk.green(`✓ Deleted backup policy ${policyId}`));
                 console.log();

@@ -6,6 +6,8 @@ import {
   emitJsonError,
   emitJsonSuccess,
   getErrorMessage,
+  normalizeCliInput,
+  normalizeOptionalCliInput,
   resolveCommandJsonOption
 } from "../command-helpers";
 import { createClient } from "../trpc-client";
@@ -34,25 +36,30 @@ export function envCommand(): Command {
         json: opts.json,
         action: async (ctx) => {
           const trpc = createClient();
-          const data = await trpc.environmentVariables.query({ environmentId: opts.envId });
+          const environmentId = normalizeOptionalCliInput(opts.envId, "Environment ID");
+          const outputPath = normalizeCliInput(opts.output, "Output path", {
+            allowPathTraversal: true,
+            maxLength: 1024
+          });
+          const data = await trpc.environmentVariables.query({ environmentId });
           const lines = data.variables.map((v) =>
             v.isSecret ? `# ${v.key}=<secret>` : `${v.key}=${v.displayValue}`
           );
           const maskedSecretCount = data.variables.filter((v) => v.isSecret).length;
 
-          writeFileSync(opts.output, lines.join("\n") + "\n");
+          writeFileSync(outputPath, lines.join("\n") + "\n");
 
           return ctx.success(
             {
-              environmentId: opts.envId ?? null,
-              output: opts.output,
+              environmentId: environmentId ?? null,
+              output: outputPath,
               variableCount: data.variables.length,
               maskedSecretCount
             },
             {
               human: () => {
                 console.log(
-                  chalk.green(`✓ Wrote ${data.variables.length} variables to ${opts.output}`)
+                  chalk.green(`✓ Wrote ${data.variables.length} variables to ${outputPath}`)
                 );
                 console.log(chalk.dim(`  (${maskedSecretCount} secrets masked)`));
               }
@@ -91,7 +98,12 @@ export function envCommand(): Command {
               ctx.fail(`File not found: ${opts.input}`, { code: "FILE_NOT_FOUND" });
             }
 
-            const content = readFileSync(opts.input, "utf-8");
+            const environmentId = normalizeCliInput(opts.envId, "Environment ID");
+            const inputPath = normalizeCliInput(opts.input, "Input path", {
+              allowPathTraversal: true,
+              maxLength: 1024
+            });
+            const content = readFileSync(inputPath, "utf-8");
             const lines = content.split("\n").filter((l) => l.trim() && !l.startsWith("#"));
             const vars: { key: string; value: string }[] = [];
 
@@ -99,8 +111,12 @@ export function envCommand(): Command {
               const eqIdx = line.indexOf("=");
               if (eqIdx < 0) continue;
               vars.push({
-                key: line.slice(0, eqIdx).trim(),
-                value: line.slice(eqIdx + 1).trim()
+                key: normalizeCliInput(line.slice(0, eqIdx), "Environment key"),
+                value: normalizeCliInput(line.slice(eqIdx + 1), "Environment value", {
+                  allowPathTraversal: true,
+                  allowShellMetacharacters: true,
+                  maxLength: 4096
+                })
               });
             }
 
@@ -108,8 +124,8 @@ export function envCommand(): Command {
               return ctx.dryRun(
                 {
                   dryRun: true,
-                  environmentId: opts.envId,
-                  input: opts.input,
+                  environmentId,
+                  input: inputPath,
                   variableCount: vars.length,
                   keys: vars.map((v) => v.key),
                   markAsSecret: opts.secret ?? false
@@ -129,9 +145,9 @@ export function envCommand(): Command {
 
             ctx.requireConfirmation(
               opts.yes === true,
-              `This will push ${vars.length} variables to environment ${opts.envId}. Pass --yes to confirm.`,
+              `This will push ${vars.length} variables to environment ${environmentId}. Pass --yes to confirm.`,
               {
-                humanMessage: `This will push ${vars.length} variables to environment ${opts.envId}. Pass --yes to confirm.`
+                humanMessage: `This will push ${vars.length} variables to environment ${environmentId}. Pass --yes to confirm.`
               }
             );
 
@@ -139,7 +155,7 @@ export function envCommand(): Command {
             let count = 0;
             for (const v of vars) {
               await trpc.upsertEnvironmentVariable.mutate({
-                environmentId: opts.envId,
+                environmentId,
                 key: v.key,
                 value: v.value,
                 isSecret: opts.secret ?? false,
@@ -150,15 +166,15 @@ export function envCommand(): Command {
 
             return ctx.success(
               {
-                environmentId: opts.envId,
-                input: opts.input,
+                environmentId,
+                input: inputPath,
                 variableCount: count,
                 markAsSecret: opts.secret ?? false
               },
               {
                 human: () => {
                   console.log(
-                    chalk.green(`✓ Pushed ${count} variables to environment ${opts.envId}`)
+                    chalk.green(`✓ Pushed ${count} variables to environment ${environmentId}`)
                   );
                 }
               }
@@ -180,7 +196,8 @@ export function envCommand(): Command {
         json: opts.json,
         action: async (ctx) => {
           const trpc = createClient();
-          const data = await trpc.environmentVariables.query({ environmentId: opts.envId });
+          const environmentId = normalizeOptionalCliInput(opts.envId, "Environment ID");
+          const data = await trpc.environmentVariables.query({ environmentId });
 
           return ctx.success(data, {
             human: () => {
@@ -244,69 +261,89 @@ export function envCommand(): Command {
               });
             }
 
-            if (opts.secretRef && !/^op:\/\/[^/]+\/[^/]+\/[^/]+$/.test(opts.secretRef)) {
+            const key = normalizeCliInput(opts.key, "Environment key");
+            const value = normalizeOptionalCliInput(opts.value, "Environment value", {
+              allowPathTraversal: true,
+              allowShellMetacharacters: true,
+              maxLength: 4096
+            });
+            const environmentId = opts.local
+              ? undefined
+              : normalizeOptionalCliInput(opts.envId, "Environment ID");
+            const filePath = normalizeCliInput(opts.file, "Environment file path", {
+              allowPathTraversal: true,
+              maxLength: 1024
+            });
+            const secretRef = normalizeOptionalCliInput(opts.secretRef, "Secret reference", {
+              allowPathTraversal: true,
+              maxLength: 512
+            });
+
+            if (secretRef && !/^op:\/\/[^/]+\/[^/]+\/[^/]+$/.test(secretRef)) {
               ctx.fail(
-                `Invalid secret reference: ${opts.secretRef}. Expected format: op://vault/item/field`,
+                `Invalid secret reference: ${secretRef}. Expected format: op://vault/item/field`,
                 { code: "INVALID_SECRET_REF" }
               );
             }
 
             if (opts.local) {
-              const storedValue = opts.secretRef ? `[1password:${opts.secretRef}]` : opts.value!;
+              const storedValue = secretRef ? `[1password:${secretRef}]` : value!;
               try {
-                upsertEnvFileValue(opts.file, opts.key, storedValue);
+                upsertEnvFileValue(filePath, key, storedValue);
               } catch (err) {
                 ctx.fail(getErrorMessage(err), { code: "FILE_WRITE_FAILED" });
               }
 
               return ctx.success(
                 {
-                  key: opts.key,
-                  file: opts.file,
-                  source: opts.secretRef ? "1password" : "inline"
+                  key,
+                  file: filePath,
+                  source: secretRef ? "1password" : "inline"
                 },
                 {
+                  quiet: () => key,
                   human: () => {
-                    console.log(chalk.green(`✓ Wrote ${opts.key} to ${opts.file}`));
+                    console.log(chalk.green(`✓ Wrote ${key} to ${filePath}`));
                   }
                 }
               );
             }
 
-            const source = opts.secretRef ? ` (1Password: ${opts.secretRef})` : "";
+            const source = secretRef ? ` (1Password: ${secretRef})` : "";
             ctx.requireConfirmation(
               opts.yes === true,
-              `Set ${opts.key} in environment ${opts.envId}${source}. Pass --yes to confirm.`
+              `Set ${key} in environment ${environmentId}${source}. Pass --yes to confirm.`
             );
 
             const trpc = createClient();
             await trpc.upsertEnvironmentVariable.mutate({
-              environmentId: opts.envId!,
-              key: opts.key,
-              value: opts.secretRef ? `[1password:${opts.secretRef}]` : opts.value!,
-              isSecret: opts.secret ?? !!opts.secretRef,
+              environmentId: environmentId!,
+              key,
+              value: secretRef ? `[1password:${secretRef}]` : value!,
+              isSecret: opts.secret ?? !!secretRef,
               category: opts.category as "runtime" | "build",
-              source: opts.secretRef ? "1password" : "inline",
-              secretRef: opts.secretRef ?? null
+              source: secretRef ? "1password" : "inline",
+              secretRef: secretRef ?? null
             });
 
             return ctx.success(
               {
-                key: opts.key,
-                environment: opts.envId!,
-                source: opts.secretRef ? "1password" : "inline",
-                secretRef: opts.secretRef ?? null
+                key,
+                environment: environmentId!,
+                source: secretRef ? "1password" : "inline",
+                secretRef: secretRef ?? null
               },
               {
+                quiet: () => key,
                 human: () => {
-                  if (opts.secretRef) {
+                  if (secretRef) {
                     console.log(
                       chalk.green(
-                        `✓ Set ${opts.key} → ${chalk.cyan(opts.secretRef)} in environment ${opts.envId}`
+                        `✓ Set ${key} → ${chalk.cyan(secretRef)} in environment ${environmentId}`
                       )
                     );
                   } else {
-                    console.log(chalk.green(`✓ Set ${opts.key} in environment ${opts.envId!}`));
+                    console.log(chalk.green(`✓ Set ${key} in environment ${environmentId!}`));
                   }
                 }
               }
@@ -333,25 +370,28 @@ export function envCommand(): Command {
           command,
           json: opts.json,
           action: async (ctx) => {
+            const environmentId = normalizeCliInput(opts.envId, "Environment ID");
+            const key = normalizeCliInput(opts.key, "Environment key");
             ctx.requireConfirmation(
               opts.yes === true,
-              `Destructive: delete ${opts.key} from environment ${opts.envId}. Pass --yes.`,
+              `Destructive: delete ${key} from environment ${environmentId}. Pass --yes.`,
               {
-                humanMessage: `Destructive: delete ${opts.key} from environment ${opts.envId}. Pass --yes.`
+                humanMessage: `Destructive: delete ${key} from environment ${environmentId}. Pass --yes.`
               }
             );
 
             const trpc = createClient();
             await trpc.deleteEnvironmentVariable.mutate({
-              environmentId: opts.envId,
-              key: opts.key
+              environmentId,
+              key
             });
 
             return ctx.success(
-              { deleted: opts.key, environment: opts.envId },
+              { deleted: key, environment: environmentId },
               {
+                quiet: () => key,
                 human: () => {
-                  console.log(chalk.green(`✓ Deleted ${opts.key} from environment ${opts.envId}`));
+                  console.log(chalk.green(`✓ Deleted ${key} from environment ${environmentId}`));
                 }
               }
             );
@@ -371,12 +411,13 @@ export function envCommand(): Command {
 
       try {
         const trpc = createClient();
-        const data = await trpc.resolveEnvironmentSecrets.query({ environmentId: opts.envId });
+        const environmentId = normalizeCliInput(opts.envId, "Environment ID");
+        const data = await trpc.resolveEnvironmentSecrets.query({ environmentId });
 
         if (data.variables.length === 0) {
           if (isJson) {
             emitJsonSuccess({
-              environmentId: opts.envId,
+              environmentId,
               resolved: 0,
               unresolved: 0,
               variables: []

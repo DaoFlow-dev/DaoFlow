@@ -1,6 +1,11 @@
 import { Command } from "commander";
 import chalk from "chalk";
-import { getErrorMessage, resolveCommandJsonOption } from "../command-helpers";
+import {
+  getErrorMessage,
+  resolveCommandJsonOption,
+  resolveCommandQuietOption,
+  withResolvedCommandRequestOptions
+} from "../command-helpers";
 import { createClient, type RouterOutputs } from "../trpc-client";
 import { getCurrentContext } from "../config";
 
@@ -11,6 +16,7 @@ export function capabilitiesCommand(): Command {
     .option("--json", "Output as JSON")
     .action(async (opts: { json?: boolean }, command: Command) => {
       const isJson = resolveCommandJsonOption(command, opts.json);
+      const isQuiet = resolveCommandQuietOption(command);
       const ctx = getCurrentContext();
 
       if (!ctx) {
@@ -22,59 +28,65 @@ export function capabilitiesCommand(): Command {
         process.exit(1);
       }
 
-      const trpc = createClient(ctx);
+      await withResolvedCommandRequestOptions(command, async () => {
+        const trpc = createClient(ctx);
 
-      try {
-        const viewer: RouterOutputs["viewer"] = await trpc.viewer.query();
-        const caps = viewer.authz.capabilities;
+        try {
+          const viewer: RouterOutputs["viewer"] = await trpc.viewer.query();
+          const caps = viewer.authz.capabilities;
 
-        if (isJson) {
-          console.log(
-            JSON.stringify({
-              ok: true,
-              data: {
-                authMethod: viewer.authz.authMethod,
-                role: viewer.authz.role,
-                scopes: caps,
-                token: viewer.authz.token,
-                total: caps.length
+          if (isJson) {
+            console.log(
+              JSON.stringify({
+                ok: true,
+                data: {
+                  authMethod: viewer.authz.authMethod,
+                  role: viewer.authz.role,
+                  scopes: caps,
+                  token: viewer.authz.token,
+                  total: caps.length
+                }
+              })
+            );
+          } else if (isQuiet) {
+            for (const scope of caps) {
+              console.log(scope);
+            }
+          } else {
+            console.log(
+              chalk.bold(`\n  Capabilities (${viewer.authz.role}, ${viewer.authz.authMethod})\n`)
+            );
+            const readScopes = caps.filter((s) => s.endsWith(":read"));
+            const writeScopes = caps.filter((s) => !s.endsWith(":read"));
+
+            if (readScopes.length > 0) {
+              console.log(chalk.dim("  Read:"));
+              for (const s of readScopes) {
+                console.log(`    ${chalk.green("✓")} ${s}`);
               }
-            })
-          );
-        } else {
-          console.log(
-            chalk.bold(`\n  Capabilities (${viewer.authz.role}, ${viewer.authz.authMethod})\n`)
-          );
-          const readScopes = caps.filter((s) => s.endsWith(":read"));
-          const writeScopes = caps.filter((s) => !s.endsWith(":read"));
-
-          if (readScopes.length > 0) {
-            console.log(chalk.dim("  Read:"));
-            for (const s of readScopes) {
-              console.log(`    ${chalk.green("✓")} ${s}`);
             }
-          }
-          if (writeScopes.length > 0) {
-            console.log(chalk.dim("  Write/Command:"));
-            for (const s of writeScopes) {
-              console.log(`    ${chalk.green("✓")} ${s}`);
+            if (writeScopes.length > 0) {
+              console.log(chalk.dim("  Write/Command:"));
+              for (const s of writeScopes) {
+                console.log(`    ${chalk.green("✓")} ${s}`);
+              }
             }
+            console.log();
           }
-          console.log();
+        } catch (err) {
+          if (isJson) {
+            console.log(
+              JSON.stringify({
+                ok: false,
+                error: getErrorMessage(err),
+                code: "API_ERROR"
+              })
+            );
+          } else {
+            console.error(chalk.red(`Error: ${getErrorMessage(err)}`));
+          }
+          process.exit(1);
         }
-      } catch (err) {
-        if (isJson) {
-          console.log(
-            JSON.stringify({
-              ok: false,
-              error: getErrorMessage(err),
-              code: "API_ERROR"
-            })
-          );
-        } else {
-          console.error(chalk.red(`Error: ${getErrorMessage(err)}`));
-        }
-        process.exit(1);
-      }
+      });
     });
 }
