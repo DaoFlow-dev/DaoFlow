@@ -6,6 +6,48 @@ import tailwindcss from "@tailwindcss/vite";
 const DEFAULT_CLIENT_PORT = 5173;
 const DEFAULT_SERVER_PORT = 3000;
 
+function splitClientChunks(id: string) {
+  const normalizedId = id.replace(/\\/g, "/");
+
+  if (!normalizedId.includes("node_modules")) {
+    return undefined;
+  }
+
+  if (
+    normalizedId.includes("/react/") ||
+    normalizedId.includes("/react-dom/") ||
+    normalizedId.includes("/scheduler/")
+  ) {
+    return "framework";
+  }
+
+  if (normalizedId.includes("/react-router-dom/") || normalizedId.includes("/react-router/")) {
+    return "router";
+  }
+
+  if (
+    normalizedId.includes("/@tanstack/react-query/") ||
+    normalizedId.includes("/@trpc/client/") ||
+    normalizedId.includes("/@trpc/react-query/") ||
+    normalizedId.includes("/better-auth/")
+  ) {
+    return "data-auth";
+  }
+
+  if (
+    normalizedId.includes("/@radix-ui/") ||
+    normalizedId.includes("/@base-ui/") ||
+    normalizedId.includes("/sonner/") ||
+    normalizedId.includes("/class-variance-authority/") ||
+    normalizedId.includes("/clsx/") ||
+    normalizedId.includes("/tailwind-merge/")
+  ) {
+    return "ui-shell";
+  }
+
+  return undefined;
+}
+
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   test: {
@@ -34,6 +76,11 @@ export default defineConfig({
     }
   },
   build: {
-    outDir: "dist"
+    outDir: "dist",
+    rolldownOptions: {
+      output: {
+        manualChunks: splitClientChunks
+      }
+    }
   }
 });
