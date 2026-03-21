@@ -8,19 +8,20 @@
  * history and resumes exactly where it left off.
  */
 
-import { proxyActivities, ApplicationFailure } from "@temporalio/workflow";
+import { proxyActivities, ApplicationFailure, sleep } from "@temporalio/workflow";
 import type * as activities from "../activities/deploy-activities";
 import type { DeploymentWorkflowInput } from "../../deployment-workflow-input";
 
-const { runDeploymentActivity, cleanupDeploymentStaging } = proxyActivities<typeof activities>({
-  startToCloseTimeout: "15 minutes",
-  retry: {
-    maximumAttempts: 3,
-    backoffCoefficient: 2,
-    initialInterval: "10s",
-    maximumInterval: "2m"
-  }
-});
+const { claimSpecificDeploymentActivity, runDeploymentActivity, cleanupDeploymentStaging } =
+  proxyActivities<typeof activities>({
+    startToCloseTimeout: "15 minutes",
+    retry: {
+      maximumAttempts: 3,
+      backoffCoefficient: 2,
+      initialInterval: "10s",
+      maximumInterval: "2m"
+    }
+  });
 
 /**
  * Main deployment workflow.
@@ -32,7 +33,28 @@ export async function deploymentWorkflow(input: DeploymentWorkflowInput): Promis
   const { id } = input;
 
   try {
-    await runDeploymentActivity(input);
+    while (true) {
+      const claim = await claimSpecificDeploymentActivity(id);
+      if (claim.status === "claimed") {
+        break;
+      }
+
+      if (claim.status === "waiting") {
+        await sleep("5 seconds");
+        continue;
+      }
+
+      if (claim.status === "terminal" || claim.status === "missing") {
+        console.log(`[temporal] Deployment ${id} no longer needs execution`);
+        return;
+      }
+    }
+
+    const outcome = await runDeploymentActivity(input);
+    if (outcome === "cancelled") {
+      console.log(`[temporal] Deployment ${id} cancelled after user request`);
+      return;
+    }
     console.log(`[temporal] Deployment ${id} completed successfully`);
   } catch (err) {
     if (err instanceof ApplicationFailure) {

@@ -10,10 +10,15 @@ import {
   executeDockerfileDeployment,
   executeImageDeployment
 } from "./deploy-strategies";
+import { throwIfDeploymentCancellationRequested } from "../db/services/deployment-execution-control";
+import { DeploymentCancellationError } from "../deployment-cancellation";
 
 const DEPLOY_TIMEOUT_MS = Number(process.env.DEPLOY_TIMEOUT_MS ?? 600_000);
 
-export async function runDeployment(deployment: DeploymentRow, actorLabel = "execution-worker") {
+export async function runDeployment(
+  deployment: DeploymentRow,
+  actorLabel = "execution-worker"
+): Promise<"succeeded" | "cancelled"> {
   const config = readConfig(deployment);
   const { onLog, flush } = createLogStreamer(deployment.id, actorLabel);
 
@@ -39,6 +44,7 @@ export async function runDeployment(deployment: DeploymentRow, actorLabel = "exe
   });
 
   try {
+    await throwIfDeploymentCancellationRequested(deployment.id);
     await transitionDeployment(deployment.id, "prepare");
     await emitEvent(
       "deployment.prepare.started",
@@ -48,11 +54,13 @@ export async function runDeployment(deployment: DeploymentRow, actorLabel = "exe
     );
 
     await withPreparedExecutionTarget(target, async (preparedTarget) => {
+      await throwIfDeploymentCancellationRequested(deployment.id);
       if (deployment.sourceType === "compose") {
         await Promise.race([
           executeComposeDeployment(deployment, config, composeProjectName, onLog, preparedTarget),
           timeoutPromise
         ]);
+        await throwIfDeploymentCancellationRequested(deployment.id);
         return;
       }
 
@@ -61,6 +69,7 @@ export async function runDeployment(deployment: DeploymentRow, actorLabel = "exe
           executeDockerfileDeployment(deployment, config, containerName, onLog, preparedTarget),
           timeoutPromise
         ]);
+        await throwIfDeploymentCancellationRequested(deployment.id);
         return;
       }
 
@@ -69,6 +78,7 @@ export async function runDeployment(deployment: DeploymentRow, actorLabel = "exe
           executeImageDeployment(deployment, config, containerName, onLog, preparedTarget),
           timeoutPromise
         ]);
+        await throwIfDeploymentCancellationRequested(deployment.id);
         return;
       }
 
@@ -82,7 +92,20 @@ export async function runDeployment(deployment: DeploymentRow, actorLabel = "exe
       "Deployment completed successfully",
       `${deployment.serviceName} is now running`
     );
+    return "succeeded";
   } catch (error) {
+    if (error instanceof DeploymentCancellationError) {
+      await transitionDeployment(deployment.id, "failed", "cancelled", error.message);
+      await emitEvent(
+        "deployment.cancelled",
+        deployment,
+        "Deployment cancelled",
+        error.message,
+        "warning"
+      );
+      return "cancelled";
+    }
+
     await transitionDeployment(deployment.id, "failed", "failed", error);
     await emitEvent(
       "deployment.failed",

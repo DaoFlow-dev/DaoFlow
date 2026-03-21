@@ -8,6 +8,7 @@ import { dockerComposePs, type OnLog } from "./docker-executor";
 import type { ExecutionTarget } from "./execution-target";
 import { remoteDockerComposePs } from "./ssh-executor";
 import { markStepComplete, markStepFailed } from "./step-management";
+import { throwIfDeploymentCancellationRequested } from "../db/services/deployment-execution-control";
 
 const HEALTH_CHECK_TIMEOUT_MS = 60_000;
 const HEALTH_CHECK_INTERVAL_MS = 3_000;
@@ -37,6 +38,7 @@ async function readComposeHealthStatuses(
 }
 
 export async function waitForComposeHealthy(input: {
+  deploymentId: string;
   composeFile: string;
   projectName: string;
   workDir: string;
@@ -64,6 +66,7 @@ export async function waitForComposeHealthy(input: {
     : HEALTH_CHECK_INTERVAL_MS;
 
   while (true) {
+    await throwIfDeploymentCancellationRequested(input.deploymentId);
     const now = Date.now();
     if (!readinessStart && now - composeStart >= HEALTH_CHECK_TIMEOUT_MS) {
       await markStepFailed(

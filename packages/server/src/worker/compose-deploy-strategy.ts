@@ -31,6 +31,7 @@ import {
   type ConfigSnapshot,
   type DeploymentRow
 } from "./step-management";
+import { throwIfDeploymentCancellationRequested } from "../db/services/deployment-execution-control";
 
 export async function executeComposeDeployment(
   deployment: DeploymentRow,
@@ -65,6 +66,7 @@ export async function executeComposeDeployment(
   let composeEnvExportFile: string | undefined;
   let composeBuildPlan: ComposeBuildPlan;
   const deploymentComposeState = readDeploymentComposeState(deployment.envVarsEncrypted);
+  await throwIfDeploymentCancellationRequested(deployment.id);
   try {
     const workspace = await prepareComposeWorkspace(
       deployment.id,
@@ -93,6 +95,7 @@ export async function executeComposeDeployment(
     throw error;
   }
   await markStepComplete(cloneStepId, `Workspace ready at ${workDir}`);
+  await throwIfDeploymentCancellationRequested(deployment.id);
 
   if (composeOperation === "down") {
     await transitionDeployment(deployment.id, "deploy");
@@ -163,6 +166,7 @@ export async function executeComposeDeployment(
       throw new Error(`docker compose pull failed with exit code ${pullResult.exitCode}`);
     }
     await markStepComplete(pullStepId, `Pulled images for ${composeTargetLabel}`);
+    await throwIfDeploymentCancellationRequested(deployment.id);
   }
 
   if (executionScope.buildServiceNames.length > 0) {
@@ -202,6 +206,7 @@ export async function executeComposeDeployment(
       throw new Error(`docker compose build failed with exit code ${buildResult.exitCode}`);
     }
     await markStepComplete(buildStepId, `Built images for ${composeTargetLabel}`);
+    await throwIfDeploymentCancellationRequested(deployment.id);
   }
 
   await transitionDeployment(deployment.id, "deploy");
@@ -238,6 +243,7 @@ export async function executeComposeDeployment(
     throw new Error(`docker compose up failed with exit code ${upResult.exitCode}`);
   }
   await markStepComplete(deployStepId, `Started ${composeTargetLabel}`);
+  await throwIfDeploymentCancellationRequested(deployment.id);
 
   const healthStepId = await createStep(deployment.id, "Health check", nextSortOrder);
   await markStepRunning(healthStepId);
@@ -254,6 +260,7 @@ export async function executeComposeDeployment(
     healthStepId,
     readinessProbe,
     expectedServiceNames: executionScope.expectedServiceNames,
-    expectedHealthcheckServiceNames: executionScope.buildHealthcheckServiceNames
+    expectedHealthcheckServiceNames: executionScope.buildHealthcheckServiceNames,
+    deploymentId: deployment.id
   });
 }

@@ -12,12 +12,9 @@
  *  - ./deploy-strategies.ts
  */
 
-import { eq, and, sql as rawSql } from "drizzle-orm";
-import { db } from "../db/connection";
-import { deployments } from "../db/schema/deployments";
-import { auditEntries } from "../db/schema/audit";
 import type { DeploymentRow } from "./step-management";
 import { runDeployment } from "./run-deployment";
+import { claimNextQueuedDeploymentForExecution } from "../db/services/deployment-execution-control";
 
 const POLL_INTERVAL_MS = 5_000;
 let running = false;
@@ -27,7 +24,11 @@ let running = false;
 async function executeDeployment(deployment: DeploymentRow): Promise<void> {
   try {
     console.log(`[worker] Executing deployment ${deployment.id} for ${deployment.serviceName}`);
-    await runDeployment(deployment, "execution-worker");
+    const outcome = await runDeployment(deployment, "execution-worker");
+    if (outcome === "cancelled") {
+      console.log(`[worker] Deployment ${deployment.id} cancelled after user request`);
+      return;
+    }
     console.log(`[worker] Deployment ${deployment.id} completed successfully`);
   } catch (err) {
     console.error(
@@ -41,43 +42,14 @@ async function executeDeployment(deployment: DeploymentRow): Promise<void> {
 
 async function pollQueue(): Promise<void> {
   try {
-    // Atomic claim: UPDATE the oldest queued deployment to "prepare" in one
-    // statement. If two workers poll at the same time, only one succeeds
-    // because the WHERE clause filters by status = "queued".
-    const [job] = await db
-      .update(deployments)
-      .set({ status: "prepare", updatedAt: new Date() })
-      .where(
-        and(
-          eq(deployments.status, "queued"),
-          eq(
-            deployments.id,
-            rawSql`(SELECT id FROM ${deployments} WHERE status = 'queued' ORDER BY created_at ASC LIMIT 1 FOR UPDATE SKIP LOCKED)`
-          )
-        )
-      )
-      .returning();
-
-    if (!job) return;
-
-    // Record audit entry
-    await db.insert(auditEntries).values({
-      actorType: "system",
+    const job = await claimNextQueuedDeploymentForExecution({
       actorId: "execution-worker",
       actorEmail: "system@daoflow.local",
       actorRole: "admin",
-      targetResource: `deployment/${job.id}`,
-      action: "deployment.execute",
-      inputSummary: `Worker picked up deployment ${job.id} for ${job.serviceName}`,
-      permissionScope: "deploy:start",
-      outcome: "success",
-      metadata: {
-        resourceType: "deployment",
-        resourceId: job.id,
-        resourceLabel: job.serviceName,
-        detail: `Execution worker claimed deployment ${job.id}`
-      }
+      actorLabel: "execution-worker"
     });
+
+    if (!job) return;
 
     await executeDeployment(job);
   } catch (err) {

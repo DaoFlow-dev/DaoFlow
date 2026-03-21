@@ -102,7 +102,7 @@ export async function emitEvent(
   deployment: DeploymentRow,
   summary: string,
   detail: string,
-  severity: "info" | "error" = "info"
+  severity: "info" | "warning" | "error" = "info"
 ): Promise<void> {
   await db.insert(events).values({
     kind,

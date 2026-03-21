@@ -24,6 +24,10 @@ import {
   readStringArray
 } from "./json-helpers";
 import { readComposePreviewMetadata } from "../../compose-preview";
+import {
+  readDeploymentCancellationSnapshot,
+  writeDeploymentCancellationSnapshot
+} from "../../deployment-cancellation";
 
 export type DeploymentStatus = DeploymentLifecycleStatus;
 export type DeploymentSourceType = "compose" | "dockerfile" | "image";
@@ -89,6 +93,8 @@ function buildDeploymentView(
   const statusLabel = formatDeploymentStatusLabel(deployment.status, deployment.conclusion);
   const statusTone = getDeploymentStatusTone(deployment.status, deployment.conclusion);
   const hasServiceTarget = typeof service?.id === "string";
+  const cancellation = readDeploymentCancellationSnapshot(snapshot);
+  const cancellationRequested = cancellation !== null && status === DeploymentHealthStatus.Running;
 
   return {
     ...deployment,
@@ -97,8 +103,10 @@ function buildDeploymentView(
     statusTone,
     statusLabel,
     serviceId: service?.id ?? null,
-    canCancel: canCancelDeployment(deployment.status, deployment.conclusion),
+    canCancel:
+      !cancellationRequested && canCancelDeployment(deployment.status, deployment.conclusion),
     canRollback: canRollbackDeployment(deployment.status, deployment.conclusion, hasServiceTarget),
+    cancellationRequested,
     projectName: project?.name ?? readString(snapshot, "projectName", deployment.projectId),
     environmentName:
       environment?.name ?? readString(snapshot, "environmentName", deployment.environmentId),
@@ -618,16 +626,51 @@ export async function cancelDeployment(input: CancelDeploymentInput) {
     return { status: "invalid-state" as const, currentStatus };
   }
 
-  await db
-    .update(deployments)
-    .set({
-      status: DeploymentLifecycleStatus.Failed,
-      conclusion: DeploymentConclusion.Cancelled,
-      error: { reason: "Cancelled by user", cancelledBy: input.cancelledByEmail },
-      concludedAt: new Date(),
-      updatedAt: new Date()
-    })
-    .where(eq(deployments.id, input.deploymentId));
+  const existingCancellation = readDeploymentCancellationSnapshot(deployment.configSnapshot);
+  if (existingCancellation) {
+    return {
+      status: "cancellation-requested" as const,
+      deploymentId: input.deploymentId
+    };
+  }
+
+  const now = new Date();
+  const cancellationSnapshot = writeDeploymentCancellationSnapshot(deployment.configSnapshot, {
+    cancelRequestedAt: now.toISOString(),
+    cancelRequestedBy: input.cancelledByEmail,
+    cancelRequestedByUserId: input.cancelledByUserId,
+    cancelRequestedByRole: input.cancelledByRole
+  });
+
+  if (currentStatus === DeploymentHealthStatus.Queued) {
+    await db
+      .update(deployments)
+      .set({
+        status: DeploymentLifecycleStatus.Failed,
+        conclusion: DeploymentConclusion.Cancelled,
+        error: { reason: "Cancelled by user", cancelledBy: input.cancelledByEmail },
+        configSnapshot: cancellationSnapshot,
+        concludedAt: now,
+        updatedAt: now
+      })
+      .where(eq(deployments.id, input.deploymentId));
+  } else {
+    await db
+      .update(deployments)
+      .set({
+        configSnapshot: cancellationSnapshot,
+        updatedAt: now
+      })
+      .where(eq(deployments.id, input.deploymentId));
+
+    await db.insert(deploymentLogs).values({
+      deploymentId: input.deploymentId,
+      level: "warn",
+      message: `Cancellation requested by ${input.cancelledByEmail}.`,
+      source: "system",
+      createdAt: now
+    });
+  }
 
   await db.insert(auditEntries).values({
     actorType: "user",
@@ -636,26 +679,47 @@ export async function cancelDeployment(input: CancelDeploymentInput) {
     actorRole: input.cancelledByRole,
     targetResource: `deployment/${input.deploymentId}`,
     action: "deployment.cancel",
-    inputSummary: `Cancelled deployment ${input.deploymentId}.`,
+    inputSummary:
+      currentStatus === DeploymentHealthStatus.Queued
+        ? `Cancelled deployment ${input.deploymentId}.`
+        : `Requested cancellation for deployment ${input.deploymentId}.`,
     permissionScope: "deploy:cancel",
     outcome: "success",
     metadata: {
       resourceType: "deployment",
       resourceId: input.deploymentId,
-      detail: `Cancelled deployment from ${currentStatus} state.`
+      detail:
+        currentStatus === DeploymentHealthStatus.Queued
+          ? `Cancelled deployment from ${currentStatus} state.`
+          : `Requested cancellation for deployment from ${currentStatus} state.`
     }
   });
 
   await db.insert(events).values({
-    kind: "deployment.cancelled",
+    kind:
+      currentStatus === DeploymentHealthStatus.Queued
+        ? "deployment.cancelled"
+        : "deployment.cancel.requested",
     resourceType: "deployment",
     resourceId: input.deploymentId,
-    summary: "Deployment cancelled by user.",
-    detail: `${input.cancelledByEmail} cancelled a ${currentStatus} deployment.`,
+    summary:
+      currentStatus === DeploymentHealthStatus.Queued
+        ? "Deployment cancelled by user."
+        : "Deployment cancellation requested by user.",
+    detail:
+      currentStatus === DeploymentHealthStatus.Queued
+        ? `${input.cancelledByEmail} cancelled a ${currentStatus} deployment.`
+        : `${input.cancelledByEmail} requested cancellation for a ${currentStatus} deployment.`,
     severity: "warning",
     metadata: { previousStatus: currentStatus, cancelledBy: input.cancelledByEmail },
-    createdAt: new Date()
+    createdAt: now
   });
 
-  return { status: "cancelled" as const, deploymentId: input.deploymentId };
+  return {
+    status:
+      currentStatus === DeploymentHealthStatus.Queued
+        ? ("cancelled" as const)
+        : ("cancellation-requested" as const),
+    deploymentId: input.deploymentId
+  };
 }

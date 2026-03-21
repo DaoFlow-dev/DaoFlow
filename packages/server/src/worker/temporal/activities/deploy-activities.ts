@@ -1,49 +1,27 @@
-import { and, eq, sql as rawSql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { db } from "../../../db/connection";
-import { auditEntries } from "../../../db/schema/audit";
 import { deployments } from "../../../db/schema/deployments";
 import { cleanupStagingDir } from "../../docker-executor";
 import type { DeploymentWorkflowInput } from "../../deployment-workflow-input";
 import { runDeployment } from "../../run-deployment";
+import {
+  claimDeploymentForExecution,
+  claimNextQueuedDeploymentForExecution
+} from "../../../db/services/deployment-execution-control";
 
 /**
  * Claim a queued deployment atomically and record an audit entry.
  * Returns null if no deployment is available.
  */
 export async function claimQueuedDeployment(): Promise<DeploymentWorkflowInput | null> {
-  const [job] = await db
-    .update(deployments)
-    .set({ status: "prepare", updatedAt: new Date() })
-    .where(
-      and(
-        eq(deployments.status, "queued"),
-        eq(
-          deployments.id,
-          rawSql`(SELECT id FROM ${deployments} WHERE status = 'queued' ORDER BY created_at ASC LIMIT 1 FOR UPDATE SKIP LOCKED)`
-        )
-      )
-    )
-    .returning();
-
-  if (!job) return null;
-
-  await db.insert(auditEntries).values({
-    actorType: "system",
+  const job = await claimNextQueuedDeploymentForExecution({
     actorId: "temporal-worker",
     actorEmail: "system@daoflow.local",
     actorRole: "admin",
-    targetResource: `deployment/${job.id}`,
-    action: "deployment.execute",
-    inputSummary: `Temporal worker claimed deployment ${job.id} for ${job.serviceName}`,
-    permissionScope: "deploy:start",
-    outcome: "success",
-    metadata: {
-      resourceType: "deployment",
-      resourceId: job.id,
-      resourceLabel: job.serviceName,
-      detail: `Temporal worker claimed deployment ${job.id}`
-    }
+    actorLabel: "temporal-worker"
   });
+
+  if (!job) return null;
 
   return {
     id: job.id,
@@ -55,7 +33,22 @@ export async function claimQueuedDeployment(): Promise<DeploymentWorkflowInput |
   };
 }
 
-export async function runDeploymentActivity(input: DeploymentWorkflowInput): Promise<void> {
+export async function claimSpecificDeploymentActivity(deploymentId: string): Promise<{
+  status: "claimed" | "waiting" | "terminal" | "missing";
+}> {
+  const result = await claimDeploymentForExecution(deploymentId, {
+    actorId: "temporal-worker",
+    actorEmail: "system@daoflow.local",
+    actorRole: "admin",
+    actorLabel: "temporal-worker"
+  });
+
+  return { status: result.status };
+}
+
+export async function runDeploymentActivity(
+  input: DeploymentWorkflowInput
+): Promise<"succeeded" | "cancelled"> {
   const [deployment] = await db
     .select()
     .from(deployments)
@@ -66,7 +59,7 @@ export async function runDeploymentActivity(input: DeploymentWorkflowInput): Pro
     throw new Error(`Deployment ${input.id} not found`);
   }
 
-  await runDeployment(deployment, "temporal-worker");
+  return runDeployment(deployment, "temporal-worker");
 }
 
 /**

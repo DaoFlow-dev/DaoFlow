@@ -37,6 +37,7 @@ import {
   type DeploymentRow,
   type ConfigSnapshot
 } from "./step-management";
+import { throwIfDeploymentCancellationRequested } from "../db/services/deployment-execution-control";
 
 const HEALTH_CHECK_TIMEOUT_MS = 60_000;
 const HEALTH_CHECK_INTERVAL_MS = 3_000;
@@ -55,6 +56,8 @@ export async function executeDockerfileDeployment(
   const buildContext = config.buildContext ?? ".";
   const tag =
     deployment.imageTag ?? `daoflow/${deployment.serviceName}:${deployment.commitSha ?? "latest"}`;
+
+  await throwIfDeploymentCancellationRequested(deployment.id);
 
   // Step 1: Clone
   const cloneStepId = await createStep(deployment.id, "Clone repository", 1);
@@ -75,6 +78,7 @@ export async function executeDockerfileDeployment(
     throw new Error(`git clone failed with exit code ${cloneResult.exitCode}`);
   }
   await markStepComplete(cloneStepId, `Repository cloned to ${workDir}`);
+  await throwIfDeploymentCancellationRequested(deployment.id);
 
   // Step 2: Build
   const buildStepId = await createStep(deployment.id, "Build image", 2);
@@ -93,6 +97,7 @@ export async function executeDockerfileDeployment(
     throw new Error(`docker build failed with exit code ${buildResult.exitCode}`);
   }
   await markStepComplete(buildStepId, `Image ${tag} built successfully`);
+  await throwIfDeploymentCancellationRequested(deployment.id);
 
   // Step 3: Run container
   const runStepId = await createStep(deployment.id, "Start container", 3);
@@ -134,6 +139,7 @@ export async function executeDockerfileDeployment(
     .where(eq(deployments.id, deployment.id));
 
   await markStepComplete(runStepId, `Container ${containerName} started`);
+  await throwIfDeploymentCancellationRequested(deployment.id);
 
   // Step 4: Health check
   await waitForHealthy(deployment, containerName, onLog, target);
@@ -153,6 +159,8 @@ export async function executeImageDeployment(
     throw new Error("Image deployment requires an imageTag");
   }
 
+  await throwIfDeploymentCancellationRequested(deployment.id);
+
   // Step 1: Pull image
   const pullStepId = await createStep(deployment.id, "Pull image", 1);
   await markStepRunning(pullStepId);
@@ -166,6 +174,7 @@ export async function executeImageDeployment(
     throw new Error(`docker pull failed with exit code ${pullResult.exitCode}`);
   }
   await markStepComplete(pullStepId, `Image ${tag} pulled`);
+  await throwIfDeploymentCancellationRequested(deployment.id);
 
   // Step 2: Start container
   await transitionDeployment(deployment.id, "deploy");
@@ -208,6 +217,7 @@ export async function executeImageDeployment(
     .where(eq(deployments.id, deployment.id));
 
   await markStepComplete(runStepId, `Container ${containerName} started`);
+  await throwIfDeploymentCancellationRequested(deployment.id);
 
   // Step 3: Health check
   await waitForHealthy(deployment, containerName, onLog, target);
@@ -224,6 +234,7 @@ async function waitForHealthy(
 
   const start = Date.now();
   while (Date.now() - start < HEALTH_CHECK_TIMEOUT_MS) {
+    await throwIfDeploymentCancellationRequested(deployment.id);
     const healthy =
       target.mode === "remote"
         ? await remoteCheckContainerHealth(target.ssh, containerName, onLog)

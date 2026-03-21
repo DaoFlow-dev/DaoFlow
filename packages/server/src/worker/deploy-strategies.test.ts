@@ -123,6 +123,10 @@ async function loadHarness(input: {
     }
   }));
 
+  vi.doMock("../db/services/deployment-execution-control", () => ({
+    throwIfDeploymentCancellationRequested: vi.fn().mockResolvedValue(undefined)
+  }));
+
   vi.doMock("../compose-readiness", () => ({
     readComposeReadinessProbeSnapshot: vi.fn(() => null)
   }));
