@@ -11,6 +11,7 @@ import { users } from "./db/schema/users";
 import { createEnvironment, createProject } from "./db/services/projects";
 import { asRecord } from "./db/services/json-helpers";
 import { createService } from "./db/services/services";
+import { upsertEnvironmentVariable } from "./db/services/envvars";
 import { appRouter } from "./router";
 
 let rollbackFixtureCounter = 0;
@@ -912,6 +913,59 @@ describe("appRouter", () => {
     expect(variable.displayValue).toEqual(expect.any(String));
   });
 
+  it("requires env:read and reveals secrets only when explicitly authorized", async () => {
+    const key = `TEST_ENV_SCOPE_${Date.now().toString(36).toUpperCase()}`;
+    await upsertEnvironmentVariable({
+      environmentId: "env_daoflow_staging",
+      key,
+      value: "scope-secret",
+      isSecret: true,
+      category: "runtime",
+      updatedByUserId: "user_foundation_owner",
+      updatedByEmail: "owner@daoflow.local",
+      updatedByRole: "owner"
+    });
+
+    const redactedCaller = appRouter.createCaller({
+      requestId: "test-envvars-redacted",
+      session: makeSession("owner"),
+      auth: makeTokenAuthContext("owner", ["env:read"])
+    });
+    const revealedCaller = appRouter.createCaller({
+      requestId: "test-envvars-revealed",
+      session: makeSession("owner"),
+      auth: makeTokenAuthContext("owner", ["env:read", "secrets:read"])
+    });
+    const deniedCaller = appRouter.createCaller({
+      requestId: "test-envvars-denied",
+      session: makeSession("owner"),
+      auth: makeTokenAuthContext("owner", ["deploy:read"])
+    });
+
+    const redacted = await redactedCaller.environmentVariables({
+      environmentId: "env_daoflow_staging"
+    });
+    const revealed = await revealedCaller.environmentVariables({
+      environmentId: "env_daoflow_staging"
+    });
+
+    expect(redacted.variables.find((variable) => variable.key === key)?.displayValue).toBe(
+      "[secret]"
+    );
+    expect(revealed.variables.find((variable) => variable.key === key)?.displayValue).toBe(
+      "scope-secret"
+    );
+    await expect(
+      deniedCaller.environmentVariables({ environmentId: "env_daoflow_staging" })
+    ).rejects.toMatchObject({
+      code: "FORBIDDEN",
+      cause: {
+        code: "SCOPE_DENIED",
+        requiredScopes: ["env:read"]
+      }
+    });
+  });
+
   it("returns infrastructure inventory entries with normalized status tones", async () => {
     const caller = appRouter.createCaller({
       requestId: "test-inventory-status-tones",
@@ -1328,6 +1382,45 @@ describe("appRouter", () => {
     await expect(caller.deleteEnvironment({ environmentId: "env_prod_1" })).rejects.toMatchObject({
       code: "NOT_FOUND"
     } satisfies Partial<TRPCError>);
+  });
+
+  it("rejects environment variable reads and writes outside the caller's team", async () => {
+    const fixture = await createOtherTeamFixture();
+    await upsertEnvironmentVariable({
+      environmentId: fixture.environmentId,
+      key: "TEAM_SCOPED_SECRET",
+      value: "other-team-secret",
+      isSecret: true,
+      category: "runtime",
+      updatedByUserId: fixture.userId,
+      updatedByEmail: `${fixture.userId}@daoflow.local`,
+      updatedByRole: "owner"
+    });
+
+    const caller = appRouter.createCaller({
+      requestId: "test-envvar-team-scope",
+      session: makeSession("owner")
+    });
+
+    const response = await caller.environmentVariables({ environmentId: fixture.environmentId });
+    expect(response.variables).toHaveLength(0);
+
+    await expect(
+      caller.upsertEnvironmentVariable({
+        environmentId: fixture.environmentId,
+        key: "TEAM_SCOPED_SECRET",
+        value: "attempted-cross-team-write",
+        isSecret: true,
+        category: "runtime"
+      })
+    ).rejects.toMatchObject({ code: "NOT_FOUND" } satisfies Partial<TRPCError>);
+
+    await expect(
+      caller.deleteEnvironmentVariable({
+        environmentId: fixture.environmentId,
+        key: "TEAM_SCOPED_SECRET"
+      })
+    ).rejects.toMatchObject({ code: "NOT_FOUND" } satisfies Partial<TRPCError>);
   });
 
   // ─── RBAC enforcement tests ─────────────────────────────────

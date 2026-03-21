@@ -113,6 +113,7 @@ const ALL_READERS = ["owner", "admin", "operator", "developer", "viewer", "agent
 export const serverWriteProcedure = scopedProcedure(ADMIN_ONLY, ["server:write"]);
 export const deployReadProcedure = scopedProcedure(ALL_READERS, ["deploy:read"]);
 export const backupReadProcedure = scopedProcedure(ALL_READERS, ["backup:read"]);
+export const envReadProcedure = scopedProcedure(ALL_READERS, ["env:read"]);
 export const deployStartProcedure = scopedProcedure(ALL_WRITE, ["deploy:start"]);
 export const deployRollbackProcedure = scopedProcedure(ALL_WRITE, ["deploy:rollback"]);
 export const deployCancelProcedure = scopedProcedure(ALL_WRITE, ["deploy:cancel"]);

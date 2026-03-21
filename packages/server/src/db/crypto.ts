@@ -25,6 +25,14 @@ export function decrypt(payload: string): string {
   );
 }
 
-export function displayValue(encryptedValue: string, isSecret: boolean): string {
-  return isSecret ? "[secret]" : decrypt(encryptedValue);
+export function displayValue(
+  encryptedValue: string,
+  isSecret: boolean,
+  revealSecretValue = false
+): string {
+  if (isSecret && !revealSecretValue) {
+    return "[secret]";
+  }
+
+  return decrypt(encryptedValue);
 }

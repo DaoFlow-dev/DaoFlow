@@ -117,7 +117,8 @@ export function EnvironmentVariables({
             </p>
             <h3 className="text-base font-semibold text-foreground">Save scoped variable</h3>
             <p className="mt-2 text-sm text-muted-foreground">
-              Secret values stay write-only in the UI and are redacted on every read path.
+              Secret values stay masked by default and are revealed only to callers with explicit
+              secret-read access.
             </p>
           </div>
           <label>

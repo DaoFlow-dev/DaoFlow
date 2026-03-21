@@ -188,7 +188,8 @@ export function envCommand(): Command {
                 chalk.bold(`\n  Environment Variables (${data.summary.totalVariables})\n`)
               );
               for (const v of data.variables) {
-                const value = v.isSecret ? chalk.red("***secret***") : chalk.dim(v.displayValue);
+                const maskedSecret = v.isSecret && v.displayValue === "[secret]";
+                const value = maskedSecret ? chalk.red("***secret***") : chalk.dim(v.displayValue);
                 const cat = chalk.dim(`[${v.category}]`);
                 console.log(`  ${chalk.cyan(v.key)} = ${value}  ${cat}`);
               }

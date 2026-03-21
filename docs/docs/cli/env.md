@@ -70,5 +70,6 @@ daoflow env delete --env-id env_prod_123 \
 ## Security
 
 - Values are encrypted at rest using the `ENCRYPTION_KEY`
-- `env list` masks values by default — use `secrets:read` scope to see unmasked values
-- All set/delete operations create audit records
+- `env list` requires `env:read` and masks secret values unless the caller also has `secrets:read`
+- `env pull` stays redacted even for callers that can reveal secrets in interactive reads
+- All set/delete operations create audit records with redacted before/after metadata

@@ -28,7 +28,7 @@ import {
   listGitProviderSummaries
 } from "../db/services/git-providers";
 import { resolveTeamIdForUser } from "../db/services/teams";
-import { t, protectedProcedure, deployReadProcedure } from "../trpc";
+import { t, protectedProcedure, deployReadProcedure, envReadProcedure } from "../trpc";
 import { limitInput, statusLimitInput } from "../schemas";
 import { backupReadRouter } from "./read-backups";
 
@@ -187,15 +187,21 @@ const coreReadRouter = t.router({
   auditTrail: protectedProcedure.input(limitInput(50)).query(async ({ input }) => {
     return listAuditTrail(input.limit ?? 12);
   }),
-  environmentVariables: protectedProcedure
+  environmentVariables: envReadProcedure
     .input(
       z.object({
         environmentId: z.string().min(1).optional(),
         limit: z.number().int().min(1).max(100).optional()
       })
     )
-    .query(async ({ input }) => {
-      return listEnvironmentVariableInventory(input.environmentId, input.limit ?? 50);
+    .query(async ({ ctx, input }) => {
+      const teamId = await requireViewerTeamId(ctx.session.user.id);
+      return listEnvironmentVariableInventory({
+        teamId,
+        environmentId: input.environmentId,
+        limit: input.limit ?? 50,
+        canRevealSecrets: ctx.auth.capabilities.includes("secrets:read")
+      });
     }),
   deploymentLogs: protectedProcedure
     .input(

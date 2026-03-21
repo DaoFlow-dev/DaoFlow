@@ -78,6 +78,18 @@ This file holds the detailed CLI contract, scope map, and agent-facing command r
 - `daoflow backup restore --yes` queues the restore and requires `backup:restore`
 - If an operator wants a human approval gate before restore execution, create a separate `requestApproval` with `approvals:create`
 
+## Environment Variable Contract
+
+- `daoflow env list` reads the caller-team environment variable inventory through `environmentVariables`
+- Scope: `env:read`
+- Secret visibility:
+  - secret values stay masked by default
+  - callers who also have `secrets:read` may receive revealed secret values in interactive inventory reads
+  - `daoflow env pull` remains a redacted export and must still write secret placeholders instead of raw secret values
+- Audit contract:
+  - `env set` and `env delete` must emit audit entries with redacted before/after metadata
+  - audit detail must explain what changed without leaking secret payloads
+
 ## Services Contract
 
 - `daoflow services` reads the authenticated service inventory instead of the compose release catalog
