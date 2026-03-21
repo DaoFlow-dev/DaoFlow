@@ -108,6 +108,7 @@ addApiGroup(
     "deleteChannel",
     "updateChannel",
     "toggleChannel",
+    "testChannel",
     "setUserPreference",
     "setProjectOverride"
   ],
@@ -526,6 +527,8 @@ export const cliCommandMeta: Record<string, CliCommandMeta> = {
   "env delete": { lane: "command", requiredScopes: ["env:write"], mutating: true },
   "env resolve": { lane: "read", requiredScopes: ["secrets:read"], mutating: false },
   logs: { lane: "read", requiredScopes: ["logs:read"], mutating: false },
+  "notifications list": { lane: "read", requiredScopes: [], mutating: false },
+  "notifications logs": { lane: "read", requiredScopes: [], mutating: false },
   plan: { lane: "planning", requiredScopes: ["deploy:read"], mutating: false },
   rollback: { lane: "command", requiredScopes: ["deploy:rollback"], mutating: true },
   status: { lane: "read", requiredScopes: ["server:read"], mutating: false },
@@ -694,6 +697,31 @@ export const cliExamples = [
       ok: false,
       error: "To restore from backup bkr_123, add --yes",
       code: "CONFIRMATION_REQUIRED"
+    }
+  },
+  {
+    id: "notifications.list",
+    category: "auth",
+    command: "daoflow notifications list --json",
+    response: {
+      ok: true,
+      data: {
+        channels: [
+          {
+            id: "ntf_ops",
+            name: "Ops Alerts",
+            channelType: "email",
+            webhookUrl: null,
+            email: "ops@example.com",
+            projectFilter: "DaoFlow",
+            environmentFilter: "production",
+            eventSelectors: ["deploy.*", "approval.*"],
+            enabled: true,
+            createdAt: "2026-03-20T12:00:00.000Z",
+            updatedAt: "2026-03-20T12:00:00.000Z"
+          }
+        ]
+      }
     }
   }
 ] as const;

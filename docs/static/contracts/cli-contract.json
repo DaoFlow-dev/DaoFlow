@@ -1066,6 +1066,68 @@
       "supportsYes": false
     },
     {
+      "path": "notifications",
+      "summary": "Inspect configured notification channels and delivery activity",
+      "lane": "local",
+      "requiredScopes": [],
+      "mutating": false,
+      "hasAction": false,
+      "hasSubcommands": true,
+      "aliases": [],
+      "arguments": [],
+      "options": [],
+      "supportsJson": false,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
+      "path": "notifications list",
+      "summary": "List configured notification channels",
+      "lane": "read",
+      "requiredScopes": [],
+      "mutating": false,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
+      "path": "notifications logs",
+      "summary": "List recent notification delivery attempts",
+      "lane": "read",
+      "requiredScopes": [],
+      "mutating": false,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        },
+        {
+          "flags": "--limit <n>",
+          "description": "Maximum delivery attempts to show",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
       "path": "plan",
       "summary": "Preview a deployment plan without executing it",
       "lane": "planning",
@@ -2108,6 +2170,31 @@
         "ok": false,
         "error": "To restore from backup bkr_123, add --yes",
         "code": "CONFIRMATION_REQUIRED"
+      }
+    },
+    {
+      "id": "notifications.list",
+      "category": "auth",
+      "command": "daoflow notifications list --json",
+      "response": {
+        "ok": true,
+        "data": {
+          "channels": [
+            {
+              "id": "ntf_ops",
+              "name": "Ops Alerts",
+              "channelType": "email",
+              "webhookUrl": null,
+              "email": "ops@example.com",
+              "projectFilter": "DaoFlow",
+              "environmentFilter": "production",
+              "eventSelectors": ["deploy.*", "approval.*"],
+              "enabled": true,
+              "createdAt": "2026-03-20T12:00:00.000Z",
+              "updatedAt": "2026-03-20T12:00:00.000Z"
+            }
+          ]
+        }
       }
     }
   ]
