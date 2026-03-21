@@ -19,6 +19,8 @@ import { asRecord, readString } from "./json-helpers";
 import { resolveServiceForUser } from "./scoped-services";
 import type { AppRole } from "@daoflow/shared";
 import { extractReplayableConfigSnapshot, resolveComposeImageOverride } from "./deployment-source";
+import { buildDeployNotification } from "../../worker/temporal/activities/notification-builders";
+import { dispatchNotification } from "../../worker/temporal/activities/notification-activities";
 
 const DEFAULT_ROLLBACK_RETENTION = 3;
 
@@ -181,6 +183,23 @@ export async function executeRollback(input: ExecuteRollbackInput) {
   const deployment = await createDeploymentRecord(deployInput);
   if (!deployment) return { status: "create_failed" as const };
   await dispatchDeploymentExecution(deployment);
+
+  try {
+    const notification = await buildDeployNotification({
+      eventType: "deploy.rollback",
+      status: "rollback",
+      deploymentId: deployment.id,
+      projectName: readString(snapshot, "projectName", project[0].name),
+      environmentName: readString(snapshot, "environmentName", environment[0].name),
+      serviceName: target.serviceName,
+      targetServerName: readString(snapshot, "targetServerName", target.targetServerId),
+      commitSha: target.commitSha,
+      imageTag: target.imageTag
+    });
+    await dispatchNotification(notification);
+  } catch {
+    // Rollback queuing must not fail because notification delivery is degraded.
+  }
 
   return { status: "ok" as const, deployment };
 }

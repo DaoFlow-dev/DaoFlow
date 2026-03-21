@@ -204,15 +204,12 @@ export async function sendGenericWebhook(
 // ── Email ───────────────────────────────────────────────────
 
 export async function sendEmailNotification(
-  channel: { name: string; webhookUrl: string | null },
+  channel: { name: string; email: string | null },
   payload: NotificationPayload
 ): Promise<SendResult> {
-  const host = process.env.SMTP_HOST;
-  const from = process.env.SMTP_FROM ?? "noreply@daoflow.dev";
-  const to = channel.webhookUrl;
-
-  if (!host || !to) {
-    return { ok: false, httpStatus: 0, error: "SMTP not configured or no recipient email" };
+  const to = channel.email;
+  if (!to) {
+    return { ok: false, httpStatus: 0, error: "No recipient email configured" };
   }
 
   const emoji = SEVERITY_EMOJI[payload.severity] ?? "";
@@ -228,20 +225,50 @@ export async function sendEmailNotification(
     .join("\n");
 
   try {
-    const apiUrl = process.env.SMTP_API_URL;
-    const apiKey = process.env.SMTP_API_KEY;
+    const { SMTP_ADDRESS, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD, MAILER_FROM_ADDRESS } =
+      process.env;
+    const { RESEND_API_KEY, RESEND_FROM, RESEND_DOMAIN } = process.env;
 
-    if (apiUrl && apiKey) {
-      const res = await fetch(apiUrl, {
+    if (SMTP_ADDRESS && SMTP_PORT && SMTP_USERNAME && SMTP_PASSWORD && MAILER_FROM_ADDRESS) {
+      const nodemailer = await import("nodemailer");
+      const transport = nodemailer.createTransport({
+        host: SMTP_ADDRESS,
+        port: Number(SMTP_PORT),
+        secure: Number(SMTP_PORT) === 465,
+        auth: {
+          user: SMTP_USERNAME,
+          pass: SMTP_PASSWORD
+        }
+      });
+
+      await transport.sendMail({
+        from: MAILER_FROM_ADDRESS,
+        to,
+        subject,
+        text: body
+      });
+
+      return { ok: true, httpStatus: 200 };
+    }
+
+    if (RESEND_API_KEY) {
+      const from = RESEND_FROM ?? `DaoFlow <noreply@${RESEND_DOMAIN ?? "daoflow.app"}>`;
+      const res = await fetch("https://api.resend.com/emails", {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-        body: JSON.stringify({ from, to, subject, text: body })
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${RESEND_API_KEY}`
+        },
+        body: JSON.stringify({ from, to: [to], subject, text: body })
       });
       return { ok: res.ok, httpStatus: res.status, error: res.ok ? undefined : await res.text() };
     }
 
-    console.error(`[email] Would send to=${to} subject="${subject}"`);
-    return { ok: true, httpStatus: 200, error: undefined };
+    return {
+      ok: false,
+      httpStatus: 0,
+      error: "No SMTP or Resend email transport is configured"
+    };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Email send failed";
     return { ok: false, httpStatus: 0, error: message };

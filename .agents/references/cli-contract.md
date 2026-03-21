@@ -51,28 +51,30 @@ This file holds the detailed CLI contract, scope map, and agent-facing command r
 
 ## Command Scope Map
 
-| Command          | Lane         | Required Scope(s)                               | Mutating |
-| ---------------- | ------------ | ----------------------------------------------- | -------- |
-| `login`          | session      | none                                            | yes      |
-| `whoami`         | read         | any valid token                                 | no       |
-| `capabilities`   | read         | any valid token                                 | no       |
-| `status`         | read         | `server:read`                                   | no       |
-| `server add`     | command      | `server:write`                                  | yes      |
-| `services`       | read         | `service:read`                                  | no       |
-| `projects`       | read/command | `deploy:read`, `deploy:start`, `service:update` | varies   |
-| `logs`           | read         | `logs:read`                                     | no       |
-| `plan`           | planning     | `deploy:read`                                   | no       |
-| `diff`           | planning     | `deploy:read`                                   | no       |
-| `doctor`         | read         | `server:read`, `logs:read`                      | no       |
-| `deploy`         | command      | `deploy:start`                                  | yes      |
-| `push`           | command      | `deploy:start`                                  | yes      |
-| `rollback`       | command      | `deploy:rollback`                               | yes      |
-| `env list`       | read         | `env:read`                                      | no       |
-| `env set`        | command      | `env:write`                                     | yes      |
-| `env delete`     | command      | `env:write`                                     | yes      |
-| `backup list`    | read         | `backup:read`                                   | no       |
-| `backup run`     | command      | `backup:run`                                    | yes      |
-| `backup restore` | command      | `backup:restore`                                | yes      |
+| Command              | Lane         | Required Scope(s)                               | Mutating |
+| -------------------- | ------------ | ----------------------------------------------- | -------- |
+| `login`              | session      | none                                            | yes      |
+| `whoami`             | read         | any valid token                                 | no       |
+| `capabilities`       | read         | any valid token                                 | no       |
+| `status`             | read         | `server:read`                                   | no       |
+| `server add`         | command      | `server:write`                                  | yes      |
+| `services`           | read         | `service:read`                                  | no       |
+| `projects`           | read/command | `deploy:read`, `deploy:start`, `service:update` | varies   |
+| `logs`               | read         | `logs:read`                                     | no       |
+| `plan`               | planning     | `deploy:read`                                   | no       |
+| `diff`               | planning     | `deploy:read`                                   | no       |
+| `doctor`             | read         | `server:read`, `logs:read`                      | no       |
+| `deploy`             | command      | `deploy:start`                                  | yes      |
+| `push`               | command      | `deploy:start`                                  | yes      |
+| `rollback`           | command      | `deploy:rollback`                               | yes      |
+| `env list`           | read         | `env:read`                                      | no       |
+| `env set`            | command      | `env:write`                                     | yes      |
+| `env delete`         | command      | `env:write`                                     | yes      |
+| `backup list`        | read         | `backup:read`                                   | no       |
+| `backup run`         | command      | `backup:run`                                    | yes      |
+| `backup restore`     | command      | `backup:restore`                                | yes      |
+| `notifications list` | read         | any valid token                                 | no       |
+| `notifications logs` | read         | any valid token                                 | no       |
 
 - `daoflow backup restore --dry-run` is a planning-lane preview backed by `backupRestorePlan` and requires only `backup:read`
 - `daoflow backup restore --yes` queues the restore and requires `backup:restore`
@@ -178,6 +180,16 @@ This file holds the detailed CLI contract, scope map, and agent-facing command r
 - `--follow` is reserved for future live streaming and must return a structured `NOT_IMPLEMENTED` error today
 - JSON success shape:
   - `{ "ok": true, "data": { "service": string | null, "deploymentId": string | null, "query": string | null, "stream": "all" | "stdout" | "stderr", "limit": number, "summary": { "totalLines": number, "stderrLines": number, "deploymentCount": number }, "lines": [{ "id": string | number, "deploymentId": string, "serviceName": string, "environmentName": string, "stream": "stdout" | "stderr", "lineNumber": string | number, "level": string, "message": string, "createdAt": string }] } }`
+
+## Notifications Contract
+
+- `daoflow notifications list` reads configured notification channels from the control plane
+- `daoflow notifications logs` reads recent notification delivery attempts
+- Access: any valid session or API token
+- JSON list success shape:
+  - `{ "ok": true, "data": { "channels": [{ "id": string, "name": string, "channelType": string, "webhookUrl": string | null, "email": string | null, "projectFilter": string | null, "environmentFilter": string | null, "eventSelectors": string[], "enabled": boolean, "createdAt": string, "updatedAt": string }] } }`
+- JSON log success shape:
+  - `{ "ok": true, "data": { "limit": number, "logs": [{ "id": string, "channelId": string, "channelName": string, "channelType": string, "eventType": string, "payload": unknown, "httpStatus": string | null, "status": string, "error": string | null, "sentAt": string }] } }`
 
 ## Status Contract
 

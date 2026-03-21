@@ -7,6 +7,7 @@ import { db } from "./db/connection";
 import { deployments } from "./db/schema/deployments";
 import { approvalRequests, auditEntries } from "./db/schema/audit";
 import { backupRestores } from "./db/schema/storage";
+import { notificationLogs } from "./db/schema/notifications";
 import { teamMembers, teams } from "./db/schema/teams";
 import { users } from "./db/schema/users";
 import { createEnvironment, createProject } from "./db/services/projects";
@@ -1107,6 +1108,133 @@ describe("appRouter", () => {
     ).toBe(true);
   });
 
+  it("sends test notifications to the configured email recipient", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-notification-email",
+      session: makeSession("admin")
+    });
+
+    const created = await caller.createChannel({
+      name: `Email ${Date.now().toString(36)}`,
+      channelType: "email",
+      email: "alerts@daoflow.local",
+      eventSelectors: ["*"],
+      enabled: true
+    });
+
+    const originalFetch = globalThis.fetch;
+    const originalApiKey = process.env.RESEND_API_KEY;
+    const originalFrom = process.env.RESEND_FROM;
+    const deliveries: Array<{ to: string[]; subject: string }> = [];
+
+    process.env.RESEND_API_KEY = "resend_test_key";
+    process.env.RESEND_FROM = "DaoFlow <noreply@daoflow.local>";
+    globalThis.fetch = ((_input: URL | string | Request, init?: RequestInit) => {
+      const body = typeof init?.body === "string" ? init.body : "{}";
+      deliveries.push(JSON.parse(body) as { to: string[]; subject: string });
+      return Promise.resolve(
+        new Response(JSON.stringify({ id: "email_1" }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" }
+        })
+      );
+    }) as typeof fetch;
+
+    try {
+      const result = await caller.testChannel({ id: created.id });
+      expect(result.succeeded).toBe(1);
+      expect(deliveries).toEqual([
+        expect.objectContaining({
+          to: ["alerts@daoflow.local"]
+        })
+      ]);
+    } finally {
+      globalThis.fetch = originalFetch;
+      if (originalApiKey === undefined) {
+        delete process.env.RESEND_API_KEY;
+      } else {
+        process.env.RESEND_API_KEY = originalApiKey;
+      }
+      if (originalFrom === undefined) {
+        delete process.env.RESEND_FROM;
+      } else {
+        process.env.RESEND_FROM = originalFrom;
+      }
+    }
+  });
+
+  it("dispatches deploy notifications for execution lifecycle events", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-deploy-notifications",
+      session: makeSession("admin")
+    });
+
+    await caller.createChannel({
+      name: `Deploy Webhook ${Date.now().toString(36)}`,
+      channelType: "generic_webhook",
+      webhookUrl: "https://hooks.example.com/deploys",
+      eventSelectors: ["deploy.*"],
+      enabled: true
+    });
+
+    const originalFetch = globalThis.fetch;
+    const eventsSent: string[] = [];
+    globalThis.fetch = ((_input: URL | string | Request, init?: RequestInit) => {
+      eventsSent.push(new Headers(init?.headers).get("X-DaoFlow-Event") ?? "unknown");
+      return Promise.resolve(new Response("ok", { status: 200 }));
+    }) as typeof fetch;
+
+    try {
+      const first = await caller.createDeploymentRecord({
+        projectName: "DaoFlow",
+        environmentName: "staging",
+        serviceName: `notify-success-${Date.now().toString(36)}`.slice(0, 24),
+        sourceType: "dockerfile",
+        targetServerId: "srv_foundation_1",
+        commitSha: "abcdef1",
+        imageTag: "ghcr.io/daoflow/notify:success",
+        steps: [
+          { label: "Prepare", detail: "Render deployment inputs." },
+          { label: "Queue", detail: "Queue worker execution." }
+        ]
+      });
+      await caller.dispatchExecutionJob({ jobId: first.id });
+      await caller.completeExecutionJob({ jobId: first.id });
+
+      const second = await caller.createDeploymentRecord({
+        projectName: "DaoFlow",
+        environmentName: "staging",
+        serviceName: `notify-fail-${Date.now().toString(36)}`.slice(0, 24),
+        sourceType: "dockerfile",
+        targetServerId: "srv_foundation_1",
+        commitSha: "abcdef2",
+        imageTag: "ghcr.io/daoflow/notify:failed",
+        steps: [
+          { label: "Prepare", detail: "Render deployment inputs." },
+          { label: "Queue", detail: "Queue worker execution." }
+        ]
+      });
+      await caller.dispatchExecutionJob({ jobId: second.id });
+      await caller.failExecutionJob({ jobId: second.id, reason: "Health check timed out." });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+
+    const logs = await db.select().from(notificationLogs);
+    const deployEvents = logs
+      .filter((log) =>
+        ["deploy.started", "deploy.succeeded", "deploy.failed"].includes(log.eventType)
+      )
+      .map((log) => log.eventType);
+
+    expect(deployEvents).toEqual(
+      expect.arrayContaining(["deploy.started", "deploy.succeeded", "deploy.failed"])
+    );
+    expect(eventsSent).toEqual(
+      expect.arrayContaining(["deploy.started", "deploy.succeeded", "deploy.failed"])
+    );
+  });
+
   it("returns execution queue jobs without queue-specific metadata", async () => {
     const caller = appRouter.createCaller({
       requestId: "test-execution",
@@ -1356,6 +1484,74 @@ describe("appRouter", () => {
       (row) => row.action === "approval.approve" && row.outcome === "failure"
     );
     expect(failedDecision?.inputSummary).toContain("Blocked self-approval");
+  });
+
+  it("dispatches approval notifications for request and decision events", async () => {
+    const requester = appRouter.createCaller({
+      requestId: "test-approval-notifications-requester",
+      session: makeSession("admin")
+    });
+    const approver = appRouter.createCaller({
+      requestId: "test-approval-notifications-approver",
+      session: makeSession("operator")
+    });
+
+    await requester.createChannel({
+      name: `Approval Webhook ${Date.now().toString(36)}`,
+      channelType: "generic_webhook",
+      webhookUrl: "https://hooks.example.com/approvals",
+      eventSelectors: ["approval.*"],
+      enabled: true
+    });
+
+    const originalFetch = globalThis.fetch;
+    const eventsSent: string[] = [];
+    globalThis.fetch = ((_input: URL | string | Request, init?: RequestInit) => {
+      eventsSent.push(new Headers(init?.headers).get("X-DaoFlow-Event") ?? "unknown");
+      return Promise.resolve(new Response("ok", { status: 200 }));
+    }) as typeof fetch;
+
+    try {
+      const catalog = await requester.composeReleaseCatalog({});
+      const service = catalog.services.find((candidate) => candidate.imageReference.length > 0);
+      if (!service) {
+        return;
+      }
+
+      const approved = await requester.requestApproval({
+        actionType: "compose-release",
+        composeServiceId: service.id,
+        commitSha: "abcdef1",
+        imageTag: `${service.imageReference}-candidate`,
+        reason: "Need a second operator before promoting this compose release."
+      });
+      await approver.approveApprovalRequest({ requestId: approved.id });
+
+      const rejected = await requester.requestApproval({
+        actionType: "compose-release",
+        composeServiceId: service.id,
+        commitSha: "abcdef2",
+        imageTag: `${service.imageReference}-rejected`,
+        reason: "Need a second operator before promoting this alternate release."
+      });
+      await approver.rejectApprovalRequest({ requestId: rejected.id });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+
+    const logs = await db.select().from(notificationLogs);
+    const approvalEvents = logs
+      .filter((log) =>
+        ["approval.request", "approval.approve", "approval.reject"].includes(log.eventType)
+      )
+      .map((log) => log.eventType);
+
+    expect(approvalEvents).toEqual(
+      expect.arrayContaining(["approval.request", "approval.approve", "approval.reject"])
+    );
+    expect(eventsSent).toEqual(
+      expect.arrayContaining(["approval.request", "approval.approve", "approval.reject"])
+    );
   });
 
   it("returns token inventory entries keyed by name", async () => {

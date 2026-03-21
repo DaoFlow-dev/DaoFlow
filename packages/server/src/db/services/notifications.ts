@@ -8,6 +8,8 @@ import {
   userNotificationPreferences
 } from "../schema/notifications";
 import { newId } from "./json-helpers";
+import { buildTestNotification } from "../../worker/temporal/activities/notification-builders";
+import { dispatchNotificationToChannel } from "../../worker/temporal/activities/notification-activities";
 
 export async function subscribePushSubscription(
   userId: string,
@@ -71,6 +73,8 @@ export async function createNotificationChannel(input: {
   channelType: "slack" | "discord" | "email" | "generic_webhook" | "web_push";
   webhookUrl?: string;
   email?: string;
+  projectFilter?: string | null;
+  environmentFilter?: string | null;
   eventSelectors: string[];
   enabled: boolean;
 }) {
@@ -81,6 +85,8 @@ export async function createNotificationChannel(input: {
     channelType: input.channelType,
     webhookUrl: input.webhookUrl ?? null,
     email: input.email ?? null,
+    projectFilter: input.projectFilter ?? null,
+    environmentFilter: input.environmentFilter ?? null,
     eventSelectors: input.eventSelectors,
     enabled: input.enabled,
     createdAt: new Date(),
@@ -100,6 +106,9 @@ export async function updateNotificationChannel(
   updates: {
     name?: string;
     webhookUrl?: string | null;
+    email?: string | null;
+    projectFilter?: string | null;
+    environmentFilter?: string | null;
     eventSelectors?: string[];
     enabled?: boolean;
   }
@@ -107,6 +116,11 @@ export async function updateNotificationChannel(
   const setValues: Record<string, unknown> = { updatedAt: new Date() };
   if (updates.name !== undefined) setValues.name = updates.name;
   if (updates.webhookUrl !== undefined) setValues.webhookUrl = updates.webhookUrl;
+  if (updates.email !== undefined) setValues.email = updates.email;
+  if (updates.projectFilter !== undefined) setValues.projectFilter = updates.projectFilter;
+  if (updates.environmentFilter !== undefined) {
+    setValues.environmentFilter = updates.environmentFilter;
+  }
   if (updates.eventSelectors !== undefined) setValues.eventSelectors = updates.eventSelectors;
   if (updates.enabled !== undefined) setValues.enabled = updates.enabled;
 
@@ -240,4 +254,11 @@ export async function listNotificationDeliveryLogs(limit = 20) {
     channelName: channelById.get(log.channelId)?.name ?? log.channelId,
     channelType: channelById.get(log.channelId)?.channelType ?? "unknown"
   }));
+}
+
+export async function sendTestNotification(channelId: string) {
+  const payload = await buildTestNotification();
+  return dispatchNotificationToChannel(channelId, payload, {
+    ignoreRouting: true
+  });
 }

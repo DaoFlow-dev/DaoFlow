@@ -6,6 +6,8 @@ import { environments, projects } from "../schema/projects";
 import { servers } from "../schema/servers";
 import type { AppRole } from "@daoflow/shared";
 import { asRecord, readString } from "./json-helpers";
+import { buildDeployNotification } from "../../worker/temporal/activities/notification-builders";
+import { dispatchNotification } from "../../worker/temporal/activities/notification-activities";
 
 export type ExecutionJobStatus = "pending" | "dispatched" | "completed" | "failed";
 
@@ -211,6 +213,30 @@ async function mutateDeploymentStatus(
       },
       createdAt: now
     });
+  }
+
+  try {
+    const notification = await buildDeployNotification({
+      eventType:
+        newStatus === "deploy"
+          ? "deploy.started"
+          : newStatus === "completed"
+            ? "deploy.succeeded"
+            : "deploy.failed",
+      status:
+        newStatus === "deploy" ? "started" : newStatus === "completed" ? "succeeded" : "failed",
+      deploymentId: jobId,
+      projectName: context.projectName,
+      environmentName: context.environmentName,
+      serviceName: deployment.serviceName,
+      targetServerName: context.targetServerName,
+      commitSha: deployment.commitSha,
+      imageTag: deployment.imageTag,
+      error: newStatus === "failed" ? reason : undefined
+    });
+    await dispatchNotification(notification);
+  } catch {
+    // Deployment state transitions must not fail because notification delivery is degraded.
   }
 
   const [updated] = await db.select().from(deployments).where(eq(deployments.id, jobId));

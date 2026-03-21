@@ -6,6 +6,7 @@ import { doctorCommand } from "./commands/doctor";
 import { envCommand } from "./commands/env";
 import { loginCommand } from "./commands/login";
 import { logsCommand } from "./commands/logs";
+import { notificationsCommand } from "./commands/notifications";
 import { planCommand } from "./commands/plan";
 import { serverCommand } from "./commands/server";
 
@@ -58,6 +59,26 @@ describe("CLI JSON option coverage", () => {
 
   test("logs declares --json", () => {
     expect(hasLongOption(logsCommand(), "--json")).toBe(true);
+  });
+
+  test("notifications list and logs declare --json", () => {
+    const notifications = notificationsCommand();
+    expect(hasLongOption(getSubcommand(notifications, "list"), "--json")).toBe(true);
+    expect(hasLongOption(getSubcommand(notifications, "logs"), "--json")).toBe(true);
+  });
+
+  test("notifications help includes access, examples, and JSON shapes", () => {
+    const notifications = notificationsCommand();
+    const listHelp = renderHelp(getSubcommand(notifications, "list"));
+    expect(listHelp).toContain("Required scope:");
+    expect(listHelp).toContain("any valid token");
+    expect(listHelp).toContain("daoflow notifications list --json");
+    expect(listHelp).toContain("Example JSON shape:");
+
+    const logsHelp = renderHelp(getSubcommand(notifications, "logs"));
+    expect(logsHelp).toContain("Required scope:");
+    expect(logsHelp).toContain("daoflow notifications logs --limit 50 --json");
+    expect(logsHelp).toContain("Example JSON shape:");
   });
 
   test("plan declares --json", () => {

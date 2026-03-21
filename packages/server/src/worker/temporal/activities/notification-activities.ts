@@ -28,7 +28,12 @@ import {
 } from "./notification-senders";
 
 // Re-export builders so Temporal proxyActivities can find them
-export { buildBackupNotification } from "./notification-builders";
+export {
+  buildApprovalNotification,
+  buildBackupNotification,
+  buildDeployNotification,
+  buildTestNotification
+} from "./notification-builders";
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -48,6 +53,8 @@ export interface NotificationPayload {
   /** Timestamp of the event */
   timestamp?: string;
 }
+
+type NotificationChannelRecord = typeof notificationChannels.$inferSelect;
 
 // ── Event Selector Matching ─────────────────────────────────
 
@@ -175,69 +182,8 @@ export async function dispatchNotification(payload: NotificationPayload): Promis
       continue;
     }
 
-    // 4. Send based on channel type
-    let result: SendResult;
-
-    if (
-      !channel.webhookUrl &&
-      channel.channelType !== "email" &&
-      channel.channelType !== "web_push"
-    ) {
-      result = { ok: false, httpStatus: 0, error: "No webhook URL configured" };
-    } else {
-      switch (channel.channelType) {
-        case "slack":
-          result = await sendSlackWebhook(channel.webhookUrl!, payload);
-          break;
-        case "discord":
-          result = await sendDiscordWebhook(channel.webhookUrl!, payload);
-          break;
-        case "generic_webhook":
-          result = await sendGenericWebhook(channel.webhookUrl!, payload);
-          break;
-        case "web_push":
-          result = await sendWebPushNotifications(payload);
-          break;
-        case "email":
-          result = await sendEmailNotification(channel, payload);
-          break;
-        default:
-          result = {
-            ok: false,
-            httpStatus: 0,
-            error: `Unknown channel type: ${channel.channelType}`
-          };
-      }
-    }
-
-    results.push({
-      channelId: channel.id,
-      channelName: channel.name,
-      ok: result.ok,
-      error: result.error
-    });
-
-    // 5. Log delivery result
-    try {
-      await db.insert(notificationLogs).values({
-        id: newId(),
-        channelId: channel.id,
-        eventType: payload.eventType,
-        payload: {
-          title: payload.title,
-          message: payload.message,
-          severity: payload.severity,
-          project: payload.projectName,
-          environment: payload.environmentName
-        },
-        httpStatus: String(result.httpStatus),
-        status: result.ok ? "delivered" : "failed",
-        error: result.error ?? null,
-        sentAt: new Date()
-      });
-    } catch {
-      // Don't fail the notification if logging fails
-    }
+    const result = await deliverNotification(channel, payload);
+    results.push(result);
   }
 
   return {
@@ -245,5 +191,139 @@ export async function dispatchNotification(payload: NotificationPayload): Promis
     succeeded: results.filter((r) => r.ok).length,
     failed: results.filter((r) => !r.ok).length,
     results
+  };
+}
+
+async function deliverNotification(
+  channel: NotificationChannelRecord,
+  payload: NotificationPayload
+): Promise<{ channelId: string; channelName: string; ok: boolean; error?: string }> {
+  let result: SendResult;
+
+  if (
+    !channel.webhookUrl &&
+    channel.channelType !== "email" &&
+    channel.channelType !== "web_push"
+  ) {
+    result = { ok: false, httpStatus: 0, error: "No webhook URL configured" };
+  } else {
+    switch (channel.channelType) {
+      case "slack":
+        result = await sendSlackWebhook(channel.webhookUrl!, payload);
+        break;
+      case "discord":
+        result = await sendDiscordWebhook(channel.webhookUrl!, payload);
+        break;
+      case "generic_webhook":
+        result = await sendGenericWebhook(channel.webhookUrl!, payload);
+        break;
+      case "web_push":
+        result = await sendWebPushNotifications(payload);
+        break;
+      case "email":
+        result = await sendEmailNotification(channel, payload);
+        break;
+      default:
+        result = {
+          ok: false,
+          httpStatus: 0,
+          error: `Unknown channel type: ${channel.channelType}`
+        };
+    }
+  }
+
+  try {
+    await db.insert(notificationLogs).values({
+      id: newId(),
+      channelId: channel.id,
+      eventType: payload.eventType,
+      payload: {
+        title: payload.title,
+        message: payload.message,
+        severity: payload.severity,
+        project: payload.projectName,
+        environment: payload.environmentName
+      },
+      httpStatus: String(result.httpStatus),
+      status: result.ok ? "delivered" : "failed",
+      error: result.error ?? null,
+      sentAt: new Date()
+    });
+  } catch {
+    // Don't fail the notification if logging fails
+  }
+
+  return {
+    channelId: channel.id,
+    channelName: channel.name,
+    ok: result.ok,
+    error: result.error
+  };
+}
+
+export async function dispatchNotificationToChannel(
+  channelId: string,
+  payload: NotificationPayload,
+  options?: { ignoreRouting?: boolean }
+): Promise<{
+  dispatched: number;
+  succeeded: number;
+  failed: number;
+  results: Array<{ channelId: string; channelName: string; ok: boolean; error?: string }>;
+}> {
+  const [channel] = await db
+    .select()
+    .from(notificationChannels)
+    .where(eq(notificationChannels.id, channelId))
+    .limit(1);
+
+  if (!channel) {
+    return {
+      dispatched: 0,
+      succeeded: 0,
+      failed: 1,
+      results: [{ channelId, channelName: channelId, ok: false, error: "Channel not found" }]
+    };
+  }
+
+  if (!options?.ignoreRouting) {
+    if (!channel.enabled) {
+      return {
+        dispatched: 0,
+        succeeded: 0,
+        failed: 1,
+        results: [
+          {
+            channelId: channel.id,
+            channelName: channel.name,
+            ok: false,
+            error: "Channel is disabled"
+          }
+        ]
+      };
+    }
+    if (!matchesAnySelector(payload.eventType, channel.eventSelectors)) {
+      return {
+        dispatched: 0,
+        succeeded: 0,
+        failed: 1,
+        results: [
+          {
+            channelId: channel.id,
+            channelName: channel.name,
+            ok: false,
+            error: "Channel does not match this event selector"
+          }
+        ]
+      };
+    }
+  }
+
+  const result = await deliverNotification(channel, payload);
+  return {
+    dispatched: 1,
+    succeeded: result.ok ? 1 : 0,
+    failed: result.ok ? 0 : 1,
+    results: [result]
   };
 }

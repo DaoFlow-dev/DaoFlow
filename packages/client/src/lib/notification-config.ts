@@ -25,6 +25,11 @@ export const NOTIFICATION_EVENT_DOMAINS = [
     events: ["deploy.started", "deploy.succeeded", "deploy.failed", "deploy.rollback"]
   },
   {
+    domain: "approval.*",
+    label: "Approvals",
+    events: ["approval.request", "approval.approve", "approval.reject"]
+  },
+  {
     domain: "server.*",
     label: "Server",
     events: ["server.connected", "server.disconnected", "server.health.degraded"]

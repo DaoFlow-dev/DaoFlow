@@ -10,6 +10,8 @@ interface Channel {
   channelType: unknown;
   email?: unknown;
   webhookUrl?: unknown;
+  projectFilter?: unknown;
+  environmentFilter?: unknown;
   enabled: boolean;
   eventSelectors?: unknown;
   createdAt: unknown;
@@ -67,6 +69,7 @@ export function ChannelCardList({
                     onClick={() => onTest(readText(channel.id, "channel"))}
                     disabled={isTestPending}
                     title="Send test notification"
+                    data-testid={`notification-channel-test-${readText(channel.id, "channel")}`}
                   >
                     <Send size={14} className="mr-1" />
                     Test
@@ -77,6 +80,7 @@ export function ChannelCardList({
                   size="sm"
                   onClick={() => onToggle(readText(channel.id, "channel"), !channel.enabled)}
                   disabled={isTogglePending}
+                  data-testid={`notification-channel-toggle-${readText(channel.id, "channel")}`}
                 >
                   <Power size={14} />
                 </Button>
@@ -85,6 +89,7 @@ export function ChannelCardList({
                   size="sm"
                   onClick={() => onDelete(readText(channel.id, "channel"))}
                   disabled={isDeletePending}
+                  data-testid={`notification-channel-delete-${readText(channel.id, "channel")}`}
                 >
                   <Trash2 size={14} className="text-destructive" />
                 </Button>
@@ -100,8 +105,17 @@ export function ChannelCardList({
                   </Badge>
                 )
               )}
+              {readText(channel.projectFilter) ? (
+                <Badge variant="secondary">Project: {readText(channel.projectFilter)}</Badge>
+              ) : null}
+              {readText(channel.environmentFilter) ? (
+                <Badge variant="secondary">Env: {readText(channel.environmentFilter)}</Badge>
+              ) : null}
             </div>
-            <p className="text-xs text-muted-foreground">
+            <p
+              className="text-xs text-muted-foreground"
+              data-testid={`notification-channel-created-${readText(channel.id, "channel")}`}
+            >
               Created {new Date(readText(channel.createdAt)).toLocaleString()}
             </p>
           </CardContent>

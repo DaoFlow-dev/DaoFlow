@@ -6,6 +6,9 @@ import { relations } from "drizzle-orm";
 // Format: "domain.action" with wildcard support ("backup.*")
 
 export const NOTIFICATION_EVENT_TYPES = [
+  // Test events
+  "system.test",
+
   // Backup events
   "backup.started",
   "backup.succeeded",
@@ -22,6 +25,11 @@ export const NOTIFICATION_EVENT_TYPES = [
   "deploy.succeeded",
   "deploy.failed",
   "deploy.rollback",
+
+  // Approval events
+  "approval.request",
+  "approval.approve",
+  "approval.reject",
 
   // Server events
   "server.connected",

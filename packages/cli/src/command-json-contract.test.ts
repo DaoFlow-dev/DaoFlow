@@ -7,6 +7,7 @@ import { backupCommand } from "./commands/backup";
 import { deployCommand } from "./commands/deploy";
 import { envCommand } from "./commands/env";
 import { logsCommand } from "./commands/logs";
+import { notificationsCommand } from "./commands/notifications";
 import { registerConfigCommand } from "./commands/config";
 import { planCommand } from "./commands/plan";
 import { serverCommand } from "./commands/server";
@@ -162,6 +163,165 @@ describe("CLI JSON contract", () => {
       ok: false,
       error: "Set API_URL in environment env_123. Pass --yes to confirm.",
       code: "CONFIRMATION_REQUIRED"
+    });
+  });
+
+  test("notifications list returns the standard success envelope", async () => {
+    const program = new Command().name("daoflow");
+    program.addCommand(notificationsCommand());
+
+    const originalFetch = globalThis.fetch;
+
+    const result = await withTempHome(async () => {
+      process.env.DAOFLOW_URL = "https://daoflow.test";
+      process.env.DAOFLOW_TOKEN = "dfl_test_token";
+      globalThis.fetch = ((input: RequestInfo | URL) => {
+        const url =
+          typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+
+        expect(url).toContain("/trpc/listChannels");
+
+        return new Response(
+          JSON.stringify({
+            result: {
+              data: [
+                {
+                  id: "ntf_ops",
+                  name: "Ops Alerts",
+                  channelType: "email",
+                  webhookUrl: null,
+                  email: "ops@daoflow.local",
+                  projectFilter: "DaoFlow",
+                  environmentFilter: "production",
+                  eventSelectors: ["deploy.*"],
+                  enabled: true,
+                  createdAt: "2026-03-20T12:00:00.000Z",
+                  updatedAt: "2026-03-20T12:00:00.000Z"
+                }
+              ]
+            }
+          }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" }
+          }
+        );
+      }) as unknown as typeof fetch;
+
+      try {
+        return await captureCommandExecution(async () => {
+          await program.parseAsync(["node", "daoflow", "notifications", "list", "--json"]);
+        });
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
+    });
+
+    expect(result.exitCode).toBeNull();
+    expect(result.errors).toEqual([]);
+    expect(result.logs).toHaveLength(1);
+    expect(JSON.parse(result.logs[0])).toEqual({
+      ok: true,
+      data: {
+        channels: [
+          {
+            id: "ntf_ops",
+            name: "Ops Alerts",
+            channelType: "email",
+            webhookUrl: null,
+            email: "ops@daoflow.local",
+            projectFilter: "DaoFlow",
+            environmentFilter: "production",
+            eventSelectors: ["deploy.*"],
+            enabled: true,
+            createdAt: "2026-03-20T12:00:00.000Z",
+            updatedAt: "2026-03-20T12:00:00.000Z"
+          }
+        ]
+      }
+    });
+  });
+
+  test("notifications logs returns the standard success envelope", async () => {
+    const program = new Command().name("daoflow");
+    program.addCommand(notificationsCommand());
+
+    const originalFetch = globalThis.fetch;
+
+    const result = await withTempHome(async () => {
+      process.env.DAOFLOW_URL = "https://daoflow.test";
+      process.env.DAOFLOW_TOKEN = "dfl_test_token";
+      globalThis.fetch = ((input: RequestInfo | URL) => {
+        const url =
+          typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+
+        expect(url).toContain("/trpc/listDeliveryLogs");
+
+        return new Response(
+          JSON.stringify({
+            result: {
+              data: [
+                {
+                  id: "nlog_1",
+                  channelId: "ntf_ops",
+                  channelName: "Ops Alerts",
+                  channelType: "generic_webhook",
+                  eventType: "deploy.failed",
+                  payload: {},
+                  httpStatus: "200",
+                  status: "delivered",
+                  error: null,
+                  sentAt: "2026-03-20T12:05:00.000Z"
+                }
+              ]
+            }
+          }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" }
+          }
+        );
+      }) as unknown as typeof fetch;
+
+      try {
+        return await captureCommandExecution(async () => {
+          await program.parseAsync([
+            "node",
+            "daoflow",
+            "notifications",
+            "logs",
+            "--limit",
+            "5",
+            "--json"
+          ]);
+        });
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
+    });
+
+    expect(result.exitCode).toBeNull();
+    expect(result.errors).toEqual([]);
+    expect(result.logs).toHaveLength(1);
+    expect(JSON.parse(result.logs[0])).toEqual({
+      ok: true,
+      data: {
+        limit: 5,
+        logs: [
+          {
+            id: "nlog_1",
+            channelId: "ntf_ops",
+            channelName: "Ops Alerts",
+            channelType: "generic_webhook",
+            eventType: "deploy.failed",
+            payload: {},
+            httpStatus: "200",
+            status: "delivered",
+            error: null,
+            sentAt: "2026-03-20T12:05:00.000Z"
+          }
+        ]
+      }
     });
   });
 

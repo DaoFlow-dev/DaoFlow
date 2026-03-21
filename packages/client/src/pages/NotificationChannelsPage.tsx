@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { toast } from "sonner";
 import { trpc } from "../lib/trpc";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -11,22 +12,38 @@ export default function NotificationChannelsPage() {
   const channels = trpc.listChannels.useQuery();
   const [dialogOpen, setDialogOpen] = useState(false);
 
+  async function refreshNotificationViews() {
+    await Promise.all([utils.listChannels.invalidate(), utils.listDeliveryLogs.invalidate()]);
+  }
+
   const createChannel = trpc.createChannel.useMutation({
     onSuccess: async () => {
-      await utils.listChannels.invalidate();
+      await refreshNotificationViews();
       setDialogOpen(false);
+      toast.success("Notification channel created");
     }
   });
 
   const deleteChannel = trpc.deleteChannel.useMutation({
     onSuccess: async () => {
-      await utils.listChannels.invalidate();
+      await refreshNotificationViews();
+      toast.success("Notification channel removed");
     }
   });
 
   const toggleChannel = trpc.toggleChannel.useMutation({
     onSuccess: async () => {
-      await utils.listChannels.invalidate();
+      await refreshNotificationViews();
+    }
+  });
+
+  const testChannel = trpc.testChannel.useMutation({
+    onSuccess: async () => {
+      await refreshNotificationViews();
+      toast.success("Test notification sent");
+    },
+    onError: (error) => {
+      toast.error(error.message || "Failed to send test notification");
     }
   });
 
@@ -76,8 +93,10 @@ export default function NotificationChannelsPage() {
           channels={items}
           onToggle={(id, enabled) => toggleChannel.mutate({ id, enabled })}
           onDelete={(id) => deleteChannel.mutate({ id })}
+          onTest={(id) => testChannel.mutate({ id })}
           isTogglePending={toggleChannel.isPending}
           isDeletePending={deleteChannel.isPending}
+          isTestPending={testChannel.isPending}
         />
       )}
     </main>

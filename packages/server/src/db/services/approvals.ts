@@ -6,6 +6,8 @@ import { approvalRequests, auditEntries } from "../schema/audit";
 import { backupPolicies, backupRuns } from "../schema/storage";
 import type { AppRole } from "@daoflow/shared";
 import { newId as id, asRecord, readString, readStringArray } from "./json-helpers";
+import { buildApprovalNotification } from "../../worker/temporal/activities/notification-builders";
+import { dispatchNotification } from "../../worker/temporal/activities/notification-activities";
 
 export type ApprovalActionType = "compose-release" | "backup-restore";
 
@@ -162,6 +164,21 @@ export async function createApprovalRequest(input: CreateApprovalRequestInput) {
     }
   });
 
+  try {
+    const notification = await buildApprovalNotification({
+      eventType: "approval.request",
+      status: "requested",
+      requestId,
+      actionType: input.actionType,
+      resourceLabel: presentation.resourceLabel,
+      requestedByEmail: input.requestedByEmail,
+      reason: input.reason
+    });
+    await dispatchNotification(notification);
+  } catch {
+    // Approval creation must not fail because delivery integrations are degraded.
+  }
+
   return request;
 }
 
@@ -254,6 +271,22 @@ export async function approveApprovalRequest(
     }
   });
 
+  try {
+    const notification = await buildApprovalNotification({
+      eventType: "approval.approve",
+      status: "approved",
+      requestId,
+      actionType: request.actionType,
+      resourceLabel: readString(summary, "resourceLabel", request.targetResource),
+      requestedByEmail: request.requestedByEmail,
+      decidedByEmail: email,
+      reason: request.reason
+    });
+    await dispatchNotification(notification);
+  } catch {
+    // Approval execution must not fail because delivery integrations are degraded.
+  }
+
   if (request.actionType === "backup-restore") {
     const backupRunId = request.targetResource.split("/")[1];
     if (backupRunId) {
@@ -312,6 +345,22 @@ export async function rejectApprovalRequest(
       detail: `Rejected ${readString(summary, "resourceLabel", request.targetResource)}.`
     }
   });
+
+  try {
+    const notification = await buildApprovalNotification({
+      eventType: "approval.reject",
+      status: "rejected",
+      requestId,
+      actionType: request.actionType,
+      resourceLabel: readString(summary, "resourceLabel", request.targetResource),
+      requestedByEmail: request.requestedByEmail,
+      decidedByEmail: email,
+      reason: request.reason
+    });
+    await dispatchNotification(notification);
+  } catch {
+    // Approval rejection must not fail because delivery integrations are degraded.
+  }
 
   const [updated] = await db
     .select()

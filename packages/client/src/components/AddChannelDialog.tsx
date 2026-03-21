@@ -35,6 +35,8 @@ interface AddChannelDialogProps {
     channelType: ChannelType;
     webhookUrl?: string;
     email?: string;
+    projectFilter?: string;
+    environmentFilter?: string;
     eventSelectors: string[];
     enabled: boolean;
   }) => void;
@@ -52,6 +54,8 @@ export function AddChannelDialog({
     useState<(typeof NOTIFICATION_CHANNEL_TYPES)[number]>("slack");
   const [webhookUrl, setWebhookUrl] = useState("");
   const [email, setEmail] = useState("");
+  const [projectFilter, setProjectFilter] = useState("");
+  const [environmentFilter, setEnvironmentFilter] = useState("");
   const [eventSelectors, setEventSelectors] = useState<string[]>(["deploy.*"]);
 
   const canSubmit = useMemo(() => {
@@ -66,6 +70,8 @@ export function AddChannelDialog({
     setChannelType("slack");
     setWebhookUrl("");
     setEmail("");
+    setProjectFilter("");
+    setEnvironmentFilter("");
     setEventSelectors(["deploy.*"]);
   }
 
@@ -96,6 +102,8 @@ export function AddChannelDialog({
                   ? undefined
                   : webhookUrl.trim() || undefined,
               email: channelType === "email" ? email.trim() || undefined : undefined,
+              projectFilter: projectFilter.trim() || undefined,
+              environmentFilter: environmentFilter.trim() || undefined,
               eventSelectors,
               enabled: true
             });
@@ -160,6 +168,27 @@ export function AddChannelDialog({
               />
             </div>
           )}
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="channel-project-filter">Project Filter</Label>
+              <Input
+                id="channel-project-filter"
+                placeholder="Optional project name"
+                value={projectFilter}
+                onChange={(event) => setProjectFilter(event.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="channel-environment-filter">Environment Filter</Label>
+              <Input
+                id="channel-environment-filter"
+                placeholder="Optional environment name"
+                value={environmentFilter}
+                onChange={(event) => setEnvironmentFilter(event.target.value)}
+              />
+            </div>
+          </div>
 
           <EventSelectorGrid
             eventSelectors={eventSelectors}

@@ -17,6 +17,7 @@ import {
   listUserNotificationPreferences,
   setProjectNotificationOverride,
   setUserNotificationPreference,
+  sendTestNotification,
   subscribePushSubscription,
   toggleNotificationChannel,
   unsubscribePushSubscription,
@@ -59,6 +60,8 @@ export const notificationRouter = t.router({
         channelType: z.enum(["slack", "discord", "email", "generic_webhook", "web_push"]),
         webhookUrl: z.string().url().optional(),
         email: z.string().email().optional(),
+        projectFilter: z.string().min(1).max(100).optional().nullable(),
+        environmentFilter: z.string().min(1).max(100).optional().nullable(),
         eventSelectors: z.array(z.string()).default(["*"]),
         enabled: z.boolean().default(true)
       })
@@ -75,6 +78,9 @@ export const notificationRouter = t.router({
         id: z.string(),
         name: z.string().min(1).max(100).optional(),
         webhookUrl: z.string().url().optional().nullable(),
+        email: z.string().email().optional().nullable(),
+        projectFilter: z.string().min(1).max(100).optional().nullable(),
+        environmentFilter: z.string().min(1).max(100).optional().nullable(),
         eventSelectors: z.array(z.string()).optional(),
         enabled: z.boolean().optional()
       })
@@ -87,6 +93,10 @@ export const notificationRouter = t.router({
   toggleChannel: protectedProcedure
     .input(z.object({ id: z.string(), enabled: z.boolean() }))
     .mutation(async ({ input }) => toggleNotificationChannel(input.id, input.enabled)),
+
+  testChannel: protectedProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ input }) => sendTestNotification(input.id)),
 
   getUserPreferences: protectedProcedure.query(async ({ ctx }) =>
     listUserNotificationPreferences(ctx.session.user.id)

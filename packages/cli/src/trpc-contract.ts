@@ -679,6 +679,33 @@ export interface ConfigDiffOutput {
   }>;
 }
 
+export interface NotificationChannelOutput {
+  id: string;
+  name: string;
+  channelType: string;
+  webhookUrl: string | null;
+  email: string | null;
+  projectFilter: string | null;
+  environmentFilter: string | null;
+  eventSelectors: string[];
+  enabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface NotificationDeliveryLogOutput {
+  id: string;
+  channelId: string;
+  channelName: string;
+  channelType: string;
+  eventType: string;
+  payload: unknown;
+  httpStatus: string | null;
+  status: string;
+  error: string | null;
+  sentAt: string;
+}
+
 export interface DaoFlowTRPC {
   viewer: QueryProcedure<ViewerOutput>;
   health: QueryProcedure<HealthOutput>;
@@ -878,5 +905,7 @@ export interface DaoFlowTRPC {
     },
     TriggerDeployOutput
   >;
+  listChannels: QueryProcedure<NotificationChannelOutput[]>;
+  listDeliveryLogs: QueryProcedure<NotificationDeliveryLogOutput[], { limit: number }>;
   configDiff: QueryProcedure<ConfigDiffOutput, { deploymentIdA: string; deploymentIdB: string }>;
 }
