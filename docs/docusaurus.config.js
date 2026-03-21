@@ -18,7 +18,12 @@ const config = {
   projectName: "daoflow",
 
   onBrokenLinks: "warn",
-  onBrokenMarkdownLinks: "warn",
+
+  markdown: {
+    hooks: {
+      onBrokenMarkdownLinks: "warn"
+    }
+  },
 
   i18n: {
     defaultLocale: "en",
