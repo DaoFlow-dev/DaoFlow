@@ -1,8 +1,7 @@
-import type { ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Play, Square, RotateCcw, Trash2, Loader2, RefreshCw } from "lucide-react";
+import { ArrowLeft, Play, Loader2 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { useState } from "react";
 import { getBadgeVariantFromTone } from "@/lib/tone-utils";
@@ -32,29 +31,16 @@ interface ServiceHeaderProps {
 
 export default function ServiceHeader({ service, projectName }: ServiceHeaderProps) {
   const navigate = useNavigate();
-  const [actionInProgress, setActionInProgress] = useState<string | null>(null);
+  const [isDeploying, setIsDeploying] = useState(false);
 
   const deploy = trpc.triggerDeploy.useMutation({
-    onSuccess: () => setActionInProgress(null),
-    onError: () => setActionInProgress(null)
+    onSuccess: () => setIsDeploying(false),
+    onError: () => setIsDeploying(false)
   });
 
-  function handleAction(action: string) {
-    setActionInProgress(action);
-    if (action === "deploy" || action === "restart") {
-      deploy.mutate({ serviceId: service.id });
-    } else {
-      // stop/delete are placeholders until backend support
-      setTimeout(() => setActionInProgress(null), 1000);
-    }
-  }
-
-  function renderActionIcon(action: string, icon: ReactNode) {
-    if (actionInProgress === action) {
-      return <Loader2 size={14} className="animate-spin" />;
-    }
-
-    return icon;
+  function handleDeploy() {
+    setIsDeploying(true);
+    deploy.mutate({ serviceId: service.id });
   }
 
   return (
@@ -86,6 +72,7 @@ export default function ServiceHeader({ service, projectName }: ServiceHeaderPro
             size="icon"
             aria-label="Back to project"
             onClick={() => void navigate(`/projects/${service.projectId}`)}
+            data-testid={`service-back-to-project-${service.id}`}
           >
             <ArrowLeft size={18} />
           </Button>
@@ -112,60 +99,16 @@ export default function ServiceHeader({ service, projectName }: ServiceHeaderPro
           <Button
             size="sm"
             variant="default"
-            onClick={() => handleAction("deploy")}
-            disabled={!!actionInProgress}
+            onClick={handleDeploy}
+            disabled={isDeploying}
             data-testid={`service-deploy-${service.id}`}
           >
-            {actionInProgress === "deploy" ? (
+            {isDeploying ? (
               <Loader2 size={14} className="mr-1 animate-spin" />
             ) : (
               <Play size={14} className="mr-1" />
             )}
-            {actionInProgress === "deploy" ? "Deploying..." : "Deploy"}
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => handleAction("restart")}
-            disabled={!!actionInProgress}
-            title="Restart"
-            aria-label="Restart service"
-            data-testid={`service-restart-${service.id}`}
-          >
-            {renderActionIcon("restart", <RefreshCw size={14} />)}
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => handleAction("stop")}
-            disabled={!!actionInProgress}
-            title="Stop"
-            aria-label="Stop service"
-            data-testid={`service-stop-${service.id}`}
-          >
-            {renderActionIcon("stop", <Square size={14} />)}
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => handleAction("redeploy")}
-            disabled={!!actionInProgress}
-            title="Redeploy"
-            aria-label="Redeploy service"
-            data-testid={`service-redeploy-${service.id}`}
-          >
-            {renderActionIcon("redeploy", <RotateCcw size={14} />)}
-          </Button>
-          <Button
-            size="sm"
-            variant="destructive"
-            onClick={() => handleAction("delete")}
-            disabled={!!actionInProgress}
-            title="Delete"
-            aria-label="Delete service"
-            data-testid={`service-delete-${service.id}`}
-          >
-            {renderActionIcon("delete", <Trash2 size={14} />)}
+            {isDeploying ? "Deploying..." : "Deploy"}
           </Button>
         </div>
       </div>

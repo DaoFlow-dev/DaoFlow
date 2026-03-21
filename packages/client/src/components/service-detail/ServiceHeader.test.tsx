@@ -55,29 +55,25 @@ describe("ServiceHeader", () => {
     expect(screen.getByRole("button", { name: "Deploying..." })).toBeDisabled();
   });
 
-  it.each([["Restart service"], ["Stop service"], ["Redeploy service"], ["Delete service"]])(
-    "shows a spinner for %s while the action is in progress",
-    (buttonName) => {
-      render(
-        <MemoryRouter>
-          <ServiceHeader
-            service={{
-              id: "svc_api",
-              name: "api",
-              sourceType: "compose",
-              status: "running",
-              projectId: "proj_1"
-            }}
-            projectName="Demo"
-          />
-        </MemoryRouter>
-      );
+  it("hides unsupported lifecycle actions that do not have backend support", () => {
+    render(
+      <MemoryRouter>
+        <ServiceHeader
+          service={{
+            id: "svc_api",
+            name: "api",
+            sourceType: "compose",
+            status: "running",
+            projectId: "proj_1"
+          }}
+          projectName="Demo"
+        />
+      </MemoryRouter>
+    );
 
-      const button = screen.getByRole("button", { name: buttonName });
-      fireEvent.click(button);
-
-      expect(button).toBeDisabled();
-      expect(button.querySelector(".animate-spin")).not.toBeNull();
-    }
-  );
+    expect(screen.queryByRole("button", { name: "Restart service" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Stop service" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Redeploy service" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Delete service" })).toBeNull();
+  });
 });

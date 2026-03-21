@@ -1,6 +1,5 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -11,8 +10,6 @@ import {
   TableRow
 } from "@/components/ui/table";
 import { getInventoryBadgeVariant } from "@/lib/tone-utils";
-import { UserPlus } from "lucide-react";
-import { toast } from "sonner";
 
 interface Principal {
   id: string;
@@ -33,23 +30,14 @@ export function UsersSettingsTab({ isAdmin, isLoading, principals }: UsersSettin
     <div className="mt-4">
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <CardTitle className="text-base">Users & Principals</CardTitle>
-              {!isAdmin && <Badge variant="secondary">Admin only</Badge>}
-            </div>
-            {isAdmin && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => toast.info("Invite user coming soon")}
-              >
-                <UserPlus size={14} className="mr-1" />
-                Invite User
-              </Button>
-            )}
+          <div className="flex items-center gap-2">
+            <CardTitle className="text-base">Users & Principals</CardTitle>
+            {!isAdmin && <Badge variant="secondary">Admin only</Badge>}
           </div>
-          <CardDescription>Team members, service accounts, and agent principals.</CardDescription>
+          <CardDescription>
+            Team members, service accounts, and agent principals. Create automation identities from
+            the Agents page.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           {isLoading ? (
