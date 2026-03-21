@@ -12,6 +12,7 @@ import {
 } from "./deploy-strategies";
 import { throwIfDeploymentCancellationRequested } from "../db/services/deployment-execution-control";
 import { DeploymentCancellationError } from "../deployment-cancellation";
+import { buildDockerContainerName } from "../docker-identifiers";
 
 const DEPLOY_TIMEOUT_MS = Number(process.env.DEPLOY_TIMEOUT_MS ?? 600_000);
 
@@ -24,7 +25,7 @@ export async function runDeployment(
 
   const projectName = config.projectName ?? deployment.serviceName.replace(/[^a-zA-Z0-9_-]/g, "_");
   const composeProjectName = config.stackName ?? projectName;
-  const containerName = `${projectName}-${deployment.serviceName}`.toLowerCase();
+  const containerName = buildDockerContainerName(projectName, deployment.serviceName);
   const [server] = await db
     .select()
     .from(servers)

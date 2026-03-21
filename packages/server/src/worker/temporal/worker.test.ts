@@ -41,6 +41,8 @@ vi.mock("./activities/notification-activities", () => ({
 describe("startTemporalWorker", () => {
   beforeEach(() => {
     vi.resetModules();
+    process.env.TEMPORAL_CONNECT_TIMEOUT_MS = "100";
+    process.env.TEMPORAL_CONNECT_RETRY_DELAY_MS = "0";
     connectMock.mockReset();
     workerCreateMock.mockReset();
     workerRunMock.mockReset();
@@ -64,5 +66,19 @@ describe("startTemporalWorker", () => {
     expect(firstCall).toBeDefined();
     const [createArgs] = firstCall as [{ activities: Record<string, unknown> }];
     expect(createArgs.activities).toHaveProperty("appendBackupRunLog");
+  });
+
+  it("retries the Temporal connection before starting the worker", async () => {
+    connectMock
+      .mockRejectedValueOnce(new Error("connect refused"))
+      .mockResolvedValueOnce({ connection: "native" });
+
+    const { startTemporalWorker } = await import("./worker");
+
+    await startTemporalWorker();
+
+    expect(connectMock).toHaveBeenCalledTimes(2);
+    expect(workerCreateMock).toHaveBeenCalledTimes(1);
+    expect(workerRunMock).toHaveBeenCalledTimes(1);
   });
 });

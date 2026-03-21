@@ -13,6 +13,7 @@ const {
   cleanupStagingDirMock,
   createLogStreamerMock,
   executeComposeDeploymentMock,
+  executeImageDeploymentMock,
   resolveExecutionTargetMock,
   withPreparedExecutionTargetMock
 } = vi.hoisted(() => ({
@@ -30,6 +31,7 @@ const {
     }
   ),
   executeComposeDeploymentMock: vi.fn(),
+  executeImageDeploymentMock: vi.fn(),
   cleanupStagingDirMock: vi.fn()
 }));
 
@@ -45,16 +47,16 @@ vi.mock("./execution-target", () => ({
 vi.mock("./deploy-strategies", () => ({
   executeComposeDeployment: executeComposeDeploymentMock,
   executeDockerfileDeployment: vi.fn(),
-  executeImageDeployment: vi.fn()
+  executeImageDeployment: executeImageDeploymentMock
 }));
 
 vi.mock("./docker-executor", () => ({
   cleanupStagingDir: cleanupStagingDirMock
 }));
 
-async function createDeploymentRecordFixture() {
+async function createDeploymentRecordFixture(sourceType: "compose" | "image" = "compose") {
   const projectResult = await createProject({
-    name: `run-deployment-${Date.now()}`,
+    name: sourceType === "image" ? `Run Deployment ${Date.now()}` : `run-deployment-${Date.now()}`,
     description: "Run deployment cancellation fixture",
     teamId: "team_foundation",
     requestedByUserId: "user_foundation_owner",
@@ -101,7 +103,7 @@ async function createDeploymentRecordFixture() {
     environmentId: environmentResult.environment.id,
     targetServerId: "srv_foundation_1",
     serviceName: serviceResult.service.name,
-    sourceType: "compose",
+    sourceType,
     commitSha: "1111111111111111111111111111111111111111",
     imageTag: "ghcr.io/example/api:test",
     status: "queued",
@@ -194,6 +196,22 @@ describe("runDeployment", () => {
       expect.objectContaining({
         serverKind: "docker-swarm-manager"
       })
+    );
+  });
+
+  it("sanitizes image deployment container names before docker run", async () => {
+    const deployment = await createDeploymentRecordFixture("image");
+
+    const { runDeployment } = await import("./run-deployment");
+    const outcome = await runDeployment(deployment, "test-worker");
+
+    expect(outcome).toBe("succeeded");
+    expect(executeImageDeploymentMock).toHaveBeenCalledWith(
+      deployment,
+      expect.any(Object),
+      expect.stringMatching(/^run-deployment-\d+-run-svc-\d+$/),
+      expect.any(Function),
+      expect.any(Object)
     );
   });
 });

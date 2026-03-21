@@ -4,6 +4,7 @@ import { deployments } from "../schema/deployments";
 import { servers } from "../schema/servers";
 import { services } from "../schema/services";
 import { resolveExecutionTarget, type ExecutionTarget } from "../../worker/execution-target";
+import { buildDockerContainerName } from "../../docker-identifiers";
 import { asRecord, readString } from "./json-helpers";
 
 export type ResolvedServiceRuntime =
@@ -57,7 +58,7 @@ function deriveContainerName(
     return deployment.containerId.trim();
   }
 
-  return `${deriveProjectName(deployment)}-${service.name}`.toLowerCase();
+  return buildDockerContainerName(deriveProjectName(deployment), service.name);
 }
 
 export async function resolveServiceRuntime(

@@ -27,6 +27,44 @@ const activities = {
 };
 
 let worker: Worker | null = null;
+const TEMPORAL_CONNECT_TIMEOUT_MS = Number(process.env.TEMPORAL_CONNECT_TIMEOUT_MS ?? 30_000);
+const TEMPORAL_CONNECT_RETRY_DELAY_MS = Number(
+  process.env.TEMPORAL_CONNECT_RETRY_DELAY_MS ?? 2_000
+);
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolveSleep) => {
+    setTimeout(resolveSleep, ms);
+  });
+}
+
+async function connectWithRetry(): Promise<NativeConnection> {
+  const deadline = Date.now() + TEMPORAL_CONNECT_TIMEOUT_MS;
+  let attempt = 0;
+  let lastError: unknown;
+
+  while (Date.now() <= deadline) {
+    attempt += 1;
+
+    try {
+      return await NativeConnection.connect({ address: TEMPORAL_ADDRESS });
+    } catch (error) {
+      lastError = error;
+      const remainingMs = deadline - Date.now();
+      if (remainingMs <= 0) {
+        break;
+      }
+
+      const retryDelayMs = Math.min(TEMPORAL_CONNECT_RETRY_DELAY_MS, remainingMs);
+      console.warn(
+        `[temporal-worker] Connection attempt ${attempt} failed; retrying in ${retryDelayMs}ms`
+      );
+      await sleep(retryDelayMs);
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error("Temporal connection failed");
+}
 
 /**
  * Start the Temporal worker.
@@ -43,7 +81,7 @@ export async function startTemporalWorker(): Promise<void> {
 
   console.log(`[temporal-worker] Connecting to Temporal at ${TEMPORAL_ADDRESS}...`);
 
-  const connection = await NativeConnection.connect({ address: TEMPORAL_ADDRESS });
+  const connection = await connectWithRetry();
 
   worker = await Worker.create({
     connection,
