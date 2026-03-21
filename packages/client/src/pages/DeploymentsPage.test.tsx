@@ -1,0 +1,113 @@
+// @vitest-environment jsdom
+
+import "@testing-library/jest-dom/vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import DeploymentsPage from "./DeploymentsPage";
+
+const { cancelDeploymentUseMutationMock, recentDeploymentsUseQueryMock } = vi.hoisted(() => ({
+  cancelDeploymentUseMutationMock: vi.fn(),
+  recentDeploymentsUseQueryMock: vi.fn()
+}));
+
+vi.mock("../lib/auth-client", () => ({
+  useSession: () => ({
+    data: {
+      user: {
+        id: "user_1"
+      }
+    }
+  })
+}));
+
+vi.mock("../lib/trpc", () => ({
+  trpc: {
+    recentDeployments: {
+      useQuery: recentDeploymentsUseQueryMock
+    },
+    cancelDeployment: {
+      useMutation: cancelDeploymentUseMutationMock
+    }
+  }
+}));
+
+vi.mock("@/components/DeploymentRollbackDialog", () => ({
+  default: () => null
+}));
+
+describe("DeploymentsPage", () => {
+  function renderDeploymentsPage() {
+    return render(
+      <MemoryRouter initialEntries={["/deployments"]}>
+        <DeploymentsPage />
+      </MemoryRouter>
+    );
+  }
+
+  beforeEach(() => {
+    recentDeploymentsUseQueryMock.mockReturnValue({
+      data: [
+        {
+          id: "dep_1",
+          serviceId: "svc_api",
+          serviceName: "api",
+          environmentName: "production",
+          targetServerName: "foundation-1",
+          statusTone: "success",
+          statusLabel: "Healthy",
+          lifecycleStatus: "healthy",
+          status: "healthy",
+          sourceType: "compose",
+          createdAt: "2026-03-20T00:00:00.000Z",
+          canRollback: true,
+          conclusion: "success",
+          steps: []
+        },
+        {
+          id: "dep_2",
+          serviceId: "svc_web",
+          serviceName: "web",
+          environmentName: "staging",
+          targetServerName: "foundation-2",
+          statusTone: "warning",
+          statusLabel: "Running",
+          lifecycleStatus: "running",
+          status: "running",
+          sourceType: "compose",
+          createdAt: "2026-03-20T01:00:00.000Z",
+          canRollback: false,
+          conclusion: null,
+          steps: []
+        }
+      ],
+      isLoading: false,
+      refetch: vi.fn()
+    });
+    cancelDeploymentUseMutationMock.mockReturnValue({
+      mutate: vi.fn()
+    });
+  });
+
+  afterEach(() => {
+    cleanup();
+  });
+
+  it("shows filtered-empty state and clears search filters back to the deployment table", () => {
+    renderDeploymentsPage();
+
+    expect(screen.getByText("api")).toBeInTheDocument();
+    expect(screen.getByText("web")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByPlaceholderText("Search by service name..."), {
+      target: { value: "missing-service" }
+    });
+
+    expect(screen.getByText("No deployments match your filters.")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+
+    expect(screen.getByText("api")).toBeInTheDocument();
+    expect(screen.getByText("web")).toBeInTheDocument();
+  });
+});
