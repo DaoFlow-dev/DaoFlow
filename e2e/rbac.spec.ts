@@ -102,7 +102,12 @@ test.describe("RBAC and agent tokens", () => {
     await page.getByRole("tab", { name: "Volumes" }).click();
 
     // Volumes card should be visible
-    await expect(page.getByText("Persistent Volumes")).toBeVisible();
-    await expect(page.getByText("Manage named volumes and storage configuration.")).toBeVisible();
+    await expect(page.getByTestId("settings-volume-registry")).toBeVisible();
+    await expect(page.getByTestId("volume-registry-title")).toHaveText(
+      "Persistent volume registry"
+    );
+    await expect(page.getByTestId("volume-registry-description")).toHaveText(
+      "Track server-mounted data, link it to services, and attach backup coverage."
+    );
   });
 });
