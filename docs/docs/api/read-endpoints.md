@@ -31,6 +31,7 @@ Notable queryable observation inputs:
 
 - `deploymentLogs` supports optional `deploymentId`, `service`, `query`, `stream`, and `limit` filters for targeted log retrieval.
 - `operationsTimeline` supports optional `deploymentId` and `limit`.
+- `serverReadiness` and `infrastructureInventory` now surface persisted `swarmTopology` snapshots for `docker-swarm-manager` targets when that metadata exists.
 
 ## Scoped Read Procedures
 

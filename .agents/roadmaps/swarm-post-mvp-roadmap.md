@@ -9,6 +9,7 @@ DaoFlow already ships a narrow `docker-swarm-manager` slice:
 - server registration accepts `docker-swarm-manager` in API, CLI, and read models
 - readiness inspection reports the stored target kind back to operators
 - the main Servers surface can register and inspect manager targets explicitly
+- manager targets persist a typed `swarmTopology` snapshot for cluster identity and node membership
 
 DaoFlow does **not** yet ship cluster-aware execution semantics:
 
@@ -18,18 +19,13 @@ DaoFlow does **not** yet ship cluster-aware execution semantics:
 
 ## Release Slices
 
-1. Swarm cluster domain model
-   - GitHub issue: `#109`
-   - define managers, workers, stack identity, and placement metadata
-   - lock the persistence and API contract for target inspection
-
-2. Swarm execution and rollback semantics
+1. Swarm execution and rollback semantics
    - GitHub issue: `#108`
    - branch deployment planning by target kind
    - add `docker stack deploy` / rollback execution with auditable step models
    - preserve standalone Docker behavior without regression
 
-3. Operator and agent affordances
+2. Operator and agent affordances
    - GitHub issue: `#110`
    - expose Swarm-specific deploy and rollback previews in CLI and UI
    - gate mutations behind explicit scopes and approval language

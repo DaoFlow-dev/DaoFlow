@@ -86,6 +86,7 @@ describe("memoized list items", () => {
       serverName: "foundation-1",
       serverHost: "10.0.0.4",
       targetKind: "docker-engine",
+      swarmTopology: null,
       sshPort: 22,
       readinessStatus: "ready",
       sshReachable: true,

@@ -16,6 +16,7 @@ function createServerReadinessCheck(
     serverName: "edge-1",
     serverHost: "edge-1.example.com",
     targetKind: "docker-engine",
+    swarmTopology: null,
     serverStatus: "attention",
     readinessStatus: "attention",
     statusTone: "warning",

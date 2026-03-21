@@ -7,10 +7,12 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CheckCircle2, Server, XCircle, RefreshCw } from "lucide-react";
 import { ServerReadinessIndicator } from "@/components/ServerReadinessIndicator";
+import { SwarmTopologySummary } from "@/components/SwarmTopologySummary";
 import {
   RegisterServerDialog,
   type RegisterServerFormData
 } from "@/components/RegisterServerDialog";
+import type { SwarmTopologySnapshot } from "@daoflow/shared";
 
 export default function ServersPage() {
   const session = useSession();
@@ -126,6 +128,7 @@ interface ServerCheck {
   serverName: unknown;
   serverHost: unknown;
   targetKind: unknown;
+  swarmTopology: SwarmTopologySnapshot | null;
   sshPort: unknown;
   readinessStatus: unknown;
   sshReachable: boolean;
@@ -186,6 +189,10 @@ export const ServerCheckCard = memo(function ServerCheckCard({ check }: ServerCh
           Checked {new Date(String(check.checkedAt)).toLocaleString()}
           {check.latencyMs !== null ? ` · ${check.latencyMs} ms` : ""}
         </div>
+
+        {check.swarmTopology ? (
+          <SwarmTopologySummary serverId={String(check.serverId)} topology={check.swarmTopology} />
+        ) : null}
 
         <ResourceBars check={check} />
 

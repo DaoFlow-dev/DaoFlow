@@ -240,11 +240,12 @@ This file holds the detailed CLI contract, scope map, and agent-facing command r
 - `daoflow status` reads the public health endpoint plus the authenticated `serverReadiness` view
 - Scope: `server:read`
 - JSON success shape:
-  - `{ "ok": true, "data": { "context": string, "apiUrl": string, "health": { "status": string, "service": string, "timestamp": string } | null, "servers": { "summary": { "totalServers": number, "readyServers": number, "attentionServers": number, "blockedServers": number, "pollIntervalMs": number, "averageLatencyMs": number | null }, "checks": [{ "serverId": string, "serverName": string, "serverHost": string, "targetKind": string, "serverStatus": string, "readinessStatus": string, "statusTone": string, "sshPort": number, "sshReachable": boolean, "dockerReachable": boolean, "composeReachable": boolean, "dockerVersion": string | null, "composeVersion": string | null, "latencyMs": number | null, "checkedAt": string, "issues": string[], "recommendedActions": string[] }] } | null } }`
+  - `{ "ok": true, "data": { "context": string, "apiUrl": string, "health": { "status": string, "service": string, "timestamp": string } | null, "servers": { "summary": { "totalServers": number, "readyServers": number, "attentionServers": number, "blockedServers": number, "pollIntervalMs": number, "averageLatencyMs": number | null }, "checks": [{ "serverId": string, "serverName": string, "serverHost": string, "targetKind": string, "swarmTopology": { "clusterId": string, "clusterName": string, "source": "registration" | "manual" | "discovered", "defaultNamespace": string | null, "summary": { "nodeCount": number, "managerCount": number, "workerCount": number, "activeNodeCount": number, "reachableNodeCount": number }, "nodes": [{ "id": string, "name": string, "host": string | null, "role": "manager" | "worker", "availability": "active" | "pause" | "drain" | "unknown", "reachability": "reachable" | "unreachable" | "unknown", "managerStatus": "leader" | "reachable" | "unreachable" | "none" | "unknown" }] } | null, "serverStatus": string, "readinessStatus": string, "statusTone": string, "sshPort": number, "sshReachable": boolean, "dockerReachable": boolean, "composeReachable": boolean, "dockerVersion": string | null, "composeVersion": string | null, "latencyMs": number | null, "checkedAt": string, "issues": string[], "recommendedActions": string[] }] } | null } }`
 - Human output must show:
   - total ready vs attention servers
   - configured poll interval and average latency when available
   - per-server readiness state, Docker/Compose versions, last check timestamp, and issues
+  - Swarm manager topology summary when `swarmTopology` is present
 
 ## Projects Contract
 

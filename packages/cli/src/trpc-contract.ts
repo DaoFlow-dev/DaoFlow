@@ -1,4 +1,5 @@
 import type { AnyRouter } from "@trpc/server";
+import type { SwarmTopologySnapshot } from "@daoflow/shared";
 import type { ComposeDeploymentPlanPreview } from "./compose-deployment-plan-output";
 import type { DeploymentPlanPreview } from "./deployment-plan-output";
 
@@ -62,6 +63,7 @@ export interface ServerReadinessOutput {
     serverName: string;
     serverHost: string;
     targetKind: string;
+    swarmTopology: SwarmTopologySnapshot | null;
     serverStatus: string;
     readinessStatus: string;
     statusTone: string;

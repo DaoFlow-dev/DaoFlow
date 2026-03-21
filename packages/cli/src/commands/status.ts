@@ -13,6 +13,12 @@ function formatServerRuntime(check: RouterOutputs["serverReadiness"]["checks"][n
   return `Docker ${check.dockerVersion ?? "unavailable"} · Compose ${check.composeVersion ?? "unavailable"} · ${latency} · checked ${check.checkedAt}`;
 }
 
+function formatSwarmTopology(
+  topology: NonNullable<RouterOutputs["serverReadiness"]["checks"][number]["swarmTopology"]>
+): string {
+  return `${topology.clusterName} · ${topology.summary.managerCount} manager${topology.summary.managerCount === 1 ? "" : "s"} · ${topology.summary.workerCount} worker${topology.summary.workerCount === 1 ? "" : "s"} · ${topology.summary.nodeCount} nodes`;
+}
+
 export function statusCommand(): Command {
   return new Command("status")
     .description("Show current deployment and server status")
@@ -88,6 +94,9 @@ export function statusCommand(): Command {
                 console.log(
                   `    SSH ${check.sshReachable ? "ok" : "blocked"} · Docker ${check.dockerReachable ? "ok" : "blocked"} · Compose ${check.composeReachable ? "ok" : "blocked"}`
                 );
+                if (check.swarmTopology) {
+                  console.log(chalk.dim(`    Swarm ${formatSwarmTopology(check.swarmTopology)}`));
+                }
                 if (check.issues.length > 0) {
                   console.log(chalk.yellow(`    Issues: ${check.issues.join("; ")}`));
                 }

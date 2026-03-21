@@ -8,6 +8,7 @@ import { deployments } from "./db/schema/deployments";
 import { approvalRequests, auditEntries } from "./db/schema/audit";
 import { backupPolicies, backupRestores, volumes } from "./db/schema/storage";
 import { notificationLogs } from "./db/schema/notifications";
+import { servers } from "./db/schema/servers";
 import { teamMembers, teams } from "./db/schema/teams";
 import { users } from "./db/schema/users";
 import { createEnvironment, createProject } from "./db/services/projects";
@@ -1057,6 +1058,97 @@ describe("appRouter", () => {
     const check = readiness.checks.find((entry) => entry.serverId === server.id);
 
     expect(check?.targetKind).toBe("docker-swarm-manager");
+    expect(check?.swarmTopology?.clusterName).toBe(server.name);
+    expect(check?.swarmTopology?.summary.managerCount).toBe(1);
+    expect(check?.swarmTopology?.summary.workerCount).toBe(0);
+  });
+
+  it("exposes persisted Swarm worker topology through readiness and inventory reads", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-swarm-topology-read-model",
+      session: makeSession("admin")
+    });
+    const suffix = Date.now().toString(36);
+    const server = await caller.registerServer({
+      name: `swarm-topology-${suffix}`,
+      host: `10.0.11.${Math.floor(Math.random() * 200) + 10}`,
+      region: "us-test-1",
+      sshPort: 22,
+      kind: "docker-swarm-manager"
+    });
+
+    await db
+      .update(servers)
+      .set({
+        metadata: {
+          readinessCheck: {
+            readinessStatus: "attention",
+            sshReachable: false,
+            dockerReachable: false,
+            composeReachable: false,
+            latencyMs: null,
+            checkedAt: new Date().toISOString(),
+            issues: [],
+            recommendedActions: ["No action required."]
+          },
+          swarmTopology: {
+            clusterId: `swarm-${server.id}`,
+            clusterName: "production-swarm",
+            source: "manual",
+            defaultNamespace: "apps",
+            nodes: [
+              {
+                id: `${server.id}-manager`,
+                name: server.name,
+                host: server.host,
+                role: "manager",
+                availability: "active",
+                reachability: "reachable",
+                managerStatus: "leader"
+              },
+              {
+                id: `${server.id}-worker-1`,
+                name: "worker-a",
+                host: "10.0.11.50",
+                role: "worker",
+                availability: "active",
+                reachability: "unknown",
+                managerStatus: "none"
+              },
+              {
+                id: `${server.id}-worker-2`,
+                name: "worker-b",
+                host: "10.0.11.51",
+                role: "worker",
+                availability: "drain",
+                reachability: "unreachable",
+                managerStatus: "none"
+              }
+            ]
+          }
+        }
+      })
+      .where(eq(servers.id, server.id));
+
+    const readiness = await caller.serverReadiness({});
+    const readinessCheck = readiness.checks.find((entry) => entry.serverId === server.id);
+
+    expect(readinessCheck?.swarmTopology?.clusterName).toBe("production-swarm");
+    expect(readinessCheck?.swarmTopology?.defaultNamespace).toBe("apps");
+    expect(readinessCheck?.swarmTopology?.summary.nodeCount).toBe(3);
+    expect(readinessCheck?.swarmTopology?.summary.workerCount).toBe(2);
+    expect(readinessCheck?.swarmTopology?.summary.activeNodeCount).toBe(2);
+    expect(readinessCheck?.swarmTopology?.summary.reachableNodeCount).toBe(1);
+
+    const inventory = await caller.infrastructureInventory();
+    const inventoryServer = inventory.servers.find((entry) => entry.id === server.id);
+
+    expect(inventoryServer?.swarmTopology?.clusterName).toBe("production-swarm");
+    expect(inventoryServer?.swarmTopology?.nodes.map((node) => node.role)).toEqual([
+      "manager",
+      "worker",
+      "worker"
+    ]);
   });
 
   it("creates deployment records and returns expanded steps from the mutation", async () => {

@@ -30,6 +30,11 @@ daoflow server add \
 The CLI registration flow returns the same readiness status, issues, and recommended actions that
 the dashboard uses after registration.
 
+For `docker-swarm-manager` targets, DaoFlow also persists a Swarm topology snapshot in server
+metadata. The current post-MVP slice is inspection-oriented: the stored topology can describe the
+manager, workers, cluster name, and namespace, but DaoFlow does not yet execute `docker stack`
+rollouts from that model.
+
 ## Connectivity
 
 DaoFlow uses SSH to connect to managed servers. Requirements:
@@ -89,6 +94,8 @@ daoflow doctor --json
         {
           "serverName": "production-vps",
           "serverHost": "203.0.113.10",
+          "targetKind": "docker-engine",
+          "swarmTopology": null,
           "sshReachable": true,
           "dockerVersion": "24.0.7",
           "composeVersion": "2.23.0",
@@ -99,6 +106,13 @@ daoflow doctor --json
   }
 }
 ```
+
+When a target is a Swarm manager, `swarmTopology` exposes the persisted cluster snapshot:
+
+- cluster identity (`clusterId`, `clusterName`)
+- default namespace for future stack grouping
+- node membership with manager/worker roles
+- safe summary counts for managers, workers, active nodes, and reachable nodes
 
 ## Server Permissions
 

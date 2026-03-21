@@ -20,6 +20,7 @@ import {
   readBoolean,
   readStringArray
 } from "./json-helpers";
+import { readServerSwarmTopology, withRegisteredServerTopologyMetadata } from "./server-topology";
 
 export interface RegisterServerInput {
   name: string;
@@ -57,7 +58,15 @@ export async function registerServer(input: RegisterServerInput) {
       kind: input.kind,
       status: "pending verification",
       registeredByUserId: input.requestedByUserId,
-      metadata: {},
+      metadata: withRegisteredServerTopologyMetadata(
+        {
+          id: serverId,
+          name: input.name,
+          host: input.host,
+          kind: input.kind
+        },
+        {}
+      ),
       updatedAt: new Date()
     })
     .returning();
@@ -101,6 +110,7 @@ export async function listServerReadiness(limit = 12) {
         serverName: server.name,
         serverHost: server.host,
         targetKind: server.kind,
+        swarmTopology: readServerSwarmTopology(server),
         serverStatus: server.status,
         readinessStatus,
         statusTone: normalizeServerReadinessStatus(readinessStatus),
@@ -128,6 +138,7 @@ export async function listServerReadiness(limit = 12) {
       serverName: server.name,
       serverHost: server.host,
       targetKind: server.kind,
+      swarmTopology: readServerSwarmTopology(server),
       serverStatus: server.status,
       readinessStatus,
       statusTone: normalizeServerReadinessStatus(readinessStatus),
@@ -222,6 +233,7 @@ export async function listInfrastructureInventory() {
       serverName: server.name,
       host: server.host,
       kind: server.kind,
+      swarmTopology: readServerSwarmTopology(server),
       region: server.region ?? "",
       sshPort: server.sshPort,
       sshUser: server.sshUser ?? "",
