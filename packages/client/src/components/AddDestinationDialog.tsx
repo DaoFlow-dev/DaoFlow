@@ -8,6 +8,21 @@ import {
   DialogTitle,
   DialogTrigger
 } from "@/components/ui/dialog";
+import { AddDestinationProviderFields } from "@/components/destinations/AddDestinationProviderFields";
+import {
+  buildDestinationPayload,
+  createInitialAddDestinationFormState,
+  getAuthorizeCommand,
+  getDefaultDestinationName
+} from "@/components/destinations/add-destination-payload";
+import {
+  DESTINATION_PROVIDERS,
+  type ProviderKey
+} from "@/components/destinations/add-destination-provider-config";
+import type {
+  AddDestinationFormState,
+  DestinationFormData
+} from "@/components/destinations/add-destination-types";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -17,72 +32,10 @@ import {
   SelectTrigger,
   SelectValue
 } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
-import { Plus, Copy, Check, Terminal } from "lucide-react";
-import { useState, useCallback } from "react";
+import { Plus } from "lucide-react";
+import { useCallback, useState } from "react";
 
-const PROVIDERS = [
-  { key: "s3" as const, name: "S3-Compatible Storage", icon: "☁️" },
-  { key: "gdrive" as const, name: "Google Drive", icon: "📁" },
-  { key: "onedrive" as const, name: "Microsoft OneDrive", icon: "📂" },
-  { key: "dropbox" as const, name: "Dropbox", icon: "📦" },
-  { key: "sftp" as const, name: "SFTP / SSH", icon: "🔒" },
-  { key: "local" as const, name: "Local Filesystem", icon: "💾" },
-  { key: "rclone" as const, name: "Custom Rclone Config", icon: "⚙️" }
-] as const;
-
-/** Maps our provider keys to rclone backend names and headless authorize commands. */
-const RCLONE_BACKENDS: Record<
-  string,
-  { rcloneType: string; authorizeCmd?: string; defaultName: string }
-> = {
-  s3: { rcloneType: "s3", defaultName: "s3-backup" },
-  gdrive: {
-    rcloneType: "drive",
-    authorizeCmd: 'rclone authorize "drive"',
-    defaultName: "gdrive-backup"
-  },
-  onedrive: {
-    rcloneType: "onedrive",
-    authorizeCmd: 'rclone authorize "onedrive"',
-    defaultName: "onedrive-backup"
-  },
-  dropbox: {
-    rcloneType: "dropbox",
-    authorizeCmd: 'rclone authorize "dropbox"',
-    defaultName: "dropbox-backup"
-  },
-  sftp: { rcloneType: "sftp", defaultName: "sftp-backup" },
-  local: { rcloneType: "local", defaultName: "local-backup" },
-  rclone: { rcloneType: "custom", defaultName: "rclone-remote" }
-};
-
-export type ProviderKey = (typeof PROVIDERS)[number]["key"];
-
-const S3_SUB_PROVIDERS = [
-  { key: "AWS", name: "Amazon Web Services (AWS) S3" },
-  { key: "Cloudflare", name: "Cloudflare R2" },
-  { key: "DigitalOcean", name: "DigitalOcean Spaces" },
-  { key: "GCS", name: "Google Cloud Storage" },
-  { key: "Minio", name: "MinIO" },
-  { key: "Wasabi", name: "Wasabi" },
-  { key: "Other", name: "Any S3-compatible provider" }
-];
-
-export interface DestinationFormData {
-  name: string;
-  provider: ProviderKey;
-  accessKey?: string;
-  secretAccessKey?: string;
-  bucket?: string;
-  region?: string;
-  endpoint?: string;
-  s3Provider?: string;
-  localPath?: string;
-  rcloneConfig?: string;
-  rcloneRemotePath?: string;
-  oauthToken?: string;
-}
+export type { DestinationFormData } from "@/components/destinations/add-destination-types";
 
 interface AddDestinationDialogProps {
   open: boolean;
@@ -97,32 +50,24 @@ export function AddDestinationDialog({
   onSubmit,
   isPending
 }: AddDestinationDialogProps) {
-  const [name, setName] = useState("");
-  const [provider, setProvider] = useState<ProviderKey>("s3");
-  const [accessKey, setAccessKey] = useState("");
-  const [secretKey, setSecretKey] = useState("");
-  const [bucket, setBucket] = useState("");
-  const [region, setRegion] = useState("");
-  const [endpointVal, setEndpointVal] = useState("");
-  const [s3Provider, setS3Provider] = useState("");
-  const [localPath, setLocalPath] = useState("");
-  const [rcloneConfig, setRcloneConfig] = useState("");
-  const [rcloneRemotePath, setRcloneRemotePath] = useState("");
+  const [form, setForm] = useState(createInitialAddDestinationFormState);
   const [copied, setCopied] = useState(false);
 
-  const handleProviderChange = useCallback(
-    (v: string) => {
-      const key = v as ProviderKey;
-      setProvider(key);
-      const meta = RCLONE_BACKENDS[key];
-      if (meta && !name) {
-        setName(meta.defaultName);
-      }
-    },
-    [name]
-  );
+  const updateField = useCallback((field: keyof AddDestinationFormState, value: string) => {
+    setForm((current) => ({ ...current, [field]: value }));
+  }, []);
 
-  const authorizeCmd = RCLONE_BACKENDS[provider]?.authorizeCmd;
+  const handleProviderChange = useCallback((v: string) => {
+    const key = v as ProviderKey;
+    setForm((current) => ({
+      ...current,
+      provider: key,
+      name: current.name || getDefaultDestinationName(key)
+    }));
+    setCopied(false);
+  }, []);
+
+  const authorizeCmd = getAuthorizeCommand(form.provider);
 
   function copyCommand() {
     if (!authorizeCmd) return;
@@ -133,23 +78,7 @@ export function AddDestinationDialog({
   }
 
   function handleSubmit() {
-    onSubmit({
-      name,
-      provider,
-      accessKey: provider === "s3" ? accessKey : undefined,
-      secretAccessKey: provider === "s3" ? secretKey : undefined,
-      bucket: provider === "s3" ? bucket : undefined,
-      region: provider === "s3" ? region : undefined,
-      endpoint: provider === "s3" ? endpointVal : undefined,
-      s3Provider: provider === "s3" ? s3Provider : undefined,
-      localPath: provider === "local" ? localPath : undefined,
-      rcloneConfig: provider === "rclone" || provider === "sftp" ? rcloneConfig : undefined,
-      rcloneRemotePath: provider === "rclone" || provider === "sftp" ? rcloneRemotePath : undefined,
-      oauthToken:
-        provider === "gdrive" || provider === "onedrive" || provider === "dropbox"
-          ? rcloneConfig
-          : undefined
-    });
+    onSubmit(buildDestinationPayload(form));
   }
 
   return (
@@ -172,124 +101,40 @@ export function AddDestinationDialog({
             <Label htmlFor="dest-name">Name</Label>
             <Input
               id="dest-name"
+              data-testid="destination-name"
               placeholder="My S3 Bucket"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
+              value={form.name}
+              onChange={(event) => updateField("name", event.target.value)}
             />
           </div>
 
           <div className="grid gap-1.5">
-            <Label>Provider</Label>
-            <Select value={provider} onValueChange={handleProviderChange}>
-              <SelectTrigger data-testid="destination-provider-select">
+            <Label htmlFor="destination-provider">Provider</Label>
+            <Select value={form.provider} onValueChange={handleProviderChange}>
+              <SelectTrigger
+                id="destination-provider"
+                aria-label="Provider"
+                data-testid="destination-provider-select"
+              >
                 <SelectValue placeholder="Select provider" />
               </SelectTrigger>
               <SelectContent>
-                {PROVIDERS.map((p) => (
-                  <SelectItem key={p.key} value={p.key}>
-                    {p.icon} {p.name}
+                {DESTINATION_PROVIDERS.map((provider) => (
+                  <SelectItem key={provider.key} value={provider.key}>
+                    {provider.icon} {provider.name}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
 
-          {provider === "s3" && (
-            <S3Fields
-              s3Provider={s3Provider}
-              setS3Provider={setS3Provider}
-              accessKey={accessKey}
-              setAccessKey={setAccessKey}
-              secretKey={secretKey}
-              setSecretKey={setSecretKey}
-              bucket={bucket}
-              setBucket={setBucket}
-              region={region}
-              setRegion={setRegion}
-              endpoint={endpointVal}
-              setEndpoint={setEndpointVal}
-            />
-          )}
-
-          {provider === "local" && (
-            <div className="grid gap-1.5">
-              <Label>Local Path</Label>
-              <Input
-                data-testid="destination-local-path"
-                placeholder="/tmp/daoflow-backups"
-                value={localPath}
-                onChange={(e) => setLocalPath(e.target.value)}
-              />
-            </div>
-          )}
-
-          {(provider === "gdrive" || provider === "onedrive" || provider === "dropbox") && (
-            <>
-              {authorizeCmd && (
-                <div className="rounded-lg border bg-muted/50 p-3 space-y-2">
-                  <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-                    <Terminal size={14} />
-                    Run this on a machine with a browser to get your token:
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <code className="flex-1 rounded bg-background px-3 py-2 font-mono text-sm border">
-                      {authorizeCmd}
-                    </code>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="shrink-0"
-                      onClick={copyCommand}
-                      title="Copy command"
-                    >
-                      {copied ? <Check size={14} className="text-green-500" /> : <Copy size={14} />}
-                    </Button>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Paste the resulting JSON token below.
-                  </p>
-                </div>
-              )}
-              <div className="grid gap-1.5">
-                <Label>OAuth Token</Label>
-                <Textarea
-                  className="font-mono text-xs"
-                  placeholder='{"access_token":"...","token_type":"Bearer",...}'
-                  rows={4}
-                  value={rcloneConfig}
-                  onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
-                    setRcloneConfig(e.target.value)
-                  }
-                />
-              </div>
-            </>
-          )}
-
-          {(provider === "rclone" || provider === "sftp") && (
-            <>
-              <div className="grid gap-1.5">
-                <Label>Rclone Config (INI format)</Label>
-                <Textarea
-                  className="font-mono text-xs"
-                  placeholder={"[remote]\ntype = sftp\nhost = backup.example.com\nuser = admin"}
-                  rows={4}
-                  value={rcloneConfig}
-                  onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
-                    setRcloneConfig(e.target.value)
-                  }
-                />
-              </div>
-              <div className="grid gap-1.5">
-                <Label>Remote Path</Label>
-                <Input
-                  placeholder="backups/daoflow"
-                  value={rcloneRemotePath}
-                  onChange={(e) => setRcloneRemotePath(e.target.value)}
-                />
-              </div>
-            </>
-          )}
+          <AddDestinationProviderFields
+            form={form}
+            copied={copied}
+            authorizeCommand={authorizeCmd}
+            onCopyAuthorizeCommand={copyCommand}
+            onFieldChange={updateField}
+          />
         </div>
 
         <DialogFooter>
@@ -304,98 +149,5 @@ export function AddDestinationDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  );
-}
-
-function S3Fields({
-  s3Provider,
-  setS3Provider,
-  accessKey,
-  setAccessKey,
-  secretKey,
-  setSecretKey,
-  bucket,
-  setBucket,
-  region,
-  setRegion,
-  endpoint,
-  setEndpoint
-}: {
-  s3Provider: string;
-  setS3Provider: (v: string) => void;
-  accessKey: string;
-  setAccessKey: (v: string) => void;
-  secretKey: string;
-  setSecretKey: (v: string) => void;
-  bucket: string;
-  setBucket: (v: string) => void;
-  region: string;
-  setRegion: (v: string) => void;
-  endpoint: string;
-  setEndpoint: (v: string) => void;
-}) {
-  return (
-    <>
-      <div className="grid gap-1.5">
-        <Label>S3 Provider</Label>
-        <Select value={s3Provider} onValueChange={setS3Provider}>
-          <SelectTrigger>
-            <SelectValue placeholder="Select S3 provider" />
-          </SelectTrigger>
-          <SelectContent>
-            {S3_SUB_PROVIDERS.map((sp) => (
-              <SelectItem key={sp.key} value={sp.key}>
-                {sp.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div className="grid gap-1.5">
-          <Label>Access Key</Label>
-          <Input
-            placeholder="AKIAIOSFODNN7"
-            value={accessKey}
-            onChange={(e) => setAccessKey(e.target.value)}
-          />
-        </div>
-        <div className="grid gap-1.5">
-          <Label>Secret Key</Label>
-          <Input
-            type="password"
-            placeholder="wJalrXUtnFEMI/K7"
-            value={secretKey}
-            onChange={(e) => setSecretKey(e.target.value)}
-          />
-        </div>
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div className="grid gap-1.5">
-          <Label>Bucket</Label>
-          <Input
-            placeholder="my-backups"
-            value={bucket}
-            onChange={(e) => setBucket(e.target.value)}
-          />
-        </div>
-        <div className="grid gap-1.5">
-          <Label>Region</Label>
-          <Input
-            placeholder="us-east-1"
-            value={region}
-            onChange={(e) => setRegion(e.target.value)}
-          />
-        </div>
-      </div>
-      <div className="grid gap-1.5">
-        <Label>Endpoint</Label>
-        <Input
-          placeholder="https://s3.amazonaws.com"
-          value={endpoint}
-          onChange={(e) => setEndpoint(e.target.value)}
-        />
-      </div>
-    </>
   );
 }
