@@ -9,7 +9,12 @@ import BackupsPage from "./BackupsPage";
 const {
   backupOverviewUseQueryMock,
   backupDestinationsUseQueryMock,
+  persistentVolumesUseQueryMock,
+  servicesUseQueryMock,
   backupRunDetailsUseQueryMock,
+  createBackupPolicyUseMutationMock,
+  updateBackupPolicyUseMutationMock,
+  deleteBackupPolicyUseMutationMock,
   enableBackupScheduleUseMutationMock,
   disableBackupScheduleUseMutationMock,
   triggerBackupNowUseMutationMock,
@@ -18,7 +23,12 @@ const {
 } = vi.hoisted(() => ({
   backupOverviewUseQueryMock: vi.fn(),
   backupDestinationsUseQueryMock: vi.fn(),
+  persistentVolumesUseQueryMock: vi.fn(),
+  servicesUseQueryMock: vi.fn(),
   backupRunDetailsUseQueryMock: vi.fn(),
+  createBackupPolicyUseMutationMock: vi.fn(),
+  updateBackupPolicyUseMutationMock: vi.fn(),
+  deleteBackupPolicyUseMutationMock: vi.fn(),
   enableBackupScheduleUseMutationMock: vi.fn(),
   disableBackupScheduleUseMutationMock: vi.fn(),
   triggerBackupNowUseMutationMock: vi.fn(),
@@ -44,8 +54,23 @@ vi.mock("@/lib/trpc", () => ({
     backupDestinations: {
       useQuery: backupDestinationsUseQueryMock
     },
+    persistentVolumes: {
+      useQuery: persistentVolumesUseQueryMock
+    },
+    services: {
+      useQuery: servicesUseQueryMock
+    },
     backupRunDetails: {
       useQuery: backupRunDetailsUseQueryMock
+    },
+    createBackupPolicy: {
+      useMutation: createBackupPolicyUseMutationMock
+    },
+    updateBackupPolicy: {
+      useMutation: updateBackupPolicyUseMutationMock
+    },
+    deleteBackupPolicy: {
+      useMutation: deleteBackupPolicyUseMutationMock
     },
     enableBackupSchedule: {
       useMutation: enableBackupScheduleUseMutationMock
@@ -58,7 +83,12 @@ vi.mock("@/lib/trpc", () => ({
     },
     queueBackupRestore: {
       useMutation: queueBackupRestoreUseMutationMock
-    }
+    },
+    useUtils: () => ({
+      backupOverview: { invalidate: vi.fn() },
+      persistentVolumes: { invalidate: vi.fn() },
+      serverReadiness: { invalidate: vi.fn() }
+    })
   }
 }));
 
@@ -108,6 +138,22 @@ describe("BackupsPage", () => {
           id: "dest_primary"
         }
       ],
+      isLoading: false
+    });
+    persistentVolumesUseQueryMock.mockReturnValue({
+      data: {
+        summary: {
+          totalVolumes: 0,
+          protectedVolumes: 0,
+          attentionVolumes: 0,
+          attachedBytes: 0
+        },
+        volumes: []
+      },
+      isLoading: false
+    });
+    servicesUseQueryMock.mockReturnValue({
+      data: [],
       isLoading: false
     });
     backupRunDetailsUseQueryMock.mockImplementation((input: { runId: string }) => {
@@ -163,6 +209,9 @@ describe("BackupsPage", () => {
         refetch: refetchBackupRunDetailsMock
       };
     });
+    createBackupPolicyUseMutationMock.mockReturnValue({ isPending: false, mutate: vi.fn() });
+    updateBackupPolicyUseMutationMock.mockReturnValue({ isPending: false, mutate: vi.fn() });
+    deleteBackupPolicyUseMutationMock.mockReturnValue({ isPending: false, mutate: vi.fn() });
     enableBackupScheduleUseMutationMock.mockReturnValue({ isPending: false, mutate: vi.fn() });
     disableBackupScheduleUseMutationMock.mockReturnValue({ isPending: false, mutate: vi.fn() });
     triggerBackupNowUseMutationMock.mockReturnValue({ isPending: false, mutate: vi.fn() });

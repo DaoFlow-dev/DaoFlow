@@ -64,13 +64,26 @@ export async function listBackupOverview(limit = 12) {
       const workflowStatus = temporalStatusByPolicyId.get(policy.id)?.status ?? null;
       return {
         id: policy.id,
+        name: policy.name,
+        volumeId: policy.volumeId,
+        destinationId: policy.destinationId,
         projectName: view.projectName,
         environmentName: view.environmentName,
         serviceName: view.serviceName,
         targetType: view.targetType,
         storageProvider: view.storageProvider,
+        backupType: policy.backupType,
+        databaseEngine: policy.databaseEngine,
+        turnOff: policy.turnOff === 1,
         scheduleLabel: policy.schedule,
+        schedule: policy.schedule,
         retentionCount: policy.retentionDays,
+        retentionDays: policy.retentionDays,
+        retentionDaily: policy.retentionDaily,
+        retentionWeekly: policy.retentionWeekly,
+        retentionMonthly: policy.retentionMonthly,
+        maxBackups: policy.maxBackups,
+        status: policy.status,
         nextRunAt: null as string | null,
         lastRunAt: latestRun?.createdAt.toISOString() ?? null,
         executionEngine: readBackupExecutionEngine(workflowId),
@@ -409,22 +422,28 @@ export async function listPersistentVolumeInventory(limit = 12) {
 
     return {
       id: volume.id,
+      serverId: volume.serverId,
       environmentId: readString(metadata, "environmentId"),
       environmentName: readString(metadata, "environmentName"),
+      projectId: readString(metadata, "projectId"),
       projectName: readString(metadata, "projectName"),
+      serviceId: readString(metadata, "serviceId") || null,
       targetServerName: readString(metadata, "targetServerName", server?.name ?? volume.serverId),
       serviceName: readString(metadata, "serviceName"),
       volumeName: volume.name,
       mountPath: volume.mountPath,
       driver: readString(metadata, "driver", "local"),
       sizeBytes: Number(volume.sizeBytes ?? 0),
+      status: volume.status,
       backupPolicyId: backupPolicyId && policyIds.has(backupPolicyId) ? backupPolicyId : null,
       storageProvider,
       lastBackupAt: readString(metadata, "lastBackupAt") || null,
       lastRestoreTestAt: readString(metadata, "lastRestoreTestAt") || null,
       backupCoverage,
       restoreReadiness,
-      statusTone: getPersistentVolumeStatusTone(backupCoverage, restoreReadiness)
+      statusTone: getPersistentVolumeStatusTone(backupCoverage, restoreReadiness),
+      createdAt: volume.createdAt.toISOString(),
+      updatedAt: volume.updatedAt.toISOString()
     };
   });
 

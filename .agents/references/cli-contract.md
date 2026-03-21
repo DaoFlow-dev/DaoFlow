@@ -70,7 +70,12 @@ This file holds the detailed CLI contract, scope map, and agent-facing command r
 | `env list`           | read         | `env:read`                                      | no       |
 | `env set`            | command      | `env:write`                                     | yes      |
 | `env delete`         | command      | `env:write`                                     | yes      |
+| `volumes list`       | read         | `volumes:read`                                  | no       |
+| `volumes register`   | command      | `volumes:write`                                 | yes      |
+| `volumes update`     | command      | `volumes:write`                                 | yes      |
+| `volumes delete`     | command      | `volumes:write`                                 | yes      |
 | `backup list`        | read         | `backup:read`                                   | no       |
+| `backup policy`      | command      | `backup:run`                                    | yes      |
 | `backup run`         | command      | `backup:run`                                    | yes      |
 | `backup restore`     | command      | `backup:restore`                                | yes      |
 | `notifications list` | read         | any valid token                                 | no       |
@@ -79,6 +84,36 @@ This file holds the detailed CLI contract, scope map, and agent-facing command r
 - `daoflow backup restore --dry-run` is a planning-lane preview backed by `backupRestorePlan` and requires only `backup:read`
 - `daoflow backup restore --yes` queues the restore and requires `backup:restore`
 - If an operator wants a human approval gate before restore execution, create a separate `requestApproval` with `approvals:create`
+
+## Volume Registry Contract
+
+- `daoflow volumes list` reads the persistent volume registry through `persistentVolumes`
+- Scope: `volumes:read`
+- `daoflow volumes register --dry-run` must return a local preview and exit with code `3`
+- `daoflow volumes register --yes` writes through `createVolume` and requires `volumes:write`
+- `daoflow volumes update --dry-run` must return a local preview and exit with code `3`
+- `daoflow volumes update --yes` writes through `updateVolume` and requires `volumes:write`
+- `daoflow volumes delete --dry-run` must return a local preview and exit with code `3`
+- `daoflow volumes delete --yes` writes through `deleteVolume` and requires `volumes:write`
+- JSON list success shape:
+  - `{ "ok": true, "data": { "summary": { "totalVolumes": number, "protectedVolumes": number, "attentionVolumes": number, "attachedBytes": number }, "volumes": [{ "id": string, "serverId": string, "projectId": string, "environmentId": string, "serviceId": string | null, "volumeName": string, "mountPath": string, "driver": string, "status": string, "backupPolicyId": string | null, "backupCoverage": string, "restoreReadiness": string, "statusTone": string, "createdAt": string, "updatedAt": string }] } }`
+- JSON mutation success shapes:
+  - `volumes register|update`: `{ "ok": true, "data": { "volume": { "id": string, "name": string, "serverId": string, "mountPath": string, "status": string } } }`
+  - `volumes delete`: `{ "ok": true, "data": { "deleted": true, "volumeId": string } }`
+
+## Backup Policy Contract
+
+- `daoflow backup list` remains the read path for policy inventory plus recent runs
+- `daoflow backup policy create --dry-run` must return a local preview and exit with code `3`
+- `daoflow backup policy create --yes` writes through `createBackupPolicy` and requires `backup:run`
+- `daoflow backup policy update --dry-run` must return a local preview and exit with code `3`
+- `daoflow backup policy update --yes` writes through `updateBackupPolicy` and requires `backup:run`
+- `daoflow backup policy delete --dry-run` must return a local preview and exit with code `3`
+- `daoflow backup policy delete --yes` writes through `deleteBackupPolicy` and requires `backup:run`
+- One registered volume maps to one backup policy today so the coverage metadata stays stable and agent-readable
+- JSON mutation success shapes:
+  - `backup policy create|update`: `{ "ok": true, "data": { "policy": { "id": string, "name": string, "volumeId": string, "destinationId": string | null, "backupType": "volume" | "database", "schedule": string | null, "retentionDays": number, "status": string } } }`
+  - `backup policy delete`: `{ "ok": true, "data": { "deleted": true, "policyId": string } }`
 
 ## Environment Variable Contract
 

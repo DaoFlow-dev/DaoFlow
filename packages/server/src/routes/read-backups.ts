@@ -6,7 +6,7 @@ import {
   listPersistentVolumeInventory
 } from "../db/services/backups";
 import { getBackupRunDetails } from "../db/services/backup-run-details";
-import { backupReadProcedure, t } from "../trpc";
+import { backupReadProcedure, t, volumesReadProcedure } from "../trpc";
 import { limitInput } from "../schemas";
 
 export const backupReadRouter = t.router({
@@ -16,7 +16,7 @@ export const backupReadRouter = t.router({
   backupRestoreQueue: backupReadProcedure.input(limitInput(50)).query(async ({ input }) => {
     return listBackupRestoreQueue(input.limit ?? 12);
   }),
-  persistentVolumes: backupReadProcedure.input(limitInput(24)).query(async ({ input }) => {
+  persistentVolumes: volumesReadProcedure.input(limitInput(24)).query(async ({ input }) => {
     return listPersistentVolumeInventory(input.limit ?? 12);
   }),
   backupRunDetails: backupReadProcedure

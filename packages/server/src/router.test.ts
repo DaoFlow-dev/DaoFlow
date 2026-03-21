@@ -6,7 +6,7 @@ import type { Context, RequestAuthContext } from "./context";
 import { db } from "./db/connection";
 import { deployments } from "./db/schema/deployments";
 import { approvalRequests, auditEntries } from "./db/schema/audit";
-import { backupRestores } from "./db/schema/storage";
+import { backupPolicies, backupRestores, volumes } from "./db/schema/storage";
 import { notificationLogs } from "./db/schema/notifications";
 import { teamMembers, teams } from "./db/schema/teams";
 import { users } from "./db/schema/users";
@@ -1427,6 +1427,107 @@ describe("appRouter", () => {
     expect(overview.summary.totalPolicies).toBeGreaterThanOrEqual(0);
     expect(run.id).toBe("brun_foundation_db_failed");
     expect(plan.backupRun.id).toBe("brun_foundation_volume_success");
+  });
+
+  it("denies persistent volume inventory when a token omits volumes:read", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-volume-read-scope-denied",
+      session: makeSession("owner"),
+      auth: makeTokenAuthContext("owner", ["backup:read"])
+    });
+
+    await expect(caller.persistentVolumes({})).rejects.toMatchObject({
+      code: "FORBIDDEN",
+      cause: {
+        code: "SCOPE_DENIED",
+        requiredScopes: ["volumes:read"],
+        grantedScopes: ["backup:read"]
+      }
+    });
+  });
+
+  it("requires volumes:write for volume registration", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-volume-write-scope-denied",
+      session: makeSession("owner"),
+      auth: makeTokenAuthContext("owner", ["volumes:read"])
+    });
+
+    await expect(
+      caller.createVolume({
+        name: `scope-test-volume-${Date.now().toString(36)}`,
+        serverId: "srv_foundation_1",
+        mountPath: "/srv/scope"
+      })
+    ).rejects.toMatchObject({
+      code: "FORBIDDEN",
+      cause: {
+        code: "SCOPE_DENIED",
+        requiredScopes: ["volumes:write"],
+        grantedScopes: ["volumes:read"]
+      }
+    });
+  });
+
+  it("registers volumes and backup policies through the command router", async () => {
+    const suffix = Date.now().toString(36);
+    const caller = appRouter.createCaller({
+      requestId: "test-storage-crud",
+      session: makeSession("owner")
+    });
+
+    const volume = await caller.createVolume({
+      name: `policy-volume-${suffix}`,
+      serverId: "srv_foundation_1",
+      mountPath: `/srv/policy-${suffix}`,
+      driver: "local"
+    });
+
+    const destination = await caller.createBackupDestination({
+      name: `dest-${suffix}`,
+      provider: "local",
+      localPath: `/tmp/daoflow-${suffix}`
+    });
+
+    const policy = await caller.createBackupPolicy({
+      name: `policy-${suffix}`,
+      volumeId: volume.id,
+      destinationId: destination.id,
+      retentionDays: 21
+    });
+
+    const updated = await caller.updateBackupPolicy({
+      policyId: policy.id,
+      retentionDays: 30,
+      turnOff: true
+    });
+
+    expect(updated.retentionDays).toBe(30);
+    expect(updated.turnOff).toBe(true);
+
+    await expect(caller.deleteVolume({ volumeId: volume.id })).rejects.toMatchObject({
+      code: "PRECONDITION_FAILED"
+    });
+
+    await expect(caller.deleteBackupPolicy({ policyId: policy.id })).resolves.toEqual({
+      deleted: true,
+      policyId: policy.id
+    });
+
+    await expect(caller.deleteVolume({ volumeId: volume.id })).resolves.toEqual({
+      deleted: true,
+      volumeId: volume.id
+    });
+
+    const deletedVolume = await db.select().from(volumes).where(eq(volumes.id, volume.id)).limit(1);
+    const deletedPolicy = await db
+      .select()
+      .from(backupPolicies)
+      .where(eq(backupPolicies.id, policy.id))
+      .limit(1);
+
+    expect(deletedVolume).toHaveLength(0);
+    expect(deletedPolicy).toHaveLength(0);
   });
 
   it("returns approval requests keyed by targetResource", async () => {

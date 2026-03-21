@@ -21,6 +21,7 @@ import {
 } from "../command-helpers";
 import type { BackupRestorePlanOutput, QueueRestoreOutput } from "../trpc-contract";
 import { createClient } from "../trpc-client";
+import { registerBackupPolicySubcommands } from "./backup-policy";
 
 type BackupRestoreDryRunResult = {
   dryRun: true;
@@ -89,6 +90,7 @@ function renderBackupRestorePlan(plan: BackupRestorePlanOutput): void {
 
 export function backupCommand(): Command {
   const backup = new Command("backup").description("Manage backup policies and runs");
+  registerBackupPolicySubcommands(backup);
 
   // ── backup list ────────────────────────────────────────────
   backup

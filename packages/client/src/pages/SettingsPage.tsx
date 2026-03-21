@@ -11,7 +11,7 @@ import { GeneralSettingsTab } from "@/components/settings/GeneralSettingsTab";
 import { UsersSettingsTab } from "@/components/settings/UsersSettingsTab";
 import { TokensSettingsTab } from "@/components/settings/TokensSettingsTab";
 import { SecuritySettingsTab } from "@/components/settings/SecuritySettingsTab";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { VolumeRegistryPanel } from "@/components/settings/VolumeRegistryPanel";
 
 const SETTINGS_TABS = [
   "general",
@@ -145,19 +145,7 @@ export default function SettingsPage() {
 
             {activeTab === "volumes" && (
               <div className="mt-4">
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-base">Persistent Volumes</CardTitle>
-                    <CardDescription>
-                      Manage named volumes and storage configuration.
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm text-muted-foreground">
-                      Volume management coming in Milestone 8.
-                    </p>
-                  </CardContent>
-                </Card>
+                <VolumeRegistryPanel canManage={caps.includes("volumes:write")} />
               </div>
             )}
 

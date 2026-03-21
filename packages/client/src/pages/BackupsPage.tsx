@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { BackupRunDetailsSheet } from "@/components/backups/BackupRunDetailsSheet";
 import { BackupEmptyState } from "@/components/backups/BackupEmptyState";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { BackupPolicyManager } from "@/components/backups/BackupPolicyManager";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { buttonVariants } from "@/components/ui/button-variants";
@@ -14,8 +15,7 @@ import {
   TableHeader,
   TableRow
 } from "@/components/ui/table";
-import { Input } from "@/components/ui/input";
-import { Plus, Clock, PlayCircle, StopCircle, RotateCcw } from "lucide-react";
+import { RotateCcw } from "lucide-react";
 import { isTRPCClientError } from "@trpc/client";
 import { Link } from "react-router-dom";
 import { useBackupRunDetails } from "@/features/backups/useBackupRunDetails";
@@ -37,19 +37,8 @@ export default function BackupsPage() {
     {},
     { enabled: shouldLoadDestinations }
   );
-
-  const enableSchedule = trpc.enableBackupSchedule.useMutation({
-    onSuccess: () => backupOverview.refetch()
-  });
-  const disableSchedule = trpc.disableBackupSchedule.useMutation({
-    onSuccess: () => backupOverview.refetch()
-  });
-  const triggerNow = trpc.triggerBackupNow.useMutation({
-    onSuccess: () => backupOverview.refetch()
-  });
   const queueBackupRestore = trpc.queueBackupRestore.useMutation();
 
-  const [cronInputs, setCronInputs] = useState<Record<string, string>>({});
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const [restoreFeedback, setRestoreFeedback] = useState<string | null>(null);
   const { errorMessage: detailsErrorMessage, query: backupRunDetails } =
@@ -82,9 +71,6 @@ export default function BackupsPage() {
             Manage backup policies, schedules, and run history.
           </p>
         </div>
-        <Button disabled>
-          <Plus size={16} /> New Policy
-        </Button>
       </div>
 
       {restoreFeedback ? (
@@ -105,127 +91,7 @@ export default function BackupsPage() {
         <BackupEmptyState hasDestinations={hasDestinations} />
       ) : (
         <>
-          {/* Policies */}
-          {policies.length > 0 && (
-            <Card className="shadow-sm">
-              <CardHeader>
-                <CardTitle className="text-base font-semibold">Backup Policies</CardTitle>
-                <CardDescription>
-                  {policies.length} policy{policies.length !== 1 ? "ies" : "y"}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {policies.map((p) => {
-                    const policyId = String(p.id);
-                    const hasSchedule = Boolean(p.scheduleLabel);
-
-                    return (
-                      <div
-                        key={policyId}
-                        className="rounded-xl border border-border/50 p-5 space-y-3 shadow-sm transition-all duration-200 hover:shadow-md"
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <p className="text-sm font-semibold">{String(p.serviceName)}</p>
-                          <div className="flex items-center gap-1">
-                            {hasSchedule && (
-                              <Badge variant="default" className="text-xs">
-                                <Clock size={10} className="mr-1" />
-                                {String(p.scheduleLabel)}
-                              </Badge>
-                            )}
-                            <Badge variant="secondary">{String(p.targetType)}</Badge>
-                          </div>
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                          Destination:{" "}
-                          {String(p.storageProvider) === "(none)" ? (
-                            <a href="/destinations" className="underline">
-                              configure
-                            </a>
-                          ) : (
-                            String(p.storageProvider)
-                          )}{" "}
-                          · Retention: {p.retentionCount} backups
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          Last run: {p.lastRunAt ? new Date(p.lastRunAt).toLocaleString() : "—"}
-                        </p>
-                        {p.temporalWorkflowId ? (
-                          <p className="text-xs text-muted-foreground break-all">
-                            Temporal: {p.temporalWorkflowId}
-                            {p.temporalWorkflowStatus ? ` · ${p.temporalWorkflowStatus}` : ""}
-                          </p>
-                        ) : null}
-
-                        {/* Schedule Controls */}
-                        <div className="flex items-center gap-2 pt-1">
-                          {hasSchedule ? (
-                            <>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                disabled={disableSchedule.isPending}
-                                onClick={() => disableSchedule.mutate({ policyId })}
-                              >
-                                <StopCircle size={14} className="mr-1" />
-                                Disable
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                disabled={triggerNow.isPending}
-                                onClick={() => triggerNow.mutate({ policyId })}
-                              >
-                                <PlayCircle size={14} className="mr-1" />
-                                Run Now
-                              </Button>
-                            </>
-                          ) : (
-                            <>
-                              <Input
-                                placeholder="0 */6 * * *"
-                                className="h-8 w-36 text-xs"
-                                value={cronInputs[policyId] ?? ""}
-                                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                                  setCronInputs((prev) => ({
-                                    ...prev,
-                                    [policyId]: e.target.value
-                                  }))
-                                }
-                              />
-                              <Button
-                                size="sm"
-                                disabled={!cronInputs[policyId]?.trim() || enableSchedule.isPending}
-                                onClick={() =>
-                                  enableSchedule.mutate({
-                                    policyId,
-                                    schedule: (cronInputs[policyId] ?? "").trim()
-                                  })
-                                }
-                              >
-                                <Clock size={14} className="mr-1" />
-                                Enable
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                disabled={triggerNow.isPending}
-                                onClick={() => triggerNow.mutate({ policyId })}
-                              >
-                                <PlayCircle size={14} className="mr-1" />
-                                Run Now
-                              </Button>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </CardContent>
-            </Card>
-          )}
+          <BackupPolicyManager />
 
           {/* Recent Runs */}
           {runs.length > 0 && (

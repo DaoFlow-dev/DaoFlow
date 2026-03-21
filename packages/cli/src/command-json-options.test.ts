@@ -9,6 +9,8 @@ import { logsCommand } from "./commands/logs";
 import { notificationsCommand } from "./commands/notifications";
 import { planCommand } from "./commands/plan";
 import { serverCommand } from "./commands/server";
+import { backupCommand } from "./commands/backup";
+import { volumesCommand } from "./commands/volumes";
 
 function hasLongOption(command: Command, longFlag: string): boolean {
   return command.options.some((option) => option.long === longFlag);
@@ -116,6 +118,36 @@ describe("CLI JSON option coverage", () => {
     expect(help).toContain("server:write");
     expect(help).toContain("Examples:");
     expect(help).toContain("daoflow server add --name edge-vps-1");
+    expect(help).toContain("Example JSON shapes:");
+  });
+
+  test("backup policy create declares --json", () => {
+    const backup = backupCommand();
+    const policy = getSubcommand(backup, "policy");
+    expect(hasLongOption(getSubcommand(policy, "create"), "--json")).toBe(true);
+  });
+
+  test("backup policy create help includes scope, examples, and JSON shapes", () => {
+    const help = renderHelp(getSubcommand(getSubcommand(backupCommand(), "policy"), "create"));
+    expect(help).toContain("Required scope:");
+    expect(help).toContain("backup:run");
+    expect(help).toContain("Examples:");
+    expect(help).toContain("daoflow backup policy create --name nightly-db");
+    expect(help).toContain("Example JSON shapes:");
+  });
+
+  test("volumes list and register declare --json", () => {
+    const volumes = volumesCommand();
+    expect(hasLongOption(getSubcommand(volumes, "list"), "--json")).toBe(true);
+    expect(hasLongOption(getSubcommand(volumes, "register"), "--json")).toBe(true);
+  });
+
+  test("volumes register help includes scope, examples, and JSON shapes", () => {
+    const help = renderHelp(getSubcommand(volumesCommand(), "register"));
+    expect(help).toContain("Required scope:");
+    expect(help).toContain("volumes:write");
+    expect(help).toContain("Examples:");
+    expect(help).toContain("daoflow volumes register --name postgres-data");
     expect(help).toContain("Example JSON shapes:");
   });
 });

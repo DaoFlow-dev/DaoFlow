@@ -23,6 +23,7 @@ import { tokenCommand } from "./commands/token";
 import { diffCommand } from "./commands/diff";
 import { cancelCommand } from "./commands/cancel";
 import { serverCommand } from "./commands/server";
+import { volumesCommand } from "./commands/volumes";
 import { notificationsCommand } from "./commands/notifications";
 import { registerConfigCommand } from "./commands/config";
 import { emitJsonError, getErrorMessage } from "./command-helpers";
@@ -63,6 +64,7 @@ export function createProgram(): Command {
   program.addCommand(diffCommand());
   program.addCommand(cancelCommand());
   program.addCommand(serverCommand());
+  program.addCommand(volumesCommand());
   program.addCommand(notificationsCommand());
   program.addCommand(updateCommand());
   registerConfigCommand(program);

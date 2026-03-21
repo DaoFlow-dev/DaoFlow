@@ -124,15 +124,31 @@ export interface BackupOverviewOutput {
   };
   policies: Array<{
     id: string;
+    name: string;
+    volumeId: string;
+    destinationId: string | null;
     projectName: string;
     environmentName: string;
     serviceName: string;
     targetType: "volume" | "database";
     storageProvider: string;
+    backupType: "volume" | "database";
+    databaseEngine: "postgres" | "mysql" | "mariadb" | "mongo" | null;
+    turnOff: boolean;
     scheduleLabel: string;
+    schedule: string | null;
     retentionCount: number;
+    retentionDays: number;
+    retentionDaily: number | null;
+    retentionWeekly: number | null;
+    retentionMonthly: number | null;
+    maxBackups: number | null;
+    status: string;
     nextRunAt: string | null;
     lastRunAt: string | null;
+    executionEngine: "legacy" | "temporal";
+    temporalWorkflowId?: string | null;
+    temporalWorkflowStatus?: string | null;
   }>;
   runs: Array<{
     id: string;
@@ -148,6 +164,40 @@ export interface BackupOverviewOutput {
     bytesWritten: number | null;
     startedAt: string;
     finishedAt: string | null;
+  }>;
+}
+
+export interface PersistentVolumeRegistryOutput {
+  summary: {
+    totalVolumes: number;
+    protectedVolumes: number;
+    attentionVolumes: number;
+    attachedBytes: number;
+  };
+  volumes: Array<{
+    id: string;
+    serverId: string;
+    environmentId: string;
+    environmentName: string;
+    projectId: string;
+    projectName: string;
+    serviceId: string | null;
+    serviceName: string;
+    targetServerName: string;
+    volumeName: string;
+    mountPath: string;
+    driver: string;
+    sizeBytes: number;
+    status: string;
+    backupPolicyId: string | null;
+    storageProvider: string | null;
+    lastBackupAt: string | null;
+    lastRestoreTestAt: string | null;
+    backupCoverage: string;
+    restoreReadiness: string;
+    statusTone: string;
+    createdAt: string;
+    updatedAt: string;
   }>;
 }
 
@@ -180,6 +230,47 @@ export interface QueueRestoreOutput {
   startedAt: Date | null;
   createdAt: Date;
   completedAt: Date | null;
+}
+
+export interface VolumeMutationOutput {
+  id: string;
+  name: string;
+  serverId: string;
+  serverName: string;
+  mountPath: string;
+  sizeBytes: number;
+  driver: string;
+  serviceId: string | null;
+  serviceName: string | null;
+  environmentId: string | null;
+  environmentName: string | null;
+  projectId: string | null;
+  projectName: string | null;
+  status: string;
+  backupPolicyId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BackupPolicyMutationOutput {
+  id: string;
+  name: string;
+  volumeId: string;
+  volumeName: string;
+  destinationId: string | null;
+  destinationName: string | null;
+  backupType: "volume" | "database";
+  databaseEngine: "postgres" | "mysql" | "mariadb" | "mongo" | null;
+  turnOff: boolean;
+  schedule: string | null;
+  retentionDays: number;
+  retentionDaily: number | null;
+  retentionWeekly: number | null;
+  retentionMonthly: number | null;
+  maxBackups: number | null;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface BackupRestorePlanOutput {
@@ -765,7 +856,34 @@ export interface DaoFlowTRPC {
   composePreviews: QueryProcedure<ComposePreviewsOutput, { serviceId: string }>;
   composeReleaseCatalog: QueryProcedure<ComposeReleaseCatalogOutput, { limit?: number }>;
   backupOverview: QueryProcedure<BackupOverviewOutput, { limit?: number }>;
+  persistentVolumes: QueryProcedure<PersistentVolumeRegistryOutput, { limit?: number }>;
   backupDestinations: QueryProcedure<BackupDestinationOutput[], { limit?: number }>;
+  createVolume: MutationProcedure<
+    {
+      name: string;
+      serverId: string;
+      mountPath: string;
+      sizeBytes?: number;
+      driver?: string;
+      serviceId?: string;
+      status?: "active" | "inactive" | "paused";
+    },
+    VolumeMutationOutput
+  >;
+  updateVolume: MutationProcedure<
+    {
+      volumeId: string;
+      name?: string;
+      serverId?: string;
+      mountPath?: string;
+      sizeBytes?: number;
+      driver?: string;
+      serviceId?: string;
+      status?: "active" | "inactive" | "paused";
+    },
+    VolumeMutationOutput
+  >;
+  deleteVolume: MutationProcedure<{ volumeId: string }, { deleted: boolean; volumeId: string }>;
   createBackupDestination: MutationProcedure<
     {
       name: string;
@@ -783,6 +901,47 @@ export interface DaoFlowTRPC {
       localPath?: string;
     },
     BackupDestinationOutput
+  >;
+  createBackupPolicy: MutationProcedure<
+    {
+      name: string;
+      volumeId: string;
+      destinationId?: string;
+      backupType?: "volume" | "database";
+      databaseEngine?: "postgres" | "mysql" | "mariadb" | "mongo" | null;
+      turnOff?: boolean;
+      schedule?: string;
+      retentionDays?: number;
+      retentionDaily?: number;
+      retentionWeekly?: number;
+      retentionMonthly?: number;
+      maxBackups?: number;
+      status?: "active" | "paused";
+    },
+    BackupPolicyMutationOutput
+  >;
+  updateBackupPolicy: MutationProcedure<
+    {
+      policyId: string;
+      name?: string;
+      volumeId?: string;
+      destinationId?: string;
+      backupType?: "volume" | "database";
+      databaseEngine?: "postgres" | "mysql" | "mariadb" | "mongo" | null;
+      turnOff?: boolean;
+      schedule?: string;
+      retentionDays?: number;
+      retentionDaily?: number;
+      retentionWeekly?: number;
+      retentionMonthly?: number;
+      maxBackups?: number;
+      status?: "active" | "paused";
+    },
+    BackupPolicyMutationOutput
+  >;
+  deleteBackupPolicy: MutationProcedure<
+    { policyId: string },
+    { deleted: boolean; policyId: string }
   >;
   testBackupDestination: MutationProcedure<{ id: string }, { success: boolean; error?: string }>;
   deleteBackupDestination: MutationProcedure<{ id: string }, { ok: true }>;

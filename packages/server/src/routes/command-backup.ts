@@ -7,6 +7,14 @@ import {
   disableBackupSchedule
 } from "../db/services/backups";
 import {
+  createBackupPolicy,
+  createVolume,
+  deleteBackupPolicy,
+  deleteVolume,
+  updateBackupPolicy,
+  updateVolume
+} from "../db/services/storage-management";
+import {
   createDestination,
   updateDestination,
   deleteDestination,
@@ -17,7 +25,18 @@ import type { BackupProvider } from "../db/schema/destinations";
 import { db } from "../db/connection";
 import { backupDestinations } from "../db/schema/destinations";
 import { eq } from "drizzle-orm";
-import { t, backupRunProcedure, backupRestoreProcedure, getActorContext } from "../trpc";
+import {
+  t,
+  backupRunProcedure,
+  backupRestoreProcedure,
+  getActorContext,
+  volumesWriteProcedure
+} from "../trpc";
+
+const volumeStatusSchema = z.enum(["active", "inactive", "paused"]);
+const policyStatusSchema = z.enum(["active", "paused"]);
+const backupTypeSchema = z.enum(["volume", "database"]);
+const databaseEngineSchema = z.enum(["postgres", "mysql", "mariadb", "mongo"]);
 
 export const backupRouter = t.router({
   triggerBackupRun: backupRunProcedure
@@ -207,6 +226,228 @@ export const backupRouter = t.router({
         },
         input.path
       );
+    }),
+
+  /* ── Volume Registry ─────────────────────────────────────── */
+  createVolume: volumesWriteProcedure
+    .input(
+      z.object({
+        name: z.string().min(1).max(100),
+        serverId: z.string().min(1).max(32),
+        mountPath: z.string().min(1).max(500),
+        sizeBytes: z.number().int().min(0).optional(),
+        driver: z.string().min(1).max(80).optional(),
+        serviceId: z.string().max(32).optional(),
+        status: volumeStatusSchema.optional()
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const actor = getActorContext(ctx);
+      const result = await createVolume(input, {
+        userId: actor.requestedByUserId,
+        email: actor.requestedByEmail,
+        role: actor.requestedByRole
+      });
+      if (result.status === "not-found") {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: `${result.entity === "service" ? "Service" : "Server"} not found.`
+        });
+      }
+      if (result.status === "conflict") {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: result.message
+        });
+      }
+      return result.volume;
+    }),
+  updateVolume: volumesWriteProcedure
+    .input(
+      z.object({
+        volumeId: z.string().min(1).max(32),
+        name: z.string().min(1).max(100).optional(),
+        serverId: z.string().min(1).max(32).optional(),
+        mountPath: z.string().min(1).max(500).optional(),
+        sizeBytes: z.number().int().min(0).optional(),
+        driver: z.string().min(1).max(80).optional(),
+        serviceId: z.string().max(32).optional(),
+        status: volumeStatusSchema.optional()
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const actor = getActorContext(ctx);
+      const result = await updateVolume(input, {
+        userId: actor.requestedByUserId,
+        email: actor.requestedByEmail,
+        role: actor.requestedByRole
+      });
+      if (result.status === "not-found") {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: `${result.entity === "volume" ? "Volume" : result.entity === "service" ? "Service" : "Server"} not found.`
+        });
+      }
+      if (result.status === "conflict") {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: result.message
+        });
+      }
+      return result.volume;
+    }),
+  deleteVolume: volumesWriteProcedure
+    .input(
+      z.object({
+        volumeId: z.string().min(1).max(32)
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const actor = getActorContext(ctx);
+      const result = await deleteVolume(input.volumeId, {
+        userId: actor.requestedByUserId,
+        email: actor.requestedByEmail,
+        role: actor.requestedByRole
+      });
+      if (result.status === "not-found") {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Volume not found."
+        });
+      }
+      if (result.status === "has-dependencies") {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: result.message
+        });
+      }
+      return { deleted: true, volumeId: input.volumeId };
+    }),
+
+  /* ── Backup Policy CRUD ──────────────────────────────────── */
+  createBackupPolicy: backupRunProcedure
+    .input(
+      z.object({
+        name: z.string().min(1).max(100),
+        volumeId: z.string().min(1).max(32),
+        destinationId: z.string().max(32).optional(),
+        backupType: backupTypeSchema.optional(),
+        databaseEngine: databaseEngineSchema.nullish(),
+        turnOff: z.boolean().optional(),
+        schedule: z.string().max(60).optional(),
+        retentionDays: z.number().int().min(1).max(3650).optional(),
+        retentionDaily: z.number().int().min(0).max(3650).optional(),
+        retentionWeekly: z.number().int().min(0).max(520).optional(),
+        retentionMonthly: z.number().int().min(0).max(240).optional(),
+        maxBackups: z.number().int().min(1).max(10_000).optional(),
+        status: policyStatusSchema.optional()
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const actor = getActorContext(ctx);
+      const result = await createBackupPolicy(input, {
+        userId: actor.requestedByUserId,
+        email: actor.requestedByEmail,
+        role: actor.requestedByRole
+      });
+      if (result.status === "not-found") {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: `${result.entity === "destination" ? "Destination" : "Volume"} not found.`
+        });
+      }
+      if (result.status === "conflict") {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: result.message
+        });
+      }
+      if (result.status === "precondition-failed") {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: result.message
+        });
+      }
+      return result.policy;
+    }),
+  updateBackupPolicy: backupRunProcedure
+    .input(
+      z.object({
+        policyId: z.string().min(1).max(32),
+        name: z.string().min(1).max(100).optional(),
+        volumeId: z.string().min(1).max(32).optional(),
+        destinationId: z.string().max(32).optional(),
+        backupType: backupTypeSchema.optional(),
+        databaseEngine: databaseEngineSchema.nullish(),
+        turnOff: z.boolean().optional(),
+        schedule: z.string().max(60).optional(),
+        retentionDays: z.number().int().min(1).max(3650).optional(),
+        retentionDaily: z.number().int().min(0).max(3650).optional(),
+        retentionWeekly: z.number().int().min(0).max(520).optional(),
+        retentionMonthly: z.number().int().min(0).max(240).optional(),
+        maxBackups: z.number().int().min(1).max(10_000).optional(),
+        status: policyStatusSchema.optional()
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const actor = getActorContext(ctx);
+      const result = await updateBackupPolicy(input, {
+        userId: actor.requestedByUserId,
+        email: actor.requestedByEmail,
+        role: actor.requestedByRole
+      });
+      if (result.status === "not-found") {
+        const label =
+          result.entity === "destination"
+            ? "Destination"
+            : result.entity === "volume"
+              ? "Volume"
+              : "Backup policy";
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: `${label} not found.`
+        });
+      }
+      if (result.status === "conflict") {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: result.message
+        });
+      }
+      if (result.status === "precondition-failed") {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: result.message
+        });
+      }
+      return result.policy;
+    }),
+  deleteBackupPolicy: backupRunProcedure
+    .input(
+      z.object({
+        policyId: z.string().min(1).max(32)
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const actor = getActorContext(ctx);
+      const result = await deleteBackupPolicy(input.policyId, {
+        userId: actor.requestedByUserId,
+        email: actor.requestedByEmail,
+        role: actor.requestedByRole
+      });
+      if (result.status === "not-found") {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Backup policy not found."
+        });
+      }
+      if (result.status === "has-dependencies") {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: result.message
+        });
+      }
+      return { deleted: true, policyId: input.policyId };
     }),
 
   /* ── Backup Schedule Management ────────────────────────── */
