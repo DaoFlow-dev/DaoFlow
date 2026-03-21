@@ -165,15 +165,17 @@ addApiGroup(
   }
 );
 
-addApiGroup(
-  apiProcedureAccess,
-  ["backupOverview", "backupRestoreQueue", "persistentVolumes", "backupRunDetails"],
-  {
-    auth: "authenticated",
-    requiredRoles: READ_ROLES,
-    requiredScopes: ["backup:read"]
-  }
-);
+addApiGroup(apiProcedureAccess, ["backupOverview", "backupRestoreQueue", "backupRunDetails"], {
+  auth: "authenticated",
+  requiredRoles: READ_ROLES,
+  requiredScopes: ["backup:read"]
+});
+
+apiProcedureAccess.persistentVolumes = {
+  auth: "authenticated",
+  requiredRoles: READ_ROLES,
+  requiredScopes: ["volumes:read"]
+};
 
 apiProcedureAccess.backupRestorePlan = {
   auth: "authenticated",
@@ -219,6 +221,22 @@ addApiGroup(apiProcedureAccess, ["executeRollback"], {
   requiredRoles: WRITE_ROLES,
   requiredScopes: ["deploy:rollback"]
 });
+
+addApiGroup(apiProcedureAccess, ["createVolume", "updateVolume", "deleteVolume"], {
+  auth: "authenticated",
+  requiredRoles: WRITE_ROLES,
+  requiredScopes: ["volumes:write"]
+});
+
+addApiGroup(
+  apiProcedureAccess,
+  ["createBackupPolicy", "updateBackupPolicy", "deleteBackupPolicy"],
+  {
+    auth: "authenticated",
+    requiredRoles: OPS_ROLES,
+    requiredScopes: ["backup:run"]
+  }
+);
 
 addApiGroup(apiProcedureAccess, ["upsertEnvironmentVariable", "deleteEnvironmentVariable"], {
   auth: "authenticated",
@@ -591,6 +609,9 @@ export const cliCommandMeta: Record<string, CliCommandMeta> = {
     requiredScopes: ["backup:run"],
     mutating: true
   },
+  "backup policy create": { lane: "command", requiredScopes: ["backup:run"], mutating: true },
+  "backup policy update": { lane: "command", requiredScopes: ["backup:run"], mutating: true },
+  "backup policy delete": { lane: "command", requiredScopes: ["backup:run"], mutating: true },
   "token presets": { lane: "local", requiredScopes: [], mutating: false },
   "token create": { lane: "command", requiredScopes: ["tokens:manage"], mutating: true },
   "token list": { lane: "read", requiredScopes: ["tokens:manage"], mutating: false },
@@ -598,6 +619,10 @@ export const cliCommandMeta: Record<string, CliCommandMeta> = {
   diff: { lane: "planning", requiredScopes: ["deploy:read"], mutating: false },
   cancel: { lane: "command", requiredScopes: ["deploy:cancel"], mutating: true },
   update: { lane: "local", requiredScopes: [], mutating: true },
+  "volumes list": { lane: "read", requiredScopes: ["volumes:read"], mutating: false },
+  "volumes register": { lane: "command", requiredScopes: ["volumes:write"], mutating: true },
+  "volumes update": { lane: "command", requiredScopes: ["volumes:write"], mutating: true },
+  "volumes delete": { lane: "command", requiredScopes: ["volumes:write"], mutating: true },
   "config generate-vapid": { lane: "local", requiredScopes: [], mutating: false }
 };
 

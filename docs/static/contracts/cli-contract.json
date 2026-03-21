@@ -250,6 +250,269 @@
       "supportsYes": false
     },
     {
+      "path": "backup policy",
+      "summary": "Create, update, and delete backup policies",
+      "lane": "local",
+      "requiredScopes": [],
+      "mutating": false,
+      "hasAction": false,
+      "hasSubcommands": true,
+      "aliases": [],
+      "arguments": [],
+      "options": [],
+      "supportsJson": false,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
+      "path": "backup policy create",
+      "summary": "Create a backup policy for a registered volume",
+      "lane": "command",
+      "requiredScopes": ["backup:run"],
+      "mutating": true,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--name <name>",
+          "description": "Policy name",
+          "required": true
+        },
+        {
+          "flags": "--volume-id <id>",
+          "description": "Volume ID",
+          "required": true
+        },
+        {
+          "flags": "--destination-id <id>",
+          "description": "Backup destination ID",
+          "required": false
+        },
+        {
+          "flags": "--backup-type <type>",
+          "description": "Backup type (volume or database)",
+          "required": false
+        },
+        {
+          "flags": "--database-engine <engine>",
+          "description": "Database engine hint",
+          "required": false
+        },
+        {
+          "flags": "--turn-off",
+          "description": "Stop the container before backup",
+          "required": false
+        },
+        {
+          "flags": "--schedule <cron>",
+          "description": "Cron schedule for Temporal-backed execution",
+          "required": false
+        },
+        {
+          "flags": "--retention-days <n>",
+          "description": "Retention window in days",
+          "required": false
+        },
+        {
+          "flags": "--retention-daily <n>",
+          "description": "Daily retention count",
+          "required": false
+        },
+        {
+          "flags": "--retention-weekly <n>",
+          "description": "Weekly retention count",
+          "required": false
+        },
+        {
+          "flags": "--retention-monthly <n>",
+          "description": "Monthly retention count",
+          "required": false
+        },
+        {
+          "flags": "--max-backups <n>",
+          "description": "Hard backup count cap",
+          "required": false
+        },
+        {
+          "flags": "--status <status>",
+          "description": "Policy status (active or paused)",
+          "required": false
+        },
+        {
+          "flags": "--dry-run",
+          "description": "Preview the policy payload without mutating",
+          "required": false
+        },
+        {
+          "flags": "-y, --yes",
+          "description": "Skip confirmation prompt",
+          "required": false
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": true,
+      "supportsYes": true
+    },
+    {
+      "path": "backup policy delete",
+      "summary": "Delete a backup policy",
+      "lane": "command",
+      "requiredScopes": ["backup:run"],
+      "mutating": true,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--policy-id <id>",
+          "description": "Policy ID",
+          "required": true
+        },
+        {
+          "flags": "--dry-run",
+          "description": "Preview the delete payload without mutating",
+          "required": false
+        },
+        {
+          "flags": "-y, --yes",
+          "description": "Skip confirmation prompt",
+          "required": false
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": true,
+      "supportsYes": true
+    },
+    {
+      "path": "backup policy update",
+      "summary": "Update a backup policy",
+      "lane": "command",
+      "requiredScopes": ["backup:run"],
+      "mutating": true,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--policy-id <id>",
+          "description": "Policy ID",
+          "required": true
+        },
+        {
+          "flags": "--name <name>",
+          "description": "Policy name",
+          "required": false
+        },
+        {
+          "flags": "--volume-id <id>",
+          "description": "Volume ID",
+          "required": false
+        },
+        {
+          "flags": "--destination-id <id>",
+          "description": "Backup destination ID",
+          "required": false
+        },
+        {
+          "flags": "--clear-destination",
+          "description": "Clear any linked backup destination",
+          "required": false
+        },
+        {
+          "flags": "--backup-type <type>",
+          "description": "Backup type (volume or database)",
+          "required": false
+        },
+        {
+          "flags": "--database-engine <engine>",
+          "description": "Database engine hint",
+          "required": false
+        },
+        {
+          "flags": "--turn-off",
+          "description": "Stop the container before backup",
+          "required": false
+        },
+        {
+          "flags": "--turn-on",
+          "description": "Clear the stop-container behavior",
+          "required": false
+        },
+        {
+          "flags": "--schedule <cron>",
+          "description": "Cron schedule for Temporal-backed execution",
+          "required": false
+        },
+        {
+          "flags": "--clear-schedule",
+          "description": "Remove the current schedule",
+          "required": false
+        },
+        {
+          "flags": "--retention-days <n>",
+          "description": "Retention window in days",
+          "required": false
+        },
+        {
+          "flags": "--retention-daily <n>",
+          "description": "Daily retention count",
+          "required": false
+        },
+        {
+          "flags": "--retention-weekly <n>",
+          "description": "Weekly retention count",
+          "required": false
+        },
+        {
+          "flags": "--retention-monthly <n>",
+          "description": "Monthly retention count",
+          "required": false
+        },
+        {
+          "flags": "--max-backups <n>",
+          "description": "Hard backup count cap",
+          "required": false
+        },
+        {
+          "flags": "--status <status>",
+          "description": "Policy status (active or paused)",
+          "required": false
+        },
+        {
+          "flags": "--dry-run",
+          "description": "Preview the update payload without mutating",
+          "required": false
+        },
+        {
+          "flags": "-y, --yes",
+          "description": "Skip confirmation prompt",
+          "required": false
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": true,
+      "supportsYes": true
+    },
+    {
       "path": "backup restore",
       "summary": "Queue a restore from a backup run",
       "lane": "command",
@@ -2042,6 +2305,225 @@
       ],
       "supportsJson": true,
       "supportsDryRun": false,
+      "supportsYes": true
+    },
+    {
+      "path": "volumes",
+      "summary": "Register and manage persistent volume metadata",
+      "lane": "local",
+      "requiredScopes": [],
+      "mutating": false,
+      "hasAction": false,
+      "hasSubcommands": true,
+      "aliases": [],
+      "arguments": [],
+      "options": [],
+      "supportsJson": false,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
+      "path": "volumes delete",
+      "summary": "Delete a registered volume",
+      "lane": "command",
+      "requiredScopes": ["volumes:write"],
+      "mutating": true,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--volume-id <id>",
+          "description": "Volume ID",
+          "required": true
+        },
+        {
+          "flags": "--dry-run",
+          "description": "Preview the delete payload without mutating",
+          "required": false
+        },
+        {
+          "flags": "-y, --yes",
+          "description": "Skip confirmation prompt",
+          "required": false
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": true,
+      "supportsYes": true
+    },
+    {
+      "path": "volumes list",
+      "summary": "List registered persistent volumes",
+      "lane": "read",
+      "requiredScopes": ["volumes:read"],
+      "mutating": false,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--limit <n>",
+          "description": "Max volumes to show",
+          "required": false
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
+      "path": "volumes register",
+      "summary": "Register a persistent volume in the control plane",
+      "lane": "command",
+      "requiredScopes": ["volumes:write"],
+      "mutating": true,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--name <name>",
+          "description": "Volume name",
+          "required": true
+        },
+        {
+          "flags": "--server-id <id>",
+          "description": "Target server ID",
+          "required": true
+        },
+        {
+          "flags": "--mount-path <path>",
+          "description": "Mount path on the server",
+          "required": true
+        },
+        {
+          "flags": "--service-id <id>",
+          "description": "Linked service ID",
+          "required": false
+        },
+        {
+          "flags": "--driver <name>",
+          "description": "Volume driver",
+          "required": false
+        },
+        {
+          "flags": "--size-bytes <n>",
+          "description": "Attached size in bytes",
+          "required": false
+        },
+        {
+          "flags": "--status <status>",
+          "description": "Volume status",
+          "required": false
+        },
+        {
+          "flags": "--dry-run",
+          "description": "Preview the registration payload without mutating",
+          "required": false
+        },
+        {
+          "flags": "-y, --yes",
+          "description": "Skip confirmation prompt",
+          "required": false
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": true,
+      "supportsYes": true
+    },
+    {
+      "path": "volumes update",
+      "summary": "Update a registered volume",
+      "lane": "command",
+      "requiredScopes": ["volumes:write"],
+      "mutating": true,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--volume-id <id>",
+          "description": "Volume ID",
+          "required": true
+        },
+        {
+          "flags": "--name <name>",
+          "description": "Volume name",
+          "required": false
+        },
+        {
+          "flags": "--server-id <id>",
+          "description": "Target server ID",
+          "required": false
+        },
+        {
+          "flags": "--mount-path <path>",
+          "description": "Mount path on the server",
+          "required": false
+        },
+        {
+          "flags": "--service-id <id>",
+          "description": "Linked service ID",
+          "required": false
+        },
+        {
+          "flags": "--detach-service",
+          "description": "Clear any linked service",
+          "required": false
+        },
+        {
+          "flags": "--driver <name>",
+          "description": "Volume driver",
+          "required": false
+        },
+        {
+          "flags": "--size-bytes <n>",
+          "description": "Attached size in bytes",
+          "required": false
+        },
+        {
+          "flags": "--status <status>",
+          "description": "Volume status",
+          "required": false
+        },
+        {
+          "flags": "--dry-run",
+          "description": "Preview the update payload without mutating",
+          "required": false
+        },
+        {
+          "flags": "-y, --yes",
+          "description": "Skip confirmation prompt",
+          "required": false
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": true,
       "supportsYes": true
     },
     {
