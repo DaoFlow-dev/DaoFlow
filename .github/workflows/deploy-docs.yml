@@ -28,8 +28,6 @@ jobs:
   build:
     name: Build Docusaurus
     runs-on: ubuntu-latest
-    outputs:
-      artifact-id: ${{ steps.upload.outputs.artifact_id }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -47,12 +45,25 @@ jobs:
         run: bun run build
         working-directory: docs
 
+      - name: Archive Pages artifact
+        run: |
+          tar \
+            --dereference --hard-dereference \
+            --directory docs/build \
+            -cvf "$RUNNER_TEMP/artifact.tar" \
+            --exclude=.git \
+            --exclude=.github \
+            --exclude=".[^/]*" \
+            .
+
       - name: Upload Pages artifact
         id: upload
-        uses: actions/upload-pages-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
-          path: docs/build
+          name: github-pages
+          path: ${{ runner.temp }}/artifact.tar
           retention-days: 1
+          if-no-files-found: error
 
   deploy:
     name: Deploy to GitHub Pages
@@ -65,9 +76,73 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
+      - name: Resolve Pages artifact ID
+        id: artifact
+        uses: actions/github-script@v8
+        with:
+          result-encoding: string
+          script: |
+            const token = process.env.ACTIONS_RUNTIME_TOKEN;
+            const resultsUrl = process.env.ACTIONS_RESULTS_URL;
+            if (!token || !resultsUrl) {
+              throw new Error("Missing Actions runtime artifact metadata environment.");
+            }
+
+            const payload = JSON.parse(
+              Buffer.from(token.split(".")[1], "base64url").toString("utf8"),
+            );
+            const resultsScope = String(payload.scp || "")
+              .split(" ")
+              .find((scope) => scope.startsWith("Actions.Results:"));
+            if (!resultsScope) {
+              throw new Error("Missing Actions.Results scope in ACTIONS_RUNTIME_TOKEN.");
+            }
+
+            const [, workflowRunBackendId, workflowJobRunBackendId] =
+              resultsScope.split(":");
+            if (!workflowRunBackendId || !workflowJobRunBackendId) {
+              throw new Error(`Invalid Actions.Results scope: ${resultsScope}`);
+            }
+
+            const artifactServiceUrl = new URL(
+              "/twirp/github.actions.results.api.v1.ArtifactService/ListArtifacts",
+              resultsUrl,
+            );
+
+            const response = await fetch(artifactServiceUrl, {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${token}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                workflowRunBackendId,
+                workflowJobRunBackendId,
+                nameFilter: { value: "github-pages" },
+              }),
+            });
+
+            const responseText = await response.text();
+            if (!response.ok) {
+              throw new Error(
+                `ListArtifacts failed with ${response.status}: ${responseText}`,
+              );
+            }
+
+            const artifacts = JSON.parse(responseText).artifacts ?? [];
+            const artifact = artifacts
+              .filter((entry) => entry.name === "github-pages")
+              .sort((left, right) => Number(right.databaseId) - Number(left.databaseId))[0];
+
+            if (!artifact?.databaseId) {
+              throw new Error('No "github-pages" artifact was found for this workflow run.');
+            }
+
+            return String(artifact.databaseId);
+
       - name: Deploy to GitHub Pages
         id: deployment
         env:
-          ARTIFACT_ID: ${{ needs.build.outputs.artifact-id }}
+          ARTIFACT_ID: ${{ steps.artifact.outputs.result }}
           GITHUB_TOKEN: ${{ github.token }}
         run: ./scripts/deploy-pages.sh

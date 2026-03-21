@@ -32,19 +32,38 @@ fi
 owner="${GITHUB_REPOSITORY%%/*}"
 repo="${GITHUB_REPOSITORY#*/}"
 deadline=$(( $(date +%s) + timeout_seconds ))
-
+ 
 api_json() {
   local method="$1"
   local url="$2"
+  local body_file
+  local http_code
   shift 2
 
-  curl --fail --silent --show-error \
-    -X "${method}" \
-    -H "Accept: application/vnd.github+json" \
-    -H "Authorization: Bearer ${GITHUB_TOKEN}" \
-    -H "X-GitHub-Api-Version: 2022-11-28" \
-    "$@" \
-    "${url}"
+  body_file="$(mktemp)"
+  if ! http_code="$(
+    curl --silent --show-error \
+      -o "${body_file}" \
+      -w '%{http_code}' \
+      -X "${method}" \
+      -H "Accept: application/vnd.github+json" \
+      -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+      -H "X-GitHub-Api-Version: 2022-11-28" \
+      "$@" \
+      "${url}"
+  )"; then
+    rm -f "${body_file}"
+    return 1
+  fi
+
+  if (( http_code < 200 || http_code >= 300 )); then
+    cat "${body_file}" >&2 || true
+    rm -f "${body_file}"
+    return 22
+  fi
+
+  cat "${body_file}"
+  rm -f "${body_file}"
 }
 
 oidc_request_url="${ACTIONS_ID_TOKEN_REQUEST_URL}"
