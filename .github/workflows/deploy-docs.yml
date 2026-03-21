@@ -7,6 +7,7 @@ on:
     paths:
       - "docs/**"
       - ".github/workflows/deploy-docs.yml"
+      - "scripts/deploy-pages.sh"
 
   # Allow manual trigger from Actions tab
   workflow_dispatch:
@@ -27,6 +28,8 @@ jobs:
   build:
     name: Build Docusaurus
     runs-on: ubuntu-latest
+    outputs:
+      artifact-id: ${{ steps.upload.outputs.artifact-id }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -56,6 +59,7 @@ jobs:
             .
 
       - name: Upload Pages artifact
+        id: upload
         uses: actions/upload-artifact@v6
         with:
           name: github-pages
@@ -71,6 +75,12 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        env:
+          ARTIFACT_ID: ${{ needs.build.outputs.artifact-id }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: ./scripts/deploy-pages.sh
