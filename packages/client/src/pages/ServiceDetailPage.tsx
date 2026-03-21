@@ -81,8 +81,12 @@ export default function ServiceDetailPage() {
     slug: string;
     sourceType: string;
     status: string;
+    statusTone?: string;
+    statusLabel?: string;
     projectId: string;
+    projectName?: string | null;
     environmentId: string | null;
+    environmentName?: string | null;
     imageReference: string | null;
     dockerfilePath: string | null;
     composeServiceName: string | null;
@@ -94,12 +98,33 @@ export default function ServiceDetailPage() {
     updatedAt: string;
     runtimeConfig: ServiceRuntimeConfig | null;
     runtimeConfigPreview: string | null;
+    runtimeSummary?: {
+      statusLabel: string;
+      statusTone: string;
+      summary: string;
+      observedAt: string | null;
+    };
+    rolloutStrategy?: {
+      label: string;
+      summary: string;
+      downtimeRisk: string;
+      supportsZeroDowntime: boolean;
+    };
+    latestDeployment?: {
+      id: string;
+      statusLabel: string;
+      statusTone: string;
+      summary: string;
+      targetServerName: string | null;
+      imageTag: string | null;
+      finishedAt: string | null;
+    } | null;
   };
 
   return (
     <div className="space-y-6">
       {/* Header with breadcrumbs, status, and quick actions (items 1-4) */}
-      <ServiceHeader service={svc} />
+      <ServiceHeader service={svc} projectName={svc.projectName ?? undefined} />
 
       {/* Tabbed interface (item 1) */}
       <Tabs defaultValue="general" className="w-full">

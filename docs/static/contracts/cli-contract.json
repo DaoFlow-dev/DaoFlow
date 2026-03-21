@@ -1695,7 +1695,7 @@
     },
     {
       "path": "services",
-      "summary": "List services and their status",
+      "summary": "List services and their runtime status",
       "lane": "read",
       "requiredScopes": ["service:read"],
       "mutating": false,

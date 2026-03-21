@@ -12,6 +12,21 @@ interface Service {
   composeServiceName: string | null;
   dockerfilePath: string | null;
   status: string;
+  statusTone?: string;
+  statusLabel?: string;
+  runtimeSummary?: {
+    statusLabel: string;
+    statusTone: string;
+    summary: string;
+  };
+  rolloutStrategy?: {
+    label: string;
+    downtimeRisk: string;
+  };
+  latestDeployment?: {
+    targetServerName: string | null;
+    imageTag: string | null;
+  } | null;
 }
 
 interface ProjectServicesListProps {
@@ -64,19 +79,42 @@ export function ProjectServicesList({
               <CardContent className="py-4 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div
-                    className={`h-2 w-2 rounded-full ${getInventoryDotClass(svc.status, {
-                      pulse: svc.status === "running"
-                    })}`}
+                    className={`h-2 w-2 rounded-full ${getInventoryDotClass(
+                      svc.runtimeSummary?.statusTone ?? svc.statusTone ?? svc.status,
+                      {
+                        pulse:
+                          (svc.runtimeSummary?.statusTone ?? svc.statusTone ?? svc.status) ===
+                          "running"
+                      }
+                    )}`}
                   />
                   <div>
                     <p className="font-medium">{svc.name}</p>
                     <p className="text-xs text-muted-foreground">
-                      {svc.sourceType} ·{" "}
-                      {svc.imageReference || svc.composeServiceName || svc.dockerfilePath || "—"}
+                      {svc.runtimeSummary?.summary ??
+                        `${svc.sourceType} · ${
+                          svc.latestDeployment?.imageTag ??
+                          svc.imageReference ??
+                          svc.composeServiceName ??
+                          svc.dockerfilePath ??
+                          "—"
+                        }`}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {svc.rolloutStrategy?.label ?? svc.sourceType}
+                      {svc.latestDeployment?.targetServerName
+                        ? ` · ${svc.latestDeployment.targetServerName}`
+                        : ""}
                     </p>
                   </div>
                 </div>
-                <Badge variant={getInventoryBadgeVariant(svc.status)}>{svc.status}</Badge>
+                <Badge
+                  variant={getInventoryBadgeVariant(
+                    svc.runtimeSummary?.statusTone ?? svc.statusTone ?? svc.status
+                  )}
+                >
+                  {svc.runtimeSummary?.statusLabel ?? svc.statusLabel ?? svc.status}
+                </Badge>
               </CardContent>
             </Card>
           ))}

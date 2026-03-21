@@ -14,7 +14,7 @@ import {
   Square,
   Play
 } from "lucide-react";
-import { getInventoryBadgeVariant, getInventoryDotClass, getInventoryTone } from "@/lib/tone-utils";
+import { getBadgeVariantFromTone, getToneDotClass } from "@/lib/tone-utils";
 
 function formatRelative(date: string | Date): string {
   const diff = Date.now() - new Date(date).getTime();
@@ -33,6 +33,8 @@ interface GeneralTabProps {
     slug: string;
     sourceType: string;
     status: string;
+    statusTone?: string;
+    statusLabel?: string;
     imageReference: string | null;
     dockerfilePath: string | null;
     composeServiceName: string | null;
@@ -42,11 +44,29 @@ interface GeneralTabProps {
     targetServerId: string | null;
     createdAt: string;
     updatedAt: string;
+    runtimeSummary?: {
+      statusLabel: string;
+      statusTone: string;
+      summary: string;
+      observedAt: string | null;
+    };
+    rolloutStrategy?: {
+      label: string;
+      summary: string;
+      downtimeRisk: string;
+      supportsZeroDowntime: boolean;
+    };
+    latestDeployment?: {
+      targetServerName: string | null;
+      imageTag: string | null;
+      finishedAt: string | null;
+    } | null;
   };
 }
 
 export default function GeneralTab({ service }: GeneralTabProps) {
-  const serviceTone = getInventoryTone(service.status);
+  const serviceTone = service.runtimeSummary?.statusTone ?? service.statusTone ?? service.status;
+  const serviceLabel = service.runtimeSummary?.statusLabel ?? service.statusLabel ?? service.status;
   const isRunning = serviceTone === "healthy" || serviceTone === "running";
 
   return (
@@ -93,17 +113,17 @@ export default function GeneralTab({ service }: GeneralTabProps) {
             </div>
             <div className="flex items-center gap-2">
               <span
-                className={`inline-block h-2.5 w-2.5 rounded-full ${getInventoryDotClass(
-                  service.status,
-                  {
-                    pulse: serviceTone === "running"
-                  }
-                )}`}
+                className={`inline-block h-2.5 w-2.5 rounded-full ${getToneDotClass(serviceTone, {
+                  pulse: serviceTone === "running"
+                })}`}
               />
-              <Badge variant={getInventoryBadgeVariant(service.status)} className="text-sm">
-                {service.status}
+              <Badge variant={getBadgeVariantFromTone(serviceTone)} className="text-sm">
+                {serviceLabel}
               </Badge>
             </div>
+            {service.runtimeSummary ? (
+              <p className="mt-2 text-xs text-muted-foreground">{service.runtimeSummary.summary}</p>
+            ) : null}
           </CardContent>
         </Card>
         <Card className="border-border/50 shadow-sm transition-all duration-200 hover:shadow-md">
@@ -119,9 +139,16 @@ export default function GeneralTab({ service }: GeneralTabProps) {
           <CardContent className="pt-6">
             <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
               <Server size={14} />
-              Replicas
+              Rollout
             </div>
-            <span className="text-lg font-semibold">{service.replicaCount}</span>
+            <span className="text-lg font-semibold">
+              {service.rolloutStrategy?.label ?? service.replicaCount}
+            </span>
+            {service.rolloutStrategy ? (
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Downtime risk: {service.rolloutStrategy.downtimeRisk}
+              </p>
+            ) : null}
           </CardContent>
         </Card>
         <Card className="border-border/50 shadow-sm transition-all duration-200 hover:shadow-md">
@@ -130,7 +157,9 @@ export default function GeneralTab({ service }: GeneralTabProps) {
               <Clock size={14} />
               Last Deployed
             </div>
-            <span className="text-sm font-semibold">{formatRelative(service.updatedAt)}</span>
+            <span className="text-sm font-semibold">
+              {formatRelative(service.latestDeployment?.finishedAt ?? service.updatedAt)}
+            </span>
             <p className="text-xs text-muted-foreground mt-0.5">
               Created {new Date(service.createdAt).toLocaleDateString()}
             </p>
@@ -163,6 +192,12 @@ export default function GeneralTab({ service }: GeneralTabProps) {
             {service.port && <ConfigItem label="Port" value={service.port} />}
             {service.healthcheckPath && (
               <ConfigItem label="Health Check" value={service.healthcheckPath} mono />
+            )}
+            {service.latestDeployment?.targetServerName && (
+              <ConfigItem label="Target Server" value={service.latestDeployment.targetServerName} />
+            )}
+            {service.latestDeployment?.imageTag && (
+              <ConfigItem label="Current Image" value={service.latestDeployment.imageTag} mono />
             )}
             <ConfigItem label="Updated" value={new Date(service.updatedAt).toLocaleString()} />
           </dl>

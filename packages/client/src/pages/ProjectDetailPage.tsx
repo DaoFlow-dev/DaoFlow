@@ -114,7 +114,22 @@ export default function ProjectDetailPage() {
     composeServiceName: string | null;
     dockerfilePath: string | null;
     status: string;
+    statusTone?: string;
+    statusLabel?: string;
     environmentId: string | null;
+    runtimeSummary?: {
+      statusTone: string;
+      statusLabel: string;
+      summary: string;
+    };
+    rolloutStrategy?: {
+      label: string;
+      downtimeRisk: string;
+    };
+    latestDeployment?: {
+      targetServerName: string | null;
+      imageTag: string | null;
+    } | null;
   }[];
   const envList = (environments.data ?? []) as {
     id: string;
@@ -150,10 +165,13 @@ export default function ProjectDetailPage() {
     : serviceList;
 
   const healthyCount = serviceList.filter((s) => {
-    const tone = getInventoryTone(s.status);
+    const tone = s.runtimeSummary?.statusTone ?? s.statusTone ?? getInventoryTone(s.status);
     return tone === "healthy" || tone === "running";
   }).length;
-  const unhealthyCount = serviceList.filter((s) => getInventoryTone(s.status) === "failed").length;
+  const unhealthyCount = serviceList.filter((s) => {
+    const tone = s.runtimeSummary?.statusTone ?? s.statusTone ?? getInventoryTone(s.status);
+    return tone === "failed";
+  }).length;
 
   const projectDeployments = (deployments.data ?? []).filter((d: { serviceName: string }) =>
     serviceList.some((s) => s.name === d.serviceName)

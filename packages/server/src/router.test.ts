@@ -435,6 +435,16 @@ describe("appRouter", () => {
     expect(deployment.projectId).toEqual(expect.any(String));
     expect(deployment.projectName).toEqual(expect.any(String));
     expect(deployment.serviceId === null || typeof deployment.serviceId === "string").toBe(true);
+    expect(deployment.healthSummary).toBeTruthy();
+    expect(deployment.healthSummary?.status).toEqual(expect.any(String));
+    expect(deployment.healthSummary?.statusLabel).toEqual(expect.any(String));
+    expect(deployment.healthSummary?.statusTone).toEqual(expect.any(String));
+    expect(deployment.healthSummary?.summary).toEqual(expect.any(String));
+    expect(deployment.rolloutStrategy).toBeTruthy();
+    expect(deployment.rolloutStrategy?.key).toEqual(expect.any(String));
+    expect(deployment.rolloutStrategy?.label).toEqual(expect.any(String));
+    expect(deployment.rolloutStrategy?.downtimeRisk).toEqual(expect.any(String));
+    expect(deployment.rolloutStrategy?.supportsZeroDowntime).toEqual(expect.any(Boolean));
     expect(Array.isArray(deployment.steps)).toBe(true);
 
     const details = await caller.deploymentDetails({
@@ -625,10 +635,21 @@ describe("appRouter", () => {
       mode: "pull-request",
       domainTemplate: "api-pr-{pr}.preview.example.com"
     });
+    expect(serviceDetails.runtimeSummary).toBeTruthy();
+    expect(serviceDetails.runtimeSummary?.status).toEqual(expect.any(String));
+    expect(serviceDetails.runtimeSummary?.statusLabel).toEqual(expect.any(String));
+    expect(serviceDetails.runtimeSummary?.statusTone).toEqual(expect.any(String));
+    expect(serviceDetails.runtimeSummary?.summary).toEqual(expect.any(String));
+    expect(serviceDetails.rolloutStrategy).toBeTruthy();
+    expect(serviceDetails.rolloutStrategy?.key).toBe("compose-recreate");
+    expect(serviceDetails.rolloutStrategy?.label).toEqual(expect.any(String));
+    expect(serviceDetails.rolloutStrategy?.supportsZeroDowntime).toBe(false);
     expect(
       listedServices.some(
         (service) =>
           service.id === serviceResult.service.id &&
+          service.runtimeSummary &&
+          service.rolloutStrategy &&
           asRecord(service.config).readinessProbe &&
           asRecord(service.config).readinessProbe !== null
       )

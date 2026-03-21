@@ -1,8 +1,9 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { db } from "../connection";
 import { auditEntries } from "../schema/audit";
+import { deployments } from "../schema/deployments";
 import { services } from "../schema/services";
-import { environments } from "../schema/projects";
+import { environments, projects } from "../schema/projects";
 import type { AppRole } from "@daoflow/shared";
 import { newId as id } from "./json-helpers";
 import {
@@ -24,6 +25,11 @@ import {
   readServiceDomainConfigFromConfig,
   writeServiceDomainConfigToConfig
 } from "../../service-domain-config";
+import {
+  summarizeDeploymentHealth,
+  summarizeRolloutStrategy,
+  summarizeServiceRuntime
+} from "./deployment-read-model";
 
 /* ──────────────────────── Helpers ──────────────────────── */
 
@@ -102,6 +108,131 @@ export function normalizeServiceRecord(service: typeof services.$inferSelect) {
       composeServiceName: service.composeServiceName,
       runtimeConfig: readServiceRuntimeConfigFromConfig(config)
     })
+  };
+}
+
+function buildServiceDeploymentKey(input: {
+  projectId: string;
+  environmentId: string;
+  name: string;
+  sourceType: string;
+}) {
+  return `${input.projectId}:${input.environmentId}:${input.name}:${input.sourceType}`;
+}
+
+async function buildServiceReadIndex(serviceRows: (typeof services.$inferSelect)[]) {
+  if (serviceRows.length === 0) {
+    return {
+      projectById: new Map<string, typeof projects.$inferSelect>(),
+      environmentById: new Map<string, typeof environments.$inferSelect>(),
+      latestDeploymentByKey: new Map<string, typeof deployments.$inferSelect>()
+    };
+  }
+
+  const projectIds = [...new Set(serviceRows.map((row) => row.projectId))];
+  const environmentIds = [...new Set(serviceRows.map((row) => row.environmentId))];
+
+  const [projectRows, environmentRows, deploymentRows] = await Promise.all([
+    db.select().from(projects).where(inArray(projects.id, projectIds)),
+    db.select().from(environments).where(inArray(environments.id, environmentIds)),
+    db
+      .selectDistinctOn([
+        deployments.projectId,
+        deployments.environmentId,
+        deployments.serviceName,
+        deployments.sourceType
+      ])
+      .from(deployments)
+      .where(inArray(deployments.environmentId, environmentIds))
+      .orderBy(
+        deployments.projectId,
+        deployments.environmentId,
+        deployments.serviceName,
+        deployments.sourceType,
+        desc(deployments.createdAt)
+      )
+  ]);
+
+  const latestDeploymentByKey = new Map<string, typeof deployments.$inferSelect>();
+  for (const deployment of deploymentRows) {
+    const key = buildServiceDeploymentKey({
+      projectId: deployment.projectId,
+      environmentId: deployment.environmentId,
+      name: deployment.serviceName,
+      sourceType: deployment.sourceType
+    });
+
+    if (!latestDeploymentByKey.has(key)) {
+      latestDeploymentByKey.set(key, deployment);
+    }
+  }
+
+  return {
+    projectById: new Map(projectRows.map((row) => [row.id, row])),
+    environmentById: new Map(environmentRows.map((row) => [row.id, row])),
+    latestDeploymentByKey
+  };
+}
+
+function buildServiceReadModel(
+  service: typeof services.$inferSelect,
+  index: Awaited<ReturnType<typeof buildServiceReadIndex>>
+) {
+  const normalized = normalizeServiceRecord(service);
+  const project = index.projectById.get(service.projectId);
+  const environment = index.environmentById.get(service.environmentId);
+  const latestDeployment =
+    index.latestDeploymentByKey.get(
+      buildServiceDeploymentKey({
+        projectId: service.projectId,
+        environmentId: service.environmentId,
+        name: service.name,
+        sourceType: service.sourceType
+      })
+    ) ?? null;
+  const healthSummary = latestDeployment
+    ? summarizeDeploymentHealth({ deployment: latestDeployment, steps: [] })
+    : null;
+  const targetServerName =
+    latestDeployment && typeof latestDeployment.configSnapshot === "object"
+      ? ((latestDeployment.configSnapshot as Record<string, unknown>).targetServerName as
+          | string
+          | undefined)
+      : null;
+  const runtimeSummary = summarizeServiceRuntime({
+    latestDeployment,
+    healthSummary,
+    targetServerName
+  });
+  const rolloutStrategy = summarizeRolloutStrategy({
+    sourceType: service.sourceType,
+    serviceConfig: normalized.config,
+    healthcheckPath: service.healthcheckPath
+  });
+
+  return {
+    ...normalized,
+    projectName: project?.name ?? null,
+    environmentName: environment?.name ?? null,
+    statusTone: runtimeSummary.statusTone,
+    statusLabel: runtimeSummary.statusLabel,
+    runtimeSummary,
+    rolloutStrategy,
+    latestDeployment: latestDeployment
+      ? {
+          id: latestDeployment.id,
+          status: healthSummary?.status ?? "not-configured",
+          statusLabel: healthSummary?.statusLabel ?? runtimeSummary.statusLabel,
+          statusTone: healthSummary?.statusTone ?? runtimeSummary.statusTone,
+          summary: healthSummary?.summary ?? runtimeSummary.summary,
+          commitSha: latestDeployment.commitSha,
+          imageTag: latestDeployment.imageTag,
+          targetServerId: latestDeployment.targetServerId,
+          targetServerName,
+          createdAt: latestDeployment.createdAt.toISOString(),
+          finishedAt: latestDeployment.concludedAt?.toISOString() ?? null
+        }
+      : null
   };
 }
 
@@ -307,10 +438,12 @@ export async function listServices(environmentId?: string, limit = 50) {
       .where(eq(services.environmentId, environmentId))
       .orderBy(desc(services.createdAt))
       .limit(limit);
-    return rows.map(normalizeServiceRecord);
+    const index = await buildServiceReadIndex(rows);
+    return rows.map((row) => buildServiceReadModel(row, index));
   }
   const rows = await db.select().from(services).orderBy(desc(services.createdAt)).limit(limit);
-  return rows.map(normalizeServiceRecord);
+  const index = await buildServiceReadIndex(rows);
+  return rows.map((row) => buildServiceReadModel(row, index));
 }
 
 export async function listServicesByProject(projectId: string) {
@@ -319,11 +452,17 @@ export async function listServicesByProject(projectId: string) {
     .from(services)
     .where(eq(services.projectId, projectId))
     .orderBy(desc(services.createdAt));
-  return rows.map(normalizeServiceRecord);
+  const index = await buildServiceReadIndex(rows);
+  return rows.map((row) => buildServiceReadModel(row, index));
 }
 
 export async function getService(serviceId: string) {
   const [service] = await db.select().from(services).where(eq(services.id, serviceId)).limit(1);
 
-  return service ? normalizeServiceRecord(service) : null;
+  if (!service) {
+    return null;
+  }
+
+  const index = await buildServiceReadIndex([service]);
+  return buildServiceReadModel(service, index);
 }

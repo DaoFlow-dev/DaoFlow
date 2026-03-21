@@ -464,6 +464,74 @@ export interface ProjectEnvironmentItem {
   updatedAt: string;
 }
 
+export interface DeploymentHealthSummaryOutput {
+  status: "verified" | "failed" | "pending" | "not-configured";
+  statusLabel: string;
+  statusTone: string;
+  summary: string;
+  failureAnalysis: string | null;
+  observedAt: string | null;
+}
+
+export interface RolloutStrategySummaryOutput {
+  key: "compose-recreate" | "container-replace";
+  label: string;
+  summary: string;
+  downtimeRisk: "possible" | "expected";
+  supportsZeroDowntime: boolean;
+  healthGate: "readiness-probe" | "docker-health" | "container-health";
+}
+
+export interface ServiceRuntimeSummaryOutput {
+  status: "not-deployed" | "last-known-healthy" | "rollout-in-progress" | "attention";
+  statusLabel: string;
+  statusTone: string;
+  summary: string;
+  observedAt: string | null;
+}
+
+export interface ServiceReadOutput {
+  id: string;
+  name: string;
+  slug: string;
+  sourceType: string;
+  status: string;
+  statusTone: string;
+  statusLabel: string;
+  projectId: string;
+  projectName: string | null;
+  environmentId: string;
+  environmentName: string | null;
+  imageReference: string | null;
+  dockerfilePath: string | null;
+  composeServiceName: string | null;
+  port: string | null;
+  healthcheckPath: string | null;
+  replicaCount: string;
+  targetServerId: string | null;
+  createdAt: string;
+  updatedAt: string;
+  config: unknown;
+  domainConfig: unknown;
+  runtimeConfig: unknown;
+  runtimeConfigPreview: string | null;
+  runtimeSummary: ServiceRuntimeSummaryOutput;
+  rolloutStrategy: RolloutStrategySummaryOutput;
+  latestDeployment: {
+    id: string;
+    status: string;
+    statusLabel: string;
+    statusTone: string;
+    summary: string;
+    commitSha: string | null;
+    imageTag: string | null;
+    targetServerId: string;
+    targetServerName: string | null;
+    createdAt: string;
+    finishedAt: string | null;
+  } | null;
+}
+
 export interface ProjectDetailsOutput extends ProjectListItem {
   environments: ProjectEnvironmentItem[];
 }
@@ -744,6 +812,9 @@ export interface DaoFlowTRPC {
   projects: QueryProcedure<ProjectListItem[], { limit?: number }>;
   projectDetails: QueryProcedure<ProjectDetailsOutput, { projectId: string }>;
   projectEnvironments: QueryProcedure<ProjectEnvironmentItem[], { projectId: string }>;
+  services: QueryProcedure<ServiceReadOutput[], { environmentId?: string; limit?: number }>;
+  serviceDetails: QueryProcedure<ServiceReadOutput, { serviceId: string }>;
+  projectServices: QueryProcedure<ServiceReadOutput[], { projectId: string }>;
   createProject: MutationProcedure<
     {
       name: string;

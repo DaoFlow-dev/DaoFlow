@@ -28,6 +28,7 @@ import {
   readDeploymentCancellationSnapshot,
   writeDeploymentCancellationSnapshot
 } from "../../deployment-cancellation";
+import { summarizeDeploymentHealth, summarizeRolloutStrategy } from "./deployment-read-model";
 
 export type DeploymentStatus = DeploymentLifecycleStatus;
 export type DeploymentSourceType = "compose" | "dockerfile" | "image";
@@ -95,6 +96,13 @@ function buildDeploymentView(
   const hasServiceTarget = typeof service?.id === "string";
   const cancellation = readDeploymentCancellationSnapshot(snapshot);
   const cancellationRequested = cancellation !== null && status === DeploymentHealthStatus.Running;
+  const healthSummary = summarizeDeploymentHealth({ deployment, steps });
+  const rolloutStrategy = summarizeRolloutStrategy({
+    sourceType: deployment.sourceType,
+    serviceConfig: service?.config,
+    deploymentSnapshot: deployment.configSnapshot,
+    healthcheckPath: service?.healthcheckPath ?? null
+  });
 
   return {
     ...deployment,
@@ -123,6 +131,8 @@ function buildDeploymentView(
     createdAt: deployment.createdAt.toISOString(),
     startedAt: deployment.createdAt.toISOString(),
     finishedAt: deployment.concludedAt?.toISOString() ?? null,
+    healthSummary,
+    rolloutStrategy,
     steps: steps.map((step, index) => ({
       ...step,
       position: index + 1,

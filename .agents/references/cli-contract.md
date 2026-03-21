@@ -78,6 +78,22 @@ This file holds the detailed CLI contract, scope map, and agent-facing command r
 - `daoflow backup restore --yes` queues the restore and requires `backup:restore`
 - If an operator wants a human approval gate before restore execution, create a separate `requestApproval` with `approvals:create`
 
+## Services Contract
+
+- `daoflow services` reads the authenticated service inventory instead of the compose release catalog
+- Scope: `service:read`
+- Optional input:
+  - `--project <id>` to scope through `projectServices`
+  - `--json`
+- JSON success shape:
+  - `{ "ok": true, "data": { "projectId": string | null, "services": [{ "id": string, "name": string, "projectName": string | null, "environmentName": string | null, "sourceType": string, "status": string, "statusTone": string, "statusLabel": string, "runtimeSummary": { "status": "not-deployed" | "last-known-healthy" | "rollout-in-progress" | "attention", "statusLabel": string, "statusTone": string, "summary": string, "observedAt": string | null }, "rolloutStrategy": { "key": "compose-recreate" | "container-replace", "label": string, "summary": string, "downtimeRisk": "possible" | "expected", "supportsZeroDowntime": boolean, "healthGate": "readiness-probe" | "docker-health" | "container-health" }, "latestDeployment": { "id": string, "status": string, "statusLabel": string, "statusTone": string, "summary": string, "commitSha": string | null, "imageTag": string | null, "targetServerId": string, "targetServerName": string | null, "createdAt": string, "finishedAt": string | null } | null }] } }`
+- Human output must show:
+  - service name
+  - runtime status derived from the latest known rollout
+  - rollout strategy and whether downtime is still possible
+  - target server and current image when available
+  - a summary line explaining the latest health verdict
+
 ## Plan Command Contract
 
 - `daoflow plan` is a planning-lane command backed by the control plane, not a local CLI stub

@@ -123,6 +123,18 @@ export default function DeploymentsTab({ serviceId, serviceName }: DeploymentsTa
               finishedAt: string | null;
               canCancel: boolean;
               canRollback: boolean;
+              healthSummary?: {
+                statusLabel: string;
+                statusTone: string;
+                summary: string;
+                failureAnalysis: string | null;
+              };
+              rolloutStrategy?: {
+                label: string;
+                summary: string;
+                downtimeRisk: string;
+                supportsZeroDowntime: boolean;
+              };
               steps: { label: string; status: string; detail: string | null }[];
               error?: unknown;
               configSnapshot?: unknown;
@@ -196,6 +208,33 @@ export default function DeploymentsTab({ serviceId, serviceName }: DeploymentsTa
                 {/* Expanded step details */}
                 {expandedId === d.id && (
                   <div className="border-t px-4 py-3 bg-muted/30">
+                    {d.healthSummary ? (
+                      <div className="mb-3 rounded-md border bg-background/80 px-3 py-2 text-sm">
+                        <div className="flex items-center gap-2">
+                          <Badge variant={getBadgeVariantFromTone(d.healthSummary.statusTone)}>
+                            {d.healthSummary.statusLabel}
+                          </Badge>
+                          <span className="text-muted-foreground">{d.healthSummary.summary}</span>
+                        </div>
+                        {d.healthSummary.failureAnalysis ? (
+                          <p className="mt-2 text-xs text-muted-foreground">
+                            Failure analysis: {d.healthSummary.failureAnalysis}
+                          </p>
+                        ) : null}
+                      </div>
+                    ) : null}
+                    {d.rolloutStrategy ? (
+                      <div className="mb-3 rounded-md border bg-background/80 px-3 py-2 text-sm">
+                        <p className="font-medium">{d.rolloutStrategy.label}</p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {d.rolloutStrategy.summary}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Downtime risk: {d.rolloutStrategy.downtimeRisk}. Zero-downtime supported:{" "}
+                          {d.rolloutStrategy.supportsZeroDowntime ? "yes" : "no"}.
+                        </p>
+                      </div>
+                    ) : null}
                     {d.error ? (
                       <div className="mb-3 rounded-md bg-destructive/10 border border-destructive/20 px-3 py-2 text-sm text-destructive">
                         {typeof d.error === "string" ? d.error : JSON.stringify(d.error)}

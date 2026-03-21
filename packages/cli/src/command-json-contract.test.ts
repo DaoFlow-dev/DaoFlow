@@ -10,6 +10,7 @@ import { logsCommand } from "./commands/logs";
 import { registerConfigCommand } from "./commands/config";
 import { planCommand } from "./commands/plan";
 import { serverCommand } from "./commands/server";
+import { servicesCommand } from "./commands/services";
 import { tokenCommand } from "./commands/token";
 
 class ExitSignal extends Error {
@@ -301,6 +302,179 @@ describe("CLI JSON contract", () => {
           issues: ["No SSH private key is stored for this server."],
           recommendedActions: ["Add a per-server SSH user and private key before deploying."]
         }
+      }
+    });
+  });
+
+  test("services --project emits runtime-aware inventory in the standard success envelope", async () => {
+    const program = new Command().name("daoflow");
+    program.addCommand(servicesCommand());
+
+    const originalFetch = globalThis.fetch;
+
+    const result = await withTempHome(async () => {
+      process.env.DAOFLOW_URL = "https://daoflow.test";
+      process.env.DAOFLOW_TOKEN = "dfl_test_token";
+
+      const fetchMock = (input: RequestInfo | URL) => {
+        const url =
+          typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+
+        expect(url).toContain("/trpc/projectServices");
+        expect(url).toContain("projectId");
+        expect(url).toContain("proj_123");
+
+        return new Response(
+          JSON.stringify({
+            result: {
+              data: [
+                {
+                  id: "svc_api",
+                  name: "api",
+                  slug: "api",
+                  sourceType: "compose",
+                  status: "active",
+                  statusTone: "healthy",
+                  statusLabel: "Last known healthy",
+                  projectId: "proj_123",
+                  projectName: "Foundation",
+                  environmentId: "env_prod",
+                  environmentName: "production",
+                  imageReference: "ghcr.io/daoflow/api:latest",
+                  dockerfilePath: null,
+                  composeServiceName: "api",
+                  port: "3000",
+                  healthcheckPath: "/ready",
+                  replicaCount: "2",
+                  targetServerId: "srv_edge_1",
+                  createdAt: "2026-03-20T00:00:00.000Z",
+                  updatedAt: "2026-03-20T00:00:00.000Z",
+                  config: {},
+                  domainConfig: null,
+                  runtimeConfig: null,
+                  runtimeConfigPreview: null,
+                  runtimeSummary: {
+                    status: "last-known-healthy",
+                    statusLabel: "Last known healthy",
+                    statusTone: "healthy",
+                    summary: "api readiness probe passed at http://127.0.0.1:3000/ready (HTTP 200)",
+                    observedAt: "2026-03-20T00:05:00.000Z"
+                  },
+                  rolloutStrategy: {
+                    key: "compose-recreate",
+                    label: "Compose recreate",
+                    summary:
+                      "DaoFlow currently runs `docker compose up -d` and promotes the rollout only after Docker health and the configured readiness probe pass. This is health-gated, but it is not a true rolling or zero-downtime update.",
+                    downtimeRisk: "possible",
+                    supportsZeroDowntime: false,
+                    healthGate: "readiness-probe"
+                  },
+                  latestDeployment: {
+                    id: "dep_123",
+                    status: "verified",
+                    statusLabel: "Health verified",
+                    statusTone: "healthy",
+                    summary: "api readiness probe passed at http://127.0.0.1:3000/ready (HTTP 200)",
+                    commitSha: "abcdef1",
+                    imageTag: "ghcr.io/daoflow/api:latest",
+                    targetServerId: "srv_edge_1",
+                    targetServerName: "edge-1",
+                    createdAt: "2026-03-20T00:02:00.000Z",
+                    finishedAt: "2026-03-20T00:05:00.000Z"
+                  }
+                }
+              ]
+            }
+          }),
+          {
+            status: 200,
+            headers: { "content-type": "application/json" }
+          }
+        );
+      };
+
+      globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+      try {
+        return await captureCommandExecution(async () => {
+          await program.parseAsync([
+            "node",
+            "daoflow",
+            "services",
+            "--project",
+            "proj_123",
+            "--json"
+          ]);
+        });
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
+    });
+
+    expect(result.exitCode).toBeNull();
+    expect(result.errors).toEqual([]);
+    expect(result.logs).toHaveLength(1);
+    expect(JSON.parse(result.logs[0])).toEqual({
+      ok: true,
+      data: {
+        projectId: "proj_123",
+        services: [
+          {
+            id: "svc_api",
+            name: "api",
+            slug: "api",
+            sourceType: "compose",
+            status: "active",
+            statusTone: "healthy",
+            statusLabel: "Last known healthy",
+            projectId: "proj_123",
+            projectName: "Foundation",
+            environmentId: "env_prod",
+            environmentName: "production",
+            imageReference: "ghcr.io/daoflow/api:latest",
+            dockerfilePath: null,
+            composeServiceName: "api",
+            port: "3000",
+            healthcheckPath: "/ready",
+            replicaCount: "2",
+            targetServerId: "srv_edge_1",
+            createdAt: "2026-03-20T00:00:00.000Z",
+            updatedAt: "2026-03-20T00:00:00.000Z",
+            config: {},
+            domainConfig: null,
+            runtimeConfig: null,
+            runtimeConfigPreview: null,
+            runtimeSummary: {
+              status: "last-known-healthy",
+              statusLabel: "Last known healthy",
+              statusTone: "healthy",
+              summary: "api readiness probe passed at http://127.0.0.1:3000/ready (HTTP 200)",
+              observedAt: "2026-03-20T00:05:00.000Z"
+            },
+            rolloutStrategy: {
+              key: "compose-recreate",
+              label: "Compose recreate",
+              summary:
+                "DaoFlow currently runs `docker compose up -d` and promotes the rollout only after Docker health and the configured readiness probe pass. This is health-gated, but it is not a true rolling or zero-downtime update.",
+              downtimeRisk: "possible",
+              supportsZeroDowntime: false,
+              healthGate: "readiness-probe"
+            },
+            latestDeployment: {
+              id: "dep_123",
+              status: "verified",
+              statusLabel: "Health verified",
+              statusTone: "healthy",
+              summary: "api readiness probe passed at http://127.0.0.1:3000/ready (HTTP 200)",
+              commitSha: "abcdef1",
+              imageTag: "ghcr.io/daoflow/api:latest",
+              targetServerId: "srv_edge_1",
+              targetServerName: "edge-1",
+              createdAt: "2026-03-20T00:02:00.000Z",
+              finishedAt: "2026-03-20T00:05:00.000Z"
+            }
+          }
+        ]
       }
     });
   });

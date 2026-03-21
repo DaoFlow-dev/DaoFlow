@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Play, Square, RotateCcw, Trash2, Loader2, RefreshCw } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { useState } from "react";
-import { getInventoryBadgeVariant } from "@/lib/tone-utils";
+import { getBadgeVariantFromTone } from "@/lib/tone-utils";
 
 interface ServiceHeaderProps {
   service: {
@@ -13,7 +13,19 @@ interface ServiceHeaderProps {
     name: string;
     sourceType: string;
     status: string;
+    statusTone?: string;
+    statusLabel?: string;
     projectId: string;
+    runtimeSummary?: {
+      statusLabel: string;
+      statusTone: string;
+      summary: string;
+    };
+    rolloutStrategy?: {
+      label: string;
+      downtimeRisk: string;
+      supportsZeroDowntime: boolean;
+    };
   };
   projectName?: string;
 }
@@ -79,9 +91,21 @@ export default function ServiceHeader({ service, projectName }: ServiceHeaderPro
           </Button>
           <div>
             <h1 className="text-2xl font-semibold">{service.name}</h1>
-            <p className="text-sm text-muted-foreground">{service.sourceType} service</p>
+            <p className="text-sm text-muted-foreground">
+              {service.sourceType} service
+              {service.rolloutStrategy ? ` · ${service.rolloutStrategy.label}` : ""}
+            </p>
+            {service.runtimeSummary ? (
+              <p className="text-sm text-muted-foreground">{service.runtimeSummary.summary}</p>
+            ) : null}
           </div>
-          <Badge variant={getInventoryBadgeVariant(service.status)}>{service.status}</Badge>
+          <Badge
+            variant={getBadgeVariantFromTone(
+              service.runtimeSummary?.statusTone ?? service.statusTone ?? service.status
+            )}
+          >
+            {service.runtimeSummary?.statusLabel ?? service.statusLabel ?? service.status}
+          </Badge>
         </div>
 
         <div className="flex items-center gap-1.5">
