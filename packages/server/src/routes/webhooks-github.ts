@@ -1,14 +1,20 @@
 import type { Context } from "hono";
 import { claimWebhookDelivery, finalizeWebhookDelivery } from "../db/services/webhook-deliveries";
+import { buildWebhookDeliveryKey, readGitHubPreviewLifecycle } from "../webhook-preview-lifecycle";
 import {
   collectChangedPaths,
-  listWebhookTargets,
-  processWebhookPushTargets,
   determineWebhookDeliveryStatus,
+  listWebhookTargets,
   verifyGitHubSignature,
-  writeWebhookAuditEntry,
-  type GitHubPushEvent
-} from "./webhooks-shared";
+  writeWebhookAuditEntry
+} from "./webhooks-delivery";
+import { processWebhookPushTargets } from "./webhooks-push";
+import { triggerPreviewWebhookDeploys } from "./webhooks-preview";
+import type { GitHubPushEvent } from "./webhooks-types";
+
+function summarizeCommit(commitSha: string) {
+  return commitSha ? commitSha.slice(0, 7) : "unknown";
+}
 
 export async function handleGitHubWebhook(c: Context) {
   let claimedDelivery: {
@@ -17,8 +23,12 @@ export async function handleGitHubWebhook(c: Context) {
 
   try {
     const event = c.req.header("x-github-event");
-    if (event !== "push") {
-      return c.json({ ok: true, skipped: true, reason: "not a push event" });
+    if (!event) {
+      return c.json({ ok: false, error: "Missing event type" }, 400);
+    }
+
+    if (event !== "push" && event !== "pull_request") {
+      return c.json({ ok: true, skipped: true, reason: `unsupported event ${event}` });
     }
 
     const signature = c.req.header("x-hub-signature-256");
@@ -33,10 +43,70 @@ export async function handleGitHubWebhook(c: Context) {
       return c.json({ ok: false, error: "Missing repository" }, 400);
     }
 
-    const deliveryId = c.req.header("x-github-delivery");
     const externalInstallationId = payload.installation?.id
       ? String(payload.installation.id)
       : null;
+    const matchingTargets = await listWebhookTargets({
+      repoFullName,
+      providerType: "github",
+      externalInstallationId
+    });
+
+    if (matchingTargets.length === 0) {
+      return c.json({ ok: true, skipped: true, reason: "no matching projects" });
+    }
+
+    const verifiedProviderIds = [
+      ...new Set(
+        matchingTargets
+          .filter(
+            ({ provider }) =>
+              Boolean(provider.webhookSecret) &&
+              verifyGitHubSignature(rawBody, signature, provider.webhookSecret!)
+          )
+          .map(({ provider }) => provider.id)
+      )
+    ];
+
+    if (verifiedProviderIds.length === 0) {
+      return c.json({ ok: false, error: "Invalid signature" }, 401);
+    }
+
+    const verifiedTargets = matchingTargets.filter(({ provider }) =>
+      verifiedProviderIds.includes(provider.id)
+    );
+
+    if (event === "pull_request") {
+      const lifecycle = readGitHubPreviewLifecycle(payload);
+      if (!lifecycle) {
+        return c.json({ ok: true, skipped: true, reason: "unsupported pull_request action" });
+      }
+
+      return c.json(
+        await triggerPreviewWebhookDeploys({
+          providerType: "github",
+          repoFullName,
+          matchingTargets: verifiedTargets,
+          deliveryKey: buildWebhookDeliveryKey({
+            providerType: "github",
+            headerValue: c.req.header("x-github-delivery"),
+            rawBody
+          }),
+          eventType: event,
+          eventAction: lifecycle.eventAction,
+          requestedByEmail: lifecycle.requestedByEmail,
+          commitSha: lifecycle.commitSha,
+          preview: {
+            target: "pull-request",
+            branch: lifecycle.preview.branch,
+            pullRequestNumber: lifecycle.preview.pullRequestNumber!,
+            action: lifecycle.preview.action ?? "deploy"
+          }
+        })
+      );
+    }
+
+    const deliveryId = c.req.header("x-github-delivery");
     const branch = (payload.ref ?? "").replace("refs/heads/", "");
     const commitSha = payload.after ?? "";
     const changedPaths = collectChangedPaths(payload.commits);
@@ -68,7 +138,7 @@ export async function handleGitHubWebhook(c: Context) {
         actorId: "github-webhook",
         actorEmail: requestedByEmail,
         action: "webhook.delivery.duplicate",
-        inputSummary: `Ignored duplicate GitHub push delivery for ${branch}@${commitSha.slice(0, 7)}`,
+        inputSummary: `Ignored duplicate GitHub push delivery for ${branch}@${summarizeCommit(commitSha)}`,
         outcome: "success",
         metadata: {
           repoFullName,
@@ -81,83 +151,6 @@ export async function handleGitHubWebhook(c: Context) {
       return c.json({ ok: true, skipped: true, reason: "duplicate delivery" });
     }
 
-    const matchingTargets = await listWebhookTargets({
-      repoFullName,
-      providerType: "github",
-      externalInstallationId
-    });
-
-    if (matchingTargets.length === 0) {
-      const metadata = {
-        repoFullName,
-        branch,
-        commitSha,
-        deliveryId: deliveryId ?? null,
-        deliveryKey: deliveryClaim.deliveryKey,
-        externalInstallationId
-      };
-      await finalizeWebhookDelivery({
-        providerType: "github",
-        deliveryKey: deliveryClaim.deliveryKey,
-        status: "ignored",
-        metadata
-      });
-      await writeWebhookAuditEntry({
-        providerType: "github",
-        repoFullName,
-        actorId: "github-webhook",
-        actorEmail: requestedByEmail,
-        action: "webhook.push.ignored",
-        inputSummary: `Ignored GitHub push for ${branch}@${commitSha.slice(0, 7)} because no matching auto-deploy project was found`,
-        outcome: "success",
-        metadata
-      });
-      return c.json({ ok: true, skipped: true, reason: "no matching projects" });
-    }
-
-    const verifiedProviderIds = [
-      ...new Set(
-        matchingTargets
-          .filter(
-            ({ provider }) =>
-              Boolean(provider.webhookSecret) &&
-              verifyGitHubSignature(rawBody, signature, provider.webhookSecret!)
-          )
-          .map(({ provider }) => provider.id)
-      )
-    ];
-
-    if (verifiedProviderIds.length === 0) {
-      const metadata = {
-        repoFullName,
-        branch,
-        commitSha,
-        deliveryId: deliveryId ?? null,
-        deliveryKey: deliveryClaim.deliveryKey,
-        externalInstallationId
-      };
-      await finalizeWebhookDelivery({
-        providerType: "github",
-        deliveryKey: deliveryClaim.deliveryKey,
-        status: "rejected",
-        metadata
-      });
-      await writeWebhookAuditEntry({
-        providerType: "github",
-        repoFullName,
-        actorId: "github-webhook",
-        actorEmail: requestedByEmail,
-        action: "webhook.push.rejected",
-        inputSummary: `Rejected GitHub push for ${branch}@${commitSha.slice(0, 7)} because the signature was invalid`,
-        outcome: "denied",
-        metadata
-      });
-      return c.json({ ok: false, error: "Invalid signature" }, 401);
-    }
-
-    const verifiedTargets = matchingTargets.filter(({ provider }) =>
-      verifiedProviderIds.includes(provider.id)
-    );
     const result = await processWebhookPushTargets({
       providerType: "github",
       repoFullName,

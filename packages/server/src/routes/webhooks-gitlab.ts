@@ -1,14 +1,20 @@
 import type { Context } from "hono";
 import { claimWebhookDelivery, finalizeWebhookDelivery } from "../db/services/webhook-deliveries";
+import { buildWebhookDeliveryKey, readGitLabPreviewLifecycle } from "../webhook-preview-lifecycle";
 import {
   collectChangedPaths,
   determineWebhookDeliveryStatus,
   listWebhookTargets,
-  processWebhookPushTargets,
   verifyGitLabToken,
-  writeWebhookAuditEntry,
-  type GitLabPushEvent
-} from "./webhooks-shared";
+  writeWebhookAuditEntry
+} from "./webhooks-delivery";
+import { processWebhookPushTargets } from "./webhooks-push";
+import { triggerPreviewWebhookDeploys } from "./webhooks-preview";
+import type { GitLabPushEvent } from "./webhooks-types";
+
+function summarizeCommit(commitSha: string) {
+  return commitSha ? commitSha.slice(0, 7) : "unknown";
+}
 
 export async function handleGitLabWebhook(c: Context) {
   let claimedDelivery: {
@@ -16,11 +22,6 @@ export async function handleGitLabWebhook(c: Context) {
   } | null = null;
 
   try {
-    const event = c.req.header("x-gitlab-event");
-    if (event && event !== "Push Hook") {
-      return c.json({ ok: true, skipped: true, reason: "not a push event" });
-    }
-
     const token = c.req.header("x-gitlab-token");
     if (!token) {
       return c.json({ ok: false, error: "Missing token" }, 401);
@@ -33,7 +34,67 @@ export async function handleGitLabWebhook(c: Context) {
       return c.json({ ok: false, error: "Missing project" }, 400);
     }
 
-    const deliveryId = c.req.header("x-gitlab-event-uuid");
+    const matchingTargets = await listWebhookTargets({
+      repoFullName,
+      providerType: "gitlab"
+    });
+
+    if (matchingTargets.length === 0) {
+      return c.json({ ok: true, skipped: true, reason: "no matching projects" });
+    }
+
+    const verifiedProviderIds = [
+      ...new Set(
+        matchingTargets
+          .filter(
+            ({ provider }) =>
+              Boolean(provider.webhookSecret) && verifyGitLabToken(token, provider.webhookSecret!)
+          )
+          .map(({ provider }) => provider.id)
+      )
+    ];
+
+    if (verifiedProviderIds.length === 0) {
+      return c.json({ ok: false, error: "Invalid token" }, 401);
+    }
+
+    const verifiedTargets = matchingTargets.filter(({ provider }) =>
+      verifiedProviderIds.includes(provider.id)
+    );
+
+    const gitlabEvent = (c.req.header("x-gitlab-event") ?? "").toLowerCase();
+    const lifecycle = readGitLabPreviewLifecycle(payload);
+    if (gitlabEvent.includes("merge request") || lifecycle) {
+      if (!lifecycle) {
+        return c.json({ ok: true, skipped: true, reason: "unsupported merge_request action" });
+      }
+
+      return c.json(
+        await triggerPreviewWebhookDeploys({
+          providerType: "gitlab",
+          repoFullName,
+          matchingTargets: verifiedTargets,
+          deliveryKey: buildWebhookDeliveryKey({
+            providerType: "gitlab",
+            headerValue:
+              c.req.header("x-gitlab-event-uuid") ?? c.req.header("x-gitlab-webhook-uuid"),
+            rawBody
+          }),
+          eventType: "merge_request",
+          eventAction: lifecycle.eventAction,
+          requestedByEmail: lifecycle.requestedByEmail,
+          commitSha: lifecycle.commitSha,
+          preview: {
+            target: "pull-request",
+            branch: lifecycle.preview.branch,
+            pullRequestNumber: lifecycle.preview.pullRequestNumber!,
+            action: lifecycle.preview.action ?? "deploy"
+          }
+        })
+      );
+    }
+
+    const deliveryId = c.req.header("x-gitlab-event-uuid") ?? c.req.header("x-gitlab-webhook-uuid");
     const branch = (payload.ref ?? "").replace("refs/heads/", "");
     const commitSha = payload.checkout_sha ?? payload.after ?? "";
     const changedPaths = collectChangedPaths(payload.commits);
@@ -64,7 +125,7 @@ export async function handleGitLabWebhook(c: Context) {
         actorId: "gitlab-webhook",
         actorEmail: requestedByEmail,
         action: "webhook.delivery.duplicate",
-        inputSummary: `Ignored duplicate GitLab push delivery for ${branch}@${commitSha.slice(0, 7)}`,
+        inputSummary: `Ignored duplicate GitLab push delivery for ${branch}@${summarizeCommit(commitSha)}`,
         outcome: "success",
         metadata: {
           repoFullName,
@@ -77,79 +138,6 @@ export async function handleGitLabWebhook(c: Context) {
       return c.json({ ok: true, skipped: true, reason: "duplicate delivery" });
     }
 
-    const matchingTargets = await listWebhookTargets({
-      repoFullName,
-      providerType: "gitlab"
-    });
-
-    if (matchingTargets.length === 0) {
-      const metadata = {
-        repoFullName,
-        branch,
-        commitSha,
-        deliveryId: deliveryId ?? null,
-        deliveryKey: deliveryClaim.deliveryKey
-      };
-      await finalizeWebhookDelivery({
-        providerType: "gitlab",
-        deliveryKey: deliveryClaim.deliveryKey,
-        status: "ignored",
-        metadata
-      });
-      await writeWebhookAuditEntry({
-        providerType: "gitlab",
-        repoFullName,
-        actorId: "gitlab-webhook",
-        actorEmail: requestedByEmail,
-        action: "webhook.push.ignored",
-        inputSummary: `Ignored GitLab push for ${branch}@${commitSha.slice(0, 7)} because no matching auto-deploy project was found`,
-        outcome: "success",
-        metadata
-      });
-      return c.json({ ok: true, skipped: true, reason: "no matching projects" });
-    }
-
-    const verifiedProviderIds = [
-      ...new Set(
-        matchingTargets
-          .filter(
-            ({ provider }) =>
-              Boolean(provider.webhookSecret) && verifyGitLabToken(token, provider.webhookSecret!)
-          )
-          .map(({ provider }) => provider.id)
-      )
-    ];
-
-    if (verifiedProviderIds.length === 0) {
-      const metadata = {
-        repoFullName,
-        branch,
-        commitSha,
-        deliveryId: deliveryId ?? null,
-        deliveryKey: deliveryClaim.deliveryKey
-      };
-      await finalizeWebhookDelivery({
-        providerType: "gitlab",
-        deliveryKey: deliveryClaim.deliveryKey,
-        status: "rejected",
-        metadata
-      });
-      await writeWebhookAuditEntry({
-        providerType: "gitlab",
-        repoFullName,
-        actorId: "gitlab-webhook",
-        actorEmail: requestedByEmail,
-        action: "webhook.push.rejected",
-        inputSummary: `Rejected GitLab push for ${branch}@${commitSha.slice(0, 7)} because the token was invalid`,
-        outcome: "denied",
-        metadata
-      });
-      return c.json({ ok: false, error: "Invalid token" }, 401);
-    }
-
-    const verifiedTargets = matchingTargets.filter(({ provider }) =>
-      verifiedProviderIds.includes(provider.id)
-    );
     const result = await processWebhookPushTargets({
       providerType: "gitlab",
       repoFullName,
