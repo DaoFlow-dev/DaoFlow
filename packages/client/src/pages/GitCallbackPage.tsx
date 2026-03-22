@@ -18,6 +18,12 @@ import { CheckCircle, XCircle, Loader2, GitBranch } from "lucide-react";
 
 type CallbackState = "processing" | "success" | "error";
 
+type GitInstallationSuccessData = { accountName: string } | { summary: { accountName: string } };
+
+function getInstallationAccountName(data: GitInstallationSuccessData) {
+  return "summary" in data ? data.summary.accountName : data.accountName;
+}
+
 export default function GitCallbackPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -26,10 +32,10 @@ export default function GitCallbackPage() {
   const [detail, setDetail] = useState("");
 
   const createInstallation = trpc.createGitInstallation.useMutation({
-    onSuccess: (data: { accountName: string }) => {
+    onSuccess: (data: GitInstallationSuccessData) => {
       setState("success");
       setMessage("Installation connected successfully");
-      setDetail(`Account: ${data.accountName}`);
+      setDetail(`Account: ${getInstallationAccountName(data)}`);
     },
     onError: (err: { message: string }) => {
       setState("error");
@@ -39,10 +45,10 @@ export default function GitCallbackPage() {
   });
 
   const exchangeGitLabCode = trpc.exchangeGitLabCode.useMutation({
-    onSuccess: (data: { accountName: string }) => {
+    onSuccess: (data: GitInstallationSuccessData) => {
       setState("success");
       setMessage("GitLab connected successfully");
-      setDetail(`Account: ${data.accountName}`);
+      setDetail(`Account: ${getInstallationAccountName(data)}`);
     },
     onError: (err: { message: string }) => {
       setState("error");
