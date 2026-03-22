@@ -18,6 +18,7 @@ import {
   resetInitialOwnerBootstrapState,
   waitForInitialOwnerBootstrapIdle
 } from "./bootstrap-initial-owner";
+import { resetAuthState } from "./auth";
 
 const { Client } = pg;
 const TEST_DB_PREPARE_LOCK_ID = 8_705_231;
@@ -242,6 +243,7 @@ export async function resetTestDatabase() {
   await waitForInitialOwnerBootstrapIdle();
   resetControlPlaneSeedState();
   resetInitialOwnerBootstrapState();
+  resetAuthState();
   await withTestDatabaseLock(connectionString, async () => {
     if (await isTestSchemaReady(connectionString)) {
       await truncateDatabaseTables(connectionString);
