@@ -16,6 +16,15 @@ import {
 import { GitBranch, Plus, Trash2, ExternalLink } from "lucide-react";
 import { getInventoryBadgeVariant } from "../lib/tone-utils";
 
+function normalizeGitHubAppNameSegment(name: string): string {
+  return name
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
 export default function GitProvidersTab() {
   const [showRegister, setShowRegister] = useState(false);
   const providers = trpc.gitProviders.useQuery();
@@ -85,6 +94,7 @@ function ProviderCard({
   const deleteMutation = trpc.deleteGitProvider.useMutation({
     onSuccess: onDeleted
   });
+  const githubInstallPath = normalizeGitHubAppNameSegment(provider.name);
 
   return (
     <Card>
@@ -118,7 +128,7 @@ function ProviderCard({
         </p>
         {provider.type === "github" && provider.appId ? (
           <a
-            href={`https://github.com/apps/${provider.name}/installations/new?state=${provider.id}`}
+            href={`https://github.com/apps/${githubInstallPath}/installations/new?state=${provider.id}`}
             target="_blank"
             rel="noopener noreferrer"
           >

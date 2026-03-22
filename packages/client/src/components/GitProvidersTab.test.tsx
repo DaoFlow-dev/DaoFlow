@@ -121,4 +121,31 @@ describe("GitProvidersTab", () => {
       baseUrl: "https://gitlab.example.com"
     });
   });
+
+  it("normalizes the GitHub install href from the provider display name", () => {
+    gitProvidersUseQueryMock.mockReturnValue({
+      data: [
+        {
+          id: "provider_github",
+          type: "github",
+          name: "My App N ame",
+          status: "active",
+          appId: "123456",
+          clientId: null,
+          baseUrl: null
+        }
+      ],
+      refetch: refetchMock
+    });
+
+    render(<GitProvidersTab />);
+
+    const installButton = screen.getByTestId("git-provider-install-provider_github");
+    const installLink = installButton.closest("a");
+
+    expect(installLink).toHaveAttribute(
+      "href",
+      "https://github.com/apps/my-app-n-ame/installations/new?state=provider_github"
+    );
+  });
 });
