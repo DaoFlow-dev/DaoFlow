@@ -312,6 +312,45 @@ export interface BackupRestorePlanOutput {
   };
 }
 
+export interface BackupRunDetailsOutput {
+  id: string;
+  policyId: string;
+  policyName: string;
+  projectName: string;
+  environmentName: string;
+  serviceName: string;
+  targetType: "volume" | "database";
+  destinationName: string;
+  destinationProvider: BackupProvider | null;
+  destinationServerName: string;
+  mountPath: string | null;
+  backupType: "volume" | "database";
+  databaseEngine: "postgres" | "mysql" | "mariadb" | "mongo" | null;
+  scheduleLabel: string | null;
+  retentionCount: number | null;
+  status: string;
+  statusTone: string;
+  triggerKind: "manual" | "scheduled";
+  executionEngine: "legacy" | "temporal";
+  temporalWorkflowId: string | null;
+  requestedBy: string;
+  artifactPath: string | null;
+  bytesWritten: number | null;
+  checksum: string | null;
+  verifiedAt: string | null;
+  startedAt: string;
+  finishedAt: string | null;
+  error: string | null;
+  restoreCount: number;
+  logsState: "unavailable" | "empty" | "streaming" | "available";
+  logEntries: Array<{
+    timestamp: string;
+    level: string;
+    phase: string;
+    message: string;
+  }>;
+}
+
 export interface RegisterServerOutput {
   id: string;
   name: string;
@@ -858,6 +897,7 @@ export interface DaoFlowTRPC {
   composePreviews: QueryProcedure<ComposePreviewsOutput, { serviceId: string }>;
   composeReleaseCatalog: QueryProcedure<ComposeReleaseCatalogOutput, { limit?: number }>;
   backupOverview: QueryProcedure<BackupOverviewOutput, { limit?: number }>;
+  backupRunDetails: QueryProcedure<BackupRunDetailsOutput, { runId: string }>;
   persistentVolumes: QueryProcedure<PersistentVolumeRegistryOutput, { limit?: number }>;
   backupDestinations: QueryProcedure<BackupDestinationOutput[], { limit?: number }>;
   createVolume: MutationProcedure<

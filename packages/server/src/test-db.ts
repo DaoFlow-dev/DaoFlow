@@ -2,64 +2,29 @@ import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import pg from "pg";
+import { pool, reinitializeDatabaseConnection } from "./db/connection";
+import {
+  ensureControlPlaneReady,
+  resetControlPlaneSeedState,
+  waitForControlPlaneSeedIdle
+} from "./db/services/seed";
 import {
   ensureDatabaseExists,
   resetDatabaseSchema,
   truncateDatabaseTables
 } from "./db/reset-database";
-import { resetInitialOwnerBootstrapState } from "./bootstrap-initial-owner";
-import { ensureControlPlaneReady, resetControlPlaneSeedState } from "./db/services/seed";
+import { resolveTestDatabaseUrl } from "./db/test-database-url";
+import {
+  resetInitialOwnerBootstrapState,
+  waitForInitialOwnerBootstrapIdle
+} from "./bootstrap-initial-owner";
 
 const { Client } = pg;
 const TEST_DB_PREPARE_LOCK_ID = 8_705_231;
+const MIN_EXPECTED_PUBLIC_TABLES = 30;
 
 let prepared = false;
 let preparePromise: Promise<string> | null = null;
-
-function resolveBaseDatabaseUrl() {
-  return process.env.DATABASE_URL ?? "postgresql://daoflow:daoflow_dev@localhost:5432/daoflow";
-}
-
-function resolveVitestWorkerSuffix() {
-  const workerId = process.env.VITEST_WORKER_ID ?? process.env.VITEST_POOL_ID;
-  if (!workerId) {
-    return "";
-  }
-
-  return `_w${workerId.replaceAll(/[^a-zA-Z0-9_-]/g, "")}`;
-}
-
-function applyDatabaseNameSuffix(databaseName: string, suffix: string) {
-  if (!suffix) {
-    return databaseName;
-  }
-
-  const maxDatabaseNameLength = 63;
-  const truncatedBaseName = databaseName.slice(
-    0,
-    Math.max(1, maxDatabaseNameLength - suffix.length)
-  );
-  return `${truncatedBaseName}${suffix}`;
-}
-
-function resolveTestDatabaseUrl() {
-  if (process.env.TEST_DATABASE_URL) {
-    return process.env.TEST_DATABASE_URL;
-  }
-
-  const baseUrl = new URL(resolveBaseDatabaseUrl());
-  const databaseName = baseUrl.pathname.replace(/^\//, "") || "daoflow";
-  const workerSuffix = resolveVitestWorkerSuffix();
-  const unsuffixedDatabaseName =
-    workerSuffix && databaseName.endsWith(workerSuffix)
-      ? databaseName.slice(0, -workerSuffix.length)
-      : databaseName;
-  const testDatabaseName = unsuffixedDatabaseName.endsWith("_test")
-    ? unsuffixedDatabaseName
-    : `${unsuffixedDatabaseName}_test`;
-  baseUrl.pathname = `/${applyDatabaseNameSuffix(testDatabaseName, workerSuffix)}`;
-  return baseUrl.toString();
-}
 
 async function applyMigrations(connectionString: string) {
   const migrationDir = path.resolve(
@@ -108,32 +73,144 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
 
   try {
     const result = await client.query<{
+      tableCount: number;
       users: string | null;
+      teams: string | null;
+      projects: string | null;
+      environments: string | null;
+      services: string | null;
       deployments: string | null;
+      gitProviders: string | null;
       cliAuthRequests: string | null;
     }>(`
       SELECT
+        (SELECT count(*)::int FROM pg_tables WHERE schemaname = 'public') AS "tableCount",
         to_regclass('public.users') AS "users",
+        to_regclass('public.teams') AS "teams",
+        to_regclass('public.projects') AS "projects",
+        to_regclass('public.environments') AS "environments",
+        to_regclass('public.services') AS "services",
         to_regclass('public.deployments') AS "deployments",
+        to_regclass('public.git_providers') AS "gitProviders",
         to_regclass('public.cli_auth_requests') AS "cliAuthRequests"
     `);
     const row = result.rows[0];
-    return Boolean(row?.users && row.deployments && row.cliAuthRequests);
+    return Boolean(
+      row?.tableCount &&
+      row.tableCount >= MIN_EXPECTED_PUBLIC_TABLES &&
+      row.users &&
+      row.teams &&
+      row.projects &&
+      row.environments &&
+      row.services &&
+      row.deployments &&
+      row.gitProviders &&
+      row.cliAuthRequests
+    );
   } finally {
     await client.end();
   }
 }
 
+async function isControlPlaneSeedReady(connectionString: string): Promise<boolean> {
+  const client = new Client({ connectionString });
+  await client.connect();
+
+  try {
+    const result = await client.query<{
+      hasUser: boolean;
+      hasTeam: boolean;
+      hasServer: boolean;
+    }>(`
+      SELECT
+        EXISTS (SELECT 1 FROM public.users WHERE id = 'user_foundation_owner') AS "hasUser",
+        EXISTS (SELECT 1 FROM public.teams WHERE id = 'team_foundation') AS "hasTeam",
+        EXISTS (SELECT 1 FROM public.servers WHERE id = 'srv_foundation_1') AS "hasServer"
+    `);
+    const row = result.rows[0];
+    return Boolean(row?.hasUser && row.hasTeam && row.hasServer);
+  } catch (error) {
+    if (error instanceof Error && "code" in error && error.code === "42P01") {
+      return false;
+    }
+
+    throw error;
+  } finally {
+    await client.end();
+  }
+}
+
+async function readPoolSchemaState() {
+  const result = await pool.query<{
+    databaseName: string;
+    tableCount: number;
+    users: string | null;
+    teams: string | null;
+    projects: string | null;
+    environments: string | null;
+    services: string | null;
+    deployments: string | null;
+    gitProviders: string | null;
+    cliAuthRequests: string | null;
+  }>(`
+    SELECT
+      current_database() AS "databaseName",
+      (SELECT count(*)::int FROM pg_tables WHERE schemaname = 'public') AS "tableCount",
+      to_regclass('public.users') AS "users",
+      to_regclass('public.teams') AS "teams",
+      to_regclass('public.projects') AS "projects",
+      to_regclass('public.environments') AS "environments",
+      to_regclass('public.services') AS "services",
+      to_regclass('public.deployments') AS "deployments",
+      to_regclass('public.git_providers') AS "gitProviders",
+      to_regclass('public.cli_auth_requests') AS "cliAuthRequests"
+  `);
+
+  return result.rows[0];
+}
+
+function readDatabaseName(connectionString: string) {
+  return new URL(connectionString).pathname.replace(/^\//, "") || "daoflow_test";
+}
+
+async function ensurePooledTestSchemaReady(connectionString: string) {
+  const expectedDatabaseName = readDatabaseName(connectionString);
+
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const state = await readPoolSchemaState();
+      if (
+        state?.databaseName === expectedDatabaseName &&
+        state.tableCount >= MIN_EXPECTED_PUBLIC_TABLES &&
+        state.users &&
+        state.teams &&
+        state.projects &&
+        state.environments &&
+        state.services &&
+        state.deployments &&
+        state.gitProviders &&
+        state.cliAuthRequests
+      ) {
+        return;
+      }
+    } catch {
+      // Force a pool reconnect below and retry once.
+    }
+
+    await reinitializeDatabaseConnection({ connectionString, force: true });
+  }
+
+  throw new Error(
+    `Test database pool is not ready for ${expectedDatabaseName} after schema reset.`
+  );
+}
+
 export async function ensureTestDatabaseReady() {
   const connectionString = resolveTestDatabaseUrl();
   process.env.DATABASE_URL = connectionString;
+  await reinitializeDatabaseConnection({ connectionString });
 
-  if (prepared) {
-    const { getDatabaseConnectionString, reconfigureDatabasePool } =
-      await import("./db/connection");
-    if (getDatabaseConnectionString() !== connectionString) {
-      await reconfigureDatabasePool(connectionString);
-    }
+  if (prepared && (await isTestSchemaReady(connectionString))) {
     return connectionString;
   }
 
@@ -145,6 +222,8 @@ export async function ensureTestDatabaseReady() {
           await applyMigrations(connectionString);
         }
       });
+      await reinitializeDatabaseConnection({ connectionString, force: true });
+      await ensurePooledTestSchemaReady(connectionString);
       prepared = true;
       return connectionString;
     })().finally(() => {
@@ -154,24 +233,43 @@ export async function ensureTestDatabaseReady() {
 
   await preparePromise;
 
-  const { getDatabaseConnectionString, reconfigureDatabasePool } = await import("./db/connection");
-  if (getDatabaseConnectionString() !== connectionString) {
-    await reconfigureDatabasePool(connectionString);
-  }
-
   return connectionString;
 }
 
 export async function resetTestDatabase() {
   const connectionString = await ensureTestDatabaseReady();
+  await waitForControlPlaneSeedIdle();
+  await waitForInitialOwnerBootstrapIdle();
   resetControlPlaneSeedState();
   resetInitialOwnerBootstrapState();
   await withTestDatabaseLock(connectionString, async () => {
-    await truncateDatabaseTables(connectionString);
+    if (await isTestSchemaReady(connectionString)) {
+      await truncateDatabaseTables(connectionString);
+      return;
+    }
+
+    await applyMigrations(connectionString);
   });
+  await reinitializeDatabaseConnection({ connectionString, force: true });
+  await ensurePooledTestSchemaReady(connectionString);
+}
+
+export async function resetTestDatabaseWithControlPlane() {
+  const connectionString = await ensureTestDatabaseReady();
+
+  await resetTestDatabase();
+
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    resetControlPlaneSeedState();
+    await ensureControlPlaneReady();
+    if (await isControlPlaneSeedReady(connectionString)) {
+      return;
+    }
+  }
+
+  throw new Error("Control-plane seed did not become ready after resetting the test database.");
 }
 
 export async function resetSeededTestDatabase() {
-  await resetTestDatabase();
-  await ensureControlPlaneReady();
+  await resetTestDatabaseWithControlPlane();
 }

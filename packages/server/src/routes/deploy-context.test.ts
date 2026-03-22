@@ -4,6 +4,17 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const tempDirs: string[] = [];
+const mockedModuleIds = [
+  "../auth",
+  "../db/services/seed",
+  "../db/services/direct-deployments",
+  "../db/services/deployments",
+  "../db/services/deployment-dispatch",
+  "../db/services/json-helpers",
+  "../worker/docker-executor",
+  "../worker/uploaded-artifacts",
+  "./stream-to-file"
+] as const;
 
 async function loadHarness() {
   const stageDir = mkdtempSync(join(tmpdir(), "daoflow-deploy-context-"));
@@ -87,6 +98,12 @@ describe("deployContextRouter", () => {
   });
 
   afterEach(() => {
+    vi.restoreAllMocks();
+    vi.clearAllMocks();
+    for (const moduleId of mockedModuleIds) {
+      vi.doUnmock(moduleId);
+    }
+    vi.resetModules();
     for (const stageDir of tempDirs.splice(0, tempDirs.length)) {
       rmSync(stageDir, { recursive: true, force: true });
     }

@@ -3,29 +3,41 @@ import { seedUsers } from "./seed/seed-users";
 import { seedInfrastructure } from "./seed/seed-infrastructure";
 import { seedDeployments } from "./seed/seed-deployments";
 import { seedObservability } from "./seed/seed-observability";
+import { getProcessValueAccessor } from "../../process-singleton";
 
-let foundationSeedPromise: Promise<void> | null = null;
+const PROCESS_SEED_PROMISE_KEY = "__daoflowFoundationSeedPromise__";
+
+function getFoundationSeedPromise() {
+  return getProcessValueAccessor<Promise<void> | null>(PROCESS_SEED_PROMISE_KEY, null);
+}
 
 /** Lazy-init seed data — caches the promise so it only runs once. */
 export function ensureControlPlaneReady() {
-  foundationSeedPromise ??= seedControlPlaneData().catch((err) => {
+  const state = getFoundationSeedPromise();
+
+  state.current ??= seedControlPlaneData().catch((err) => {
     // Clear the cached promise so the next request retries
-    foundationSeedPromise = null;
+    state.current = null;
     console.warn(
       "[seed] Control-plane seed failed (will retry on next request):",
       err instanceof Error ? err.message : String(err)
     );
     throw err;
   });
-  return foundationSeedPromise;
+
+  return state.current;
 }
 
 export function resetControlPlaneSeedState() {
-  foundationSeedPromise = null;
+  getFoundationSeedPromise().current = null;
+}
+
+export async function waitForControlPlaneSeedIdle() {
+  await getFoundationSeedPromise().current;
 }
 
 export function primeControlPlaneSeedState() {
-  foundationSeedPromise = Promise.resolve();
+  getFoundationSeedPromise().current = Promise.resolve();
 }
 
 export async function seedControlPlaneData() {

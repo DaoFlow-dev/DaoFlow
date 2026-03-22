@@ -4,12 +4,12 @@ import { db } from "../db/connection";
 import { gitInstallations, gitProviders } from "../db/schema/git-providers";
 import { encodeGitInstallationPermissions } from "../db/services/git-providers";
 import { encrypt } from "../db/crypto";
-import { resetSeededTestDatabase } from "../test-db";
+import { resetTestDatabaseWithControlPlane } from "../test-db";
 import { resolveCheckoutSpec } from "./checkout-source";
 
 describe("resolveCheckoutSpec", () => {
   beforeEach(async () => {
-    await resetSeededTestDatabase();
+    await resetTestDatabaseWithControlPlane();
   });
 
   afterEach(() => {

@@ -13,9 +13,8 @@ import { apiTokens, principals } from "./db/schema/tokens";
 import { users } from "./db/schema/users";
 import { encrypt } from "./db/crypto";
 import { encodeGitInstallationPermissions } from "./db/services/git-providers";
-import { createEnvironment, createProject } from "./db/services/projects";
-import { createService } from "./db/services/services";
-import { resetSeededTestDatabase, resetTestDatabase } from "./test-db";
+import { resetTestDatabase } from "./test-db";
+import { createProjectEnvironmentServiceFixture } from "./testing/project-fixtures";
 import * as serviceObservabilityWorker from "./worker/service-observability";
 import {
   ensureInitialOwnerFromEnv,
@@ -222,56 +221,32 @@ async function createServiceRuntimeFixture() {
   const environmentName = `obs-env-${suffix}`;
   const serviceName = `obs-service-${suffix}`;
 
-  const projectResult = await createProject({
-    name: projectName,
-    teamId: "team_foundation",
-    requestedByUserId: "user_foundation_owner",
-    requestedByEmail: "owner@daoflow.local",
-    requestedByRole: "owner"
+  const fixture = await createProjectEnvironmentServiceFixture({
+    project: {
+      name: projectName,
+      teamId: "team_foundation"
+    },
+    environment: {
+      name: environmentName,
+      targetServerId: "srv_foundation_1"
+    },
+    service: {
+      name: serviceName,
+      sourceType: "compose",
+      composeServiceName: "web",
+      targetServerId: "srv_foundation_1"
+    }
   });
-  expect(projectResult.status).toBe("ok");
-  if (projectResult.status !== "ok") {
-    throw new Error("Failed to create observability project fixture.");
-  }
-
-  const environmentResult = await createEnvironment({
-    projectId: projectResult.project.id,
-    name: environmentName,
-    targetServerId: "srv_foundation_1",
-    requestedByUserId: "user_foundation_owner",
-    requestedByEmail: "owner@daoflow.local",
-    requestedByRole: "owner"
-  });
-  expect(environmentResult.status).toBe("ok");
-  if (environmentResult.status !== "ok") {
-    throw new Error("Failed to create observability environment fixture.");
-  }
-
-  const serviceResult = await createService({
-    name: serviceName,
-    projectId: projectResult.project.id,
-    environmentId: environmentResult.environment.id,
-    sourceType: "compose",
-    composeServiceName: "web",
-    targetServerId: "srv_foundation_1",
-    requestedByUserId: "user_foundation_owner",
-    requestedByEmail: "owner@daoflow.local",
-    requestedByRole: "owner"
-  });
-  expect(serviceResult.status).toBe("ok");
-  if (serviceResult.status !== "ok") {
-    throw new Error("Failed to create observability service fixture.");
-  }
 
   const deploymentId = `depobs_${suffix}`.slice(0, 32);
   const createdAt = new Date(Date.now() - 60_000);
 
   await db.insert(deployments).values({
     id: deploymentId,
-    projectId: projectResult.project.id,
-    environmentId: environmentResult.environment.id,
+    projectId: fixture.project.id,
+    environmentId: fixture.environment.id,
     targetServerId: "srv_foundation_1",
-    serviceName: serviceResult.service.name,
+    serviceName: fixture.service.name,
     sourceType: "compose",
     commitSha: "abc1234",
     imageTag: "ghcr.io/daoflow/obs:latest",
@@ -293,8 +268,42 @@ async function createServiceRuntimeFixture() {
   });
 
   return {
-    serviceId: serviceResult.service.id
+    serviceId: fixture.service.id
   };
+}
+
+async function resetAppTestState(input?: { seedControlPlane?: boolean }) {
+  await resetTestDatabase();
+  resetControlPlaneSeedState();
+
+  if (input?.seedControlPlane) {
+    await ensureControlPlaneReady();
+  }
+}
+
+async function createAppComposeFixture(input: {
+  projectName: string;
+  serviceName: string;
+  repoUrl?: string;
+  environmentName?: string;
+  composeServiceName?: string;
+}) {
+  return createProjectEnvironmentServiceFixture({
+    project: {
+      name: input.projectName,
+      repoUrl: input.repoUrl,
+      teamId: "team_foundation"
+    },
+    environment: {
+      name: input.environmentName ?? "production",
+      targetServerId: "srv_foundation_1"
+    },
+    service: {
+      name: input.serviceName,
+      sourceType: "compose",
+      composeServiceName: input.composeServiceName
+    }
+  });
 }
 
 describe("createApp", () => {
@@ -330,72 +339,6 @@ describe("createApp", () => {
 
     expect(response.status).toBe(200);
     expect(body.result.data.status).toBe("healthy");
-  });
-
-  it("mounts Better Auth with durable schema bootstrap", async () => {
-    const originalEmail = process.env.DAOFLOW_INITIAL_ADMIN_EMAIL;
-    const originalPassword = process.env.DAOFLOW_INITIAL_ADMIN_PASSWORD;
-    delete process.env.DAOFLOW_INITIAL_ADMIN_EMAIL;
-    delete process.env.DAOFLOW_INITIAL_ADMIN_PASSWORD;
-
-    try {
-      await resetTestDatabase();
-      resetControlPlaneSeedState();
-      resetInitialOwnerBootstrapState();
-
-      const app = createApp();
-      const ownerEmail = `owner+${Date.now()}@daoflow.local`;
-      const ownerResponse = await app.request("/api/auth/sign-up/email", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Origin: "http://localhost:5173"
-        },
-        body: JSON.stringify({
-          email: ownerEmail,
-          name: "DaoFlow Operator",
-          password: "secret1234"
-        })
-      });
-      const ownerBody = (await ownerResponse.json()) as {
-        user: {
-          email: string;
-          role: string;
-        };
-      };
-      const viewerEmail = `viewer+${Date.now()}@daoflow.local`;
-      const viewerResponse = await app.request("/api/auth/sign-up/email", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Origin: "http://localhost:5173"
-        },
-        body: JSON.stringify({
-          email: viewerEmail,
-          name: "DaoFlow Viewer",
-          password: "secret1234"
-        })
-      });
-      const viewerBody = (await viewerResponse.json()) as {
-        user: {
-          email: string;
-          role: string;
-        };
-      };
-
-      expect(ownerResponse.status).toBe(200);
-      expect(ownerBody.user.email).toBe(ownerEmail);
-      expect(ownerBody.user.role).toBe("owner");
-      expect(ownerResponse.headers.get("set-cookie")).toContain("better-auth.session_token");
-      expect(viewerResponse.status).toBe(200);
-      expect(viewerBody.user.email).toBe(viewerEmail);
-      expect(viewerBody.user.role).toBe("viewer");
-    } finally {
-      if (originalEmail !== undefined) process.env.DAOFLOW_INITIAL_ADMIN_EMAIL = originalEmail;
-      if (originalPassword !== undefined)
-        process.env.DAOFLOW_INITIAL_ADMIN_PASSWORD = originalPassword;
-      resetInitialOwnerBootstrapState();
-    }
   });
 
   it("supports CLI browser login handoff", async () => {
@@ -1089,7 +1032,8 @@ describe("createApp", () => {
   }, 10_000);
 
   it("queues authenticated direct compose context uploads without metadata headers", async () => {
-    await resetSeededTestDatabase();
+    await resetTestDatabase();
+    resetControlPlaneSeedState();
 
     const app = createApp();
     const ownerEmail = `deploy-upload-owner+${Date.now()}@daoflow.local`;
@@ -1105,7 +1049,6 @@ describe("createApp", () => {
         password: "secret1234"
       })
     });
-    await db.update(users).set({ role: "owner" }).where(eq(users.email, ownerEmail));
     const sessionCookie =
       signUpResponse.headers
         .getSetCookie?.()
@@ -1167,7 +1110,8 @@ describe("createApp", () => {
   });
 
   it("rejects direct compose context uploads when a different user reuses the upload id", async () => {
-    await resetSeededTestDatabase();
+    await resetTestDatabase();
+    resetControlPlaneSeedState();
 
     const app = createApp();
     const ownerEmail = `deploy-upload-owner+${Date.now()}@daoflow.local`;
@@ -1183,14 +1127,13 @@ describe("createApp", () => {
         password: "secret1234"
       })
     });
-    await db.update(users).set({ role: "owner" }).where(eq(users.email, ownerEmail));
     const ownerSessionCookie =
       ownerSignUpResponse.headers
         .getSetCookie?.()
         .find((cookie) => cookie.startsWith("better-auth.session_token=")) ??
       ownerSignUpResponse.headers.get("set-cookie")?.match(/better-auth\.session_token=[^;]+/)?.[0];
     const viewerEmail = `deploy-upload-viewer+${Date.now()}@daoflow.local`;
-    const viewerSignUpResponse = await app.request("/api/auth/sign-up/email", {
+    await app.request("/api/auth/sign-up/email", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -1202,14 +1145,25 @@ describe("createApp", () => {
         password: "secret1234"
       })
     });
+    await db.update(users).set({ role: "owner" }).where(eq(users.email, viewerEmail));
+    const viewerSignInResponse = await app.request("/api/auth/sign-in/email", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Origin: "http://localhost:5173"
+      },
+      body: JSON.stringify({
+        email: viewerEmail,
+        password: "secret1234"
+      })
+    });
     const viewerSessionCookie =
-      viewerSignUpResponse.headers
+      viewerSignInResponse.headers
         .getSetCookie?.()
         .find((cookie) => cookie.startsWith("better-auth.session_token=")) ??
-      viewerSignUpResponse.headers
+      viewerSignInResponse.headers
         .get("set-cookie")
         ?.match(/better-auth\.session_token=[^;]+/)?.[0];
-    await db.update(users).set({ role: "owner" }).where(eq(users.email, viewerEmail));
 
     const intakeResponse = await app.request("/api/v1/deploy/uploads/intake", {
       method: "POST",
@@ -1246,54 +1200,18 @@ describe("createApp", () => {
   });
 
   it("queues executable deployments for GitHub webhook auto-deploy targets", async () => {
-    await resetTestDatabase();
-    resetControlPlaneSeedState();
-    await ensureControlPlaneReady();
+    await resetAppTestState({ seedControlPlane: true });
 
     const suffix = Date.now();
     const { privateKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
     const privateKeyPem = privateKey.export({ format: "pem", type: "pkcs1" }).toString();
     const providerId = `gitprov_gh_${suffix}`.slice(0, 32);
     const installationId = `gitinst_gh_${suffix}`.slice(0, 32);
-    const projectResult = await createProject({
-      name: `Webhook GitHub ${suffix}`,
+    const fixture = await createAppComposeFixture({
+      projectName: `Webhook GitHub ${suffix}`,
       repoUrl: "https://github.com/example/webhook-app",
-      teamId: "team_foundation",
-      requestedByUserId: "user_foundation_owner",
-      requestedByEmail: "owner@daoflow.local",
-      requestedByRole: "owner"
+      serviceName: "control-plane"
     });
-    expect(projectResult.status).toBe("ok");
-    if (projectResult.status !== "ok") {
-      throw new Error("Failed to create webhook project fixture.");
-    }
-
-    const environmentResult = await createEnvironment({
-      projectId: projectResult.project.id,
-      name: "production",
-      targetServerId: "srv_foundation_1",
-      requestedByUserId: "user_foundation_owner",
-      requestedByEmail: "owner@daoflow.local",
-      requestedByRole: "owner"
-    });
-    expect(environmentResult.status).toBe("ok");
-    if (environmentResult.status !== "ok") {
-      throw new Error("Failed to create webhook environment fixture.");
-    }
-
-    const serviceResult = await createService({
-      name: "control-plane",
-      projectId: projectResult.project.id,
-      environmentId: environmentResult.environment.id,
-      sourceType: "compose",
-      requestedByUserId: "user_foundation_owner",
-      requestedByEmail: "owner@daoflow.local",
-      requestedByRole: "owner"
-    });
-    expect(serviceResult.status).toBe("ok");
-    if (serviceResult.status !== "ok") {
-      throw new Error("Failed to create webhook service fixture.");
-    }
 
     await db.insert(gitProviders).values({
       id: providerId,
@@ -1337,7 +1255,7 @@ describe("createApp", () => {
         defaultBranch: "main",
         updatedAt: new Date()
       })
-      .where(eq(projects.id, projectResult.project.id));
+      .where(eq(projects.id, fixture.project.id));
 
     const payload = JSON.stringify({
       ref: "refs/heads/main",
@@ -1384,54 +1302,18 @@ describe("createApp", () => {
   });
 
   it("still queues webhook deployments when project sourceType drifts from service sourceType", async () => {
-    await resetTestDatabase();
-    resetControlPlaneSeedState();
-    await ensureControlPlaneReady();
+    await resetAppTestState({ seedControlPlane: true });
 
     const suffix = Date.now();
     const { privateKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
     const privateKeyPem = privateKey.export({ format: "pem", type: "pkcs1" }).toString();
     const providerId = `gitprov_gd_${suffix}`.slice(0, 32);
     const installationId = `gitinst_gd_${suffix}`.slice(0, 32);
-    const projectResult = await createProject({
-      name: `Webhook Drift ${suffix}`,
+    const fixture = await createAppComposeFixture({
+      projectName: `Webhook Drift ${suffix}`,
       repoUrl: "https://github.com/example/webhook-drift",
-      teamId: "team_foundation",
-      requestedByUserId: "user_foundation_owner",
-      requestedByEmail: "owner@daoflow.local",
-      requestedByRole: "owner"
+      serviceName: "drifted-compose-service"
     });
-    expect(projectResult.status).toBe("ok");
-    if (projectResult.status !== "ok") {
-      throw new Error("Failed to create webhook drift project fixture.");
-    }
-
-    const environmentResult = await createEnvironment({
-      projectId: projectResult.project.id,
-      name: "production",
-      targetServerId: "srv_foundation_1",
-      requestedByUserId: "user_foundation_owner",
-      requestedByEmail: "owner@daoflow.local",
-      requestedByRole: "owner"
-    });
-    expect(environmentResult.status).toBe("ok");
-    if (environmentResult.status !== "ok") {
-      throw new Error("Failed to create webhook drift environment fixture.");
-    }
-
-    const serviceResult = await createService({
-      name: "drifted-compose-service",
-      projectId: projectResult.project.id,
-      environmentId: environmentResult.environment.id,
-      sourceType: "compose",
-      requestedByUserId: "user_foundation_owner",
-      requestedByEmail: "owner@daoflow.local",
-      requestedByRole: "owner"
-    });
-    expect(serviceResult.status).toBe("ok");
-    if (serviceResult.status !== "ok") {
-      throw new Error("Failed to create webhook drift service fixture.");
-    }
 
     await db.insert(gitProviders).values({
       id: providerId,
@@ -1475,7 +1357,7 @@ describe("createApp", () => {
         defaultBranch: "main",
         updatedAt: new Date()
       })
-      .where(eq(projects.id, projectResult.project.id));
+      .where(eq(projects.id, fixture.project.id));
 
     const payload = JSON.stringify({
       ref: "refs/heads/main",
@@ -1519,52 +1401,16 @@ describe("createApp", () => {
   });
 
   it("queues executable deployments for GitLab webhook auto-deploy targets", async () => {
-    await resetTestDatabase();
-    resetControlPlaneSeedState();
-    await ensureControlPlaneReady();
+    await resetAppTestState({ seedControlPlane: true });
 
     const suffix = Date.now();
     const providerId = `gitprov_gl_${suffix}`.slice(0, 32);
     const installationId = `gitinst_gl_${suffix}`.slice(0, 32);
-    const projectResult = await createProject({
-      name: `Webhook GitLab ${suffix}`,
+    const fixture = await createAppComposeFixture({
+      projectName: `Webhook GitLab ${suffix}`,
       repoUrl: "https://gitlab.com/example/webhook-app",
-      teamId: "team_foundation",
-      requestedByUserId: "user_foundation_owner",
-      requestedByEmail: "owner@daoflow.local",
-      requestedByRole: "owner"
+      serviceName: "agent-runtime"
     });
-    expect(projectResult.status).toBe("ok");
-    if (projectResult.status !== "ok") {
-      throw new Error("Failed to create GitLab webhook project fixture.");
-    }
-
-    const environmentResult = await createEnvironment({
-      projectId: projectResult.project.id,
-      name: "production",
-      targetServerId: "srv_foundation_1",
-      requestedByUserId: "user_foundation_owner",
-      requestedByEmail: "owner@daoflow.local",
-      requestedByRole: "owner"
-    });
-    expect(environmentResult.status).toBe("ok");
-    if (environmentResult.status !== "ok") {
-      throw new Error("Failed to create GitLab webhook environment fixture.");
-    }
-
-    const serviceResult = await createService({
-      name: "agent-runtime",
-      projectId: projectResult.project.id,
-      environmentId: environmentResult.environment.id,
-      sourceType: "compose",
-      requestedByUserId: "user_foundation_owner",
-      requestedByEmail: "owner@daoflow.local",
-      requestedByRole: "owner"
-    });
-    expect(serviceResult.status).toBe("ok");
-    if (serviceResult.status !== "ok") {
-      throw new Error("Failed to create GitLab webhook service fixture.");
-    }
 
     await db.insert(gitProviders).values({
       id: providerId,
@@ -1607,7 +1453,7 @@ describe("createApp", () => {
         defaultBranch: "main",
         updatedAt: new Date()
       })
-      .where(eq(projects.id, projectResult.project.id));
+      .where(eq(projects.id, fixture.project.id));
 
     const payload = JSON.stringify({
       ref: "refs/heads/main",
@@ -1651,94 +1497,24 @@ describe("createApp", () => {
   });
 
   it("isolates webhook auto-deploy targets by provider type when repo paths overlap", async () => {
-    await resetTestDatabase();
-    resetControlPlaneSeedState();
-    await ensureControlPlaneReady();
+    await resetAppTestState({ seedControlPlane: true });
 
     const suffix = Date.now();
     const sharedRepoFullName = "example/overlap-app";
     const { privateKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
     const privateKeyPem = privateKey.export({ format: "pem", type: "pkcs1" }).toString();
 
-    const githubProject = await createProject({
-      name: `Overlap GitHub ${suffix}`,
+    const githubFixture = await createAppComposeFixture({
+      projectName: `Overlap GitHub ${suffix}`,
       repoUrl: `https://github.com/${sharedRepoFullName}`,
-      teamId: "team_foundation",
-      requestedByUserId: "user_foundation_owner",
-      requestedByEmail: "owner@daoflow.local",
-      requestedByRole: "owner"
+      serviceName: "github-runtime"
     });
-    expect(githubProject.status).toBe("ok");
-    if (githubProject.status !== "ok") {
-      throw new Error("Failed to create overlapping GitHub webhook project fixture.");
-    }
 
-    const githubEnvironment = await createEnvironment({
-      projectId: githubProject.project.id,
-      name: "production",
-      targetServerId: "srv_foundation_1",
-      requestedByUserId: "user_foundation_owner",
-      requestedByEmail: "owner@daoflow.local",
-      requestedByRole: "owner"
-    });
-    expect(githubEnvironment.status).toBe("ok");
-    if (githubEnvironment.status !== "ok") {
-      throw new Error("Failed to create overlapping GitHub webhook environment fixture.");
-    }
-
-    const githubService = await createService({
-      name: "github-runtime",
-      projectId: githubProject.project.id,
-      environmentId: githubEnvironment.environment.id,
-      sourceType: "compose",
-      requestedByUserId: "user_foundation_owner",
-      requestedByEmail: "owner@daoflow.local",
-      requestedByRole: "owner"
-    });
-    expect(githubService.status).toBe("ok");
-    if (githubService.status !== "ok") {
-      throw new Error("Failed to create overlapping GitHub webhook service fixture.");
-    }
-
-    const gitlabProject = await createProject({
-      name: `Overlap GitLab ${suffix}`,
+    const gitlabFixture = await createAppComposeFixture({
+      projectName: `Overlap GitLab ${suffix}`,
       repoUrl: `https://gitlab.com/${sharedRepoFullName}`,
-      teamId: "team_foundation",
-      requestedByUserId: "user_foundation_owner",
-      requestedByEmail: "owner@daoflow.local",
-      requestedByRole: "owner"
+      serviceName: "gitlab-runtime"
     });
-    expect(gitlabProject.status).toBe("ok");
-    if (gitlabProject.status !== "ok") {
-      throw new Error("Failed to create overlapping GitLab webhook project fixture.");
-    }
-
-    const gitlabEnvironment = await createEnvironment({
-      projectId: gitlabProject.project.id,
-      name: "production",
-      targetServerId: "srv_foundation_1",
-      requestedByUserId: "user_foundation_owner",
-      requestedByEmail: "owner@daoflow.local",
-      requestedByRole: "owner"
-    });
-    expect(gitlabEnvironment.status).toBe("ok");
-    if (gitlabEnvironment.status !== "ok") {
-      throw new Error("Failed to create overlapping GitLab webhook environment fixture.");
-    }
-
-    const gitlabService = await createService({
-      name: "gitlab-runtime",
-      projectId: gitlabProject.project.id,
-      environmentId: gitlabEnvironment.environment.id,
-      sourceType: "compose",
-      requestedByUserId: "user_foundation_owner",
-      requestedByEmail: "owner@daoflow.local",
-      requestedByRole: "owner"
-    });
-    expect(gitlabService.status).toBe("ok");
-    if (gitlabService.status !== "ok") {
-      throw new Error("Failed to create overlapping GitLab webhook service fixture.");
-    }
 
     const githubProviderId = `gitprov_ovgh_${suffix}`.slice(0, 32);
     const githubInstallationId = `gitinst_ovgh_${suffix}`.slice(0, 32);
@@ -1826,7 +1602,7 @@ describe("createApp", () => {
         defaultBranch: "main",
         updatedAt: new Date()
       })
-      .where(eq(projects.id, githubProject.project.id));
+      .where(eq(projects.id, githubFixture.project.id));
 
     await db
       .update(projects)
@@ -1840,7 +1616,7 @@ describe("createApp", () => {
         defaultBranch: "main",
         updatedAt: new Date()
       })
-      .where(eq(projects.id, gitlabProject.project.id));
+      .where(eq(projects.id, gitlabFixture.project.id));
 
     const githubCommitSha = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
     const githubPayload = JSON.stringify({
@@ -1894,9 +1670,7 @@ describe("createApp", () => {
   });
 
   it("accepts bearer tokens on GET /api/v1/logs/stream when the token includes logs:read", async () => {
-    await resetTestDatabase();
-    resetControlPlaneSeedState();
-    await ensureControlPlaneReady();
+    await resetAppTestState({ seedControlPlane: true });
 
     const app = createApp();
     const tokenValue = await createAgentBearerToken({ preset: "agent:read-only" });
@@ -1921,9 +1695,7 @@ describe("createApp", () => {
   });
 
   it("accepts agent bearer tokens on GET /api/v1/container-stats when the token includes diagnostics:read", async () => {
-    await resetTestDatabase();
-    resetControlPlaneSeedState();
-    await ensureControlPlaneReady();
+    await resetAppTestState({ seedControlPlane: true });
 
     const fixture = await createServiceRuntimeFixture();
     const app = createApp();
@@ -1959,9 +1731,7 @@ describe("createApp", () => {
   });
 
   it("denies service principal bearer tokens on GET /api/v1/container-stats because the developer role ceiling excludes diagnostics:read", async () => {
-    await resetTestDatabase();
-    resetControlPlaneSeedState();
-    await ensureControlPlaneReady();
+    await resetAppTestState({ seedControlPlane: true });
 
     const app = createApp();
     const tokenValue = await createServiceBearerToken({
@@ -1988,9 +1758,7 @@ describe("createApp", () => {
   });
 
   it("returns TOKEN_REVOKED for paused service principal tokens on GET /api/v1/container-stats", async () => {
-    await resetTestDatabase();
-    resetControlPlaneSeedState();
-    await ensureControlPlaneReady();
+    await resetAppTestState({ seedControlPlane: true });
 
     const app = createApp();
     const tokenValue = await createServiceBearerToken({

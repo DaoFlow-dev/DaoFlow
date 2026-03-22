@@ -51,19 +51,34 @@ export async function truncateDatabaseTables(connectionString: string) {
   await client.connect();
 
   try {
-    const result = await client.query<{ qualifiedName: string }>(`
+    const tableResult = await client.query<{ qualifiedName: string }>(`
       SELECT format('%I.%I', schemaname, tablename) AS "qualifiedName"
       FROM pg_tables
       WHERE schemaname = 'public'
     `);
 
-    if (result.rows.length === 0) {
+    if (tableResult.rows.length === 0) {
       return;
     }
 
-    await client.query(
-      `TRUNCATE TABLE ${result.rows.map((row) => row.qualifiedName).join(", ")} RESTART IDENTITY CASCADE`
-    );
+    const sequenceResult = await client.query<{ qualifiedName: string }>(`
+      SELECT format('%I.%I', sequence_schema, sequence_name) AS "qualifiedName"
+      FROM information_schema.sequences
+      WHERE sequence_schema = 'public'
+    `);
+
+    await client.query("SET session_replication_role = replica");
+    try {
+      for (const row of tableResult.rows) {
+        await client.query(`DELETE FROM ${row.qualifiedName}`);
+      }
+    } finally {
+      await client.query("SET session_replication_role = DEFAULT");
+    }
+
+    for (const row of sequenceResult.rows) {
+      await client.query(`ALTER SEQUENCE ${row.qualifiedName} RESTART WITH 1`);
+    }
   } finally {
     await client.end();
   }

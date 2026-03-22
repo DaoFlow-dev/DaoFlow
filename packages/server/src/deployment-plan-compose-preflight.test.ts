@@ -1,53 +1,9 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import type { Context } from "./context";
-import { createEnvironment, createProject } from "./db/services/projects";
-import { createService } from "./db/services/services";
 import { appRouter } from "./router";
+import { resetTestDatabaseWithControlPlane } from "./test-db";
 import { createLocalGitRepository, type LocalGitRepositoryFixture } from "./test-git-repo";
-import { resetSeededTestDatabase } from "./test-db";
-
-function makeSession(role: string): NonNullable<Context["session"]> {
-  const seededUsers = {
-    owner: {
-      id: "user_foundation_owner",
-      email: "owner@daoflow.local",
-      name: "Foundation Owner"
-    },
-    viewer: {
-      id: "user_foundation_owner",
-      email: "owner@daoflow.local",
-      name: "Foundation Owner"
-    }
-  } as const;
-  const actor = seededUsers[role as keyof typeof seededUsers] ?? seededUsers.viewer;
-
-  return {
-    user: {
-      id: actor.id,
-      email: actor.email,
-      name: actor.name,
-      emailVerified: true,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      image: null,
-      role
-    },
-    session: {
-      id: `session_${role}`,
-      userId: actor.id,
-      expiresAt: new Date(),
-      token: `token_${role}`,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      ipAddress: null,
-      userAgent: null
-    }
-  } as unknown as NonNullable<Context["session"]>;
-}
-
-beforeEach(async () => {
-  await resetSeededTestDatabase();
-});
+import { createProjectEnvironmentServiceFixture } from "./testing/project-fixtures";
+import { makeSession } from "./testing/request-auth-fixtures";
 
 async function createRepoBackedComposeService(input: {
   files: Record<string, string>;
@@ -61,57 +17,42 @@ async function createRepoBackedComposeService(input: {
   });
   const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
-  const projectResult = await createProject({
-    name: `compose-preflight-${suffix}`,
-    repoUrl: repository.rootDir,
-    composePath: "deploy/compose.yaml",
-    defaultBranch: "main",
-    teamId: "team_foundation",
-    requestedByUserId: "user_foundation_owner",
-    requestedByEmail: "owner@daoflow.local",
-    requestedByRole: "owner"
-  });
-  if (projectResult.status !== "ok") {
-    repository.cleanup();
-    throw new Error("Failed to create compose preflight fixture project.");
-  }
+  try {
+    const fixture = await createProjectEnvironmentServiceFixture({
+      project: {
+        name: `compose-preflight-${suffix}`,
+        repoUrl: repository.rootDir,
+        composePath: "deploy/compose.yaml",
+        defaultBranch: "main",
+        teamId: "team_foundation"
+      },
+      environment: {
+        name: `compose-preflight-env-${suffix}`,
+        targetServerId: "srv_foundation_1"
+      },
+      service: {
+        name: `compose-preflight-svc-${suffix}`,
+        sourceType: "compose",
+        composeServiceName: input.composeServiceName,
+        targetServerId: "srv_foundation_1"
+      }
+    });
 
-  const environmentResult = await createEnvironment({
-    projectId: projectResult.project.id,
-    name: `compose-preflight-env-${suffix}`,
-    targetServerId: "srv_foundation_1",
-    requestedByUserId: "user_foundation_owner",
-    requestedByEmail: "owner@daoflow.local",
-    requestedByRole: "owner"
-  });
-  if (environmentResult.status !== "ok") {
+    return {
+      repository,
+      serviceId: fixture.service.id
+    };
+  } catch (error) {
     repository.cleanup();
-    throw new Error("Failed to create compose preflight fixture environment.");
+    throw error;
   }
-
-  const serviceResult = await createService({
-    name: `compose-preflight-svc-${suffix}`,
-    projectId: projectResult.project.id,
-    environmentId: environmentResult.environment.id,
-    sourceType: "compose",
-    composeServiceName: input.composeServiceName,
-    targetServerId: "srv_foundation_1",
-    requestedByUserId: "user_foundation_owner",
-    requestedByEmail: "owner@daoflow.local",
-    requestedByRole: "owner"
-  });
-  if (serviceResult.status !== "ok") {
-    repository.cleanup();
-    throw new Error("Failed to create compose preflight fixture service.");
-  }
-
-  return {
-    repository,
-    serviceId: serviceResult.service.id
-  };
 }
 
 describe("deployment plan compose workspace preflight", () => {
+  beforeEach(async () => {
+    await resetTestDatabaseWithControlPlane();
+  });
+
   it("marks the plan not ready when a required env_file is missing from the repository checkout", async () => {
     const caller = appRouter.createCaller({
       requestId: "test-plan-missing-env-file",

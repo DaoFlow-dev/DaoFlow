@@ -1,27 +1,14 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { deploymentHealthStatuses, executionJobStatuses } from "@daoflow/shared";
-import {
-  getDeploymentRecord,
-  listDeploymentInsights,
-  listDeploymentLogs,
-  listDeploymentRecords,
-  listDeploymentRollbackPlans
-} from "../db/services/deployments";
 import { listApprovalQueue } from "../db/services/approvals";
-import { listAuditTrail, listOperationsTimeline } from "../db/services/audit";
+import { listAuditTrail } from "../db/services/audit";
 import { listBackupMetrics, backupDiagnosis } from "../db/services/backups";
 import { listDestinations, getDestination } from "../db/services/destinations";
-import { listComposeDriftReport, listComposeReleaseCatalog } from "../db/services/compose";
-import { listComposePreviewReconciliation } from "../db/services/compose-preview-reconciliation";
-import { listComposePreviewDeployments } from "../db/services/compose-previews";
 import { listEnvironmentVariableInventory } from "../db/services/envvars";
-import { listExecutionQueue } from "../db/services/execution";
 import { listInfrastructureInventory, listServerReadiness } from "../db/services/servers";
 import { listProjects, getProject, listEnvironments } from "../db/services/projects";
 import { getServiceDomainState } from "../db/services/service-domains";
 import { listServices, listServicesByProject, getService } from "../db/services/services";
-import { listRollbackTargets } from "../db/services/execute-rollback";
 import { listAgentPrincipals } from "../db/services/agents";
 import {
   listGitInstallationSummaries,
@@ -29,8 +16,9 @@ import {
 } from "../db/services/git-providers";
 import { resolveTeamIdForUser } from "../db/services/teams";
 import { t, protectedProcedure, deployReadProcedure, envReadProcedure } from "../trpc";
-import { limitInput, statusLimitInput } from "../schemas";
+import { limitInput } from "../schemas";
 import { backupReadRouter } from "./read-backups";
+import { deploymentReadRouter } from "./read-deployments";
 
 const productPrinciples = [
   "Agent-first, human-supervised",
@@ -111,78 +99,14 @@ const coreReadRouter = t.router({
 
       return items.filter((item) => item.lane === input.lane);
     }),
-  recentDeployments: protectedProcedure
-    .input(statusLimitInput(deploymentHealthStatuses, 50))
-    .query(async ({ input }) => {
-      return listDeploymentRecords(input.status, input.limit ?? 20);
-    }),
-  composeReleaseCatalog: protectedProcedure.input(limitInput(40)).query(async ({ input }) => {
-    return listComposeReleaseCatalog(input.limit ?? 24);
-  }),
-  composeDriftReport: protectedProcedure.input(limitInput(40)).query(async ({ input }) => {
-    return listComposeDriftReport(input.limit ?? 24);
-  }),
-  composePreviews: deployReadProcedure
-    .input(
-      z.object({
-        serviceId: z.string().min(1)
-      })
-    )
-    .query(async ({ ctx, input }) => {
-      return listComposePreviewDeployments({
-        serviceRef: input.serviceId,
-        requestedByUserId: ctx.session.user.id
-      });
-    }),
-  composePreviewReconciliation: deployReadProcedure
-    .input(
-      z.object({
-        serviceId: z.string().min(1)
-      })
-    )
-    .query(async ({ ctx, input }) => {
-      return listComposePreviewReconciliation({
-        serviceRef: input.serviceId,
-        requestedByUserId: ctx.session.user.id
-      });
-    }),
   approvalQueue: protectedProcedure.input(limitInput(40)).query(async ({ input }) => {
     return listApprovalQueue(input.limit ?? 24);
   }),
-  deploymentDetails: protectedProcedure
-    .input(
-      z.object({
-        deploymentId: z.string().min(1)
-      })
-    )
-    .query(async ({ input }) => {
-      const deployment = await getDeploymentRecord(input.deploymentId);
-
-      if (!deployment) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Deployment record not found."
-        });
-      }
-
-      return deployment;
-    }),
-  executionQueue: protectedProcedure
-    .input(statusLimitInput(executionJobStatuses, 50))
-    .query(async ({ input }) => {
-      return listExecutionQueue(input.status, input.limit ?? 12);
-    }),
   infrastructureInventory: protectedProcedure.query(async () => {
     return listInfrastructureInventory();
   }),
   serverReadiness: protectedProcedure.input(limitInput(24)).query(async ({ input }) => {
     return listServerReadiness(input.limit ?? 12);
-  }),
-  deploymentInsights: protectedProcedure.input(limitInput(12)).query(async ({ input }) => {
-    return listDeploymentInsights(input.limit ?? 6);
-  }),
-  deploymentRollbackPlans: protectedProcedure.input(limitInput(12)).query(async ({ input }) => {
-    return listDeploymentRollbackPlans(input.limit ?? 6);
   }),
   auditTrail: protectedProcedure.input(limitInput(50)).query(async ({ input }) => {
     return listAuditTrail(input.limit ?? 12);
@@ -202,35 +126,6 @@ const coreReadRouter = t.router({
         limit: input.limit ?? 50,
         canRevealSecrets: ctx.auth.capabilities.includes("secrets:read")
       });
-    }),
-  deploymentLogs: protectedProcedure
-    .input(
-      z.object({
-        deploymentId: z.string().min(1).optional(),
-        service: z.string().min(1).max(80).optional(),
-        query: z.string().trim().min(1).max(200).optional(),
-        stream: z.enum(["all", "stdout", "stderr"]).optional(),
-        limit: z.number().int().min(1).max(100).optional()
-      })
-    )
-    .query(async ({ input }) => {
-      return listDeploymentLogs({
-        deploymentId: input.deploymentId,
-        serviceName: input.service,
-        query: input.query,
-        stream: input.stream,
-        limit: input.limit ?? 18
-      });
-    }),
-  operationsTimeline: protectedProcedure
-    .input(
-      z.object({
-        deploymentId: z.string().min(1).optional(),
-        limit: z.number().int().min(1).max(50).optional()
-      })
-    )
-    .query(async ({ input }) => {
-      return listOperationsTimeline(input.deploymentId, input.limit ?? 12);
     }),
   projects: deployReadProcedure.input(limitInput(50)).query(async ({ ctx, input }) => {
     const teamId = await requireViewerTeamId(ctx.session.user.id);
@@ -296,11 +191,6 @@ const coreReadRouter = t.router({
       }
       return listServicesByProject(input.projectId);
     }),
-  rollbackTargets: deployReadProcedure
-    .input(z.object({ serviceId: z.string().min(1) }))
-    .query(async ({ ctx, input }) => {
-      return listRollbackTargets(input.serviceId, ctx.session.user.id);
-    }),
   agents: protectedProcedure.query(async () => {
     return listAgentPrincipals();
   }),
@@ -338,4 +228,4 @@ const coreReadRouter = t.router({
     })
 });
 
-export const readRouter = t.mergeRouters(coreReadRouter, backupReadRouter);
+export const readRouter = t.mergeRouters(coreReadRouter, deploymentReadRouter, backupReadRouter);

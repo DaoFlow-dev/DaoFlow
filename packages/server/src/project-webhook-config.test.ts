@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { resetSeededTestDatabase } from "./test-db";
+import { resetTestDatabaseWithControlPlane } from "./test-db";
 import { createProject, updateProject } from "./db/services/projects";
 import { readWebhookAutoDeployConfig } from "./webhook-auto-deploy";
 
 describe("project webhook auto-deploy config", () => {
   it("persists watched path filters and auto-deploy settings through project mutations", async () => {
-    await resetSeededTestDatabase();
+    await resetTestDatabaseWithControlPlane();
 
     const created = await createProject({
       name: `Webhook Config ${Date.now()}`,

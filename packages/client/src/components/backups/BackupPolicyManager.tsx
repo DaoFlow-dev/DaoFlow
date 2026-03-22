@@ -41,6 +41,11 @@ export function BackupPolicyManager() {
 
   const createPolicy = trpc.createBackupPolicy.useMutation({
     onSuccess: async (policy) => {
+      if (!policy) {
+        setFeedback("Created the backup policy.");
+        await refreshViews();
+        return;
+      }
       await refreshViews();
       setFeedback(`Created backup policy ${policy.name}.`);
     },
@@ -49,6 +54,11 @@ export function BackupPolicyManager() {
   });
   const updatePolicy = trpc.updateBackupPolicy.useMutation({
     onSuccess: async (policy) => {
+      if (!policy) {
+        setFeedback("Updated the backup policy.");
+        await refreshViews();
+        return;
+      }
       await refreshViews();
       setFeedback(`Updated backup policy ${policy.name}.`);
     },

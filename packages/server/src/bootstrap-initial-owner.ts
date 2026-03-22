@@ -2,12 +2,17 @@ import { sql, eq } from "drizzle-orm";
 import { auth } from "./auth";
 import { db } from "./db/connection";
 import { users } from "./db/schema/users";
+import { getProcessValueAccessor } from "./process-singleton";
 
 const INITIAL_OWNER_EMAIL_ENV = "DAOFLOW_INITIAL_ADMIN_EMAIL";
 const INITIAL_OWNER_PASSWORD_ENV = "DAOFLOW_INITIAL_ADMIN_PASSWORD";
 const INITIAL_OWNER_NAME = "DaoFlow Owner";
 
-let initialOwnerBootstrapPromise: Promise<void> | null = null;
+const PROCESS_INITIAL_OWNER_PROMISE_KEY = "__daoflowInitialOwnerBootstrapPromise__";
+
+function getInitialOwnerBootstrapPromise() {
+  return getProcessValueAccessor<Promise<void> | null>(PROCESS_INITIAL_OWNER_PROMISE_KEY, null);
+}
 
 function readInitialOwnerConfig() {
   const email = process.env[INITIAL_OWNER_EMAIL_ENV]?.trim().toLowerCase();
@@ -21,7 +26,11 @@ function readInitialOwnerConfig() {
 }
 
 export function resetInitialOwnerBootstrapState() {
-  initialOwnerBootstrapPromise = null;
+  getInitialOwnerBootstrapPromise().current = null;
+}
+
+export async function waitForInitialOwnerBootstrapIdle() {
+  await getInitialOwnerBootstrapPromise().current;
 }
 
 export function ensureInitialOwnerFromEnv() {
@@ -30,12 +39,14 @@ export function ensureInitialOwnerFromEnv() {
     return Promise.resolve();
   }
 
-  initialOwnerBootstrapPromise ??= bootstrapInitialOwner(config).catch((error) => {
-    initialOwnerBootstrapPromise = null;
+  const state = getInitialOwnerBootstrapPromise();
+
+  state.current ??= bootstrapInitialOwner(config).catch((error) => {
+    state.current = null;
     throw error;
   });
 
-  return initialOwnerBootstrapPromise;
+  return state.current;
 }
 
 async function bootstrapInitialOwner(config: { email: string; password: string }) {

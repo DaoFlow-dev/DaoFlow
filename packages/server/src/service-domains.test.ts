@@ -1,105 +1,41 @@
 import { TRPCError } from "@trpc/server";
 import { beforeEach, describe, expect, it } from "vitest";
-import type { Context } from "./context";
 import { db } from "./db/connection";
 import { tunnelRoutes, tunnels } from "./db/schema/tunnels";
 import { asRecord, newId } from "./db/services/json-helpers";
-import { createEnvironment, createProject } from "./db/services/projects";
-import { createService } from "./db/services/services";
 import { appRouter } from "./router";
-import { resetSeededTestDatabase } from "./test-db";
-
-function makeSession(role: string): NonNullable<Context["session"]> {
-  const seededUsers = {
-    owner: {
-      id: "user_foundation_owner",
-      email: "owner@daoflow.local",
-      name: "Foundation Owner"
-    },
-    viewer: {
-      id: "user_foundation_owner",
-      email: "owner@daoflow.local",
-      name: "Foundation Owner"
-    }
-  } as const;
-  const actor = seededUsers[role as keyof typeof seededUsers] ?? seededUsers.viewer;
-
-  return {
-    user: {
-      id: actor.id,
-      email: actor.email,
-      name: actor.name,
-      emailVerified: true,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      image: null,
-      role
-    },
-    session: {
-      id: `session_${role}`,
-      userId: actor.id,
-      expiresAt: new Date(),
-      token: `token_${role}`,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      ipAddress: null,
-      userAgent: null
-    }
-  } as unknown as NonNullable<Context["session"]>;
-}
+import { resetTestDatabaseWithControlPlane } from "./test-db";
+import { createProjectEnvironmentServiceFixture } from "./testing/project-fixtures";
+import { makeSession } from "./testing/request-auth-fixtures";
 
 async function createServiceDomainFixture(suffix: string) {
-  const projectResult = await createProject({
-    name: `service-domains-${suffix}`,
-    description: "Service domain test fixture",
-    teamId: "team_foundation",
-    requestedByUserId: "user_foundation_owner",
-    requestedByEmail: "owner@daoflow.local",
-    requestedByRole: "owner"
+  const fixture = await createProjectEnvironmentServiceFixture({
+    project: {
+      name: `service-domains-${suffix}`,
+      description: "Service domain test fixture",
+      teamId: "team_foundation"
+    },
+    environment: {
+      name: `domains-env-${suffix}`,
+      targetServerId: "srv_foundation_1"
+    },
+    service: {
+      name: `domains-svc-${suffix}`,
+      sourceType: "compose",
+      composeServiceName: "api",
+      targetServerId: "srv_foundation_1"
+    }
   });
-  expect(projectResult.status).toBe("ok");
-  if (projectResult.status !== "ok") {
-    throw new Error("Failed to create service domain fixture project.");
-  }
-
-  const environmentResult = await createEnvironment({
-    projectId: projectResult.project.id,
-    name: `domains-env-${suffix}`,
-    targetServerId: "srv_foundation_1",
-    requestedByUserId: "user_foundation_owner",
-    requestedByEmail: "owner@daoflow.local",
-    requestedByRole: "owner"
-  });
-  expect(environmentResult.status).toBe("ok");
-  if (environmentResult.status !== "ok") {
-    throw new Error("Failed to create service domain fixture environment.");
-  }
-
-  const serviceResult = await createService({
-    name: `domains-svc-${suffix}`,
-    projectId: projectResult.project.id,
-    environmentId: environmentResult.environment.id,
-    sourceType: "compose",
-    composeServiceName: "api",
-    targetServerId: "srv_foundation_1",
-    requestedByUserId: "user_foundation_owner",
-    requestedByEmail: "owner@daoflow.local",
-    requestedByRole: "owner"
-  });
-  expect(serviceResult.status).toBe("ok");
-  if (serviceResult.status !== "ok") {
-    throw new Error("Failed to create service domain fixture service.");
-  }
 
   return {
-    projectId: projectResult.project.id,
-    service: serviceResult.service
+    projectId: fixture.project.id,
+    service: fixture.service
   };
 }
 
 describe("service domain workflows", () => {
   beforeEach(async () => {
-    await resetSeededTestDatabase();
+    await resetTestDatabaseWithControlPlane();
   });
 
   it("persists desired domains and port mappings with observed route reconciliation", async () => {

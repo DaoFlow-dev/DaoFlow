@@ -3,6 +3,13 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
 
+const mockedModuleIds = [
+  "./docker-executor",
+  "./ssh-executor",
+  "./checkout-source",
+  "./uploaded-artifacts"
+] as const;
+
 describe("prepareComposeWorkspace", () => {
   let stageDir: string;
 
@@ -24,6 +31,10 @@ describe("prepareComposeWorkspace", () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.clearAllMocks();
+    for (const moduleId of mockedModuleIds) {
+      vi.doUnmock(moduleId);
+    }
     vi.resetModules();
     rmSync(stageDir, { recursive: true, force: true });
   });

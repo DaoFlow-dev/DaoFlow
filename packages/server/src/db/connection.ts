@@ -1,13 +1,38 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
+import { getProcessSingleton } from "../process-singleton";
 import * as schema from "./schema";
+import { resolveConfiguredDatabaseUrl, resolveTestDatabaseUrl } from "./test-database-url";
+
+const PROCESS_CONNECTION_STATE_KEY = "__daoflowDbConnectionState__";
+
+type DatabaseConnectionState = {
+  activeConnectionString: string;
+  activePool: pg.Pool;
+  db: ReturnType<typeof drizzle>;
+  poolProxy: pg.Pool;
+};
+
+type PoolPropertyMap = Record<PropertyKey, unknown>;
+
+function isTestRuntime() {
+  if (process.env.TEST_DATABASE_URL || process.env.VITEST || process.env.NODE_ENV === "test") {
+    return true;
+  }
+
+  return process.argv.some((arg) => arg.includes("vitest") || arg.includes("vite-node"));
+}
 
 function resolveConnectionString() {
-  return process.env.DATABASE_URL ?? "postgresql://daoflow:daoflow_dev@localhost:5432/daoflow";
+  if (isTestRuntime()) {
+    return resolveTestDatabaseUrl();
+  }
+
+  return resolveConfiguredDatabaseUrl();
 }
 
 function createPool(connectionString: string) {
-  const pool = new pg.Pool({
+  const nextPool = new pg.Pool({
     connectionString,
     max: 20,
     idleTimeoutMillis: 30_000,
@@ -16,38 +41,79 @@ function createPool(connectionString: string) {
 
   // Prevent unhandled 'error' events on idle clients from crashing the process.
   // Without this handler, a dropped connection in the pool kills the server.
-  pool.on("error", (err) => {
+  nextPool.on("error", (err) => {
     console.error("[pg pool] Idle client error:", err.message);
   });
 
-  return pool;
+  return nextPool;
 }
 
-let currentConnectionString = resolveConnectionString();
-let currentPool = createPool(currentConnectionString);
+function createPoolProxy(state: Pick<DatabaseConnectionState, "activePool">) {
+  return new Proxy({} as pg.Pool, {
+    get(_target, property) {
+      const value = (state.activePool as unknown as PoolPropertyMap)[property];
 
-export const pool = new Proxy({} as pg.Pool, {
-  get(_target, property) {
-    const member = currentPool[property as keyof pg.Pool];
-    if (typeof member !== "function") {
-      return member;
+      if (typeof value !== "function") {
+        return value;
+      }
+
+      const boundValue = value.bind(state.activePool) as (...args: unknown[]) => unknown;
+      return (...args: unknown[]) => boundValue(...args);
+    },
+    set(_target, property, value) {
+      const activePool = state.activePool as unknown as PoolPropertyMap;
+      activePool[property] = value;
+      return true;
+    },
+    has(_target, property) {
+      return property in state.activePool;
+    },
+    ownKeys() {
+      return Reflect.ownKeys(state.activePool);
+    },
+    getOwnPropertyDescriptor(_target, property) {
+      return Object.getOwnPropertyDescriptor(state.activePool, property);
     }
+  });
+}
 
-    const method = member as (this: pg.Pool, ...args: unknown[]) => unknown;
-    return (...args: unknown[]) => method.apply(currentPool, args);
-  }
-});
+function initializeConnectionState(): DatabaseConnectionState {
+  const state = {} as DatabaseConnectionState;
 
-export const db = drizzle(pool, { schema });
+  state.activeConnectionString = resolveConnectionString();
+  state.activePool = createPool(state.activeConnectionString);
+  state.poolProxy = createPoolProxy(state);
+  state.db = drizzle(state.poolProxy, { schema });
+
+  return state;
+}
+
+function getConnectionState() {
+  return getProcessSingleton(PROCESS_CONNECTION_STATE_KEY, initializeConnectionState);
+}
+
+export const pool = getConnectionState().poolProxy;
+
+export const db = getConnectionState().db;
 
 export function getDatabaseConnectionString() {
-  return currentConnectionString;
+  return getConnectionState().activeConnectionString;
 }
 
-export async function reconfigureDatabasePool(connectionString = resolveConnectionString()) {
-  const nextPool = createPool(connectionString);
-  const previousPool = currentPool;
-  currentPool = nextPool;
-  currentConnectionString = connectionString;
+export async function reinitializeDatabaseConnection(input?: {
+  connectionString?: string;
+  force?: boolean;
+}) {
+  const state = getConnectionState();
+  const connectionString = input?.connectionString ?? resolveConnectionString();
+
+  if (!input?.force && connectionString === state.activeConnectionString) {
+    return;
+  }
+
+  const previousPool = state.activePool;
+  state.activeConnectionString = connectionString;
+  state.activePool = createPool(connectionString);
+
   await previousPool.end().catch(() => undefined);
 }

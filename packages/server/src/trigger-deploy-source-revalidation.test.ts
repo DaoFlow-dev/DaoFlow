@@ -16,7 +16,7 @@ import { upsertEnvironmentVariable } from "./db/services/envvars";
 import { createEnvironment, createProject } from "./db/services/projects";
 import { createService } from "./db/services/services";
 import { triggerDeploy } from "./db/services/trigger-deploy";
-import { resetSeededTestDatabase } from "./test-db";
+import { resetTestDatabaseWithControlPlane } from "./test-db";
 import { createLocalGitRepository } from "./test-git-repo";
 
 function toRequestUrl(input: string | URL | Request): string {
@@ -250,7 +250,7 @@ async function createDirectUploadComposeFixture(input: {
 
 describe("deploy source revalidation", () => {
   beforeEach(async () => {
-    await resetSeededTestDatabase();
+    await resetTestDatabaseWithControlPlane();
   });
 
   afterEach(() => {

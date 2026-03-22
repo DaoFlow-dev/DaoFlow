@@ -1,39 +1,14 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import type { Context } from "./context";
 import { appRouter } from "./router";
-import { resetSeededTestDatabase } from "./test-db";
+import { resetTestDatabaseWithControlPlane } from "./test-db";
 import { db } from "./db/connection";
 import { gitInstallations, gitProviders } from "./db/schema/git-providers";
 import { encrypt } from "./db/crypto";
-
-function makeSession(role: string): NonNullable<Context["session"]> {
-  return {
-    user: {
-      id: "user_foundation_owner",
-      email: "owner@daoflow.local",
-      name: "Foundation Owner",
-      emailVerified: true,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      image: null,
-      role
-    },
-    session: {
-      id: `session_${role}`,
-      userId: "user_foundation_owner",
-      expiresAt: new Date(),
-      token: `token_${role}`,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      ipAddress: null,
-      userAgent: null
-    }
-  } as unknown as NonNullable<Context["session"]>;
-}
+import { makeSession } from "./testing/request-auth-fixtures";
 
 describe("git provider security surfaces", () => {
   beforeEach(async () => {
-    await resetSeededTestDatabase();
+    await resetTestDatabaseWithControlPlane();
   });
 
   it("returns sanitized git provider and installation summaries", async () => {

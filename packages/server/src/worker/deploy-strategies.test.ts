@@ -1,5 +1,18 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ComposeBuildPlan } from "../compose-build-plan";
+
+const mockedModuleIds = [
+  "../db/connection",
+  "../db/schema/deployments",
+  "../db/services/deployment-execution-control",
+  "../compose-readiness",
+  "../db/services/compose-env",
+  "./docker-executor",
+  "./swarm-executor",
+  "./ssh-executor",
+  "./compose-workspace",
+  "./step-management"
+] as const;
 
 function createComposeWorkspace(buildPlan: ComposeBuildPlan) {
   return {
@@ -262,6 +275,15 @@ describe("executeComposeDeployment", () => {
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.clearAllMocks();
+    for (const moduleId of mockedModuleIds) {
+      vi.doUnmock(moduleId);
+    }
+    vi.resetModules();
   });
 
   it("builds compose services before start when the frozen workspace includes local build contexts", async () => {

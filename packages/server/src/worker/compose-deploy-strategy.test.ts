@@ -1,5 +1,15 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ComposeBuildPlan } from "../compose-build-plan";
+
+const mockedModuleIds = [
+  "../db/services/compose-env",
+  "../compose-readiness",
+  "./compose-workspace",
+  "./docker-executor",
+  "./swarm-executor",
+  "./ssh-executor",
+  "./step-management"
+] as const;
 
 function createLocalBuildService(
   serviceName: string,
@@ -270,6 +280,15 @@ describe("executeComposeDeployment", () => {
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.clearAllMocks();
+    for (const moduleId of mockedModuleIds) {
+      vi.doUnmock(moduleId);
+    }
+    vi.resetModules();
   });
 
   it("builds local compose services before start without pulling a build-only stack", async () => {

@@ -1,6 +1,6 @@
 import { createHmac, generateKeyPairSync } from "node:crypto";
 import { eq } from "drizzle-orm";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createApp } from "./app";
 import { db } from "./db/connection";
 import { encrypt } from "./db/crypto";
@@ -11,7 +11,7 @@ import { createService } from "./db/services/services";
 import { auditEntries } from "./db/schema/audit";
 import { gitInstallations, gitProviders } from "./db/schema/git-providers";
 import { projects } from "./db/schema/projects";
-import { resetSeededTestDatabase } from "./test-db";
+import { resetTestDatabaseWithControlPlane } from "./test-db";
 
 function toRequestUrl(input: string | URL | Request): string {
   if (typeof input === "string") {
@@ -333,13 +333,15 @@ async function createGitLabComposeWebhookFixture(input: {
 }
 
 describe("webhook routes", () => {
+  beforeEach(async () => {
+    await resetTestDatabaseWithControlPlane();
+  });
+
   afterEach(() => {
     vi.restoreAllMocks();
   });
 
   it("deduplicates repeated GitHub deliveries by delivery id", async () => {
-    await resetSeededTestDatabase();
-
     const fixture = await createGitHubComposeWebhookFixture({
       suffix: `${Date.now()}`,
       repoFullName: "example/dedupe-app",
@@ -412,8 +414,6 @@ describe("webhook routes", () => {
   });
 
   it("ignores GitHub deliveries that do not match the configured branch and records audit evidence", async () => {
-    await resetSeededTestDatabase();
-
     const fixture = await createGitHubComposeWebhookFixture({
       suffix: `${Date.now()}`,
       repoFullName: "example/branch-filter-app",
@@ -482,8 +482,6 @@ describe("webhook routes", () => {
   });
 
   it("ignores GitLab deliveries when changed paths do not match watched path filters", async () => {
-    await resetSeededTestDatabase();
-
     const fixture = await createGitLabComposeWebhookFixture({
       suffix: `${Date.now()}`,
       repoFullName: "example/path-filter-app",
@@ -550,8 +548,6 @@ describe("webhook routes", () => {
   });
 
   it("uses GitHub installation metadata to avoid cross-provider repo collisions", async () => {
-    await resetSeededTestDatabase();
-
     const sharedRepoFullName = "example/shared-installation-app";
     const githubFixture = await createGitHubComposeWebhookFixture({
       suffix: `${Date.now()}a`,

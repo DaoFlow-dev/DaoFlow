@@ -1,65 +1,23 @@
 import { eq } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { beforeEach, describe, expect, it } from "vitest";
-import type { Context } from "./context";
 import { db } from "./db/connection";
 import { encrypt } from "./db/crypto";
 import { deployments } from "./db/schema/deployments";
 import { environmentVariables, projects } from "./db/schema/projects";
 import { servers } from "./db/schema/servers";
-import { services as servicesTable } from "./db/schema/services";
+import { services } from "./db/schema/services";
 import { teams } from "./db/schema/teams";
 import { encryptComposeDeploymentState } from "./db/services/compose-env";
 import { createEnvironment, createProject } from "./db/services/projects";
 import { createService } from "./db/services/services";
 import { appRouter } from "./router";
+import { resetTestDatabaseWithControlPlane } from "./test-db";
 import { createLocalGitRepository } from "./test-git-repo";
-import { resetSeededTestDatabase } from "./test-db";
+import { createProjectEnvironmentServiceFixture } from "./testing/project-fixtures";
+import { makeSession } from "./testing/request-auth-fixtures";
 
 let fixtureCounter = 0;
-
-beforeEach(async () => {
-  await resetSeededTestDatabase();
-});
-
-function makeSession(role: string): NonNullable<Context["session"]> {
-  const seededUsers = {
-    owner: {
-      id: "user_foundation_owner",
-      email: "owner@daoflow.local",
-      name: "Foundation Owner"
-    },
-    viewer: {
-      id: "user_foundation_owner",
-      email: "owner@daoflow.local",
-      name: "Foundation Owner"
-    }
-  } as const;
-  const actor = seededUsers[role as keyof typeof seededUsers] ?? seededUsers.viewer;
-
-  return {
-    user: {
-      id: actor.id,
-      email: actor.email,
-      name: actor.name,
-      emailVerified: true,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      image: null,
-      role
-    },
-    session: {
-      id: `session_${role}`,
-      userId: actor.id,
-      expiresAt: new Date(),
-      token: `token_${role}`,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      ipAddress: null,
-      userAgent: null
-    }
-  } as unknown as NonNullable<Context["session"]>;
-}
 
 async function createConfigDiffFixture(teamId = "team_foundation") {
   fixtureCounter += 1;
@@ -78,43 +36,22 @@ async function createConfigDiffFixture(teamId = "team_foundation") {
     });
   }
 
-  const projectResult = await createProject({
-    name: projectName,
-    description: "Config diff fixture",
-    teamId,
-    requestedByUserId: "user_foundation_owner",
-    requestedByEmail: "owner@daoflow.local",
-    requestedByRole: "owner"
+  const fixture = await createProjectEnvironmentServiceFixture({
+    project: {
+      name: projectName,
+      description: "Config diff fixture",
+      teamId
+    },
+    environment: {
+      name: environmentName,
+      targetServerId: "srv_foundation_1"
+    },
+    service: {
+      name: serviceName,
+      sourceType: "compose",
+      targetServerId: "srv_foundation_1"
+    }
   });
-  if (projectResult.status !== "ok") {
-    throw new Error("Failed to create config diff fixture project.");
-  }
-
-  const environmentResult = await createEnvironment({
-    projectId: projectResult.project.id,
-    name: environmentName,
-    targetServerId: "srv_foundation_1",
-    requestedByUserId: "user_foundation_owner",
-    requestedByEmail: "owner@daoflow.local",
-    requestedByRole: "owner"
-  });
-  if (environmentResult.status !== "ok") {
-    throw new Error("Failed to create config diff fixture environment.");
-  }
-
-  const serviceResult = await createService({
-    name: serviceName,
-    projectId: projectResult.project.id,
-    environmentId: environmentResult.environment.id,
-    sourceType: "compose",
-    targetServerId: "srv_foundation_1",
-    requestedByUserId: "user_foundation_owner",
-    requestedByEmail: "owner@daoflow.local",
-    requestedByRole: "owner"
-  });
-  if (serviceResult.status !== "ok") {
-    throw new Error("Failed to create config diff fixture service.");
-  }
 
   const baselineDeploymentId = `depbase_${suffix}`.slice(0, 32);
   const comparisonDeploymentId = `depcmp_${suffix}`.slice(0, 32);
@@ -124,8 +61,8 @@ async function createConfigDiffFixture(teamId = "team_foundation") {
   await db.insert(deployments).values([
     {
       id: baselineDeploymentId,
-      projectId: projectResult.project.id,
-      environmentId: environmentResult.environment.id,
+      projectId: fixture.project.id,
+      environmentId: fixture.environment.id,
       targetServerId: "srv_foundation_1",
       serviceName,
       sourceType: "compose",
@@ -154,8 +91,8 @@ async function createConfigDiffFixture(teamId = "team_foundation") {
     },
     {
       id: comparisonDeploymentId,
-      projectId: projectResult.project.id,
-      environmentId: environmentResult.environment.id,
+      projectId: fixture.project.id,
+      environmentId: fixture.environment.id,
       targetServerId: "srv_foundation_1",
       serviceName,
       sourceType: "compose",
@@ -192,6 +129,11 @@ async function createConfigDiffFixture(teamId = "team_foundation") {
 }
 
 describe("planning diff surfaces", () => {
+  beforeEach(async () => {
+    fixtureCounter = 0;
+    await resetTestDatabaseWithControlPlane();
+  });
+
   it("returns a non-mutating direct compose deployment plan", async () => {
     const caller = appRouter.createCaller({
       requestId: "test-compose-plan",
@@ -670,7 +612,7 @@ describe("planning diff surfaces", () => {
     }
   });
 
-  it("warns that compose healthcheckPath is legacy metadata and points operators to readiness probes", async () => {
+  it("warns when compose healthcheckPath is configured but execution only uses compose container state", async () => {
     const caller = appRouter.createCaller({
       requestId: "test-plan-compose-healthcheck-advisory",
       session: makeSession("viewer")
@@ -709,23 +651,27 @@ describe("planning diff surfaces", () => {
         throw new Error("Failed to create compose health planning fixture environment.");
       }
 
-      const serviceId = `svclgh${Date.now()}`.slice(0, 32);
-      await db.insert(servicesTable).values({
-        id: serviceId,
+      const serviceResult = await createService({
         name: `compose-health-svc-${Date.now()}`,
-        slug: `compose-health-svc-${Date.now()}`.slice(0, 40),
         projectId: projectResult.project.id,
         environmentId: environmentResult.environment.id,
         sourceType: "compose",
         targetServerId: "srv_foundation_1",
-        healthcheckPath: "/ready",
-        status: "inactive",
-        config: {},
-        updatedAt: new Date()
+        requestedByUserId: "user_foundation_owner",
+        requestedByEmail: "owner@daoflow.local",
+        requestedByRole: "owner"
       });
+      if (serviceResult.status !== "ok") {
+        throw new Error("Failed to create compose health planning fixture service.");
+      }
+
+      await db
+        .update(services)
+        .set({ healthcheckPath: "/ready" })
+        .where(eq(services.id, serviceResult.service.id));
 
       const plan = await caller.deploymentPlan({
-        service: serviceId
+        service: serviceResult.service.id
       });
 
       expect(plan.isReady).toBe(true);

@@ -1,7 +1,6 @@
 import { generateKeyPairSync } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { Context } from "./context";
 import { db } from "./db/connection";
 import { encrypt } from "./db/crypto";
 import { events } from "./db/schema/audit";
@@ -14,7 +13,8 @@ import { asRecord } from "./db/services/json-helpers";
 import { createService } from "./db/services/services";
 import { readComposePreviewMetadata } from "./compose-preview";
 import { appRouter } from "./router";
-import { resetSeededTestDatabase } from "./test-db";
+import { resetTestDatabaseWithControlPlane } from "./test-db";
+import { makeSession } from "./testing/request-auth-fixtures";
 
 function toRequestUrl(input: string | URL | Request): string {
   if (typeof input === "string") {
@@ -70,48 +70,9 @@ function mockGitHubSourceFetch(input: {
   };
 }
 
-function makeSession(role: string): NonNullable<Context["session"]> {
-  const seededUsers = {
-    owner: {
-      id: "user_foundation_owner",
-      email: "owner@daoflow.local",
-      name: "Foundation Owner"
-    },
-    viewer: {
-      id: "user_foundation_owner",
-      email: "owner@daoflow.local",
-      name: "Foundation Owner"
-    }
-  } as const;
-  const actor = seededUsers[role as keyof typeof seededUsers] ?? seededUsers.viewer;
-
-  return {
-    user: {
-      id: actor.id,
-      email: actor.email,
-      name: actor.name,
-      emailVerified: true,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      image: null,
-      role
-    },
-    session: {
-      id: `session_${role}`,
-      userId: actor.id,
-      expiresAt: new Date(),
-      token: `token_${role}`,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      ipAddress: null,
-      userAgent: null
-    }
-  } as unknown as NonNullable<Context["session"]>;
-}
-
 describe("compose preview reconciliation", () => {
   beforeEach(async () => {
-    await resetSeededTestDatabase();
+    await resetTestDatabaseWithControlPlane();
   });
 
   afterEach(() => {

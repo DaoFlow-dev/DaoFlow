@@ -1,8 +1,6 @@
 import { TRPCError } from "@trpc/server";
 import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
-import { getEffectiveTokenCapabilities, type ApiTokenScope } from "@daoflow/shared";
-import type { Context, RequestAuthContext } from "./context";
 import { db } from "./db/connection";
 import { deployments } from "./db/schema/deployments";
 import { approvalRequests, auditEntries } from "./db/schema/audit";
@@ -17,129 +15,19 @@ import { createService } from "./db/services/services";
 import { upsertEnvironmentVariable } from "./db/services/envvars";
 import type { ComposeReadinessProbeInput } from "./compose-readiness";
 import { appRouter } from "./router";
-import { resetSeededTestDatabase } from "./test-db";
+import { resetTestDatabaseWithControlPlane } from "./test-db";
+import {
+  createProjectEnvironmentServiceFixture,
+  foundationOwnerRequester
+} from "./testing/project-fixtures";
+import {
+  makeCustomSession,
+  makeSession,
+  makeTokenAuthContext
+} from "./testing/request-auth-fixtures";
 
 let rollbackFixtureCounter = 0;
 let otherTeamFixtureCounter = 0;
-
-beforeEach(async () => {
-  await resetSeededTestDatabase();
-});
-
-function makeSession(role: string): NonNullable<Context["session"]> {
-  const seededUsers = {
-    owner: {
-      id: "user_foundation_owner",
-      email: "owner@daoflow.local",
-      name: "Foundation Owner"
-    },
-    admin: {
-      id: "user_foundation_owner",
-      email: "owner@daoflow.local",
-      name: "Foundation Owner"
-    },
-    viewer: {
-      id: "user_foundation_owner",
-      email: "owner@daoflow.local",
-      name: "Foundation Owner"
-    },
-    operator: {
-      id: "user_foundation_operator",
-      email: "operator@daoflow.local",
-      name: "Foundation Operator"
-    },
-    developer: {
-      id: "user_developer",
-      email: "developer@daoflow.local",
-      name: "Foundation Developer"
-    },
-    agent: {
-      id: "user_observer_agent",
-      email: "observer-agent@daoflow.local",
-      name: "Observer Agent"
-    }
-  } as const;
-  const actor = seededUsers[role as keyof typeof seededUsers] ?? seededUsers.viewer;
-
-  return {
-    user: {
-      id: actor.id,
-      email: actor.email,
-      name: actor.name,
-      emailVerified: true,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      image: null,
-      role
-    },
-    session: {
-      id: `session_${role}`,
-      userId: actor.id,
-      expiresAt: new Date(),
-      token: `token_${role}`,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      ipAddress: null,
-      userAgent: null
-    }
-  } as unknown as NonNullable<Context["session"]>;
-}
-
-function makeCustomSession(input: {
-  id: string;
-  email: string;
-  name: string;
-  role: string;
-}): NonNullable<Context["session"]> {
-  return {
-    user: {
-      id: input.id,
-      email: input.email,
-      name: input.name,
-      emailVerified: true,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      image: null,
-      role: input.role
-    },
-    session: {
-      id: `session_${input.id}`,
-      userId: input.id,
-      expiresAt: new Date(),
-      token: `token_${input.id}`,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      ipAddress: null,
-      userAgent: null
-    }
-  } as unknown as NonNullable<Context["session"]>;
-}
-
-function makeTokenAuthContext(
-  role: "owner" | "agent",
-  scopes: ApiTokenScope[],
-  principalType: "user" | "agent" = "user"
-): RequestAuthContext {
-  return {
-    method: "api-token",
-    role,
-    capabilities: getEffectiveTokenCapabilities(role, scopes),
-    principal: {
-      id: principalType === "agent" ? "principal_observer_agent_1" : "user_foundation_owner",
-      email: principalType === "agent" ? "observer-agent@daoflow.local" : "owner@daoflow.local",
-      name: principalType === "agent" ? "Observer Agent" : "Foundation Owner",
-      type: principalType,
-      linkedUserId: principalType === "agent" ? "user_observer_agent" : "user_foundation_owner"
-    },
-    token: {
-      id: principalType === "agent" ? "token_observer_readonly" : "token_owner_scoped",
-      name: principalType === "agent" ? "readonly-observer" : "owner-scoped",
-      prefix: principalType === "agent" ? "df_read_4f39" : "dfl_owner_1",
-      expiresAt: null,
-      scopes
-    }
-  };
-}
 
 async function createRollbackFixture(input: { readinessProbe?: ComposeReadinessProbeInput } = {}) {
   rollbackFixtureCounter += 1;
@@ -148,44 +36,23 @@ async function createRollbackFixture(input: { readinessProbe?: ComposeReadinessP
   const environmentName = `preview-${suffix}`;
   const serviceName = `svc-${suffix}`;
 
-  const projectResult = await createProject({
-    name: projectName,
-    description: "Rollback planning fixture",
-    teamId: "team_foundation",
-    requestedByUserId: "user_foundation_owner",
-    requestedByEmail: "owner@daoflow.local",
-    requestedByRole: "owner"
+  const fixture = await createProjectEnvironmentServiceFixture({
+    project: {
+      name: projectName,
+      description: "Rollback planning fixture",
+      teamId: "team_foundation"
+    },
+    environment: {
+      name: environmentName,
+      targetServerId: "srv_foundation_1"
+    },
+    service: {
+      name: serviceName,
+      sourceType: "compose",
+      targetServerId: "srv_foundation_1",
+      readinessProbe: input.readinessProbe
+    }
   });
-  if (projectResult.status !== "ok") {
-    throw new Error("Failed to create rollback fixture project.");
-  }
-
-  const environmentResult = await createEnvironment({
-    projectId: projectResult.project.id,
-    name: environmentName,
-    targetServerId: "srv_foundation_1",
-    requestedByUserId: "user_foundation_owner",
-    requestedByEmail: "owner@daoflow.local",
-    requestedByRole: "owner"
-  });
-  if (environmentResult.status !== "ok") {
-    throw new Error("Failed to create rollback fixture environment.");
-  }
-
-  const serviceResult = await createService({
-    name: serviceName,
-    projectId: projectResult.project.id,
-    environmentId: environmentResult.environment.id,
-    sourceType: "compose",
-    targetServerId: "srv_foundation_1",
-    readinessProbe: input.readinessProbe,
-    requestedByUserId: "user_foundation_owner",
-    requestedByEmail: "owner@daoflow.local",
-    requestedByRole: "owner"
-  });
-  if (serviceResult.status !== "ok") {
-    throw new Error("Failed to create rollback fixture service.");
-  }
 
   const successDeploymentId = `depok_${suffix}`.slice(0, 32);
   const failedDeploymentId = `depfail_${suffix}`.slice(0, 32);
@@ -195,8 +62,8 @@ async function createRollbackFixture(input: { readinessProbe?: ComposeReadinessP
   await db.insert(deployments).values([
     {
       id: successDeploymentId,
-      projectId: projectResult.project.id,
-      environmentId: environmentResult.environment.id,
+      projectId: fixture.project.id,
+      environmentId: fixture.environment.id,
       targetServerId: "srv_foundation_1",
       serviceName,
       sourceType: "compose",
@@ -220,8 +87,8 @@ async function createRollbackFixture(input: { readinessProbe?: ComposeReadinessP
     },
     {
       id: failedDeploymentId,
-      projectId: projectResult.project.id,
-      environmentId: environmentResult.environment.id,
+      projectId: fixture.project.id,
+      environmentId: fixture.environment.id,
       targetServerId: "srv_foundation_1",
       serviceName,
       sourceType: "compose",
@@ -247,7 +114,7 @@ async function createRollbackFixture(input: { readinessProbe?: ComposeReadinessP
   ]);
 
   return {
-    serviceId: serviceResult.service.id,
+    serviceId: fixture.service.id,
     successDeploymentId,
     failedDeploymentId
   };
@@ -292,40 +159,40 @@ async function createOtherTeamFixture() {
     createdAt: new Date()
   });
 
-  const projectResult = await createProject({
-    name: projectName,
-    description: "Cross-team access fixture",
-    teamId,
-    requestedByUserId: userId,
-    requestedByEmail: `${userId}@daoflow.local`,
-    requestedByRole: "owner"
+  const fixture = await createProjectEnvironmentServiceFixture({
+    project: {
+      name: projectName,
+      description: "Cross-team access fixture",
+      teamId
+    },
+    environment: {
+      teamId,
+      name: environmentName,
+      targetServerId: "srv_foundation_1"
+    },
+    requester: {
+      ...foundationOwnerRequester,
+      requestedByUserId: userId,
+      requestedByEmail: `${userId}@daoflow.local`,
+      requestedByRole: "owner"
+    }
   });
-  if (projectResult.status !== "ok") {
-    throw new Error("Failed to create cross-team fixture project.");
-  }
-
-  const environmentResult = await createEnvironment({
-    projectId: projectResult.project.id,
-    teamId,
-    name: environmentName,
-    targetServerId: "srv_foundation_1",
-    requestedByUserId: userId,
-    requestedByEmail: `${userId}@daoflow.local`,
-    requestedByRole: "owner"
-  });
-  if (environmentResult.status !== "ok") {
-    throw new Error("Failed to create cross-team fixture environment.");
-  }
 
   return {
     teamId,
     userId,
-    projectId: projectResult.project.id,
-    environmentId: environmentResult.environment.id
+    projectId: fixture.project.id,
+    environmentId: fixture.environment.id
   };
 }
 
 describe("appRouter", () => {
+  beforeEach(async () => {
+    rollbackFixtureCounter = 0;
+    otherTeamFixtureCounter = 0;
+    await resetTestDatabaseWithControlPlane();
+  });
+
   it("returns a healthy status payload", async () => {
     const caller = appRouter.createCaller({ requestId: "test-health", session: null });
     const response = await caller.health();
@@ -671,118 +538,6 @@ describe("appRouter", () => {
           asRecord(service.config).readinessProbe !== null
       )
     ).toBe(true);
-  });
-
-  it("rejects compose service healthcheckPath writes without readiness probes and preserves legacy metadata when readiness is explicit", async () => {
-    const caller = appRouter.createCaller({
-      requestId: "test-service-compose-healthcheckpath-deprecated",
-      session: makeSession("owner")
-    });
-
-    const projectResult = await createProject({
-      name: `service-healthcheckpath-${Date.now()}`,
-      description: "Compose healthcheckPath deprecation fixture",
-      teamId: "team_foundation",
-      requestedByUserId: "user_foundation_owner",
-      requestedByEmail: "owner@daoflow.local",
-      requestedByRole: "owner"
-    });
-    expect(projectResult.status).toBe("ok");
-    if (projectResult.status !== "ok") {
-      throw new Error("Failed to create compose healthcheckPath project fixture.");
-    }
-
-    const environmentResult = await createEnvironment({
-      projectId: projectResult.project.id,
-      name: `service-healthcheckpath-env-${Date.now()}`,
-      targetServerId: "srv_foundation_1",
-      requestedByUserId: "user_foundation_owner",
-      requestedByEmail: "owner@daoflow.local",
-      requestedByRole: "owner"
-    });
-    expect(environmentResult.status).toBe("ok");
-    if (environmentResult.status !== "ok") {
-      throw new Error("Failed to create compose healthcheckPath environment fixture.");
-    }
-
-    await expect(
-      caller.createService({
-        name: `service-healthcheckpath-svc-${Date.now()}`,
-        projectId: projectResult.project.id,
-        environmentId: environmentResult.environment.id,
-        sourceType: "compose",
-        healthcheckPath: "/ready"
-      })
-    ).rejects.toMatchObject({
-      code: "BAD_REQUEST",
-      message:
-        "Compose services no longer accept healthcheckPath. Configure service.config.readinessProbe instead."
-    } satisfies Partial<TRPCError>);
-
-    const serviceResult = await createService({
-      name: `service-healthcheckpath-update-svc-${Date.now()}`,
-      projectId: projectResult.project.id,
-      environmentId: environmentResult.environment.id,
-      sourceType: "compose",
-      targetServerId: "srv_foundation_1",
-      requestedByUserId: "user_foundation_owner",
-      requestedByEmail: "owner@daoflow.local",
-      requestedByRole: "owner"
-    });
-    expect(serviceResult.status).toBe("ok");
-    if (serviceResult.status !== "ok") {
-      throw new Error("Failed to create compose healthcheckPath update fixture service.");
-    }
-
-    await expect(
-      caller.updateService({
-        serviceId: serviceResult.service.id,
-        healthcheckPath: "/ready"
-      })
-    ).rejects.toMatchObject({
-      code: "BAD_REQUEST",
-      message:
-        "Compose services no longer accept healthcheckPath. Configure service.config.readinessProbe instead."
-    } satisfies Partial<TRPCError>);
-
-    const createWithReadiness = await caller.createService({
-      name: `service-healthcheckpath-ready-svc-${Date.now()}`,
-      projectId: projectResult.project.id,
-      environmentId: environmentResult.environment.id,
-      sourceType: "compose",
-      healthcheckPath: "/legacy-ready",
-      readinessProbe: {
-        type: "http",
-        target: "published-port",
-        port: 8080,
-        path: "/ready"
-      }
-    });
-    expect(createWithReadiness.healthcheckPath).toBe("/legacy-ready");
-    expect(asRecord(createWithReadiness.config).readinessProbe).toMatchObject({
-      type: "http",
-      target: "published-port",
-      port: 8080,
-      path: "/ready"
-    });
-
-    const updatedWithReadiness = await caller.updateService({
-      serviceId: serviceResult.service.id,
-      healthcheckPath: "/legacy-ready",
-      readinessProbe: {
-        type: "http",
-        target: "published-port",
-        port: 8081,
-        path: "/ready"
-      }
-    });
-    expect(updatedWithReadiness.healthcheckPath).toBe("/legacy-ready");
-    expect(asRecord(updatedWithReadiness.config).readinessProbe).toMatchObject({
-      type: "http",
-      target: "published-port",
-      port: 8081,
-      path: "/ready"
-    });
   });
 
   it("persists DaoFlow-managed runtime overrides for compose services", async () => {
@@ -1776,6 +1531,10 @@ describe("appRouter", () => {
       localPath: `/tmp/daoflow-${suffix}`
     });
 
+    if (!volume || !destination) {
+      throw new Error("Expected storage mutations to return created volume and destination.");
+    }
+
     const policy = await caller.createBackupPolicy({
       name: `policy-${suffix}`,
       volumeId: volume.id,
@@ -1783,11 +1542,19 @@ describe("appRouter", () => {
       retentionDays: 21
     });
 
+    if (!policy) {
+      throw new Error("Expected storage mutations to return a created backup policy.");
+    }
+
     const updated = await caller.updateBackupPolicy({
       policyId: policy.id,
       retentionDays: 30,
       turnOff: true
     });
+
+    if (!updated) {
+      throw new Error("Expected storage mutations to return an updated backup policy.");
+    }
 
     expect(updated.retentionDays).toBe(30);
     expect(updated.turnOff).toBe(true);

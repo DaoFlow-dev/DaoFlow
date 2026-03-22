@@ -6,7 +6,7 @@ import { servers } from "../db/schema/servers";
 import { createEnvironment, createProject } from "../db/services/projects";
 import { createService } from "../db/services/services";
 import { cancelDeployment } from "../db/services/deployments";
-import { resetSeededTestDatabase } from "../test-db";
+import { resetTestDatabaseWithControlPlane } from "../test-db";
 
 const {
   cleanupStagingDirMock,
@@ -130,7 +130,7 @@ async function createDeploymentRecordFixture(sourceType: "compose" | "image" = "
 describe("runDeployment", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
-    await resetSeededTestDatabase();
+    await resetTestDatabaseWithControlPlane();
   });
 
   it("marks a deployment cancelled when a user requests cancellation mid-run", async () => {

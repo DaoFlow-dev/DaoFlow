@@ -31,9 +31,7 @@ vi.mock("../../worker/temporal/temporal-config", async () => {
 import { db } from "../connection";
 import { servers } from "../schema/servers";
 import { backupPolicies, volumes } from "../schema/storage";
-import { teams } from "../schema/teams";
-import { users } from "../schema/users";
-import { resetTestDatabase } from "../../test-db";
+import { resetTestDatabaseWithControlPlane } from "../../test-db";
 import { createDestination } from "./destinations";
 import { createEnvironment, createProject } from "./projects";
 import { createService } from "./services";
@@ -54,32 +52,6 @@ const actor = {
   email: "owner@daoflow.local",
   role: "owner" as const
 };
-
-async function ensureActorFixture() {
-  const now = new Date();
-
-  await db.insert(users).values({
-    id: actor.userId,
-    email: actor.email,
-    name: "Fixture Owner",
-    username: "fixture-owner",
-    emailVerified: true,
-    role: actor.role,
-    status: "active",
-    createdAt: now,
-    updatedAt: now
-  });
-
-  await db.insert(teams).values({
-    id: "team_foundation",
-    name: "Foundation Team",
-    slug: "foundation-team",
-    status: "active",
-    createdByUserId: actor.userId,
-    createdAt: now,
-    updatedAt: now
-  });
-}
 
 async function createServerFixture() {
   const id = `srvstor${suffix()}`;
@@ -151,8 +123,7 @@ async function createServiceFixture(serverId: string) {
 
 describe("storage-management", () => {
   beforeEach(async () => {
-    await resetTestDatabase();
-    await ensureActorFixture();
+    await resetTestDatabaseWithControlPlane();
     cancelBackupCronWorkflowMock.mockReset();
     startBackupCronWorkflowMock.mockReset();
     isTemporalEnabledMock.mockReset();

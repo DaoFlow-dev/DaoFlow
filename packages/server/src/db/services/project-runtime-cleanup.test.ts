@@ -22,7 +22,7 @@ vi.mock("../../worker/runtime-cleanup", () => {
 import { db } from "../connection";
 import { deployments } from "../schema/deployments";
 import { servers } from "../schema/servers";
-import { resetSeededTestDatabase } from "../../test-db";
+import { resetTestDatabaseWithControlPlane } from "../../test-db";
 import { createEnvironment, createProject } from "./projects";
 import { cleanupProjectRuntime } from "./project-runtime-cleanup";
 
@@ -65,7 +65,7 @@ async function createProjectFixture() {
 
 describe("cleanupProjectRuntime", () => {
   beforeEach(async () => {
-    await resetSeededTestDatabase();
+    await resetTestDatabaseWithControlPlane();
     cleanupComposeProjectRuntimeMock.mockReset();
     cleanupContainerRuntimeMock.mockReset();
     cleanupSwarmStackRuntimeMock.mockReset();

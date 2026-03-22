@@ -41,6 +41,11 @@ export function VolumeRegistryPanel({ canManage }: { canManage: boolean }) {
 
   const createVolume = trpc.createVolume.useMutation({
     onSuccess: async (volume) => {
+      if (!volume) {
+        setFeedback("Registered the volume.");
+        await refreshViews();
+        return;
+      }
       await refreshViews();
       setFeedback(`Registered volume ${volume.name}.`);
     },
@@ -49,6 +54,11 @@ export function VolumeRegistryPanel({ canManage }: { canManage: boolean }) {
   });
   const updateVolume = trpc.updateVolume.useMutation({
     onSuccess: async (volume) => {
+      if (!volume) {
+        setFeedback("Updated the volume.");
+        await refreshViews();
+        return;
+      }
       await refreshViews();
       setFeedback(`Updated volume ${volume.name}.`);
     },

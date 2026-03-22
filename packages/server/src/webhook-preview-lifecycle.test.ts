@@ -1,6 +1,6 @@
 import { createHmac, generateKeyPairSync } from "node:crypto";
 import { eq } from "drizzle-orm";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createApp } from "./app";
 import { readComposePreviewMetadata } from "./compose-preview";
 import { db } from "./db/connection";
@@ -14,7 +14,7 @@ import { deployments } from "./db/schema/deployments";
 import { gitInstallations, gitProviders } from "./db/schema/git-providers";
 import { projects } from "./db/schema/projects";
 import { webhookDeliveries } from "./db/schema/webhook-deliveries";
-import { resetSeededTestDatabase } from "./test-db";
+import { resetTestDatabaseWithControlPlane } from "./test-db";
 
 function toRequestUrl(input: string | URL | Request): string {
   if (typeof input === "string") {
@@ -259,13 +259,15 @@ async function createPreviewFixture(input: {
 }
 
 describe("preview lifecycle webhooks", () => {
+  beforeEach(async () => {
+    await resetTestDatabaseWithControlPlane();
+  });
+
   afterEach(() => {
     vi.restoreAllMocks();
   });
 
   it("queues GitHub pull request preview deploys and records delivery state", async () => {
-    await resetSeededTestDatabase();
-
     const fixture = await createPreviewFixture({ providerType: "github" });
     const payload = JSON.stringify({
       action: "opened",
@@ -353,8 +355,6 @@ describe("preview lifecycle webhooks", () => {
   });
 
   it("deduplicates repeated GitHub preview deliveries both by delivery id and by semantic preview state", async () => {
-    await resetSeededTestDatabase();
-
     const fixture = await createPreviewFixture({ providerType: "github" });
     const payload = JSON.stringify({
       action: "opened",
@@ -435,8 +435,6 @@ describe("preview lifecycle webhooks", () => {
   });
 
   it("queues GitHub pull request cleanup as a preview destroy deployment", async () => {
-    await resetSeededTestDatabase();
-
     const fixture = await createPreviewFixture({ providerType: "github" });
     const app = createApp();
     const openPayload = JSON.stringify({
@@ -515,8 +513,6 @@ describe("preview lifecycle webhooks", () => {
   });
 
   it("queues GitLab merge request preview deploys and cleanup", async () => {
-    await resetSeededTestDatabase();
-
     const fixture = await createPreviewFixture({ providerType: "gitlab" });
     const app = createApp();
     const openPayload = JSON.stringify({
@@ -602,8 +598,6 @@ describe("preview lifecycle webhooks", () => {
   });
 
   it("records ignored preview lifecycle deliveries when services do not allow pull-request previews", async () => {
-    await resetSeededTestDatabase();
-
     const fixture = await createPreviewFixture({
       providerType: "github",
       previewMode: "branch"
