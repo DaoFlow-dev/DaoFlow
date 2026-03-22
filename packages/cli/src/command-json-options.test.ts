@@ -101,10 +101,14 @@ describe("CLI JSON option coverage", () => {
     expect(hasLongOption(diffCommand(), "--json")).toBe(true);
   });
 
-  test("env pull and env push declare --json", () => {
+  test("env subcommands declare --json", () => {
     const env = envCommand();
     expect(hasLongOption(getSubcommand(env, "pull"), "--json")).toBe(true);
     expect(hasLongOption(getSubcommand(env, "push"), "--json")).toBe(true);
+    expect(hasLongOption(getSubcommand(env, "list"), "--json")).toBe(true);
+    expect(hasLongOption(getSubcommand(env, "set"), "--json")).toBe(true);
+    expect(hasLongOption(getSubcommand(env, "delete"), "--json")).toBe(true);
+    expect(hasLongOption(getSubcommand(env, "resolve"), "--json")).toBe(true);
   });
 
   test("server add declares --json", () => {
