@@ -335,6 +335,87 @@ DEPLOY_TIMEOUT_MS=900000
     expect(composeFile).toContain("DAOFLOW_PROXY_NETWORK:-daoflow-proxy");
   });
 
+  test("configures a Cloudflare Tunnel sidecar when requested", async () => {
+    process.env.DAOFLOW_INITIAL_ADMIN_EMAIL = "owner@example.com";
+    process.env.DAOFLOW_INITIAL_ADMIN_PASSWORD = "env-secret-123";
+
+    const program = new Command().name("daoflow");
+    program.addCommand(installCommand());
+
+    const result = await captureCommandExecution(async () => {
+      await program.parseAsync([
+        "node",
+        "daoflow",
+        "install",
+        "--dir",
+        installDir,
+        "--domain",
+        "deploy.example.com",
+        "--cloudflare-tunnel",
+        "--cloudflare-tunnel-token",
+        "cf-token-123",
+        "--yes",
+        "--json"
+      ]);
+    });
+
+    expect(result.exitCode).toBe(0);
+    expect(JSON.parse(result.logs[0])).toMatchObject({
+      ok: true,
+      url: "https://deploy.example.com",
+      cloudflareTunnel: {
+        publicUrl: "https://deploy.example.com",
+        guide: [
+          expect.stringContaining("deploy.example.com"),
+          "Use service type HTTP.",
+          "Use origin URL http://daoflow:3000.",
+          expect.stringContaining("BETTER_AUTH_URL")
+        ]
+      }
+    });
+
+    const envFile = parseEnvFile(readFileSync(join(installDir, ".env"), "utf8"));
+    expect(envFile.BETTER_AUTH_URL).toBe("https://deploy.example.com");
+    expect(envFile.CLOUDFLARE_TUNNEL_TOKEN).toBe("cf-token-123");
+    expect(envFile.DAOFLOW_DOMAIN).toBe("deploy.example.com");
+
+    const composeFile = readFileSync(join(installDir, "docker-compose.yml"), "utf8");
+    expect(composeFile).toContain("cloudflare/cloudflared:latest");
+    expect(composeFile).toContain("CLOUDFLARE_TUNNEL_TOKEN");
+    expect(composeFile).toContain("127.0.0.1:${DAOFLOW_PORT:-3000}:3000");
+  });
+
+  test("returns a structured error when Cloudflare Tunnel is enabled without a token", async () => {
+    process.env.DAOFLOW_INITIAL_ADMIN_EMAIL = "owner@example.com";
+    process.env.DAOFLOW_INITIAL_ADMIN_PASSWORD = "env-secret-123";
+
+    const program = new Command().name("daoflow");
+    program.addCommand(installCommand());
+
+    const result = await captureCommandExecution(async () => {
+      await program.parseAsync([
+        "node",
+        "daoflow",
+        "install",
+        "--dir",
+        installDir,
+        "--domain",
+        "deploy.example.com",
+        "--cloudflare-tunnel",
+        "--yes",
+        "--json"
+      ]);
+    });
+
+    expect(result.exitCode).toBe(1);
+    expect(JSON.parse(result.logs[0])).toEqual({
+      ok: false,
+      error:
+        "A Cloudflare tunnel token is required when Cloudflare Tunnel is enabled (--cloudflare-tunnel-token or CLOUDFLARE_TUNNEL_TOKEN).",
+      code: "INVALID_CLOUDFLARE_TUNNEL_CONFIGURATION"
+    });
+  });
+
   test("re-running a Traefik install keeps health checks on the local DaoFlow port", async () => {
     writeFileSync(
       join(installDir, ".env"),
@@ -412,6 +493,7 @@ DEPLOY_TIMEOUT_MS=900000
         "deploy.example.com",
         "3000",
         "none",
+        "n",
         "owner@example.com",
         "interactive-secret-123",
         "auto",

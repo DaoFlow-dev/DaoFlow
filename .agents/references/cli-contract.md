@@ -266,12 +266,18 @@ This file holds the detailed CLI contract, scope map, and agent-facing command r
 
 - `daoflow install` is a local-lane bootstrap command and never requires API auth
 - `daoflow install --json` success shape:
-  - `{ "ok": true, "version": string, "directory": string, "domain": string, "port": number, "url": string, "healthy": boolean, "exposure": { "ok": boolean, "mode": "none" | "cloudflare-quick" | "tailscale-serve" | "tailscale-funnel", "access": "local" | "tailnet" | "public", "url": string | null, "detail": string | null, "statePath": string | null, "logPath": string | null }, "configFiles": string[] }`
+  - `{ "ok": true, "version": string, "directory": string, "domain": string, "port": number, "url": string, "healthy": boolean, "exposure": { "ok": boolean, "mode": "none" | "cloudflare-quick" | "tailscale-serve" | "tailscale-funnel" | "traefik", "access": "local" | "tailnet" | "public", "url": string | null, "detail": string | null, "statePath": string | null, "logPath": string | null }, "cloudflareTunnel"?: { "publicUrl": string, "guide": string[] }, "configFiles": string[] }`
 - `daoflow install --expose <mode>` supports:
   - `none` for host-only access
+  - `traefik` for a built-in public HTTPS edge with automatic Let's Encrypt
   - `cloudflare-quick` for an ephemeral public `trycloudflare.com` URL when `cloudflared` is installed
   - `tailscale-serve` for a tailnet-only HTTPS URL when `tailscale` is installed and authenticated
   - `tailscale-funnel` for a public HTTPS URL through Tailscale Funnel when `tailscale` is installed and authenticated
+- `daoflow install --cloudflare-tunnel --cloudflare-tunnel-token <token>` enables a `cloudflared` sidecar for a named Cloudflare Tunnel and must:
+  - require a public domain like `deploy.example.com`
+  - keep the DaoFlow container bound to localhost on the host
+  - write `CLOUDFLARE_TUNNEL_TOKEN` into `.env`
+  - print the origin guide telling the operator to route the tunnel hostname to `http://daoflow:3000`
 - When exposure setup returns a concrete HTTPS URL, `daoflow install` must rewrite `BETTER_AUTH_URL` to that URL and re-apply the compose stack so Better Auth uses the externally reachable origin
 - `daoflow install` must preserve existing secrets and settings when re-run in an existing install directory unless the operator explicitly overrides managed fields
 

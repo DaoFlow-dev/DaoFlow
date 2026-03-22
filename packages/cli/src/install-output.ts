@@ -12,6 +12,10 @@ export function renderInstallSuccess(input: {
   email: string;
   exposureMode: DashboardExposureMode;
   exposure: DashboardExposureResult;
+  cloudflareTunnel?: {
+    publicUrl: string;
+    guide: string[];
+  };
 }): void {
   console.error();
   console.error(chalk.green.bold("✅ DaoFlow installed successfully!"));
@@ -25,10 +29,15 @@ export function renderInstallSuccess(input: {
       console.error(`  Warning:    ${chalk.yellow(input.exposure.detail)}`);
     }
   }
+  if (input.cloudflareTunnel) {
+    console.error(`  CF Tunnel:  ${chalk.dim(input.cloudflareTunnel.publicUrl)}`);
+  }
   console.error();
   console.error(chalk.bold("Next steps:"));
   console.error(
-    `  1. Open ${chalk.cyan(input.displayUrl)} and sign in as ${chalk.cyan(input.email)}`
+    input.cloudflareTunnel
+      ? `  1. Finish the Cloudflare hostname mapping below, then open ${chalk.cyan(input.displayUrl)} and sign in as ${chalk.cyan(input.email)}`
+      : `  1. Open ${chalk.cyan(input.displayUrl)} and sign in as ${chalk.cyan(input.email)}`
   );
   console.error("  2. Register your first server");
   console.error("  3. Deploy your first application");
@@ -40,6 +49,15 @@ export function renderInstallSuccess(input: {
   if (input.exposureMode === "traefik") {
     console.error(
       `  ${chalk.dim("DNS note:")}  If HTTPS is not ready yet, confirm your domain points to this server and check Traefik logs.`
+    );
+  }
+  if (input.cloudflareTunnel) {
+    console.error(chalk.bold("Cloudflare Tunnel guide:"));
+    for (const [index, step] of input.cloudflareTunnel.guide.entries()) {
+      console.error(`  ${index + 1}. ${step}`);
+    }
+    console.error(
+      `  ${chalk.dim(`cd ${input.directory} && docker compose logs -f cloudflared`)}  Watch Cloudflare tunnel logs`
     );
   }
   if (input.exposure.logPath) {

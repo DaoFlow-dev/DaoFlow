@@ -1206,6 +1206,16 @@
           "required": false
         },
         {
+          "flags": "--cloudflare-tunnel",
+          "description": "Run a cloudflared sidecar connected to a named Cloudflare Tunnel",
+          "required": false
+        },
+        {
+          "flags": "--cloudflare-tunnel-token <token>",
+          "description": "Cloudflare named tunnel token (defaults to CLOUDFLARE_TUNNEL_TOKEN or the preserved install value)",
+          "required": false
+        },
+        {
           "flags": "--email <email>",
           "description": "Admin email for first user (defaults to DAOFLOW_INITIAL_ADMIN_EMAIL)",
           "required": false

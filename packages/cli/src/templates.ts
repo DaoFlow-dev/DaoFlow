@@ -62,6 +62,8 @@ export function generateEnvFile(opts: {
   port: number;
   scheme?: "http" | "https";
   exposureMode?: "none" | "traefik" | "cloudflare-quick" | "tailscale-serve" | "tailscale-funnel";
+  cloudflareTunnelEnabled?: boolean;
+  cloudflareTunnelToken?: string;
   acmeEmail?: string;
   initialAdminEmail?: string;
   initialAdminPassword?: string;
@@ -77,8 +79,11 @@ export function generateEnvFile(opts: {
   const encKey = opts.encryptionKey ?? secureHex(16); // 32 hex chars
 
   const scheme = opts.scheme ?? (opts.domain === "localhost" ? "http" : "https");
+  const usesManagedHttpsEdge = opts.exposureMode === "traefik" || opts.cloudflareTunnelEnabled;
   const portSuffix =
-    (scheme === "https" && opts.port === 443) || (scheme === "http" && opts.port === 80)
+    usesManagedHttpsEdge ||
+    (scheme === "https" && opts.port === 443) ||
+    (scheme === "http" && opts.port === 80)
       ? ""
       : `:${opts.port}`;
   const managedKeys = new Set([
@@ -88,6 +93,7 @@ export function generateEnvFile(opts: {
     "DAOFLOW_DOMAIN",
     "DAOFLOW_ACME_EMAIL",
     "DAOFLOW_PROXY_NETWORK",
+    "CLOUDFLARE_TUNNEL_TOKEN",
     "DAOFLOW_INITIAL_ADMIN_EMAIL",
     "DAOFLOW_INITIAL_ADMIN_PASSWORD",
     "POSTGRES_PASSWORD",
@@ -110,7 +116,7 @@ DAOFLOW_VERSION=${opts.version}
 # -- Public URL -------------------------------------------------------------
 BETTER_AUTH_URL=${scheme}://${opts.domain}${portSuffix}
 DAOFLOW_PORT=${opts.port}
-${opts.exposureMode === "traefik" ? `DAOFLOW_DOMAIN=${opts.domain}\nDAOFLOW_ACME_EMAIL=${opts.acmeEmail ?? opts.initialAdminEmail ?? ""}\nDAOFLOW_PROXY_NETWORK=daoflow-proxy\n` : ""}
+${opts.exposureMode === "traefik" || opts.cloudflareTunnelEnabled ? `DAOFLOW_DOMAIN=${opts.domain}\n` : ""}${opts.exposureMode === "traefik" ? `DAOFLOW_ACME_EMAIL=${opts.acmeEmail ?? opts.initialAdminEmail ?? ""}\nDAOFLOW_PROXY_NETWORK=daoflow-proxy\n` : ""}${opts.cloudflareTunnelEnabled ? `CLOUDFLARE_TUNNEL_TOKEN=${opts.cloudflareTunnelToken ?? ""}\n` : ""}
 
 # -- First-Boot Owner Bootstrap ---------------------------------------------
 # Password must be at least 8 characters.

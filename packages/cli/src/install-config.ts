@@ -6,6 +6,11 @@ import {
   resolveInitialAdminCredentials
 } from "./install-credentials";
 import {
+  CLOUDFLARE_TUNNEL_TOKEN_ENV,
+  getCloudflareTunnelConfigurationError,
+  resolveCloudflareTunnelToken
+} from "./install-cloudflare";
+import {
   describeDashboardExposureMode,
   parseDashboardExposureMode,
   readDashboardExposureState,
@@ -23,6 +28,8 @@ export interface InstallOptions {
   email?: string;
   password?: string;
   expose?: string;
+  cloudflareTunnel?: boolean;
+  cloudflareTunnelToken?: string;
   yes?: boolean;
   json?: boolean;
 }
@@ -42,6 +49,8 @@ export interface InstallConfiguration {
   existingInstall: ExistingInstallState | null;
   databasePasswordMode: DatabasePasswordMode;
   exposureMode: DashboardExposureMode;
+  cloudflareTunnelEnabled: boolean;
+  cloudflareTunnelToken?: string;
   exposureRequestedExplicitly: boolean;
 }
 
@@ -82,6 +91,10 @@ export async function collectInstallConfiguration(input: {
   const hasExplicitPort = input.command.getOptionValueSource("port") === "cli";
   const hasExplicitExpose = input.command.getOptionValueSource("expose") === "cli";
   const hasExplicitAcmeEmail = input.command.getOptionValueSource("acmeEmail") === "cli";
+  const hasExplicitCloudflareTunnel =
+    input.command.getOptionValueSource("cloudflareTunnel") === "cli";
+  const hasExplicitCloudflareTunnelToken =
+    input.command.getOptionValueSource("cloudflareTunnelToken") === "cli";
 
   let dir = input.options.dir;
   let domain = input.options.domain ?? "localhost";
@@ -121,6 +134,8 @@ export async function collectInstallConfiguration(input: {
   let databasePasswordMode: DatabasePasswordMode = "auto-generated";
   let postgresPassword: string | undefined;
   let temporalPostgresPassword: string | undefined;
+  let cloudflareTunnelEnabled = Boolean(input.options.cloudflareTunnel);
+  let cloudflareTunnelToken = input.options.cloudflareTunnelToken?.trim() || undefined;
 
   if (!isNonInteractive) {
     console.error("\n🚀 DaoFlow Installer\n");
@@ -138,6 +153,14 @@ export async function collectInstallConfiguration(input: {
         password ?? (existingInstall.env.DAOFLOW_INITIAL_ADMIN_PASSWORD?.trim() || undefined);
       acmeEmail = acmeEmail ?? (existingInstall.env.DAOFLOW_ACME_EMAIL?.trim() || undefined);
       databasePasswordMode = "preserved";
+      cloudflareTunnelEnabled =
+        hasExplicitCloudflareTunnel || hasExplicitCloudflareTunnelToken
+          ? cloudflareTunnelEnabled || Boolean(cloudflareTunnelToken)
+          : Boolean(existingInstall.env[CLOUDFLARE_TUNNEL_TOKEN_ENV]?.trim());
+      cloudflareTunnelToken =
+        cloudflareTunnelToken ??
+        existingInstall.env[CLOUDFLARE_TUNNEL_TOKEN_ENV]?.trim() ??
+        undefined;
     }
 
     exposureMode = hasExplicitExpose ? exposureMode : (existingExposure?.mode ?? exposureMode);
@@ -164,6 +187,20 @@ export async function collectInstallConfiguration(input: {
         })
     );
 
+    const cloudflareTunnelAnswer = await input.runtime.prompt(
+      "Enable Cloudflare Tunnel sidecar? (y/N)",
+      cloudflareTunnelEnabled ? "y" : "n"
+    );
+    cloudflareTunnelEnabled = cloudflareTunnelAnswer.trim().toLowerCase() === "y";
+    if (cloudflareTunnelEnabled) {
+      cloudflareTunnelToken = await input.runtime.prompt(
+        "Cloudflare tunnel token",
+        cloudflareTunnelToken
+      );
+    } else {
+      cloudflareTunnelToken = undefined;
+    }
+
     email = await input.runtime.prompt("Admin email", email);
     if (password) {
       console.error("Admin password already provided via flag or environment.");
@@ -187,6 +224,13 @@ export async function collectInstallConfiguration(input: {
       exposureMode,
       acmeEmail: hasExplicitAcmeEmail ? input.options.acmeEmail : acmeEmail,
       adminEmail: email,
+      existingEnv: existingInstall?.env
+    });
+    cloudflareTunnelToken = resolveCloudflareTunnelToken({
+      enabled: cloudflareTunnelEnabled,
+      token: hasExplicitCloudflareTunnelToken
+        ? input.options.cloudflareTunnelToken
+        : cloudflareTunnelToken,
       existingEnv: existingInstall?.env
     });
 
@@ -225,6 +269,17 @@ export async function collectInstallConfiguration(input: {
       });
     }
 
+    const cloudflareError = getCloudflareTunnelConfigurationError({
+      enabled: cloudflareTunnelEnabled,
+      domain,
+      token: cloudflareTunnelToken
+    });
+    if (cloudflareError) {
+      input.ctx.fail(cloudflareError, {
+        code: "INVALID_CLOUDFLARE_TUNNEL_CONFIGURATION"
+      });
+    }
+
     const scheme = resolveInstallScheme(domain, existingInstall);
 
     console.error();
@@ -235,10 +290,14 @@ export async function collectInstallConfiguration(input: {
     console.error(`  Admin:         ${email}`);
     console.error(`  DB Passwords:  ${databasePasswordMode}`);
     console.error(`  Exposure:      ${describeDashboardExposureMode(exposureMode)}`);
+    console.error(`  CF Tunnel:     ${cloudflareTunnelEnabled ? "enabled" : "disabled"}`);
     if (acmeEmail) {
       console.error(`  ACME Email:    ${acmeEmail}`);
     }
-    if (exposureMode !== "none") {
+    if (cloudflareTunnelEnabled) {
+      console.error(`  CF Token:      ${CLOUDFLARE_TUNNEL_TOKEN_ENV}`);
+    }
+    if (exposureMode !== "none" || cloudflareTunnelEnabled) {
       console.error(
         "  Note: BETTER_AUTH_URL will be updated to the exposed HTTPS URL if setup succeeds."
       );
@@ -266,6 +325,8 @@ export async function collectInstallConfiguration(input: {
       existingInstall,
       databasePasswordMode,
       exposureMode,
+      cloudflareTunnelEnabled,
+      cloudflareTunnelToken,
       exposureRequestedExplicitly: hasExplicitExpose
     };
   }
@@ -281,6 +342,14 @@ export async function collectInstallConfiguration(input: {
       password ?? (existingInstall.env.DAOFLOW_INITIAL_ADMIN_PASSWORD?.trim() || undefined);
     acmeEmail = acmeEmail ?? (existingInstall.env.DAOFLOW_ACME_EMAIL?.trim() || undefined);
     exposureMode = hasExplicitExpose ? exposureMode : (existingExposure?.mode ?? exposureMode);
+    cloudflareTunnelEnabled =
+      hasExplicitCloudflareTunnel || hasExplicitCloudflareTunnelToken
+        ? cloudflareTunnelEnabled || Boolean(cloudflareTunnelToken)
+        : Boolean(existingInstall.env[CLOUDFLARE_TUNNEL_TOKEN_ENV]?.trim());
+    cloudflareTunnelToken =
+      cloudflareTunnelToken ??
+      existingInstall.env[CLOUDFLARE_TUNNEL_TOKEN_ENV]?.trim() ??
+      undefined;
 
     if (!input.ctx.isJson) {
       console.error(
@@ -317,6 +386,12 @@ export async function collectInstallConfiguration(input: {
     adminEmail: email,
     existingEnv: existingInstall?.env
   });
+  cloudflareTunnelEnabled = cloudflareTunnelEnabled || Boolean(cloudflareTunnelToken?.trim());
+  cloudflareTunnelToken = resolveCloudflareTunnelToken({
+    enabled: cloudflareTunnelEnabled,
+    token: cloudflareTunnelToken,
+    existingEnv: existingInstall?.env
+  });
 
   const traefikError = getTraefikConfigurationError({
     exposureMode,
@@ -331,6 +406,17 @@ export async function collectInstallConfiguration(input: {
   if (traefikError) {
     input.ctx.fail(traefikError, {
       code: "INVALID_EXPOSURE_CONFIGURATION"
+    });
+  }
+
+  const cloudflareError = getCloudflareTunnelConfigurationError({
+    enabled: cloudflareTunnelEnabled,
+    domain,
+    token: cloudflareTunnelToken
+  });
+  if (cloudflareError) {
+    input.ctx.fail(cloudflareError, {
+      code: "INVALID_CLOUDFLARE_TUNNEL_CONFIGURATION"
     });
   }
 
@@ -356,6 +442,8 @@ export async function collectInstallConfiguration(input: {
     existingInstall,
     databasePasswordMode,
     exposureMode,
+    cloudflareTunnelEnabled,
+    cloudflareTunnelToken,
     exposureRequestedExplicitly: hasExplicitExpose
   };
 }

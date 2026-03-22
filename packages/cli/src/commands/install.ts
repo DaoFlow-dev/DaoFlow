@@ -3,7 +3,9 @@ import chalk from "chalk";
 import ora from "ora";
 import { CommandActionError, runCommandAction } from "../command-action";
 import { getErrorMessage, getExecErrorMessage } from "../command-helpers";
+import { writeInstallComposeFile } from "../install-compose";
 import { collectInstallConfiguration, type InstallOptions } from "../install-config";
+import { buildCloudflareTunnelGuide, getCloudflareTunnelDashboardUrl } from "../install-cloudflare";
 import { configureDashboardExposure } from "../install-exposure";
 import { describeDashboardExposureMode } from "../install-exposure-state";
 import {
@@ -15,7 +17,6 @@ import {
   writeInstallFile
 } from "../installer-lifecycle";
 import { renderInstallSuccess } from "../install-output";
-import { writeInstallComposeFile } from "../install-traefik";
 import { defaultInstallDir, generateEnvFile } from "../templates";
 import { CLI_VERSION } from "../version";
 
@@ -52,6 +53,14 @@ export function installCommand(): Command {
     .option("--domain <hostname>", "Public domain (e.g., deploy.example.com)")
     .option("--port <number>", "Local DaoFlow HTTP port", "3000")
     .option("--acme-email <email>", "Let's Encrypt email to use when --expose traefik")
+    .option(
+      "--cloudflare-tunnel",
+      "Run a cloudflared sidecar connected to a named Cloudflare Tunnel"
+    )
+    .option(
+      "--cloudflare-tunnel-token <token>",
+      "Cloudflare named tunnel token (defaults to CLOUDFLARE_TUNNEL_TOKEN or the preserved install value)"
+    )
     .option(
       "--email <email>",
       "Admin email for first user (defaults to DAOFLOW_INITIAL_ADMIN_EMAIL)"
@@ -122,6 +131,8 @@ export function installCommand(): Command {
             port: config.port,
             scheme: config.scheme,
             exposureMode: config.exposureMode,
+            cloudflareTunnelEnabled: config.cloudflareTunnelEnabled,
+            cloudflareTunnelToken: config.cloudflareTunnelToken,
             acmeEmail: config.acmeEmail,
             initialAdminEmail: config.email,
             initialAdminPassword: config.password,
@@ -139,7 +150,8 @@ export function installCommand(): Command {
             await writeInstallComposeFile({
               runtime: installRuntime,
               composePath,
-              exposureMode: config.exposureMode
+              exposureMode: config.exposureMode,
+              cloudflareTunnelEnabled: config.cloudflareTunnelEnabled
             });
             composeSpinner?.succeed("docker-compose.yml written");
           } catch (error) {
@@ -201,7 +213,17 @@ export function installCommand(): Command {
             domain: config.domain
           });
 
+          const cloudflareTunnel = config.cloudflareTunnelEnabled
+            ? {
+                publicUrl: getCloudflareTunnelDashboardUrl(config.domain),
+                guide: buildCloudflareTunnelGuide({
+                  domain: config.domain
+                })
+              }
+            : undefined;
+
           const displayUrl =
+            cloudflareTunnel?.publicUrl ??
             exposure.url ??
             buildInstallUrl({ domain: config.domain, scheme: config.scheme, port: config.port });
 
@@ -266,6 +288,7 @@ export function installCommand(): Command {
               url: displayUrl,
               healthy,
               exposure,
+              cloudflareTunnel,
               configFiles: [envPath, composePath]
             },
             human: () => {
@@ -275,7 +298,8 @@ export function installCommand(): Command {
                 version: CLI_VERSION,
                 email: config.email,
                 exposureMode: config.exposureMode,
-                exposure
+                exposure,
+                cloudflareTunnel
               });
             }
           });
