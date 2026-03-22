@@ -10,12 +10,19 @@ import { listProjects, getProject, listEnvironments } from "../db/services/proje
 import { getServiceDomainState } from "../db/services/service-domains";
 import { listServices, listServicesByProject, getService } from "../db/services/services";
 import { listAgentPrincipals } from "../db/services/agents";
+import { listContainerRegistrySummaries } from "../db/services/container-registries";
 import {
   listGitInstallationSummaries,
   listGitProviderSummaries
 } from "../db/services/git-providers";
 import { resolveTeamIdForUser } from "../db/services/teams";
-import { t, protectedProcedure, deployReadProcedure, envReadProcedure } from "../trpc";
+import {
+  t,
+  protectedProcedure,
+  deployReadProcedure,
+  envReadProcedure,
+  serverWriteProcedure
+} from "../trpc";
 import { limitInput } from "../schemas";
 import { backupReadRouter } from "./read-backups";
 import { deploymentReadRouter } from "./read-deployments";
@@ -202,6 +209,9 @@ const coreReadRouter = t.router({
     .query(async ({ input }) => {
       return listGitInstallationSummaries(input.providerId);
     }),
+  containerRegistries: serverWriteProcedure.query(async () => {
+    return listContainerRegistrySummaries();
+  }),
   backupDestinations: protectedProcedure.input(limitInput(50)).query(async ({ input }) => {
     return listDestinations(input.limit ?? 50);
   }),

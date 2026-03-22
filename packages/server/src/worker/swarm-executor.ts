@@ -1,6 +1,8 @@
+import type { ContainerRegistryCredential } from "../container-registries-shared";
 import { execStreaming, type OnLog } from "./docker-executor";
 import { dockerCommand } from "./command-env";
 import { formatComposeExecutionEnvSummary, prepareComposeCommandEnv } from "./compose-command-env";
+import { wrapDockerCommandWithRegistryAuth } from "./registry-auth";
 import {
   parseSwarmServiceLsOutput,
   parseSwarmTaskPsOutput,
@@ -16,6 +18,7 @@ export async function dockerStackDeploy(
   cwd: string,
   onLog: OnLog,
   envFile?: string,
+  registryCredentials: ContainerRegistryCredential[] = [],
   execRunner: ExecRunner = execStreaming
 ): Promise<{ exitCode: number }> {
   const executionEnv = prepareComposeCommandEnv(cwd, envFile);
@@ -30,14 +33,25 @@ export async function dockerStackDeploy(
     timestamp: new Date()
   });
 
-  return execRunner(
-    dockerCommand,
-    ["stack", "deploy", "--compose-file", composeFile, "--prune", stackName],
-    cwd,
-    onLog,
-    executionEnv.env,
-    { inheritParentEnv: false }
-  );
+  const execution = wrapDockerCommandWithRegistryAuth({
+    command: dockerCommand,
+    args: [
+      "stack",
+      "deploy",
+      "--compose-file",
+      composeFile,
+      "--prune",
+      ...(registryCredentials.length > 0 ? ["--with-registry-auth"] : []),
+      stackName
+    ],
+    registries: registryCredentials
+  });
+  const execOptions =
+    execution.stdin === undefined
+      ? { inheritParentEnv: false }
+      : { inheritParentEnv: false, stdin: execution.stdin };
+
+  return execRunner(execution.command, execution.args, cwd, onLog, executionEnv.env, execOptions);
 }
 
 export async function dockerStackRemove(

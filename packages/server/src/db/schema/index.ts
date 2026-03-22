@@ -15,4 +15,4 @@ export * from "./webhook-deliveries";
 export * from "./notifications";
 export * from "./secret-providers";
 export * from "./cli-auth";
-export * from "./webhook-deliveries";
+export * from "./registries";

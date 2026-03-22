@@ -3,6 +3,10 @@ import type { ComposeBuildPlan } from "../compose-build-plan";
 import { resolveComposeExecutionScope } from "../compose-build-plan-execution";
 import { readComposeReadinessProbeSnapshot } from "../compose-readiness";
 import {
+  listAllContainerRegistryCredentials,
+  listContainerRegistryCredentialsByImageReferences
+} from "../db/services/container-registries";
+import {
   persistDeploymentComposeEnvState,
   readDeploymentComposeState
 } from "../db/services/compose-env";
@@ -29,6 +33,17 @@ import { throwIfDeploymentCancellationRequested } from "../db/services/deploymen
 
 function isSwarmManagerTarget(target: ExecutionTarget): boolean {
   return target.serverKind === "docker-swarm-manager";
+}
+
+function collectComposeImageReferences(
+  composeBuildPlan: ComposeBuildPlan,
+  config: ConfigSnapshot
+): string[] {
+  return [
+    ...composeBuildPlan.services.map((service) => service.image),
+    ...composeBuildPlan.graphServices.map((service) => service.image),
+    config.composeImageOverride?.imageReference
+  ].filter((imageReference): imageReference is string => Boolean(imageReference?.trim()));
 }
 
 export async function executeComposeDeployment(
@@ -97,6 +112,11 @@ export async function executeComposeDeployment(
   await markStepComplete(cloneStepId, `Workspace ready at ${workDir}`);
   await throwIfDeploymentCancellationRequested(deployment.id);
 
+  const composeImageReferences = collectComposeImageReferences(composeBuildPlan, config);
+  const pullRegistryCredentials =
+    await listContainerRegistryCredentialsByImageReferences(composeImageReferences);
+  const buildRegistryCredentials = await listAllContainerRegistryCredentials();
+
   if (composeOperation === "down") {
     await transitionDeployment(deployment.id, "deploy");
     const stopStepId = await createStep(
@@ -159,7 +179,8 @@ export async function executeComposeDeployment(
       onLog,
       composeEnvFile,
       composeEnvExportFile,
-      composeServiceName
+      composeServiceName,
+      registryCredentials: pullRegistryCredentials
     });
     if (pullResult.exitCode !== 0) {
       await markStepFailed(
@@ -189,7 +210,8 @@ export async function executeComposeDeployment(
       onLog,
       composeEnvFile,
       composeEnvExportFile,
-      executionScope
+      executionScope,
+      registryCredentials: buildRegistryCredentials
     });
     if (buildResult.exitCode !== 0) {
       await markStepFailed(
@@ -224,7 +246,8 @@ export async function executeComposeDeployment(
     onLog,
     composeEnvFile,
     composeEnvExportFile,
-    composeServiceName
+    composeServiceName,
+    registryCredentials: pullRegistryCredentials
   });
   if (upResult.exitCode !== 0) {
     await markStepFailed(

@@ -1,5 +1,7 @@
+import type { ContainerRegistryCredential } from "../container-registries-shared";
 import { dockerCommand } from "./command-env";
 import { execStreaming, type OnLog, STAGING_DIR } from "./docker-exec-shared";
+import { wrapDockerCommandWithRegistryAuth } from "./registry-auth";
 
 export interface DockerImageListEntry {
   Repository: string;
@@ -16,7 +18,8 @@ export async function dockerBuild(
   context: string,
   dockerfile: string,
   tag: string,
-  onLog: OnLog
+  onLog: OnLog,
+  registryCredentials: ContainerRegistryCredential[] = []
 ): Promise<{ exitCode: number }> {
   onLog({
     stream: "stdout",
@@ -24,7 +27,14 @@ export async function dockerBuild(
     timestamp: new Date()
   });
 
-  return execStreaming(dockerCommand, ["build", "-t", tag, "-f", dockerfile, "."], context, onLog);
+  const execution = wrapDockerCommandWithRegistryAuth({
+    command: dockerCommand,
+    args: ["build", "-t", tag, "-f", dockerfile, "."],
+    registries: registryCredentials
+  });
+  const execOptions = execution.stdin === undefined ? undefined : { stdin: execution.stdin };
+
+  return execStreaming(execution.command, execution.args, context, onLog, undefined, execOptions);
 }
 
 /**
@@ -64,14 +74,32 @@ export async function dockerRun(
 /**
  * Pull a single Docker image.
  */
-export async function dockerPull(tag: string, onLog: OnLog): Promise<{ exitCode: number }> {
+export async function dockerPull(
+  tag: string,
+  onLog: OnLog,
+  registryCredentials: ContainerRegistryCredential[] = []
+): Promise<{ exitCode: number }> {
   onLog({
     stream: "stdout",
     message: `Pulling image ${tag}`,
     timestamp: new Date()
   });
 
-  return execStreaming(dockerCommand, ["pull", tag], STAGING_DIR, onLog);
+  const execution = wrapDockerCommandWithRegistryAuth({
+    command: dockerCommand,
+    args: ["pull", tag],
+    registries: registryCredentials
+  });
+  const execOptions = execution.stdin === undefined ? undefined : { stdin: execution.stdin };
+
+  return execStreaming(
+    execution.command,
+    execution.args,
+    STAGING_DIR,
+    onLog,
+    undefined,
+    execOptions
+  );
 }
 
 /**

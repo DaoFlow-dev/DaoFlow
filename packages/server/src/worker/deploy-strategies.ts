@@ -11,6 +11,10 @@ import { eq } from "drizzle-orm";
 import { db } from "../db/connection";
 import { deployments } from "../db/schema/deployments";
 import {
+  listAllContainerRegistryCredentials,
+  listContainerRegistryCredentialsByImageReferences
+} from "../db/services/container-registries";
+import {
   gitClone,
   dockerBuild,
   dockerPull,
@@ -56,6 +60,7 @@ export async function executeDockerfileDeployment(
   const buildContext = config.buildContext ?? ".";
   const tag =
     deployment.imageTag ?? `daoflow/${deployment.serviceName}:${deployment.commitSha ?? "latest"}`;
+  const registryCredentials = await listAllContainerRegistryCredentials();
 
   await throwIfDeploymentCancellationRequested(deployment.id);
 
@@ -90,8 +95,15 @@ export async function executeDockerfileDeployment(
 
   const buildResult =
     target.mode === "remote"
-      ? await remoteDockerBuild(target.ssh, absoluteContext, absoluteDockerfile, tag, onLog)
-      : await dockerBuild(absoluteContext, absoluteDockerfile, tag, onLog);
+      ? await remoteDockerBuild(
+          target.ssh,
+          absoluteContext,
+          absoluteDockerfile,
+          tag,
+          onLog,
+          registryCredentials
+        )
+      : await dockerBuild(absoluteContext, absoluteDockerfile, tag, onLog, registryCredentials);
   if (buildResult.exitCode !== 0) {
     await markStepFailed(buildStepId, `docker build exited with code ${buildResult.exitCode}`);
     throw new Error(`docker build failed with exit code ${buildResult.exitCode}`);
@@ -160,6 +172,7 @@ export async function executeImageDeployment(
   }
 
   await throwIfDeploymentCancellationRequested(deployment.id);
+  const registryCredentials = await listContainerRegistryCredentialsByImageReferences([tag]);
 
   // Step 1: Pull image
   const pullStepId = await createStep(deployment.id, "Pull image", 1);
@@ -167,8 +180,8 @@ export async function executeImageDeployment(
 
   const pullResult =
     target.mode === "remote"
-      ? await remoteDockerPull(target.ssh, tag, onLog)
-      : await dockerPull(tag, onLog);
+      ? await remoteDockerPull(target.ssh, tag, onLog, registryCredentials)
+      : await dockerPull(tag, onLog, registryCredentials);
   if (pullResult.exitCode !== 0) {
     await markStepFailed(pullStepId, `docker pull exited with code ${pullResult.exitCode}`);
     throw new Error(`docker pull failed with exit code ${pullResult.exitCode}`);

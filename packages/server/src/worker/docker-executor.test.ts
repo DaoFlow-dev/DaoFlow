@@ -240,6 +240,7 @@ describe("dockerComposePull", () => {
       collector.onLog,
       ".daoflow.compose.env",
       "api",
+      undefined,
       execRunner
     );
 
@@ -289,6 +290,7 @@ describe("dockerComposeBuild", () => {
       collector.onLog,
       ".daoflow.compose.env",
       "api",
+      undefined,
       execRunner
     );
 
@@ -339,6 +341,7 @@ describe("dockerComposeUp", () => {
       collector.onLog,
       ".daoflow.compose.env",
       "api",
+      undefined,
       execRunner
     );
 
@@ -367,6 +370,42 @@ describe("dockerComposeUp", () => {
         inheritParentEnv: false
       }
     );
+  });
+
+  it("keeps registry credentials out of process arguments during compose up", async () => {
+    const collector = createLogCollector();
+    const execRunner = vi.fn().mockResolvedValueOnce({ exitCode: 0, signal: null });
+
+    await dockerComposeUp(
+      ".daoflow.compose.rendered.yaml",
+      "demo",
+      "/tmp/demo",
+      collector.onLog,
+      ".daoflow.compose.env",
+      "api",
+      [
+        {
+          id: "reg_123",
+          registryHost: "ghcr.io",
+          username: "octocat",
+          password: "topsecret"
+        }
+      ],
+      execRunner
+    );
+
+    expect(execRunner).toHaveBeenCalledWith(
+      "sh",
+      [],
+      "/tmp/demo",
+      collector.onLog,
+      expect.any(Object),
+      expect.objectContaining({
+        inheritParentEnv: false,
+        stdin: expect.stringContaining("docker login 'ghcr.io'")
+      })
+    );
+    expect(execRunner.mock.calls[0]?.[5]?.stdin).not.toContain("-lc");
   });
 });
 

@@ -50,6 +50,13 @@
       "when": 1774017807101,
       "tag": "0006_conscious_ultragirl",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1774212434268,
+      "tag": "0007_container_registries",
+      "breakpoints": true
     }
   ]
 }

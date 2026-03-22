@@ -1,3 +1,4 @@
+import type { ContainerRegistryCredential } from "../container-registries-shared";
 import { type ComposeExecutionScope } from "../compose-build-plan-execution";
 import {
   dockerComposeBuild,
@@ -61,6 +62,7 @@ export async function runComposePullOperation(input: {
   composeEnvFile?: string;
   composeEnvExportFile?: string;
   composeServiceName?: string;
+  registryCredentials?: ContainerRegistryCredential[];
 }): Promise<{ exitCode: number }> {
   return input.target.mode === "remote"
     ? remoteDockerComposePull(
@@ -71,7 +73,8 @@ export async function runComposePullOperation(input: {
         input.onLog,
         input.composeEnvFile,
         input.composeEnvExportFile,
-        input.composeServiceName
+        input.composeServiceName,
+        input.registryCredentials
       )
     : dockerComposePull(
         input.composeFile,
@@ -79,7 +82,8 @@ export async function runComposePullOperation(input: {
         input.workDir,
         input.onLog,
         input.composeEnvFile,
-        input.composeServiceName
+        input.composeServiceName,
+        input.registryCredentials
       );
 }
 
@@ -92,6 +96,7 @@ export async function runComposeBuildOperation(input: {
   composeEnvFile?: string;
   composeEnvExportFile?: string;
   executionScope: ComposeExecutionScope;
+  registryCredentials?: ContainerRegistryCredential[];
 }): Promise<{ exitCode: number }> {
   return input.target.mode === "remote"
     ? remoteDockerComposeBuild(
@@ -102,7 +107,8 @@ export async function runComposeBuildOperation(input: {
         input.onLog,
         input.composeEnvFile,
         input.composeEnvExportFile,
-        input.executionScope.requestedServiceName ?? undefined
+        input.executionScope.requestedServiceName ?? undefined,
+        input.registryCredentials
       )
     : dockerComposeBuild(
         input.composeFile,
@@ -110,7 +116,8 @@ export async function runComposeBuildOperation(input: {
         input.workDir,
         input.onLog,
         input.composeEnvFile,
-        input.executionScope.requestedServiceName ?? undefined
+        input.executionScope.requestedServiceName ?? undefined,
+        input.registryCredentials
       );
 }
 
@@ -124,6 +131,7 @@ export async function runComposeStartOperation(input: {
   composeEnvFile?: string;
   composeEnvExportFile?: string;
   composeServiceName?: string;
+  registryCredentials?: ContainerRegistryCredential[];
 }): Promise<{ exitCode: number }> {
   if (input.swarmManagerTarget) {
     return input.target.mode === "remote"
@@ -134,14 +142,16 @@ export async function runComposeStartOperation(input: {
           input.workDir,
           input.onLog,
           input.composeEnvFile,
-          input.composeEnvExportFile
+          input.composeEnvExportFile,
+          input.registryCredentials
         )
       : dockerStackDeploy(
           input.composeFile,
           input.projectName,
           input.workDir,
           input.onLog,
-          input.composeEnvFile
+          input.composeEnvFile,
+          input.registryCredentials
         );
   }
 
@@ -154,7 +164,8 @@ export async function runComposeStartOperation(input: {
         input.onLog,
         input.composeEnvFile,
         input.composeEnvExportFile,
-        input.composeServiceName
+        input.composeServiceName,
+        input.registryCredentials
       )
     : dockerComposeUp(
         input.composeFile,
@@ -162,6 +173,7 @@ export async function runComposeStartOperation(input: {
         input.workDir,
         input.onLog,
         input.composeEnvFile,
-        input.composeServiceName
+        input.composeServiceName,
+        input.registryCredentials
       );
 }

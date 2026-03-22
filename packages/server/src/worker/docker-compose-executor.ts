@@ -1,7 +1,9 @@
+import type { ContainerRegistryCredential } from "../container-registries-shared";
 import { parseComposePsOutput, type ComposeContainerStatus } from "./compose-health";
 import { formatComposeExecutionEnvSummary, prepareComposeCommandEnv } from "./compose-command-env";
 import { dockerCommand } from "./command-env";
 import { execStreaming, type OnLog } from "./docker-exec-shared";
+import { wrapDockerCommandWithRegistryAuth } from "./registry-auth";
 
 const COMPOSE_BUILD_ENV = {
   DOCKER_BUILDKIT: "1",
@@ -17,6 +19,7 @@ export async function dockerComposePull(
   onLog: OnLog,
   envFile?: string,
   composeServiceName?: string,
+  registryCredentials: ContainerRegistryCredential[] = [],
   execRunner: ExecRunner = execStreaming
 ): Promise<{ exitCode: number }> {
   const scopedServiceName = composeServiceName?.trim();
@@ -44,9 +47,24 @@ export async function dockerComposePull(
     args.push(scopedServiceName);
   }
 
-  return execRunner(dockerCommand, args, cwd, onLog, composeExecutionEnv.env, {
-    inheritParentEnv: false
+  const execution = wrapDockerCommandWithRegistryAuth({
+    command: dockerCommand,
+    args,
+    registries: registryCredentials
   });
+  const execOptions =
+    execution.stdin === undefined
+      ? { inheritParentEnv: false }
+      : { inheritParentEnv: false, stdin: execution.stdin };
+
+  return execRunner(
+    execution.command,
+    execution.args,
+    cwd,
+    onLog,
+    composeExecutionEnv.env,
+    execOptions
+  );
 }
 
 export async function dockerComposeBuild(
@@ -56,6 +74,7 @@ export async function dockerComposeBuild(
   onLog: OnLog,
   envFile?: string,
   composeServiceName?: string,
+  registryCredentials: ContainerRegistryCredential[] = [],
   execRunner: ExecRunner = execStreaming
 ): Promise<{ exitCode: number }> {
   const scopedServiceName = composeServiceName?.trim();
@@ -83,15 +102,23 @@ export async function dockerComposeBuild(
     args.push(scopedServiceName);
   }
 
-  return execRunner(
-    dockerCommand,
+  const execution = wrapDockerCommandWithRegistryAuth({
+    command: dockerCommand,
     args,
+    registries: registryCredentials
+  });
+  const execOptions =
+    execution.stdin === undefined
+      ? { inheritParentEnv: false }
+      : { inheritParentEnv: false, stdin: execution.stdin };
+
+  return execRunner(
+    execution.command,
+    execution.args,
     cwd,
     onLog,
     { ...composeExecutionEnv.env, ...COMPOSE_BUILD_ENV },
-    {
-      inheritParentEnv: false
-    }
+    execOptions
   );
 }
 
@@ -102,6 +129,7 @@ export async function dockerComposeUp(
   onLog: OnLog,
   envFile?: string,
   composeServiceName?: string,
+  registryCredentials: ContainerRegistryCredential[] = [],
   execRunner: ExecRunner = execStreaming
 ): Promise<{ exitCode: number }> {
   const scopedServiceName = composeServiceName?.trim();
@@ -128,9 +156,24 @@ export async function dockerComposeUp(
     args.push(scopedServiceName);
   }
 
-  return execRunner(dockerCommand, args, cwd, onLog, composeExecutionEnv.env, {
-    inheritParentEnv: false
+  const execution = wrapDockerCommandWithRegistryAuth({
+    command: dockerCommand,
+    args,
+    registries: registryCredentials
   });
+  const execOptions =
+    execution.stdin === undefined
+      ? { inheritParentEnv: false }
+      : { inheritParentEnv: false, stdin: execution.stdin };
+
+  return execRunner(
+    execution.command,
+    execution.args,
+    cwd,
+    onLog,
+    composeExecutionEnv.env,
+    execOptions
+  );
 }
 
 export async function dockerComposePs(

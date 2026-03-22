@@ -3,10 +3,21 @@ import { trpc } from "../lib/trpc";
 import { normalizeAppRole, canAssumeAnyRole, roleCapabilities } from "@daoflow/shared";
 import { useSearchParams } from "react-router-dom";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Settings, Users, KeyRound, Shield, Bell, HardDrive, GitBranch, Lock } from "lucide-react";
+import {
+  Settings,
+  Users,
+  KeyRound,
+  Shield,
+  Bell,
+  HardDrive,
+  GitBranch,
+  Lock,
+  Boxes
+} from "lucide-react";
 import GitProvidersTab from "@/components/GitProvidersTab";
 import SecretProvidersTab from "@/components/SecretProvidersTab";
 import { NotificationPreferencesPanel } from "@/components/NotificationPreferencesPanel";
+import { ContainerRegistriesPanel } from "@/components/settings/ContainerRegistriesPanel";
 import { GeneralSettingsTab } from "@/components/settings/GeneralSettingsTab";
 import { UsersSettingsTab } from "@/components/settings/UsersSettingsTab";
 import { TokensSettingsTab } from "@/components/settings/TokensSettingsTab";
@@ -20,6 +31,7 @@ const SETTINGS_TABS = [
   "security",
   "notifications",
   "volumes",
+  "registries",
   "git",
   "secrets"
 ] as const;
@@ -41,11 +53,12 @@ export default function SettingsPage() {
   const currentRole = viewer.data ? normalizeAppRole(viewer.data.authz.role) : "viewer";
   const isAdmin = canAssumeAnyRole(currentRole, ["owner", "admin"]);
   const caps = viewer.data ? roleCapabilities[currentRole] : [];
+  const canManageRegistries = caps.includes("server:write");
   const requestedTab = searchParams.get("tab");
-  const activeTab =
-    requestedTab && SETTINGS_TABS.includes(requestedTab as (typeof SETTINGS_TABS)[number])
-      ? requestedTab
-      : "general";
+  const requestedTabIsKnown =
+    requestedTab && SETTINGS_TABS.includes(requestedTab as (typeof SETTINGS_TABS)[number]);
+  const requestedTabIsAllowed = requestedTab !== "registries" || canManageRegistries;
+  const activeTab = requestedTabIsKnown && requestedTabIsAllowed ? requestedTab : "general";
 
   return (
     <main className="shell space-y-6" data-testid="settings-page">
@@ -96,6 +109,11 @@ export default function SettingsPage() {
             <TabsTrigger value="volumes" className="gap-1.5">
               <HardDrive size={14} /> Volumes
             </TabsTrigger>
+            {canManageRegistries ? (
+              <TabsTrigger value="registries" className="gap-1.5">
+                <Boxes size={14} /> Registries
+              </TabsTrigger>
+            ) : null}
             <TabsTrigger value="git" className="gap-1.5">
               <GitBranch size={14} /> Git Providers
             </TabsTrigger>
@@ -146,6 +164,12 @@ export default function SettingsPage() {
             {activeTab === "volumes" && (
               <div className="mt-4">
                 <VolumeRegistryPanel canManage={caps.includes("volumes:write")} />
+              </div>
+            )}
+
+            {activeTab === "registries" && (
+              <div className="mt-4">
+                <ContainerRegistriesPanel canManage={canManageRegistries} />
               </div>
             )}
 

@@ -1,8 +1,10 @@
+import type { ContainerRegistryCredential } from "../container-registries-shared";
 import type { OnLog } from "./docker-executor";
 import {
   COMPOSE_COMMAND_ENV_ALLOWLIST,
   formatRemoteComposeExecutionEnvSummary
 } from "./compose-command-env";
+import { buildRegistryAwareShellCommand } from "./registry-auth";
 import {
   parseSwarmServiceLsOutput,
   parseSwarmTaskPsOutput,
@@ -21,17 +23,27 @@ function buildRemoteStackDeployCommand(input: {
   stackName: string;
   workDir: string;
   envExportFile?: string;
-}): string {
-  const exportPrefix = input.envExportFile
-    ? `set -a && . ${shellQuote(input.envExportFile)} && set +a && `
-    : "";
-
-  return (
-    `cd ${shellQuote(input.workDir)} && ${buildRemoteComposeEnvPrefix()} sh -lc ` +
-    shellQuote(
-      `${exportPrefix}docker stack deploy --compose-file ${shellQuote(input.composeFile)} --prune ${shellQuote(input.stackName)}`
-    )
+  registryCredentials?: ContainerRegistryCredential[];
+}): { preview: string; stdin: string } {
+  const dockerStackDeployCommand = buildRegistryAwareShellCommand(
+    `${buildRemoteComposeEnvPrefix()} docker stack deploy --compose-file ${shellQuote(input.composeFile)} --prune ${
+      input.registryCredentials?.length ? "--with-registry-auth " : ""
+    }${shellQuote(input.stackName)}`,
+    input.registryCredentials ?? []
   );
+
+  const scriptLines = ["set -e", `cd ${shellQuote(input.workDir)}`];
+  if (input.envExportFile) {
+    scriptLines.push(`set -a; . ${shellQuote(input.envExportFile)}; set +a`);
+  }
+  scriptLines.push(dockerStackDeployCommand);
+
+  return {
+    preview: `docker stack deploy --compose-file ${input.composeFile} --prune ${
+      input.registryCredentials?.length ? "--with-registry-auth " : ""
+    }${input.stackName}`,
+    stdin: scriptLines.join("\n")
+  };
 }
 
 function buildRemoteStackCommand(input: { workDir: string; subcommand: string }): string {
@@ -46,6 +58,7 @@ export async function remoteDockerStackDeploy(
   onLog: OnLog,
   envFile?: string,
   envExportFile?: string,
+  registryCredentials: ContainerRegistryCredential[] = [],
   exec: typeof execRemote = execRemote
 ): Promise<{ exitCode: number }> {
   onLog({
@@ -54,16 +67,17 @@ export async function remoteDockerStackDeploy(
     timestamp: new Date()
   });
 
-  const result = await exec(
-    target,
-    buildRemoteStackDeployCommand({
-      composeFile,
-      stackName,
-      workDir,
-      envExportFile
-    }),
-    onLog
-  );
+  const execution = buildRemoteStackDeployCommand({
+    composeFile,
+    stackName,
+    workDir,
+    envExportFile,
+    registryCredentials
+  });
+  const result = await exec(target, "sh", onLog, {
+    preview: execution.preview,
+    stdin: execution.stdin
+  });
   return { exitCode: result.exitCode };
 }
 

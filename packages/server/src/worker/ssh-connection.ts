@@ -36,6 +36,11 @@ export interface SSHTarget {
   privateKeyPath?: string;
 }
 
+export interface ExecRemoteOptions {
+  preview?: string;
+  stdin?: string;
+}
+
 /**
  * Ensure the SSH control directory exists for connection multiplexing.
  */
@@ -123,21 +128,23 @@ export function sshArgs(target: SSHTarget): string[] {
 export function execRemote(
   target: SSHTarget,
   remoteCommand: string,
-  onLog: OnLog
+  onLog: OnLog,
+  options?: ExecRemoteOptions
 ): Promise<{ exitCode: number; signal: string | null }> {
   return new Promise((resolve, reject) => {
     const args = [...sshArgs(target), remoteCommand];
+    const preview = options?.preview ?? remoteCommand;
 
     onLog({
       stream: "stdout",
-      message: `[ssh] ${target.serverName} → ${remoteCommand.slice(0, 120)}`,
+      message: `[ssh] ${target.serverName} → ${preview.slice(0, 120)}`,
       timestamp: new Date()
     });
 
     let child: ChildProcess;
     try {
       child = spawn(sshCommand, args, {
-        stdio: ["ignore", "pipe", "pipe"],
+        stdio: [options?.stdin === undefined ? "ignore" : "pipe", "pipe", "pipe"],
         env: withCommandPath(process.env)
       });
     } catch (err) {
@@ -157,6 +164,10 @@ export function execRemote(
 
     child.stdout?.on("data", (data: Buffer) => processStream("stdout", data));
     child.stderr?.on("data", (data: Buffer) => processStream("stderr", data));
+
+    if (options?.stdin !== undefined) {
+      child.stdin?.end(options.stdin.endsWith("\n") ? options.stdin : `${options.stdin}\n`);
+    }
 
     child.on("close", (code, signal) => {
       resolve({ exitCode: code ?? 1, signal: signal ?? null });

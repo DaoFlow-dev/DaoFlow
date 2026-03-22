@@ -598,6 +598,17 @@
       }
     },
     {
+      "name": "containerRegistries",
+      "summary": "container Registries",
+      "path": "/trpc/containerRegistries",
+      "method": "GET",
+      "lane": "read",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin"],
+      "requiredScopes": [],
+      "inputSchema": null
+    },
+    {
       "name": "createAgent",
       "summary": "create Agent",
       "path": "/trpc/createAgent",
@@ -1523,6 +1534,28 @@
           }
         },
         "required": ["id"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "deleteContainerRegistry",
+      "summary": "delete Container Registry",
+      "path": "/trpc/deleteContainerRegistry",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin"],
+      "requiredScopes": [],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "registryId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["registryId"],
         "additionalProperties": false
       }
     },
@@ -2566,6 +2599,44 @@
       }
     },
     {
+      "name": "registerContainerRegistry",
+      "summary": "register Container Registry",
+      "path": "/trpc/registerContainerRegistry",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin"],
+      "requiredScopes": [],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "registryHost": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "username": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "password": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          }
+        },
+        "required": ["name", "registryHost", "username", "password"],
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "registerGitProvider",
       "summary": "register Git Provider",
       "path": "/trpc/registerGitProvider",
@@ -3570,6 +3641,47 @@
           }
         },
         "required": ["id"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "updateContainerRegistry",
+      "summary": "update Container Registry",
+      "path": "/trpc/updateContainerRegistry",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin"],
+      "requiredScopes": [],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "registryHost": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "username": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "registryId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "password": {
+            "type": "string",
+            "maxLength": 4096
+          }
+        },
+        "required": ["name", "registryHost", "username", "registryId"],
         "additionalProperties": false
       }
     },

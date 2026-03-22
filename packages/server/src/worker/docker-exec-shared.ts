@@ -14,6 +14,7 @@ export type OnLog = (line: LogLine) => void;
 
 export interface ExecStreamingOptions {
   inheritParentEnv?: boolean;
+  stdin?: string;
 }
 
 /**
@@ -40,7 +41,7 @@ export function execStreaming(
           : { ...process.env, DOCKER_CLI_HINTS: "false", ...(envOverrides ?? {}) };
       child = spawn(command, args, {
         cwd,
-        stdio: ["ignore", "pipe", "pipe"],
+        stdio: [options?.stdin === undefined ? "ignore" : "pipe", "pipe", "pipe"],
         env: withCommandPath(env)
       });
     } catch (err) {
@@ -60,6 +61,10 @@ export function execStreaming(
 
     child.stdout?.on("data", (data: Buffer) => processStream("stdout", data));
     child.stderr?.on("data", (data: Buffer) => processStream("stderr", data));
+
+    if (options?.stdin !== undefined) {
+      child.stdin?.end(options.stdin.endsWith("\n") ? options.stdin : `${options.stdin}\n`);
+    }
 
     child.on("close", (code, signal) => {
       resolve({ exitCode: code ?? 1, signal: signal ?? null });

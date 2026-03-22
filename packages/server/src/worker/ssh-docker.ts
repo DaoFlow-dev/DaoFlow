@@ -6,15 +6,21 @@
  * All functions delegate to execRemote from ssh-connection.ts.
  */
 
+import type { ContainerRegistryCredential } from "../container-registries-shared";
 import type { OnLog } from "./docker-executor";
+import { buildRegistryAwareShellCommand } from "./registry-auth";
 import { execRemote, shellQuote, type SSHTarget } from "./ssh-connection";
 
 export async function remoteDockerPull(
   target: SSHTarget,
   tag: string,
-  onLog: OnLog
+  onLog: OnLog,
+  registryCredentials: ContainerRegistryCredential[] = []
 ): Promise<{ exitCode: number }> {
-  const result = await execRemote(target, `docker pull ${shellQuote(tag)}`, onLog);
+  const result = await execRemote(target, "sh", onLog, {
+    preview: `docker pull ${tag}`,
+    stdin: buildRegistryAwareShellCommand(`docker pull ${shellQuote(tag)}`, registryCredentials)
+  });
   return { exitCode: result.exitCode };
 }
 
@@ -42,10 +48,21 @@ export async function remoteDockerBuild(
   context: string,
   dockerfile: string,
   tag: string,
-  onLog: OnLog
+  onLog: OnLog,
+  registryCredentials: ContainerRegistryCredential[] = []
 ): Promise<{ exitCode: number }> {
-  const cmd = `cd ${shellQuote(context)} && docker build -t ${shellQuote(tag)} -f ${shellQuote(dockerfile)} .`;
-  const result = await execRemote(target, cmd, onLog);
+  const scriptLines = [
+    "set -e",
+    `cd ${shellQuote(context)}`,
+    buildRegistryAwareShellCommand(
+      `docker build -t ${shellQuote(tag)} -f ${shellQuote(dockerfile)} .`,
+      registryCredentials
+    )
+  ];
+  const result = await execRemote(target, "sh", onLog, {
+    preview: `docker build -t ${tag} -f ${dockerfile} .`,
+    stdin: scriptLines.join("\n")
+  });
   return { exitCode: result.exitCode };
 }
 

@@ -14,7 +14,9 @@
     "types": ["vite/client"],
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@daoflow/server": ["../server/src/index.ts"],
+      "@daoflow/server/*": ["../server/src/*"]
     }
   },
   "include": ["src"],
