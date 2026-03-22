@@ -14,69 +14,10 @@ import {
   summarizeComposeGraph,
   summarizeDerivedBuildPlan
 } from "./compose-deployment-plan-build";
+import { buildComposeEnvPlanChecks, makePlanCheck as makeCheck } from "./deployment-plan-checks";
 import { resolveComposeDeploymentEnvEntries } from "./compose-env";
 import { resolveTeamIdForUser } from "./teams";
-
-type PlanCheckStatus = "ok" | "warn" | "fail";
 type ScopeAction = "reuse" | "create";
-
-function makeCheck(status: PlanCheckStatus, detail: string) {
-  return { status, detail };
-}
-
-function summarizeComposeEnvPlanDiagnostics(input: {
-  branch: string;
-  diagnostics: ReturnType<typeof buildComposeEnvPlanDiagnostics>;
-}) {
-  const { diagnostics } = input;
-  const variableLabel =
-    diagnostics.composeEnv.counts.environmentVariables === 1 ? "variable" : "variables";
-  const branchScopedLabel =
-    diagnostics.matchedBranchOverrideCount === 1 ? "branch-scoped match" : "branch-scoped matches";
-
-  return `Compose env plan resolved ${diagnostics.composeEnv.counts.total} entries for branch ${input.branch}: ${diagnostics.composeEnv.counts.repoDefaults} repo defaults, ${diagnostics.composeEnv.counts.environmentVariables} DaoFlow-managed ${variableLabel}, ${diagnostics.composeEnv.counts.overriddenRepoDefaults} repo-default overrides, ${diagnostics.matchedBranchOverrideCount} ${branchScopedLabel}.`;
-}
-
-function buildComposeEnvPlanChecks(
-  diagnostics: ReturnType<typeof buildComposeEnvPlanDiagnostics>
-): Array<{ status: PlanCheckStatus; detail: string }> {
-  const checks: Array<{ status: PlanCheckStatus; detail: string }> = [
-    makeCheck("ok", summarizeComposeEnvPlanDiagnostics({ branch: diagnostics.branch, diagnostics }))
-  ];
-
-  for (const warning of diagnostics.interpolation.warnings) {
-    checks.push(makeCheck("warn", warning));
-  }
-
-  for (const issue of diagnostics.interpolation.unresolved) {
-    checks.push(makeCheck(issue.severity, issue.detail));
-  }
-
-  if (diagnostics.interpolation.status === "ok") {
-    checks.push(
-      makeCheck(
-        "ok",
-        `Compose interpolation analysis found ${diagnostics.interpolation.summary.totalReferences} references with no unresolved variables.`
-      )
-    );
-  } else if (diagnostics.interpolation.status === "warn") {
-    checks.push(
-      makeCheck(
-        "warn",
-        `Compose interpolation analysis found ${diagnostics.interpolation.summary.optionalMissing} unresolved optional references.`
-      )
-    );
-  } else if (diagnostics.interpolation.status === "unavailable") {
-    checks.push(
-      makeCheck(
-        "warn",
-        "Compose interpolation analysis is unavailable for this plan; only env precedence diagnostics are shown."
-      )
-    );
-  }
-
-  return checks;
-}
 
 function sanitizeName(value: string, fallback: string): string {
   const trimmed = value.trim();
