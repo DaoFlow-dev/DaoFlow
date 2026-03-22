@@ -5,13 +5,13 @@ import type { TemplateDeployResult } from "./types";
 interface TemplateDeployResultAlertProps {
   deployResult: TemplateDeployResult;
   onOpenDeployments: () => void;
-  onOpenInstance: () => void;
+  onOpenService: () => void;
 }
 
 export function TemplateDeployResultAlert({
   deployResult,
   onOpenDeployments,
-  onOpenInstance
+  onOpenService
 }: TemplateDeployResultAlertProps) {
   return (
     <Alert data-testid="template-apply-success">
@@ -22,8 +22,8 @@ export function TemplateDeployResultAlert({
           <strong>{deployResult.deploymentId}</strong>.
         </p>
         <div className="flex flex-wrap gap-3">
-          <Button onClick={onOpenInstance} data-testid="template-open-instance-button">
-            Open instance
+          <Button onClick={onOpenService} data-testid="template-open-service-button">
+            Open service
           </Button>
           <Button
             variant="secondary"

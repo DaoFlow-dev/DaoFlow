@@ -1,13 +1,13 @@
 import { TRPCError } from "@trpc/server";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import type { Context } from "./context";
 import { db } from "./db/connection";
 import { tunnelRoutes, tunnels } from "./db/schema/tunnels";
 import { asRecord, newId } from "./db/services/json-helpers";
 import { createEnvironment, createProject } from "./db/services/projects";
-import { ensureControlPlaneReady } from "./db/services/seed";
 import { createService } from "./db/services/services";
 import { appRouter } from "./router";
+import { resetSeededTestDatabase } from "./test-db";
 
 function makeSession(role: string): NonNullable<Context["session"]> {
   const seededUsers = {
@@ -49,8 +49,6 @@ function makeSession(role: string): NonNullable<Context["session"]> {
 }
 
 async function createServiceDomainFixture(suffix: string) {
-  await ensureControlPlaneReady();
-
   const projectResult = await createProject({
     name: `service-domains-${suffix}`,
     description: "Service domain test fixture",
@@ -100,6 +98,10 @@ async function createServiceDomainFixture(suffix: string) {
 }
 
 describe("service domain workflows", () => {
+  beforeEach(async () => {
+    await resetSeededTestDatabase();
+  });
+
   it("persists desired domains and port mappings with observed route reconciliation", async () => {
     const suffix = `${Date.now()}`;
     const caller = appRouter.createCaller({

@@ -63,6 +63,22 @@ function rowToConfig(row: DestinationRow): DestinationConfig {
   };
 }
 
+function sanitizeOauthToken(oauthToken: string | null | undefined): string | null | undefined {
+  if (oauthToken === undefined) {
+    return undefined;
+  }
+
+  if (oauthToken === null || oauthToken.length === 0) {
+    return null;
+  }
+
+  try {
+    return JSON.stringify(JSON.parse(oauthToken));
+  } catch {
+    throw new Error("Invalid OAuth token: must be valid JSON from 'rclone authorize'.");
+  }
+}
+
 /**
  * Mask secrets for safe display — only show last 4 chars.
  */
@@ -125,16 +141,7 @@ export async function createDestination(
 ) {
   const destId = id();
   const now = new Date();
-
-  // Compress OAuth tokens to single-line JSON to prevent rclone INI parser breakage
-  let sanitizedOauthToken = input.oauthToken ?? null;
-  if (sanitizedOauthToken) {
-    try {
-      sanitizedOauthToken = JSON.stringify(JSON.parse(sanitizedOauthToken));
-    } catch {
-      throw new Error("Invalid OAuth token: must be valid JSON from 'rclone authorize'.");
-    }
-  }
+  const sanitizedOauthToken = sanitizeOauthToken(input.oauthToken) ?? null;
 
   const [row] = await db
     .insert(backupDestinations)
@@ -199,7 +206,7 @@ export async function updateDestination(
   if (input.rcloneType !== undefined) updateData.rcloneType = input.rcloneType;
   if (input.rcloneConfig !== undefined) updateData.rcloneConfig = input.rcloneConfig;
   if (input.rcloneRemotePath !== undefined) updateData.rcloneRemotePath = input.rcloneRemotePath;
-  if (input.oauthToken !== undefined) updateData.oauthToken = input.oauthToken;
+  if (input.oauthToken !== undefined) updateData.oauthToken = sanitizeOauthToken(input.oauthToken);
   if (input.localPath !== undefined) updateData.localPath = input.localPath;
 
   const [row] = await db

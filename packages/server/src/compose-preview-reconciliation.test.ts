@@ -9,12 +9,12 @@ import { deployments } from "./db/schema/deployments";
 import { gitInstallations, gitProviders } from "./db/schema/git-providers";
 import { projects } from "./db/schema/projects";
 import { tunnelRoutes, tunnels } from "./db/schema/tunnels";
-import { ensureControlPlaneReady } from "./db/services/seed";
 import { createEnvironment, createProject } from "./db/services/projects";
 import { asRecord } from "./db/services/json-helpers";
 import { createService } from "./db/services/services";
 import { readComposePreviewMetadata } from "./compose-preview";
 import { appRouter } from "./router";
+import { resetSeededTestDatabase } from "./test-db";
 
 function toRequestUrl(input: string | URL | Request): string {
   if (typeof input === "string") {
@@ -111,7 +111,7 @@ function makeSession(role: string): NonNullable<Context["session"]> {
 
 describe("compose preview reconciliation", () => {
   beforeEach(async () => {
-    await ensureControlPlaneReady();
+    await resetSeededTestDatabase();
   });
 
   afterEach(() => {

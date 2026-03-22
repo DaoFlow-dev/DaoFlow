@@ -125,7 +125,7 @@ describe("TemplatesPage", () => {
       "dep_template_123"
     );
 
-    fireEvent.click(screen.getByTestId("template-open-instance-button"));
+    fireEvent.click(screen.getByTestId("template-open-service-button"));
 
     expect(navigateMock).toHaveBeenCalledWith("/services/svc_template_123");
   });

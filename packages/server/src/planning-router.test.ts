@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import type { Context } from "./context";
 import { db } from "./db/connection";
 import { encrypt } from "./db/crypto";
@@ -11,12 +11,16 @@ import { services as servicesTable } from "./db/schema/services";
 import { teams } from "./db/schema/teams";
 import { encryptComposeDeploymentState } from "./db/services/compose-env";
 import { createEnvironment, createProject } from "./db/services/projects";
-import { ensureControlPlaneReady } from "./db/services/seed";
 import { createService } from "./db/services/services";
 import { appRouter } from "./router";
 import { createLocalGitRepository } from "./test-git-repo";
+import { resetSeededTestDatabase } from "./test-db";
 
 let fixtureCounter = 0;
+
+beforeEach(async () => {
+  await resetSeededTestDatabase();
+});
 
 function makeSession(role: string): NonNullable<Context["session"]> {
   const seededUsers = {
@@ -58,8 +62,6 @@ function makeSession(role: string): NonNullable<Context["session"]> {
 }
 
 async function createConfigDiffFixture(teamId = "team_foundation") {
-  await ensureControlPlaneReady();
-
   fixtureCounter += 1;
   const suffix = `${Date.now()}_${fixtureCounter}`;
   const projectName = `config-diff-${suffix}`;

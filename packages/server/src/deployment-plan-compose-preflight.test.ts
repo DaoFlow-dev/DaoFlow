@@ -1,10 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import type { Context } from "./context";
 import { createEnvironment, createProject } from "./db/services/projects";
-import { ensureControlPlaneReady } from "./db/services/seed";
 import { createService } from "./db/services/services";
 import { appRouter } from "./router";
 import { createLocalGitRepository, type LocalGitRepositoryFixture } from "./test-git-repo";
+import { resetSeededTestDatabase } from "./test-db";
 
 function makeSession(role: string): NonNullable<Context["session"]> {
   const seededUsers = {
@@ -45,6 +45,10 @@ function makeSession(role: string): NonNullable<Context["session"]> {
   } as unknown as NonNullable<Context["session"]>;
 }
 
+beforeEach(async () => {
+  await resetSeededTestDatabase();
+});
+
 async function createRepoBackedComposeService(input: {
   files: Record<string, string>;
   composeServiceName?: string;
@@ -52,8 +56,6 @@ async function createRepoBackedComposeService(input: {
   repository: LocalGitRepositoryFixture;
   serviceId: string;
 }> {
-  await ensureControlPlaneReady();
-
   const repository = createLocalGitRepository({
     files: input.files
   });

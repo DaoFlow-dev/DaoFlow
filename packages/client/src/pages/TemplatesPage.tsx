@@ -261,7 +261,7 @@ export default function TemplatesPage() {
           onPreviewRequest={() => setPreviewRequested(true)}
           onApply={() => void handleApply()}
           onOpenDeployments={() => void navigate("/deployments")}
-          onOpenInstance={() => void navigate(`/services/${deployResult?.serviceId ?? ""}`)}
+          onOpenService={() => void navigate(`/services/${deployResult?.serviceId ?? ""}`)}
         />
       </div>
     </main>

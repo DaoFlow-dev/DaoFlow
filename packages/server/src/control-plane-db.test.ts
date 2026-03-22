@@ -1,37 +1,37 @@
 import { desc, eq } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import {
   encrypt as encryptEnvironmentValue,
   decrypt as decryptEnvironmentValue
 } from "./db/crypto";
 import { db } from "./db/connection";
 import { auditEntries } from "./db/schema/audit";
-import { ensureControlPlaneReady } from "./db/services/seed";
 import {
   listEnvironmentVariableInventory,
   upsertEnvironmentVariable,
   deleteEnvironmentVariable
 } from "./db/services/envvars";
 import { resolveTeamIdForUser } from "./db/services/teams";
+import { resetSeededTestDatabase } from "./test-db";
 
 describe("control-plane environment variables", () => {
-  it("round-trips encrypted environment values", async () => {
-    await ensureControlPlaneReady();
+  beforeEach(async () => {
+    await resetSeededTestDatabase();
+  });
+
+  it("round-trips encrypted environment values", () => {
     const encrypted = encryptEnvironmentValue("super-secret-value");
 
     expect(encrypted).not.toContain("super-secret-value");
     expect(decryptEnvironmentValue(encrypted)).toBe("super-secret-value");
   });
 
-  it("rejects malformed encrypted payloads", async () => {
-    await ensureControlPlaneReady();
-
+  it("rejects malformed encrypted payloads", () => {
     expect(() => decryptEnvironmentValue("bad-payload")).toThrow("Invalid encrypted payload.");
   });
 
   it("upserts scoped variables and keeps secret reads redacted", async () => {
-    await ensureControlPlaneReady();
     const teamId = await resolveTeamIdForUser("user_developer");
     if (!teamId) {
       throw new Error("Failed to resolve foundation team.");
@@ -100,7 +100,6 @@ describe("control-plane environment variables", () => {
   });
 
   it("records redacted before and after metadata for env variable audits", async () => {
-    await ensureControlPlaneReady();
     const teamId = await resolveTeamIdForUser("user_developer");
     if (!teamId) {
       throw new Error("Failed to resolve foundation team.");

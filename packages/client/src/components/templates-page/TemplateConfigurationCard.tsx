@@ -40,7 +40,7 @@ interface TemplateConfigurationCardProps {
   onPreviewRequest: () => void;
   onApply: () => void;
   onOpenDeployments: () => void;
-  onOpenInstance: () => void;
+  onOpenService: () => void;
 }
 
 export function TemplateConfigurationCard({
@@ -62,7 +62,7 @@ export function TemplateConfigurationCard({
   onPreviewRequest,
   onApply,
   onOpenDeployments,
-  onOpenInstance
+  onOpenService
 }: TemplateConfigurationCardProps) {
   return (
     <Card className="border-border/60 shadow-sm">
@@ -172,7 +172,7 @@ export function TemplateConfigurationCard({
           <TemplateDeployResultAlert
             deployResult={deployResult}
             onOpenDeployments={onOpenDeployments}
-            onOpenInstance={onOpenInstance}
+            onOpenService={onOpenService}
           />
         ) : null}
 

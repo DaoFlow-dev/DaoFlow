@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import pg from "pg";
 import { ensureDatabaseExists, resetDatabaseSchema } from "./db/reset-database";
 import { resetInitialOwnerBootstrapState } from "./bootstrap-initial-owner";
-import { resetControlPlaneSeedState } from "./db/services/seed";
+import { ensureControlPlaneReady, resetControlPlaneSeedState } from "./db/services/seed";
 
 const { Client } = pg;
 const TEST_DB_PREPARE_LOCK_ID = 8_705_231;
@@ -128,4 +128,9 @@ export async function resetTestDatabase() {
   await withTestDatabaseLock(connectionString, async () => {
     await applyMigrations(connectionString);
   });
+}
+
+export async function resetSeededTestDatabase() {
+  await resetTestDatabase();
+  await ensureControlPlaneReady();
 }

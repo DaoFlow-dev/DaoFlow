@@ -31,6 +31,9 @@ export default defineConfig({
     exclude: ["dist/**", "node_modules/**"],
     environment: "node",
     setupFiles: ["./src/test-setup.ts"],
+    // Server tests share one physical Postgres database today, so file-level
+    // parallelism can corrupt suite state even when individual tests reset.
+    fileParallelism: false,
     maxWorkers: 1,
     minWorkers: 1,
     coverage: {

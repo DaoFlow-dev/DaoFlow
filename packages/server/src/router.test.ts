@@ -1,6 +1,6 @@
 import { TRPCError } from "@trpc/server";
 import { eq } from "drizzle-orm";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { getEffectiveTokenCapabilities, type ApiTokenScope } from "@daoflow/shared";
 import type { Context, RequestAuthContext } from "./context";
 import { db } from "./db/connection";
@@ -17,9 +17,14 @@ import { createService } from "./db/services/services";
 import { upsertEnvironmentVariable } from "./db/services/envvars";
 import type { ComposeReadinessProbeInput } from "./compose-readiness";
 import { appRouter } from "./router";
+import { resetSeededTestDatabase } from "./test-db";
 
 let rollbackFixtureCounter = 0;
 let otherTeamFixtureCounter = 0;
+
+beforeEach(async () => {
+  await resetSeededTestDatabase();
+});
 
 function makeSession(role: string): NonNullable<Context["session"]> {
   const seededUsers = {
