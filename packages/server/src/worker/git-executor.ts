@@ -8,7 +8,7 @@
 
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { execStreaming, type OnLog } from "./docker-executor";
+import { execStreaming, type OnLog } from "./docker-exec-shared";
 import type { RepositoryPreparationConfig } from "../repository-preparation";
 
 const STAGING_DIR = process.env.GIT_WORK_DIR ?? "/tmp/daoflow-staging";
