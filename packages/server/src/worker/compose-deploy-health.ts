@@ -1,71 +1,18 @@
 import type { ComposeReadinessProbeSnapshot } from "../compose-readiness";
-import { assessComposeHealth, type ComposeContainerStatus } from "./compose-health";
+import { assessComposeHealth } from "./compose-health";
 import {
-  runLocalInternalNetworkReadinessCheck,
-  runLocalComposeReadinessCheck,
-  runRemoteInternalNetworkReadinessCheck,
-  runRemoteComposeReadinessCheck
-} from "./compose-readiness-check";
-import { dockerComposePs, type OnLog } from "./docker-executor";
-import { dockerStackPs, dockerStackServices } from "./swarm-executor";
+  runComposeHealthReadinessCheck,
+  runSwarmHealthReadinessCheck
+} from "./compose-deploy-health-readiness";
+import { readComposeHealthStatuses, readSwarmHealthStatuses } from "./compose-deploy-health-status";
+import { type OnLog } from "./docker-executor";
 import type { ExecutionTarget } from "./execution-target";
-import {
-  remoteDockerComposePs,
-  remoteDockerStackPs,
-  remoteDockerStackServices
-} from "./ssh-executor";
 import { markStepComplete, markStepFailed } from "./step-management";
 import { throwIfDeploymentCancellationRequested } from "../db/services/deployment-execution-control";
 import { assessSwarmStackHealth } from "./swarm-health";
-import { resolveSwarmInternalNetworkTargets } from "./swarm-readiness-targets";
 
 const HEALTH_CHECK_TIMEOUT_MS = 60_000;
 const HEALTH_CHECK_INTERVAL_MS = 3_000;
-
-async function readComposeHealthStatuses(
-  composeFile: string,
-  projectName: string,
-  workDir: string,
-  onLog: OnLog,
-  target: ExecutionTarget,
-  envFile?: string,
-  envExportFile?: string,
-  composeServiceName?: string
-): Promise<{ exitCode: number; statuses: ComposeContainerStatus[] }> {
-  return target.mode === "remote"
-    ? remoteDockerComposePs(
-        target.ssh,
-        composeFile,
-        projectName,
-        workDir,
-        onLog,
-        envFile,
-        envExportFile,
-        composeServiceName
-      )
-    : dockerComposePs(composeFile, projectName, workDir, onLog, envFile, composeServiceName);
-}
-
-async function readSwarmHealthStatuses(
-  stackName: string,
-  workDir: string,
-  onLog: OnLog,
-  target: ExecutionTarget
-) {
-  const [serviceResult, taskResult] = await Promise.all([
-    target.mode === "remote"
-      ? remoteDockerStackServices(target.ssh, stackName, workDir, onLog)
-      : dockerStackServices(stackName, workDir, onLog),
-    target.mode === "remote"
-      ? remoteDockerStackPs(target.ssh, stackName, workDir, onLog)
-      : dockerStackPs(stackName, workDir, onLog)
-  ]);
-
-  return {
-    serviceResult,
-    taskResult
-  };
-}
 
 export async function waitForComposeHealthy(input: {
   deploymentId: string;
@@ -149,15 +96,12 @@ export async function waitForComposeHealthy(input: {
       }
 
       readinessStart ??= Date.now();
-      const readinessAttempt =
-        input.target.mode === "remote"
-          ? await runRemoteComposeReadinessCheck(
-              input.target.ssh,
-              input.readinessProbe,
-              statusResult.statuses,
-              input.onLog
-            )
-          : await runLocalComposeReadinessCheck(input.readinessProbe, statusResult.statuses);
+      const readinessAttempt = await runComposeHealthReadinessCheck({
+        readinessProbe: input.readinessProbe,
+        statuses: statusResult.statuses,
+        onLog: input.onLog,
+        target: input.target
+      });
 
       if (readinessAttempt.kind === "success") {
         await markStepComplete(
@@ -263,35 +207,14 @@ export async function waitForSwarmStackHealthy(input: {
 
       const readinessProbe = input.readinessProbe;
       readinessStart ??= Date.now();
-      const readinessAttempt =
-        readinessProbe.target === "internal-network"
-          ? await (async () => {
-              const internalTargets = await resolveSwarmInternalNetworkTargets({
-                stackName: input.stackName,
-                workDir: input.workDir,
-                probe: readinessProbe,
-                tasks: taskResult.tasks,
-                onLog: input.onLog,
-                target: input.target
-              });
-
-              return input.target.mode === "remote"
-                ? runRemoteInternalNetworkReadinessCheck(
-                    input.target.ssh,
-                    readinessProbe,
-                    internalTargets,
-                    input.onLog
-                  )
-                : runLocalInternalNetworkReadinessCheck(readinessProbe, internalTargets);
-            })()
-          : input.target.mode === "remote"
-            ? await runRemoteComposeReadinessCheck(
-                input.target.ssh,
-                readinessProbe,
-                [],
-                input.onLog
-              )
-            : await runLocalComposeReadinessCheck(readinessProbe, []);
+      const readinessAttempt = await runSwarmHealthReadinessCheck({
+        stackName: input.stackName,
+        workDir: input.workDir,
+        readinessProbe,
+        tasks: taskResult.tasks,
+        onLog: input.onLog,
+        target: input.target
+      });
 
       if (readinessAttempt.kind === "success") {
         await markStepComplete(
