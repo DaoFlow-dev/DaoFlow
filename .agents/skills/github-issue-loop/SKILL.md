@@ -76,6 +76,7 @@ Reuse a single comment when possible.
 - [ ] `bun run test:unit`
 - [ ] `bun run lint`
 - [ ] `bun run typecheck`
+- [ ] `bun run contracts:check`
 - [ ] `bun run skills:check` if instruction files changed
 - [ ] ACPX Gemini review
 - [ ] ACPX Claude Code review

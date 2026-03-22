@@ -21,9 +21,10 @@ Run these checks in order:
 2. `bun run test:unit`
 3. `bun run lint`
 4. `bun run typecheck`
-5. If the diff touches `AGENTS.md`, `.agents/`, or `.codex/skills/`, run `bun run skills:check`
-6. Run changed-surface checks for the files you touched
-7. Run [acpx-review](../acpx-review/SKILL.md)
+5. `bun run contracts:check`
+6. If the diff touches `AGENTS.md`, `.agents/`, or `.codex/skills/`, run `bun run skills:check`
+7. Run changed-surface checks for the files you touched
+8. Run [acpx-review](../acpx-review/SKILL.md)
 
 ## Push Follow-Through
 
@@ -38,6 +39,7 @@ Run these checks in order:
 - `bun run test:unit` passes
 - `bun run lint` reports 0 errors
 - `bun run typecheck` passes
+- `bun run contracts:check` passes
 - `bun run skills:check` passes when instruction files changed
 - Changed-surface checks pass
 - ACPX review has no blocking findings

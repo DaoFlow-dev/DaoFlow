@@ -58,12 +58,13 @@ Before every commit and push:
 2. Run `bun run test:unit`
 3. Run `bun run lint`
 4. Run `bun run typecheck`
-5. If the diff touches `AGENTS.md`, `.agents/`, or `.codex/skills/`, run `bun run skills:check`
-6. Run the relevant tests and checks for the changed surface
-7. Run ACPX Gemini and Claude Code review via [acpx-review.md](.agents/workflows/acpx-review.md)
-8. Ensure Git hooks are installed via `bun install` or `bun run hooks:install`
-9. Use a conventional commit message
-10. Push and verify GitHub Actions status
+5. Run `bun run contracts:check`
+6. If the diff touches `AGENTS.md`, `.agents/`, or `.codex/skills/`, run `bun run skills:check`
+7. Run the relevant tests and checks for the changed surface
+8. Run ACPX Gemini and Claude Code review via [acpx-review.md](.agents/workflows/acpx-review.md)
+9. Ensure Git hooks are installed via `bun install` or `bun run hooks:install`
+10. Use a conventional commit message
+11. Push and verify GitHub Actions status
 
 CI verification details and recovery steps live in [pre-commit.md](.agents/workflows/pre-commit.md).
 

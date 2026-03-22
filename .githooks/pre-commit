@@ -38,3 +38,6 @@ fi
 
 echo "[pre-commit] bun run typecheck"
 bun run typecheck
+
+echo "[pre-commit] bun run contracts:check"
+bun run contracts:check
