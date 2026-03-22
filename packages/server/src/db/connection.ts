@@ -15,6 +15,14 @@ type DatabaseConnectionState = {
 
 type PoolPropertyMap = Record<PropertyKey, unknown>;
 
+const TEST_POOL_MAX = 8;
+const TEST_POOL_IDLE_TIMEOUT_MS = 1_000;
+const TEST_POOL_CONNECTION_TIMEOUT_MS = 15_000;
+const TEST_POOL_MAX_USES = 50;
+const PROD_POOL_MAX = 20;
+const PROD_POOL_IDLE_TIMEOUT_MS = 30_000;
+const PROD_POOL_CONNECTION_TIMEOUT_MS = 5_000;
+
 function isTestRuntime() {
   if (process.env.TEST_DATABASE_URL || process.env.VITEST || process.env.NODE_ENV === "test") {
     return true;
@@ -31,13 +39,37 @@ function resolveConnectionString() {
   return resolveConfiguredDatabaseUrl();
 }
 
+export function buildPoolConfig(input: {
+  connectionString: string;
+  testRuntime: boolean;
+}): pg.PoolConfig {
+  if (input.testRuntime) {
+    return {
+      connectionString: input.connectionString,
+      // The server suite is single-worker and shares one test database.
+      // A smaller pool reduces stale idle clients across repeated resets.
+      max: TEST_POOL_MAX,
+      idleTimeoutMillis: TEST_POOL_IDLE_TIMEOUT_MS,
+      connectionTimeoutMillis: TEST_POOL_CONNECTION_TIMEOUT_MS,
+      maxUses: TEST_POOL_MAX_USES
+    };
+  }
+
+  return {
+    connectionString: input.connectionString,
+    max: PROD_POOL_MAX,
+    idleTimeoutMillis: PROD_POOL_IDLE_TIMEOUT_MS,
+    connectionTimeoutMillis: PROD_POOL_CONNECTION_TIMEOUT_MS
+  };
+}
+
 function createPool(connectionString: string) {
-  const nextPool = new pg.Pool({
-    connectionString,
-    max: 20,
-    idleTimeoutMillis: 30_000,
-    connectionTimeoutMillis: 5_000
-  });
+  const nextPool = new pg.Pool(
+    buildPoolConfig({
+      connectionString,
+      testRuntime: isTestRuntime()
+    })
+  );
 
   // Prevent unhandled 'error' events on idle clients from crashing the process.
   // Without this handler, a dropped connection in the pool kills the server.
