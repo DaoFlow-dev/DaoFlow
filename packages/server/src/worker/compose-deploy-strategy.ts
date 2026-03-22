@@ -9,22 +9,13 @@ import {
 import { prepareComposeWorkspace } from "./compose-workspace";
 import { waitForComposeHealthy, waitForSwarmStackHealthy } from "./compose-deploy-health";
 import {
-  dockerComposeBuild,
-  dockerComposeDown,
-  dockerComposePull,
-  dockerComposeUp,
-  type OnLog
-} from "./docker-executor";
-import { dockerStackDeploy, dockerStackRemove } from "./swarm-executor";
+  runComposeBuildOperation,
+  runComposePullOperation,
+  runComposeStartOperation,
+  runComposeStopOperation
+} from "./compose-deploy-operations";
+import { type OnLog } from "./docker-executor";
 import type { ExecutionTarget } from "./execution-target";
-import {
-  remoteDockerComposeBuild,
-  remoteDockerComposeDown,
-  remoteDockerComposePull,
-  remoteDockerComposeUp,
-  remoteDockerStackDeploy,
-  remoteDockerStackRemove
-} from "./ssh-executor";
 import {
   createStep,
   markStepComplete,
@@ -115,21 +106,16 @@ export async function executeComposeDeployment(
     );
     await markStepRunning(stopStepId);
 
-    const downResult = swarmManagerTarget
-      ? target.mode === "remote"
-        ? await remoteDockerStackRemove(target.ssh, projectName, workDir, onLog)
-        : await dockerStackRemove(projectName, workDir, onLog)
-      : target.mode === "remote"
-        ? await remoteDockerComposeDown(
-            target.ssh,
-            composeFile,
-            projectName,
-            workDir,
-            onLog,
-            composeEnvFile,
-            composeEnvExportFile
-          )
-        : await dockerComposeDown(composeFile, projectName, workDir, onLog, composeEnvFile);
+    const downResult = await runComposeStopOperation({
+      swarmManagerTarget,
+      target,
+      projectName,
+      workDir,
+      composeFile,
+      onLog,
+      composeEnvFile,
+      composeEnvExportFile
+    });
     if (downResult.exitCode !== 0) {
       await markStepFailed(
         stopStepId,
@@ -165,26 +151,16 @@ export async function executeComposeDeployment(
     nextSortOrder += 1;
     await markStepRunning(pullStepId);
 
-    const pullResult =
-      target.mode === "remote"
-        ? await remoteDockerComposePull(
-            target.ssh,
-            composeFile,
-            projectName,
-            workDir,
-            onLog,
-            composeEnvFile,
-            composeEnvExportFile,
-            composeServiceName
-          )
-        : await dockerComposePull(
-            composeFile,
-            projectName,
-            workDir,
-            onLog,
-            composeEnvFile,
-            composeServiceName
-          );
+    const pullResult = await runComposePullOperation({
+      target,
+      composeFile,
+      projectName,
+      workDir,
+      onLog,
+      composeEnvFile,
+      composeEnvExportFile,
+      composeServiceName
+    });
     if (pullResult.exitCode !== 0) {
       await markStepFailed(
         pullStepId,
@@ -205,26 +181,16 @@ export async function executeComposeDeployment(
     nextSortOrder += 1;
     await markStepRunning(buildStepId);
 
-    const buildResult =
-      target.mode === "remote"
-        ? await remoteDockerComposeBuild(
-            target.ssh,
-            composeFile,
-            projectName,
-            workDir,
-            onLog,
-            composeEnvFile,
-            composeEnvExportFile,
-            executionScope.requestedServiceName ?? undefined
-          )
-        : await dockerComposeBuild(
-            composeFile,
-            projectName,
-            workDir,
-            onLog,
-            composeEnvFile,
-            executionScope.requestedServiceName ?? undefined
-          );
+    const buildResult = await runComposeBuildOperation({
+      target,
+      composeFile,
+      projectName,
+      workDir,
+      onLog,
+      composeEnvFile,
+      composeEnvExportFile,
+      executionScope
+    });
     if (buildResult.exitCode !== 0) {
       await markStepFailed(
         buildStepId,
@@ -249,37 +215,17 @@ export async function executeComposeDeployment(
   nextSortOrder += 1;
   await markStepRunning(deployStepId);
 
-  const upResult = swarmManagerTarget
-    ? target.mode === "remote"
-      ? await remoteDockerStackDeploy(
-          target.ssh,
-          composeFile,
-          projectName,
-          workDir,
-          onLog,
-          composeEnvFile,
-          composeEnvExportFile
-        )
-      : await dockerStackDeploy(composeFile, projectName, workDir, onLog, composeEnvFile)
-    : target.mode === "remote"
-      ? await remoteDockerComposeUp(
-          target.ssh,
-          composeFile,
-          projectName,
-          workDir,
-          onLog,
-          composeEnvFile,
-          composeEnvExportFile,
-          composeServiceName
-        )
-      : await dockerComposeUp(
-          composeFile,
-          projectName,
-          workDir,
-          onLog,
-          composeEnvFile,
-          composeServiceName
-        );
+  const upResult = await runComposeStartOperation({
+    swarmManagerTarget,
+    target,
+    composeFile,
+    projectName,
+    workDir,
+    onLog,
+    composeEnvFile,
+    composeEnvExportFile,
+    composeServiceName
+  });
   if (upResult.exitCode !== 0) {
     await markStepFailed(
       deployStepId,
