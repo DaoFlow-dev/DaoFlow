@@ -95,18 +95,29 @@ interface SelectItemProps extends React.ComponentProps<"div"> {
   value: string;
 }
 
+function extractText(node: React.ReactNode): string {
+  if (typeof node === "string") return node;
+  if (typeof node === "number") return String(node);
+  if (Array.isArray(node)) return node.map(extractText).join("");
+  if (React.isValidElement(node) && node.props) {
+    return extractText((node.props as { children?: React.ReactNode }).children);
+  }
+  return "";
+}
+
 function SelectItem({ value, children, className, ...props }: SelectItemProps) {
   const ctx = React.useContext(SelectContext);
-  const itemRef = React.useRef<HTMLDivElement>(null);
 
-  React.useEffect(() => {
-    const text = itemRef.current?.textContent?.trim();
+  // Register label synchronously so SelectValue can resolve it on first render.
+  const registered = React.useRef(false);
+  if (!registered.current) {
+    const text = extractText(children);
     if (text) ctx.labels.set(value, text);
-  }, [ctx.labels, value, children]);
+    registered.current = true;
+  }
 
   return (
     <div
-      ref={itemRef}
       role="option"
       aria-selected={ctx.value === value}
       className={cn(
