@@ -28,60 +28,105 @@ export const AUTH_SECRET = resolveAuthSecret();
 const isHTTPS = authBaseURL.startsWith("https://");
 const emailSender = resolveEmailSender();
 
-export const auth = betterAuth({
-  appName: "DaoFlow",
-  baseURL: authBaseURL,
-  secret: AUTH_SECRET,
-  advanced: {
-    // Better Auth defaults to Secure cookies in production mode, but if
-    // the server is behind plain HTTP (CI, local dev without TLS), the
-    // browser silently rejects them.  Only set Secure when using HTTPS.
-    useSecureCookies: isHTTPS
-  },
-  trustedOrigins: [
-    `http://localhost:${DEFAULT_CLIENT_PORT}`,
-    `http://127.0.0.1:${DEFAULT_CLIENT_PORT}`,
-    `http://localhost:${DEFAULT_SERVER_PORT}`,
-    `http://127.0.0.1:${DEFAULT_SERVER_PORT}`
-  ],
-  database: drizzleAdapter(db, {
-    provider: "pg",
-    usePlural: true
-  }),
-  emailAndPassword: {
-    enabled: true,
-    autoSignIn: true,
-    sendResetPassword: emailSender
-  },
-  user: {
-    additionalFields: {
-      role: {
-        type: "string",
-        required: false,
-        returned: true,
-        input: false
-      }
-    }
-  },
-  databaseHooks: {
+function createAuthInstance() {
+  return betterAuth({
+    appName: "DaoFlow",
+    baseURL: authBaseURL,
+    secret: AUTH_SECRET,
+    advanced: {
+      // Better Auth defaults to Secure cookies in production mode, but if
+      // the server is behind plain HTTP (CI, local dev without TLS), the
+      // browser silently rejects them. Only set Secure when using HTTPS.
+      useSecureCookies: isHTTPS
+    },
+    trustedOrigins: [
+      `http://localhost:${DEFAULT_CLIENT_PORT}`,
+      `http://127.0.0.1:${DEFAULT_CLIENT_PORT}`,
+      `http://localhost:${DEFAULT_SERVER_PORT}`,
+      `http://127.0.0.1:${DEFAULT_SERVER_PORT}`
+    ],
+    database: drizzleAdapter(db, {
+      provider: "pg",
+      usePlural: true
+    }),
+    emailAndPassword: {
+      enabled: true,
+      autoSignIn: true,
+      sendResetPassword: emailSender
+    },
     user: {
-      create: {
-        before: async (user) => {
-          // Query the database to check if any users exist. This is
-          // restart-safe — unlike the previous in-memory counter, it
-          // cannot be tricked by restarting the server.
-          const [result] = await db.select({ count: sql<number>`count(*)` }).from(users);
-          const isFirstUser = Number(result.count) === 0;
-          return {
-            data: {
-              ...user,
-              role: isFirstUser ? bootstrapOwnerRole : defaultSignupRole
-            }
-          };
+      additionalFields: {
+        role: {
+          type: "string",
+          required: false,
+          returned: true,
+          input: false
+        }
+      }
+    },
+    databaseHooks: {
+      user: {
+        create: {
+          before: async (user) => {
+            // Query the database to check if any users exist. This is
+            // restart-safe — unlike the previous in-memory counter, it
+            // cannot be tricked by restarting the server.
+            const [result] = await db.select({ count: sql<number>`count(*)` }).from(users);
+            const isFirstUser = Number(result.count) === 0;
+            return {
+              data: {
+                ...user,
+                role: isFirstUser ? bootstrapOwnerRole : defaultSignupRole
+              }
+            };
+          }
         }
       }
     }
+  });
+}
+
+const initialAuth = createAuthInstance();
+
+type BetterAuthInstance = typeof initialAuth;
+type BetterAuthApi = BetterAuthInstance["api"];
+
+let currentAuth: BetterAuthInstance = initialAuth;
+
+const authApiProxyHandler: ProxyHandler<BetterAuthApi> = {
+  get(_target, property, receiver) {
+    const member = Reflect.get(
+      currentAuth.api,
+      property,
+      receiver
+    ) as BetterAuthApi[keyof BetterAuthApi];
+    if (typeof member !== "function") {
+      return member;
+    }
+
+    return (...args: unknown[]) => {
+      const method = Reflect.get(currentAuth.api, property, receiver) as (
+        this: BetterAuthApi,
+        ...args: unknown[]
+      ) => unknown;
+      return method.apply(currentAuth.api, args);
+    };
   }
-});
+};
+
+const authApi: BetterAuthApi = new Proxy(initialAuth.api, authApiProxyHandler);
+
+export const auth: Pick<BetterAuthInstance, "api" | "handler"> = {
+  get api() {
+    return authApi;
+  },
+  handler(...args) {
+    return currentAuth.handler(...args);
+  }
+};
+
+export function resetAuthState() {
+  currentAuth = createAuthInstance();
+}
 
 export type AuthSession = Awaited<ReturnType<typeof auth.api.getSession>>;

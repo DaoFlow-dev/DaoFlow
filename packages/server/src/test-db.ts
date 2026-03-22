@@ -15,22 +15,49 @@ const TEST_DB_PREPARE_LOCK_ID = 8_705_231;
 
 let prepared = false;
 let preparePromise: Promise<string> | null = null;
+const baseDatabaseUrl =
+  process.env.TEST_DATABASE_URL ??
+  process.env.DATABASE_URL ??
+  "postgresql://daoflow:daoflow_dev@localhost:5432/daoflow";
 
 function resolveBaseDatabaseUrl() {
-  return process.env.DATABASE_URL ?? "postgresql://daoflow:daoflow_dev@localhost:5432/daoflow";
+  return baseDatabaseUrl;
+}
+
+function resolveVitestWorkerSuffix() {
+  const workerId = process.env.VITEST_WORKER_ID ?? process.env.VITEST_POOL_ID;
+  if (!workerId) {
+    return "";
+  }
+
+  return `_w${workerId.replaceAll(/[^a-zA-Z0-9_-]/g, "")}`;
+}
+
+function applyDatabaseNameSuffix(databaseName: string, suffix: string) {
+  if (!suffix) {
+    return databaseName;
+  }
+
+  const maxDatabaseNameLength = 63;
+  const truncatedBaseName = databaseName.slice(
+    0,
+    Math.max(1, maxDatabaseNameLength - suffix.length)
+  );
+  return `${truncatedBaseName}${suffix}`;
 }
 
 function resolveTestDatabaseUrl() {
-  if (process.env.TEST_DATABASE_URL) {
-    return process.env.TEST_DATABASE_URL;
-  }
-
   const baseUrl = new URL(resolveBaseDatabaseUrl());
   const databaseName = baseUrl.pathname.replace(/^\//, "") || "daoflow";
-  if (databaseName.endsWith("_test")) {
-    return baseUrl.toString();
-  }
-  baseUrl.pathname = `/${databaseName}_test`;
+  const workerSuffix = resolveVitestWorkerSuffix();
+  const unsuffixedDatabaseName =
+    workerSuffix && databaseName.endsWith(workerSuffix)
+      ? databaseName.slice(0, -workerSuffix.length)
+      : databaseName;
+  const testDatabaseName = unsuffixedDatabaseName.endsWith("_test")
+    ? unsuffixedDatabaseName
+    : `${unsuffixedDatabaseName}_test`;
+  baseUrl.pathname = `/${applyDatabaseNameSuffix(testDatabaseName, workerSuffix)}`;
   return baseUrl.toString();
 }
 
@@ -57,13 +84,16 @@ async function applyMigrations(connectionString: string) {
 }
 
 async function resetRuntimeBootstrapState() {
-  const [{ resetInitialOwnerBootstrapState }, { resetControlPlaneSeedState }] = await Promise.all([
-    import("./bootstrap-initial-owner"),
-    import("./db/services/seed")
-  ]);
+  const [{ resetInitialOwnerBootstrapState }, { resetControlPlaneSeedState }, { resetAuthState }] =
+    await Promise.all([
+      import("./bootstrap-initial-owner"),
+      import("./db/services/seed"),
+      import("./auth")
+    ]);
 
   resetControlPlaneSeedState();
   resetInitialOwnerBootstrapState();
+  resetAuthState();
 }
 
 async function seedTestControlPlaneData(connectionString: string) {

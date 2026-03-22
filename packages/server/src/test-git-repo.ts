@@ -15,10 +15,9 @@ export function createLocalGitRepository(input: {
   const rootDir = mkdtempSync(join(tmpdir(), "daoflow-git-fixture-"));
   const branch = input.branch ?? "main";
 
-  execFileSync("git", ["init"], { cwd: rootDir });
+  execFileSync("git", ["init", "--initial-branch", branch], { cwd: rootDir });
   execFileSync("git", ["config", "user.email", "daoflow-tests@example.com"], { cwd: rootDir });
   execFileSync("git", ["config", "user.name", "DaoFlow Tests"], { cwd: rootDir });
-  execFileSync("git", ["checkout", "-b", branch], { cwd: rootDir });
 
   for (const [relativePath, content] of Object.entries(input.files)) {
     const filePath = join(rootDir, relativePath);
