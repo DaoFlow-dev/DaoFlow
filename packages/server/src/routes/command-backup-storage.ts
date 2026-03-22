@@ -19,13 +19,24 @@ import {
   volumeUpdateInputSchema
 } from "./command-backup-schemas";
 
+function toStorageActor(actor: ReturnType<typeof getActorContext>) {
+  return {
+    userId: actor.requestedByUserId,
+    email: actor.requestedByEmail,
+    role: actor.requestedByRole
+  };
+}
+
 function throwVolumeMutationError(result: { status: string; entity?: string; message?: string }) {
   if (result.status === "not-found") {
     throw new TRPCError({
       code: "NOT_FOUND",
-      message: `${
-        result.entity === "volume" ? "Volume" : result.entity === "service" ? "Service" : "Server"
-      } not found.`
+      message:
+        result.entity === "volume"
+          ? "Volume not found."
+          : result.entity === "service"
+            ? "Service not found."
+            : "Server not found."
     });
   }
 
@@ -81,72 +92,66 @@ export const backupStorageCommandRouter = t.router({
   createVolume: volumesWriteProcedure
     .input(volumeCreateInputSchema)
     .mutation(async ({ ctx, input }) => {
-      const actor = getActorContext(ctx);
-      const result = await createVolume(input, {
-        userId: actor.requestedByUserId,
-        email: actor.requestedByEmail,
-        role: actor.requestedByRole
-      });
+      const result = await createVolume(input, toStorageActor(getActorContext(ctx)));
       throwVolumeMutationError(result);
+      if (!("volume" in result) || !result.volume) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Volume creation did not return a volume."
+        });
+      }
       return result.volume;
     }),
   updateVolume: volumesWriteProcedure
     .input(volumeUpdateInputSchema)
     .mutation(async ({ ctx, input }) => {
-      const actor = getActorContext(ctx);
-      const result = await updateVolume(input, {
-        userId: actor.requestedByUserId,
-        email: actor.requestedByEmail,
-        role: actor.requestedByRole
-      });
+      const result = await updateVolume(input, toStorageActor(getActorContext(ctx)));
       throwVolumeMutationError(result);
+      if (!("volume" in result) || !result.volume) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Volume update did not return a volume."
+        });
+      }
       return result.volume;
     }),
   deleteVolume: volumesWriteProcedure
     .input(volumeDeleteInputSchema)
     .mutation(async ({ ctx, input }) => {
-      const actor = getActorContext(ctx);
-      const result = await deleteVolume(input.volumeId, {
-        userId: actor.requestedByUserId,
-        email: actor.requestedByEmail,
-        role: actor.requestedByRole
-      });
+      const result = await deleteVolume(input.volumeId, toStorageActor(getActorContext(ctx)));
       throwVolumeMutationError(result);
       return { deleted: true, volumeId: input.volumeId };
     }),
   createBackupPolicy: backupRunProcedure
     .input(backupPolicyCreateInputSchema)
     .mutation(async ({ ctx, input }) => {
-      const actor = getActorContext(ctx);
-      const result = await createBackupPolicy(input, {
-        userId: actor.requestedByUserId,
-        email: actor.requestedByEmail,
-        role: actor.requestedByRole
-      });
+      const result = await createBackupPolicy(input, toStorageActor(getActorContext(ctx)));
       throwBackupPolicyMutationError(result);
+      if (!("policy" in result) || !result.policy) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Backup policy creation did not return a policy."
+        });
+      }
       return result.policy;
     }),
   updateBackupPolicy: backupRunProcedure
     .input(backupPolicyUpdateInputSchema)
     .mutation(async ({ ctx, input }) => {
-      const actor = getActorContext(ctx);
-      const result = await updateBackupPolicy(input, {
-        userId: actor.requestedByUserId,
-        email: actor.requestedByEmail,
-        role: actor.requestedByRole
-      });
+      const result = await updateBackupPolicy(input, toStorageActor(getActorContext(ctx)));
       throwBackupPolicyMutationError(result);
+      if (!("policy" in result) || !result.policy) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Backup policy update did not return a policy."
+        });
+      }
       return result.policy;
     }),
   deleteBackupPolicy: backupRunProcedure
     .input(backupPolicyIdInputSchema)
     .mutation(async ({ ctx, input }) => {
-      const actor = getActorContext(ctx);
-      const result = await deleteBackupPolicy(input.policyId, {
-        userId: actor.requestedByUserId,
-        email: actor.requestedByEmail,
-        role: actor.requestedByRole
-      });
+      const result = await deleteBackupPolicy(input.policyId, toStorageActor(getActorContext(ctx)));
       throwBackupPolicyMutationError(result);
       return { deleted: true, policyId: input.policyId };
     }),

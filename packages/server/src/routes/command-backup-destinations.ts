@@ -1,22 +1,39 @@
-import { eq } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
-import type { BackupProvider } from "../db/schema/destinations";
+import { eq } from "drizzle-orm";
 import { db } from "../db/connection";
-import { backupDestinations } from "../db/schema/destinations";
+import { backupDestinations, type BackupProvider } from "../db/schema/destinations";
 import {
   createDestination,
   deleteDestination,
   testDestinationConnection,
   updateDestination
 } from "../db/services/destinations";
-import { listRemoteJson } from "../worker/rclone-executor";
 import { backupRunProcedure, getActorContext, t } from "../trpc";
+import { listRemoteJson } from "../worker/rclone-executor";
 import {
   backupDestinationCreateInputSchema,
   backupDestinationIdInputSchema,
   backupDestinationUpdateInputSchema,
   destinationFileListInputSchema
 } from "./command-backup-schemas";
+
+function toDestinationConfig(row: typeof backupDestinations.$inferSelect) {
+  return {
+    id: row.id,
+    provider: row.provider as BackupProvider,
+    accessKey: row.accessKey,
+    secretAccessKey: row.secretAccessKey,
+    bucket: row.bucket,
+    region: row.region,
+    endpoint: row.endpoint,
+    s3Provider: row.s3Provider,
+    rcloneType: row.rcloneType,
+    rcloneConfig: row.rcloneConfig,
+    rcloneRemotePath: row.rcloneRemotePath,
+    oauthToken: row.oauthToken,
+    localPath: row.localPath
+  };
+}
 
 export const backupDestinationCommandRouter = t.router({
   createBackupDestination: backupRunProcedure
@@ -76,23 +93,7 @@ export const backupDestinationCommandRouter = t.router({
       if (!row) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Destination not found." });
       }
-      return listRemoteJson(
-        {
-          id: row.id,
-          provider: row.provider as BackupProvider,
-          accessKey: row.accessKey,
-          secretAccessKey: row.secretAccessKey,
-          bucket: row.bucket,
-          region: row.region,
-          endpoint: row.endpoint,
-          s3Provider: row.s3Provider,
-          rcloneType: row.rcloneType,
-          rcloneConfig: row.rcloneConfig,
-          rcloneRemotePath: row.rcloneRemotePath,
-          oauthToken: row.oauthToken,
-          localPath: row.localPath
-        },
-        input.path
-      );
+
+      return listRemoteJson(toDestinationConfig(row), input.path);
     })
 });
