@@ -4,7 +4,7 @@ This guide covers setting up DaoFlow for local development, testing the CLI, and
 
 ## Prerequisites
 
-- [Bun](https://bun.sh/) v1.3+
+- [Bun](https://bun.sh/) v1.3.9 (matches the repo `packageManager` pin)
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/) for macOS
 - [Temporal CLI](https://docs.temporal.io/cli) — `brew install temporal`
 - Git

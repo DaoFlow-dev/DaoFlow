@@ -10,7 +10,7 @@ Get up and running with DaoFlow in under 5 minutes. DaoFlow is an agent-first ho
 
 | Requirement    | Minimum Version |
 | -------------- | --------------- |
-| Bun            | 1.3+            |
+| Bun            | 1.3.9           |
 | Docker Engine  | 20.10+          |
 | Docker Compose | v2.0+           |
 | Git            | any recent      |

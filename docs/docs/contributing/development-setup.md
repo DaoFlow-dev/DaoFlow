@@ -8,7 +8,7 @@ Set up your local environment for DaoFlow development.
 
 ## Prerequisites
 
-- **Bun** 1.0+ — [Install](https://bun.sh)
+- **Bun** 1.3.9 — [Install](https://bun.sh) to match the repo `packageManager` pin
 - **Docker** 20.10+ with Docker Compose v2
 - **Node.js** 18+ (for Playwright tests)
 - **Git**

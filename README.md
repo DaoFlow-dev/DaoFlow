@@ -96,7 +96,7 @@ daoflow whoami --json
 
 ## Development
 
-Requirements: **Bun 1.2+**, **Docker** with Compose v2.
+Requirements: **Bun 1.3.9** via the repo `packageManager` pin, **Docker** with Compose v2.
 
 ```bash
 git clone https://github.com/DaoFlow-dev/DaoFlow.git
