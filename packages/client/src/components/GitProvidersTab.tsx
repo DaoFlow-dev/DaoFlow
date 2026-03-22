@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
@@ -28,7 +29,11 @@ export default function GitProvidersTab() {
             Connect GitHub or GitLab Apps for source code integration.
           </p>
         </div>
-        <Button size="sm" onClick={() => setShowRegister(true)}>
+        <Button
+          size="sm"
+          onClick={() => setShowRegister(true)}
+          data-testid="git-provider-add-button"
+        >
           <Plus size={14} className="mr-1" /> Add Provider
         </Button>
       </div>
@@ -97,6 +102,7 @@ function ProviderCard({
               size="sm"
               onClick={() => deleteMutation.mutate({ providerId: provider.id })}
               disabled={deleteMutation.isPending}
+              data-testid={`git-provider-delete-${provider.id}`}
             >
               <Trash2 size={14} />
             </Button>
@@ -116,7 +122,7 @@ function ProviderCard({
             target="_blank"
             rel="noopener noreferrer"
           >
-            <Button variant="outline" size="sm">
+            <Button variant="outline" size="sm" data-testid={`git-provider-install-${provider.id}`}>
               <ExternalLink size={12} className="mr-1" /> Install on GitHub
             </Button>
           </a>
@@ -126,7 +132,7 @@ function ProviderCard({
             target="_blank"
             rel="noopener noreferrer"
           >
-            <Button variant="outline" size="sm">
+            <Button variant="outline" size="sm" data-testid={`git-provider-connect-${provider.id}`}>
               <ExternalLink size={12} className="mr-1" /> Connect GitLab
             </Button>
           </a>
@@ -151,6 +157,8 @@ function RegisterProviderDialog({
   const [name, setName] = useState("");
   const [appId, setAppId] = useState("");
   const [clientId, setClientId] = useState("");
+  const [clientSecret, setClientSecret] = useState("");
+  const [privateKey, setPrivateKey] = useState("");
   const [webhookSecret, setWebhookSecret] = useState("");
   const [baseUrl, setBaseUrl] = useState("");
 
@@ -161,6 +169,8 @@ function RegisterProviderDialog({
       setName("");
       setAppId("");
       setClientId("");
+      setClientSecret("");
+      setPrivateKey("");
       setWebhookSecret("");
       setBaseUrl("");
     }
@@ -168,16 +178,25 @@ function RegisterProviderDialog({
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!name.trim()) return;
+    if (!isFormValid) return;
+
     register.mutate({
       type,
       name: name.trim(),
-      appId: appId.trim() || undefined,
-      clientId: clientId.trim() || undefined,
+      appId: type === "github" ? appId.trim() || undefined : undefined,
+      clientId: type === "gitlab" ? clientId.trim() || undefined : undefined,
+      clientSecret: type === "gitlab" ? clientSecret.trim() || undefined : undefined,
+      privateKey: type === "github" ? privateKey.trim() || undefined : undefined,
       webhookSecret: webhookSecret.trim() || undefined,
-      baseUrl: baseUrl.trim() || undefined
+      baseUrl: type === "gitlab" ? baseUrl.trim() || undefined : undefined
     });
   }
+
+  const isFormValid =
+    Boolean(name.trim()) &&
+    (type === "github"
+      ? Boolean(appId.trim()) && Boolean(privateKey.trim())
+      : Boolean(clientId.trim()) && Boolean(clientSecret.trim()));
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -194,6 +213,7 @@ function RegisterProviderDialog({
                   key={t}
                   type="button"
                   onClick={() => setType(t)}
+                  data-testid={`git-provider-type-${t}`}
                   className={`px-3 py-1.5 text-sm rounded-md border ${
                     type === t
                       ? "bg-primary text-primary-foreground border-primary"
@@ -209,34 +229,71 @@ function RegisterProviderDialog({
             <Label htmlFor="gp-name">Name</Label>
             <Input
               id="gp-name"
+              data-testid="git-provider-name-input"
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="My GitHub App"
               required
             />
           </div>
-          <div>
-            <Label htmlFor="gp-appid">App ID</Label>
-            <Input
-              id="gp-appid"
-              value={appId}
-              onChange={(e) => setAppId(e.target.value)}
-              placeholder="123456"
-            />
-          </div>
-          <div>
-            <Label htmlFor="gp-clientid">Client ID</Label>
-            <Input
-              id="gp-clientid"
-              value={clientId}
-              onChange={(e) => setClientId(e.target.value)}
-              placeholder="Iv1.abc123..."
-            />
-          </div>
+          {type === "github" ? (
+            <>
+              <div>
+                <Label htmlFor="gp-appid">App ID</Label>
+                <Input
+                  id="gp-appid"
+                  data-testid="git-provider-app-id-input"
+                  value={appId}
+                  onChange={(e) => setAppId(e.target.value)}
+                  placeholder="123456"
+                  required
+                />
+              </div>
+              <div>
+                <Label htmlFor="gp-privatekey">Private Key</Label>
+                <Textarea
+                  id="gp-privatekey"
+                  data-testid="git-provider-private-key-input"
+                  value={privateKey}
+                  onChange={(e) => setPrivateKey(e.target.value)}
+                  placeholder="-----BEGIN RSA PRIVATE KEY-----"
+                  required
+                  rows={6}
+                />
+              </div>
+            </>
+          ) : (
+            <>
+              <div>
+                <Label htmlFor="gp-clientid">Client ID</Label>
+                <Input
+                  id="gp-clientid"
+                  data-testid="git-provider-client-id-input"
+                  value={clientId}
+                  onChange={(e) => setClientId(e.target.value)}
+                  placeholder="gitlab-client-id"
+                  required
+                />
+              </div>
+              <div>
+                <Label htmlFor="gp-clientsecret">Client Secret</Label>
+                <Input
+                  id="gp-clientsecret"
+                  data-testid="git-provider-client-secret-input"
+                  type="password"
+                  value={clientSecret}
+                  onChange={(e) => setClientSecret(e.target.value)}
+                  placeholder="gitlab-client-secret"
+                  required
+                />
+              </div>
+            </>
+          )}
           <div>
             <Label htmlFor="gp-webhook">Webhook Secret</Label>
             <Input
               id="gp-webhook"
+              data-testid="git-provider-webhook-secret-input"
               value={webhookSecret}
               onChange={(e) => setWebhookSecret(e.target.value)}
               placeholder="whsec_..."
@@ -247,6 +304,7 @@ function RegisterProviderDialog({
               <Label htmlFor="gp-baseurl">Base URL (self-hosted)</Label>
               <Input
                 id="gp-baseurl"
+                data-testid="git-provider-base-url-input"
                 value={baseUrl}
                 onChange={(e) => setBaseUrl(e.target.value)}
                 placeholder="https://gitlab.example.com"
@@ -255,10 +313,19 @@ function RegisterProviderDialog({
             </div>
           )}
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              data-testid="git-provider-cancel-button"
+            >
               Cancel
             </Button>
-            <Button type="submit" disabled={register.isPending || !name.trim()}>
+            <Button
+              type="submit"
+              disabled={register.isPending || !isFormValid}
+              data-testid="git-provider-register-button"
+            >
               {register.isPending ? "Registering…" : "Register"}
             </Button>
           </DialogFooter>
