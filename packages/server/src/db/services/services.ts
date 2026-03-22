@@ -1,35 +1,25 @@
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { db } from "../connection";
 import { auditEntries } from "../schema/audit";
-import { deployments } from "../schema/deployments";
 import { services } from "../schema/services";
-import { environments, projects } from "../schema/projects";
+import { environments } from "../schema/projects";
 import type { AppRole } from "@daoflow/shared";
 import { newId as id } from "./json-helpers";
 import {
-  readComposeReadinessProbeFromConfig,
   type ComposeReadinessProbeInput,
-  writeComposeReadinessProbeToConfig
+  readComposeReadinessProbeFromConfig
 } from "../../compose-readiness";
+import { type ComposePreviewConfigInput } from "../../compose-preview";
 import {
-  readComposePreviewConfigFromConfig,
-  type ComposePreviewConfigInput,
-  writeComposePreviewConfigToConfig
-} from "../../compose-preview";
+  buildInitialServiceConfig,
+  buildUpdatedServiceConfig,
+  validateServiceConfigInput
+} from "./service-config";
 import {
-  readServiceRuntimeConfigFromConfig,
-  renderServiceRuntimeOverrideComposePreview,
-  writeServiceRuntimeConfigToConfig
-} from "../../service-runtime-config";
-import {
-  readServiceDomainConfigFromConfig,
-  writeServiceDomainConfigToConfig
-} from "../../service-domain-config";
-import {
-  summarizeDeploymentHealth,
-  summarizeRolloutStrategy,
-  summarizeServiceRuntime
-} from "./deployment-read-model";
+  buildServiceReadIndex,
+  buildServiceReadModel,
+  normalizeServiceRecord
+} from "./service-record-views";
 
 /* ──────────────────────── Helpers ──────────────────────── */
 
@@ -88,154 +78,6 @@ export interface DeleteServiceInput {
 
 /* ──────────────────────── Service CRUD ──────────────────────── */
 
-export function normalizeServiceRecord(service: typeof services.$inferSelect) {
-  const config = writeServiceDomainConfigToConfig({
-    config: writeServiceRuntimeConfigToConfig({
-      config: writeComposePreviewConfigToConfig({
-        config: writeComposeReadinessProbeToConfig({
-          config: service.config
-        })
-      })
-    })
-  });
-
-  return {
-    ...service,
-    config,
-    domainConfig: readServiceDomainConfigFromConfig(config),
-    runtimeConfig: readServiceRuntimeConfigFromConfig(config),
-    runtimeConfigPreview: renderServiceRuntimeOverrideComposePreview({
-      composeServiceName: service.composeServiceName,
-      runtimeConfig: readServiceRuntimeConfigFromConfig(config)
-    })
-  };
-}
-
-function buildServiceDeploymentKey(input: {
-  projectId: string;
-  environmentId: string;
-  name: string;
-  sourceType: string;
-}) {
-  return `${input.projectId}:${input.environmentId}:${input.name}:${input.sourceType}`;
-}
-
-async function buildServiceReadIndex(serviceRows: (typeof services.$inferSelect)[]) {
-  if (serviceRows.length === 0) {
-    return {
-      projectById: new Map<string, typeof projects.$inferSelect>(),
-      environmentById: new Map<string, typeof environments.$inferSelect>(),
-      latestDeploymentByKey: new Map<string, typeof deployments.$inferSelect>()
-    };
-  }
-
-  const projectIds = [...new Set(serviceRows.map((row) => row.projectId))];
-  const environmentIds = [...new Set(serviceRows.map((row) => row.environmentId))];
-
-  const [projectRows, environmentRows, deploymentRows] = await Promise.all([
-    db.select().from(projects).where(inArray(projects.id, projectIds)),
-    db.select().from(environments).where(inArray(environments.id, environmentIds)),
-    db
-      .selectDistinctOn([
-        deployments.projectId,
-        deployments.environmentId,
-        deployments.serviceName,
-        deployments.sourceType
-      ])
-      .from(deployments)
-      .where(inArray(deployments.environmentId, environmentIds))
-      .orderBy(
-        deployments.projectId,
-        deployments.environmentId,
-        deployments.serviceName,
-        deployments.sourceType,
-        desc(deployments.createdAt)
-      )
-  ]);
-
-  const latestDeploymentByKey = new Map<string, typeof deployments.$inferSelect>();
-  for (const deployment of deploymentRows) {
-    const key = buildServiceDeploymentKey({
-      projectId: deployment.projectId,
-      environmentId: deployment.environmentId,
-      name: deployment.serviceName,
-      sourceType: deployment.sourceType
-    });
-
-    if (!latestDeploymentByKey.has(key)) {
-      latestDeploymentByKey.set(key, deployment);
-    }
-  }
-
-  return {
-    projectById: new Map(projectRows.map((row) => [row.id, row])),
-    environmentById: new Map(environmentRows.map((row) => [row.id, row])),
-    latestDeploymentByKey
-  };
-}
-
-function buildServiceReadModel(
-  service: typeof services.$inferSelect,
-  index: Awaited<ReturnType<typeof buildServiceReadIndex>>
-) {
-  const normalized = normalizeServiceRecord(service);
-  const project = index.projectById.get(service.projectId);
-  const environment = index.environmentById.get(service.environmentId);
-  const latestDeployment =
-    index.latestDeploymentByKey.get(
-      buildServiceDeploymentKey({
-        projectId: service.projectId,
-        environmentId: service.environmentId,
-        name: service.name,
-        sourceType: service.sourceType
-      })
-    ) ?? null;
-  const healthSummary = latestDeployment
-    ? summarizeDeploymentHealth({ deployment: latestDeployment, steps: [] })
-    : null;
-  const targetServerName =
-    latestDeployment && typeof latestDeployment.configSnapshot === "object"
-      ? ((latestDeployment.configSnapshot as Record<string, unknown>).targetServerName as
-          | string
-          | undefined)
-      : null;
-  const runtimeSummary = summarizeServiceRuntime({
-    latestDeployment,
-    healthSummary,
-    targetServerName
-  });
-  const rolloutStrategy = summarizeRolloutStrategy({
-    sourceType: service.sourceType,
-    serviceConfig: normalized.config,
-    healthcheckPath: service.healthcheckPath
-  });
-
-  return {
-    ...normalized,
-    projectName: project?.name ?? null,
-    environmentName: environment?.name ?? null,
-    statusTone: runtimeSummary.statusTone,
-    statusLabel: runtimeSummary.statusLabel,
-    runtimeSummary,
-    rolloutStrategy,
-    latestDeployment: latestDeployment
-      ? {
-          id: latestDeployment.id,
-          status: healthSummary?.status ?? "not-configured",
-          statusLabel: healthSummary?.statusLabel ?? runtimeSummary.statusLabel,
-          statusTone: healthSummary?.statusTone ?? runtimeSummary.statusTone,
-          summary: healthSummary?.summary ?? runtimeSummary.summary,
-          commitSha: latestDeployment.commitSha,
-          imageTag: latestDeployment.imageTag,
-          targetServerId: latestDeployment.targetServerId,
-          targetServerName,
-          createdAt: latestDeployment.createdAt.toISOString(),
-          finishedAt: latestDeployment.concludedAt?.toISOString() ?? null
-        }
-      : null
-  };
-}
-
 export async function createService(input: CreateServiceInput) {
   // Verify the environment exists
   const [env] = await db
@@ -256,24 +98,15 @@ export async function createService(input: CreateServiceInput) {
 
   if (existing) return { status: "conflict" as const, conflictField: "name" };
 
-  if (input.readinessProbe && input.sourceType !== "compose") {
-    return {
-      status: "invalid_config" as const,
-      message: "Explicit readiness probes are only supported for compose services."
-    };
-  }
-  if (input.healthcheckPath && input.sourceType === "compose" && !input.readinessProbe) {
-    return {
-      status: "invalid_config" as const,
-      message:
-        "Compose services no longer accept healthcheckPath. Configure service.config.readinessProbe instead."
-    };
-  }
-  if (input.preview?.enabled === true && input.sourceType !== "compose") {
-    return {
-      status: "invalid_config" as const,
-      message: "Preview deployments are only supported for compose services."
-    };
+  const validation = validateServiceConfigInput({
+    sourceType: input.sourceType,
+    healthcheckPath: input.healthcheckPath,
+    readinessProbe: input.readinessProbe,
+    preview: input.preview
+  });
+
+  if (validation) {
+    return validation;
   }
 
   const serviceId = id();
@@ -293,11 +126,8 @@ export async function createService(input: CreateServiceInput) {
       healthcheckPath: input.healthcheckPath ?? null,
       targetServerId: input.targetServerId ?? null,
       status: "inactive",
-      config: writeComposePreviewConfigToConfig({
-        config: writeComposeReadinessProbeToConfig({
-          config: {},
-          readinessProbe: input.readinessProbe
-        }),
+      config: buildInitialServiceConfig({
+        readinessProbe: input.readinessProbe,
         preview: input.preview
       }),
       updatedAt: new Date()
@@ -334,29 +164,21 @@ export async function updateService(input: UpdateServiceInput) {
 
   if (!existing) return { status: "not_found" as const };
 
-  const nextSourceType = input.sourceType ?? existing.sourceType;
+  const nextSourceType: CreateServiceInput["sourceType"] =
+    input.sourceType ?? (existing.sourceType as CreateServiceInput["sourceType"]);
   const nextReadinessProbe =
     input.readinessProbe !== undefined
       ? input.readinessProbe
       : readComposeReadinessProbeFromConfig(existing.config);
-  if (input.readinessProbe && nextSourceType !== "compose") {
-    return {
-      status: "invalid_config" as const,
-      message: "Explicit readiness probes are only supported for compose services."
-    };
-  }
-  if (input.healthcheckPath && nextSourceType === "compose" && !nextReadinessProbe) {
-    return {
-      status: "invalid_config" as const,
-      message:
-        "Compose services no longer accept healthcheckPath. Configure service.config.readinessProbe instead."
-    };
-  }
-  if (input.preview?.enabled === true && nextSourceType !== "compose") {
-    return {
-      status: "invalid_config" as const,
-      message: "Preview deployments are only supported for compose services."
-    };
+  const validation = validateServiceConfigInput({
+    sourceType: nextSourceType,
+    healthcheckPath: input.healthcheckPath,
+    readinessProbe: nextReadinessProbe,
+    preview: input.preview
+  });
+
+  if (validation) {
+    return validation;
   }
 
   const updates: Partial<typeof services.$inferInsert> = { updatedAt: new Date() };
@@ -372,31 +194,15 @@ export async function updateService(input: UpdateServiceInput) {
   if (input.healthcheckPath !== undefined) updates.healthcheckPath = input.healthcheckPath;
   if (input.replicaCount !== undefined) updates.replicaCount = input.replicaCount;
   if (input.targetServerId !== undefined) updates.targetServerId = input.targetServerId;
-  if (input.readinessProbe !== undefined) {
-    updates.config = writeComposeReadinessProbeToConfig({
-      config: existing.config,
-      readinessProbe: input.readinessProbe
-    });
-  }
-  if (input.preview !== undefined) {
-    updates.config = writeComposePreviewConfigToConfig({
-      config: updates.config ?? existing.config,
-      preview: input.preview
-    });
-  } else if (nextSourceType !== "compose" && readComposeReadinessProbeFromConfig(existing.config)) {
-    updates.config = writeComposeReadinessProbeToConfig({
-      config: existing.config,
-      readinessProbe: null
-    });
-  }
-  if (
-    nextSourceType !== "compose" &&
-    readComposePreviewConfigFromConfig(updates.config ?? existing.config)
-  ) {
-    updates.config = writeComposePreviewConfigToConfig({
-      config: updates.config ?? existing.config,
-      preview: null
-    });
+  const nextConfig = buildUpdatedServiceConfig({
+    existingConfig: existing.config,
+    nextSourceType,
+    readinessProbe: input.readinessProbe,
+    preview: input.preview
+  });
+
+  if (nextConfig !== undefined) {
+    updates.config = nextConfig;
   }
 
   const [service] = await db

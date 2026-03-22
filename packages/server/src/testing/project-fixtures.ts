@@ -26,6 +26,8 @@ type ServiceFixtureInput = Omit<
   keyof FixtureRequester | "projectId" | "environmentId"
 >;
 
+type CreateServiceSuccess = Extract<Awaited<ReturnType<typeof createService>>, { status: "ok" }>;
+
 function failFixtureCreation(message: string): never {
   throw new Error(message);
 }
@@ -38,7 +40,7 @@ export async function createProjectEnvironmentServiceFixture(input: {
 }): Promise<{
   project: NonNullable<Awaited<ReturnType<typeof createProject>>["project"]>;
   environment: NonNullable<Awaited<ReturnType<typeof createEnvironment>>["environment"]>;
-  service: NonNullable<Awaited<ReturnType<typeof createService>>["service"]>;
+  service: NonNullable<CreateServiceSuccess["service"]>;
 }>;
 
 export async function createProjectEnvironmentServiceFixture(input: {

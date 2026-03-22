@@ -7,7 +7,7 @@ import {
   type ServiceRuntimeConfigPatch,
   writeServiceRuntimeConfigToConfig
 } from "../../service-runtime-config";
-import { normalizeServiceRecord } from "./services";
+import { normalizeServiceRecord } from "./service-record-views";
 
 export interface UpdateServiceRuntimeConfigInput extends ServiceRuntimeConfigPatch {
   serviceId: string;
