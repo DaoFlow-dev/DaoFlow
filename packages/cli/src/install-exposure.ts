@@ -3,6 +3,7 @@ import { closeSync, mkdirSync, openSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { getErrorMessage, isRecord, readString } from "./command-helpers";
 import {
+  clearDashboardExposureState,
   getDashboardExposureStatePath,
   getExposureStateDir,
   readDashboardExposureState,
@@ -10,6 +11,7 @@ import {
   type DashboardExposureResult,
   type DashboardExposureMode
 } from "./install-exposure-state";
+import { getTraefikDashboardUrl, isTraefikExposureMode } from "./install-traefik";
 import type { InstallerRuntime } from "./installer-lifecycle";
 const CLOUDFLARE_LOG_FILE = "cloudflare-quick.log";
 const URL_PATTERN = /(https:\/\/[^\s|]+)/i;
@@ -177,8 +179,14 @@ export async function configureDashboardExposure(input: {
   installDir: string;
   mode: DashboardExposureMode;
   port: number;
+  domain: string;
 }): Promise<DashboardExposureResult> {
+  if (input.mode !== "cloudflare-quick") {
+    stopPreviousCloudflareQuickTunnel(input.installDir);
+  }
+
   if (input.mode === "none") {
+    clearDashboardExposureState(input.installDir);
     return {
       ok: true,
       mode: "none",
@@ -188,6 +196,18 @@ export async function configureDashboardExposure(input: {
   }
 
   try {
+    if (isTraefikExposureMode(input.mode)) {
+      const url = getTraefikDashboardUrl(input.domain);
+      return writeDashboardExposureState(input.installDir, {
+        mode: "traefik",
+        access: "public",
+        url,
+        detail:
+          "Traefik will publish the dashboard on ports 80 and 443 and manage Let's Encrypt certificates automatically.",
+        updatedAt: new Date().toISOString()
+      });
+    }
+
     if (input.mode === "cloudflare-quick") {
       return await configureCloudflareQuickTunnel(input);
     }

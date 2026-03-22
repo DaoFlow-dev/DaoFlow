@@ -1,9 +1,10 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { isRecord, readString } from "./command-helpers";
 
 export const DASHBOARD_EXPOSURE_MODES = [
   "none",
+  "traefik",
   "cloudflare-quick",
   "tailscale-serve",
   "tailscale-funnel"
@@ -63,6 +64,8 @@ export function parseDashboardExposureMode(
 
 export function describeDashboardExposureMode(mode: DashboardExposureMode): string {
   switch (mode) {
+    case "traefik":
+      return "Built-in Traefik (public HTTPS + automatic Let's Encrypt)";
     case "cloudflare-quick":
       return "Cloudflare Quick Tunnel (public, ephemeral)";
     case "tailscale-serve":
@@ -121,4 +124,13 @@ export function writeDashboardExposureState(
     detail: state.detail,
     statePath
   };
+}
+
+export function clearDashboardExposureState(installDir: string): void {
+  const statePath = getDashboardExposureStatePath(installDir);
+  if (!existsSync(statePath)) {
+    return;
+  }
+
+  rmSync(statePath, { force: true });
 }

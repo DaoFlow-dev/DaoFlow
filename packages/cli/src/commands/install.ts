@@ -11,11 +11,11 @@ import {
   ensureInstallDirectories,
   installerRuntime,
   runComposeCommand,
-  updateInstalledPublicUrl,
   waitForInstallHealth,
-  writeComposeFile,
   writeInstallFile
 } from "../installer-lifecycle";
+import { renderInstallSuccess } from "../install-output";
+import { writeInstallComposeFile } from "../install-traefik";
 import { defaultInstallDir, generateEnvFile } from "../templates";
 import { CLI_VERSION } from "../version";
 
@@ -50,7 +50,8 @@ export function installCommand(): Command {
     )
     .option("--dir <path>", "Installation directory", defaultInstallDir())
     .option("--domain <hostname>", "Public domain (e.g., deploy.example.com)")
-    .option("--port <number>", "HTTP port", "3000")
+    .option("--port <number>", "Local DaoFlow HTTP port", "3000")
+    .option("--acme-email <email>", "Let's Encrypt email to use when --expose traefik")
     .option(
       "--email <email>",
       "Admin email for first user (defaults to DAOFLOW_INITIAL_ADMIN_EMAIL)"
@@ -61,7 +62,7 @@ export function installCommand(): Command {
     )
     .option(
       "--expose <mode>",
-      "Expose the dashboard after install: none, cloudflare-quick, tailscale-serve, tailscale-funnel",
+      "Expose the dashboard after install: none, traefik, cloudflare-quick, tailscale-serve, tailscale-funnel",
       "none"
     )
     .option("--yes", "Skip confirmation prompts")
@@ -120,6 +121,8 @@ export function installCommand(): Command {
             domain: config.domain,
             port: config.port,
             scheme: config.scheme,
+            exposureMode: config.exposureMode,
+            acmeEmail: config.acmeEmail,
             initialAdminEmail: config.email,
             initialAdminPassword: config.password,
             postgresPassword: config.postgresPassword,
@@ -133,7 +136,11 @@ export function installCommand(): Command {
 
           const composeSpinner = !ctx.isJson ? ora("Fetching docker-compose.yml...").start() : null;
           try {
-            await writeComposeFile(installRuntime, composePath);
+            await writeInstallComposeFile({
+              runtime: installRuntime,
+              composePath,
+              exposureMode: config.exposureMode
+            });
             composeSpinner?.succeed("docker-compose.yml written");
           } catch (error) {
             composeSpinner?.fail("Failed to fetch docker-compose.yml");
@@ -190,15 +197,20 @@ export function installCommand(): Command {
             runtime: installRuntime,
             installDir: config.dir,
             mode: config.exposureMode,
-            port: config.port
+            port: config.port,
+            domain: config.domain
           });
 
           const displayUrl =
             exposure.url ??
             buildInstallUrl({ domain: config.domain, scheme: config.scheme, port: config.port });
 
-          if (exposure.url) {
-            envContent = updateInstalledPublicUrl(envContent, exposure.url);
+          const currentPublicUrl = envContent.match(/^BETTER_AUTH_URL=(.+)$/m)?.[1]?.trim();
+          if (exposure.url && exposure.url !== currentPublicUrl) {
+            envContent = envContent.replace(
+              /^BETTER_AUTH_URL=.*/m,
+              `BETTER_AUTH_URL=${exposure.url}`
+            );
             writeInstallFile(envPath, envContent);
 
             const authUrlSpinner = !ctx.isJson
@@ -257,38 +269,14 @@ export function installCommand(): Command {
               configFiles: [envPath, composePath]
             },
             human: () => {
-              console.error();
-              console.error(chalk.green.bold("✅ DaoFlow installed successfully!"));
-              console.error();
-              console.error(`  Dashboard:  ${chalk.cyan(displayUrl)}`);
-              console.error(`  Directory:  ${chalk.dim(config.dir)}`);
-              console.error(`  Version:    ${chalk.dim(CLI_VERSION)}`);
-              if (config.exposureMode !== "none") {
-                console.error(
-                  `  Exposure:   ${chalk.dim(describeDashboardExposureMode(config.exposureMode))}`
-                );
-                if (exposure.detail && !exposure.ok) {
-                  console.error(`  Warning:    ${chalk.yellow(exposure.detail)}`);
-                }
-              }
-              console.error();
-              console.error(chalk.bold("Next steps:"));
-              console.error(
-                `  1. Open ${chalk.cyan(displayUrl)} and sign in as ${chalk.cyan(config.email)}`
-              );
-              console.error("  2. Register your first server");
-              console.error("  3. Deploy your first application");
-              console.error();
-              console.error(chalk.bold("Useful commands:"));
-              console.error(`  ${chalk.dim("daoflow doctor --json")}   Check system health`);
-              console.error(`  ${chalk.dim("daoflow upgrade --yes")}   Upgrade to latest version`);
-              console.error(
-                `  ${chalk.dim(`cd ${config.dir} && docker compose logs -f`)}  View logs`
-              );
-              if (exposure.logPath) {
-                console.error(`  ${chalk.dim(`tail -f ${exposure.logPath}`)}  Watch tunnel logs`);
-              }
-              console.error();
+              renderInstallSuccess({
+                displayUrl,
+                directory: config.dir,
+                version: CLI_VERSION,
+                email: config.email,
+                exposureMode: config.exposureMode,
+                exposure
+              });
             }
           });
         }

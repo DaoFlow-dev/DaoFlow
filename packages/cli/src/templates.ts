@@ -61,6 +61,8 @@ export function generateEnvFile(opts: {
   domain: string;
   port: number;
   scheme?: "http" | "https";
+  exposureMode?: "none" | "traefik" | "cloudflare-quick" | "tailscale-serve" | "tailscale-funnel";
+  acmeEmail?: string;
   initialAdminEmail?: string;
   initialAdminPassword?: string;
   postgresPassword?: string;
@@ -83,6 +85,9 @@ export function generateEnvFile(opts: {
     "DAOFLOW_VERSION",
     "BETTER_AUTH_URL",
     "DAOFLOW_PORT",
+    "DAOFLOW_DOMAIN",
+    "DAOFLOW_ACME_EMAIL",
+    "DAOFLOW_PROXY_NETWORK",
     "DAOFLOW_INITIAL_ADMIN_EMAIL",
     "DAOFLOW_INITIAL_ADMIN_PASSWORD",
     "POSTGRES_PASSWORD",
@@ -105,6 +110,7 @@ DAOFLOW_VERSION=${opts.version}
 # -- Public URL -------------------------------------------------------------
 BETTER_AUTH_URL=${scheme}://${opts.domain}${portSuffix}
 DAOFLOW_PORT=${opts.port}
+${opts.exposureMode === "traefik" ? `DAOFLOW_DOMAIN=${opts.domain}\nDAOFLOW_ACME_EMAIL=${opts.acmeEmail ?? opts.initialAdminEmail ?? ""}\nDAOFLOW_PROXY_NETWORK=daoflow-proxy\n` : ""}
 
 # -- First-Boot Owner Bootstrap ---------------------------------------------
 # Password must be at least 8 characters.

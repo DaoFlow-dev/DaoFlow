@@ -4,7 +4,7 @@ sidebar_position: 5
 
 # SSL & Domains
 
-DaoFlow supports HTTPS via reverse proxy or Cloudflare Tunnel.
+DaoFlow supports HTTPS through an external reverse proxy, Cloudflare Tunnel, Tailscale, or the built-in Traefik option in `daoflow install`.
 
 ## Service Domain Workflows
 
@@ -14,6 +14,7 @@ routes so operators can see whether a domain is matched, missing, inactive, or c
 
 What DaoFlow does today:
 
+- Can bootstrap Traefik for the DaoFlow dashboard during installation, including automatic Let's Encrypt certificates
 - Stores service-level custom domains and primary-domain selection
 - Stores explicit port-mapping metadata that operators want to keep outside the source compose file
 - Shows observed route and route-backed TLS readiness based on existing tunnel or proxy state
@@ -29,6 +30,19 @@ Once that external routing is in place, the Domains tab reflects the observed st
 ## Option 1: Reverse Proxy (Recommended)
 
 Use Nginx, Caddy, or Traefik as a reverse proxy with automatic SSL.
+
+### Built-in Traefik for the Dashboard
+
+If you want DaoFlow to stand up its own reverse proxy for the control plane, use the installer:
+
+```bash
+daoflow install \
+  --domain deploy.example.com \
+  --expose traefik \
+  --acme-email ops@example.com
+```
+
+This keeps the DaoFlow app itself on its local port and publishes HTTPS on ports 80/443 through Traefik. Your DNS still needs to point the chosen hostname at the server before Let's Encrypt can succeed.
 
 ### Caddy (Easiest)
 
@@ -60,17 +74,17 @@ server {
 }
 ```
 
-### Traefik
+### Traefik for Additional Services
 
-Add labels to your DaoFlow service in `compose.yaml`:
+For services beyond the DaoFlow dashboard, you still need to add routing labels or file-provider rules yourself today. Example:
 
 ```yaml
 services:
-  daoflow:
+  my-custom-service:
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.daoflow.rule=Host(`deploy.example.com`)"
-      - "traefik.http.routers.daoflow.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.custom-service.rule=Host(`app.example.com`)"
+      - "traefik.http.routers.custom-service.tls.certresolver=letsencrypt"
 ```
 
 ## Option 2: Cloudflare Tunnel

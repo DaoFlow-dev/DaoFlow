@@ -11,6 +11,7 @@ import {
   readDashboardExposureState,
   type DashboardExposureMode
 } from "./install-exposure-state";
+import { getTraefikConfigurationError, resolveTraefikAcmeEmail } from "./install-traefik";
 import type { ExistingInstallState, InstallerRuntime } from "./installer-lifecycle";
 import { parsePort, readExistingInstall } from "./installer-lifecycle";
 
@@ -18,6 +19,7 @@ export interface InstallOptions {
   dir: string;
   domain?: string;
   port: string;
+  acmeEmail?: string;
   email?: string;
   password?: string;
   expose?: string;
@@ -34,6 +36,7 @@ export interface InstallConfiguration {
   scheme: "http" | "https";
   email: string;
   password: string;
+  acmeEmail?: string;
   postgresPassword?: string;
   temporalPostgresPassword?: string;
   existingInstall: ExistingInstallState | null;
@@ -78,6 +81,7 @@ export async function collectInstallConfiguration(input: {
   const hasExplicitDomain = input.command.getOptionValueSource("domain") === "cli";
   const hasExplicitPort = input.command.getOptionValueSource("port") === "cli";
   const hasExplicitExpose = input.command.getOptionValueSource("expose") === "cli";
+  const hasExplicitAcmeEmail = input.command.getOptionValueSource("acmeEmail") === "cli";
 
   let dir = input.options.dir;
   let domain = input.options.domain ?? "localhost";
@@ -93,6 +97,7 @@ export async function collectInstallConfiguration(input: {
     input.ctx.fail(
       `Invalid exposure mode "${input.options.expose}". Use one of: ${[
         "none",
+        "traefik",
         "cloudflare-quick",
         "tailscale-serve",
         "tailscale-funnel"
@@ -107,6 +112,11 @@ export async function collectInstallConfiguration(input: {
   const initialAdmin = resolveInitialAdminCredentials(input.options);
   let email = initialAdmin.email;
   let password = initialAdmin.password;
+  let acmeEmail = resolveTraefikAcmeEmail({
+    exposureMode,
+    acmeEmail: input.options.acmeEmail,
+    adminEmail: email
+  });
   let existingInstall: ExistingInstallState | null = null;
   let databasePasswordMode: DatabasePasswordMode = "auto-generated";
   let postgresPassword: string | undefined;
@@ -126,13 +136,14 @@ export async function collectInstallConfiguration(input: {
       email = email ?? (existingInstall.env.DAOFLOW_INITIAL_ADMIN_EMAIL?.trim() || undefined);
       password =
         password ?? (existingInstall.env.DAOFLOW_INITIAL_ADMIN_PASSWORD?.trim() || undefined);
+      acmeEmail = acmeEmail ?? (existingInstall.env.DAOFLOW_ACME_EMAIL?.trim() || undefined);
       databasePasswordMode = "preserved";
     }
 
     exposureMode = hasExplicitExpose ? exposureMode : (existingExposure?.mode ?? exposureMode);
 
     domain = await input.runtime.prompt("Domain name", domain || "localhost");
-    const portStr = await input.runtime.prompt("HTTP port", String(port));
+    const portStr = await input.runtime.prompt("Local dashboard port", String(port));
     port = parsePort(portStr);
     if (port === null) {
       input.ctx.fail(`Invalid port "${portStr}". Use an integer between 1 and 65535.`, {
@@ -143,7 +154,7 @@ export async function collectInstallConfiguration(input: {
     exposureMode = requireInstallValue(
       parseDashboardExposureMode(
         await input.runtime.prompt(
-          "Dashboard exposure (none/cloudflare-quick/tailscale-serve/tailscale-funnel)",
+          "Dashboard exposure (none/traefik/cloudflare-quick/tailscale-serve/tailscale-funnel)",
           exposureMode
         )
       ),
@@ -168,6 +179,17 @@ export async function collectInstallConfiguration(input: {
       input.ctx.fail("Admin password must be at least 8 characters.");
     }
 
+    if (exposureMode === "traefik" && !hasExplicitAcmeEmail) {
+      acmeEmail = await input.runtime.prompt("Let's Encrypt email", acmeEmail ?? email);
+    }
+
+    acmeEmail = resolveTraefikAcmeEmail({
+      exposureMode,
+      acmeEmail: hasExplicitAcmeEmail ? input.options.acmeEmail : acmeEmail,
+      adminEmail: email,
+      existingEnv: existingInstall?.env
+    });
+
     if (existingInstall) {
       console.error(`\nExisting DaoFlow installation found (v${existingInstall.version}).`);
       console.error(
@@ -191,6 +213,18 @@ export async function collectInstallConfiguration(input: {
       }
     }
 
+    const traefikError = getTraefikConfigurationError({
+      exposureMode,
+      domain,
+      port,
+      acmeEmail
+    });
+    if (traefikError) {
+      input.ctx.fail(traefikError, {
+        code: "INVALID_EXPOSURE_CONFIGURATION"
+      });
+    }
+
     const scheme = resolveInstallScheme(domain, existingInstall);
 
     console.error();
@@ -201,6 +235,9 @@ export async function collectInstallConfiguration(input: {
     console.error(`  Admin:         ${email}`);
     console.error(`  DB Passwords:  ${databasePasswordMode}`);
     console.error(`  Exposure:      ${describeDashboardExposureMode(exposureMode)}`);
+    if (acmeEmail) {
+      console.error(`  ACME Email:    ${acmeEmail}`);
+    }
     if (exposureMode !== "none") {
       console.error(
         "  Note: BETTER_AUTH_URL will be updated to the exposed HTTPS URL if setup succeeds."
@@ -223,6 +260,7 @@ export async function collectInstallConfiguration(input: {
       scheme,
       email,
       password,
+      acmeEmail,
       postgresPassword,
       temporalPostgresPassword,
       existingInstall,
@@ -241,6 +279,7 @@ export async function collectInstallConfiguration(input: {
     email = email ?? (existingInstall.env.DAOFLOW_INITIAL_ADMIN_EMAIL?.trim() || undefined);
     password =
       password ?? (existingInstall.env.DAOFLOW_INITIAL_ADMIN_PASSWORD?.trim() || undefined);
+    acmeEmail = acmeEmail ?? (existingInstall.env.DAOFLOW_ACME_EMAIL?.trim() || undefined);
     exposureMode = hasExplicitExpose ? exposureMode : (existingExposure?.mode ?? exposureMode);
 
     if (!input.ctx.isJson) {
@@ -272,6 +311,29 @@ export async function collectInstallConfiguration(input: {
     });
   }
 
+  acmeEmail = resolveTraefikAcmeEmail({
+    exposureMode,
+    acmeEmail,
+    adminEmail: email,
+    existingEnv: existingInstall?.env
+  });
+
+  const traefikError = getTraefikConfigurationError({
+    exposureMode,
+    domain,
+    port: requireInstallValue(port, () =>
+      input.ctx.fail(`Invalid port "${input.options.port}". Use an integer between 1 and 65535.`, {
+        code: "INVALID_PORT"
+      })
+    ),
+    acmeEmail
+  });
+  if (traefikError) {
+    input.ctx.fail(traefikError, {
+      code: "INVALID_EXPOSURE_CONFIGURATION"
+    });
+  }
+
   return {
     cancelled: false,
     dir,
@@ -288,6 +350,7 @@ export async function collectInstallConfiguration(input: {
       })
     ),
     password: ensuredPassword,
+    acmeEmail,
     postgresPassword: existingInstall?.env.POSTGRES_PASSWORD,
     temporalPostgresPassword: existingInstall?.env.TEMPORAL_POSTGRES_PASSWORD,
     existingInstall,

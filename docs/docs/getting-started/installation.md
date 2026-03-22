@@ -40,6 +40,9 @@ curl -fsSL https://raw.githubusercontent.com/DaoFlow-dev/DaoFlow/main/scripts/in
 The installer can also set `BETTER_AUTH_URL` from an exposed HTTPS endpoint after the stack starts:
 
 ```bash
+# Built-in reverse proxy with automatic Let's Encrypt certificates
+daoflow install --domain deploy.example.com --expose traefik --acme-email ops@example.com
+
 # Tailnet-only HTTPS URL
 daoflow install --expose tailscale-serve
 
@@ -52,6 +55,7 @@ daoflow install --expose cloudflare-quick
 
 Requirements:
 
+- `traefik` requires a real public domain that already points at this host. The installer keeps DaoFlow on its local port and puts Traefik on ports 80/443.
 - `tailscale-serve` and `tailscale-funnel` require `tailscale` to already be installed and authenticated on the host.
 - `cloudflare-quick` requires `cloudflared` to already be installed on the host.
 - `cloudflare-quick` is best for temporary access, demos, and smoke tests; the URL is ephemeral.
@@ -79,6 +83,14 @@ BETTER_AUTH_SECRET=GENERATED_64_CHAR_HEX
 ENCRYPTION_KEY=GENERATED_32_CHAR_HEX
 DAOFLOW_ENABLE_TEMPORAL=true
 TEMPORAL_ADDRESS=temporal:7233
+```
+
+When you choose `--expose traefik`, the installer also writes:
+
+```bash
+DAOFLOW_DOMAIN=deploy.example.com
+DAOFLOW_ACME_EMAIL=ops@example.com
+DAOFLOW_PROXY_NETWORK=daoflow-proxy
 ```
 
 ### Upgrading

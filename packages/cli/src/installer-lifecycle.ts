@@ -102,8 +102,7 @@ export function readExistingInstall(dir: string): ExistingInstallState | null {
       const parsedUrl = new URL(existingUrl);
       domain = parsedUrl.hostname;
       scheme = parsedUrl.protocol === "http:" ? "http" : "https";
-      port =
-        parsePort(parsedUrl.port || (parsedUrl.protocol === "https:" ? "443" : "80")) ?? undefined;
+      port = parsePort(env.DAOFLOW_PORT ?? "") ?? undefined;
     } catch {
       domain = undefined;
       port = parsePort(env.DAOFLOW_PORT ?? "") ?? undefined;

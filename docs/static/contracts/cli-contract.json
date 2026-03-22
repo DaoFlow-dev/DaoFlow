@@ -1197,7 +1197,12 @@
         },
         {
           "flags": "--port <number>",
-          "description": "HTTP port",
+          "description": "Local DaoFlow HTTP port",
+          "required": false
+        },
+        {
+          "flags": "--acme-email <email>",
+          "description": "Let's Encrypt email to use when --expose traefik",
           "required": false
         },
         {
@@ -1212,7 +1217,7 @@
         },
         {
           "flags": "--expose <mode>",
-          "description": "Expose the dashboard after install: none, cloudflare-quick, tailscale-serve, tailscale-funnel",
+          "description": "Expose the dashboard after install: none, traefik, cloudflare-quick, tailscale-serve, tailscale-funnel",
           "required": false
         },
         {

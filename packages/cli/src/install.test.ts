@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { Command } from "commander";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { CommandActionError } from "./command-action";
@@ -10,6 +10,7 @@ import {
   installRuntime,
   resolveInitialAdminCredentials
 } from "./commands/install";
+import { getDashboardExposureStatePath } from "./install-exposure-state";
 import { captureCommandExecution } from "./login-test-helpers";
 import { generateEnvFile, parseEnvFile } from "./templates";
 
@@ -280,6 +281,128 @@ DEPLOY_TIMEOUT_MS=900000
 
     const envFile = parseEnvFile(readFileSync(join(installDir, ".env"), "utf8"));
     expect(envFile.BETTER_AUTH_URL).toBe("https://daoflow-node.tail123.ts.net");
+  });
+
+  test("configures a built-in Traefik dashboard edge when requested", async () => {
+    process.env.DAOFLOW_INITIAL_ADMIN_EMAIL = "owner@example.com";
+    process.env.DAOFLOW_INITIAL_ADMIN_PASSWORD = "env-secret-123";
+
+    installRuntime.fetch = (url: string) => {
+      expect(url).toBe("http://127.0.0.1:3000/trpc/health");
+      return Promise.resolve(new Response(JSON.stringify({ ok: true }), { status: 200 }));
+    };
+
+    const program = new Command().name("daoflow");
+    program.addCommand(installCommand());
+
+    const result = await captureCommandExecution(async () => {
+      await program.parseAsync([
+        "node",
+        "daoflow",
+        "install",
+        "--dir",
+        installDir,
+        "--domain",
+        "deploy.example.com",
+        "--expose",
+        "traefik",
+        "--yes",
+        "--json"
+      ]);
+    });
+
+    expect(result.exitCode).toBe(0);
+    expect(JSON.parse(result.logs[0])).toMatchObject({
+      ok: true,
+      url: "https://deploy.example.com",
+      exposure: {
+        ok: true,
+        mode: "traefik",
+        access: "public",
+        url: "https://deploy.example.com"
+      }
+    });
+
+    const envFile = parseEnvFile(readFileSync(join(installDir, ".env"), "utf8"));
+    expect(envFile.BETTER_AUTH_URL).toBe("https://deploy.example.com");
+    expect(envFile.DAOFLOW_DOMAIN).toBe("deploy.example.com");
+    expect(envFile.DAOFLOW_ACME_EMAIL).toBe("owner@example.com");
+    expect(envFile.DAOFLOW_PROXY_NETWORK).toBe("daoflow-proxy");
+
+    const composeFile = readFileSync(join(installDir, "docker-compose.yml"), "utf8");
+    expect(composeFile).toContain("traefik:v3.6.7");
+    expect(composeFile).toContain("127.0.0.1:${DAOFLOW_PORT:-3000}:3000");
+    expect(composeFile).toContain("DAOFLOW_PROXY_NETWORK:-daoflow-proxy");
+  });
+
+  test("re-running a Traefik install keeps health checks on the local DaoFlow port", async () => {
+    writeFileSync(
+      join(installDir, ".env"),
+      generateEnvFile({
+        version: "0.2.0",
+        domain: "deploy.example.com",
+        port: 3000,
+        scheme: "https",
+        exposureMode: "traefik",
+        acmeEmail: "ops@example.com",
+        initialAdminEmail: "existing-owner@example.com",
+        initialAdminPassword: "existing-owner-secret",
+        postgresPassword: "pg-existing-secret",
+        temporalPostgresPassword: "temporal-existing-secret",
+        authSecret: "auth-existing-secret",
+        encryptionKey: "enc-existing-secret"
+      }).replace(
+        "BETTER_AUTH_URL=https://deploy.example.com:3000",
+        "BETTER_AUTH_URL=https://deploy.example.com"
+      )
+    );
+
+    mkdirSync(join(installDir, ".daoflow"), { recursive: true });
+    writeFileSync(
+      getDashboardExposureStatePath(installDir),
+      `${JSON.stringify(
+        {
+          mode: "traefik",
+          access: "public",
+          url: "https://deploy.example.com",
+          detail: "Traefik is already configured.",
+          updatedAt: new Date(0).toISOString()
+        },
+        null,
+        2
+      )}\n`
+    );
+
+    installRuntime.fetch = (url: string) => {
+      expect(url).toBe("http://127.0.0.1:3000/trpc/health");
+      return Promise.resolve(new Response(JSON.stringify({ ok: true }), { status: 200 }));
+    };
+
+    const program = new Command().name("daoflow");
+    program.addCommand(installCommand());
+
+    const result = await captureCommandExecution(async () => {
+      await program.parseAsync([
+        "node",
+        "daoflow",
+        "install",
+        "--dir",
+        installDir,
+        "--yes",
+        "--json"
+      ]);
+    });
+
+    expect(result.exitCode).toBe(0);
+    expect(JSON.parse(result.logs[0])).toMatchObject({
+      ok: true,
+      url: "https://deploy.example.com",
+      exposure: {
+        ok: true,
+        mode: "traefik",
+        url: "https://deploy.example.com"
+      }
+    });
   });
 
   test("interactive install upgrades localhost to https when the user enters a public domain", async () => {
