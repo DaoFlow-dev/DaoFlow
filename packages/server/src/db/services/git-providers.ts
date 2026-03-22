@@ -4,7 +4,7 @@
  * Handles registration, listing, and token exchange for GitHub/GitLab Apps.
  */
 
-import { and, desc, eq } from "drizzle-orm";
+import { desc, eq, sql } from "drizzle-orm";
 import { db } from "../connection";
 import { gitProviders, gitInstallations } from "../schema/git-providers";
 import { auditEntries } from "../schema/audit";
@@ -229,60 +229,57 @@ export async function deleteGitProvider(
 
 export async function createGitInstallation(input: CreateInstallationInput) {
   const now = new Date();
-  const [existingInstallation] = await db
-    .select()
-    .from(gitInstallations)
-    .where(
-      and(
-        eq(gitInstallations.providerId, input.providerId),
-        eq(gitInstallations.installationId, input.installationId)
-      )
-    )
-    .limit(1);
-
-  let installation = existingInstallation;
-  let auditAction = "git_installation.create";
-  let auditSummary = `Installed ${input.accountName} (installation ${input.installationId})`;
-
-  if (existingInstallation) {
-    [installation] = await db
-      .update(gitInstallations)
-      .set({
+  const installId = id();
+  const [installation] = await db
+    .insert(gitInstallations)
+    .values({
+      id: installId,
+      providerId: input.providerId,
+      installationId: input.installationId,
+      accountName: input.accountName,
+      accountType: input.accountType ?? "organization",
+      repositorySelection: input.repositorySelection ?? "all",
+      permissions: input.permissions ?? null,
+      installedByUserId: input.installedByUserId ?? null,
+      status: "active",
+      updatedAt: now
+    })
+    .onConflictDoUpdate({
+      target: [gitInstallations.providerId, gitInstallations.installationId],
+      set: {
         accountName: input.accountName,
-        accountType: input.accountType ?? existingInstallation.accountType,
-        repositorySelection: input.repositorySelection ?? existingInstallation.repositorySelection,
-        permissions: input.permissions ?? existingInstallation.permissions,
-        installedByUserId: input.installedByUserId ?? existingInstallation.installedByUserId,
+        accountType:
+          input.accountType !== undefined
+            ? input.accountType
+            : sql`${gitInstallations.accountType}`,
+        repositorySelection:
+          input.repositorySelection !== undefined
+            ? input.repositorySelection
+            : sql`${gitInstallations.repositorySelection}`,
+        permissions:
+          input.permissions !== undefined
+            ? input.permissions
+            : sql`${gitInstallations.permissions}`,
+        installedByUserId:
+          input.installedByUserId !== undefined
+            ? input.installedByUserId
+            : sql`${gitInstallations.installedByUserId}`,
         status: "active",
         updatedAt: now
-      })
-      .where(eq(gitInstallations.id, existingInstallation.id))
-      .returning();
-    auditAction = "git_installation.update";
-    auditSummary = `Updated ${input.accountName} (installation ${input.installationId})`;
-  } else {
-    const installId = id();
-
-    [installation] = await db
-      .insert(gitInstallations)
-      .values({
-        id: installId,
-        providerId: input.providerId,
-        installationId: input.installationId,
-        accountName: input.accountName,
-        accountType: input.accountType ?? "organization",
-        repositorySelection: input.repositorySelection ?? "all",
-        permissions: input.permissions ?? null,
-        installedByUserId: input.installedByUserId ?? null,
-        status: "active",
-        updatedAt: now
-      })
-      .returning();
-  }
+      }
+    })
+    .returning();
 
   if (!installation) {
     throw new Error("Expected git installation write to return a row.");
   }
+
+  const auditAction =
+    installation.id === installId ? "git_installation.create" : "git_installation.update";
+  const auditSummary =
+    installation.id === installId
+      ? `Installed ${input.accountName} (installation ${input.installationId})`
+      : `Updated ${input.accountName} (installation ${input.installationId})`;
 
   await db.insert(auditEntries).values({
     actorType: "user",
