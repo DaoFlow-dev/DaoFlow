@@ -169,4 +169,31 @@ describe("GitProvidersTab", () => {
 
     expect(screen.queryByTestId("git-provider-install-provider_github_empty_slug")).toBeNull();
   });
+
+  it("normalizes the GitLab connect href when the provider base URL has a trailing slash", () => {
+    gitProvidersUseQueryMock.mockReturnValue({
+      data: [
+        {
+          id: "provider_gitlab",
+          type: "gitlab",
+          name: "Self-Hosted GitLab",
+          status: "active",
+          appId: null,
+          clientId: "gitlab-client-id",
+          baseUrl: "https://gitlab.example.com/"
+        }
+      ],
+      refetch: refetchMock
+    });
+
+    render(<GitProvidersTab />);
+
+    const connectButton = screen.getByTestId("git-provider-connect-provider_gitlab");
+    const connectLink = connectButton.closest("a");
+
+    expect(connectLink).toHaveAttribute(
+      "href",
+      "https://gitlab.example.com/oauth/authorize?client_id=gitlab-client-id&redirect_uri=http%3A%2F%2Flocalhost%3A3000%2Fsettings%2Fgit%2Fcallback&response_type=code&state=provider_gitlab&scope=api"
+    );
+  });
 });

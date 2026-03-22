@@ -25,6 +25,10 @@ function normalizeGitHubAppNameSegment(name: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
+function trimTrailingSlash(value: string): string {
+  return value.replace(/\/+$/, "");
+}
+
 export default function GitProvidersTab() {
   const [showRegister, setShowRegister] = useState(false);
   const providers = trpc.gitProviders.useQuery();
@@ -97,6 +101,7 @@ function ProviderCard({
   const githubInstallPath = normalizeGitHubAppNameSegment(provider.name);
   const canRenderGitHubInstallLink =
     provider.type === "github" && Boolean(provider.appId) && githubInstallPath.length > 0;
+  const gitlabBaseUrl = trimTrailingSlash(provider.baseUrl || "https://gitlab.com");
 
   return (
     <Card>
@@ -140,7 +145,7 @@ function ProviderCard({
           </a>
         ) : provider.type === "gitlab" && provider.clientId ? (
           <a
-            href={`${provider.baseUrl || "https://gitlab.com"}/oauth/authorize?client_id=${provider.clientId}&redirect_uri=${encodeURIComponent(window.location.origin + "/settings/git/callback")}&response_type=code&state=${provider.id}&scope=api`}
+            href={`${gitlabBaseUrl}/oauth/authorize?client_id=${provider.clientId}&redirect_uri=${encodeURIComponent(window.location.origin + "/settings/git/callback")}&response_type=code&state=${provider.id}&scope=api`}
             target="_blank"
             rel="noopener noreferrer"
           >
