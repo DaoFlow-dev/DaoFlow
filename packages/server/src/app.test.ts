@@ -15,7 +15,7 @@ import { encrypt } from "./db/crypto";
 import { encodeGitInstallationPermissions } from "./db/services/git-providers";
 import { createEnvironment, createProject } from "./db/services/projects";
 import { createService } from "./db/services/services";
-import { resetTestDatabase } from "./test-db";
+import { resetSeededTestDatabase, resetTestDatabase } from "./test-db";
 import * as serviceObservabilityWorker from "./worker/service-observability";
 import {
   ensureInitialOwnerFromEnv,
@@ -341,6 +341,7 @@ describe("createApp", () => {
     try {
       await resetTestDatabase();
       resetControlPlaneSeedState();
+      resetInitialOwnerBootstrapState();
 
       const app = createApp();
       const ownerEmail = `owner+${Date.now()}@daoflow.local`;
@@ -1088,8 +1089,7 @@ describe("createApp", () => {
   }, 10_000);
 
   it("queues authenticated direct compose context uploads without metadata headers", async () => {
-    await resetTestDatabase();
-    resetControlPlaneSeedState();
+    await resetSeededTestDatabase();
 
     const app = createApp();
     const ownerEmail = `deploy-upload-owner+${Date.now()}@daoflow.local`;
@@ -1105,6 +1105,7 @@ describe("createApp", () => {
         password: "secret1234"
       })
     });
+    await db.update(users).set({ role: "owner" }).where(eq(users.email, ownerEmail));
     const sessionCookie =
       signUpResponse.headers
         .getSetCookie?.()
@@ -1166,8 +1167,7 @@ describe("createApp", () => {
   });
 
   it("rejects direct compose context uploads when a different user reuses the upload id", async () => {
-    await resetTestDatabase();
-    resetControlPlaneSeedState();
+    await resetSeededTestDatabase();
 
     const app = createApp();
     const ownerEmail = `deploy-upload-owner+${Date.now()}@daoflow.local`;
@@ -1183,13 +1183,14 @@ describe("createApp", () => {
         password: "secret1234"
       })
     });
+    await db.update(users).set({ role: "owner" }).where(eq(users.email, ownerEmail));
     const ownerSessionCookie =
       ownerSignUpResponse.headers
         .getSetCookie?.()
         .find((cookie) => cookie.startsWith("better-auth.session_token=")) ??
       ownerSignUpResponse.headers.get("set-cookie")?.match(/better-auth\.session_token=[^;]+/)?.[0];
     const viewerEmail = `deploy-upload-viewer+${Date.now()}@daoflow.local`;
-    await app.request("/api/auth/sign-up/email", {
+    const viewerSignUpResponse = await app.request("/api/auth/sign-up/email", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -1201,25 +1202,14 @@ describe("createApp", () => {
         password: "secret1234"
       })
     });
-    await db.update(users).set({ role: "owner" }).where(eq(users.email, viewerEmail));
-    const viewerSignInResponse = await app.request("/api/auth/sign-in/email", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Origin: "http://localhost:5173"
-      },
-      body: JSON.stringify({
-        email: viewerEmail,
-        password: "secret1234"
-      })
-    });
     const viewerSessionCookie =
-      viewerSignInResponse.headers
+      viewerSignUpResponse.headers
         .getSetCookie?.()
         .find((cookie) => cookie.startsWith("better-auth.session_token=")) ??
-      viewerSignInResponse.headers
+      viewerSignUpResponse.headers
         .get("set-cookie")
         ?.match(/better-auth\.session_token=[^;]+/)?.[0];
+    await db.update(users).set({ role: "owner" }).where(eq(users.email, viewerEmail));
 
     const intakeResponse = await app.request("/api/v1/deploy/uploads/intake", {
       method: "POST",

@@ -1,63 +1,36 @@
 import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
-import * as schema from "./db/schema";
-import { ensureDatabaseExists, resetDatabaseSchema } from "./db/reset-database";
-import { seedDeployments } from "./db/services/seed/seed-deployments";
-import { seedInfrastructure } from "./db/services/seed/seed-infrastructure";
-import { seedObservability } from "./db/services/seed/seed-observability";
-import { seedUsers } from "./db/services/seed/seed-users";
+import {
+  ensureDatabaseExists,
+  resetDatabaseSchema,
+  truncateDatabaseTables
+} from "./db/reset-database";
+import { resetInitialOwnerBootstrapState } from "./bootstrap-initial-owner";
+import { ensureControlPlaneReady, resetControlPlaneSeedState } from "./db/services/seed";
 
 const { Client } = pg;
 const TEST_DB_PREPARE_LOCK_ID = 8_705_231;
 
 let prepared = false;
 let preparePromise: Promise<string> | null = null;
-const baseDatabaseUrl =
-  process.env.TEST_DATABASE_URL ??
-  process.env.DATABASE_URL ??
-  "postgresql://daoflow:daoflow_dev@localhost:5432/daoflow";
 
 function resolveBaseDatabaseUrl() {
-  return baseDatabaseUrl;
-}
-
-function resolveVitestWorkerSuffix() {
-  const workerId = process.env.VITEST_WORKER_ID ?? process.env.VITEST_POOL_ID;
-  if (!workerId) {
-    return "";
-  }
-
-  return `_w${workerId.replaceAll(/[^a-zA-Z0-9_-]/g, "")}`;
-}
-
-function applyDatabaseNameSuffix(databaseName: string, suffix: string) {
-  if (!suffix) {
-    return databaseName;
-  }
-
-  const maxDatabaseNameLength = 63;
-  const truncatedBaseName = databaseName.slice(
-    0,
-    Math.max(1, maxDatabaseNameLength - suffix.length)
-  );
-  return `${truncatedBaseName}${suffix}`;
+  return process.env.DATABASE_URL ?? "postgresql://daoflow:daoflow_dev@localhost:5432/daoflow";
 }
 
 function resolveTestDatabaseUrl() {
+  if (process.env.TEST_DATABASE_URL) {
+    return process.env.TEST_DATABASE_URL;
+  }
+
   const baseUrl = new URL(resolveBaseDatabaseUrl());
   const databaseName = baseUrl.pathname.replace(/^\//, "") || "daoflow";
-  const workerSuffix = resolveVitestWorkerSuffix();
-  const unsuffixedDatabaseName =
-    workerSuffix && databaseName.endsWith(workerSuffix)
-      ? databaseName.slice(0, -workerSuffix.length)
-      : databaseName;
-  const testDatabaseName = unsuffixedDatabaseName.endsWith("_test")
-    ? unsuffixedDatabaseName
-    : `${unsuffixedDatabaseName}_test`;
-  baseUrl.pathname = `/${applyDatabaseNameSuffix(testDatabaseName, workerSuffix)}`;
+  if (databaseName.endsWith("_test")) {
+    return baseUrl.toString();
+  }
+  baseUrl.pathname = `/${databaseName}_test`;
   return baseUrl.toString();
 }
 
@@ -81,39 +54,6 @@ async function applyMigrations(connectionString: string) {
   } finally {
     await client.end();
   }
-}
-
-async function resetRuntimeBootstrapState() {
-  const [{ resetInitialOwnerBootstrapState }, { resetControlPlaneSeedState }, { resetAuthState }] =
-    await Promise.all([
-      import("./bootstrap-initial-owner"),
-      import("./db/services/seed"),
-      import("./auth")
-    ]);
-
-  resetControlPlaneSeedState();
-  resetInitialOwnerBootstrapState();
-  resetAuthState();
-}
-
-async function seedTestControlPlaneData(connectionString: string) {
-  const pool = new pg.Pool({ connectionString });
-
-  try {
-    const seedDb = drizzle(pool, { schema });
-    await seedDb.transaction(async (tx) => {
-      await seedUsers(tx);
-      await seedInfrastructure(tx);
-      await seedDeployments(tx);
-      await seedObservability(tx);
-    });
-  } finally {
-    await pool.end();
-  }
-
-  const { primeControlPlaneSeedState } = await import("./db/services/seed");
-  primeControlPlaneSeedState();
-  console.log("Seeded DaoFlow foundation control-plane data.");
 }
 
 async function withTestDatabaseLock<T>(
@@ -162,11 +102,6 @@ export async function ensureTestDatabaseReady() {
   process.env.DATABASE_URL = connectionString;
 
   if (prepared) {
-    const { getDatabaseConnectionString, reconfigureDatabasePool } =
-      await import("./db/connection");
-    if (getDatabaseConnectionString() !== connectionString) {
-      await reconfigureDatabasePool(connectionString);
-    }
     return connectionString;
   }
 
@@ -187,26 +122,19 @@ export async function ensureTestDatabaseReady() {
 
   await preparePromise;
 
-  const { getDatabaseConnectionString, reconfigureDatabasePool } = await import("./db/connection");
-  if (getDatabaseConnectionString() !== connectionString) {
-    await reconfigureDatabasePool(connectionString);
-  }
-
   return connectionString;
 }
 
 export async function resetTestDatabase() {
   const connectionString = await ensureTestDatabaseReady();
-  await resetRuntimeBootstrapState();
+  resetControlPlaneSeedState();
+  resetInitialOwnerBootstrapState();
   await withTestDatabaseLock(connectionString, async () => {
-    await applyMigrations(connectionString);
+    await truncateDatabaseTables(connectionString);
   });
-  const { reconfigureDatabasePool } = await import("./db/connection");
-  await reconfigureDatabasePool(connectionString);
-  return connectionString;
 }
 
 export async function resetSeededTestDatabase() {
-  const connectionString = await resetTestDatabase();
-  await seedTestControlPlaneData(connectionString);
+  await resetTestDatabase();
+  await ensureControlPlaneReady();
 }
