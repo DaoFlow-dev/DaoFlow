@@ -95,6 +95,8 @@ function ProviderCard({
     onSuccess: onDeleted
   });
   const githubInstallPath = normalizeGitHubAppNameSegment(provider.name);
+  const canRenderGitHubInstallLink =
+    provider.type === "github" && Boolean(provider.appId) && githubInstallPath.length > 0;
 
   return (
     <Card>
@@ -126,7 +128,7 @@ function ProviderCard({
             : `Client ID: ${provider.clientId ?? "—"}`}
           {provider.baseUrl ? ` · ${provider.baseUrl}` : ""}
         </p>
-        {provider.type === "github" && provider.appId ? (
+        {canRenderGitHubInstallLink ? (
           <a
             href={`https://github.com/apps/${githubInstallPath}/installations/new?state=${provider.id}`}
             target="_blank"

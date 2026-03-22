@@ -148,4 +148,25 @@ describe("GitProvidersTab", () => {
       "https://github.com/apps/my-app-n-ame/installations/new?state=provider_github"
     );
   });
+
+  it("suppresses the GitHub install action when the normalized app slug is empty", () => {
+    gitProvidersUseQueryMock.mockReturnValue({
+      data: [
+        {
+          id: "provider_github_empty_slug",
+          type: "github",
+          name: "!!!",
+          status: "active",
+          appId: "123456",
+          clientId: null,
+          baseUrl: null
+        }
+      ],
+      refetch: refetchMock
+    });
+
+    render(<GitProvidersTab />);
+
+    expect(screen.queryByTestId("git-provider-install-provider_github_empty_slug")).toBeNull();
+  });
 });
