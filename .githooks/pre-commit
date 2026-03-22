@@ -20,15 +20,14 @@ if [ -z "$STAGED" ]; then
 fi
 
 staged_prettier_files() {
-  git diff --cached --name-only --diff-filter=d -z -- \
+  git diff --cached --name-only --diff-filter=d "$@" -- \
     '*.ts' '*.tsx' '*.js' '*.jsx' '*.mjs' '*.cjs' '*.json' '*.css' '*.md' '*.yaml' '*.yml' '*.html'
 }
 
-if git diff --cached --name-only --diff-filter=d -- \
-  '*.ts' '*.tsx' '*.js' '*.jsx' '*.mjs' '*.cjs' '*.json' '*.css' '*.md' '*.yaml' '*.yml' '*.html' | grep -q .; then
+if staged_prettier_files | grep -q .; then
   echo "[pre-commit] formatting staged files"
-  staged_prettier_files | xargs -0 bun x prettier --write --
-  staged_prettier_files | xargs -0 git add --
+  staged_prettier_files -z | xargs -0 bun x prettier --write --
+  staged_prettier_files -z | xargs -0 git add --
 fi
 
 echo "[pre-commit] bun run lint"
