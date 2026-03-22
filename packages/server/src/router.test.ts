@@ -668,6 +668,118 @@ describe("appRouter", () => {
     ).toBe(true);
   });
 
+  it("rejects compose service healthcheckPath writes without readiness probes and preserves legacy metadata when readiness is explicit", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-service-compose-healthcheckpath-deprecated",
+      session: makeSession("owner")
+    });
+
+    const projectResult = await createProject({
+      name: `service-healthcheckpath-${Date.now()}`,
+      description: "Compose healthcheckPath deprecation fixture",
+      teamId: "team_foundation",
+      requestedByUserId: "user_foundation_owner",
+      requestedByEmail: "owner@daoflow.local",
+      requestedByRole: "owner"
+    });
+    expect(projectResult.status).toBe("ok");
+    if (projectResult.status !== "ok") {
+      throw new Error("Failed to create compose healthcheckPath project fixture.");
+    }
+
+    const environmentResult = await createEnvironment({
+      projectId: projectResult.project.id,
+      name: `service-healthcheckpath-env-${Date.now()}`,
+      targetServerId: "srv_foundation_1",
+      requestedByUserId: "user_foundation_owner",
+      requestedByEmail: "owner@daoflow.local",
+      requestedByRole: "owner"
+    });
+    expect(environmentResult.status).toBe("ok");
+    if (environmentResult.status !== "ok") {
+      throw new Error("Failed to create compose healthcheckPath environment fixture.");
+    }
+
+    await expect(
+      caller.createService({
+        name: `service-healthcheckpath-svc-${Date.now()}`,
+        projectId: projectResult.project.id,
+        environmentId: environmentResult.environment.id,
+        sourceType: "compose",
+        healthcheckPath: "/ready"
+      })
+    ).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+      message:
+        "Compose services no longer accept healthcheckPath. Configure service.config.readinessProbe instead."
+    } satisfies Partial<TRPCError>);
+
+    const serviceResult = await createService({
+      name: `service-healthcheckpath-update-svc-${Date.now()}`,
+      projectId: projectResult.project.id,
+      environmentId: environmentResult.environment.id,
+      sourceType: "compose",
+      targetServerId: "srv_foundation_1",
+      requestedByUserId: "user_foundation_owner",
+      requestedByEmail: "owner@daoflow.local",
+      requestedByRole: "owner"
+    });
+    expect(serviceResult.status).toBe("ok");
+    if (serviceResult.status !== "ok") {
+      throw new Error("Failed to create compose healthcheckPath update fixture service.");
+    }
+
+    await expect(
+      caller.updateService({
+        serviceId: serviceResult.service.id,
+        healthcheckPath: "/ready"
+      })
+    ).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+      message:
+        "Compose services no longer accept healthcheckPath. Configure service.config.readinessProbe instead."
+    } satisfies Partial<TRPCError>);
+
+    const createWithReadiness = await caller.createService({
+      name: `service-healthcheckpath-ready-svc-${Date.now()}`,
+      projectId: projectResult.project.id,
+      environmentId: environmentResult.environment.id,
+      sourceType: "compose",
+      healthcheckPath: "/legacy-ready",
+      readinessProbe: {
+        type: "http",
+        target: "published-port",
+        port: 8080,
+        path: "/ready"
+      }
+    });
+    expect(createWithReadiness.healthcheckPath).toBe("/legacy-ready");
+    expect(asRecord(createWithReadiness.config).readinessProbe).toMatchObject({
+      type: "http",
+      target: "published-port",
+      port: 8080,
+      path: "/ready"
+    });
+
+    const updatedWithReadiness = await caller.updateService({
+      serviceId: serviceResult.service.id,
+      healthcheckPath: "/legacy-ready",
+      readinessProbe: {
+        type: "http",
+        target: "published-port",
+        port: 8081,
+        path: "/ready"
+      }
+    });
+    expect(updatedWithReadiness.healthcheckPath).toBe("/legacy-ready");
+    expect(asRecord(updatedWithReadiness.config).readinessProbe).toMatchObject({
+      type: "http",
+      target: "published-port",
+      port: 8081,
+      path: "/ready"
+    });
+  });
+
   it("persists DaoFlow-managed runtime overrides for compose services", async () => {
     const caller = appRouter.createCaller({
       requestId: "test-runtime-overrides",

@@ -6,7 +6,7 @@ const composeReadinessProbeBaseSchema = {
   intervalSeconds: z.number().int().min(1).max(30).optional()
 } as const;
 
-export const composeReadinessProbeSchema = z.discriminatedUnion("type", [
+export const composeReadinessProbeSchema = z.union([
   z.object({
     type: z.literal("http"),
     target: z.literal("published-port"),

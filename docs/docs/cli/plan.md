@@ -169,7 +169,7 @@ Service plan:
 }
 ```
 
-For compose-backed services, `healthcheckPath` remains legacy metadata. When `service.config.readinessProbe` is present, the plan shows the real execution contract that DaoFlow will enforce on the target host, including `published-port` or `internal-network` targets and either HTTP or TCP transport.
+For compose-backed services, `healthcheckPath` remains legacy metadata only and is not executed as a rollout gate. When `service.config.readinessProbe` is present, the plan shows the real execution contract that DaoFlow will enforce on the target host, including `published-port` or `internal-network` targets and either HTTP or TCP transport.
 
 For git-backed Compose services, the plan also reflects when DaoFlow will build local Compose contexts before start. When the checked-out repository contains `build:` services, expect an extra preflight check describing the detected build services and a corresponding build step ahead of `docker compose up`.
 

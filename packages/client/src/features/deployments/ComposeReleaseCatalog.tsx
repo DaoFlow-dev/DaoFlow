@@ -264,8 +264,8 @@ export function ComposeReleaseCatalog({
                   Network: {service.networkName}
                 </p>
                 <p className="mt-2 text-sm text-muted-foreground">
-                  Volumes: {service.volumeMounts.join(", ")} · Healthcheck:{" "}
-                  {service.healthcheckPath ?? "process-level"}
+                  Volumes: {service.volumeMounts.join(", ")} · Legacy health metadata:{" "}
+                  {service.healthcheckPath ?? "none"}
                 </p>
               </article>
             ))}

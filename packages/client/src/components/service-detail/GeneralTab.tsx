@@ -191,7 +191,7 @@ export default function GeneralTab({ service }: GeneralTabProps) {
             )}
             {service.port && <ConfigItem label="Port" value={service.port} />}
             {service.healthcheckPath && (
-              <ConfigItem label="Health Check" value={service.healthcheckPath} mono />
+              <ConfigItem label="Legacy Health Metadata" value={service.healthcheckPath} mono />
             )}
             {service.latestDeployment?.targetServerName && (
               <ConfigItem label="Target Server" value={service.latestDeployment.targetServerName} />
@@ -217,7 +217,7 @@ export default function GeneralTab({ service }: GeneralTabProps) {
             <dl className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 text-sm">
               <ConfigItem label="Exposed Port" value={service.port} />
               {service.healthcheckPath && (
-                <ConfigItem label="Health Endpoint" value={service.healthcheckPath} mono />
+                <ConfigItem label="Legacy Health Metadata" value={service.healthcheckPath} mono />
               )}
             </dl>
           </CardContent>

@@ -104,7 +104,7 @@ Execution semantics are deterministic:
 - Docker Compose container state and Docker health must pass before the readiness probe can promote the rollout.
 - Remote HTTP probes need `curl` available so the worker can execute the probe over SSH from the host that is actually running the Compose project.
 - Remote TCP probes use `bash` plus `timeout` on the target host to test raw socket connectivity.
-- Legacy `healthcheckPath` metadata is still stored for compatibility, but explicit `readinessProbe` takes precedence for compose execution.
+- Legacy `healthcheckPath` metadata is still stored for compatibility, but compose services should migrate to explicit `readinessProbe` configuration because `healthcheckPath` is not executed as a rollout gate.
 
 ## Environment Variable Injection
 

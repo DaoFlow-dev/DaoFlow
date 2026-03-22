@@ -262,6 +262,13 @@ export async function createService(input: CreateServiceInput) {
       message: "Explicit readiness probes are only supported for compose services."
     };
   }
+  if (input.healthcheckPath && input.sourceType === "compose" && !input.readinessProbe) {
+    return {
+      status: "invalid_config" as const,
+      message:
+        "Compose services no longer accept healthcheckPath. Configure service.config.readinessProbe instead."
+    };
+  }
   if (input.preview?.enabled === true && input.sourceType !== "compose") {
     return {
       status: "invalid_config" as const,
@@ -328,10 +335,21 @@ export async function updateService(input: UpdateServiceInput) {
   if (!existing) return { status: "not_found" as const };
 
   const nextSourceType = input.sourceType ?? existing.sourceType;
+  const nextReadinessProbe =
+    input.readinessProbe !== undefined
+      ? input.readinessProbe
+      : readComposeReadinessProbeFromConfig(existing.config);
   if (input.readinessProbe && nextSourceType !== "compose") {
     return {
       status: "invalid_config" as const,
       message: "Explicit readiness probes are only supported for compose services."
+    };
+  }
+  if (input.healthcheckPath && nextSourceType === "compose" && !nextReadinessProbe) {
+    return {
+      status: "invalid_config" as const,
+      message:
+        "Compose services no longer accept healthcheckPath. Configure service.config.readinessProbe instead."
     };
   }
   if (input.preview?.enabled === true && nextSourceType !== "compose") {

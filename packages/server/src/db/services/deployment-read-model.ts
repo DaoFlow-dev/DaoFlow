@@ -176,7 +176,7 @@ export function summarizeRolloutStrategy(input: {
       summary: hasExplicitReadiness
         ? "DaoFlow currently runs `docker compose up -d` and promotes the rollout only after Docker health and the configured readiness probe pass. This is health-gated, but it is not a true rolling or zero-downtime update."
         : input.healthcheckPath
-          ? "DaoFlow currently runs `docker compose up -d` and waits for Docker Compose container state plus Docker health. The legacy healthcheck path is advisory only here, so zero-downtime is not guaranteed."
+          ? "DaoFlow currently runs `docker compose up -d` and waits for Docker Compose container state plus Docker health. Legacy healthcheckPath metadata is not executed for compose rollouts; use an explicit readiness probe to enforce a rollout gate."
           : "DaoFlow currently runs `docker compose up -d` and waits for container state and Docker health. This does not guarantee zero-downtime or rolling replacement.",
       downtimeRisk: "possible",
       supportsZeroDowntime: false,

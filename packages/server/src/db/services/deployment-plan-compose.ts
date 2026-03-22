@@ -130,7 +130,7 @@ export async function buildComposeDeploymentPlanDetails(input: {
     checks.push(
       makePlanCheck(
         "warn",
-        `Compose service healthcheckPath "${input.service.healthcheckPath}" is advisory only today; compose execution verifies Docker Compose container state and Docker health instead of probing that path.`
+        `Compose service healthcheckPath "${input.service.healthcheckPath}" is legacy metadata only and is not executed. Configure service.config.readinessProbe to enforce compose rollout readiness.`
       )
     );
   }
@@ -139,7 +139,7 @@ export async function buildComposeDeploymentPlanDetails(input: {
     checks.push(
       makePlanCheck(
         "warn",
-        `Legacy healthcheckPath "${input.service.healthcheckPath}" is ignored for compose execution because an explicit readiness probe is configured.`
+        `Legacy healthcheckPath "${input.service.healthcheckPath}" remains stored for compatibility, but compose execution enforces the explicit readiness probe instead.`
       )
     );
   }

@@ -7,6 +7,7 @@ import { encrypt } from "./db/crypto";
 import { deployments } from "./db/schema/deployments";
 import { environmentVariables, projects } from "./db/schema/projects";
 import { servers } from "./db/schema/servers";
+import { services as servicesTable } from "./db/schema/services";
 import { teams } from "./db/schema/teams";
 import { encryptComposeDeploymentState } from "./db/services/compose-env";
 import { createEnvironment, createProject } from "./db/services/projects";
@@ -667,7 +668,7 @@ describe("planning diff surfaces", () => {
     }
   });
 
-  it("warns when compose healthcheckPath is configured but execution only uses compose container state", async () => {
+  it("warns that compose healthcheckPath is legacy metadata and points operators to readiness probes", async () => {
     const caller = appRouter.createCaller({
       requestId: "test-plan-compose-healthcheck-advisory",
       session: makeSession("viewer")
@@ -706,23 +707,23 @@ describe("planning diff surfaces", () => {
         throw new Error("Failed to create compose health planning fixture environment.");
       }
 
-      const serviceResult = await createService({
+      const serviceId = `svclgh${Date.now()}`.slice(0, 32);
+      await db.insert(servicesTable).values({
+        id: serviceId,
         name: `compose-health-svc-${Date.now()}`,
+        slug: `compose-health-svc-${Date.now()}`.slice(0, 40),
         projectId: projectResult.project.id,
         environmentId: environmentResult.environment.id,
         sourceType: "compose",
         targetServerId: "srv_foundation_1",
         healthcheckPath: "/ready",
-        requestedByUserId: "user_foundation_owner",
-        requestedByEmail: "owner@daoflow.local",
-        requestedByRole: "owner"
+        status: "inactive",
+        config: {},
+        updatedAt: new Date()
       });
-      if (serviceResult.status !== "ok") {
-        throw new Error("Failed to create compose health planning fixture service.");
-      }
 
       const plan = await caller.deploymentPlan({
-        service: serviceResult.service.id
+        service: serviceId
       });
 
       expect(plan.isReady).toBe(true);
@@ -736,7 +737,9 @@ describe("planning diff surfaces", () => {
         plan.preflightChecks.some(
           (check) =>
             check.status === "warn" &&
-            check.detail.includes('healthcheckPath "/ready" is advisory only today')
+            check.detail.includes(
+              'healthcheckPath "/ready" is legacy metadata only and is not executed'
+            )
         )
       ).toBe(true);
     } finally {
@@ -980,7 +983,9 @@ describe("planning diff surfaces", () => {
         plan.preflightChecks.some(
           (check) =>
             check.status === "warn" &&
-            check.detail.includes('Legacy healthcheckPath "/legacy-ready" is ignored')
+            check.detail.includes(
+              'Legacy healthcheckPath "/legacy-ready" remains stored for compatibility'
+            )
         )
       ).toBe(true);
       expect(
