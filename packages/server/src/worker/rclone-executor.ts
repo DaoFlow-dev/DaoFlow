@@ -1,60 +1,26 @@
 /**
  * rclone-executor.ts — Rclone operations for backup destinations.
  *
- * Generates temporary rclone config files per-operation, runs rclone commands,
- * and cleans up. Supports S3-compatible, Google Drive, OneDrive, Dropbox,
- * SFTP, local filesystem, and custom rclone configs.
+ * Runs rclone commands against temporary per-operation configs and cleans up.
+ * Config generation and archive encryption live in focused helper modules.
  *
  * Design:
  * - Config is generated per-operation into a temp file (never persisted long-term)
- * - S3 backends use inline --s3-* flags (like Dokploy) for simplicity
- * - OAuth backends use --config with token embedded
- * - Local backend uses [local] type for E2E testing
  * - All operations respect --timeout and --retries for reliability
  */
 
 import type { ExecFileSyncOptions } from "node:child_process";
-import { writeFileSync, appendFileSync, unlinkSync, mkdirSync, existsSync } from "node:fs";
-import { join } from "node:path";
-import { tmpdir } from "node:os";
-import { randomBytes } from "node:crypto";
-import type { BackupProvider } from "../db/schema/destinations";
+import { unlinkSync } from "node:fs";
 import {
-  DEFAULT_LOCAL_RCLONE_PATH,
-  DEFAULT_RCLONE_REMOTE_NAME,
-  ENCRYPTED_RCLONE_REMOTE_NAME,
   normalizeExecutableFailure,
   parseRcloneLsOutput,
   resolveRemotePath
 } from "./rclone-helpers";
 import { processRunner } from "./process-runner";
+import { generateRcloneConfig, type DestinationConfig } from "./rclone-config";
 
-// ── Types ────────────────────────────────────────────────────
-
-export interface DestinationConfig {
-  id: string;
-  provider: BackupProvider;
-  // S3 fields
-  accessKey?: string | null;
-  secretAccessKey?: string | null;
-  bucket?: string | null;
-  region?: string | null;
-  endpoint?: string | null;
-  s3Provider?: string | null;
-  // Rclone fields
-  rcloneType?: string | null;
-  rcloneConfig?: string | null;
-  rcloneRemotePath?: string | null;
-  // OAuth
-  oauthToken?: string | null;
-  // Encryption
-  encryptionMode?: string | null; // "none" | "rclone-crypt" | "archive-7z" | "archive-zip"
-  encryptionPassword?: string | null;
-  encryptionSalt?: string | null;
-  filenameEncryption?: string | null; // "standard" | "obfuscate" | "off"
-  // Local
-  localPath?: string | null;
-}
+export { archiveDecrypt, archiveEncrypt, type ArchiveEncryptResult } from "./rclone-archive";
+export { generateRcloneConfig, type DestinationConfig } from "./rclone-config";
 
 export interface RcloneResult {
   success: boolean;
@@ -62,226 +28,6 @@ export interface RcloneResult {
   error?: string;
   exitCode: number;
 }
-
-// ── Config Generation ────────────────────────────────────────
-
-/**
- * Obscure a password for rclone crypt config.
- * Rclone uses a specific obscuring algorithm — for safety we
- * call `rclone obscure` to generate the value.
- */
-function obscurePassword(password: string): string {
-  try {
-    const result = processRunner.execFileSync("rclone", ["obscure", password], {
-      encoding: "utf-8",
-      timeout: 10_000
-    }) as unknown as string;
-    return (result ?? "").trim();
-  } catch {
-    // If rclone is not installed or obscure fails, use raw password
-    // (rclone still accepts plain-text passwords but warns)
-    return password;
-  }
-}
-
-/**
- * Generate a temp rclone.conf file for the given destination.
- * Returns the path to the temp config file.
- */
-export function generateRcloneConfig(dest: DestinationConfig): string {
-  const configPath = join(
-    tmpdir(),
-    `daoflow-rclone-${dest.id}-${randomBytes(8).toString("hex")}.conf`
-  );
-  let configContent = "";
-
-  switch (dest.provider) {
-    case "s3":
-      configContent = buildS3Config(dest);
-      break;
-    case "gdrive":
-      configContent = buildOAuthConfig("drive", dest);
-      break;
-    case "onedrive":
-      configContent = buildOAuthConfig("onedrive", dest);
-      break;
-    case "dropbox":
-      configContent = buildOAuthConfig("dropbox", dest);
-      break;
-    case "sftp":
-      configContent = buildSftpConfig(dest);
-      break;
-    case "local":
-      configContent = buildLocalConfig(dest);
-      break;
-    case "rclone":
-      // Custom rclone config — use as-is (already in INI format)
-      configContent = dest.rcloneConfig ?? "";
-      break;
-    default:
-      throw new Error(`Unsupported provider: ${String(dest.provider)}`);
-  }
-
-  writeFileSync(configPath, configContent, { mode: 0o600 });
-
-  // If rclone-crypt encryption is enabled, append a nested crypt remote
-  if (dest.encryptionMode === "rclone-crypt" && dest.encryptionPassword) {
-    const cryptSection = buildCryptOverlay(dest);
-    appendFileSync(configPath, cryptSection, { mode: 0o600 });
-  }
-
-  return configPath;
-}
-
-function buildS3Config(dest: DestinationConfig): string {
-  const lines = [
-    `[${DEFAULT_RCLONE_REMOTE_NAME}]`,
-    `type = s3`,
-    dest.s3Provider ? `provider = ${dest.s3Provider}` : "",
-    dest.accessKey ? `access_key_id = ${dest.accessKey}` : "",
-    dest.secretAccessKey ? `secret_access_key = ${dest.secretAccessKey}` : "",
-    dest.region ? `region = ${dest.region}` : "",
-    dest.endpoint ? `endpoint = ${dest.endpoint}` : "",
-    `force_path_style = true`,
-    `no_check_bucket = true`
-  ];
-  return lines.filter(Boolean).join("\n") + "\n";
-}
-
-function buildOAuthConfig(rcloneType: string, dest: DestinationConfig): string {
-  const lines = [
-    `[${DEFAULT_RCLONE_REMOTE_NAME}]`,
-    `type = ${rcloneType}`,
-    dest.oauthToken ? `token = ${dest.oauthToken}` : ""
-  ];
-  return lines.filter(Boolean).join("\n") + "\n";
-}
-
-function buildSftpConfig(dest: DestinationConfig): string {
-  // For SFTP, expect rcloneConfig to contain host/user/key details
-  if (dest.rcloneConfig) {
-    return dest.rcloneConfig;
-  }
-  return `[${DEFAULT_RCLONE_REMOTE_NAME}]\ntype = sftp\n`;
-}
-
-function buildLocalConfig(dest: DestinationConfig): string {
-  // Ensure the local backup directory exists
-  const localPath = dest.localPath ?? DEFAULT_LOCAL_RCLONE_PATH;
-  if (!existsSync(localPath)) {
-    mkdirSync(localPath, { recursive: true });
-  }
-  return `[${DEFAULT_RCLONE_REMOTE_NAME}]\ntype = local\n`;
-}
-
-/**
- * Build a rclone crypt overlay that wraps the base remote.
- * This gives transparent client-side encryption for any backend.
- *
- * Config result looks like:
- *   [daoflow-crypt]
- *   type = crypt
- *   remote = daoflow:bucket/path
- *   password = obscured_password
- *   password2 = obscured_salt
- *   filename_encryption = standard
- */
-function buildCryptOverlay(dest: DestinationConfig): string {
-  const baseRemote = resolveRemotePath(dest);
-  const obscuredPw = obscurePassword(dest.encryptionPassword ?? "");
-  const filenameEnc = dest.filenameEncryption ?? "standard";
-
-  const lines = [
-    `\n[${ENCRYPTED_RCLONE_REMOTE_NAME}]`,
-    `type = crypt`,
-    `remote = ${baseRemote}`,
-    `password = ${obscuredPw}`,
-    dest.encryptionSalt ? `password2 = ${obscurePassword(dest.encryptionSalt)}` : "",
-    `filename_encryption = ${filenameEnc}`,
-    `directory_name_encryption = true`
-  ];
-  return lines.filter(Boolean).join("\n") + "\n";
-}
-
-// ── Archive Encryption ───────────────────────────────────────
-
-export interface ArchiveEncryptResult {
-  archivePath: string;
-  originalPath: string;
-  success: boolean;
-  error?: string;
-}
-
-/**
- * Encrypt a directory/file into a password-protected archive.
- * Supports 7z (AES-256) and zip (AES) formats.
- * Returns the path to the encrypted archive.
- */
-export function archiveEncrypt(
-  sourcePath: string,
-  password: string,
-  mode: "archive-7z" | "archive-zip" = "archive-7z"
-): ArchiveEncryptResult {
-  const ext = mode === "archive-7z" ? "7z" : "zip";
-  const archivePath = join(tmpdir(), `daoflow-backup-${randomBytes(8).toString("hex")}.${ext}`);
-
-  try {
-    if (mode === "archive-7z") {
-      // 7z with AES-256 encryption, encrypt headers too
-      processRunner.execFileSync(
-        "7z",
-        ["a", "-t7z", `-p${password}`, "-mhe=on", "-mx=5", archivePath, sourcePath],
-        { timeout: 300_000, stdio: ["pipe", "pipe", "pipe"] }
-      );
-    } else {
-      // zip with AES encryption via 7z
-      processRunner.execFileSync(
-        "7z",
-        ["a", "-tzip", `-p${password}`, "-mem=AES256", "-mx=5", archivePath, sourcePath],
-        { timeout: 300_000, stdio: ["pipe", "pipe", "pipe"] }
-      );
-    }
-    return { archivePath, originalPath: sourcePath, success: true };
-  } catch (err) {
-    return {
-      archivePath,
-      originalPath: sourcePath,
-      success: false,
-      error: err instanceof Error ? err.message : String(err)
-    };
-  }
-}
-
-/**
- * Decrypt an encrypted archive to a target directory.
- * Used for restore flows.
- */
-export function archiveDecrypt(
-  archivePath: string,
-  password: string,
-  outputDir: string
-): ArchiveEncryptResult {
-  if (!existsSync(outputDir)) {
-    mkdirSync(outputDir, { recursive: true });
-  }
-
-  try {
-    processRunner.execFileSync("7z", ["x", `-p${password}`, `-o${outputDir}`, "-y", archivePath], {
-      timeout: 300_000,
-      stdio: ["pipe", "pipe", "pipe"]
-    });
-    return { archivePath, originalPath: outputDir, success: true };
-  } catch (err) {
-    return {
-      archivePath,
-      originalPath: outputDir,
-      success: false,
-      error: err instanceof Error ? err.message : String(err)
-    };
-  }
-}
-
-// ── Command Execution ────────────────────────────────────────
 
 const DEFAULT_TIMEOUT = "30s";
 const DEFAULT_RETRIES = "2";
@@ -320,14 +66,22 @@ function cleanupConfig(configPath: string): void {
   }
 }
 
+function withRcloneConfig<T>(dest: DestinationConfig, fn: (configPath: string) => T): T {
+  const configPath = generateRcloneConfig(dest);
+  try {
+    return fn(configPath);
+  } finally {
+    cleanupConfig(configPath);
+  }
+}
+
 // ── Public API ───────────────────────────────────────────────
 
 /**
  * Test connection to a destination — runs `rclone lsd` with short timeout.
  */
 export function testConnection(dest: DestinationConfig): RcloneResult {
-  const configPath = generateRcloneConfig(dest);
-  try {
+  return withRcloneConfig(dest, (configPath) => {
     const remotePath = resolveRemotePath(dest);
     return runRclone(configPath, [
       "lsd",
@@ -337,9 +91,7 @@ export function testConnection(dest: DestinationConfig): RcloneResult {
       "--low-level-retries=1",
       "--contimeout=5s"
     ]);
-  } finally {
-    cleanupConfig(configPath);
-  }
+  });
 }
 
 /**
@@ -351,8 +103,7 @@ export function copyToRemote(
   localPath: string,
   remoteSubPath: string
 ): RcloneResult {
-  const configPath = generateRcloneConfig(dest);
-  try {
+  return withRcloneConfig(dest, (configPath) => {
     const useCrypt = dest.encryptionMode === "rclone-crypt";
     const remotePath = resolveRemotePath(dest, remoteSubPath, useCrypt);
     return runRclone(configPath, [
@@ -363,9 +114,7 @@ export function copyToRemote(
       `--retries=${DEFAULT_RETRIES}`,
       "--progress=false"
     ]);
-  } finally {
-    cleanupConfig(configPath);
-  }
+  });
 }
 
 /**
@@ -377,8 +126,7 @@ export function copyFromRemote(
   remoteSubPath: string,
   localPath: string
 ): RcloneResult {
-  const configPath = generateRcloneConfig(dest);
-  try {
+  return withRcloneConfig(dest, (configPath) => {
     const useCrypt = dest.encryptionMode === "rclone-crypt";
     const remotePath = resolveRemotePath(dest, remoteSubPath, useCrypt);
     return runRclone(configPath, [
@@ -389,9 +137,7 @@ export function copyFromRemote(
       `--retries=${DEFAULT_RETRIES}`,
       "--progress=false"
     ]);
-  } finally {
-    cleanupConfig(configPath);
-  }
+  });
 }
 
 /**
@@ -399,8 +145,7 @@ export function copyFromRemote(
  * Automatically routes through rclone-crypt when encryption is enabled.
  */
 export function listRemote(dest: DestinationConfig, subPath?: string): RcloneResult {
-  const configPath = generateRcloneConfig(dest);
-  try {
+  return withRcloneConfig(dest, (configPath) => {
     const useCrypt = dest.encryptionMode === "rclone-crypt";
     const remotePath = resolveRemotePath(dest, subPath, useCrypt);
     return runRclone(configPath, [
@@ -409,9 +154,7 @@ export function listRemote(dest: DestinationConfig, subPath?: string): RcloneRes
       `--timeout=${DEFAULT_TIMEOUT}`,
       `--retries=${DEFAULT_RETRIES}`
     ]);
-  } finally {
-    cleanupConfig(configPath);
-  }
+  });
 }
 
 export interface RemoteFileEntry {
@@ -430,8 +173,7 @@ export function listRemoteJson(
   dest: DestinationConfig,
   subPath?: string
 ): { success: boolean; files: RemoteFileEntry[]; error?: string } {
-  const configPath = generateRcloneConfig(dest);
-  try {
+  return withRcloneConfig(dest, (configPath) => {
     const useCrypt = dest.encryptionMode === "rclone-crypt";
     const remotePath = resolveRemotePath(dest, subPath, useCrypt);
     const result = runRclone(configPath, [
@@ -467,9 +209,7 @@ export function listRemoteJson(
     } catch {
       return { success: true, files: [] };
     }
-  } finally {
-    cleanupConfig(configPath);
-  }
+  });
 }
 
 /**
@@ -477,8 +217,7 @@ export function listRemoteJson(
  * Automatically routes through rclone-crypt when encryption is enabled.
  */
 export function deleteRemote(dest: DestinationConfig, subPath: string): RcloneResult {
-  const configPath = generateRcloneConfig(dest);
-  try {
+  return withRcloneConfig(dest, (configPath) => {
     const useCrypt = dest.encryptionMode === "rclone-crypt";
     const remotePath = resolveRemotePath(dest, subPath, useCrypt);
     return runRclone(configPath, [
@@ -487,9 +226,7 @@ export function deleteRemote(dest: DestinationConfig, subPath: string): RcloneRe
       `--timeout=${DEFAULT_TIMEOUT}`,
       `--retries=${DEFAULT_RETRIES}`
     ]);
-  } finally {
-    cleanupConfig(configPath);
-  }
+  });
 }
 
 /**
@@ -501,8 +238,7 @@ export function checkRemote(
   dest: DestinationConfig,
   subPath: string
 ): { success: boolean; fileCount: number; totalBytes: number; error?: string } {
-  const configPath = generateRcloneConfig(dest);
-  try {
+  return withRcloneConfig(dest, (configPath) => {
     const useCrypt = dest.encryptionMode === "rclone-crypt";
     const remotePath = resolveRemotePath(dest, subPath, useCrypt);
     const result = runRclone(configPath, [
@@ -524,7 +260,5 @@ export function checkRemote(
       totalBytes,
       error: fileCount === 0 ? "No files found at remote path" : undefined
     };
-  } finally {
-    cleanupConfig(configPath);
-  }
+  });
 }
