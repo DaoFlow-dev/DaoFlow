@@ -191,6 +191,12 @@ export const adminServerProjectRouter = t.router({
       if (result.status === "not_found") {
         throw new TRPCError({ code: "NOT_FOUND", message: "Project not found." });
       }
+      if (result.status === "active_deployments" || result.status === "runtime_cleanup_failed") {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: result.message
+        });
+      }
       return { deleted: true };
     }),
 

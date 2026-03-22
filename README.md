@@ -75,7 +75,7 @@ chmod +x /usr/local/bin/daoflow
 Verify:
 
 ```bash
-daoflow --version
+daoflow --cli-version
 daoflow whoami --json
 ```
 

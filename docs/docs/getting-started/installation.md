@@ -131,7 +131,7 @@ bun run build:all      # All 4 platforms (linux-x64, linux-arm64, darwin-arm64, 
 Verify:
 
 ```bash
-daoflow --version
+daoflow --cli-version
 daoflow --help
 ```
 

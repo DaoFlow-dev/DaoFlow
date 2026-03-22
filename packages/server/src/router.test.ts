@@ -1918,6 +1918,80 @@ describe("appRouter", () => {
     } satisfies Partial<TRPCError>);
   });
 
+  it("rejects project deletion while deployments are still running", async () => {
+    const projectResult = await createProject({
+      name: `delete-guard-project-${Date.now()}`,
+      description: "Project delete guard fixture",
+      teamId: "team_foundation",
+      requestedByUserId: "user_foundation_owner",
+      requestedByEmail: "owner@daoflow.local",
+      requestedByRole: "owner"
+    });
+    expect(projectResult.status).toBe("ok");
+    if (projectResult.status !== "ok") {
+      throw new Error("Failed to create delete guard project.");
+    }
+
+    const environmentResult = await createEnvironment({
+      projectId: projectResult.project.id,
+      name: `delete-guard-env-${Date.now()}`,
+      targetServerId: "srv_foundation_1",
+      requestedByUserId: "user_foundation_owner",
+      requestedByEmail: "owner@daoflow.local",
+      requestedByRole: "owner"
+    });
+    expect(environmentResult.status).toBe("ok");
+    if (environmentResult.status !== "ok") {
+      throw new Error("Failed to create delete guard environment.");
+    }
+
+    const serviceResult = await createService({
+      name: `delete-guard-svc-${Date.now()}`,
+      projectId: projectResult.project.id,
+      environmentId: environmentResult.environment.id,
+      sourceType: "compose",
+      targetServerId: "srv_foundation_1",
+      requestedByUserId: "user_foundation_owner",
+      requestedByEmail: "owner@daoflow.local",
+      requestedByRole: "owner"
+    });
+    expect(serviceResult.status).toBe("ok");
+    if (serviceResult.status !== "ok") {
+      throw new Error("Failed to create delete guard service.");
+    }
+
+    await db.insert(deployments).values({
+      id: `depguard${Date.now()}`.slice(0, 32),
+      projectId: projectResult.project.id,
+      environmentId: environmentResult.environment.id,
+      targetServerId: "srv_foundation_1",
+      serviceName: serviceResult.service.name,
+      sourceType: "compose",
+      commitSha: "abcdef1234567890abcdef1234567890abcdef12",
+      imageTag: "ghcr.io/example/delete-guard:test",
+      status: "deploy",
+      configSnapshot: {
+        projectName: projectResult.project.name,
+        environmentName: environmentResult.environment.name
+      },
+      createdAt: new Date(),
+      updatedAt: new Date()
+    });
+
+    const caller = appRouter.createCaller({
+      requestId: "test-project-delete-active-deployment",
+      session: makeSession("owner")
+    });
+
+    await expect(
+      caller.deleteProject({ projectId: projectResult.project.id })
+    ).rejects.toMatchObject({
+      code: "PRECONDITION_FAILED",
+      message:
+        "Project deletion is blocked while deployments are still queued or running. Cancel or wait for them to finish first."
+    } satisfies Partial<TRPCError>);
+  });
+
   it("rejects environment variable reads and writes outside the caller's team", async () => {
     const fixture = await createOtherTeamFixture();
     await upsertEnvironmentVariable({

@@ -30,16 +30,16 @@ cd packages/cli && bun run build && bun link
 
 Every command accepts these flags:
 
-| Flag                  | Description                                                  |
-| --------------------- | ------------------------------------------------------------ |
-| `--json`              | Output structured JSON to stdout (progress/errors to stderr) |
-| `--quiet` / `-q`      | Bare value output only (just the ID, just the URL)           |
-| `--dry-run`           | Preview changes without executing (mutating commands only)   |
-| `--yes`               | Skip confirmation prompts (required for mutating commands)   |
-| `--timeout <seconds>` | Request timeout (default: 30)                                |
-| `--idempotency-key`   | Prevent duplicate operations                                 |
-| `--help`              | Show command help with examples and required scopes          |
-| `--version`           | Show CLI version                                             |
+| Flag                   | Description                                                  |
+| ---------------------- | ------------------------------------------------------------ |
+| `--json`               | Output structured JSON to stdout (progress/errors to stderr) |
+| `--quiet` / `-q`       | Bare value output only (just the ID, just the URL)           |
+| `--dry-run`            | Preview changes without executing (mutating commands only)   |
+| `--yes`                | Skip confirmation prompts (required for mutating commands)   |
+| `--timeout <seconds>`  | Request timeout (default: 30)                                |
+| `--idempotency-key`    | Prevent duplicate operations                                 |
+| `--help`               | Show command help with examples and required scopes          |
+| `--cli-version` / `-V` | Show CLI version                                             |
 
 ## Output Contract
 

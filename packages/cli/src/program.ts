@@ -33,13 +33,58 @@ function wantsJson(argv: readonly string[]): boolean {
   return argv.includes("--json");
 }
 
+function readProcessExitCode(error: unknown): number | null {
+  if (!(error instanceof Error)) {
+    return null;
+  }
+
+  const match = error.message.match(/^process\.exit\((\d+)\)$/);
+  if (!match) {
+    return null;
+  }
+
+  return Number.parseInt(match[1] ?? "", 10);
+}
+
+function wantsTopLevelVersion(argv: readonly string[]): boolean {
+  const args = argv.slice(2);
+
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    if (!arg || arg === "--") {
+      return false;
+    }
+
+    if (!arg.startsWith("-")) {
+      return false;
+    }
+
+    if (arg === "--version" || arg === "--cli-version" || arg === "-V") {
+      return true;
+    }
+
+    if (arg === "--timeout" || arg === "--idempotency-key") {
+      index += 1;
+      continue;
+    }
+
+    if (arg === "--json" || arg === "--quiet" || arg === "-q") {
+      continue;
+    }
+
+    return false;
+  }
+
+  return false;
+}
+
 export function createProgram(): Command {
   const program = new Command();
 
   program
     .name("daoflow")
     .description("DaoFlow CLI — the agentic platform to host deterministic systems")
-    .version(CLI_VERSION)
+    .version(CLI_VERSION, "-V, --cli-version", "Output CLI version")
     .option("--json", "Output as structured JSON (stdout)")
     .option("-q, --quiet", "Output bare values only")
     .option("--timeout <seconds>", "API request timeout in seconds", "30")
@@ -76,11 +121,22 @@ export function createProgram(): Command {
 }
 
 export async function runCli(argv: readonly string[] = process.argv): Promise<void> {
+  if (wantsTopLevelVersion(argv)) {
+    console.log(CLI_VERSION);
+    return;
+  }
+
   const program = createProgram();
 
   try {
     await program.parseAsync([...argv]);
   } catch (error) {
+    const exitCode = readProcessExitCode(error);
+    if (exitCode !== null) {
+      process.exit(exitCode);
+      return;
+    }
+
     const message = getErrorMessage(error);
     if (wantsJson(argv)) {
       emitJsonError(message, "CLI_ERROR");

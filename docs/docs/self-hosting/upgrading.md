@@ -28,7 +28,7 @@ DaoFlow automatically runs database migrations on startup.
 curl http://localhost:3000/trpc/health | jq '.result.data.json.version'
 
 # Via CLI
-daoflow --version
+daoflow --cli-version
 ```
 
 ## Backup Before Upgrading

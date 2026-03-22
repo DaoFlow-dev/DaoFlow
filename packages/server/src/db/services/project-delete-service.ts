@@ -4,6 +4,7 @@ import { auditEntries } from "../schema/audit";
 import { environmentVariables, environments, projects } from "../schema/projects";
 import { findScopedProject } from "./project-scoped-queries";
 import type { DeleteProjectInput } from "./project-service-types";
+import { cleanupProjectRuntime } from "./project-runtime-cleanup";
 
 export async function deleteProject(input: DeleteProjectInput) {
   const existing = input.teamId
@@ -11,6 +12,20 @@ export async function deleteProject(input: DeleteProjectInput) {
     : ((await db.select().from(projects).where(eq(projects.id, input.projectId)).limit(1))[0] ??
       null);
   if (!existing) return { status: "not_found" as const };
+
+  const runtimeCleanup = await cleanupProjectRuntime(input.projectId);
+  if (runtimeCleanup.status === "active_deployments") {
+    return {
+      status: "active_deployments" as const,
+      message: runtimeCleanup.message
+    };
+  }
+  if (runtimeCleanup.status === "cleanup_failed") {
+    return {
+      status: "runtime_cleanup_failed" as const,
+      message: runtimeCleanup.message
+    };
+  }
 
   const envRows = await db
     .select()
@@ -33,7 +48,17 @@ export async function deleteProject(input: DeleteProjectInput) {
     inputSummary: `Deleted project "${existing.name}"`,
     permissionScope: "service:update",
     outcome: "success",
-    metadata: { resourceType: "project", resourceId: input.projectId }
+    metadata: {
+      resourceType: "project",
+      resourceId: input.projectId,
+      runtimeCleanup:
+        runtimeCleanup.status === "ok"
+          ? {
+              status: "ok",
+              cleanedTargets: runtimeCleanup.cleanedTargets
+            }
+          : { status: "no_runtime" }
+    }
   });
 
   return { status: "ok" as const };
