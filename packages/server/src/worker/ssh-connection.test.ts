@@ -50,6 +50,11 @@ describe("sshArgs", () => {
     process.env.SSH_KEY_DIR = fixture.keyDir;
     writeFileSync(join(fixture.keyDir, "id_ed25519"), "test-private-key");
 
+    // Reset modules so the fresh import picks up the env vars we just set.
+    // SSH_KEY_DIR / SSH_CONTROL_DIR are captured as module-level constants
+    // on first import, so stale values from a previous test file in the same
+    // worker would make the identity-file check fail.
+    vi.resetModules();
     const { sshArgs } = await loadSSHConnectionModule();
     const args = sshArgs(target);
 
