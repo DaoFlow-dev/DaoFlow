@@ -1211,6 +1211,11 @@
           "required": false
         },
         {
+          "flags": "--expose <mode>",
+          "description": "Expose the dashboard after install: none, cloudflare-quick, tailscale-serve, tailscale-funnel",
+          "required": false
+        },
+        {
           "flags": "--yes",
           "description": "Skip confirmation prompts",
           "required": false

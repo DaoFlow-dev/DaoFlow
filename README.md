@@ -21,6 +21,8 @@ curl -fsSL https://raw.githubusercontent.com/DaoFlow-dev/DaoFlow/main/scripts/in
 
 This downloads the `daoflow` CLI, checks Docker, and runs the interactive installer — creates `/opt/daoflow/` with `.env`, `docker-compose.yml`, and starts all services.
 
+Re-running the script always refreshes the local `daoflow` binary before starting the installer.
+
 Non-interactive (CI / agent-friendly):
 
 ```bash
@@ -28,6 +30,31 @@ curl -fsSL https://raw.githubusercontent.com/DaoFlow-dev/DaoFlow/main/scripts/in
   --domain deploy.example.com \
   --email admin@example.com \
   --password 'YourSecurePassword123' \
+  --yes
+```
+
+Optional dashboard exposure during install:
+
+```bash
+# Tailnet-only HTTPS URL
+curl -fsSL https://raw.githubusercontent.com/DaoFlow-dev/DaoFlow/main/scripts/install.sh | sh -s -- \
+  --email admin@example.com \
+  --password 'YourSecurePassword123' \
+  --expose tailscale-serve \
+  --yes
+
+# Public HTTPS URL via Tailscale Funnel
+curl -fsSL https://raw.githubusercontent.com/DaoFlow-dev/DaoFlow/main/scripts/install.sh | sh -s -- \
+  --email admin@example.com \
+  --password 'YourSecurePassword123' \
+  --expose tailscale-funnel \
+  --yes
+
+# Public ephemeral URL via Cloudflare Quick Tunnel
+curl -fsSL https://raw.githubusercontent.com/DaoFlow-dev/DaoFlow/main/scripts/install.sh | sh -s -- \
+  --email admin@example.com \
+  --password 'YourSecurePassword123' \
+  --expose cloudflare-quick \
   --yes
 ```
 

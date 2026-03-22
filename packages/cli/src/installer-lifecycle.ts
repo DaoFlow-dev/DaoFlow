@@ -168,6 +168,19 @@ export function updateInstalledVersion(envContent: string, targetVersion: string
   return `DAOFLOW_VERSION=${targetVersion}\n${envContent}`;
 }
 
+export function updateInstalledPublicUrl(envContent: string, publicUrl: string): string {
+  const trimmedUrl = publicUrl.trim();
+  if (!trimmedUrl) {
+    return envContent;
+  }
+
+  if (envContent.includes("BETTER_AUTH_URL=")) {
+    return envContent.replace(/BETTER_AUTH_URL=.*/, `BETTER_AUTH_URL=${trimmedUrl}`);
+  }
+
+  return `BETTER_AUTH_URL=${trimmedUrl}\n${envContent}`;
+}
+
 export function resolveInstallHealthPort(env: Record<string, string>, fallbackPort = 3000): number {
   return parseInt(env.DAOFLOW_PORT || env.PORT || String(fallbackPort), 10);
 }

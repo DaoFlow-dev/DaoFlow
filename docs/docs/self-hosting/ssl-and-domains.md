@@ -75,7 +75,11 @@ services:
 
 ## Option 2: Cloudflare Tunnel
 
-No public IP or reverse-proxy VM is required, but the tunnel itself is still external to DaoFlow. Run `cloudflared` separately and point it at the DaoFlow host:
+No public IP or reverse-proxy VM is required, but the tunnel itself is still external to DaoFlow.
+
+For temporary public access, `daoflow install --expose cloudflare-quick` can start a Cloudflare Quick Tunnel and rewrite `BETTER_AUTH_URL` to the generated `trycloudflare.com` URL.
+
+For a stable Cloudflare-managed hostname, run `cloudflared` separately and point it at the DaoFlow host:
 
 ```bash
 cloudflared tunnel run <your-tunnel-name>
@@ -85,7 +89,14 @@ Then set `BETTER_AUTH_URL` to the public origin exposed by Cloudflare.
 
 ## Option 3: Tailscale
 
-Expose the host through your tailnet and reverse proxy or MagicDNS path of choice. DaoFlow does not join the tailnet automatically; install and authorize Tailscale on the host separately.
+DaoFlow does not join the tailnet automatically; install and authorize Tailscale on the host separately.
+
+The installer can bootstrap two Tailscale exposure modes:
+
+- `daoflow install --expose tailscale-serve` for a tailnet-only HTTPS URL
+- `daoflow install --expose tailscale-funnel` for a public HTTPS URL
+
+Both modes update `BETTER_AUTH_URL` to the Tailscale URL that serves the dashboard.
 
 ## DNS Setup
 

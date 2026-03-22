@@ -1,6 +1,6 @@
 {
   "name": "daoflow",
-  "version": "0.5.2",
+  "version": "0.5.3",
   "private": true,
   "type": "module",
   "workspaces": [
@@ -21,6 +21,7 @@
     "start": "NODE_ENV=production bun packages/server/dist/index.js",
     "typecheck": "tsc -b packages/shared packages/server packages/client packages/cli",
     "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "skills:check": "node ./scripts/check-skills.mjs",

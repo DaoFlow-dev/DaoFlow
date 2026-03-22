@@ -74,6 +74,9 @@ This file holds the detailed CLI contract, scope map, and agent-facing command r
 | `plan`               | planning              | `deploy:read`                                   | no       |
 | `diff`               | planning              | `deploy:read`                                   | no       |
 | `doctor`             | read                  | `server:read`, `logs:read`                      | no       |
+| `install`            | local                 | none                                            | yes      |
+| `upgrade`            | local                 | none                                            | yes      |
+| `uninstall`          | local                 | none                                            | yes      |
 | `deploy`             | command               | `deploy:start`                                  | yes      |
 | `push`               | command               | `deploy:start`                                  | yes      |
 | `rollback`           | command               | `deploy:rollback`                               | yes      |
@@ -258,6 +261,25 @@ This file holds the detailed CLI contract, scope map, and agent-facing command r
 - `daoflow projects delete --dry-run` must return a local preview and exit with code `3`
 - `daoflow projects delete --yes` writes through `deleteProject` and requires `service:update`
 - `daoflow projects env list --project <id>` reads scoped environments for the project and requires `deploy:read`
+
+## Local Install Contract
+
+- `daoflow install` is a local-lane bootstrap command and never requires API auth
+- `daoflow install --json` success shape:
+  - `{ "ok": true, "version": string, "directory": string, "domain": string, "port": number, "url": string, "healthy": boolean, "exposure": { "ok": boolean, "mode": "none" | "cloudflare-quick" | "tailscale-serve" | "tailscale-funnel", "access": "local" | "tailnet" | "public", "url": string | null, "detail": string | null, "statePath": string | null, "logPath": string | null }, "configFiles": string[] }`
+- `daoflow install --expose <mode>` supports:
+  - `none` for host-only access
+  - `cloudflare-quick` for an ephemeral public `trycloudflare.com` URL when `cloudflared` is installed
+  - `tailscale-serve` for a tailnet-only HTTPS URL when `tailscale` is installed and authenticated
+  - `tailscale-funnel` for a public HTTPS URL through Tailscale Funnel when `tailscale` is installed and authenticated
+- When exposure setup returns a concrete HTTPS URL, `daoflow install` must rewrite `BETTER_AUTH_URL` to that URL and re-apply the compose stack so Better Auth uses the externally reachable origin
+- `daoflow install` must preserve existing secrets and settings when re-run in an existing install directory unless the operator explicitly overrides managed fields
+
+## Local Upgrade Contract
+
+- `daoflow upgrade` is a local-lane command and never requires API auth
+- `daoflow upgrade --json` success shape:
+  - `{ "ok": true, "previousVersion": string, "newVersion": string, "directory": string, "healthy": boolean }`
 - `daoflow projects env create --dry-run` must return a local preview and exit with code `3`
 
 ## Templates Contract

@@ -17,10 +17,12 @@ curl -fsSL https://raw.githubusercontent.com/DaoFlow-dev/DaoFlow/main/scripts/in
 This downloads the `daoflow` CLI binary and runs the interactive installer, which:
 
 1. Checks Docker is installed (installs it on Linux if needed)
-2. Asks for your domain, admin email, and password
+2. Asks for your domain, dashboard exposure mode, admin email, and password
 3. Creates `/opt/daoflow/` with `.env` and `docker-compose.yml`
 4. Auto-generates all secrets (auth, encryption, database)
 5. Pulls images, starts services, and verifies health
+
+Re-running the install script always refreshes the local `daoflow` CLI binary before the installer starts.
 
 ### Non-Interactive Install (CI / Agent-Friendly)
 
@@ -32,6 +34,27 @@ curl -fsSL https://raw.githubusercontent.com/DaoFlow-dev/DaoFlow/main/scripts/in
   --password 'YourSecurePassword123' \
   --yes
 ```
+
+### Optional Dashboard Exposure
+
+The installer can also set `BETTER_AUTH_URL` from an exposed HTTPS endpoint after the stack starts:
+
+```bash
+# Tailnet-only HTTPS URL
+daoflow install --expose tailscale-serve
+
+# Public HTTPS URL
+daoflow install --expose tailscale-funnel
+
+# Public ephemeral trycloudflare.com URL
+daoflow install --expose cloudflare-quick
+```
+
+Requirements:
+
+- `tailscale-serve` and `tailscale-funnel` require `tailscale` to already be installed and authenticated on the host.
+- `cloudflare-quick` requires `cloudflared` to already be installed on the host.
+- `cloudflare-quick` is best for temporary access, demos, and smoke tests; the URL is ephemeral.
 
 ### What Gets Created
 

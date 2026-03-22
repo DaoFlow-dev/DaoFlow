@@ -86,11 +86,10 @@ install_binary() {
 
   if command -v daoflow >/dev/null 2>&1; then
     current=$(daoflow --version 2>/dev/null || echo "unknown")
-    echo "✓ daoflow is already installed (${current})"
-    return
+    echo "Updating daoflow CLI (${current})..."
+  else
+    echo "Downloading daoflow CLI..."
   fi
-
-  echo "Downloading daoflow CLI..."
 
   binary="daoflow-${os}-${arch}"
 
