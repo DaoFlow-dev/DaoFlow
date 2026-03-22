@@ -1,6 +1,36 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
+// ── Helpers ──────────────────────────────────────────────
+
+/** Recursively extract plain text from React children. */
+function extractText(node: React.ReactNode): string {
+  if (typeof node === "string") return node;
+  if (typeof node === "number") return String(node);
+  if (Array.isArray(node)) return node.map(extractText).join("");
+  if (React.isValidElement(node) && node.props) {
+    return extractText((node.props as { children?: React.ReactNode }).children);
+  }
+  return "";
+}
+
+/**
+ * Walk the React element tree to find SelectItem elements and
+ * build a value→label map before any children render.
+ */
+function collectLabels(children: React.ReactNode, map: Map<string, string>): void {
+  React.Children.forEach(children, (child) => {
+    if (!React.isValidElement(child)) return;
+    const props = child.props as { value?: string; children?: React.ReactNode };
+    // SelectItem sets role="option" and has a value prop
+    if (props.value !== undefined) {
+      const text = extractText(props.children);
+      if (text) map.set(props.value, text);
+    }
+    if (props.children) collectLabels(props.children, map);
+  });
+}
+
 // ── Select Root ──────────────────────────────────────────
 interface SelectProps {
   value?: string;
@@ -18,7 +48,15 @@ const SelectContext = React.createContext<{
 
 function Select({ value, onValueChange, children }: SelectProps) {
   const [open, setOpen] = React.useState(false);
-  const labels = React.useRef(new Map<string, string>()).current;
+
+  // Pre-populate labels by walking the React element tree synchronously.
+  // This runs before any children render, so SelectValue can resolve labels.
+  const labels = React.useMemo(() => {
+    const m = new Map<string, string>();
+    collectLabels(children, m);
+    return m;
+  }, [children]);
+
   return (
     <SelectContext.Provider value={{ value, onValueChange, open, setOpen, labels }}>
       <div className="relative">{children}</div>
@@ -76,14 +114,12 @@ function SelectContent({ children }: { children: React.ReactNode }) {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [ctx, ctx.open]);
 
+  if (!ctx.open) return null;
   return (
     <div
       ref={ref}
       role="listbox"
-      className={cn(
-        "absolute z-50 mt-1 w-full rounded-md border bg-popover p-1 text-popover-foreground shadow-md animate-in fade-in-0 zoom-in-95",
-        !ctx.open && "hidden"
-      )}
+      className="absolute z-50 mt-1 w-full rounded-md border bg-popover p-1 text-popover-foreground shadow-md animate-in fade-in-0 zoom-in-95"
     >
       {children}
     </div>
@@ -95,27 +131,8 @@ interface SelectItemProps extends React.ComponentProps<"div"> {
   value: string;
 }
 
-function extractText(node: React.ReactNode): string {
-  if (typeof node === "string") return node;
-  if (typeof node === "number") return String(node);
-  if (Array.isArray(node)) return node.map(extractText).join("");
-  if (React.isValidElement(node) && node.props) {
-    return extractText((node.props as { children?: React.ReactNode }).children);
-  }
-  return "";
-}
-
 function SelectItem({ value, children, className, ...props }: SelectItemProps) {
   const ctx = React.useContext(SelectContext);
-
-  // Register label synchronously so SelectValue can resolve it on first render.
-  const registered = React.useRef(false);
-  if (!registered.current) {
-    const text = extractText(children);
-    if (text) ctx.labels.set(value, text);
-    registered.current = true;
-  }
-
   return (
     <div
       role="option"
