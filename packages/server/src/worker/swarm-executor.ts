@@ -134,3 +134,49 @@ export async function dockerStackPs(
     tasks: result.exitCode === 0 ? parseSwarmTaskPsOutput(stdoutLines.join("\n")) : []
   };
 }
+
+function parseTaskNetworkAddresses(stdoutLines: string[]): string[] {
+  return stdoutLines
+    .join("\n")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+    .map((line) => line.replace(/\/\d+$/, ""));
+}
+
+export async function dockerInspectSwarmTaskNetworkAddresses(
+  taskId: string,
+  cwd: string,
+  onLog: OnLog,
+  execRunner: ExecRunner = execStreaming
+): Promise<{ exitCode: number; addresses: string[] }> {
+  const executionEnv = prepareComposeCommandEnv(cwd);
+  const stdoutLines: string[] = [];
+  const result = await execRunner(
+    dockerCommand,
+    [
+      "inspect",
+      "--type",
+      "task",
+      "--format",
+      "{{range .NetworksAttachments}}{{range .Addresses}}{{println .}}{{end}}{{end}}",
+      taskId
+    ],
+    cwd,
+    (line) => {
+      if (line.stream === "stdout") {
+        stdoutLines.push(line.message);
+        return;
+      }
+
+      onLog(line);
+    },
+    executionEnv.env,
+    { inheritParentEnv: false }
+  );
+
+  return {
+    exitCode: result.exitCode,
+    addresses: result.exitCode === 0 ? parseTaskNetworkAddresses(stdoutLines) : []
+  };
+}

@@ -936,6 +936,101 @@ describe("planning diff surfaces", () => {
     }
   });
 
+  it("allows internal-network TCP readiness probes on swarm manager deployment plans", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-plan-swarm-tcp-readiness-probe",
+      session: makeSession("viewer")
+    });
+    const repository = createLocalGitRepository({
+      files: {
+        "deploy/compose.yaml": "services:\n  db:\n    image: postgres:16\n"
+      }
+    });
+
+    await caller.services({});
+    await db
+      .update(servers)
+      .set({ kind: "docker-swarm-manager" })
+      .where(eq(servers.id, "srv_foundation_1"));
+
+    try {
+      const projectResult = await createProject({
+        name: `swarm-tcp-readiness-plan-${Date.now()}`,
+        repoUrl: repository.rootDir,
+        composePath: "deploy/compose.yaml",
+        defaultBranch: "main",
+        teamId: "team_foundation",
+        requestedByUserId: "user_foundation_owner",
+        requestedByEmail: "owner@daoflow.local",
+        requestedByRole: "owner"
+      });
+      if (projectResult.status !== "ok") {
+        throw new Error("Failed to create Swarm TCP readiness planning fixture project.");
+      }
+
+      const environmentResult = await createEnvironment({
+        projectId: projectResult.project.id,
+        name: `swarm-tcp-readiness-env-${Date.now()}`,
+        targetServerId: "srv_foundation_1",
+        requestedByUserId: "user_foundation_owner",
+        requestedByEmail: "owner@daoflow.local",
+        requestedByRole: "owner"
+      });
+      if (environmentResult.status !== "ok") {
+        throw new Error("Failed to create Swarm TCP readiness planning fixture environment.");
+      }
+
+      const serviceResult = await createService({
+        name: `swarm-tcp-readiness-svc-${Date.now()}`,
+        projectId: projectResult.project.id,
+        environmentId: environmentResult.environment.id,
+        sourceType: "compose",
+        composeServiceName: "db",
+        targetServerId: "srv_foundation_1",
+        readinessProbe: {
+          type: "tcp",
+          target: "internal-network",
+          port: 5432
+        },
+        requestedByUserId: "user_foundation_owner",
+        requestedByEmail: "owner@daoflow.local",
+        requestedByRole: "owner"
+      });
+      if (serviceResult.status !== "ok") {
+        throw new Error("Failed to create Swarm TCP readiness planning fixture service.");
+      }
+
+      const plan = await caller.deploymentPlan({
+        service: serviceResult.service.id
+      });
+
+      expect(plan.isReady).toBe(true);
+      expect(plan.target.targetKind).toBe("docker-swarm-manager");
+      expect(
+        plan.preflightChecks.some(
+          (check) =>
+            check.status === "ok" &&
+            check.detail.includes(
+              "Swarm execution will run TCP readiness on compose internal network tcp://db:5432 within 60s"
+            )
+        )
+      ).toBe(true);
+      expect(
+        plan.preflightChecks.some(
+          (check) =>
+            check.status === "fail" &&
+            check.detail.includes("supports published-port readiness probes only")
+        )
+      ).toBe(false);
+    } finally {
+      await db
+        .update(servers)
+        .set({ kind: "docker-engine" })
+        .where(eq(servers.id, "srv_foundation_1"));
+      repository.cleanup();
+    }
+  });
+
   it("models compose preview stack and env overlays in the deployment plan", async () => {
     const caller = appRouter.createCaller({
       requestId: "test-plan-compose-preview",

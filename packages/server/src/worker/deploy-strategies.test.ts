@@ -175,9 +175,13 @@ async function loadHarness(input: {
     throwIfDeploymentCancellationRequested: vi.fn().mockResolvedValue(undefined)
   }));
 
-  vi.doMock("../compose-readiness", () => ({
-    readComposeReadinessProbeSnapshot: vi.fn(() => null)
-  }));
+  vi.doMock("../compose-readiness", async (importOriginal) => {
+    const actual = await importOriginal<typeof import("../compose-readiness")>();
+    return {
+      ...actual,
+      readComposeReadinessProbeSnapshot: vi.fn(() => null)
+    };
+  });
 
   vi.doMock("../db/services/compose-env", () => ({
     persistDeploymentComposeEnvState,

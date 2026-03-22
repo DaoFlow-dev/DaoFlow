@@ -93,26 +93,14 @@ export async function buildComposeDeploymentPlanDetails(input: {
   }
 
   if (readinessProbe) {
-    if (
-      input.resolvedServer?.kind === "docker-swarm-manager" &&
-      readinessProbe.target === "internal-network"
-    ) {
-      checks.push(
-        makePlanCheck(
-          "fail",
-          `Docker Swarm execution currently supports published-port readiness probes only; ${describeComposeReadinessProbe(readinessProbe, input.service.composeServiceName ?? input.service.name)} cannot resolve task addresses yet.`
-        )
-      );
-    } else {
-      checks.push(
-        makePlanCheck(
-          "ok",
-          input.resolvedServer?.kind === "docker-swarm-manager"
-            ? `Swarm execution will run ${describeComposeReadinessProbe(readinessProbe, input.service.composeServiceName ?? input.service.name)} after Docker Swarm service replicas and running tasks converge.`
-            : `Compose execution will run ${describeComposeReadinessProbe(readinessProbe, input.service.composeServiceName ?? input.service.name)} after Docker Compose container state and Docker health are green.`
-        )
-      );
-    }
+    checks.push(
+      makePlanCheck(
+        "ok",
+        input.resolvedServer?.kind === "docker-swarm-manager"
+          ? `Swarm execution will run ${describeComposeReadinessProbe(readinessProbe, input.service.composeServiceName ?? input.service.name)} after Docker Swarm service replicas and running tasks converge.`
+          : `Compose execution will run ${describeComposeReadinessProbe(readinessProbe, input.service.composeServiceName ?? input.service.name)} after Docker Compose container state and Docker health are green.`
+      )
+    );
   } else if (input.service.healthcheckPath) {
     checks.push(
       makePlanCheck(

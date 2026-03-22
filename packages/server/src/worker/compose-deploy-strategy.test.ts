@@ -114,6 +114,7 @@ function createBuildPlan(input: {
 
 async function loadHarness(input: {
   buildPlan: ComposeBuildPlan;
+  readinessProbeSnapshot?: Record<string, unknown> | null;
   composeStatuses?: Array<{
     service: string;
     name: string;
@@ -140,6 +141,7 @@ async function loadHarness(input: {
     error: string | null;
     ports: string | null;
   }>;
+  swarmTaskAddressesById?: Record<string, string[]>;
 }) {
   const persistDeploymentComposeEnvState = vi.fn();
   const dockerComposePull = vi.fn().mockResolvedValue({ exitCode: 0 });
@@ -180,6 +182,12 @@ async function loadHarness(input: {
       }
     ]
   });
+  const dockerInspectSwarmTaskNetworkAddresses = vi.fn().mockImplementation((taskId: string) =>
+    Promise.resolve({
+      exitCode: 0,
+      addresses: input.swarmTaskAddressesById?.[taskId] ?? []
+    })
+  );
 
   vi.doMock("../db/services/compose-env", () => ({
     persistDeploymentComposeEnvState,
@@ -191,9 +199,13 @@ async function loadHarness(input: {
     }))
   }));
 
-  vi.doMock("../compose-readiness", () => ({
-    readComposeReadinessProbeSnapshot: vi.fn(() => null)
-  }));
+  vi.doMock("../compose-readiness", async (importOriginal) => {
+    const actual = await importOriginal<typeof import("../compose-readiness")>();
+    return {
+      ...actual,
+      readComposeReadinessProbeSnapshot: vi.fn(() => input.readinessProbeSnapshot ?? null)
+    };
+  });
 
   vi.doMock("./compose-workspace", () => ({
     prepareComposeWorkspace: vi.fn(() => createComposeWorkspace(input.buildPlan))
@@ -209,6 +221,7 @@ async function loadHarness(input: {
 
   vi.doMock("./swarm-executor", () => ({
     dockerStackDeploy,
+    dockerInspectSwarmTaskNetworkAddresses,
     dockerStackRemove,
     dockerStackServices,
     dockerStackPs
@@ -221,6 +234,7 @@ async function loadHarness(input: {
     remoteDockerComposePull: vi.fn(),
     remoteDockerComposeUp: vi.fn(),
     remoteDockerStackDeploy: vi.fn(),
+    remoteDockerInspectSwarmTaskNetworkAddresses: vi.fn(),
     remoteDockerStackRemove: vi.fn(),
     remoteDockerStackServices: vi.fn(),
     remoteDockerStackPs: vi.fn()
@@ -245,6 +259,7 @@ async function loadHarness(input: {
     dockerComposePull,
     dockerComposeUp,
     dockerStackDeploy,
+    dockerInspectSwarmTaskNetworkAddresses,
     dockerStackRemove,
     dockerStackServices,
     dockerStackPs

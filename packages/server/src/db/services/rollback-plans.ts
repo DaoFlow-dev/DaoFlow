@@ -4,7 +4,6 @@ import {
   getDeploymentStatusTone,
   normalizeDeploymentStatus
 } from "@daoflow/shared";
-import { readComposeReadinessProbeFromConfig } from "../../compose-readiness";
 import { db } from "../connection";
 import { deployments } from "../schema/deployments";
 import { environments, projects } from "../schema/projects";
@@ -58,7 +57,6 @@ export async function buildRollbackPlan(input: BuildRollbackPlanInput) {
         .where(eq(servers.id, latestDeployment[0]?.targetServerId ?? service.targetServerId ?? ""))
         .limit(1)
     : [];
-  const readinessProbe = readComposeReadinessProbeFromConfig(service.config);
   const isSwarmRollback =
     selectedTarget?.sourceType === "compose" && targetServer?.kind === "docker-swarm-manager";
 
@@ -108,15 +106,6 @@ export async function buildRollbackPlan(input: BuildRollbackPlanInput) {
             : "Execution will run against the service's configured target server."
         }
   ];
-
-  if (isSwarmRollback && readinessProbe && readinessProbe.target === "internal-network") {
-    checks.push({
-      status: "fail" as const,
-      detail:
-        `Docker Swarm rollback currently supports published-port readiness probes only; ` +
-        `${service.name} uses an internal-network probe.`
-    });
-  }
 
   const steps = selectedTarget
     ? [

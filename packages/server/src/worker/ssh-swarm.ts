@@ -162,3 +162,45 @@ export async function remoteDockerStackPs(
     tasks: result.exitCode === 0 ? parseSwarmTaskPsOutput(stdoutLines.join("\n")) : []
   };
 }
+
+function parseTaskNetworkAddresses(stdoutLines: string[]): string[] {
+  return stdoutLines
+    .join("\n")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+    .map((line) => line.replace(/\/\d+$/, ""));
+}
+
+export async function remoteDockerInspectSwarmTaskNetworkAddresses(
+  target: SSHTarget,
+  taskId: string,
+  workDir: string,
+  onLog: OnLog,
+  exec: typeof execRemote = execRemote
+): Promise<{ exitCode: number; addresses: string[] }> {
+  const stdoutLines: string[] = [];
+  const result = await exec(
+    target,
+    buildRemoteStackCommand({
+      workDir,
+      subcommand:
+        `docker inspect --type task --format ` +
+        `${shellQuote("{{range .NetworksAttachments}}{{range .Addresses}}{{println .}}{{end}}{{end}}")} ` +
+        shellQuote(taskId)
+    }),
+    (line) => {
+      if (line.stream === "stdout") {
+        stdoutLines.push(line.message);
+        return;
+      }
+
+      onLog(line);
+    }
+  );
+
+  return {
+    exitCode: result.exitCode,
+    addresses: result.exitCode === 0 ? parseTaskNetworkAddresses(stdoutLines) : []
+  };
+}

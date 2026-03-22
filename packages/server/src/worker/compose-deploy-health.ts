@@ -1,7 +1,9 @@
 import type { ComposeReadinessProbeSnapshot } from "../compose-readiness";
 import { assessComposeHealth, type ComposeContainerStatus } from "./compose-health";
 import {
+  runLocalInternalNetworkReadinessCheck,
   runLocalComposeReadinessCheck,
+  runRemoteInternalNetworkReadinessCheck,
   runRemoteComposeReadinessCheck
 } from "./compose-readiness-check";
 import { dockerComposePs, type OnLog } from "./docker-executor";
@@ -15,6 +17,7 @@ import {
 import { markStepComplete, markStepFailed } from "./step-management";
 import { throwIfDeploymentCancellationRequested } from "../db/services/deployment-execution-control";
 import { assessSwarmStackHealth } from "./swarm-health";
+import { resolveSwarmInternalNetworkTargets } from "./swarm-readiness-targets";
 
 const HEALTH_CHECK_TIMEOUT_MS = 60_000;
 const HEALTH_CHECK_INTERVAL_MS = 3_000;
@@ -258,24 +261,37 @@ export async function waitForSwarmStackHealthy(input: {
         return;
       }
 
-      if (input.readinessProbe.target === "internal-network") {
-        const detail =
-          `Docker Swarm stack execution supports published-port readiness probes only; ` +
-          `internal-network probes for ${input.readinessProbe.serviceName} cannot resolve task addresses yet.`;
-        await markStepFailed(input.healthStepId, detail);
-        throw new Error(detail);
-      }
-
+      const readinessProbe = input.readinessProbe;
       readinessStart ??= Date.now();
       const readinessAttempt =
-        input.target.mode === "remote"
-          ? await runRemoteComposeReadinessCheck(
-              input.target.ssh,
-              input.readinessProbe,
-              [],
-              input.onLog
-            )
-          : await runLocalComposeReadinessCheck(input.readinessProbe, []);
+        readinessProbe.target === "internal-network"
+          ? await (async () => {
+              const internalTargets = await resolveSwarmInternalNetworkTargets({
+                stackName: input.stackName,
+                workDir: input.workDir,
+                probe: readinessProbe,
+                tasks: taskResult.tasks,
+                onLog: input.onLog,
+                target: input.target
+              });
+
+              return input.target.mode === "remote"
+                ? runRemoteInternalNetworkReadinessCheck(
+                    input.target.ssh,
+                    readinessProbe,
+                    internalTargets,
+                    input.onLog
+                  )
+                : runLocalInternalNetworkReadinessCheck(readinessProbe, internalTargets);
+            })()
+          : input.target.mode === "remote"
+            ? await runRemoteComposeReadinessCheck(
+                input.target.ssh,
+                readinessProbe,
+                [],
+                input.onLog
+              )
+            : await runLocalComposeReadinessCheck(readinessProbe, []);
 
       if (readinessAttempt.kind === "success") {
         await markStepComplete(

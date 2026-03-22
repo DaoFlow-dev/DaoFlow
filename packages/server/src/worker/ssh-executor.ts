@@ -31,6 +31,7 @@ export {
 
 export {
   remoteDockerStackDeploy,
+  remoteDockerInspectSwarmTaskNetworkAddresses,
   remoteDockerStackRemove,
   remoteDockerStackServices,
   remoteDockerStackPs

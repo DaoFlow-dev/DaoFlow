@@ -15,6 +15,7 @@ import { createEnvironment, createProject } from "./db/services/projects";
 import { asRecord } from "./db/services/json-helpers";
 import { createService } from "./db/services/services";
 import { upsertEnvironmentVariable } from "./db/services/envvars";
+import type { ComposeReadinessProbeInput } from "./compose-readiness";
 import { appRouter } from "./router";
 
 let rollbackFixtureCounter = 0;
@@ -135,7 +136,7 @@ function makeTokenAuthContext(
   };
 }
 
-async function createRollbackFixture() {
+async function createRollbackFixture(input: { readinessProbe?: ComposeReadinessProbeInput } = {}) {
   rollbackFixtureCounter += 1;
   const suffix = `${Date.now()}_${rollbackFixtureCounter}`;
   const projectName = `rollback-fixture-${suffix}`;
@@ -172,6 +173,7 @@ async function createRollbackFixture() {
     environmentId: environmentResult.environment.id,
     sourceType: "compose",
     targetServerId: "srv_foundation_1",
+    readinessProbe: input.readinessProbe,
     requestedByUserId: "user_foundation_owner",
     requestedByEmail: "owner@daoflow.local",
     requestedByRole: "owner"
@@ -805,7 +807,13 @@ describe("appRouter", () => {
       .where(eq(servers.id, "srv_foundation_1"));
 
     try {
-      const fixture = await createRollbackFixture();
+      const fixture = await createRollbackFixture({
+        readinessProbe: {
+          type: "tcp",
+          target: "internal-network",
+          port: 5432
+        }
+      });
 
       const deploymentPlan = await caller.deploymentPlan({
         service: fixture.serviceId
@@ -819,9 +827,17 @@ describe("appRouter", () => {
         service: fixture.serviceId,
         target: fixture.successDeploymentId
       });
+      expect(rollbackPlan.isReady).toBe(true);
       expect(rollbackPlan.steps).toEqual(
         expect.arrayContaining([expect.stringContaining("docker stack deploy semantics")])
       );
+      expect(
+        rollbackPlan.preflightChecks.some(
+          (check) =>
+            check.status === "fail" &&
+            check.detail.includes("supports published-port readiness probes only")
+        )
+      ).toBe(false);
     } finally {
       await db
         .update(servers)

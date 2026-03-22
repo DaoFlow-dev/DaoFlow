@@ -26,8 +26,8 @@ export type ComposeReadinessAttempt =
       summary: string;
     };
 
-interface InternalNetworkTarget {
-  containerName: string;
+export interface ComposeInternalNetworkTarget {
+  label: string;
   address: string;
 }
 
@@ -163,14 +163,14 @@ async function resolveLocalInternalNetworkTargets(
   probe: ComposeReadinessProbeSnapshot,
   statuses: ComposeContainerStatus[],
   execRunner: LocalExecRunner
-): Promise<InternalNetworkTarget[]> {
-  const targets: InternalNetworkTarget[] = [];
+): Promise<ComposeInternalNetworkTarget[]> {
+  const targets: ComposeInternalNetworkTarget[] = [];
 
   for (const containerName of collectTargetContainerNames(probe, statuses)) {
     const addresses = await readLocalContainerAddresses(containerName, execRunner);
     for (const address of addresses) {
       targets.push({
-        containerName,
+        label: containerName,
         address
       });
     }
@@ -185,14 +185,14 @@ async function resolveRemoteInternalNetworkTargets(
   statuses: ComposeContainerStatus[],
   onLog: OnLog,
   exec: typeof execRemote
-): Promise<InternalNetworkTarget[]> {
-  const targets: InternalNetworkTarget[] = [];
+): Promise<ComposeInternalNetworkTarget[]> {
+  const targets: ComposeInternalNetworkTarget[] = [];
 
   for (const containerName of collectTargetContainerNames(probe, statuses)) {
     const addresses = await readRemoteContainerAddresses(target, containerName, onLog, exec);
     for (const address of addresses) {
       targets.push({
-        containerName,
+        label: containerName,
         address
       });
     }
@@ -378,7 +378,7 @@ async function runRemoteTcpProbe(
 
 function summarizeInternalNetworkAttempt(
   probe: ComposeReadinessProbeSnapshot,
-  attempts: Array<{ target: InternalNetworkTarget; attempt: ComposeReadinessAttempt }>
+  attempts: Array<{ target: ComposeInternalNetworkTarget; attempt: ComposeReadinessAttempt }>
 ): ComposeReadinessAttempt {
   const failed = attempts.find((entry) => entry.attempt.kind === "failed");
   if (failed) {
@@ -388,9 +388,7 @@ function summarizeInternalNetworkAttempt(
   const pending = attempts.filter((entry) => entry.attempt.kind === "pending");
   if (pending.length > 0) {
     const details = pending
-      .map(
-        (entry) => `${entry.target.containerName}@${entry.target.address}: ${entry.attempt.summary}`
-      )
+      .map((entry) => `${entry.target.label}@${entry.target.address}: ${entry.attempt.summary}`)
       .join("; ");
     return {
       kind: "pending",
@@ -405,6 +403,73 @@ function summarizeInternalNetworkAttempt(
       `${attempts.length}/${attempts.length} container${attempts.length === 1 ? "" : "s"} responded successfully`
     )
   };
+}
+
+function summarizeNoInternalNetworkTargets(
+  probe: ComposeReadinessProbeSnapshot
+): ComposeReadinessAttempt {
+  return {
+    kind: "pending",
+    summary: summarizePending(probe, "no running container addresses are available yet")
+  };
+}
+
+export async function runLocalInternalNetworkReadinessCheck(
+  probe: ComposeReadinessProbeSnapshot,
+  internalTargets: ComposeInternalNetworkTarget[],
+  fetchImpl: typeof fetch = fetch
+): Promise<ComposeReadinessAttempt> {
+  if (internalTargets.length === 0) {
+    return summarizeNoInternalNetworkTargets(probe);
+  }
+
+  const attempts: Array<{
+    target: ComposeInternalNetworkTarget;
+    attempt: ComposeReadinessAttempt;
+  }> = [];
+  for (const target of internalTargets) {
+    const attempt = isTcpProbe(probe)
+      ? await runLocalTcpProbe(probe, target.address, probe.port)
+      : await runLocalHttpProbe(
+          probe,
+          `${probe.scheme}://${target.address}:${probe.port}${probe.path}`,
+          fetchImpl
+        );
+    attempts.push({ target, attempt });
+  }
+
+  return summarizeInternalNetworkAttempt(probe, attempts);
+}
+
+export async function runRemoteInternalNetworkReadinessCheck(
+  target: SSHTarget,
+  probe: ComposeReadinessProbeSnapshot,
+  internalTargets: ComposeInternalNetworkTarget[],
+  onLog: OnLog,
+  exec: typeof execRemote = execRemote
+): Promise<ComposeReadinessAttempt> {
+  if (internalTargets.length === 0) {
+    return summarizeNoInternalNetworkTargets(probe);
+  }
+
+  const attempts: Array<{
+    target: ComposeInternalNetworkTarget;
+    attempt: ComposeReadinessAttempt;
+  }> = [];
+  for (const internalTarget of internalTargets) {
+    const attempt = isTcpProbe(probe)
+      ? await runRemoteTcpProbe(target, probe, internalTarget.address, probe.port, onLog, exec)
+      : await runRemoteHttpProbe(
+          target,
+          probe,
+          `${probe.scheme}://${internalTarget.address}:${probe.port}${probe.path}`,
+          onLog,
+          exec
+        );
+    attempts.push({ target: internalTarget, attempt });
+  }
+
+  return summarizeInternalNetworkAttempt(probe, attempts);
 }
 
 export async function runLocalComposeReadinessCheck(
@@ -422,26 +487,7 @@ export async function runLocalComposeReadinessCheck(
   }
 
   const internalTargets = await resolveLocalInternalNetworkTargets(probe, statuses, execRunner);
-  if (internalTargets.length === 0) {
-    return {
-      kind: "pending",
-      summary: summarizePending(probe, "no running container addresses are available yet")
-    };
-  }
-
-  const attempts: Array<{ target: InternalNetworkTarget; attempt: ComposeReadinessAttempt }> = [];
-  for (const target of internalTargets) {
-    const attempt = isTcpProbe(probe)
-      ? await runLocalTcpProbe(probe, target.address, probe.port)
-      : await runLocalHttpProbe(
-          probe,
-          `${probe.scheme}://${target.address}:${probe.port}${probe.path}`,
-          fetchImpl
-        );
-    attempts.push({ target, attempt });
-  }
-
-  return summarizeInternalNetworkAttempt(probe, attempts);
+  return runLocalInternalNetworkReadinessCheck(probe, internalTargets, fetchImpl);
 }
 
 export async function runRemoteComposeReadinessCheck(
@@ -466,26 +512,5 @@ export async function runRemoteComposeReadinessCheck(
     onLog,
     exec
   );
-  if (internalTargets.length === 0) {
-    return {
-      kind: "pending",
-      summary: summarizePending(probe, "no running container addresses are available yet")
-    };
-  }
-
-  const attempts: Array<{ target: InternalNetworkTarget; attempt: ComposeReadinessAttempt }> = [];
-  for (const internalTarget of internalTargets) {
-    const attempt = isTcpProbe(probe)
-      ? await runRemoteTcpProbe(target, probe, internalTarget.address, probe.port, onLog, exec)
-      : await runRemoteHttpProbe(
-          target,
-          probe,
-          `${probe.scheme}://${internalTarget.address}:${probe.port}${probe.path}`,
-          onLog,
-          exec
-        );
-    attempts.push({ target: internalTarget, attempt });
-  }
-
-  return summarizeInternalNetworkAttempt(probe, attempts);
+  return runRemoteInternalNetworkReadinessCheck(target, probe, internalTargets, onLog, exec);
 }
