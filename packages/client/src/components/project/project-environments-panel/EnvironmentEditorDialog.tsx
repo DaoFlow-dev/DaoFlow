@@ -87,7 +87,7 @@ export function EnvironmentEditorDialog({
               onValueChange={(value) => onDraftChange("targetServerId", value)}
             >
               <SelectTrigger id="environment-server" data-testid="project-environment-server">
-                <SelectValue />
+                <SelectValue placeholder="Project default" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value={INHERIT_SERVER_VALUE}>Project default</SelectItem>

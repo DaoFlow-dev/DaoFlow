@@ -13,12 +13,14 @@ const SelectContext = React.createContext<{
   onValueChange?: (value: string) => void;
   open: boolean;
   setOpen: (open: boolean) => void;
-}>({ open: false, setOpen: () => {} });
+  labels: Map<string, string>;
+}>({ open: false, setOpen: () => {}, labels: new Map() });
 
 function Select({ value, onValueChange, children }: SelectProps) {
   const [open, setOpen] = React.useState(false);
+  const labels = React.useRef(new Map<string, string>()).current;
   return (
-    <SelectContext.Provider value={{ value, onValueChange, open, setOpen }}>
+    <SelectContext.Provider value={{ value, onValueChange, open, setOpen, labels }}>
       <div className="relative">{children}</div>
     </SelectContext.Provider>
   );
@@ -54,9 +56,8 @@ SelectTrigger.displayName = "SelectTrigger";
 // ── Value ────────────────────────────────────────────────
 function SelectValue({ placeholder }: { placeholder?: string }) {
   const ctx = React.useContext(SelectContext);
-  return (
-    <span className={ctx.value ? "" : "text-muted-foreground"}>{ctx.value ?? placeholder}</span>
-  );
+  const display = ctx.value ? (ctx.labels.get(ctx.value) ?? ctx.value) : placeholder;
+  return <span className={ctx.value ? "" : "text-muted-foreground"}>{display ?? placeholder}</span>;
 }
 
 // ── Content ──────────────────────────────────────────────
@@ -75,12 +76,14 @@ function SelectContent({ children }: { children: React.ReactNode }) {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [ctx, ctx.open]);
 
-  if (!ctx.open) return null;
   return (
     <div
       ref={ref}
       role="listbox"
-      className="absolute z-50 mt-1 w-full rounded-md border bg-popover p-1 text-popover-foreground shadow-md animate-in fade-in-0 zoom-in-95"
+      className={cn(
+        "absolute z-50 mt-1 w-full rounded-md border bg-popover p-1 text-popover-foreground shadow-md animate-in fade-in-0 zoom-in-95",
+        !ctx.open && "hidden"
+      )}
     >
       {children}
     </div>
@@ -94,8 +97,16 @@ interface SelectItemProps extends React.ComponentProps<"div"> {
 
 function SelectItem({ value, children, className, ...props }: SelectItemProps) {
   const ctx = React.useContext(SelectContext);
+  const itemRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    const text = itemRef.current?.textContent?.trim();
+    if (text) ctx.labels.set(value, text);
+  }, [ctx.labels, value, children]);
+
   return (
     <div
+      ref={itemRef}
       role="option"
       aria-selected={ctx.value === value}
       className={cn(
