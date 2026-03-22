@@ -1197,7 +1197,7 @@
           "readinessProbe": {
             "anyOf": [
               {
-                "oneOf": [
+                "anyOf": [
                   {
                     "type": "object",
                     "properties": {
@@ -3763,7 +3763,7 @@
           "readinessProbe": {
             "anyOf": [
               {
-                "oneOf": [
+                "anyOf": [
                   {
                     "type": "object",
                     "properties": {
