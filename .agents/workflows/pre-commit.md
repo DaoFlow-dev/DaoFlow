@@ -8,8 +8,8 @@ Run this workflow **before every `git commit` and `git push`** to ensure code qu
 
 The repo installs a Git `pre-commit` hook through `bun install` or `bun run hooks:install`. That hook runs:
 
-- `bun run format`
-- `git add -A`
+- Prettier on staged formattable files only
+- Re-stage the formatted staged files
 - `bun run lint`
 - `bun run typecheck`
 - `bun run contracts:check`
