@@ -1681,8 +1681,12 @@ describe("createApp", () => {
       }
     });
 
-    expect(response.status).toBe(200);
-    expect(response.headers.get("content-type")).toContain("text/event-stream");
+    try {
+      expect(response.status).toBe(200);
+      expect(response.headers.get("content-type")).toContain("text/event-stream");
+    } finally {
+      await response.body?.cancel();
+    }
   });
 
   it("rejects unauthenticated GET /api/v1/container-stats with 401", async () => {

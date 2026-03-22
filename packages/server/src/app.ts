@@ -178,15 +178,47 @@ export function createApp() {
     const { db } = await import("./db/connection");
     const { deploymentLogs } = await import("./db/schema/deployments");
     const { eq, and, gt } = await import("drizzle-orm");
+    const requestSignal = c.req.raw.signal;
 
     const encoder = new TextEncoder();
+    let stop = () => undefined;
     const stream = new ReadableStream({
       start(controller) {
         let lastId = 0;
         let attempts = 0;
         const MAX_ATTEMPTS = 600; // 10 minutes max
+        let timer: ReturnType<typeof setTimeout> | null = null;
+        let stopped = false;
+
+        stop = () => {
+          if (stopped) {
+            return;
+          }
+
+          stopped = true;
+          if (timer) {
+            clearTimeout(timer);
+            timer = null;
+          }
+          requestSignal.removeEventListener("abort", stop);
+        };
+
+        const close = () => {
+          stop();
+          try {
+            controller.close();
+          } catch {
+            // The stream may already be closed or canceled by the consumer.
+          }
+        };
+
+        requestSignal.addEventListener("abort", stop, { once: true });
 
         const poll = async () => {
+          if (stopped) {
+            return;
+          }
+
           try {
             const baseCondition = eq(deploymentLogs.deploymentId, deploymentId);
             const condition = lastId
@@ -212,19 +244,26 @@ export function createApp() {
               lastId = row.id;
             }
 
+            if (stopped) {
+              return;
+            }
+
             attempts++;
             if (attempts < MAX_ATTEMPTS) {
-              setTimeout(() => void poll(), 1000);
+              timer = setTimeout(() => void poll(), 1000);
             } else {
               controller.enqueue(encoder.encode(`data: {"done": true}\n\n`));
-              controller.close();
+              close();
             }
           } catch {
-            controller.close();
+            close();
           }
         };
 
         void poll();
+      },
+      cancel() {
+        stop();
       }
     });
 
