@@ -1,7 +1,7 @@
 import type { ComposeReadinessProbeSnapshot } from "../compose-readiness";
 import type { OnLog } from "./docker-executor";
 import type { ExecutionTarget } from "./execution-target";
-import { type ComposeInternalNetworkTarget } from "./compose-readiness-check";
+import type { ComposeInternalNetworkTarget } from "./compose-readiness-internal-targets";
 import { dockerInspectSwarmTaskNetworkAddresses } from "./swarm-executor";
 import type { SwarmTaskStatus } from "./swarm-health";
 import { remoteDockerInspectSwarmTaskNetworkAddresses } from "./ssh-executor";
