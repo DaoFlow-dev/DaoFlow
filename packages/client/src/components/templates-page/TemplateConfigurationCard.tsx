@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Eye, Rocket } from "lucide-react";
+import { TemplateDeployResultAlert } from "./TemplateDeployResultAlert";
 import type {
   TemplateDeployResult,
   TemplateFieldValues,
@@ -39,6 +40,7 @@ interface TemplateConfigurationCardProps {
   onPreviewRequest: () => void;
   onApply: () => void;
   onOpenDeployments: () => void;
+  onOpenInstance: () => void;
 }
 
 export function TemplateConfigurationCard({
@@ -59,7 +61,8 @@ export function TemplateConfigurationCard({
   onFieldValueChange,
   onPreviewRequest,
   onApply,
-  onOpenDeployments
+  onOpenDeployments,
+  onOpenInstance
 }: TemplateConfigurationCardProps) {
   return (
     <Card className="border-border/60 shadow-sm">
@@ -166,13 +169,11 @@ export function TemplateConfigurationCard({
         ) : null}
 
         {deployResult ? (
-          <Alert data-testid="template-apply-success">
-            <AlertTitle>Deployment queued</AlertTitle>
-            <AlertDescription>
-              Queued <strong>{deployResult.projectName}</strong> as deployment{" "}
-              <strong>{deployResult.deploymentId}</strong>.
-            </AlertDescription>
-          </Alert>
+          <TemplateDeployResultAlert
+            deployResult={deployResult}
+            onOpenDeployments={onOpenDeployments}
+            onOpenInstance={onOpenInstance}
+          />
         ) : null}
 
         <div className="flex flex-wrap gap-3">
@@ -193,15 +194,6 @@ export function TemplateConfigurationCard({
             <Rocket size={14} className="mr-2" />
             {deployPending ? "Queueing..." : "Apply template"}
           </Button>
-          {deployResult ? (
-            <Button
-              variant="secondary"
-              onClick={onOpenDeployments}
-              data-testid="template-open-deployments-button"
-            >
-              Open deployments
-            </Button>
-          ) : null}
         </div>
 
         {previewRequested ? <TemplatePreviewSection previewPlan={previewPlan} /> : null}

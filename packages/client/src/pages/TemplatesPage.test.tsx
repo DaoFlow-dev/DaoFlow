@@ -6,12 +6,21 @@ import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import TemplatesPage from "./TemplatesPage";
 
-const { infrastructureInventoryUseQueryMock, composeDeploymentPlanUseQueryMock } = vi.hoisted(
-  () => ({
+const { infrastructureInventoryUseQueryMock, composeDeploymentPlanUseQueryMock, navigateMock } =
+  vi.hoisted(() => ({
     infrastructureInventoryUseQueryMock: vi.fn(),
-    composeDeploymentPlanUseQueryMock: vi.fn()
-  })
-);
+    composeDeploymentPlanUseQueryMock: vi.fn(),
+    navigateMock: vi.fn()
+  }));
+
+vi.mock("react-router-dom", async () => {
+  const actual = await vi.importActual<typeof import("react-router-dom")>("react-router-dom");
+
+  return {
+    ...actual,
+    useNavigate: () => navigateMock
+  };
+});
 
 vi.mock("../lib/trpc", () => ({
   trpc: {
@@ -37,6 +46,7 @@ describe("TemplatesPage", () => {
   }
 
   beforeEach(() => {
+    navigateMock.mockReset();
     infrastructureInventoryUseQueryMock.mockReturnValue({
       data: {
         servers: [
@@ -88,7 +98,10 @@ describe("TemplatesPage", () => {
       json: () =>
         Promise.resolve({
           ok: true,
-          deploymentId: "dep_template_123"
+          deploymentId: "dep_template_123",
+          projectId: "proj_template_123",
+          environmentId: "env_template_123",
+          serviceId: "svc_template_123"
         })
     });
 
@@ -111,5 +124,9 @@ describe("TemplatesPage", () => {
     expect(await screen.findByTestId("template-apply-success")).toHaveTextContent(
       "dep_template_123"
     );
+
+    fireEvent.click(screen.getByTestId("template-open-instance-button"));
+
+    expect(navigateMock).toHaveBeenCalledWith("/services/svc_template_123");
   });
 });

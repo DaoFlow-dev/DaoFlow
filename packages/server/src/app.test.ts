@@ -1074,11 +1074,17 @@ describe("createApp", () => {
     const body = (await response.json()) as {
       ok: boolean;
       deploymentId: string;
+      environmentId: string;
+      projectId: string;
+      serviceId: string;
     };
 
     expect(response.status).toBe(200);
     expect(body.ok).toBe(true);
     expect(body.deploymentId).toEqual(expect.any(String));
+    expect(body.projectId).toEqual(expect.any(String));
+    expect(body.environmentId).toEqual(expect.any(String));
+    expect(body.serviceId).toEqual(expect.any(String));
   }, 10_000);
 
   it("queues authenticated direct compose context uploads without metadata headers", async () => {
@@ -1138,11 +1144,17 @@ describe("createApp", () => {
     const uploadBody = (await uploadResponse.json()) as {
       ok: boolean;
       deploymentId: string;
+      environmentId: string;
+      projectId: string;
+      serviceId: string;
     };
 
     expect(uploadResponse.status).toBe(200);
     expect(uploadBody.ok).toBe(true);
     expect(uploadBody.deploymentId).toBe(intakeBody.uploadId);
+    expect(uploadBody.projectId).toEqual(expect.any(String));
+    expect(uploadBody.environmentId).toEqual(expect.any(String));
+    expect(uploadBody.serviceId).toEqual(expect.any(String));
 
     const [storedDeployment] = await db
       .select({ id: deployments.id })

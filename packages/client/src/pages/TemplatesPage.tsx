@@ -172,16 +172,29 @@ export default function TemplatesPage() {
       const body = (await response.json()) as {
         ok?: boolean;
         deploymentId?: string;
+        projectId?: string;
+        environmentId?: string;
+        serviceId?: string;
         error?: string;
       };
 
-      if (!response.ok || !body.ok || !body.deploymentId) {
+      if (
+        !response.ok ||
+        !body.ok ||
+        !body.deploymentId ||
+        !body.projectId ||
+        !body.environmentId ||
+        !body.serviceId
+      ) {
         throw new Error(body.error ?? "Unable to queue the template deployment.");
       }
 
       setDeployResult({
         deploymentId: body.deploymentId,
-        projectName: rendered.projectName
+        projectName: rendered.projectName,
+        projectId: body.projectId,
+        environmentId: body.environmentId,
+        serviceId: body.serviceId
       });
     } catch (error) {
       setDeployError(error instanceof Error ? error.message : String(error));
@@ -248,6 +261,7 @@ export default function TemplatesPage() {
           onPreviewRequest={() => setPreviewRequested(true)}
           onApply={() => void handleApply()}
           onOpenDeployments={() => void navigate("/deployments")}
+          onOpenInstance={() => void navigate(`/services/${deployResult?.serviceId ?? ""}`)}
         />
       </div>
     </main>

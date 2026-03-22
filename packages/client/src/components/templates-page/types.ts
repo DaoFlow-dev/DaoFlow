@@ -12,6 +12,9 @@ export interface TemplateServerOption {
 export interface TemplateDeployResult {
   deploymentId: string;
   projectName: string;
+  projectId: string;
+  environmentId: string;
+  serviceId: string;
 }
 
 export interface TemplatePreviewPlanData {

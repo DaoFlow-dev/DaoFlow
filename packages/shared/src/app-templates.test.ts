@@ -10,6 +10,7 @@ describe("app template catalog", () => {
     expect(slugs.includes("redis")).toBe(true);
     expect(slugs.includes("rabbitmq")).toBe(true);
     expect(slugs.includes("n8n")).toBe(true);
+    expect(slugs.includes("fizzy")).toBe(true);
     expect(slugs.includes("uptime-kuma")).toBe(true);
   });
 
@@ -43,6 +44,26 @@ describe("app template catalog", () => {
         }
       })
     ).toThrow('Template field "Encryption key" is required.');
+  });
+
+  test("renders the Fizzy starter with documented storage and mail settings", () => {
+    const rendered = renderAppTemplate({
+      slug: "fizzy",
+      values: {
+        fizzy_domain: "fizzy.example.com",
+        fizzy_secret_key_base: "secret-value",
+        fizzy_mailer_from_address: "fizzy@example.com",
+        fizzy_smtp_address: "smtp.postmarkapp.com",
+        fizzy_smtp_port: "587",
+        fizzy_smtp_username: "server-token",
+        fizzy_smtp_password: "smtp-secret"
+      }
+    });
+
+    expect(rendered.compose).toContain("ghcr.io/basecamp/fizzy:main");
+    expect(rendered.compose).toContain('BASE_URL: "https://fizzy.example.com"');
+    expect(rendered.compose).toContain('SMTP_PORT: "587"');
+    expect(rendered.compose).toContain("fizzy-fizzy-storage");
   });
 
   test("masks secrets without mutating plain values", () => {

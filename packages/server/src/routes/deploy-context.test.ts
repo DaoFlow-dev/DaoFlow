@@ -115,10 +115,19 @@ describe("deployContextRouter", () => {
         ]
       })
     });
-    const body = (await response.json()) as { ok: boolean };
+    const body = (await response.json()) as {
+      ok: boolean;
+      deploymentId: string;
+      environmentId: string;
+      projectId: string;
+      serviceId: string;
+    };
 
     expect(response.status).toBe(200);
     expect(body.ok).toBe(true);
+    expect(body.projectId).toBe("proj_123");
+    expect(body.environmentId).toBe("env_123");
+    expect(body.serviceId).toBe("svc_123");
     expect(readFileSync(join(stageDir, "ops/compose.override.yaml"), "utf8")).toContain(
       "MODE: test"
     );
