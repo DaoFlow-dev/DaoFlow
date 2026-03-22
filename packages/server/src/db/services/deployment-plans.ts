@@ -113,6 +113,7 @@ export async function buildDeploymentPlan(input: BuildDeploymentPlanInput) {
       environment,
       resolvedServer,
       effectiveImageTag,
+      latestDeploymentEnvVarsEncrypted: latestDeployment?.envVarsEncrypted ?? null,
       previewInput: input.preview
     });
 

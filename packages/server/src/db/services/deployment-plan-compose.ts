@@ -18,7 +18,7 @@ import {
 import { environments, projects } from "../schema/projects";
 import { servers } from "../schema/servers";
 import { services } from "../schema/services";
-import { resolveComposeDeploymentEnvEntries } from "./compose-env";
+import { readDeploymentComposeState, resolveComposeDeploymentEnvEntries } from "./compose-env";
 import { summarizeComposeGraph } from "./compose-deployment-plan-build";
 import { buildComposeEnvPlanChecks, makePlanCheck, type PlanCheck } from "./deployment-plan-checks";
 import {
@@ -26,12 +26,37 @@ import {
   materializeComposePlanningPreflight
 } from "./deployment-plan-preflight";
 
+function readReplayableComposePlanSource(envVarsEncrypted: string | null | undefined): {
+  composeContent: string | null;
+  warnings: string[];
+} {
+  if (!envVarsEncrypted) {
+    return { composeContent: null, warnings: [] };
+  }
+
+  try {
+    return {
+      composeContent:
+        readDeploymentComposeState(envVarsEncrypted).frozenInputs?.composeFile.contents ?? null,
+      warnings: []
+    };
+  } catch {
+    return {
+      composeContent: null,
+      warnings: [
+        "DaoFlow could not recover replayable compose source from the latest deployment state."
+      ]
+    };
+  }
+}
+
 export async function buildComposeDeploymentPlanDetails(input: {
   service: typeof services.$inferSelect;
   project: typeof projects.$inferSelect;
   environment: typeof environments.$inferSelect;
   resolvedServer: typeof servers.$inferSelect | null;
   effectiveImageTag: string | null;
+  latestDeploymentEnvVarsEncrypted?: string | null;
   previewInput?: ComposePreviewRequestInput;
 }): Promise<{
   checks: PlanCheck[];
@@ -195,11 +220,16 @@ export async function buildComposeDeploymentPlanDetails(input: {
       );
     }
   } else {
+    const replayableComposeSource = readReplayableComposePlanSource(
+      input.latestDeploymentEnvVarsEncrypted
+    );
     composeEnvPlan = buildComposeEnvPlanDiagnostics({
       branch: previewMetadata?.envBranch ?? sourceBranch,
+      composeContent: replayableComposeSource.composeContent,
       deploymentEntries,
       warnings: [
-        "Compose workspace preflight requires a repository-backed source; this service relies on uploaded artifacts or replayable deployment state."
+        "Compose workspace preflight requires a repository-backed source; this service relies on uploaded artifacts or replayable deployment state.",
+        ...replayableComposeSource.warnings
       ]
     });
     checks.push(...buildComposeEnvPlanChecks(composeEnvPlan));

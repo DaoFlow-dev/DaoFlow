@@ -8,6 +8,7 @@ import { deployments } from "./db/schema/deployments";
 import { environmentVariables, projects } from "./db/schema/projects";
 import { servers } from "./db/schema/servers";
 import { teams } from "./db/schema/teams";
+import { encryptComposeDeploymentState } from "./db/services/compose-env";
 import { createEnvironment, createProject } from "./db/services/projects";
 import { ensureControlPlaneReady } from "./db/services/seed";
 import { createService } from "./db/services/services";
@@ -741,6 +742,149 @@ describe("planning diff surfaces", () => {
     } finally {
       repository.cleanup();
     }
+  });
+
+  it("keeps interpolation diagnostics for non-repo compose plans with replayable source", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-plan-compose-replayable-non-repo",
+      session: makeSession("viewer")
+    });
+
+    fixtureCounter += 1;
+    const suffix = `${Date.now()}_${fixtureCounter}`;
+    const projectName = `compose-replayable-plan-${suffix}`;
+    const environmentName = `compose-replayable-env-${suffix}`;
+    const serviceName = `compose-replayable-svc-${suffix}`;
+
+    const projectResult = await createProject({
+      name: projectName,
+      description: "Replayable non-repo compose planning fixture",
+      teamId: "team_foundation",
+      requestedByUserId: "user_foundation_owner",
+      requestedByEmail: "owner@daoflow.local",
+      requestedByRole: "owner"
+    });
+    if (projectResult.status !== "ok") {
+      throw new Error("Failed to create replayable non-repo planning fixture project.");
+    }
+
+    const environmentResult = await createEnvironment({
+      projectId: projectResult.project.id,
+      name: environmentName,
+      targetServerId: "srv_foundation_1",
+      requestedByUserId: "user_foundation_owner",
+      requestedByEmail: "owner@daoflow.local",
+      requestedByRole: "owner"
+    });
+    if (environmentResult.status !== "ok") {
+      throw new Error("Failed to create replayable non-repo planning fixture environment.");
+    }
+
+    const serviceResult = await createService({
+      name: serviceName,
+      projectId: projectResult.project.id,
+      environmentId: environmentResult.environment.id,
+      sourceType: "compose",
+      targetServerId: "srv_foundation_1",
+      requestedByUserId: "user_foundation_owner",
+      requestedByEmail: "owner@daoflow.local",
+      requestedByRole: "owner"
+    });
+    if (serviceResult.status !== "ok") {
+      throw new Error("Failed to create replayable non-repo planning fixture service.");
+    }
+
+    await db.insert(environmentVariables).values({
+      environmentId: environmentResult.environment.id,
+      key: "DATABASE_URL",
+      valueEncrypted: encrypt("postgres://fixture"),
+      isSecret: "true",
+      category: "runtime",
+      branchPattern: "main",
+      updatedByUserId: "user_foundation_owner"
+    });
+
+    const deploymentId = `replayplan_${suffix}`.slice(0, 32);
+    const createdAt = new Date(Date.now() - 60_000);
+
+    await db.insert(deployments).values({
+      id: deploymentId,
+      projectId: projectResult.project.id,
+      environmentId: environmentResult.environment.id,
+      targetServerId: "srv_foundation_1",
+      serviceName,
+      sourceType: "compose",
+      commitSha: "abcd1234",
+      imageTag: "ghcr.io/daoflow/replayable:stable",
+      configSnapshot: {
+        projectName,
+        environmentName,
+        targetServerName: "foundation-vps-1",
+        targetServerHost: "203.0.113.24"
+      },
+      envVarsEncrypted: encryptComposeDeploymentState({
+        envEntries: [
+          {
+            key: "DATABASE_URL",
+            value: "postgres://fixture",
+            category: "runtime",
+            isSecret: true,
+            source: "inline",
+            branchPattern: "main"
+          }
+        ],
+        frozenInputs: {
+          composeFile: {
+            path: ".daoflow.compose.rendered.yaml",
+            sourcePath: "compose.yaml",
+            contents: [
+              "services:",
+              "  api:",
+              "    image: example/api:stable",
+              "    environment:",
+              "      DATABASE_URL: ${DATABASE_URL?required}"
+            ].join("\n")
+          },
+          envFiles: []
+        }
+      }),
+      status: "completed",
+      conclusion: "succeeded",
+      trigger: "user",
+      requestedByUserId: "user_foundation_owner",
+      requestedByEmail: "owner@daoflow.local",
+      requestedByRole: "owner",
+      createdAt,
+      concludedAt: createdAt,
+      updatedAt: createdAt
+    });
+
+    const plan = await caller.deploymentPlan({
+      service: serviceResult.service.id
+    });
+
+    expect(plan.isReady).toBe(true);
+    expect(plan.composeEnvPlan).not.toBeNull();
+    expect(plan.composeEnvPlan?.interpolation.summary).toMatchObject({
+      totalReferences: 1,
+      unresolved: 0,
+      requiredMissing: 0,
+      optionalMissing: 0
+    });
+    expect(plan.composeEnvPlan?.interpolation.references).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          key: "DATABASE_URL",
+          expression: "${DATABASE_URL?required}"
+        })
+      ])
+    );
+    expect(
+      plan.preflightChecks.some(
+        (check) =>
+          check.status === "warn" && check.detail.includes("interpolation analysis is unavailable")
+      )
+    ).toBe(false);
   });
 
   it("models explicit compose readiness probes in the deployment plan", async () => {
