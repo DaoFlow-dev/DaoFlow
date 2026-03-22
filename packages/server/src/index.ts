@@ -20,6 +20,7 @@ import {
   stopServerReadinessMonitor
 } from "./worker/server-readiness-monitor";
 import { ensureInitialOwnerFromEnv } from "./bootstrap-initial-owner";
+import { ensureLocalhostServer } from "./bootstrap-localhost-server";
 import { runAutoMigrations } from "./db/auto-migrate";
 
 const port = Number(process.env.PORT ?? DEFAULT_SERVER_PORT);
@@ -110,6 +111,16 @@ async function start() {
           ? "\n       → Ensure DAOFLOW_INITIAL_ADMIN_PASSWORD is at least 8 characters, then recreate the container with: docker compose up -d"
           : "")
     );
+  }
+
+  // Auto-register localhost as a deployment target when Docker socket is available
+  if (shouldStartWorker()) {
+    try {
+      await ensureLocalhostServer();
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      console.error(`[bootstrap] Localhost server registration failed: ${msg}`);
+    }
   }
 
   // Start the execution worker when Docker is available

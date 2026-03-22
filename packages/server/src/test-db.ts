@@ -18,6 +18,10 @@ import {
   resetInitialOwnerBootstrapState,
   waitForInitialOwnerBootstrapIdle
 } from "./bootstrap-initial-owner";
+import {
+  resetLocalhostServerBootstrapState,
+  waitForLocalhostServerBootstrapIdle
+} from "./bootstrap-localhost-server";
 import { resetAuthState } from "./auth";
 
 const { Client } = pg;
@@ -241,8 +245,10 @@ export async function resetTestDatabase() {
   const connectionString = await ensureTestDatabaseReady();
   await waitForControlPlaneSeedIdle();
   await waitForInitialOwnerBootstrapIdle();
+  await waitForLocalhostServerBootstrapIdle();
   resetControlPlaneSeedState();
   resetInitialOwnerBootstrapState();
+  resetLocalhostServerBootstrapState();
   resetAuthState();
   await withTestDatabaseLock(connectionString, async () => {
     if (await isTestSchemaReady(connectionString)) {
