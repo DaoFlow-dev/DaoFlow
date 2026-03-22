@@ -15,6 +15,7 @@ export function ensureControlPlaneReady() {
       "[seed] Control-plane seed failed (will retry on next request):",
       err instanceof Error ? err.message : String(err)
     );
+    throw err;
   });
   return foundationSeedPromise;
 }
