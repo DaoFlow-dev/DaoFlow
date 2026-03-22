@@ -9,6 +9,50 @@ import {
 import { decrypt } from "../db/crypto";
 import { t, adminProcedure, getActorContext } from "../trpc";
 
+const DEFAULT_GITLAB_BASE_URL = "https://gitlab.com";
+const DEFAULT_APP_BASE_URL = "http://localhost:3000";
+const GITLAB_CALLBACK_PATH = "/settings/git/callback";
+
+function trimTrailingSlash(value: string): string {
+  return value.replace(/\/+$/, "");
+}
+
+function resolveGitLabBaseUrl(baseUrl?: string | null): string {
+  return trimTrailingSlash(baseUrl || DEFAULT_GITLAB_BASE_URL);
+}
+
+function resolveGitLabRedirectUri(): string {
+  return new URL(
+    GITLAB_CALLBACK_PATH,
+    `${trimTrailingSlash(process.env.APP_BASE_URL || DEFAULT_APP_BASE_URL)}/`
+  ).toString();
+}
+
+function requireGitLabOAuthConfig(provider: {
+  clientId?: string | null;
+  clientSecretEncrypted?: string | null;
+}) {
+  const clientId = provider.clientId?.trim();
+  if (!clientId) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "GitLab provider is missing a client ID"
+    });
+  }
+
+  if (!provider.clientSecretEncrypted) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "GitLab provider is missing a client secret"
+    });
+  }
+
+  return {
+    clientId,
+    clientSecret: decrypt(provider.clientSecretEncrypted)
+  };
+}
+
 export const gitRouter = t.router({
   registerGitProvider: adminProcedure
     .input(
@@ -75,22 +119,22 @@ export const gitRouter = t.router({
         throw new TRPCError({ code: "BAD_REQUEST", message: "Provider is not GitLab" });
       }
 
-      // Exchange code for access token via GitLab OAuth
-      const gitlabBaseUrl = provider.baseUrl || "https://gitlab.com";
+      const { clientId, clientSecret } = requireGitLabOAuthConfig(provider);
+      const gitlabBaseUrl = resolveGitLabBaseUrl(provider.baseUrl);
       const tokenUrl = `${gitlabBaseUrl}/oauth/token`;
+      const redirectUri = resolveGitLabRedirectUri();
+      const tokenRequest = new URLSearchParams({
+        client_id: clientId,
+        client_secret: clientSecret,
+        code: input.code,
+        grant_type: "authorization_code",
+        redirect_uri: redirectUri
+      });
 
       const tokenResponse = await fetch(tokenUrl, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          client_id: provider.clientId,
-          client_secret: provider.clientSecretEncrypted
-            ? decrypt(provider.clientSecretEncrypted)
-            : "",
-          code: input.code,
-          grant_type: "authorization_code",
-          redirect_uri: `${process.env.APP_BASE_URL || "http://localhost:3000"}/settings/git/callback`
-        })
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: tokenRequest.toString()
       });
 
       if (!tokenResponse.ok) {
@@ -113,6 +157,14 @@ export const gitRouter = t.router({
       const userResponse = await fetch(`${gitlabBaseUrl}/api/v4/user`, {
         headers: { Authorization: `Bearer ${tokenData.access_token}` }
       });
+      if (!userResponse.ok) {
+        const err = await userResponse.text();
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: `GitLab user lookup failed: ${err}`
+        });
+      }
+
       const userData = (await userResponse.json()) as {
         username?: string;
         id?: number;
@@ -130,6 +182,6 @@ export const gitRouter = t.router({
         ...getActorContext(ctx)
       });
 
-      return result;
+      return result.summary;
     })
 });

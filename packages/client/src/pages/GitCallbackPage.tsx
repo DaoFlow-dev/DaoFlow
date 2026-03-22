@@ -39,10 +39,10 @@ export default function GitCallbackPage() {
   });
 
   const exchangeGitLabCode = trpc.exchangeGitLabCode.useMutation({
-    onSuccess: (data: { installation: { accountName: string } }) => {
+    onSuccess: (data: { accountName: string }) => {
       setState("success");
       setMessage("GitLab connected successfully");
-      setDetail(`Account: ${data.installation.accountName}`);
+      setDetail(`Account: ${data.accountName}`);
     },
     onError: (err: { message: string }) => {
       setState("error");
