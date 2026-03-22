@@ -219,4 +219,65 @@ describe("command git router", () => {
 
     expect(storedInstallations).toHaveLength(0);
   });
+
+  it("reuses an existing installation when the same callback is replayed", async () => {
+    const providerId = `gitprov_replay_${Date.now()}`.slice(0, 32);
+    await db.insert(gitProviders).values({
+      id: providerId,
+      type: "github",
+      name: `GitHub Replay ${Date.now()}`,
+      appId: "12345",
+      status: "active",
+      updatedAt: new Date()
+    });
+
+    const caller = appRouter.createCaller({
+      requestId: "test-git-installation-replay",
+      session: makeSession("admin")
+    });
+
+    const firstInstallation = await caller.createGitInstallation({
+      providerId,
+      installationId: "9001",
+      accountName: "octo-org",
+      accountType: "organization",
+      repositorySelection: "selected",
+      permissions: JSON.stringify({ access_token: "first-token" })
+    });
+
+    const replayedInstallation = await caller.createGitInstallation({
+      providerId,
+      installationId: "9001",
+      accountName: "octo-renamed",
+      accountType: "organization",
+      repositorySelection: "all",
+      permissions: JSON.stringify({ access_token: "second-token" })
+    });
+
+    expect(replayedInstallation.id).toBe(firstInstallation.id);
+    expect(replayedInstallation).toMatchObject({
+      providerId,
+      installationId: "9001",
+      accountName: "octo-renamed",
+      repositorySelection: "all",
+      status: "active"
+    });
+
+    const storedInstallations = await db
+      .select()
+      .from(gitInstallations)
+      .where(eq(gitInstallations.providerId, providerId));
+
+    expect(storedInstallations).toHaveLength(1);
+    const [storedInstallation] = storedInstallations;
+    expect(storedInstallation).toBeDefined();
+    if (!storedInstallation) {
+      throw new Error("Expected replayed Git installation to exist.");
+    }
+
+    expect(storedInstallation.id).toBe(firstInstallation.id);
+    expect(storedInstallation.accountName).toBe("octo-renamed");
+    expect(storedInstallation.repositorySelection).toBe("all");
+    expect(readGitInstallationAccessToken(storedInstallation)).toBe("second-token");
+  });
 });
