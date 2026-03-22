@@ -19,13 +19,16 @@ if [ -z "$STAGED" ]; then
   exit 0
 fi
 
-# Filter staged files for prettier (all formattable extensions)
-FORMAT_FILES=$(echo "$STAGED" | grep -E '\.(ts|tsx|js|jsx|mjs|cjs|json|css|md|yaml|yml|html)$' || true)
+staged_prettier_files() {
+  git diff --cached --name-only --diff-filter=d -z -- \
+    '*.ts' '*.tsx' '*.js' '*.jsx' '*.mjs' '*.cjs' '*.json' '*.css' '*.md' '*.yaml' '*.yml' '*.html'
+}
 
-if [ -n "$FORMAT_FILES" ]; then
+if git diff --cached --name-only --diff-filter=d -- \
+  '*.ts' '*.tsx' '*.js' '*.jsx' '*.mjs' '*.cjs' '*.json' '*.css' '*.md' '*.yaml' '*.yml' '*.html' | grep -q .; then
   echo "[pre-commit] formatting staged files"
-  echo "$FORMAT_FILES" | xargs npx prettier --write
-  echo "$FORMAT_FILES" | xargs git add
+  staged_prettier_files | xargs -0 npx prettier --write --
+  staged_prettier_files | xargs -0 git add --
 fi
 
 echo "[pre-commit] bun run lint"
