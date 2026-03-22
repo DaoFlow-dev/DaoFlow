@@ -4,15 +4,12 @@ import { db } from "../db/connection";
 import { gitInstallations, gitProviders } from "../db/schema/git-providers";
 import { encodeGitInstallationPermissions } from "../db/services/git-providers";
 import { encrypt } from "../db/crypto";
-import { resetTestDatabase } from "../test-db";
-import { ensureControlPlaneReady, resetControlPlaneSeedState } from "../db/services/seed";
+import { resetSeededTestDatabase } from "../test-db";
 import { resolveCheckoutSpec } from "./checkout-source";
 
 describe("resolveCheckoutSpec", () => {
   beforeEach(async () => {
-    await resetTestDatabase();
-    resetControlPlaneSeedState();
-    await ensureControlPlaneReady();
+    await resetSeededTestDatabase();
   });
 
   afterEach(() => {

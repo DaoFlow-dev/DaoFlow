@@ -1,10 +1,14 @@
 import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
+import * as schema from "./db/schema";
 import { ensureDatabaseExists, resetDatabaseSchema } from "./db/reset-database";
-import { resetInitialOwnerBootstrapState } from "./bootstrap-initial-owner";
-import { ensureControlPlaneReady, resetControlPlaneSeedState } from "./db/services/seed";
+import { seedDeployments } from "./db/services/seed/seed-deployments";
+import { seedInfrastructure } from "./db/services/seed/seed-infrastructure";
+import { seedObservability } from "./db/services/seed/seed-observability";
+import { seedUsers } from "./db/services/seed/seed-users";
 
 const { Client } = pg;
 const TEST_DB_PREPARE_LOCK_ID = 8_705_231;
@@ -50,6 +54,36 @@ async function applyMigrations(connectionString: string) {
   } finally {
     await client.end();
   }
+}
+
+async function resetRuntimeBootstrapState() {
+  const [{ resetInitialOwnerBootstrapState }, { resetControlPlaneSeedState }] = await Promise.all([
+    import("./bootstrap-initial-owner"),
+    import("./db/services/seed")
+  ]);
+
+  resetControlPlaneSeedState();
+  resetInitialOwnerBootstrapState();
+}
+
+async function seedTestControlPlaneData(connectionString: string) {
+  const pool = new pg.Pool({ connectionString });
+
+  try {
+    const seedDb = drizzle(pool, { schema });
+    await seedDb.transaction(async (tx) => {
+      await seedUsers(tx);
+      await seedInfrastructure(tx);
+      await seedDeployments(tx);
+      await seedObservability(tx);
+    });
+  } finally {
+    await pool.end();
+  }
+
+  const { primeControlPlaneSeedState } = await import("./db/services/seed");
+  primeControlPlaneSeedState();
+  console.log("Seeded DaoFlow foundation control-plane data.");
 }
 
 async function withTestDatabaseLock<T>(
@@ -98,6 +132,11 @@ export async function ensureTestDatabaseReady() {
   process.env.DATABASE_URL = connectionString;
 
   if (prepared) {
+    const { getDatabaseConnectionString, reconfigureDatabasePool } =
+      await import("./db/connection");
+    if (getDatabaseConnectionString() !== connectionString) {
+      await reconfigureDatabasePool(connectionString);
+    }
     return connectionString;
   }
 
@@ -118,19 +157,26 @@ export async function ensureTestDatabaseReady() {
 
   await preparePromise;
 
+  const { getDatabaseConnectionString, reconfigureDatabasePool } = await import("./db/connection");
+  if (getDatabaseConnectionString() !== connectionString) {
+    await reconfigureDatabasePool(connectionString);
+  }
+
   return connectionString;
 }
 
 export async function resetTestDatabase() {
   const connectionString = await ensureTestDatabaseReady();
-  resetControlPlaneSeedState();
-  resetInitialOwnerBootstrapState();
+  await resetRuntimeBootstrapState();
   await withTestDatabaseLock(connectionString, async () => {
     await applyMigrations(connectionString);
   });
+  const { reconfigureDatabasePool } = await import("./db/connection");
+  await reconfigureDatabasePool(connectionString);
+  return connectionString;
 }
 
 export async function resetSeededTestDatabase() {
-  await resetTestDatabase();
-  await ensureControlPlaneReady();
+  const connectionString = await resetTestDatabase();
+  await seedTestControlPlaneData(connectionString);
 }

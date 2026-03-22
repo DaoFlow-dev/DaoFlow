@@ -17,9 +17,8 @@ import { executeRollback } from "./db/services/execute-rollback";
 import { encrypt } from "./db/crypto";
 import { encodeGitInstallationPermissions } from "./db/services/git-providers";
 import { asRecord } from "./db/services/json-helpers";
-import { resetTestDatabase } from "./test-db";
+import { resetSeededTestDatabase } from "./test-db";
 import { createLocalGitRepository } from "./test-git-repo";
-import { ensureControlPlaneReady, resetControlPlaneSeedState } from "./db/services/seed";
 
 function toRequestUrl(input: string | URL | Request): string {
   if (typeof input === "string") {
@@ -133,9 +132,7 @@ async function insertGitLabProviderFixture(input: {
 
 describe("project source persistence", () => {
   beforeEach(async () => {
-    await resetTestDatabase();
-    resetControlPlaneSeedState();
-    await ensureControlPlaneReady();
+    await resetSeededTestDatabase();
   });
 
   afterEach(() => {

@@ -14,10 +14,9 @@ import {
 import { asRecord } from "./db/services/json-helpers";
 import { upsertEnvironmentVariable } from "./db/services/envvars";
 import { createEnvironment, createProject } from "./db/services/projects";
-import { ensureControlPlaneReady, resetControlPlaneSeedState } from "./db/services/seed";
 import { createService } from "./db/services/services";
 import { triggerDeploy } from "./db/services/trigger-deploy";
-import { resetTestDatabase } from "./test-db";
+import { resetSeededTestDatabase } from "./test-db";
 import { createLocalGitRepository } from "./test-git-repo";
 
 function toRequestUrl(input: string | URL | Request): string {
@@ -251,9 +250,7 @@ async function createDirectUploadComposeFixture(input: {
 
 describe("deploy source revalidation", () => {
   beforeEach(async () => {
-    await resetTestDatabase();
-    resetControlPlaneSeedState();
-    await ensureControlPlaneReady();
+    await resetSeededTestDatabase();
   });
 
   afterEach(() => {

@@ -5,14 +5,13 @@ import { createApp } from "./app";
 import { db } from "./db/connection";
 import { encrypt } from "./db/crypto";
 import { deployments } from "./db/schema/deployments";
-import { ensureControlPlaneReady, resetControlPlaneSeedState } from "./db/services/seed";
 import { createEnvironment, createProject } from "./db/services/projects";
 import { encodeGitInstallationPermissions } from "./db/services/git-providers";
 import { createService } from "./db/services/services";
 import { auditEntries } from "./db/schema/audit";
 import { gitInstallations, gitProviders } from "./db/schema/git-providers";
 import { projects } from "./db/schema/projects";
-import { resetTestDatabase } from "./test-db";
+import { resetSeededTestDatabase } from "./test-db";
 
 function toRequestUrl(input: string | URL | Request): string {
   if (typeof input === "string") {
@@ -339,9 +338,7 @@ describe("webhook routes", () => {
   });
 
   it("deduplicates repeated GitHub deliveries by delivery id", async () => {
-    await resetTestDatabase();
-    resetControlPlaneSeedState();
-    await ensureControlPlaneReady();
+    await resetSeededTestDatabase();
 
     const fixture = await createGitHubComposeWebhookFixture({
       suffix: `${Date.now()}`,
@@ -415,9 +412,7 @@ describe("webhook routes", () => {
   });
 
   it("ignores GitHub deliveries that do not match the configured branch and records audit evidence", async () => {
-    await resetTestDatabase();
-    resetControlPlaneSeedState();
-    await ensureControlPlaneReady();
+    await resetSeededTestDatabase();
 
     const fixture = await createGitHubComposeWebhookFixture({
       suffix: `${Date.now()}`,
@@ -487,9 +482,7 @@ describe("webhook routes", () => {
   });
 
   it("ignores GitLab deliveries when changed paths do not match watched path filters", async () => {
-    await resetTestDatabase();
-    resetControlPlaneSeedState();
-    await ensureControlPlaneReady();
+    await resetSeededTestDatabase();
 
     const fixture = await createGitLabComposeWebhookFixture({
       suffix: `${Date.now()}`,
@@ -557,9 +550,7 @@ describe("webhook routes", () => {
   });
 
   it("uses GitHub installation metadata to avoid cross-provider repo collisions", async () => {
-    await resetTestDatabase();
-    resetControlPlaneSeedState();
-    await ensureControlPlaneReady();
+    await resetSeededTestDatabase();
 
     const sharedRepoFullName = "example/shared-installation-app";
     const githubFixture = await createGitHubComposeWebhookFixture({

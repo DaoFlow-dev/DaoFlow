@@ -7,7 +7,6 @@ import { db } from "./db/connection";
 import { encrypt } from "./db/crypto";
 import { encodeGitInstallationPermissions } from "./db/services/git-providers";
 import { createEnvironment, createProject } from "./db/services/projects";
-import { ensureControlPlaneReady, resetControlPlaneSeedState } from "./db/services/seed";
 import { asRecord } from "./db/services/json-helpers";
 import { createService } from "./db/services/services";
 import { events } from "./db/schema/audit";
@@ -15,7 +14,7 @@ import { deployments } from "./db/schema/deployments";
 import { gitInstallations, gitProviders } from "./db/schema/git-providers";
 import { projects } from "./db/schema/projects";
 import { webhookDeliveries } from "./db/schema/webhook-deliveries";
-import { resetTestDatabase } from "./test-db";
+import { resetSeededTestDatabase } from "./test-db";
 
 function toRequestUrl(input: string | URL | Request): string {
   if (typeof input === "string") {
@@ -265,9 +264,7 @@ describe("preview lifecycle webhooks", () => {
   });
 
   it("queues GitHub pull request preview deploys and records delivery state", async () => {
-    await resetTestDatabase();
-    resetControlPlaneSeedState();
-    await ensureControlPlaneReady();
+    await resetSeededTestDatabase();
 
     const fixture = await createPreviewFixture({ providerType: "github" });
     const payload = JSON.stringify({
@@ -356,9 +353,7 @@ describe("preview lifecycle webhooks", () => {
   });
 
   it("deduplicates repeated GitHub preview deliveries both by delivery id and by semantic preview state", async () => {
-    await resetTestDatabase();
-    resetControlPlaneSeedState();
-    await ensureControlPlaneReady();
+    await resetSeededTestDatabase();
 
     const fixture = await createPreviewFixture({ providerType: "github" });
     const payload = JSON.stringify({
@@ -440,9 +435,7 @@ describe("preview lifecycle webhooks", () => {
   });
 
   it("queues GitHub pull request cleanup as a preview destroy deployment", async () => {
-    await resetTestDatabase();
-    resetControlPlaneSeedState();
-    await ensureControlPlaneReady();
+    await resetSeededTestDatabase();
 
     const fixture = await createPreviewFixture({ providerType: "github" });
     const app = createApp();
@@ -522,9 +515,7 @@ describe("preview lifecycle webhooks", () => {
   });
 
   it("queues GitLab merge request preview deploys and cleanup", async () => {
-    await resetTestDatabase();
-    resetControlPlaneSeedState();
-    await ensureControlPlaneReady();
+    await resetSeededTestDatabase();
 
     const fixture = await createPreviewFixture({ providerType: "gitlab" });
     const app = createApp();
@@ -611,9 +602,7 @@ describe("preview lifecycle webhooks", () => {
   });
 
   it("records ignored preview lifecycle deliveries when services do not allow pull-request previews", async () => {
-    await resetTestDatabase();
-    resetControlPlaneSeedState();
-    await ensureControlPlaneReady();
+    await resetSeededTestDatabase();
 
     const fixture = await createPreviewFixture({
       providerType: "github",

@@ -9,8 +9,7 @@ import {
 import { cancelDeployment } from "./deployments";
 import { createEnvironment, createProject } from "./projects";
 import { createService } from "./services";
-import { ensureControlPlaneReady, resetControlPlaneSeedState } from "./seed";
-import { resetTestDatabase } from "../../test-db";
+import { resetSeededTestDatabase } from "../../test-db";
 import { asRecord } from "./json-helpers";
 
 let deploymentControlFixtureCounter = 0;
@@ -70,9 +69,7 @@ async function createDeploymentFixture(serviceName: string) {
 
 describe("deployment execution control", () => {
   beforeEach(async () => {
-    await resetTestDatabase();
-    resetControlPlaneSeedState();
-    await ensureControlPlaneReady();
+    await resetSeededTestDatabase();
   });
 
   it("skips queued deployments whose service already has an active execution", async () => {

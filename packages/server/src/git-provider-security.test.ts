@@ -1,8 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import type { Context } from "./context";
 import { appRouter } from "./router";
-import { resetTestDatabase } from "./test-db";
-import { ensureControlPlaneReady, resetControlPlaneSeedState } from "./db/services/seed";
+import { resetSeededTestDatabase } from "./test-db";
 import { db } from "./db/connection";
 import { gitInstallations, gitProviders } from "./db/schema/git-providers";
 import { encrypt } from "./db/crypto";
@@ -34,9 +33,7 @@ function makeSession(role: string): NonNullable<Context["session"]> {
 
 describe("git provider security surfaces", () => {
   beforeEach(async () => {
-    await resetTestDatabase();
-    resetControlPlaneSeedState();
-    await ensureControlPlaneReady();
+    await resetSeededTestDatabase();
   });
 
   it("returns sanitized git provider and installation summaries", async () => {

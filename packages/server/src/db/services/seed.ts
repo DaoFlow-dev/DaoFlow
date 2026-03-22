@@ -24,6 +24,10 @@ export function resetControlPlaneSeedState() {
   foundationSeedPromise = null;
 }
 
+export function primeControlPlaneSeedState() {
+  foundationSeedPromise = Promise.resolve();
+}
+
 export async function seedControlPlaneData() {
   await db.transaction(async (tx) => {
     await seedUsers(tx);

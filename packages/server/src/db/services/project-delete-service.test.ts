@@ -14,8 +14,7 @@ vi.mock("./project-runtime-cleanup", () => {
 import { db } from "../connection";
 import { auditEntries } from "../schema/audit";
 import { projects } from "../schema/projects";
-import { resetTestDatabase } from "../../test-db";
-import { ensureControlPlaneReady, resetControlPlaneSeedState } from "./seed";
+import { resetSeededTestDatabase } from "../../test-db";
 import { createProject } from "./projects";
 import { deleteProject } from "./project-delete-service";
 
@@ -41,9 +40,7 @@ async function createProjectFixture() {
 
 describe("deleteProject", () => {
   beforeEach(async () => {
-    await resetTestDatabase();
-    resetControlPlaneSeedState();
-    await ensureControlPlaneReady();
+    await resetSeededTestDatabase();
     cleanupProjectRuntimeMock.mockReset();
   });
 
