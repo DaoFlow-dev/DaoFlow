@@ -74,6 +74,26 @@ describe("sshArgs", () => {
 
     expect(args).not.toContain("-i");
   });
+
+  it("reads SSH directories dynamically instead of freezing them at module load", async () => {
+    const firstFixture = createSSHFixture();
+    process.env.SSH_CONTROL_DIR = firstFixture.controlDir;
+    process.env.SSH_KEY_DIR = firstFixture.keyDir;
+
+    const { sshArgs } = await loadSSHConnectionModule();
+
+    const secondFixture = createSSHFixture();
+    process.env.SSH_CONTROL_DIR = secondFixture.controlDir;
+    process.env.SSH_KEY_DIR = secondFixture.keyDir;
+    const keyPath = join(secondFixture.keyDir, "id_ed25519");
+    writeFileSync(keyPath, "test-private-key");
+
+    const args = sshArgs(target);
+
+    expect(args).toContain("-i");
+    expect(args).toContain(keyPath);
+    expect(args).toContain(`ControlPath=${join(secondFixture.controlDir, "%h-%p-%r")}`);
+  });
 });
 
 describe("scpUpload", () => {

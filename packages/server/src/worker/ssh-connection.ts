@@ -8,15 +8,24 @@
 
 import { spawn, type ChildProcess } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { mkdirSync, existsSync, writeFileSync, unlinkSync } from "node:fs";
+import { existsSync, mkdirSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { OnLog } from "./docker-executor";
 import { scpCommand, sshCommand, withCommandPath } from "./command-env";
 
-const SSH_CONTROL_DIR = process.env.SSH_CONTROL_DIR ?? "/tmp/daoflow-ssh";
-const SSH_KEY_DIR = process.env.SSH_KEY_DIR ?? "/tmp/daoflow-ssh-keys";
-const DEFAULT_SSH_USER = process.env.SSH_USER ?? "root";
 const SSH_CONNECT_TIMEOUT = 10; // seconds
+
+function getSSHControlDir(): string {
+  return process.env.SSH_CONTROL_DIR ?? "/tmp/daoflow-ssh";
+}
+
+function getSSHKeyDir(): string {
+  return process.env.SSH_KEY_DIR ?? "/tmp/daoflow-ssh-keys";
+}
+
+function getDefaultSSHUser(): string {
+  return process.env.SSH_USER ?? "root";
+}
 
 export interface SSHTarget {
   serverName: string;
@@ -31,8 +40,10 @@ export interface SSHTarget {
  * Ensure the SSH control directory exists for connection multiplexing.
  */
 function ensureControlDir(): void {
-  if (!existsSync(SSH_CONTROL_DIR)) {
-    mkdirSync(SSH_CONTROL_DIR, { recursive: true, mode: 0o700 });
+  const controlDir = getSSHControlDir();
+
+  if (!existsSync(controlDir)) {
+    mkdirSync(controlDir, { recursive: true, mode: 0o700 });
   }
 }
 
@@ -47,8 +58,8 @@ interface SSHTransportArgOptions {
 }
 
 function resolveSSHIdentity(target: SSHTarget): SSHResolvedIdentity {
-  const user = target.user ?? DEFAULT_SSH_USER;
-  const keyPath = target.privateKeyPath ?? join(SSH_KEY_DIR, "id_ed25519");
+  const user = target.user ?? getDefaultSSHUser();
+  const keyPath = target.privateKeyPath ?? join(getSSHKeyDir(), "id_ed25519");
 
   return {
     destination: `${user}@${target.host}`,
@@ -62,7 +73,7 @@ function buildSSHTransportArgs(
 ): SSHResolvedIdentity & { args: string[] } {
   ensureControlDir();
 
-  const controlPath = join(SSH_CONTROL_DIR, `%h-%p-%r`);
+  const controlPath = join(getSSHControlDir(), `%h-%p-%r`);
   const identity = resolveSSHIdentity(target);
   const args = [
     "-o",
@@ -219,11 +230,13 @@ export async function detectDockerVersion(
  * Write an SSH key to the key directory for a server.
  */
 export function writeSSHKey(serverName: string, privateKey: string): string {
-  if (!existsSync(SSH_KEY_DIR)) {
-    mkdirSync(SSH_KEY_DIR, { recursive: true, mode: 0o700 });
+  const keyDir = getSSHKeyDir();
+
+  if (!existsSync(keyDir)) {
+    mkdirSync(keyDir, { recursive: true, mode: 0o700 });
   }
   const keyPath = join(
-    SSH_KEY_DIR,
+    keyDir,
     `${serverName.replace(/[^a-zA-Z0-9_-]/g, "_")}-${randomUUID().slice(0, 8)}_id`
   );
   writeFileSync(keyPath, privateKey, { mode: 0o600 });
