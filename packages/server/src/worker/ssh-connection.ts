@@ -36,45 +36,73 @@ function ensureControlDir(): void {
   }
 }
 
-/**
- * Build SSH command arguments for a given target.
- * Includes connection multiplexing, strict host key checking options,
- * and timeout settings.
- */
-export function sshArgs(target: SSHTarget): string[] {
-  ensureControlDir();
+interface SSHResolvedIdentity {
+  destination: string;
+  keyPath: string;
+}
 
-  const controlPath = join(SSH_CONTROL_DIR, `%h-%p-%r`);
+interface SSHTransportArgOptions {
+  portFlag: "-p" | "-P";
+  includeKeepAlive?: boolean;
+}
+
+function resolveSSHIdentity(target: SSHTarget): SSHResolvedIdentity {
   const user = target.user ?? DEFAULT_SSH_USER;
   const keyPath = target.privateKeyPath ?? join(SSH_KEY_DIR, "id_ed25519");
 
+  return {
+    destination: `${user}@${target.host}`,
+    keyPath
+  };
+}
+
+function buildSSHTransportArgs(
+  target: SSHTarget,
+  options: SSHTransportArgOptions
+): SSHResolvedIdentity & { args: string[] } {
+  ensureControlDir();
+
+  const controlPath = join(SSH_CONTROL_DIR, `%h-%p-%r`);
+  const identity = resolveSSHIdentity(target);
   const args = [
     "-o",
     "StrictHostKeyChecking=accept-new",
     "-o",
     `ConnectTimeout=${SSH_CONNECT_TIMEOUT}`,
     "-o",
-    `ControlMaster=auto`,
+    "ControlMaster=auto",
     "-o",
     `ControlPath=${controlPath}`,
     "-o",
-    `ControlPersist=60`,
+    "ControlPersist=60",
     "-o",
-    "BatchMode=yes",
-    "-o",
-    "ServerAliveInterval=15",
-    "-o",
-    "ServerAliveCountMax=3",
-    "-p",
-    String(target.port)
+    "BatchMode=yes"
   ];
 
-  if (existsSync(keyPath)) {
-    args.push("-i", keyPath);
+  if (options.includeKeepAlive) {
+    args.push("-o", "ServerAliveInterval=15", "-o", "ServerAliveCountMax=3");
   }
 
-  args.push(`${user}@${target.host}`);
-  return args;
+  args.push(options.portFlag, String(target.port));
+
+  if (existsSync(identity.keyPath)) {
+    args.push("-i", identity.keyPath);
+  }
+
+  return { ...identity, args };
+}
+
+/**
+ * Build SSH command arguments for a given target.
+ * Includes connection multiplexing, strict host key checking options,
+ * and timeout settings.
+ */
+export function sshArgs(target: SSHTarget): string[] {
+  const transport = buildSSHTransportArgs(target, {
+    portFlag: "-p",
+    includeKeepAlive: true
+  });
+  return [...transport.args, transport.destination];
 }
 
 /**
@@ -224,34 +252,10 @@ export function scpUpload(
   onLog: OnLog
 ): Promise<{ exitCode: number; signal: string | null }> {
   return new Promise((resolve, reject) => {
-    ensureControlDir();
-
-    const controlPath = join(SSH_CONTROL_DIR, `%h-%p-%r`);
-    const user = target.user ?? DEFAULT_SSH_USER;
-    const keyPath = target.privateKeyPath ?? join(SSH_KEY_DIR, "id_ed25519");
-
-    const args = [
-      "-o",
-      "StrictHostKeyChecking=accept-new",
-      "-o",
-      `ConnectTimeout=${SSH_CONNECT_TIMEOUT}`,
-      "-o",
-      `ControlMaster=auto`,
-      "-o",
-      `ControlPath=${controlPath}`,
-      "-o",
-      `ControlPersist=60`,
-      "-o",
-      "BatchMode=yes",
-      "-P",
-      String(target.port)
-    ];
-
-    if (existsSync(keyPath)) {
-      args.push("-i", keyPath);
-    }
-
-    args.push(localPath, `${user}@${target.host}:${remotePath}`);
+    const transport = buildSSHTransportArgs(target, {
+      portFlag: "-P"
+    });
+    const args = [...transport.args, localPath, `${transport.destination}:${remotePath}`];
 
     onLog({
       stream: "stdout",
@@ -295,6 +299,6 @@ export function shellQuote(s: string): string {
   // Reject dangerous inputs before quoting
   if (s.length > 4096) throw new Error("Input too long for shell argument");
 
-  // Replace single quotes (%27) with '"'"' pattern
+  // Replace single quotes with the POSIX-safe '"'"' sequence.
   return `'${s.replace(/'/g, "'\"'\"'")}'`;
 }
