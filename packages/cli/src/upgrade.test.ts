@@ -17,8 +17,10 @@ const originalUpgradeRuntime = {
 
 describe("upgrade command", () => {
   let installDir: string;
+  let execCommands: string[];
 
   beforeEach(() => {
+    execCommands = [];
     installDir = mkdtempSync(join(tmpdir(), "daoflow-cli-upgrade-"));
     writeFileSync(
       join(installDir, ".env"),
@@ -33,7 +35,10 @@ describe("upgrade command", () => {
       "services:\n  daoflow:\n    image: old\n"
     );
 
-    upgradeRuntime.exec = () => "";
+    upgradeRuntime.exec = (command: string) => {
+      execCommands.push(command);
+      return "";
+    };
     upgradeRuntime.fetch = (url: string) => {
       expect(url).toBe("http://127.0.0.1:8080/trpc/health");
       return Promise.resolve(new Response(JSON.stringify({ ok: true }), { status: 200 }));
@@ -78,6 +83,7 @@ describe("upgrade command", () => {
       directory: installDir,
       healthy: true
     });
+    expect(execCommands).toEqual(["docker compose pull", "docker compose up -d --remove-orphans"]);
     expect(readFileSync(join(installDir, ".env"), "utf8")).toContain("DAOFLOW_VERSION=latest");
   });
 
@@ -106,5 +112,41 @@ describe("upgrade command", () => {
       healthy: true
     });
     expect(readFileSync(join(installDir, "docker-compose.yml"), "utf8")).toContain("image: old");
+  });
+
+  test("fails without changing the pinned version when the target image pull fails", async () => {
+    upgradeRuntime.exec = (command: string) => {
+      execCommands.push(command);
+      if (command === "docker compose pull") {
+        throw new Error("pull denied");
+      }
+      return "";
+    };
+
+    const program = new Command().name("daoflow");
+    program.addCommand(upgradeCommand());
+
+    const result = await captureCommandExecution(async () => {
+      await program.parseAsync([
+        "node",
+        "daoflow",
+        "upgrade",
+        "--dir",
+        installDir,
+        "--version",
+        "0.5.4",
+        "--yes",
+        "--json"
+      ]);
+    });
+
+    expect(result.exitCode).toBe(1);
+    expect(JSON.parse(result.logs[0])).toEqual({
+      ok: false,
+      code: "PULL_FAILED",
+      error: "pull denied"
+    });
+    expect(execCommands).toEqual(["docker compose pull"]);
+    expect(readFileSync(join(installDir, ".env"), "utf8")).toContain("DAOFLOW_VERSION=0.2.0");
   });
 });

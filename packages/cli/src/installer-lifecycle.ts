@@ -148,10 +148,17 @@ export function runComposeCommand(input: {
   dir: string;
   args: string;
   envPath?: string;
+  envOverrides?: Record<string, string>;
 }): string | Buffer {
-  const env = input.envPath
-    ? { ...process.env, ...parseEnvFile(readFileSync(input.envPath, "utf-8")) }
-    : undefined;
+  const fileEnv = input.envPath ? parseEnvFile(readFileSync(input.envPath, "utf-8")) : undefined;
+  const env =
+    fileEnv || input.envOverrides
+      ? {
+          ...process.env,
+          ...(fileEnv ?? {}),
+          ...(input.envOverrides ?? {})
+        }
+      : undefined;
 
   return input.runtime.exec(`docker compose ${input.args}`, {
     cwd: input.dir,

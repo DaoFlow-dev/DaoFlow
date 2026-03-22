@@ -63,10 +63,8 @@ export function upgradeCommand(): Command {
             }
           }
 
-          const updateSpinner = !ctx.isJson ? ora("Updating configuration...").start() : null;
           const newEnvContent = updateInstalledVersion(installState.envContent, targetVersion);
-          writeInstallFile(installState.envPath, newEnvContent);
-          updateSpinner?.succeed(`Version set to ${targetVersion}`);
+          const envOverrides = { DAOFLOW_VERSION: targetVersion };
 
           const composeSpinner = !ctx.isJson
             ? ora("Fetching latest docker-compose.yml...").start()
@@ -86,11 +84,17 @@ export function upgradeCommand(): Command {
             runComposeCommand({
               runtime: upgradeRuntime,
               dir: installState.dir,
-              args: "pull"
+              args: "pull",
+              envPath: installState.envPath,
+              envOverrides
             });
             pullSpinner?.succeed("New images pulled");
-          } catch {
-            pullSpinner?.warn("Pull failed — will try to restart with cached images");
+          } catch (error) {
+            pullSpinner?.fail("Failed to pull target images");
+            ctx.fail(getErrorMessage(error), {
+              code: "PULL_FAILED",
+              humanMessage: getExecErrorMessage(error)
+            });
           }
 
           const restartSpinner = !ctx.isJson ? ora("Restarting DaoFlow services...").start() : null;
@@ -98,7 +102,9 @@ export function upgradeCommand(): Command {
             runComposeCommand({
               runtime: upgradeRuntime,
               dir: installState.dir,
-              args: "up -d --remove-orphans"
+              args: "up -d --remove-orphans",
+              envPath: installState.envPath,
+              envOverrides
             });
             restartSpinner?.succeed("Services restarted");
           } catch (error) {
@@ -108,6 +114,8 @@ export function upgradeCommand(): Command {
               humanMessage: getExecErrorMessage(error)
             });
           }
+
+          writeInstallFile(installState.envPath, newEnvContent);
 
           const healthSpinner = !ctx.isJson ? ora("Waiting for health check...").start() : null;
           const healthy = await waitForInstallHealth({
