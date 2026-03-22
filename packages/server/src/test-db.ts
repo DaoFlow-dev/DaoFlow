@@ -20,6 +20,28 @@ function resolveBaseDatabaseUrl() {
   return process.env.DATABASE_URL ?? "postgresql://daoflow:daoflow_dev@localhost:5432/daoflow";
 }
 
+function resolveVitestWorkerSuffix() {
+  const workerId = process.env.VITEST_WORKER_ID ?? process.env.VITEST_POOL_ID;
+  if (!workerId) {
+    return "";
+  }
+
+  return `_w${workerId.replaceAll(/[^a-zA-Z0-9_-]/g, "")}`;
+}
+
+function applyDatabaseNameSuffix(databaseName: string, suffix: string) {
+  if (!suffix) {
+    return databaseName;
+  }
+
+  const maxDatabaseNameLength = 63;
+  const truncatedBaseName = databaseName.slice(
+    0,
+    Math.max(1, maxDatabaseNameLength - suffix.length)
+  );
+  return `${truncatedBaseName}${suffix}`;
+}
+
 function resolveTestDatabaseUrl() {
   if (process.env.TEST_DATABASE_URL) {
     return process.env.TEST_DATABASE_URL;
@@ -27,10 +49,15 @@ function resolveTestDatabaseUrl() {
 
   const baseUrl = new URL(resolveBaseDatabaseUrl());
   const databaseName = baseUrl.pathname.replace(/^\//, "") || "daoflow";
-  if (databaseName.endsWith("_test")) {
-    return baseUrl.toString();
-  }
-  baseUrl.pathname = `/${databaseName}_test`;
+  const workerSuffix = resolveVitestWorkerSuffix();
+  const unsuffixedDatabaseName =
+    workerSuffix && databaseName.endsWith(workerSuffix)
+      ? databaseName.slice(0, -workerSuffix.length)
+      : databaseName;
+  const testDatabaseName = unsuffixedDatabaseName.endsWith("_test")
+    ? unsuffixedDatabaseName
+    : `${unsuffixedDatabaseName}_test`;
+  baseUrl.pathname = `/${applyDatabaseNameSuffix(testDatabaseName, workerSuffix)}`;
   return baseUrl.toString();
 }
 
@@ -102,6 +129,11 @@ export async function ensureTestDatabaseReady() {
   process.env.DATABASE_URL = connectionString;
 
   if (prepared) {
+    const { getDatabaseConnectionString, reconfigureDatabasePool } =
+      await import("./db/connection");
+    if (getDatabaseConnectionString() !== connectionString) {
+      await reconfigureDatabasePool(connectionString);
+    }
     return connectionString;
   }
 
@@ -121,6 +153,11 @@ export async function ensureTestDatabaseReady() {
   }
 
   await preparePromise;
+
+  const { getDatabaseConnectionString, reconfigureDatabasePool } = await import("./db/connection");
+  if (getDatabaseConnectionString() !== connectionString) {
+    await reconfigureDatabasePool(connectionString);
+  }
 
   return connectionString;
 }
