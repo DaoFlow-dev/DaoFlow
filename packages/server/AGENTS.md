@@ -7,7 +7,8 @@ This file holds server-local rules. For schema, migration, and seed work, use [s
 ## Build & Test
 
 - Run `bun run typecheck` before committing.
-- Run `bun run test` to execute vitest with coverage.
+- Run `bun --filter @daoflow/server test` for server-only changed-surface validation with coverage.
+- Still run the repo-wide root validation gates from the root `AGENTS.md` before commit and push.
 - Server uses Hono (NOT Express). Never import from `express`.
 
 ## Schema & Migrations
