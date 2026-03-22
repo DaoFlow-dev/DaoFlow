@@ -1911,7 +1911,8 @@
         "properties": {
           "policyId": {
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "maxLength": 32
           }
         },
         "required": ["policyId"],
@@ -3351,10 +3352,6 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
         "properties": {
-          "id": {
-            "type": "string",
-            "minLength": 1
-          },
           "name": {
             "type": "string",
             "minLength": 1,
@@ -3396,6 +3393,10 @@
           },
           "localPath": {
             "type": "string"
+          },
+          "id": {
+            "type": "string",
+            "minLength": 1
           }
         },
         "required": ["id"],
@@ -3415,11 +3416,6 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
         "properties": {
-          "policyId": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 32
-          },
           "name": {
             "type": "string",
             "minLength": 1,
@@ -3484,6 +3480,11 @@
           "status": {
             "type": "string",
             "enum": ["active", "paused"]
+          },
+          "policyId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32
           }
         },
         "required": ["policyId"],
