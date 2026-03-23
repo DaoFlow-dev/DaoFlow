@@ -22,6 +22,7 @@ const originalInstallRuntime = {
   fetch: installRuntime.fetch,
   fetchComposeYml: installRuntime.fetchComposeYml,
   prompt: installRuntime.prompt,
+  promptSelect: installRuntime.promptSelect,
   sleep: installRuntime.sleep
 };
 
@@ -48,6 +49,9 @@ describe("install command", () => {
     installRuntime.prompt = () => {
       throw new Error("prompt should not be used in non-interactive tests");
     };
+    installRuntime.promptSelect = () => {
+      throw new Error("promptSelect should not be used in non-interactive tests");
+    };
     installRuntime.sleep = () => Promise.resolve();
   });
 
@@ -57,6 +61,7 @@ describe("install command", () => {
     installRuntime.fetch = originalInstallRuntime.fetch;
     installRuntime.fetchComposeYml = originalInstallRuntime.fetchComposeYml;
     installRuntime.prompt = originalInstallRuntime.prompt;
+    installRuntime.promptSelect = originalInstallRuntime.promptSelect;
     installRuntime.sleep = originalInstallRuntime.sleep;
 
     if (originalInitialAdminEmail) {
@@ -237,6 +242,9 @@ DEPLOY_TIMEOUT_MS=900000
     process.env.DAOFLOW_INITIAL_ADMIN_PASSWORD = "env-secret-123";
 
     installRuntime.exec = (command: string) => {
+      if (command === "docker info") {
+        return "";
+      }
       if (command.startsWith("command -v tailscale")) {
         return "/usr/bin/tailscale\n";
       }
@@ -487,13 +495,13 @@ DEPLOY_TIMEOUT_MS=900000
   });
 
   test("interactive install upgrades localhost to https when the user enters a public domain", async () => {
+    // New prompt order: dir, (exposure via promptSelect), CF tunnel, domain, port, email, password, DB passwords, confirm
     installRuntime.prompt = (() => {
       const answers = [
         installDir,
+        "n",
         "deploy.example.com",
         "3000",
-        "none",
-        "n",
         "owner@example.com",
         "interactive-secret-123",
         "auto",
@@ -502,6 +510,7 @@ DEPLOY_TIMEOUT_MS=900000
 
       return () => Promise.resolve(String(answers.shift() ?? ""));
     })();
+    installRuntime.promptSelect = () => Promise.resolve("none" as never);
 
     const program = new Command().name("daoflow");
     program.addCommand(installCommand());
@@ -518,6 +527,81 @@ DEPLOY_TIMEOUT_MS=900000
 
     const envFile = parseEnvFile(readFileSync(join(installDir, ".env"), "utf8"));
     expect(envFile.BETTER_AUTH_URL).toBe("https://deploy.example.com:3000");
+  });
+
+  test("Docker permission denied produces a structured error", async () => {
+    process.env.DAOFLOW_INITIAL_ADMIN_EMAIL = "owner@example.com";
+    process.env.DAOFLOW_INITIAL_ADMIN_PASSWORD = "env-secret-123";
+
+    installRuntime.exec = (command: string) => {
+      if (command === "docker info") {
+        throw new Error(
+          "Got permission denied while trying to connect to the Docker daemon socket at unix:///var/run/docker.sock: permission denied"
+        );
+      }
+      return "";
+    };
+
+    const program = new Command().name("daoflow");
+    program.addCommand(installCommand());
+
+    const result = await captureCommandExecution(async () => {
+      await program.parseAsync([
+        "node",
+        "daoflow",
+        "install",
+        "--dir",
+        installDir,
+        "--yes",
+        "--json"
+      ]);
+    });
+
+    expect(result.exitCode).toBe(1);
+    expect(JSON.parse(result.logs[0])).toMatchObject({
+      ok: false,
+      code: "DOCKER_PERMISSION_DENIED"
+    });
+  });
+
+  test("interactive install re-prompts on invalid domain for traefik", async () => {
+    // Answers: dir, (exposure = traefik via promptSelect), CF tunnel = n,
+    // domain = localhost (invalid, re-prompted), domain = deploy.example.com (valid),
+    // port, email, password, ACME email, DB passwords, confirm
+    installRuntime.prompt = (() => {
+      const answers = [
+        installDir,
+        "n",
+        "localhost",
+        "deploy.example.com",
+        "3000",
+        "owner@example.com",
+        "interactive-secret-123",
+        "owner@example.com",
+        "auto",
+        "y"
+      ];
+
+      return () => Promise.resolve(String(answers.shift() ?? ""));
+    })();
+    installRuntime.promptSelect = () => Promise.resolve("traefik" as never);
+
+    const program = new Command().name("daoflow");
+    program.addCommand(installCommand());
+
+    const result = await captureCommandExecution(async () => {
+      await program.parseAsync(["node", "daoflow", "install", "--json"]);
+    });
+
+    expect(result.exitCode).toBe(0);
+    expect(JSON.parse(result.logs[0])).toMatchObject({
+      ok: true,
+      url: "https://deploy.example.com"
+    });
+
+    const envFile = parseEnvFile(readFileSync(join(installDir, ".env"), "utf8"));
+    expect(envFile.BETTER_AUTH_URL).toBe("https://deploy.example.com");
+    expect(envFile.DAOFLOW_DOMAIN).toBe("deploy.example.com");
   });
 
   test("install error payload keeps canonical fields ahead of extra metadata", () => {

@@ -1,5 +1,3 @@
-const BASIC_HOSTNAME_PATTERN = /\./;
-
 export const CLOUDFLARE_TUNNEL_TOKEN_ENV = "CLOUDFLARE_TUNNEL_TOKEN";
 export const CLOUDFLARE_TUNNEL_ORIGIN = "http://daoflow:3000";
 export const CLOUDFLARED_IMAGE = "cloudflare/cloudflared:latest";
@@ -29,16 +27,10 @@ export function resolveCloudflareTunnelToken(input: {
 
 export function getCloudflareTunnelConfigurationError(input: {
   enabled: boolean;
-  domain: string;
   token?: string;
 }): string | null {
   if (!input.enabled) {
     return null;
-  }
-
-  const hostname = normalizeHostname(input.domain);
-  if (hostname === "localhost" || !BASIC_HOSTNAME_PATTERN.test(hostname)) {
-    return "Cloudflare Tunnel requires a public domain like deploy.example.com.";
   }
 
   if (!trimOptional(input.token)) {

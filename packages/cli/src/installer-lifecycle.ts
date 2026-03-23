@@ -16,12 +16,23 @@ export interface ExistingInstallState {
   scheme?: "http" | "https";
 }
 
+export interface SelectChoice<T extends string = string> {
+  label: string;
+  value: T;
+}
+
 export interface InstallerRuntime {
   checkDocker(this: void): { available: boolean; compose: boolean; version?: string };
   exec(this: void, command: string, options?: Parameters<typeof execSync>[1]): string | Buffer;
   fetch(this: void, url: string): Promise<Response>;
   fetchComposeYml(this: void): Promise<string>;
   prompt(this: void, question: string, defaultValue?: string): Promise<string>;
+  promptSelect<T extends string>(
+    this: void,
+    question: string,
+    choices: SelectChoice<T>[],
+    defaultValue?: T
+  ): Promise<T>;
   sleep(this: void, ms: number): Promise<void>;
 }
 
@@ -34,6 +45,30 @@ export function prompt(question: string, defaultValue?: string): Promise<string>
       resolve(answer.trim() || defaultValue || "");
     });
   });
+}
+
+export async function promptSelect<T extends string>(
+  question: string,
+  choices: SelectChoice<T>[],
+  defaultValue?: T
+): Promise<T> {
+  const defaultIndex = defaultValue ? choices.findIndex((c) => c.value === defaultValue) : -1;
+  const defaultNum = defaultIndex >= 0 ? defaultIndex + 1 : 1;
+
+  console.error(`\n${question}:`);
+  for (let i = 0; i < choices.length; i++) {
+    const marker = i + 1 === defaultNum ? "●" : "○";
+    console.error(`  ${marker} ${String(i + 1)}) ${choices[i].label}`);
+  }
+
+  while (true) {
+    const answer = await prompt("Select", String(defaultNum));
+    const num = parseInt(answer, 10);
+    if (num >= 1 && num <= choices.length) {
+      return choices[num - 1].value;
+    }
+    console.error(`  Please enter a number between 1 and ${choices.length}.`);
+  }
 }
 
 export function checkDocker(): { available: boolean; compose: boolean; version?: string } {
@@ -58,6 +93,7 @@ export const installerRuntime: InstallerRuntime = {
   fetch: (url) => globalThis.fetch(url),
   fetchComposeYml,
   prompt,
+  promptSelect,
   sleep: (ms) =>
     new Promise((resolve) => {
       setTimeout(resolve, ms);

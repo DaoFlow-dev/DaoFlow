@@ -102,6 +102,25 @@ export function installCommand(): Command {
 
           dockerSpinner?.succeed(`Docker found: ${docker.version}`);
 
+          const permSpinner = !ctx.isJson ? ora("Checking Docker permissions...").start() : null;
+          try {
+            installRuntime.exec("docker info", { encoding: "utf-8", stdio: "pipe" });
+            permSpinner?.succeed("Docker permissions OK");
+          } catch (permError) {
+            permSpinner?.fail("Insufficient Docker permissions");
+            const permMsg = String(permError);
+            if (permMsg.includes("permission denied")) {
+              ctx.fail(
+                "Cannot connect to the Docker daemon. Add your user to the docker group " +
+                  "(sudo usermod -aG docker $USER) then log out and back in, or run this installer with sudo.",
+                { code: "DOCKER_PERMISSION_DENIED" }
+              );
+            }
+            ctx.fail("Docker daemon is not reachable: " + getErrorMessage(permError), {
+              code: "DOCKER_UNREACHABLE"
+            });
+          }
+
           const config = await collectInstallConfiguration({
             options: opts,
             command,

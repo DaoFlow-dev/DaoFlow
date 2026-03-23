@@ -1,4 +1,5 @@
 import type { Command } from "commander";
+import chalk from "chalk";
 import type { CommandActionContext } from "./command-action";
 import {
   INITIAL_ADMIN_EMAIL_ENV,
@@ -11,13 +12,18 @@ import {
   resolveCloudflareTunnelToken
 } from "./install-cloudflare";
 import {
+  DASHBOARD_EXPOSURE_MODES,
   describeDashboardExposureMode,
   parseDashboardExposureMode,
   readDashboardExposureState,
   type DashboardExposureMode
 } from "./install-exposure-state";
-import { getTraefikConfigurationError, resolveTraefikAcmeEmail } from "./install-traefik";
-import type { ExistingInstallState, InstallerRuntime } from "./installer-lifecycle";
+import {
+  getTraefikConfigurationError,
+  isTraefikExposureMode,
+  resolveTraefikAcmeEmail
+} from "./install-traefik";
+import type { ExistingInstallState, InstallerRuntime, SelectChoice } from "./installer-lifecycle";
 import { parsePort, readExistingInstall } from "./installer-lifecycle";
 
 export interface InstallOptions {
@@ -84,7 +90,7 @@ export async function collectInstallConfiguration(input: {
   options: InstallOptions;
   command: Command;
   ctx: CommandActionContext;
-  runtime: Pick<InstallerRuntime, "prompt">;
+  runtime: Pick<InstallerRuntime, "prompt" | "promptSelect">;
 }): Promise<InstallConfigurationResult> {
   const isNonInteractive = input.options.yes ?? false;
   const hasExplicitDomain = input.command.getOptionValueSource("domain") === "cli";
@@ -141,6 +147,7 @@ export async function collectInstallConfiguration(input: {
     console.error("\n🚀 DaoFlow Installer\n");
     console.error("This will create a production DaoFlow instance on this server.\n");
 
+    // --- Step 1: Install directory ---
     dir = await input.runtime.prompt("Install directory", dir);
     existingInstall = readExistingInstall(dir);
     const existingExposure = readDashboardExposureState(dir);
@@ -165,28 +172,17 @@ export async function collectInstallConfiguration(input: {
 
     exposureMode = hasExplicitExpose ? exposureMode : (existingExposure?.mode ?? exposureMode);
 
-    domain = await input.runtime.prompt("Domain name", domain || "localhost");
-    const portStr = await input.runtime.prompt("Local dashboard port", String(port));
-    port = parsePort(portStr);
-    if (port === null) {
-      input.ctx.fail(`Invalid port "${portStr}". Use an integer between 1 and 65535.`, {
-        code: "INVALID_PORT"
-      });
-    }
-
-    exposureMode = requireInstallValue(
-      parseDashboardExposureMode(
-        await input.runtime.prompt(
-          "Dashboard exposure (none/traefik/cloudflare-quick/tailscale-serve/tailscale-funnel)",
-          exposureMode
-        )
-      ),
-      () =>
-        input.ctx.fail("Invalid dashboard exposure mode.", {
-          code: "INVALID_EXPOSURE_MODE"
-        })
+    // --- Step 2: Dashboard exposure (numbered selector) ---
+    const exposureChoices: SelectChoice<DashboardExposureMode>[] = DASHBOARD_EXPOSURE_MODES.map(
+      (mode) => ({ label: describeDashboardExposureMode(mode), value: mode })
+    );
+    exposureMode = await input.runtime.promptSelect(
+      "Dashboard exposure",
+      exposureChoices,
+      exposureMode
     );
 
+    // --- Step 3: Cloudflare Tunnel sidecar ---
     const cloudflareTunnelAnswer = await input.runtime.prompt(
       "Enable Cloudflare Tunnel sidecar? (y/N)",
       cloudflareTunnelEnabled ? "y" : "n"
@@ -201,6 +197,42 @@ export async function collectInstallConfiguration(input: {
       cloudflareTunnelToken = undefined;
     }
 
+    // --- Step 4: Domain name (conditional, with re-prompt loop) ---
+    const requiresPublicDomain =
+      isTraefikExposureMode(exposureMode) || exposureMode === "tailscale-funnel";
+    const wantsDomain = requiresPublicDomain || cloudflareTunnelEnabled;
+
+    if (wantsDomain) {
+      const defaultDomain = domain && domain !== "localhost" ? domain : "";
+      while (true) {
+        domain = await input.runtime.prompt(
+          "Domain name (e.g. deploy.example.com)",
+          defaultDomain || undefined
+        );
+        const hostname = domain.trim().toLowerCase();
+        if (hostname && hostname !== "localhost" && hostname.includes(".")) {
+          break;
+        }
+        console.error(
+          chalk.yellow(
+            "  A valid public domain is required for this exposure mode. Please try again."
+          )
+        );
+      }
+    } else {
+      domain = await input.runtime.prompt("Domain name", domain || "localhost");
+    }
+
+    // --- Step 5: Local dashboard port ---
+    const portStr = await input.runtime.prompt("Local dashboard port", String(port));
+    port = parsePort(portStr);
+    if (port === null) {
+      input.ctx.fail(`Invalid port "${portStr}". Use an integer between 1 and 65535.`, {
+        code: "INVALID_PORT"
+      });
+    }
+
+    // --- Step 6: Admin credentials ---
     email = await input.runtime.prompt("Admin email", email);
     if (password) {
       console.error("Admin password already provided via flag or environment.");
@@ -216,6 +248,7 @@ export async function collectInstallConfiguration(input: {
       input.ctx.fail("Admin password must be at least 8 characters.");
     }
 
+    // --- Step 7: Let's Encrypt email (traefik only) ---
     if (exposureMode === "traefik" && !hasExplicitAcmeEmail) {
       acmeEmail = await input.runtime.prompt("Let's Encrypt email", acmeEmail ?? email);
     }
@@ -234,6 +267,7 @@ export async function collectInstallConfiguration(input: {
       existingEnv: existingInstall?.env
     });
 
+    // --- Step 8: Database passwords ---
     if (existingInstall) {
       console.error(`\nExisting DaoFlow installation found (v${existingInstall.version}).`);
       console.error(
@@ -257,6 +291,7 @@ export async function collectInstallConfiguration(input: {
       }
     }
 
+    // --- Validate exposure configuration ---
     const traefikError = getTraefikConfigurationError({
       exposureMode,
       domain,
@@ -271,7 +306,6 @@ export async function collectInstallConfiguration(input: {
 
     const cloudflareError = getCloudflareTunnelConfigurationError({
       enabled: cloudflareTunnelEnabled,
-      domain,
       token: cloudflareTunnelToken
     });
     if (cloudflareError) {
@@ -411,7 +445,6 @@ export async function collectInstallConfiguration(input: {
 
   const cloudflareError = getCloudflareTunnelConfigurationError({
     enabled: cloudflareTunnelEnabled,
-    domain,
     token: cloudflareTunnelToken
   });
   if (cloudflareError) {

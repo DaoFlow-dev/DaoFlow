@@ -28,21 +28,25 @@ describe("install cloudflare helpers", () => {
     ).toBe("preserved-token");
   });
 
-  test("requires a public domain and token when Cloudflare Tunnel is enabled", () => {
+  test("requires a tunnel token when Cloudflare Tunnel is enabled", () => {
     expect(
       getCloudflareTunnelConfigurationError({
         enabled: true,
-        domain: "localhost",
-        token: "token"
+        token: "my-token"
       })
-    ).toContain("public domain");
+    ).toBeNull();
 
     expect(
       getCloudflareTunnelConfigurationError({
-        enabled: true,
-        domain: "deploy.example.com"
+        enabled: true
       })
     ).toContain("Cloudflare tunnel token");
+
+    expect(
+      getCloudflareTunnelConfigurationError({
+        enabled: false
+      })
+    ).toBeNull();
   });
 
   test("builds the public URL and proxy guide for the dashboard container", () => {
