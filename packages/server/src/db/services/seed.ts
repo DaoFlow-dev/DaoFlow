@@ -40,13 +40,32 @@ export function primeControlPlaneSeedState() {
   getFoundationSeedPromise().current = Promise.resolve();
 }
 
+/**
+ * Bootstrap the minimum control-plane state needed for first login.
+ *
+ * In production only the admin user is seeded. The real localhost server
+ * is auto-registered by bootstrap-localhost-server.ts, and the dashboard
+ * shows actual container state instead of phantom deployment records.
+ *
+ * In test environments the full demo dataset (infrastructure, deployments,
+ * observability) is seeded so integration tests have fixture data.
+ */
 export async function seedControlPlaneData() {
+  const isTest = process.env.NODE_ENV === "test";
+
   await db.transaction(async (tx) => {
     await seedUsers(tx);
-    await seedInfrastructure(tx);
-    await seedDeployments(tx);
-    await seedObservability(tx);
+
+    if (isTest) {
+      await seedInfrastructure(tx);
+      await seedDeployments(tx);
+      await seedObservability(tx);
+    }
   });
 
-  console.log("Seeded DaoFlow foundation control-plane data.");
+  console.log(
+    isTest
+      ? "Seeded DaoFlow foundation control-plane data (test mode)."
+      : "Seeded DaoFlow admin bootstrap data."
+  );
 }
