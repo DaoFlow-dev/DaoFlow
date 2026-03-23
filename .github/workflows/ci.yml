@@ -173,7 +173,8 @@ jobs:
           BETTER_AUTH_SECRET: daoflow-ci-secret-long-enough-2026
           BETTER_AUTH_URL: http://127.0.0.1:3000
           ENCRYPTION_KEY: daoflow-ci-encryption-key-32chars00
-          NODE_ENV: test
+          NODE_ENV: production
+          DAOFLOW_SEED_DEMO: "1"
           DISABLE_WORKER: "true"
           CI: true
 
@@ -246,7 +247,8 @@ jobs:
           TEMPORAL_ADDRESS: localhost:7233
           TEMPORAL_NAMESPACE: daoflow
           DAOFLOW_ENABLE_TEMPORAL: "true"
-          NODE_ENV: test
+          NODE_ENV: production
+          DAOFLOW_SEED_DEMO: "1"
 
       - name: Stop dev Compose stack
         if: always()

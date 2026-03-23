@@ -41,22 +41,33 @@ export function primeControlPlaneSeedState() {
 }
 
 /**
+ * Should we seed demo fixture data?
+ *
+ * - Vitest sets `VITEST` automatically — unit/integration tests always get fixtures.
+ * - E2E CI can opt in via `DAOFLOW_SEED_DEMO=1`.
+ * - Production installs never set either, so they start with a clean slate.
+ */
+function shouldSeedDemo(): boolean {
+  return Boolean(process.env.VITEST || process.env.DAOFLOW_SEED_DEMO);
+}
+
+/**
  * Bootstrap the minimum control-plane state needed for first login.
  *
  * In production only the admin user is seeded. The real localhost server
  * is auto-registered by bootstrap-localhost-server.ts, and the dashboard
  * shows actual container state instead of phantom deployment records.
  *
- * In test environments the full demo dataset (infrastructure, deployments,
- * observability) is seeded so integration tests have fixture data.
+ * In test/CI environments the full demo dataset (infrastructure,
+ * deployments, observability) is seeded so tests have fixture data.
  */
 export async function seedControlPlaneData() {
-  const isTest = process.env.NODE_ENV === "test";
+  const seedDemo = shouldSeedDemo();
 
   await db.transaction(async (tx) => {
     await seedUsers(tx);
 
-    if (isTest) {
+    if (seedDemo) {
       await seedInfrastructure(tx);
       await seedDeployments(tx);
       await seedObservability(tx);
@@ -64,8 +75,8 @@ export async function seedControlPlaneData() {
   });
 
   console.log(
-    isTest
-      ? "Seeded DaoFlow foundation control-plane data (test mode)."
+    seedDemo
+      ? "Seeded DaoFlow foundation control-plane data (demo fixtures)."
       : "Seeded DaoFlow admin bootstrap data."
   );
 }
