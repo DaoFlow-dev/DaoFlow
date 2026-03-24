@@ -129,7 +129,7 @@ describe("login command", () => {
 
         if (url.endsWith("/trpc/viewer")) {
           expect((init?.headers as Record<string, string>)?.Cookie).toBe(
-            "better-auth.session_token=session_test_token"
+            "better-auth.session_token=session_test_token; __Secure-better-auth.session_token=session_test_token"
           );
           return Promise.resolve(
             new Response(
@@ -252,7 +252,7 @@ describe("login command", () => {
 
         if (url.endsWith("/trpc/viewer")) {
           expect((init?.headers as Record<string, string>)?.Cookie).toBe(
-            "better-auth.session_token=session_cookie_value"
+            "better-auth.session_token=session_cookie_value; __Secure-better-auth.session_token=session_cookie_value"
           );
           return Promise.resolve(
             new Response(
@@ -397,7 +397,7 @@ describe("login command", () => {
 
         if (url.endsWith("/trpc/viewer")) {
           expect((init?.headers as Record<string, string>)?.Cookie).toBe(
-            "better-auth.session_token=session_from_sso"
+            "better-auth.session_token=session_from_sso; __Secure-better-auth.session_token=session_from_sso"
           );
           return Promise.resolve(
             new Response(
@@ -522,7 +522,7 @@ describe("login command", () => {
 
         if (url.endsWith("/trpc/viewer")) {
           expect((init?.headers as Record<string, string>)?.Cookie).toBe(
-            "better-auth.session_token=session_from_sso"
+            "better-auth.session_token=session_from_sso; __Secure-better-auth.session_token=session_from_sso"
           );
           return Promise.resolve(
             new Response(

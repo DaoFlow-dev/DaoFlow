@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -15,6 +16,8 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { getBadgeVariantFromTone, getDeploymentStepTone, getToneDotClass } from "@/lib/tone-utils";
+
+const DeploymentLogViewer = lazy(() => import("@/components/DeploymentLogViewer"));
 
 interface DeploymentsTabProps {
   serviceId: string;
@@ -279,6 +282,13 @@ export default function DeploymentsTab({ serviceId, serviceName }: DeploymentsTa
                         </pre>
                       </div>
                     ) : null}
+
+                    {/* Deployment build / deploy logs */}
+                    <div className="mt-3 pt-3 border-t">
+                      <Suspense fallback={<Skeleton className="h-20 w-full rounded-md" />}>
+                        <DeploymentLogViewer deploymentId={d.id} />
+                      </Suspense>
+                    </div>
                   </div>
                 )}
               </Card>

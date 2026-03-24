@@ -114,10 +114,14 @@ describe("executeComposeDeploy", () => {
       project: "upload-stack"
     });
     expect(intakeHeaders["Content-Type"]).toBe("application/json");
-    expect(intakeHeaders.Cookie).toBe("better-auth.session_token=session-token");
+    expect(intakeHeaders.Cookie).toBe(
+      "better-auth.session_token=session-token; __Secure-better-auth.session_token=session-token"
+    );
     expect("X-DaoFlow-Compose" in intakeHeaders).toBe(false);
     expect(uploadHeaders["Content-Type"]).toBe("application/gzip");
-    expect(uploadHeaders.Cookie).toBe("better-auth.session_token=session-token");
+    expect(uploadHeaders.Cookie).toBe(
+      "better-auth.session_token=session-token; __Secure-better-auth.session_token=session-token"
+    );
     expect("X-DaoFlow-Compose" in uploadHeaders).toBe(false);
     expect(requests[1]?.init.duplex).toBe("half");
   });

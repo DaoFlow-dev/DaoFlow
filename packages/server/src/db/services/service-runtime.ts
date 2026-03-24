@@ -40,6 +40,25 @@ function normalizeServiceName(value: string): string {
   return value.trim();
 }
 
+/**
+ * Extract the compose service name from the build plan stored in the
+ * deployment config snapshot.  When a compose project has a single
+ * graph service (the common case for DaoFlow services), its
+ * `serviceName` matches the Docker label
+ * `com.docker.compose.service`.
+ */
+function deriveComposeServiceNameFromBuildPlan(snapshot: Record<string, unknown>): string {
+  const buildPlan = snapshot.composeBuildPlan;
+  if (!buildPlan || typeof buildPlan !== "object") return "";
+
+  const graphServices = (buildPlan as Record<string, unknown>).graphServices;
+  if (!Array.isArray(graphServices) || graphServices.length === 0) return "";
+
+  const first = graphServices[0] as Record<string, unknown> | undefined;
+  const name = first?.serviceName;
+  return typeof name === "string" ? name.trim() : "";
+}
+
 function deriveProjectName(deployment: typeof deployments.$inferSelect): string {
   const snapshot = asRecord(deployment.configSnapshot);
   const explicitProjectName = readString(snapshot, "projectName");
@@ -115,6 +134,7 @@ export async function resolveServiceRuntime(
     const composeServiceName =
       readString(snapshot, "composeServiceName") ||
       normalizeServiceName(service.composeServiceName ?? "") ||
+      deriveComposeServiceNameFromBuildPlan(snapshot) ||
       normalizeServiceName(service.name);
 
     return {

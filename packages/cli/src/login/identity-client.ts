@@ -117,10 +117,14 @@ export async function signInWithEmailPassword(
   });
 
   const setCookie: string[] = response.headers.getSetCookie?.() ?? [];
-  const sessionCookie = setCookie.find((cookie) => cookie.startsWith("better-auth.session_token="));
+  const sessionCookie = setCookie.find(
+    (cookie) =>
+      cookie.startsWith("better-auth.session_token=") ||
+      cookie.startsWith("__Secure-better-auth.session_token=")
+  );
 
   if (sessionCookie) {
-    const match = sessionCookie.match(/better-auth\.session_token=([^;]+)/);
+    const match = sessionCookie.match(/(?:__Secure-)?better-auth\.session_token=([^;]+)/);
     if (!match?.[1]) {
       throw new LoginCommandError("Could not parse session cookie", "SESSION_COOKIE_INVALID");
     }

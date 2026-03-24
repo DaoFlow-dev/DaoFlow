@@ -8,7 +8,12 @@ export function buildAuthHeaders(
 ): Record<string, string> {
   const authHeaders: Record<string, string> = isApiTokenValue(token)
     ? { Authorization: `Bearer ${token}` }
-    : { Cookie: `better-auth.session_token=${token}` };
+    : {
+        Cookie: [
+          `better-auth.session_token=${token}`,
+          `__Secure-better-auth.session_token=${token}`
+        ].join("; ")
+      };
 
   return {
     ...authHeaders,

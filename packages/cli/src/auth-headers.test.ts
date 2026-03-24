@@ -10,7 +10,8 @@ describe("buildAuthHeaders", () => {
 
   it("uses Better Auth session cookies for non-DaoFlow tokens", () => {
     expect(buildAuthHeaders("session_token_123")).toEqual({
-      Cookie: "better-auth.session_token=session_token_123"
+      Cookie:
+        "better-auth.session_token=session_token_123; __Secure-better-auth.session_token=session_token_123"
     });
   });
 

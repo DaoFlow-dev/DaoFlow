@@ -1,0 +1,74 @@
+# Docker Compose for a full-stack Next.js app deployed via DaoFlow.
+# Stack: Next.js + Better Auth + Postgres + Inngest (self-hosted)
+#
+# Deploy with:
+#   daoflow deploy --compose ./compose.yaml --server my-server --yes
+
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3003:3000"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://app:app_secret@postgres:5432/fullstack
+      - BETTER_AUTH_SECRET=demo-secret-change-in-production-32chars!!
+      - BETTER_AUTH_URL=http://localhost:3003
+      - INNGEST_EVENT_KEY=local-dev-event-key
+      - INNGEST_SIGNING_KEY=deadbeef0123456789abcdef01234567
+      - INNGEST_BASE_URL=http://inngest:8288
+    depends_on:
+      postgres:
+        condition: service_healthy
+      inngest:
+        condition: service_started
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:3000/api/health"]
+      interval: 20s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: fullstack
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app_secret
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app -d fullstack"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    restart: unless-stopped
+
+  inngest:
+    image: inngest/inngest:latest
+    ports:
+      - "8288:8288"
+    environment:
+      INNGEST_LOG_LEVEL: info
+      INNGEST_SIGNING_KEY: deadbeef0123456789abcdef01234567
+      INNGEST_EVENT_KEY: local-dev-event-key
+    command: ["inngest", "start"]
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  pgdata:
