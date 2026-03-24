@@ -1,6 +1,6 @@
 {
   "name": "@daoflow/cli",
-  "version": "0.5.11",
+  "version": "0.5.15",
   "private": true,
   "type": "module",
   "bin": {
