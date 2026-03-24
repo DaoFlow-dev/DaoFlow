@@ -66,7 +66,7 @@ export default function BackupsPage() {
     <main className="shell space-y-6" data-testid="backup-overview">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Backups</h1>
+          <h1 className="font-display text-2xl font-bold tracking-tight">Backups</h1>
           <p className="text-sm text-muted-foreground">
             Manage backup policies, schedules, and run history.
           </p>

@@ -58,7 +58,7 @@ export default function DestinationBrowserPage() {
           <ArrowLeft size={18} />
         </Link>
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">
+          <h1 className="font-display text-2xl font-bold tracking-tight">
             {destination.data?.name ?? "Destination"} — Files
           </h1>
           <div className="flex items-center gap-2 mt-1">

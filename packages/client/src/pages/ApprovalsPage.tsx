@@ -29,7 +29,7 @@ export default function ApprovalsPage() {
     <div className="space-y-6">
       <div className="flex items-center gap-3">
         <ShieldCheck size={24} />
-        <h1 className="text-2xl font-bold tracking-tight">Approvals</h1>
+        <h1 className="font-display text-2xl font-bold tracking-tight">Approvals</h1>
       </div>
       <p className="text-sm text-muted-foreground">
         Review high-risk operations that require human approval before execution.

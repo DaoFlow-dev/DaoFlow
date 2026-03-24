@@ -27,7 +27,10 @@ export default function BackupRunPage() {
 
         <div className="min-w-0 flex-1 space-y-3">
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl font-bold tracking-tight" data-testid="backup-run-page-title">
+            <h1
+              className="font-display text-2xl font-bold tracking-tight"
+              data-testid="backup-run-page-title"
+            >
               {run ? run.serviceName || run.policyName : "Backup run diagnostics"}
             </h1>
             {run ? (

@@ -101,7 +101,7 @@ export default function DashboardPage() {
       {/* Header + quick actions */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
+          <h1 className="font-display text-2xl font-bold tracking-tight">Dashboard</h1>
           <p className="text-sm text-muted-foreground">
             Overview of your infrastructure and recent activity.
           </p>
@@ -125,11 +125,12 @@ export default function DashboardPage() {
         className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4 xl:gap-5"
         data-testid="dashboard-stats-grid"
       >
-        {stats.map((s) => (
+        {stats.map((s, i) => (
           <Card
             key={s.label}
             data-testid={`dashboard-stat-${s.label.toLowerCase()}`}
-            className="group relative cursor-pointer overflow-hidden border-transparent bg-gradient-to-br from-card to-card/80 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md hover:border-primary/10"
+            className="stagger-item card-hover-glow group relative cursor-pointer overflow-hidden border-transparent bg-gradient-to-br from-card to-card/80 shadow-sm hover:-translate-y-0.5"
+            style={{ "--stagger-delay": `${i * 60}ms` } as React.CSSProperties}
             onClick={() => void navigate(s.href)}
           >
             <div
@@ -145,7 +146,7 @@ export default function DashboardPage() {
                 <s.icon size={20} className={s.color} />
               </div>
               <div>
-                <p className="text-2xl font-bold tracking-tight">{s.value}</p>
+                <p className="font-mono text-2xl font-bold tracking-tight">{s.value}</p>
                 <p className="text-xs font-medium text-muted-foreground">{s.label}</p>
               </div>
             </CardContent>

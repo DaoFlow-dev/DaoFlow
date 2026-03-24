@@ -215,7 +215,7 @@ export default function TemplatesPage() {
     <main className="shell space-y-6" data-testid="templates-page">
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Templates</h1>
+          <h1 className="font-display text-2xl font-bold tracking-tight">Templates</h1>
           <p className="text-sm text-muted-foreground">
             Start from curated Compose stacks, preview the normal DaoFlow plan, then queue the
             deployment without hand-writing a compose file.

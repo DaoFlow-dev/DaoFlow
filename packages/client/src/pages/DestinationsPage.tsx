@@ -40,7 +40,7 @@ export default function DestinationsPage() {
     <main className="shell space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Backup Destinations</h1>
+          <h1 className="font-display text-2xl font-bold tracking-tight">Backup Destinations</h1>
           <p className="text-sm text-muted-foreground">
             Configure where backups are stored — S3, Google Drive, OneDrive, local, or any rclone
             remote.

@@ -21,7 +21,7 @@
     },
     "packages/cli": {
       "name": "@daoflow/cli",
-      "version": "0.3.5",
+      "version": "0.5.11",
       "bin": {
         "daoflow": "./src/index.ts",
       },
@@ -48,12 +48,13 @@
     },
     "packages/client": {
       "name": "@daoflow/client",
-      "version": "0.3.5",
+      "version": "0.5.11",
       "dependencies": {
         "@base-ui/react": "^1.3.0",
         "@daoflow/server": "workspace:*",
         "@daoflow/shared": "workspace:*",
-        "@fontsource-variable/geist": "^5.2.8",
+        "@fontsource-variable/jetbrains-mono": "5.2.8",
+        "@fontsource-variable/plus-jakarta-sans": "5.2.8",
         "@radix-ui/react-alert-dialog": "1.1.15",
         "@radix-ui/react-avatar": "1.1.11",
         "@radix-ui/react-dialog": "1.1.15",
@@ -95,7 +96,7 @@
     },
     "packages/server": {
       "name": "@daoflow/server",
-      "version": "0.3.5",
+      "version": "0.5.11",
       "dependencies": {
         "@1password/sdk": "0.4.0",
         "@daoflow/shared": "workspace:*",
@@ -131,7 +132,7 @@
     },
     "packages/shared": {
       "name": "@daoflow/shared",
-      "version": "0.3.5",
+      "version": "0.5.11",
       "dependencies": {
         "zod": "^4.1.8",
       },
@@ -361,7 +362,9 @@
 
     "@floating-ui/utils": ["@floating-ui/utils@0.2.11", "", {}, "sha512-RiB/yIh78pcIxl6lLMG0CgBXAZ2Y0eVHqMPYugu+9U0AeT6YBeiJpf7lbdJNIugFP5SIjwNRgo4DhR1Qxi26Gg=="],
 
-    "@fontsource-variable/geist": ["@fontsource-variable/geist@5.2.8", "", {}, "sha512-cJ6m9e+8MQ5dCYJsLylfZrgBh6KkG4bOLckB35Tr9J/EqdkEM6QllH5PxqP1dhTvFup+HtMRPuz9xOjxXJggxw=="],
+    "@fontsource-variable/jetbrains-mono": ["@fontsource-variable/jetbrains-mono@5.2.8", "", {}, "sha512-WBA9elru6Jdp5df2mES55wuOO0WIrn3kpXnI4+W2ek5u3ZgLS9XS4gmIlcQhiZOWEKl95meYdvK7xI+ETLCq/Q=="],
+
+    "@fontsource-variable/plus-jakarta-sans": ["@fontsource-variable/plus-jakarta-sans@5.2.8", "", {}, "sha512-iQecBizIdZxezODNHzOn4SvvRMrZL/S8k4MEXGDynCmUrImVW0VmX+tIAMqnADwH4haXlHSXqMgU6+kcfBQJdw=="],
 
     "@grpc/grpc-js": ["@grpc/grpc-js@1.14.3", "", { "dependencies": { "@grpc/proto-loader": "^0.8.0", "@js-sdsl/ordered-map": "^4.4.2" } }, "sha512-Iq8QQQ/7X3Sac15oB6p0FmUg/klxQvXLeileoqrTRGJYLV+/9tubbr9ipz0GKHjmXVsgFPo/+W+2cA8eNcR+XA=="],
 

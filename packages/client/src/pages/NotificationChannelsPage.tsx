@@ -53,7 +53,7 @@ export default function NotificationChannelsPage() {
     <main className="shell space-y-6">
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Notification Channels</h1>
+          <h1 className="font-display text-2xl font-bold tracking-tight">Notification Channels</h1>
           <p className="text-sm text-muted-foreground">
             Route deploy, backup, server, and security events to the right delivery channels.
           </p>

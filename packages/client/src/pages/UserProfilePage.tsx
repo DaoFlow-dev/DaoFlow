@@ -65,7 +65,7 @@ export default function UserProfilePage() {
     <main className="shell space-y-6 max-w-2xl">
       {/* Page header */}
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Profile Settings</h1>
+        <h1 className="font-display text-2xl font-bold tracking-tight">Profile Settings</h1>
         <p className="text-muted-foreground text-sm">
           Manage your account settings and preferences.
         </p>

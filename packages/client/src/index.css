@@ -1,20 +1,22 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
-@import "@fontsource-variable/geist";
+@import "@fontsource-variable/jetbrains-mono";
+@import "@fontsource-variable/plus-jakarta-sans";
 
 @custom-variant dark (&:is(.dark *));
 
 :root {
   color-scheme: light;
   font-family:
-    "Inter",
-    "Geist Variable",
+    "Plus Jakarta Sans Variable",
     system-ui,
     -apple-system,
     sans-serif;
   background: #fafafa;
   color: #18181b;
+  --font-display: "JetBrains Mono Variable", ui-monospace, monospace;
+  --font-body: "Plus Jakarta Sans Variable", system-ui, sans-serif;
   --background: oklch(0.98 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
@@ -30,6 +32,9 @@
   --accent: oklch(0.94 0.01 280);
   --accent-foreground: oklch(0.145 0 0);
   --destructive: oklch(0.577 0.245 27.325);
+  --accent-warm: oklch(0.72 0.14 65);
+  --accent-warm-foreground: oklch(0.25 0.02 65);
+  --surface-elevated: oklch(0.96 0.003 280);
   --border: oklch(0.88 0.005 280);
   --input: oklch(0.88 0.005 280);
   --ring: oklch(0.55 0.15 250);
@@ -58,38 +63,41 @@
   color-scheme: dark;
   background: #09090b;
   color: #e4e4e7;
-  --background: oklch(0.145 0 0);
+  --background: oklch(0.12 0.005 280);
   --foreground: oklch(0.92 0 0);
-  --card: oklch(0.18 0.005 280);
+  --card: oklch(0.16 0.008 280);
   --card-foreground: oklch(0.92 0 0);
-  --popover: oklch(0.18 0.005 280);
+  --popover: oklch(0.16 0.008 280);
   --popover-foreground: oklch(0.92 0 0);
-  --primary: oklch(0.65 0.2 250);
+  --primary: oklch(0.68 0.19 250);
   --primary-foreground: oklch(0.98 0 0);
-  --secondary: oklch(0.22 0.005 280);
+  --secondary: oklch(0.2 0.008 280);
   --secondary-foreground: oklch(0.85 0 0);
-  --muted: oklch(0.22 0.005 280);
+  --muted: oklch(0.2 0.008 280);
   --muted-foreground: oklch(0.55 0 0);
-  --accent: oklch(0.22 0.01 280);
+  --accent: oklch(0.2 0.012 280);
   --accent-foreground: oklch(0.92 0 0);
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.28 0.005 280);
-  --input: oklch(0.25 0.005 280);
-  --ring: oklch(0.55 0.15 250);
+  --accent-warm: oklch(0.78 0.14 65);
+  --accent-warm-foreground: oklch(0.98 0 0);
+  --surface-elevated: oklch(0.19 0.008 280);
+  --border: oklch(0.25 0.008 280);
+  --input: oklch(0.22 0.008 280);
+  --ring: oklch(0.6 0.15 250);
   /* Dark-mode chart palette keeps the same hue map with higher contrast on dark surfaces. */
   --chart-1: oklch(0.68 0.18 250);
   --chart-2: oklch(0.73 0.15 232);
   --chart-3: oklch(0.7 0.17 292);
   --chart-4: oklch(0.8 0.14 78);
   --chart-5: oklch(0.74 0.14 154);
-  --sidebar: oklch(0.16 0.005 280);
+  --sidebar: oklch(0.13 0.008 280);
   --sidebar-foreground: oklch(0.85 0 0);
-  --sidebar-primary: oklch(0.65 0.2 250);
+  --sidebar-primary: oklch(0.68 0.19 250);
   --sidebar-primary-foreground: oklch(0.98 0 0);
-  --sidebar-accent: oklch(0.22 0.01 280);
+  --sidebar-accent: oklch(0.2 0.012 280);
   --sidebar-accent-foreground: oklch(0.92 0 0);
-  --sidebar-border: oklch(0.25 0.005 280);
-  --sidebar-ring: oklch(0.55 0.15 250);
+  --sidebar-border: oklch(0.22 0.008 280);
+  --sidebar-ring: oklch(0.6 0.15 250);
 }
 
 * {
@@ -99,6 +107,25 @@
 body {
   margin: 0;
   min-width: 320px;
+  position: relative;
+}
+
+/* Subtle noise grain texture for depth */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  pointer-events: none;
+  opacity: 0.025;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 192px 192px;
+}
+
+.dark body::after,
+body:is(.dark *)::after {
+  opacity: 0.03;
 }
 
 #root {
@@ -136,10 +163,10 @@ body {
   background: linear-gradient(
     180deg,
     var(--sidebar) 0%,
-    color-mix(in oklch, var(--sidebar) 97%, var(--sidebar-primary)) 100%
+    color-mix(in oklch, var(--sidebar) 95%, var(--sidebar-primary)) 100%
   );
   border-right: 1px solid var(--sidebar-border);
-  box-shadow: 1px 0 8px rgba(0, 0, 0, 0.03);
+  box-shadow: 1px 0 12px rgba(0, 0, 0, 0.06);
   overflow-y: auto;
   overflow-x: hidden;
   transition:
@@ -157,14 +184,34 @@ body {
   border-bottom: 1px solid var(--sidebar-border);
   background: linear-gradient(
     135deg,
-    color-mix(in oklch, var(--sidebar-primary) 6%, transparent),
-    transparent
+    color-mix(in oklch, var(--sidebar-primary) 8%, transparent),
+    transparent 70%,
+    color-mix(in oklch, var(--accent-warm) 4%, transparent)
   );
   min-height: 56px;
+  position: relative;
+}
+
+/* Accent stripe at top of sidebar */
+.sidebar__brand::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    var(--primary),
+    color-mix(in oklch, var(--primary) 60%, var(--accent-warm)),
+    var(--accent-warm)
+  );
+  opacity: 0.8;
 }
 
 .sidebar__title {
-  font-size: 1rem;
+  font-family: var(--font-display);
+  font-size: 0.95rem;
   font-weight: 700;
   color: var(--sidebar-foreground);
   letter-spacing: -0.02em;
@@ -242,10 +289,12 @@ body {
 }
 
 .sidebar__link--active {
-  background: color-mix(in oklch, var(--sidebar-primary) 12%, transparent);
+  background: color-mix(in oklch, var(--sidebar-primary) 14%, transparent);
   color: var(--sidebar-primary);
   font-weight: 600;
-  box-shadow: inset 3px 0 0 var(--sidebar-primary);
+  box-shadow:
+    inset 3px 0 0 var(--sidebar-primary),
+    0 0 12px color-mix(in oklch, var(--sidebar-primary) 8%, transparent);
   border-radius: 0 6px 6px 0;
 }
 
@@ -298,10 +347,10 @@ body {
   justify-content: space-between;
   padding: 0 1.5rem;
   height: 48px;
-  border-bottom: 1px solid var(--border);
-  background: color-mix(in oklch, var(--background) 85%, transparent);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid color-mix(in oklch, var(--border) 60%, transparent);
+  background: color-mix(in oklch, var(--background) 80%, transparent);
+  backdrop-filter: blur(16px) saturate(1.4);
+  -webkit-backdrop-filter: blur(16px) saturate(1.4);
   flex-shrink: 0;
   position: sticky;
   top: 0;
@@ -336,19 +385,76 @@ body {
   max-width: 1280px;
   width: 100%;
   margin: 0 auto;
-  animation: page-fade-in 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: page-fade-in 0.35s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @keyframes page-fade-in {
   from {
     opacity: 0;
-    transform: translateY(6px);
-    filter: blur(2px);
+    transform: translateY(8px);
+    filter: blur(3px);
   }
   to {
     opacity: 1;
     transform: translateY(0);
     filter: blur(0);
+  }
+}
+
+/* ========= Stagger animation for card grids ========= */
+.stagger-item {
+  animation: stagger-fade-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: var(--stagger-delay, 0ms);
+}
+
+@keyframes stagger-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* ========= Card hover glow ========= */
+.card-hover-glow {
+  transition:
+    transform 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.3s ease,
+    border-color 0.3s ease;
+}
+
+.card-hover-glow:hover {
+  box-shadow:
+    0 4px 24px color-mix(in oklch, var(--primary) 8%, transparent),
+    0 1px 4px rgba(0, 0, 0, 0.06);
+  border-color: color-mix(in oklch, var(--primary) 20%, transparent);
+}
+
+/* ========= Display font utility ========= */
+.font-display {
+  font-family: var(--font-display);
+}
+
+/* ========= Glow pulse for status indicators ========= */
+@keyframes glow-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% center;
+  }
+  100% {
+    background-position: -200% center;
   }
 }
 
@@ -393,7 +499,8 @@ body {
 
 /* ========= Tailwind theme vars ========= */
 @theme inline {
-  --font-sans: "Inter", "Geist Variable", sans-serif;
+  --font-sans: "Plus Jakarta Sans Variable", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, monospace;
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -411,6 +518,8 @@ body {
   --color-input: var(--input);
   --color-border: var(--border);
   --color-destructive: var(--destructive);
+  --color-accent-warm: var(--accent-warm);
+  --color-accent-warm-foreground: var(--accent-warm-foreground);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
   --color-muted-foreground: var(--muted-foreground);
