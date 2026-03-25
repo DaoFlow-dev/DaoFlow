@@ -189,7 +189,12 @@ export default function ServiceDetailPage() {
         </TabsList>
 
         <TabsContent value="general" className="mt-4">
-          <GeneralTab service={svc} />
+          <GeneralTab
+            service={svc}
+            onOpenDeploy={() => void navigate(`/deploy?source=service&serviceId=${svc.id}`)}
+            onOpenDeployments={() => setActiveTab("deployments")}
+            onOpenLogs={() => setActiveTab("logs")}
+          />
         </TabsContent>
 
         <TabsContent value="deployments" className="mt-4">

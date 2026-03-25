@@ -13,6 +13,7 @@ interface DeploymentHistoryCardProps {
   expandedId: string | null;
   cancelingDeploymentId: string | null;
   onClearFilters: () => void;
+  onOpenDeployCenter: () => void;
   onToggleExpand: (deploymentId: string) => void;
   onOpenRollback: (serviceId: string) => void;
   onCancelDeployment: (deploymentId: string) => void;
@@ -25,6 +26,7 @@ export function DeploymentHistoryCard({
   expandedId,
   cancelingDeploymentId,
   onClearFilters,
+  onOpenDeployCenter,
   onToggleExpand,
   onOpenRollback,
   onCancelDeployment
@@ -53,9 +55,16 @@ export function DeploymentHistoryCard({
             <div>
               <p className="text-sm font-medium text-foreground">No deployments yet</p>
               <p className="mt-1 text-sm text-muted-foreground">
-                Queue your first deployment to get started.
+                Open the deploy center to queue your first rollout from one shared flow.
               </p>
             </div>
+            <Button
+              size="sm"
+              onClick={onOpenDeployCenter}
+              data-testid="deployments-empty-open-deploy"
+            >
+              Open Deploy
+            </Button>
           </div>
         ) : filteredDeployments.length === 0 ? (
           <div className="flex flex-col items-center gap-2 py-12 text-center">

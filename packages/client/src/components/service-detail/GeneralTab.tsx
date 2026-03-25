@@ -1,7 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
 import {
   Settings2,
   Globe,
@@ -10,9 +9,8 @@ import {
   Activity,
   Clock,
   Rocket,
-  RefreshCw,
-  Square,
-  Play
+  ScrollText,
+  History
 } from "lucide-react";
 import { getBadgeVariantFromTone, getToneDotClass } from "@/lib/tone-utils";
 
@@ -62,43 +60,59 @@ interface GeneralTabProps {
       finishedAt: string | null;
     } | null;
   };
+  onOpenDeploy: () => void;
+  onOpenDeployments: () => void;
+  onOpenLogs: () => void;
 }
 
-export default function GeneralTab({ service }: GeneralTabProps) {
+export default function GeneralTab({
+  service,
+  onOpenDeploy,
+  onOpenDeployments,
+  onOpenLogs
+}: GeneralTabProps) {
   const serviceTone = service.runtimeSummary?.statusTone ?? service.statusTone ?? service.status;
   const serviceLabel = service.runtimeSummary?.statusLabel ?? service.statusLabel ?? service.status;
-  const isRunning = serviceTone === "healthy" || serviceTone === "running";
 
   return (
     <div className="space-y-6">
-      {/* Deploy Actions */}
+      {/* Deploy control */}
       <Card className="shadow-sm">
         <CardHeader className="pb-3">
-          <CardTitle className="text-base font-semibold">Deploy Settings</CardTitle>
+          <CardTitle className="text-base font-semibold">Deployment control</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground" data-testid="general-tab-deploy-guidance">
+            Queue new rollouts from the deploy center so template, raw Compose, and service
+            redeploys all follow the same path.
+          </p>
           <div className="flex flex-wrap items-center gap-2">
-            <Button size="sm" className="gap-1.5">
-              <Rocket size={14} /> Deploy
+            <Button
+              size="sm"
+              className="gap-1.5"
+              onClick={onOpenDeploy}
+              data-testid="general-tab-open-deploy"
+            >
+              <Rocket size={14} /> Open Deploy
             </Button>
-            <Button size="sm" variant="secondary" className="gap-1.5">
-              <RefreshCw size={14} /> Rebuild
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-1.5"
+              onClick={onOpenDeployments}
+              data-testid="general-tab-open-deployments"
+            >
+              <History size={14} /> Review Deployments
             </Button>
-            {isRunning ? (
-              <Button size="sm" variant="destructive" className="gap-1.5">
-                <Square size={14} /> Stop
-              </Button>
-            ) : (
-              <Button size="sm" variant="secondary" className="gap-1.5">
-                <Play size={14} /> Start
-              </Button>
-            )}
-
-            {/* Autodeploy toggle */}
-            <div className="flex items-center gap-2 ml-auto rounded-md border px-3 py-1.5">
-              <span className="text-sm font-medium">Auto-deploy</span>
-              <Switch aria-label="Toggle auto-deploy" />
-            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-1.5"
+              onClick={onOpenLogs}
+              data-testid="general-tab-open-logs"
+            >
+              <ScrollText size={14} /> Open Logs
+            </Button>
           </div>
         </CardContent>
       </Card>

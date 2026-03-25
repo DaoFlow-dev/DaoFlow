@@ -6,10 +6,22 @@ import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import DeploymentsPage from "./DeploymentsPage";
 
-const { cancelDeploymentUseMutationMock, recentDeploymentsUseQueryMock } = vi.hoisted(() => ({
-  cancelDeploymentUseMutationMock: vi.fn(),
-  recentDeploymentsUseQueryMock: vi.fn()
-}));
+const { cancelDeploymentUseMutationMock, recentDeploymentsUseQueryMock, navigateMock } = vi.hoisted(
+  () => ({
+    cancelDeploymentUseMutationMock: vi.fn(),
+    recentDeploymentsUseQueryMock: vi.fn(),
+    navigateMock: vi.fn()
+  })
+);
+
+vi.mock("react-router-dom", async () => {
+  const actual = await vi.importActual<typeof import("react-router-dom")>("react-router-dom");
+
+  return {
+    ...actual,
+    useNavigate: () => navigateMock
+  };
+});
 
 vi.mock("../lib/auth-client", () => ({
   useSession: () => ({
@@ -46,6 +58,7 @@ describe("DeploymentsPage", () => {
   }
 
   beforeEach(() => {
+    navigateMock.mockReset();
     recentDeploymentsUseQueryMock.mockReturnValue({
       data: [
         {
@@ -109,5 +122,19 @@ describe("DeploymentsPage", () => {
 
     expect(screen.getByText("api")).toBeInTheDocument();
     expect(screen.getByText("web")).toBeInTheDocument();
+  });
+
+  it("routes the no-deployments empty state into the deploy center", () => {
+    recentDeploymentsUseQueryMock.mockReturnValue({
+      data: [],
+      isLoading: false,
+      refetch: vi.fn()
+    });
+
+    renderDeploymentsPage();
+
+    fireEvent.click(screen.getByTestId("deployments-empty-open-deploy"));
+
+    expect(navigateMock).toHaveBeenCalledWith("/deploy");
   });
 });

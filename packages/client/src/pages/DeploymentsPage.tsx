@@ -1,4 +1,5 @@
 import { useCallback, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { trpc } from "../lib/trpc";
 import { useSession } from "../lib/auth-client";
 import DeploymentRollbackDialog from "@/components/DeploymentRollbackDialog";
@@ -8,6 +9,7 @@ import type { DeploymentRowData } from "./deployments-page/types";
 import { matchesDeploymentFilters } from "./deployments-page/utils";
 
 export default function DeploymentsPage() {
+  const navigate = useNavigate();
   const session = useSession();
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [rollbackServiceId, setRollbackServiceId] = useState<string | null>(null);
@@ -78,6 +80,7 @@ export default function DeploymentsPage() {
         expandedId={expandedId}
         cancelingDeploymentId={cancelingDeploymentId}
         onClearFilters={handleClearFilters}
+        onOpenDeployCenter={() => void navigate("/deploy")}
         onToggleExpand={handleToggleExpand}
         onOpenRollback={handleOpenRollback}
         onCancelDeployment={handleCancelDeployment}
