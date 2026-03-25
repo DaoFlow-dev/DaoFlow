@@ -11,6 +11,7 @@ import { planCommand } from "./commands/plan";
 import { serverCommand } from "./commands/server";
 import { backupCommand } from "./commands/backup";
 import { volumesCommand } from "./commands/volumes";
+import { rollbackCommand } from "./commands/rollback";
 
 function hasLongOption(command: Command, longFlag: string): boolean {
   return command.options.some((option) => option.long === longFlag);
@@ -153,5 +154,22 @@ describe("CLI JSON option coverage", () => {
     expect(help).toContain("Examples:");
     expect(help).toContain("daoflow volumes register --name postgres-data");
     expect(help).toContain("Example JSON shapes:");
+  });
+
+  test("rollback declares --json", () => {
+    expect(hasLongOption(rollbackCommand(), "--json")).toBe(true);
+  });
+
+  test("rollback declares --dry-run and --yes safety flags", () => {
+    const cmd = rollbackCommand();
+    expect(hasLongOption(cmd, "--dry-run")).toBe(true);
+    expect(hasLongOption(cmd, "--yes")).toBe(true);
+  });
+
+  test("rollback declares --service and --target options", () => {
+    const cmd = rollbackCommand();
+    expect(hasLongOption(cmd, "--service")).toBe(true);
+    expect(hasLongOption(cmd, "--target")).toBe(true);
+    expect(hasLongOption(cmd, "--to")).toBe(true);
   });
 });

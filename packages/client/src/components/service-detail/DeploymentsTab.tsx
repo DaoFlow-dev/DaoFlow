@@ -1,4 +1,4 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -14,8 +14,8 @@ import {
   Trash2,
   Timer
 } from "lucide-react";
-import { useState } from "react";
 import { getBadgeVariantFromTone, getDeploymentStepTone, getToneDotClass } from "@/lib/tone-utils";
+import DeploymentRollbackDialog from "@/components/DeploymentRollbackDialog";
 
 const DeploymentLogViewer = lazy(() => import("@/components/DeploymentLogViewer"));
 
@@ -37,15 +37,12 @@ function formatDuration(start: string, end?: string | null): string {
 export default function DeploymentsTab({ serviceId, serviceName }: DeploymentsTabProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [hideCompleted, setHideCompleted] = useState(false);
+  const [rollbackDialogOpen, setRollbackDialogOpen] = useState(false);
 
   const deployments = trpc.recentDeployments.useQuery({ limit: 50 });
   const rollbackTargets = trpc.rollbackTargets.useQuery({ serviceId });
 
   const cancelMutation = trpc.cancelDeployment.useMutation({
-    onSuccess: () => void deployments.refetch()
-  });
-
-  const rollbackMutation = trpc.executeRollback.useMutation({
     onSuccess: () => void deployments.refetch()
   });
 
@@ -55,7 +52,7 @@ export default function DeploymentsTab({ serviceId, serviceName }: DeploymentsTa
   const serviceDeployments = hideCompleted
     ? allServiceDeployments.filter(
         (d: { status: string; conclusion: string | null }) =>
-          d.status !== "completed" && d.conclusion !== "success"
+          d.status !== "completed" || d.conclusion !== "succeeded"
       )
     : allServiceDeployments;
   const completedCount = allServiceDeployments.length - serviceDeployments.length;
@@ -198,7 +195,7 @@ export default function DeploymentsTab({ serviceId, serviceName }: DeploymentsTa
                         variant="ghost"
                         onClick={(e) => {
                           e.stopPropagation();
-                          rollbackMutation.mutate({ serviceId, targetDeploymentId: d.id });
+                          setRollbackDialogOpen(true);
                         }}
                         title="Rollback to this"
                       >
@@ -296,6 +293,12 @@ export default function DeploymentsTab({ serviceId, serviceName }: DeploymentsTa
           )}
         </div>
       )}
+      <DeploymentRollbackDialog
+        serviceId={serviceId}
+        open={rollbackDialogOpen}
+        onOpenChange={setRollbackDialogOpen}
+        onRolledBack={() => void deployments.refetch()}
+      />
     </div>
   );
 }

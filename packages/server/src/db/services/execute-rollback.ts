@@ -95,7 +95,11 @@ export async function listRollbackTargets(
 /** Execute a rollback by creating a new deployment from a previous successful one. */
 export async function executeRollback(input: ExecuteRollbackInput) {
   const svc = await resolveServiceForUser(input.serviceId, input.requestedByUserId).catch(
-    () => null
+    (error: unknown) => {
+      // Only mask authorization / not-found errors; let genuine DB failures propagate.
+      if (error && typeof error === "object" && "code" in error) return null;
+      throw error;
+    }
   );
   if (!svc) return { status: "not_found" as const, entity: "service" };
 
