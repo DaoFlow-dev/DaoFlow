@@ -24,6 +24,13 @@ import type {
 interface TemplateConfigurationCardProps {
   activeTemplate: AppTemplateDefinition;
   projectName: string;
+  handoffSummary: {
+    projectName: string;
+    environmentName: string;
+    serverName: string;
+  } | null;
+  projectNameLocked: boolean;
+  serverLocked: boolean;
   fieldValues: TemplateFieldValues;
   selectedServerId: string;
   servers: TemplateServerOption[];
@@ -46,6 +53,9 @@ interface TemplateConfigurationCardProps {
 export function TemplateConfigurationCard({
   activeTemplate,
   projectName,
+  handoffSummary,
+  projectNameLocked,
+  serverLocked,
   fieldValues,
   selectedServerId,
   servers,
@@ -71,6 +81,16 @@ export function TemplateConfigurationCard({
         <CardDescription>{activeTemplate.description}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
+        {handoffSummary ? (
+          <Alert data-testid="template-handoff-summary">
+            <AlertTitle>Setup handoff active</AlertTitle>
+            <AlertDescription>
+              Deploying into {handoffSummary.projectName} / {handoffSummary.environmentName} on{" "}
+              {handoffSummary.serverName}. Project and server are locked to the onboarding target.
+            </AlertDescription>
+          </Alert>
+        ) : null}
+
         <div className="grid gap-4 md:grid-cols-2">
           <div className="space-y-2">
             <Label htmlFor="template-project-name">Project name</Label>
@@ -78,13 +98,18 @@ export function TemplateConfigurationCard({
               id="template-project-name"
               value={projectName}
               onChange={(event) => onProjectNameChange(event.target.value)}
+              disabled={projectNameLocked}
               data-testid="template-project-name"
             />
           </div>
           <div className="space-y-2">
             <Label htmlFor="template-server-select">Target server</Label>
             <Select value={selectedServerId} onValueChange={onServerChange}>
-              <SelectTrigger id="template-server-select" data-testid="template-server-select">
+              <SelectTrigger
+                id="template-server-select"
+                disabled={serverLocked}
+                data-testid="template-server-select"
+              >
                 <SelectValue
                   placeholder={inventoryLoading ? "Loading servers..." : "Select a server"}
                 />

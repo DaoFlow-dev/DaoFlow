@@ -37,9 +37,9 @@ describe("TemplatesPage", () => {
   const originalFetch = window.fetch;
   let fetchMock: ReturnType<typeof vi.fn>;
 
-  function renderTemplatesPage() {
+  function renderTemplatesPage(initialEntry = "/templates") {
     return render(
-      <MemoryRouter>
+      <MemoryRouter initialEntries={[initialEntry]}>
         <TemplatesPage />
       </MemoryRouter>
     );
@@ -128,5 +128,51 @@ describe("TemplatesPage", () => {
     fireEvent.click(screen.getByTestId("template-open-service-button"));
 
     expect(navigateMock).toHaveBeenCalledWith("/services/svc_template_123");
+  });
+
+  it("locks the setup handoff target and deploys into the provided project and environment", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          ok: true,
+          deploymentId: "dep_template_456",
+          projectId: "proj_console",
+          environmentId: "env_prod",
+          serviceId: "svc_console_db"
+        })
+    });
+
+    renderTemplatesPage(
+      "/templates?serverId=srv_1&serverName=foundation&projectId=proj_console&projectName=Console&environmentName=production"
+    );
+
+    expect(screen.getByTestId("template-handoff-summary")).toHaveTextContent(
+      "Deploying into Console / production on foundation."
+    );
+    expect(screen.getByTestId("template-project-name")).toHaveValue("Console");
+    expect(screen.getByTestId("template-project-name")).toBeDisabled();
+
+    fireEvent.change(screen.getByTestId("template-input-postgres_password"), {
+      target: { value: "super-secret" }
+    });
+    fireEvent.click(screen.getByTestId("template-apply-button"));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalled();
+    });
+
+    const request = fetchMock.mock.calls.at(-1)?.[1] as RequestInit;
+    expect(typeof request.body).toBe("string");
+    const payload = JSON.parse(request.body as string) as {
+      server: string;
+      project: string;
+      environment: string;
+    };
+    expect(payload).toMatchObject({
+      server: "srv_1",
+      project: "proj_console",
+      environment: "production"
+    });
   });
 });

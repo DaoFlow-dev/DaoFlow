@@ -1,5 +1,5 @@
-import { useDeferredValue, useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useDeferredValue, useEffect, useMemo, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { listAppTemplates, renderAppTemplate, type RenderedAppTemplate } from "@daoflow/shared";
 import { Search } from "lucide-react";
 import { TemplateCatalog } from "@/components/templates-page/TemplateCatalog";
@@ -18,7 +18,14 @@ const fallbackTemplate = templateCatalog[0];
 
 export default function TemplatesPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const inventory = trpc.infrastructureInventory.useQuery(undefined);
+  const handoffServerId = searchParams.get("serverId") ?? "";
+  const handoffServerName = searchParams.get("serverName") ?? "";
+  const handoffProjectId = searchParams.get("projectId") ?? "";
+  const handoffProjectName = searchParams.get("projectName") ?? "";
+  const handoffEnvironmentName = searchParams.get("environmentName") ?? "";
+  const hasSetupHandoff = Boolean(handoffServerId && handoffProjectId && handoffEnvironmentName);
   const [search, setSearch] = useState("");
   const deferredSearch = useDeferredValue(search);
   const matchingTemplates = templateCatalog.filter((template) => {
@@ -38,17 +45,19 @@ export default function TemplatesPage() {
     matchingTemplates.find((template) => template.slug === activeSlug) ??
     templateCatalog.find((template) => template.slug === activeSlug) ??
     fallbackTemplate;
-  const [projectName, setProjectName] = useState(activeTemplate?.defaultProjectName ?? "");
+  const [projectName, setProjectName] = useState(
+    hasSetupHandoff ? handoffProjectName : (activeTemplate?.defaultProjectName ?? "")
+  );
   const [fieldValues, setFieldValues] = useState<TemplateFieldValues>(
     activeTemplate ? defaultFieldValues(activeTemplate) : {}
   );
-  const [selectedServerId, setSelectedServerId] = useState("");
+  const [selectedServerId, setSelectedServerId] = useState(handoffServerId);
   const [previewRequested, setPreviewRequested] = useState(false);
   const [deployPending, setDeployPending] = useState(false);
   const [deployError, setDeployError] = useState<string | null>(null);
   const [deployResult, setDeployResult] = useState<TemplateDeployResult | null>(null);
 
-  const servers: TemplateServerOption[] = (
+  const serversFromInventory: TemplateServerOption[] = (
     (inventory.data?.servers ?? []) as Array<{
       id: string;
       name: string;
@@ -62,23 +71,59 @@ export default function TemplatesPage() {
     targetKind: server.targetKind ?? "docker-engine"
   }));
 
+  const servers = useMemo(
+    () =>
+      handoffServerId && !serversFromInventory.some((server) => server.id === handoffServerId)
+        ? [
+            {
+              id: handoffServerId,
+              name: handoffServerName || "Setup server",
+              host: "from setup",
+              targetKind: "docker-engine"
+            },
+            ...serversFromInventory
+          ]
+        : serversFromInventory,
+    [handoffServerId, handoffServerName, serversFromInventory]
+  );
+
+  const handoffSummary = hasSetupHandoff
+    ? {
+        projectName: handoffProjectName || projectName,
+        environmentName: handoffEnvironmentName,
+        serverName:
+          servers.find((server) => server.id === handoffServerId)?.name ??
+          handoffServerName ??
+          "Selected server"
+      }
+    : null;
+
   useEffect(() => {
+    if (hasSetupHandoff) {
+      setSelectedServerId(handoffServerId);
+      return;
+    }
+
     if (!selectedServerId && servers.length > 0) {
       setSelectedServerId(servers[0].id);
     }
-  }, [selectedServerId, servers]);
+  }, [handoffServerId, hasSetupHandoff, selectedServerId, servers]);
 
   useEffect(() => {
     if (!activeTemplate) {
       return;
     }
 
-    setProjectName(activeTemplate.defaultProjectName);
+    setProjectName(
+      hasSetupHandoff
+        ? handoffProjectName || activeTemplate.defaultProjectName
+        : activeTemplate.defaultProjectName
+    );
     setFieldValues(defaultFieldValues(activeTemplate));
     setPreviewRequested(false);
     setDeployError(null);
     setDeployResult(null);
-  }, [activeTemplate]);
+  }, [activeTemplate, handoffProjectName, hasSetupHandoff]);
 
   useEffect(() => {
     if (!activeTemplate && matchingTemplates[0]) {
@@ -131,12 +176,20 @@ export default function TemplatesPage() {
   );
 
   function handleProjectNameChange(value: string) {
+    if (hasSetupHandoff) {
+      return;
+    }
+
     setProjectName(value);
     setPreviewRequested(false);
     setDeployResult(null);
   }
 
   function handleServerChange(value: string) {
+    if (hasSetupHandoff) {
+      return;
+    }
+
     setSelectedServerId(value);
     setPreviewRequested(false);
     setDeployResult(null);
@@ -166,7 +219,8 @@ export default function TemplatesPage() {
         body: JSON.stringify({
           server: selectedServerId,
           compose: rendered.compose,
-          project: rendered.projectName
+          project: hasSetupHandoff ? handoffProjectId : rendered.projectName,
+          environment: handoffEnvironmentName || "production"
         })
       });
       const body = (await response.json()) as {
@@ -245,6 +299,9 @@ export default function TemplatesPage() {
         <TemplateConfigurationCard
           activeTemplate={activeTemplate}
           projectName={projectName}
+          handoffSummary={handoffSummary}
+          projectNameLocked={hasSetupHandoff}
+          serverLocked={hasSetupHandoff}
           fieldValues={fieldValues}
           selectedServerId={selectedServerId}
           servers={servers}
