@@ -1,9 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Play, Loader2 } from "lucide-react";
-import { trpc } from "@/lib/trpc";
-import { useState } from "react";
+import { ArrowLeft, Play } from "lucide-react";
 import { getBadgeVariantFromTone } from "@/lib/tone-utils";
 
 interface ServiceHeaderProps {
@@ -31,40 +29,27 @@ interface ServiceHeaderProps {
 
 export default function ServiceHeader({ service, projectName }: ServiceHeaderProps) {
   const navigate = useNavigate();
-  const [isDeploying, setIsDeploying] = useState(false);
-
-  const deploy = trpc.triggerDeploy.useMutation({
-    onSuccess: () => setIsDeploying(false),
-    onError: () => setIsDeploying(false)
-  });
-
-  function handleDeploy() {
-    setIsDeploying(true);
-    deploy.mutate({ serviceId: service.id });
-  }
 
   return (
     <div className="space-y-2">
-      {/* Breadcrumb */}
       <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
         <button
-          className="hover:text-foreground transition-colors"
+          className="transition-colors hover:text-foreground"
           onClick={() => void navigate("/projects")}
         >
           Projects
         </button>
         <span>/</span>
         <button
-          className="hover:text-foreground transition-colors"
+          className="transition-colors hover:text-foreground"
           onClick={() => void navigate(`/projects/${service.projectId}`)}
         >
           {projectName ?? "Project"}
         </button>
         <span>/</span>
-        <span className="text-foreground font-medium">{service.name}</span>
+        <span className="font-medium text-foreground">{service.name}</span>
       </div>
 
-      {/* Header row */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Button
@@ -95,29 +80,16 @@ export default function ServiceHeader({ service, projectName }: ServiceHeaderPro
           </Badge>
         </div>
 
-        <div className="flex items-center gap-1.5">
-          <Button
-            size="sm"
-            variant="default"
-            onClick={handleDeploy}
-            disabled={isDeploying}
-            data-testid={`service-deploy-${service.id}`}
-          >
-            {isDeploying ? (
-              <Loader2 size={14} className="mr-1 animate-spin" />
-            ) : (
-              <Play size={14} className="mr-1" />
-            )}
-            {isDeploying ? "Deploying..." : "Deploy"}
-          </Button>
-        </div>
+        <Button
+          size="sm"
+          variant="default"
+          onClick={() => void navigate(`/deploy?source=service&serviceId=${service.id}`)}
+          data-testid={`service-deploy-${service.id}`}
+        >
+          <Play size={14} className="mr-1" />
+          Deploy
+        </Button>
       </div>
-
-      {deploy.error && (
-        <div className="rounded-md bg-destructive/10 border border-destructive/20 px-3 py-2 text-sm text-destructive">
-          {deploy.error.message}
-        </div>
-      )}
     </div>
   );
 }

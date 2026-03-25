@@ -61,7 +61,19 @@ describe("TemplatesPage", () => {
       isLoading: false
     });
     composeDeploymentPlanUseQueryMock.mockReturnValue({
-      data: null,
+      data: {
+        project: { name: "Console", action: "reuse" },
+        environment: { name: "production", action: "reuse" },
+        service: { name: "postgres", action: "create" },
+        target: {
+          serverName: "foundation",
+          serverHost: "203.0.113.10",
+          targetKind: "docker-engine"
+        },
+        preflightChecks: [{ status: "ok", detail: "Server is reachable." }],
+        steps: ["Stage compose deployment", "Queue execution handoff"],
+        executeCommand: "daoflow compose deploy"
+      },
       isLoading: false,
       error: null
     });
@@ -110,6 +122,8 @@ describe("TemplatesPage", () => {
     fireEvent.change(screen.getByTestId("template-input-postgres_password"), {
       target: { value: "super-secret" }
     });
+    fireEvent.click(screen.getByTestId("template-preview-button"));
+    expect(await screen.findByTestId("compose-preview-plan")).toBeVisible();
     fireEvent.click(screen.getByTestId("template-apply-button"));
 
     await waitFor(() => {
@@ -156,6 +170,8 @@ describe("TemplatesPage", () => {
     fireEvent.change(screen.getByTestId("template-input-postgres_password"), {
       target: { value: "super-secret" }
     });
+    fireEvent.click(screen.getByTestId("template-preview-button"));
+    expect(await screen.findByTestId("compose-preview-plan")).toBeVisible();
     fireEvent.click(screen.getByTestId("template-apply-button"));
 
     await waitFor(() => {

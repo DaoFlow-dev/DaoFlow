@@ -470,7 +470,7 @@ export default function SetupWizardPage() {
       projectName={handoffProjectName}
       environmentName={handoffEnvironmentName}
       serverName={handoffServerName}
-      deployHref={`/templates?${deployParams.toString()}`}
+      deployHref={`/deploy?source=template&${deployParams.toString()}`}
       projectHref={`/projects/${projectId}`}
     />
   );

@@ -217,7 +217,7 @@ describe("SetupWizardPage", () => {
     expect(screen.getByTestId("setup-handoff-deploy-link")).toHaveAttribute(
       "href",
       expect.stringContaining(
-        "/templates?serverId=srv_foundation&serverName=foundation&projectId=proj_console&projectName=Console&environmentId=env_prod&environmentName=production"
+        "/deploy?source=template&serverId=srv_foundation&serverName=foundation&projectId=proj_console&projectName=Console&environmentId=env_prod&environmentName=production"
       )
     );
   });

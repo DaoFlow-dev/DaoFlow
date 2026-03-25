@@ -30,10 +30,10 @@ export const NAVIGATION_ITEMS: PaletteItem[] = [
     section: "Navigation"
   },
   {
-    id: "tmpl",
-    label: "Templates",
-    path: "/templates",
-    icon: LayoutTemplate,
+    id: "deploy",
+    label: "Deploy",
+    path: "/deploy",
+    icon: Rocket,
     section: "Navigation"
   },
   {
@@ -82,10 +82,10 @@ const QUICK_ACTION_ITEMS: PaletteItem[] = [
     section: "Quick Actions"
   },
   {
-    id: "qa-browse-templates",
-    label: "Browse Templates",
-    path: "/templates",
-    icon: LayoutTemplate,
+    id: "qa-open-deploy",
+    label: "Open Deploy Center",
+    path: "/deploy",
+    icon: Rocket,
     section: "Quick Actions"
   },
   {
@@ -112,6 +112,7 @@ export const COMMAND_PALETTE_LISTBOX_ID = "command-palette-listbox";
 const LABEL_MAP: Record<string, string> = {
   "/": "Dashboard",
   "/projects": "Projects",
+  "/deploy": "Deploy",
   "/templates": "Templates",
   "/servers": "Servers",
   "/backups": "Backups",
@@ -124,6 +125,7 @@ const LABEL_MAP: Record<string, string> = {
 const ICON_MAP: Record<string, PaletteItem["icon"]> = {
   "/": LayoutDashboard,
   "/projects": FolderKanban,
+  "/deploy": Rocket,
   "/templates": LayoutTemplate,
   "/servers": Server,
   "/backups": DatabaseBackup,

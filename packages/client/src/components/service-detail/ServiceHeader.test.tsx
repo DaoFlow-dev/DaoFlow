@@ -6,18 +6,18 @@ import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import ServiceHeader from "./ServiceHeader";
 
-const { deployMutateMock, useTriggerDeployMutationMock } = vi.hoisted(() => ({
-  deployMutateMock: vi.fn(),
-  useTriggerDeployMutationMock: vi.fn()
+const { navigateMock } = vi.hoisted(() => ({
+  navigateMock: vi.fn()
 }));
 
-vi.mock("@/lib/trpc", () => ({
-  trpc: {
-    triggerDeploy: {
-      useMutation: useTriggerDeployMutationMock
-    }
-  }
-}));
+vi.mock("react-router-dom", async () => {
+  const actual = await vi.importActual<typeof import("react-router-dom")>("react-router-dom");
+
+  return {
+    ...actual,
+    useNavigate: () => navigateMock
+  };
+});
 
 describe("ServiceHeader", () => {
   afterEach(() => {
@@ -25,15 +25,10 @@ describe("ServiceHeader", () => {
   });
 
   beforeEach(() => {
-    deployMutateMock.mockReset();
-    useTriggerDeployMutationMock.mockReset();
-    useTriggerDeployMutationMock.mockReturnValue({
-      mutate: deployMutateMock,
-      error: null
-    });
+    navigateMock.mockReset();
   });
 
-  it("shows a loading state while deploy is pending", () => {
+  it("routes deploy actions into the preview-first deploy surface", () => {
     render(
       <MemoryRouter>
         <ServiceHeader
@@ -51,8 +46,7 @@ describe("ServiceHeader", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Deploy" }));
 
-    expect(deployMutateMock).toHaveBeenCalledWith({ serviceId: "svc_api" });
-    expect(screen.getByRole("button", { name: "Deploying..." })).toBeDisabled();
+    expect(navigateMock).toHaveBeenCalledWith("/deploy?source=service&serviceId=svc_api");
   });
 
   it("hides unsupported lifecycle actions that do not have backend support", () => {
