@@ -1,4 +1,4 @@
-import { Suspense, lazy } from "react";
+import { Suspense, lazy, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { trpc } from "../lib/trpc";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -26,6 +26,7 @@ import DomainsTab from "../components/service-detail/DomainsTab";
 import AdvancedTab from "../components/service-detail/AdvancedTab";
 import ActivityTab from "../components/service-detail/ActivityTab";
 import type { ServiceRuntimeConfig } from "../components/service-detail/runtime-config";
+import { ServiceRecoveryPanel } from "@/components/service-detail/ServiceRecoveryPanel";
 
 const LogsTab = lazy(() => import("../components/service-detail/LogsTab"));
 const MonitoringTab = lazy(() => import("../components/service-detail/MonitoringTab"));
@@ -44,6 +45,7 @@ function LazyTabSkeleton({ testId }: { testId: string }) {
 export default function ServiceDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState("general");
 
   const service = trpc.serviceDetails.useQuery(
     { serviceId: id! },
@@ -130,8 +132,19 @@ export default function ServiceDetailPage() {
         environmentName={svc.environmentName ?? undefined}
       />
 
+      <ServiceRecoveryPanel
+        serviceName={svc.name}
+        status={svc.status}
+        statusTone={svc.statusTone}
+        runtimeSummary={svc.runtimeSummary}
+        latestDeployment={svc.latestDeployment}
+        onOpenDeploy={() => void navigate(`/deploy?source=service&serviceId=${svc.id}`)}
+        onOpenDeployments={() => setActiveTab("deployments")}
+        onOpenLogs={() => setActiveTab("logs")}
+      />
+
       {/* Tabbed interface (item 1) */}
-      <Tabs defaultValue="general" className="w-full">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="w-full justify-start flex-wrap h-auto gap-1 bg-transparent p-0 border-b rounded-none pb-2 overflow-x-auto">
           <TabsTrigger value="general" className="gap-1.5 data-[state=active]:bg-muted">
             <Settings2 size={14} />

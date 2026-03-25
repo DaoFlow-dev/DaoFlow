@@ -117,8 +117,11 @@ describe("ServiceDetailPage", () => {
         slug: "api",
         sourceType: "compose",
         status: "healthy",
+        statusTone: "healthy",
         projectId: "proj_1",
+        projectName: "Console",
         environmentId: "env_1",
+        environmentName: "Production",
         imageReference: null,
         dockerfilePath: null,
         composeServiceName: "api",
@@ -129,7 +132,22 @@ describe("ServiceDetailPage", () => {
         createdAt: "2026-03-20T00:00:00.000Z",
         updatedAt: "2026-03-20T00:00:00.000Z",
         runtimeConfig: null,
-        runtimeConfigPreview: "services:\n  api:\n    image: ghcr.io/example/api:latest\n"
+        runtimeConfigPreview: "services:\n  api:\n    image: ghcr.io/example/api:latest\n",
+        runtimeSummary: {
+          statusLabel: "Healthy",
+          statusTone: "healthy",
+          summary: "Serving traffic normally.",
+          observedAt: "2026-03-20T00:00:00.000Z"
+        },
+        latestDeployment: {
+          id: "dep_1",
+          statusLabel: "Failed",
+          statusTone: "failed",
+          summary: "Image pull failed on the target server.",
+          targetServerName: "foundation",
+          imageTag: "ghcr.io/example/api:sha-123",
+          finishedAt: "2026-03-20T00:00:00.000Z"
+        }
       },
       isLoading: false,
       refetch: vi.fn()
@@ -154,6 +172,8 @@ describe("ServiceDetailPage", () => {
     renderPage();
 
     expect(screen.getByTestId("service-header")).toHaveTextContent("Header api");
+    expect(screen.getByTestId("service-recovery-panel")).toBeVisible();
+    expect(screen.getByTestId("service-recovery-alert")).toHaveTextContent("Recovery path ready");
     expect(screen.getByTestId("general-tab")).toHaveTextContent("General api");
     expect(logsTabMock).not.toHaveBeenCalled();
     expect(monitoringTabMock).not.toHaveBeenCalled();
@@ -173,5 +193,62 @@ describe("ServiceDetailPage", () => {
     fireEvent.click(screen.getByRole("tab", { name: /compose/i }));
     expect(await screen.findByTestId("lazy-compose-tab")).toHaveTextContent("Compose api");
     expect(composeEditorTabMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("opens deployment history from the recovery panel", async () => {
+    renderPage();
+
+    fireEvent.click(screen.getByTestId("service-recovery-open-deployments"));
+
+    expect(await screen.findByTestId("deployments-tab")).toHaveTextContent("Deployments api");
+  });
+
+  it("hides the recovery panel when the service is healthy and the last deployment succeeded", () => {
+    serviceDetailsUseQueryMock.mockReturnValue({
+      data: {
+        id: "svc_api",
+        name: "api",
+        slug: "api",
+        sourceType: "compose",
+        status: "healthy",
+        statusTone: "healthy",
+        projectId: "proj_1",
+        projectName: "Console",
+        environmentId: "env_1",
+        environmentName: "Production",
+        imageReference: null,
+        dockerfilePath: null,
+        composeServiceName: "api",
+        port: "3000",
+        healthcheckPath: "/health",
+        replicaCount: "1",
+        targetServerId: "srv_1",
+        createdAt: "2026-03-20T00:00:00.000Z",
+        updatedAt: "2026-03-20T00:00:00.000Z",
+        runtimeConfig: null,
+        runtimeConfigPreview: "services:\n  api:\n    image: ghcr.io/example/api:latest\n",
+        runtimeSummary: {
+          statusLabel: "Healthy",
+          statusTone: "healthy",
+          summary: "Serving traffic normally.",
+          observedAt: "2026-03-20T00:00:00.000Z"
+        },
+        latestDeployment: {
+          id: "dep_1",
+          statusLabel: "Healthy",
+          statusTone: "healthy",
+          summary: "Deployment completed successfully.",
+          targetServerName: "foundation",
+          imageTag: "ghcr.io/example/api:sha-123",
+          finishedAt: "2026-03-20T00:00:00.000Z"
+        }
+      },
+      isLoading: false,
+      refetch: vi.fn()
+    });
+
+    renderPage();
+
+    expect(screen.queryByTestId("service-recovery-panel")).not.toBeInTheDocument();
   });
 });
