@@ -18,9 +18,12 @@ describe("ProjectEnvironmentsPanel", () => {
         projectId="proj_123"
         environments={[]}
         servers={[{ id: "srv_1", name: "edge-1", host: "edge-1.example.com" }]}
+        activeEnvironmentId={null}
         createPending={false}
         updatePending={false}
         deletePending={false}
+        onActiveEnvironmentChange={vi.fn()}
+        onOpenDeploy={vi.fn()}
         onCreate={onCreate}
         onUpdate={vi.fn()}
         onDelete={vi.fn()}
@@ -52,6 +55,8 @@ describe("ProjectEnvironmentsPanel", () => {
 
   it("prefills edit state and confirms deletion", async () => {
     const onDelete = vi.fn();
+    const onActiveEnvironmentChange = vi.fn();
+    const onOpenDeploy = vi.fn();
 
     render(
       <ProjectEnvironmentsPanel
@@ -69,9 +74,12 @@ describe("ProjectEnvironmentsPanel", () => {
           }
         ]}
         servers={[{ id: "srv_1", name: "edge-1", host: "edge-1.example.com" }]}
+        activeEnvironmentId={null}
         createPending={false}
         updatePending={false}
         deletePending={false}
+        onActiveEnvironmentChange={onActiveEnvironmentChange}
+        onOpenDeploy={onOpenDeploy}
         onCreate={vi.fn()}
         onUpdate={vi.fn()}
         onDelete={onDelete}
@@ -88,5 +96,20 @@ describe("ProjectEnvironmentsPanel", () => {
     fireEvent.click(await screen.findByTestId("project-environment-delete-confirm-env_123"));
 
     expect(onDelete).toHaveBeenCalledWith("env_123");
+
+    fireEvent.click(screen.getByTestId("project-environment-focus-env_123"));
+    expect(onActiveEnvironmentChange).toHaveBeenCalledWith("env_123");
+
+    fireEvent.click(screen.getByTestId("project-environment-template-env_123"));
+    expect(onOpenDeploy).toHaveBeenCalledWith(
+      "template",
+      expect.objectContaining({ id: "env_123" })
+    );
+
+    fireEvent.click(screen.getByTestId("project-environment-compose-env_123"));
+    expect(onOpenDeploy).toHaveBeenCalledWith(
+      "compose",
+      expect.objectContaining({ id: "env_123" })
+    );
   });
 });

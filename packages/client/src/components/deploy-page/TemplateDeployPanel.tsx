@@ -25,7 +25,8 @@ export function TemplateDeployPanel() {
   const handoffProjectId = searchParams.get("projectId") ?? "";
   const handoffProjectName = searchParams.get("projectName") ?? "";
   const handoffEnvironmentName = searchParams.get("environmentName") ?? "";
-  const hasSetupHandoff = Boolean(handoffServerId && handoffProjectId && handoffEnvironmentName);
+  const hasProjectEnvironmentContext = Boolean(handoffProjectId && handoffEnvironmentName);
+  const hasLockedServerHandoff = Boolean(handoffServerId && hasProjectEnvironmentContext);
   const [search, setSearch] = useState("");
   const deferredSearch = useDeferredValue(search);
   const matchingTemplates = templateCatalog.filter((template) => {
@@ -46,7 +47,7 @@ export function TemplateDeployPanel() {
     templateCatalog.find((template) => template.slug === activeSlug) ??
     fallbackTemplate;
   const [projectName, setProjectName] = useState(
-    hasSetupHandoff ? handoffProjectName : (activeTemplate?.defaultProjectName ?? "")
+    hasProjectEnvironmentContext ? handoffProjectName : (activeTemplate?.defaultProjectName ?? "")
   );
   const [fieldValues, setFieldValues] = useState<TemplateFieldValues>(
     activeTemplate ? defaultFieldValues(activeTemplate) : {}
@@ -87,19 +88,20 @@ export function TemplateDeployPanel() {
     [handoffServerId, handoffServerName, serversFromInventory]
   );
 
-  const handoffSummary = hasSetupHandoff
+  const handoffSummary = hasProjectEnvironmentContext
     ? {
         projectName: handoffProjectName || projectName,
         environmentName: handoffEnvironmentName,
-        serverName:
-          servers.find((server) => server.id === handoffServerId)?.name ??
-          handoffServerName ??
-          "Selected server"
+        serverName: hasLockedServerHandoff
+          ? (servers.find((server) => server.id === handoffServerId)?.name ??
+            handoffServerName ??
+            "Selected server")
+          : null
       }
     : null;
 
   useEffect(() => {
-    if (hasSetupHandoff) {
+    if (hasLockedServerHandoff) {
       setSelectedServerId(handoffServerId);
       return;
     }
@@ -107,7 +109,7 @@ export function TemplateDeployPanel() {
     if (!selectedServerId && servers.length > 0) {
       setSelectedServerId(servers[0].id);
     }
-  }, [handoffServerId, hasSetupHandoff, selectedServerId, servers]);
+  }, [handoffServerId, hasLockedServerHandoff, selectedServerId, servers]);
 
   useEffect(() => {
     if (!activeTemplate) {
@@ -115,7 +117,7 @@ export function TemplateDeployPanel() {
     }
 
     setProjectName(
-      hasSetupHandoff
+      hasProjectEnvironmentContext
         ? handoffProjectName || activeTemplate.defaultProjectName
         : activeTemplate.defaultProjectName
     );
@@ -123,7 +125,7 @@ export function TemplateDeployPanel() {
     setPreviewRequested(false);
     setDeployError(null);
     setDeployResult(null);
-  }, [activeTemplate, handoffProjectName, hasSetupHandoff]);
+  }, [activeTemplate, handoffProjectName, hasProjectEnvironmentContext]);
 
   useEffect(() => {
     if (!activeTemplate && matchingTemplates[0]) {
@@ -176,7 +178,7 @@ export function TemplateDeployPanel() {
   );
 
   function handleProjectNameChange(value: string) {
-    if (hasSetupHandoff) {
+    if (hasProjectEnvironmentContext) {
       return;
     }
 
@@ -186,7 +188,7 @@ export function TemplateDeployPanel() {
   }
 
   function handleServerChange(value: string) {
-    if (hasSetupHandoff) {
+    if (hasLockedServerHandoff) {
       return;
     }
 
@@ -219,7 +221,7 @@ export function TemplateDeployPanel() {
         body: JSON.stringify({
           server: selectedServerId,
           compose: rendered.compose,
-          project: hasSetupHandoff ? handoffProjectId : rendered.projectName,
+          project: hasProjectEnvironmentContext ? handoffProjectId : rendered.projectName,
           environment: handoffEnvironmentName || "production"
         })
       });
@@ -296,8 +298,8 @@ export function TemplateDeployPanel() {
           activeTemplate={activeTemplate}
           projectName={projectName}
           handoffSummary={handoffSummary}
-          projectNameLocked={hasSetupHandoff}
-          serverLocked={hasSetupHandoff}
+          projectNameLocked={hasProjectEnvironmentContext}
+          serverLocked={hasLockedServerHandoff}
           fieldValues={fieldValues}
           selectedServerId={selectedServerId}
           servers={servers}

@@ -27,7 +27,7 @@ interface TemplateConfigurationCardProps {
   handoffSummary: {
     projectName: string;
     environmentName: string;
-    serverName: string;
+    serverName: string | null;
   } | null;
   projectNameLocked: boolean;
   serverLocked: boolean;
@@ -83,10 +83,14 @@ export function TemplateConfigurationCard({
       <CardContent className="space-y-5">
         {handoffSummary ? (
           <Alert data-testid="template-handoff-summary">
-            <AlertTitle>Setup handoff active</AlertTitle>
+            <AlertTitle>Target context active</AlertTitle>
             <AlertDescription>
-              Deploying into {handoffSummary.projectName} / {handoffSummary.environmentName} on{" "}
-              {handoffSummary.serverName}. Project and server are locked to the onboarding target.
+              Deploying into {handoffSummary.projectName} / {handoffSummary.environmentName}
+              {handoffSummary.serverName ? ` on ${handoffSummary.serverName}` : ""}. Project and
+              environment stay locked to this target
+              {serverLocked
+                ? " and the server stays locked too."
+                : ", but you can choose the server below."}
             </AlertDescription>
           </Alert>
         ) : null}

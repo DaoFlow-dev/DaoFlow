@@ -191,4 +191,53 @@ describe("TemplatesPage", () => {
       environment: "production"
     });
   });
+
+  it("keeps project and environment context even when the server is chosen later", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          ok: true,
+          deploymentId: "dep_template_789",
+          projectId: "proj_console",
+          environmentId: "env_prod",
+          serviceId: "svc_console_db"
+        })
+    });
+
+    renderTemplatesPage(
+      "/templates?projectId=proj_console&projectName=Console&environmentName=production"
+    );
+
+    expect(screen.getByTestId("template-handoff-summary")).toHaveTextContent(
+      "Deploying into Console / production."
+    );
+    expect(screen.getByTestId("template-project-name")).toHaveValue("Console");
+    expect(screen.getByTestId("template-project-name")).toBeDisabled();
+    expect(screen.getByTestId("template-server-select")).toBeEnabled();
+
+    fireEvent.change(screen.getByTestId("template-input-postgres_password"), {
+      target: { value: "super-secret" }
+    });
+    fireEvent.click(screen.getByTestId("template-preview-button"));
+    expect(await screen.findByTestId("compose-preview-plan")).toBeVisible();
+    fireEvent.click(screen.getByTestId("template-apply-button"));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalled();
+    });
+
+    const request = fetchMock.mock.calls.at(-1)?.[1] as RequestInit;
+    expect(typeof request.body).toBe("string");
+    const payload = JSON.parse(request.body as string) as {
+      server: string;
+      project: string;
+      environment: string;
+    };
+    expect(payload).toMatchObject({
+      server: "srv_1",
+      project: "proj_console",
+      environment: "production"
+    });
+  });
 });

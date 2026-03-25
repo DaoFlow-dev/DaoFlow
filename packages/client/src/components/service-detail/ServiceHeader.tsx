@@ -25,9 +25,14 @@ interface ServiceHeaderProps {
     };
   };
   projectName?: string;
+  environmentName?: string;
 }
 
-export default function ServiceHeader({ service, projectName }: ServiceHeaderProps) {
+export default function ServiceHeader({
+  service,
+  projectName,
+  environmentName
+}: ServiceHeaderProps) {
   const navigate = useNavigate();
 
   return (
@@ -46,6 +51,12 @@ export default function ServiceHeader({ service, projectName }: ServiceHeaderPro
         >
           {projectName ?? "Project"}
         </button>
+        {environmentName ? (
+          <>
+            <span>/</span>
+            <span className="text-foreground">{environmentName}</span>
+          </>
+        ) : null}
         <span>/</span>
         <span className="font-medium text-foreground">{service.name}</span>
       </div>

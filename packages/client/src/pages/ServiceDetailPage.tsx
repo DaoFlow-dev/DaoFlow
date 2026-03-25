@@ -124,7 +124,11 @@ export default function ServiceDetailPage() {
   return (
     <div className="space-y-6">
       {/* Header with breadcrumbs, status, and quick actions (items 1-4) */}
-      <ServiceHeader service={svc} projectName={svc.projectName ?? undefined} />
+      <ServiceHeader
+        service={svc}
+        projectName={svc.projectName ?? undefined}
+        environmentName={svc.environmentName ?? undefined}
+      />
 
       {/* Tabbed interface (item 1) */}
       <Tabs defaultValue="general" className="w-full">

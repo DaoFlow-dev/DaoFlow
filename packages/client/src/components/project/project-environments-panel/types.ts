@@ -28,10 +28,13 @@ export interface ProjectEnvironmentsPanelProps {
   projectId: string;
   environments: EnvironmentRecord[];
   servers: ServerRecord[];
+  activeEnvironmentId: string | null;
   createPending: boolean;
   updatePending: boolean;
   deletePending: boolean;
   errorMessage?: string | null;
+  onActiveEnvironmentChange: (environmentId: string | null) => void;
+  onOpenDeploy: (source: "template" | "compose", environment: EnvironmentRecord) => void;
   onCreate: (input: {
     projectId: string;
     name: string;

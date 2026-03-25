@@ -30,7 +30,8 @@ export function RawComposeDeployPanel() {
   const handoffProjectId = searchParams.get("projectId") ?? "";
   const handoffProjectName = searchParams.get("projectName") ?? "";
   const handoffEnvironmentName = searchParams.get("environmentName") ?? "";
-  const hasSetupHandoff = Boolean(handoffServerId && handoffProjectId && handoffEnvironmentName);
+  const hasProjectEnvironmentContext = Boolean(handoffProjectId && handoffEnvironmentName);
+  const hasLockedServerHandoff = Boolean(handoffServerId && hasProjectEnvironmentContext);
   const [projectName, setProjectName] = useState(handoffProjectName);
   const [environmentName, setEnvironmentName] = useState(handoffEnvironmentName || "production");
   const [selectedServerId, setSelectedServerId] = useState(handoffServerId);
@@ -71,9 +72,12 @@ export function RawComposeDeployPanel() {
   );
 
   useEffect(() => {
-    if (hasSetupHandoff) {
+    if (hasProjectEnvironmentContext) {
       setProjectName(handoffProjectName);
       setEnvironmentName(handoffEnvironmentName);
+    }
+
+    if (hasLockedServerHandoff) {
       setSelectedServerId(handoffServerId);
       return;
     }
@@ -85,7 +89,8 @@ export function RawComposeDeployPanel() {
     handoffEnvironmentName,
     handoffProjectName,
     handoffServerId,
-    hasSetupHandoff,
+    hasLockedServerHandoff,
+    hasProjectEnvironmentContext,
     selectedServerId,
     servers
   ]);
@@ -120,14 +125,15 @@ export function RawComposeDeployPanel() {
     }
   );
 
-  const handoffSummary = hasSetupHandoff
+  const handoffSummary = hasProjectEnvironmentContext
     ? {
         projectName: handoffProjectName,
         environmentName: handoffEnvironmentName,
-        serverName:
-          servers.find((server) => server.id === handoffServerId)?.name ??
-          handoffServerName ??
-          "Selected server"
+        serverName: hasLockedServerHandoff
+          ? (servers.find((server) => server.id === handoffServerId)?.name ??
+            handoffServerName ??
+            "Selected server")
+          : null
       }
     : null;
 
@@ -155,7 +161,7 @@ export function RawComposeDeployPanel() {
         body: JSON.stringify({
           server: selectedServerId,
           compose: composeInput,
-          project: hasSetupHandoff ? handoffProjectId : projectName.trim(),
+          project: hasProjectEnvironmentContext ? handoffProjectId : projectName.trim(),
           environment: environmentName.trim()
         })
       });
@@ -207,11 +213,14 @@ export function RawComposeDeployPanel() {
       <CardContent className="space-y-5">
         {handoffSummary ? (
           <Alert data-testid="raw-compose-handoff-summary">
-            <AlertTitle>Setup handoff active</AlertTitle>
+            <AlertTitle>Target context active</AlertTitle>
             <AlertDescription>
-              Deploying into {handoffSummary.projectName} / {handoffSummary.environmentName} on{" "}
-              {handoffSummary.serverName}. Project, environment, and server are locked to the
-              onboarding target.
+              Deploying into {handoffSummary.projectName} / {handoffSummary.environmentName}
+              {handoffSummary.serverName ? ` on ${handoffSummary.serverName}` : ""}. Project and
+              environment stay locked to this target
+              {hasLockedServerHandoff
+                ? " and the server stays locked too."
+                : ", but you can choose the server below."}
             </AlertDescription>
           </Alert>
         ) : null}
@@ -222,7 +231,7 @@ export function RawComposeDeployPanel() {
             <Input
               id="raw-compose-project-name"
               value={projectName}
-              disabled={hasSetupHandoff}
+              disabled={hasProjectEnvironmentContext}
               onChange={(event) => {
                 setProjectName(event.target.value);
                 resetPreviewState();
@@ -235,7 +244,7 @@ export function RawComposeDeployPanel() {
             <Input
               id="raw-compose-environment-name"
               value={environmentName}
-              disabled={hasSetupHandoff}
+              disabled={hasProjectEnvironmentContext}
               onChange={(event) => {
                 setEnvironmentName(event.target.value);
                 resetPreviewState();
@@ -254,7 +263,7 @@ export function RawComposeDeployPanel() {
             >
               <SelectTrigger
                 id="raw-compose-server-select"
-                disabled={hasSetupHandoff}
+                disabled={hasLockedServerHandoff}
                 data-testid="raw-compose-server-select"
               >
                 <SelectValue

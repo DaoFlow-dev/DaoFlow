@@ -40,9 +40,12 @@ describe("ServiceHeader", () => {
             projectId: "proj_1"
           }}
           projectName="Demo"
+          environmentName="Production"
         />
       </MemoryRouter>
     );
+
+    expect(screen.getByText("Production")).toBeVisible();
 
     fireEvent.click(screen.getByRole("button", { name: "Deploy" }));
 
@@ -61,6 +64,7 @@ describe("ServiceHeader", () => {
             projectId: "proj_1"
           }}
           projectName="Demo"
+          environmentName="Production"
         />
       </MemoryRouter>
     );

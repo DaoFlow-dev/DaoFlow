@@ -19,10 +19,13 @@ export function ProjectEnvironmentsPanel({
   projectId,
   environments,
   servers,
+  activeEnvironmentId,
   createPending,
   updatePending,
   deletePending,
   errorMessage,
+  onActiveEnvironmentChange,
+  onOpenDeploy,
   onCreate,
   onUpdate,
   onDelete
@@ -116,18 +119,33 @@ export function ProjectEnvironmentsPanel({
         <div>
           <h2 className="text-lg font-medium">Environments</h2>
           <p className="text-sm text-muted-foreground">
-            Manage per-environment server and Compose overrides on top of the project defaults.
+            Operate from the environment first, then adjust the server and Compose overrides when
+            you need to.
           </p>
         </div>
-        <Button onClick={openCreateDialog} data-testid="project-environments-create-trigger">
-          <Plus size={14} className="mr-1" />
-          Add Environment
-        </Button>
+        <div className="flex gap-2">
+          {activeEnvironmentId ? (
+            <Button
+              variant="outline"
+              onClick={() => onActiveEnvironmentChange(null)}
+              data-testid="project-environments-show-all"
+            >
+              Show All Services
+            </Button>
+          ) : null}
+          <Button onClick={openCreateDialog} data-testid="project-environments-create-trigger">
+            <Plus size={14} className="mr-1" />
+            Add Environment
+          </Button>
+        </div>
       </div>
 
       <EnvironmentCards
+        activeEnvironmentId={activeEnvironmentId}
         environments={environments}
         serverLabelById={serverLabelById}
+        onActiveEnvironmentChange={onActiveEnvironmentChange}
+        onOpenDeploy={onOpenDeploy}
         onEdit={openEditDialog}
         onDelete={setDeleteTarget}
       />

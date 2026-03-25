@@ -2,6 +2,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import AddServiceDialog from "../components/AddServiceDialog";
+import type { EnvironmentRecord } from "@/components/project/project-environments-panel/types";
 import { ProjectDetailHeader } from "@/components/project/ProjectDetailHeader";
 import { ProjectEnvironmentFilter } from "@/components/project/ProjectEnvironmentFilter";
 import { ProjectOverviewCards } from "@/components/project/ProjectOverviewCards";
@@ -38,6 +39,27 @@ export default function ProjectDetailPage() {
   }
 
   const project = page.projectData;
+
+  function openEnvironmentDeploy(source: "template" | "compose", environment: EnvironmentRecord) {
+    const params = new URLSearchParams({
+      source,
+      projectId: project.id,
+      projectName: project.name,
+      environmentName: environment.name
+    });
+
+    if (environment.targetServerId) {
+      params.set("serverId", environment.targetServerId);
+      const serverName = page.servers.find(
+        (server) => server.id === environment.targetServerId
+      )?.name;
+      if (serverName) {
+        params.set("serverName", serverName);
+      }
+    }
+
+    void navigate(`/deploy?${params.toString()}`);
+  }
 
   return (
     <div className="space-y-6">
@@ -93,10 +115,13 @@ export default function ProjectDetailPage() {
         projectId={project.id}
         environments={page.environments}
         servers={page.servers}
+        activeEnvironmentId={page.activeEnv}
         createPending={page.createEnvironment.isPending}
         updatePending={page.updateEnvironment.isPending}
         deletePending={page.deleteEnvironment.isPending}
         errorMessage={page.environmentErrorMessage}
+        onActiveEnvironmentChange={page.setActiveEnv}
+        onOpenDeploy={openEnvironmentDeploy}
         onCreate={(input) => {
           page.resetEnvironmentMutations();
           page.createEnvironment.mutate({
