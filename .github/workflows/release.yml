@@ -48,6 +48,13 @@ jobs:
       - name: Build darwin-x64 (Intel Mac)
         run: bun build packages/cli/src/index.ts --compile --target=bun-darwin-x64 --outfile dist/daoflow-darwin-x64
 
+      - name: Create tarballs for Homebrew
+        run: |
+          cd dist
+          for bin in daoflow-darwin-arm64 daoflow-darwin-x64 daoflow-linux-x64 daoflow-linux-arm64; do
+            tar -czf "${bin}.tar.gz" "$bin"
+          done
+
       - name: Generate checksums
         run: |
           cd dist
@@ -64,7 +71,11 @@ jobs:
             ### Installation
 
             ```bash
+            # One-line install (downloads CLI + runs installer)
             curl -fsSL https://raw.githubusercontent.com/DaoFlow-dev/DaoFlow/main/scripts/install.sh | sh
+
+            # Homebrew (macOS)
+            brew install daoflow-dev/daoflow/daoflow
             ```
 
             Or download a binary directly:
@@ -91,5 +102,9 @@ jobs:
             dist/daoflow-linux-arm64
             dist/daoflow-darwin-arm64
             dist/daoflow-darwin-x64
+            dist/daoflow-darwin-arm64.tar.gz
+            dist/daoflow-darwin-x64.tar.gz
+            dist/daoflow-linux-x64.tar.gz
+            dist/daoflow-linux-arm64.tar.gz
             dist/checksums.txt
           generate_release_notes: true

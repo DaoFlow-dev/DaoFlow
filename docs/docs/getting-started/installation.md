@@ -118,7 +118,23 @@ daoflow uninstall --remove-data --yes
 
 ## Installing the CLI Only
 
-If you only need the CLI (not the server), download the binary for your platform:
+If you only need the CLI (not the server):
+
+### Homebrew (macOS)
+
+```bash
+brew install daoflow-dev/daoflow/daoflow
+```
+
+To upgrade:
+
+```bash
+brew upgrade daoflow
+```
+
+### Direct Binary Download
+
+Download the binary for your platform:
 
 ```bash
 # macOS (Apple Silicon)
