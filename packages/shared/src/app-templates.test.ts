@@ -12,6 +12,7 @@ describe("app template catalog", () => {
     expect(slugs.includes("n8n")).toBe(true);
     expect(slugs.includes("fizzy")).toBe(true);
     expect(slugs.includes("uptime-kuma")).toBe(true);
+    expect(slugs.includes("openclaw")).toBe(true);
   });
 
   test("renders stack-aware compose from template inputs", () => {
