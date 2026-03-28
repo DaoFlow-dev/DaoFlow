@@ -11,14 +11,15 @@ import { test, expect } from "@playwright/test";
 import { signInAsOwner, trpcRequest } from "./helpers";
 
 test.describe("OpenClaw template deployment", () => {
-  test("renders the OpenClaw template with correct compose output", async ({ page }) => {
+  test("deploy page shows the OpenClaw template in the curated catalog", async ({ page }) => {
     await signInAsOwner(page);
 
-    // Verify the template catalog includes openclaw
-    const templates = await trpcRequest<{ slug: string; name: string }[]>(page, "listAppTemplates");
-    const openclaw = templates.find((t) => t.slug === "openclaw");
-    expect(openclaw).toBeDefined();
-    expect(openclaw?.name).toBe("OpenClaw");
+    await page.goto("/deploy");
+
+    await expect(page.getByRole("heading", { name: "Deploy" })).toBeVisible();
+    await expect(page.getByTestId("template-card-openclaw")).toBeVisible();
+    await expect(page.getByTestId("template-card-openclaw")).toContainText("OpenClaw");
+    await expect(page.getByTestId("template-select-openclaw")).toBeVisible();
   });
 
   test("deploys OpenClaw via SSH server and verifies health", async ({ page }) => {

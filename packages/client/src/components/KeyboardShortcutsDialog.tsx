@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger
@@ -47,6 +48,9 @@ export function KeyboardShortcutsDialog() {
             <Keyboard size={16} />
             Keyboard Shortcuts
           </DialogTitle>
+          <DialogDescription>
+            Quick navigation and editing shortcuts available throughout the dashboard.
+          </DialogDescription>
         </DialogHeader>
         <div className="space-y-2">
           {shortcuts.map((s) => (

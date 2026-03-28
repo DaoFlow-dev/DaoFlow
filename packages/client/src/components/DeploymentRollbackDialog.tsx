@@ -3,6 +3,7 @@ import { trpc } from "../lib/trpc";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter
@@ -48,6 +49,9 @@ export default function DeploymentRollbackDialog({
           <DialogTitle className="flex items-center gap-2">
             <RotateCcw size={16} /> Rollback Service
           </DialogTitle>
+          <DialogDescription>
+            Choose a healthy deployment to restore for this service.
+          </DialogDescription>
         </DialogHeader>
 
         {targets.isLoading ? (
