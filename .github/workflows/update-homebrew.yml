@@ -56,10 +56,18 @@ jobs:
               if Hardware::CPU.arm?
                 url "https://github.com/DaoFlow-dev/DaoFlow/releases/download/v#{version}/daoflow-darwin-arm64.tar.gz"
                 sha256 "${{ steps.sha.outputs.darwin_arm64 }}"
+
+                def install
+                  bin.install "daoflow-darwin-arm64" => "daoflow"
+                end
               end
               if Hardware::CPU.intel?
                 url "https://github.com/DaoFlow-dev/DaoFlow/releases/download/v#{version}/daoflow-darwin-x64.tar.gz"
                 sha256 "${{ steps.sha.outputs.darwin_x64 }}"
+
+                def install
+                  bin.install "daoflow-darwin-x64" => "daoflow"
+                end
               end
             end
 
@@ -67,15 +75,19 @@ jobs:
               if Hardware::CPU.arm?
                 url "https://github.com/DaoFlow-dev/DaoFlow/releases/download/v#{version}/daoflow-linux-arm64.tar.gz"
                 sha256 "${{ steps.sha.outputs.linux_arm64 }}"
+
+                def install
+                  bin.install "daoflow-linux-arm64" => "daoflow"
+                end
               end
               if Hardware::CPU.intel?
                 url "https://github.com/DaoFlow-dev/DaoFlow/releases/download/v#{version}/daoflow-linux-x64.tar.gz"
                 sha256 "${{ steps.sha.outputs.linux_x64 }}"
-              end
-            end
 
-            def install
-              bin.install "daoflow"
+                def install
+                  bin.install "daoflow-linux-x64" => "daoflow"
+                end
+              end
             end
 
             test do
