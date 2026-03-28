@@ -19,6 +19,8 @@ Each template carries structured metadata for:
 - domain inputs
 - named volumes
 - health-check expectations
+- source, pinned version, and last review date
+- freshness status and review change notes
 
 ## Key Principle
 
@@ -43,6 +45,13 @@ daoflow templates show n8n --json
 ```
 
 `show` returns the template metadata: services, required fields, volumes, and health checks.
+
+It also includes:
+
+- the source used to review the starter
+- the pinned version or upstream tag reflected in the starter
+- freshness status based on the last review window
+- the latest template review notes
 
 ## Preview A Template Deployment
 
@@ -92,3 +101,16 @@ This queues a normal direct Compose deployment and requires `deploy:start`.
 - Domain fields must be bare `host` or `host:port` values
 
 Secret fields are masked in CLI output, but the real values are rendered into the queued compose payload.
+
+## Catalog Freshness
+
+DaoFlow keeps the built-in catalog in source control and does not fetch remote template content at runtime.
+
+Maintainers can review and refresh the starter catalog with:
+
+```bash
+bun run templates:report
+bun run templates:check
+```
+
+`templates:report` prints the current source, version, last review date, and freshness state for every starter. `templates:check` fails on malformed or incomplete metadata and warns when a starter is overdue for review.

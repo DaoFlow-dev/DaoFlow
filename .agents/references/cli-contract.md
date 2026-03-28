@@ -293,9 +293,14 @@ This file holds the detailed CLI contract, scope map, and agent-facing command r
 - `daoflow templates list` and `daoflow templates show <slug>` are local catalog reads and do not require API access
 - `daoflow templates plan <slug>` is a planning-lane command backed by the existing `composeDeploymentPlan` route and requires `deploy:read`
 - `daoflow templates apply <slug> --yes` is a command-lane write that queues the existing direct compose deploy workflow and requires `deploy:start`
+- `templates list` and `templates show` must surface template maintenance metadata and freshness state so operators can judge starter drift without reading source files
 - Template overrides use repeated `--set key=value`
 - Unknown template keys must fail fast before any network request
 - Secret template fields must stay masked in human and JSON CLI summaries even though the underlying rendered compose uses the provided value
+- `templates list` JSON success shape:
+  - `{ "ok": true, "data": { "templates": [{ "slug": string, "name": string, "category": string, "summary": string, "tags": string[], "defaultProjectName": string, "serviceCount": number, "fieldCount": number, "maintenance": { "version": string, "sourceName": string, "sourceUrl": string, "reviewedAt": string, "reviewCadenceDays": number, "changeNotes": string[] }, "freshness": { "status": "current" | "review-soon" | "stale", "reviewedAt": string, "reviewDueAt": string, "daysSinceReview": number, "daysUntilReview": number } }] } }`
+- `templates show` JSON success shape:
+  - `{ "ok": true, "data": { "template": { "slug": string, "name": string, "category": string, "summary": string, "tags": string[], "defaultProjectName": string, "serviceCount": number, "fieldCount": number, "maintenance": { "version": string, "sourceName": string, "sourceUrl": string, "reviewedAt": string, "reviewCadenceDays": number, "changeNotes": string[] }, "freshness": { "status": "current" | "review-soon" | "stale", "reviewedAt": string, "reviewDueAt": string, "daysSinceReview": number, "daysUntilReview": number }, "description": string, "services": [...], "fields": [...], "volumes": [...], "healthChecks": [...] } } }`
 - `templates plan` JSON success shape:
   - `{ "ok": true, "data": { "template": { "slug": string, "name": string }, "projectName": string, "inputs": [{ "key": string, "label": string, "kind": "string" | "secret" | "domain" | "port", "value": string, "isSecret": boolean }], "plan": { ...compose plan... } } }`
 - `templates apply` JSON success shape:

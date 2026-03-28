@@ -1,10 +1,12 @@
 import { Command } from "commander";
 import chalk from "chalk";
 import {
+  describeAppTemplateFreshness,
   getAppTemplate,
   listAppTemplates,
   maskTemplateFieldValue,
   renderAppTemplate,
+  resolveAppTemplateFreshness,
   type AppTemplateDefinition,
   type RenderedTemplateField
 } from "@daoflow/shared";
@@ -114,12 +116,19 @@ function printTemplateInputs(inputs: TemplateInputSummary[]) {
 }
 
 function printTemplateMetadata(template: AppTemplateDefinition) {
+  const freshness = resolveAppTemplateFreshness(template);
+
   console.log(chalk.bold(`\n  ${template.name}\n`));
   console.log(`  Slug:      ${template.slug}`);
   console.log(`  Category:  ${template.category}`);
   console.log(`  Summary:   ${template.summary}`);
   console.log(`  Default:   ${template.defaultProjectName}`);
   console.log(`  Tags:      ${template.tags.join(", ")}`);
+  console.log(`  Version:   ${template.maintenance.version}`);
+  console.log(`  Source:    ${template.maintenance.sourceName}`);
+  console.log(`  Reviewed:  ${freshness.reviewedAt.slice(0, 10)}`);
+  console.log(`  Due:       ${freshness.reviewDueAt.slice(0, 10)}`);
+  console.log(`  Freshness: ${describeAppTemplateFreshness(freshness.status)}`);
   console.log();
 
   console.log(`  ${chalk.bold("Services:")}`);
@@ -147,6 +156,12 @@ function printTemplateMetadata(template: AppTemplateDefinition) {
     console.log(`    ${chalk.cyan(check.serviceName)}  ${check.summary}`);
   }
   console.log();
+
+  console.log(`  ${chalk.bold("Latest review notes:")}`);
+  for (const note of template.maintenance.changeNotes) {
+    console.log(`    - ${note}`);
+  }
+  console.log();
 }
 
 function normalizeDeployError(error: unknown): Error {
@@ -163,6 +178,8 @@ function normalizeDeployError(error: unknown): Error {
 }
 
 function summarizeCatalogTemplate(template: AppTemplateDefinition) {
+  const freshness = resolveAppTemplateFreshness(template);
+
   return {
     slug: template.slug,
     name: template.name,
@@ -171,7 +188,9 @@ function summarizeCatalogTemplate(template: AppTemplateDefinition) {
     tags: template.tags,
     defaultProjectName: template.defaultProjectName,
     serviceCount: template.services.length,
-    fieldCount: template.fields.length
+    fieldCount: template.fields.length,
+    maintenance: template.maintenance,
+    freshness
   };
 }
 
@@ -192,16 +211,22 @@ export function templatesCommand(): Command {
         action: async (ctx) => {
           await Promise.resolve();
           const templates = listAppTemplates();
+          const summarizedTemplates = templates.map(summarizeCatalogTemplate);
           return ctx.success(
             {
-              templates: templates.map(summarizeCatalogTemplate)
+              templates: summarizedTemplates
             },
             {
               human: () => {
                 console.log(chalk.bold("\n  App Templates\n"));
-                for (const template of templates) {
+                for (const template of summarizedTemplates) {
                   console.log(`  ${chalk.cyan(template.name)}  (${template.slug})`);
-                  console.log(chalk.dim(`    ${template.category} · ${template.summary}`));
+                  console.log(
+                    chalk.dim(
+                      `    ${template.category} · ${template.maintenance.version} · ${describeAppTemplateFreshness(template.freshness.status)}`
+                    )
+                  );
+                  console.log(chalk.dim(`    ${template.summary}`));
                 }
                 console.log();
               }

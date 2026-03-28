@@ -2,6 +2,15 @@ export type AppTemplateCategory = "application" | "database" | "cache" | "queue"
 
 export type AppTemplateFieldKind = "string" | "secret" | "domain" | "port";
 
+export interface AppTemplateMaintenanceDefinition {
+  version: string;
+  sourceName: string;
+  sourceUrl: string;
+  reviewedAt: string;
+  reviewCadenceDays: number;
+  changeNotes: string[];
+}
+
 export interface AppTemplateFieldDefinition {
   key: string;
   label: string;
@@ -42,6 +51,7 @@ export interface AppTemplateDefinition {
   fields: AppTemplateFieldDefinition[];
   volumes: AppTemplateVolumeDefinition[];
   healthChecks: AppTemplateHealthCheckDefinition[];
+  maintenance: AppTemplateMaintenanceDefinition;
   composeTemplate: string;
 }
 

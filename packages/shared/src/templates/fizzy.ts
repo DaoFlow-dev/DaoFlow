@@ -9,6 +9,17 @@ export const fizzyTemplate = {
     "Use this when you want the documented single-container Fizzy deployment, including automatic TLS on the app domain and durable storage for the bundled SQLite-backed app state.",
   tags: ["fizzy", "basecamp", "rails", "social"],
   defaultProjectName: "fizzy",
+  maintenance: {
+    version: "main (floating tag)",
+    sourceName: "Basecamp Fizzy repository",
+    sourceUrl: "https://github.com/basecamp/fizzy",
+    reviewedAt: "2026-03-22T00:00:00.000Z",
+    reviewCadenceDays: 60,
+    changeNotes: [
+      "Kept the starter aligned with the upstream floating-tag Fizzy deployment shape.",
+      "Re-validated the required SMTP inputs, TLS domain settings, and persistent Rails storage."
+    ]
+  },
   services: [
     {
       name: "web",

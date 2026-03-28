@@ -91,7 +91,14 @@ describe("TemplatesPage", () => {
 
     expect(screen.getByTestId("templates-page")).toBeVisible();
     expect(screen.getByTestId("template-card-postgres")).toBeVisible();
+    expect(screen.getByTestId("template-freshness-postgres")).toHaveTextContent("Current");
+    expect(screen.getByTestId("template-maintenance-postgres")).toHaveTextContent(
+      "Docker Hub postgres"
+    );
     expect(screen.getByTestId("template-active-name")).toHaveTextContent("PostgreSQL");
+    expect(screen.getByTestId("template-maintenance-panel")).toHaveTextContent(
+      "Re-checked the health check and named volume layout"
+    );
     expect(screen.getByTestId("template-render-error")).toHaveTextContent("Database password");
   });
 

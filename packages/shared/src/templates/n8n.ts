@@ -10,6 +10,17 @@ export const n8nTemplate = {
     "Use this for a lightweight automation control plane where operators want one container, one persistent volume, and explicit external webhook origin settings.",
   tags: ["n8n", "automation", "workflow"],
   defaultProjectName: "n8n",
+  maintenance: {
+    version: "1.84.1",
+    sourceName: "n8n Docker docs",
+    sourceUrl: "https://docs.n8n.io/hosting/installation/docker/",
+    reviewedAt: "2026-03-21T00:00:00.000Z",
+    reviewCadenceDays: 90,
+    changeNotes: [
+      "Pinned the starter to n8n 1.84.1 with the documented webhook and encryption-key settings.",
+      "Re-validated the persistent data mount and /healthz readiness probe."
+    ]
+  },
   services: [
     {
       name: "n8n",

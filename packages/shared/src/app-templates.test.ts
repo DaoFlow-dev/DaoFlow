@@ -1,5 +1,11 @@
 import { describe, expect, test } from "bun:test";
-import { listAppTemplates, maskTemplateFieldValue, renderAppTemplate } from "./app-templates";
+import {
+  getAppTemplate,
+  listAppTemplates,
+  maskTemplateFieldValue,
+  renderAppTemplate
+} from "./app-templates";
+import { inspectAppTemplates, resolveAppTemplateFreshness } from "./app-template-maintenance";
 
 describe("app template catalog", () => {
   test("ships a representative starter catalog", () => {
@@ -13,6 +19,38 @@ describe("app template catalog", () => {
     expect(slugs.includes("fizzy")).toBe(true);
     expect(slugs.includes("uptime-kuma")).toBe(true);
     expect(slugs.includes("openclaw")).toBe(true);
+  });
+
+  test("ships template freshness metadata without catalog errors", () => {
+    const templates = listAppTemplates();
+    const issues = inspectAppTemplates(templates, new Date("2026-03-28T00:00:00.000Z"));
+
+    expect(issues.filter((issue) => issue.severity === "error")).toEqual([]);
+    expect(
+      templates.every(
+        (template) =>
+          template.maintenance.version.length > 0 &&
+          template.maintenance.sourceUrl.length > 0 &&
+          template.maintenance.changeNotes.length > 0
+      )
+    ).toBe(true);
+  });
+
+  test("derives current, review-soon, and stale template freshness states", () => {
+    const template = getAppTemplate("postgres");
+    if (!template) {
+      throw new Error("Expected the postgres template to exist.");
+    }
+
+    expect(resolveAppTemplateFreshness(template, new Date("2026-04-10T00:00:00.000Z")).status).toBe(
+      "current"
+    );
+    expect(resolveAppTemplateFreshness(template, new Date("2026-05-31T00:00:00.000Z")).status).toBe(
+      "review-soon"
+    );
+    expect(resolveAppTemplateFreshness(template, new Date("2026-06-25T00:00:00.000Z")).status).toBe(
+      "stale"
+    );
   });
 
   test("renders stack-aware compose from template inputs", () => {

@@ -10,6 +10,17 @@ export const openclawTemplate = {
     "Use this to deploy OpenClaw — the open-source personal AI assistant that connects LLMs to local tools, messaging apps, and shell access. Includes a gateway token for secure access and durable volumes for configuration and workspace data.",
   tags: ["openclaw", "ai", "assistant", "agent", "llm"],
   defaultProjectName: "openclaw",
+  maintenance: {
+    version: "latest (floating tag)",
+    sourceName: "OpenClaw repository",
+    sourceUrl: "https://github.com/openclaw/openclaw",
+    reviewedAt: "2026-03-22T00:00:00.000Z",
+    reviewCadenceDays: 60,
+    changeNotes: [
+      "Confirmed the starter still reflects the upstream floating-tag container image and gateway-token requirement.",
+      "Re-checked the config and workspace volumes plus the local HTTP readiness probe."
+    ]
+  },
   services: [
     {
       name: "openclaw",

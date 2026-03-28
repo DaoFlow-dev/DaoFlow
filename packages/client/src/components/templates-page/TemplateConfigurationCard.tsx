@@ -1,5 +1,10 @@
-import type { AppTemplateDefinition } from "@daoflow/shared";
+import {
+  describeAppTemplateFreshness,
+  resolveAppTemplateFreshness,
+  type AppTemplateDefinition
+} from "@daoflow/shared";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -74,6 +79,14 @@ export function TemplateConfigurationCard({
   onOpenDeployments,
   onOpenService
 }: TemplateConfigurationCardProps) {
+  const freshness = resolveAppTemplateFreshness(activeTemplate);
+  const freshnessVariant =
+    freshness.status === "stale"
+      ? "destructive"
+      : freshness.status === "review-soon"
+        ? "secondary"
+        : "success";
+
   return (
     <Card className="border-border/60 shadow-sm">
       <CardHeader>
@@ -94,6 +107,38 @@ export function TemplateConfigurationCard({
             </AlertDescription>
           </Alert>
         ) : null}
+
+        <section
+          className="rounded-xl border border-border/60 bg-muted/20 p-4"
+          data-testid="template-maintenance-panel"
+        >
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant={freshnessVariant} data-testid="template-maintenance-freshness">
+              {describeAppTemplateFreshness(freshness.status)}
+            </Badge>
+            <Badge variant="outline" data-testid="template-maintenance-version">
+              {activeTemplate.maintenance.version}
+            </Badge>
+            <Badge variant="outline" data-testid="template-maintenance-source">
+              {activeTemplate.maintenance.sourceName}
+            </Badge>
+          </div>
+          <p className="mt-3 text-sm text-muted-foreground">
+            Reviewed {new Date(freshness.reviewedAt).toLocaleDateString()} and due for refresh on{" "}
+            {new Date(freshness.reviewDueAt).toLocaleDateString()}.
+          </p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Source: {activeTemplate.maintenance.sourceUrl}
+          </p>
+          <div className="mt-3 space-y-2" data-testid="template-maintenance-change-notes">
+            <p className="text-sm font-semibold">Latest review notes</p>
+            {activeTemplate.maintenance.changeNotes.map((note) => (
+              <p key={note} className="text-sm text-muted-foreground">
+                {note}
+              </p>
+            ))}
+          </div>
+        </section>
 
         <div className="grid gap-4 md:grid-cols-2">
           <div className="space-y-2">

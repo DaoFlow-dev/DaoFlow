@@ -10,6 +10,17 @@ export const infrastructureAppTemplates = [
       "Use this when an app needs a straightforward stateful Postgres service with one named data volume and operator-supplied credentials.",
     tags: ["postgres", "database", "stateful"],
     defaultProjectName: "postgres",
+    maintenance: {
+      version: "17-alpine",
+      sourceName: "Docker Hub postgres",
+      sourceUrl: "https://hub.docker.com/_/postgres",
+      reviewedAt: "2026-03-20T00:00:00.000Z",
+      reviewCadenceDays: 90,
+      changeNotes: [
+        "Pinned the starter to postgres:17-alpine for the default single-node path.",
+        "Re-checked the health check and named volume layout against the upstream image guidance."
+      ]
+    },
     services: [
       {
         name: "postgres",
@@ -96,6 +107,17 @@ volumes:
       "Use this for cache, rate-limit, and transient coordination workloads where a single Redis node is enough.",
     tags: ["redis", "cache", "queue"],
     defaultProjectName: "redis",
+    maintenance: {
+      version: "7-alpine",
+      sourceName: "Docker Hub redis",
+      sourceUrl: "https://hub.docker.com/_/redis",
+      reviewedAt: "2026-03-20T00:00:00.000Z",
+      reviewCadenceDays: 90,
+      changeNotes: [
+        "Kept the starter on redis:7-alpine with append-only persistence enabled by default.",
+        "Re-validated the password-protected health check and data volume path."
+      ]
+    },
     services: [
       {
         name: "redis",
@@ -166,6 +188,17 @@ volumes:
       "Use this for message-queue workloads that need both AMQP traffic and a built-in management surface.",
     tags: ["rabbitmq", "queue", "broker"],
     defaultProjectName: "rabbitmq",
+    maintenance: {
+      version: "3-management-alpine",
+      sourceName: "Docker Hub rabbitmq",
+      sourceUrl: "https://hub.docker.com/_/rabbitmq",
+      reviewedAt: "2026-03-20T00:00:00.000Z",
+      reviewCadenceDays: 90,
+      changeNotes: [
+        "Confirmed the management image variant still matches the AMQP plus admin UI starter goal.",
+        "Re-checked port exposure and the broker diagnostics health check for the default path."
+      ]
+    },
     services: [
       {
         name: "rabbitmq",

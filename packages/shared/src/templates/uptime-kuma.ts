@@ -9,6 +9,17 @@ export const uptimeKumaTemplate = {
     "Use this when operators want a fast, single-service monitoring dashboard with persistent check history and no external database dependency.",
   tags: ["uptime-kuma", "monitoring", "dashboard"],
   defaultProjectName: "uptime-kuma",
+  maintenance: {
+    version: "1 (major tag)",
+    sourceName: "Uptime Kuma repository",
+    sourceUrl: "https://github.com/louislam/uptime-kuma",
+    reviewedAt: "2026-03-21T00:00:00.000Z",
+    reviewCadenceDays: 90,
+    changeNotes: [
+      "Kept the starter on the upstream major-tag image for the simple single-service monitor path.",
+      "Re-checked the published port, data volume, and HTTP readiness probe."
+    ]
+  },
   services: [
     {
       name: "uptime-kuma",

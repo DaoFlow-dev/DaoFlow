@@ -15,6 +15,12 @@ interface TemplateListPayload {
   data: {
     templates: Array<{
       slug: string;
+      maintenance: {
+        version: string;
+      };
+      freshness: {
+        status: string;
+      };
     }>;
   };
 }
@@ -85,6 +91,14 @@ describe("templates command", () => {
     expect(payload.data.templates.some((template) => template.slug === "redis")).toBe(true);
     expect(payload.data.templates.some((template) => template.slug === "n8n")).toBe(true);
     expect(payload.data.templates.some((template) => template.slug === "fizzy")).toBe(true);
+    expect(
+      payload.data.templates.some(
+        (template) =>
+          template.slug === "postgres" &&
+          template.maintenance.version === "17-alpine" &&
+          template.freshness.status === "current"
+      )
+    ).toBe(true);
   });
 
   test("templates plan returns a normal compose plan envelope", async () => {

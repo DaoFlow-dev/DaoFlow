@@ -18,6 +18,8 @@
     "build:server": "bun --filter @daoflow/server build",
     "contracts:generate": "bun ./scripts/generate-external-contracts.ts",
     "contracts:check": "bun ./scripts/generate-external-contracts.ts --check",
+    "templates:check": "bun ./scripts/check-app-templates.ts",
+    "templates:report": "bun ./scripts/check-app-templates.ts --report",
     "check:server-build-references": "bun --filter @daoflow/server build && bun --filter @daoflow/client typecheck",
     "start": "NODE_ENV=production bun packages/server/dist/index.js",
     "typecheck": "tsc -b packages/shared packages/server packages/client packages/cli",

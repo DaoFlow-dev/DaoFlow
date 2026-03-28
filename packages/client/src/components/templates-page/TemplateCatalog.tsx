@@ -1,4 +1,8 @@
-import type { AppTemplateDefinition } from "@daoflow/shared";
+import {
+  describeAppTemplateFreshness,
+  resolveAppTemplateFreshness,
+  type AppTemplateDefinition
+} from "@daoflow/shared";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -34,6 +38,15 @@ function TemplateCatalogCard({
   isActive: boolean;
   onSelectTemplate: (slug: string) => void;
 }) {
+  const freshness = resolveAppTemplateFreshness(template);
+  const latestReviewNote = template.maintenance.changeNotes[0] ?? "No review notes recorded yet.";
+  const freshnessVariant =
+    freshness.status === "stale"
+      ? "destructive"
+      : freshness.status === "review-soon"
+        ? "secondary"
+        : "success";
+
   return (
     <Card
       className={isActive ? "border-primary/50 shadow-md" : "border-border/60"}
@@ -45,9 +58,26 @@ function TemplateCatalogCard({
             <CardTitle className="text-base">{template.name}</CardTitle>
             <CardDescription>{template.summary}</CardDescription>
           </div>
-          <Badge variant="secondary" data-testid={`template-category-${template.slug}`}>
-            {categoryLabel(template.category)}
-          </Badge>
+          <div className="flex flex-col items-end gap-2">
+            <Badge variant="secondary" data-testid={`template-category-${template.slug}`}>
+              {categoryLabel(template.category)}
+            </Badge>
+            <Badge variant={freshnessVariant} data-testid={`template-freshness-${template.slug}`}>
+              {describeAppTemplateFreshness(freshness.status)}
+            </Badge>
+          </div>
+        </div>
+        <div
+          className="rounded-lg border border-border/60 bg-muted/20 px-3 py-2 text-xs text-muted-foreground"
+          data-testid={`template-maintenance-${template.slug}`}
+        >
+          <p>
+            {template.maintenance.sourceName} · {template.maintenance.version}
+          </p>
+          <p>
+            Reviewed {new Date(freshness.reviewedAt).toLocaleDateString()} · due{" "}
+            {new Date(freshness.reviewDueAt).toLocaleDateString()}
+          </p>
         </div>
         <div className="flex flex-wrap gap-2">
           {template.tags.map((tag) => (
@@ -59,6 +89,9 @@ function TemplateCatalogCard({
       </CardHeader>
       <CardContent className="space-y-3">
         <p className="text-sm text-muted-foreground">{template.description}</p>
+        <div className="rounded-lg border border-dashed px-3 py-2 text-sm text-muted-foreground">
+          Latest review note: {latestReviewNote}
+        </div>
         <Button
           variant={isActive ? "default" : "outline"}
           className="w-full"
