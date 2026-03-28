@@ -26,6 +26,7 @@ import DomainsTab from "../components/service-detail/DomainsTab";
 import AdvancedTab from "../components/service-detail/AdvancedTab";
 import ActivityTab from "../components/service-detail/ActivityTab";
 import type { ServiceRuntimeConfig } from "../components/service-detail/runtime-config";
+import type { ServiceEndpointSummary } from "@/components/service-detail/service-endpoint-types";
 import { ServiceRecoveryPanel } from "@/components/service-detail/ServiceRecoveryPanel";
 
 const LogsTab = lazy(() => import("../components/service-detail/LogsTab"));
@@ -106,6 +107,7 @@ export default function ServiceDetailPage() {
       summary: string;
       observedAt: string | null;
     };
+    endpointSummary?: ServiceEndpointSummary | null;
     rolloutStrategy?: {
       label: string;
       summary: string;
@@ -119,6 +121,7 @@ export default function ServiceDetailPage() {
       summary: string;
       failureAnalysis?: string | null;
       targetServerName: string | null;
+      targetServerHost?: string | null;
       imageTag: string | null;
       finishedAt: string | null;
     } | null;

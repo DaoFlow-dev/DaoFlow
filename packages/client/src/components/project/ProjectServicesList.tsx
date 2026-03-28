@@ -27,6 +27,18 @@ interface Service {
     targetServerName: string | null;
     imageTag: string | null;
   } | null;
+  endpointSummary?: {
+    statusLabel: string;
+    statusTone: string;
+    primaryHref: string | null;
+    summary: string;
+    links: Array<{
+      id: string;
+      copyValue: string;
+      statusLabel: string;
+      statusTone: string;
+    }>;
+  } | null;
 }
 
 interface ProjectServicesListProps {
@@ -106,6 +118,18 @@ export function ProjectServicesList({
                         ? ` · ${svc.latestDeployment.targetServerName}`
                         : ""}
                     </p>
+                    {svc.endpointSummary ? (
+                      <p
+                        className="text-xs text-muted-foreground"
+                        data-testid={`project-service-endpoint-summary-${svc.id}`}
+                      >
+                        {svc.endpointSummary.primaryHref ??
+                          svc.endpointSummary.links[0]?.copyValue ??
+                          svc.endpointSummary.summary}
+                        {" · "}
+                        {svc.endpointSummary.statusLabel}
+                      </p>
+                    ) : null}
                   </div>
                 </div>
                 <Badge

@@ -38,6 +38,16 @@ Services don't have runtime state tracked in the database — their state is det
 | `queued` / `deploy`     | Updating          |
 | No deployments          | Not deployed      |
 
+## Reachability and Links
+
+DaoFlow now surfaces the most important operator-facing endpoints directly from the service read model:
+
+- **Primary domain** when a custom hostname is configured
+- **Additional domains** when the service exposes more than one route
+- **Published ports** when the service maps a host port without a managed hostname
+
+Each surfaced endpoint includes a state such as healthy, pending, failed, or unavailable so operators can tell whether the route is live, still coming online, misrouted, or simply not configured yet.
+
 ## Working with Services
 
 ```bash

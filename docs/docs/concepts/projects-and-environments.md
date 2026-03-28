@@ -119,3 +119,5 @@ Model in Dashboard / Direct Compose Intake → Configure Environment → Deploy 
 3. **Deploy** — Push a deployment to an environment.
 4. **Monitor** — View logs, health, and deployment history.
 5. **Iterate** — Update configuration, redeploy, or rollback.
+
+When you return to an environment later, the project detail service list also surfaces the current canonical endpoint or published port summary for each service, so the "what is live now?" answer stays visible outside the deployment history view.

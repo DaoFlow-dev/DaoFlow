@@ -5,7 +5,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import GeneralTab from "./GeneralTab";
 
-const service = {
+const service: Parameters<typeof GeneralTab>[0]["service"] = {
   id: "svc_api",
   name: "api",
   slug: "api",
@@ -27,6 +27,29 @@ const service = {
     statusTone: "healthy",
     summary: "Serving traffic normally.",
     observedAt: "2026-03-20T01:00:00.000Z"
+  },
+  endpointSummary: {
+    status: "healthy",
+    statusLabel: "Healthy",
+    statusTone: "healthy",
+    summary: "app.example.com is live through edge-prod.",
+    primaryLabel: "Primary domain",
+    primaryHref: "https://app.example.com",
+    links: [
+      {
+        id: "domain_primary",
+        kind: "domain",
+        label: "Primary domain",
+        href: "https://app.example.com",
+        copyValue: "https://app.example.com",
+        status: "healthy",
+        statusLabel: "Healthy",
+        statusTone: "healthy",
+        summary: "app.example.com is live through edge-prod.",
+        isCanonical: true,
+        isPublic: true
+      }
+    ]
   },
   latestDeployment: {
     targetServerName: "foundation",
@@ -55,6 +78,7 @@ describe("GeneralTab", () => {
     );
 
     expect(screen.getByTestId("general-tab-deploy-guidance")).toHaveTextContent("deploy center");
+    expect(screen.getByTestId("service-links-card-svc_api")).toBeVisible();
 
     fireEvent.click(screen.getByTestId("general-tab-open-deploy"));
     fireEvent.click(screen.getByTestId("general-tab-open-deployments"));

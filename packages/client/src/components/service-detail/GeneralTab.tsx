@@ -1,6 +1,8 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ServiceLinksCard } from "./ServiceLinksCard";
+import type { ServiceEndpointSummary } from "./service-endpoint-types";
 import {
   Settings2,
   Globe,
@@ -48,6 +50,7 @@ interface GeneralTabProps {
       summary: string;
       observedAt: string | null;
     };
+    endpointSummary?: ServiceEndpointSummary | null;
     rolloutStrategy?: {
       label: string;
       summary: string;
@@ -237,6 +240,10 @@ export default function GeneralTab({
           </CardContent>
         </Card>
       )}
+
+      {service.endpointSummary ? (
+        <ServiceLinksCard serviceId={service.id} endpointSummary={service.endpointSummary} />
+      ) : null}
     </div>
   );
 }

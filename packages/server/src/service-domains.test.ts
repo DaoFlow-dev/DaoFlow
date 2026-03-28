@@ -177,6 +177,30 @@ describe("service domain workflows", () => {
         }
       ]
     });
+    expect(details.endpointSummary).toMatchObject({
+      status: "healthy",
+      primaryLabel: "Primary domain",
+      primaryHref: `https://${primaryHostname}`
+    });
+    expect(details.endpointSummary.links).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          label: "Published TCP 443",
+          copyValue: "203.0.113.24:443/tcp"
+        })
+      ])
+    );
+
+    const projectServices = await caller.projectServices({
+      projectId: fixture.projectId
+    });
+    const serviceWithEndpoints = projectServices.find(
+      (service) => service.id === fixture.service.id
+    );
+    expect(serviceWithEndpoints?.endpointSummary).toMatchObject({
+      primaryHref: `https://${primaryHostname}`,
+      status: "healthy"
+    });
   });
 
   it("rejects invalid hostnames and duplicate published host ports", async () => {
