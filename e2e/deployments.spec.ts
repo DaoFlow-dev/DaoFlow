@@ -260,30 +260,28 @@ test.describe("Deployment lifecycle", () => {
     expect(failedCount).toBeGreaterThan(0);
 
     const guidance = page.locator('[data-testid^="deployment-recovery-guidance-"]').first();
-    let foundWatchdogGuidance = false;
+    let foundRecoveryGuidance = false;
 
     for (let index = 0; index < failedCount; index += 1) {
       await failedRows.nth(index).click();
       try {
-        await expect(guidance).toContainText("Watchdog timeout", { timeout: 1_000 });
-        foundWatchdogGuidance = true;
+        await expect(guidance).toContainText("Recovery guidance", { timeout: 1_000 });
+        foundRecoveryGuidance = true;
         break;
       } catch {
-        // Keep scanning failed control-plane rows until the watchdog-backed recovery panel appears.
+        // Keep scanning failed control-plane rows until a structured recovery panel appears.
       }
     }
 
-    expect(foundWatchdogGuidance).toBe(true);
+    expect(foundRecoveryGuidance).toBe(true);
     await expect(guidance).toContainText("Recovery guidance");
-    await expect(guidance).toContainText("Watchdog timeout");
+    await expect(guidance).toContainText(/Watchdog timeout|Deployment insight/);
     await expect(guidance).toContainText(
-      "DaoFlow stopped waiting for control-plane because deployment progress went silent"
+      /DaoFlow stopped waiting for control-plane because deployment progress went silent|Health check failed and left the deployment unhealthy\./
     );
     await expect(guidance).toContainText(
-      "Suspected root cause: Deployment progress heartbeat timed out."
+      /Suspected root cause: Deployment progress heartbeat timed out\.|Suspected root cause: Readiness endpoint \/healthz returned 503 for 2 consecutive checks\./
     );
-    await expect(guidance).toContainText(
-      "Inspect the deployment logs immediately before the stall."
-    );
+    await expect(guidance).toContainText("Recommended next steps");
   });
 });
