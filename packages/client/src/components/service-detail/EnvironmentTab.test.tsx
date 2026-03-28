@@ -39,13 +39,13 @@ vi.mock("@/lib/trpc", () => ({
 
 const environmentQueryFixture = {
   summary: {
-    totalVariables: 4,
-    secretVariables: 1,
+    totalVariables: 5,
+    secretVariables: 2,
     runtimeVariables: 4,
-    buildVariables: 0,
+    buildVariables: 1,
     serviceOverrides: 2,
     previewOverrides: 1,
-    resolvedVariables: 2
+    resolvedVariables: 3
   },
   variables: [
     {
@@ -95,6 +95,18 @@ const environmentQueryFixture = {
       scopeLabel: "Service preview override",
       originSummary: "Service preview override",
       branchPattern: "preview/*"
+    },
+    {
+      id: "env_build_secret",
+      key: "NPM_TOKEN",
+      displayValue: "npm-secret-value",
+      isSecret: true,
+      category: "build",
+      source: "inline",
+      scope: "environment",
+      scopeLabel: "Shared environment value",
+      originSummary: "Shared environment value",
+      branchPattern: null
     }
   ],
   resolvedVariables: [
@@ -114,6 +126,17 @@ const environmentQueryFixture = {
       displayValue: "prod-secret-value",
       isSecret: true,
       category: "runtime",
+      source: "inline",
+      scope: "environment",
+      scopeLabel: "Shared environment value",
+      originSummary: "Shared environment value",
+      branchPattern: null
+    },
+    {
+      key: "NPM_TOKEN",
+      displayValue: "npm-secret-value",
+      isSecret: true,
+      category: "build",
       source: "inline",
       scope: "environment",
       scopeLabel: "Shared environment value",
@@ -238,5 +261,19 @@ describe("service environment tab", () => {
         category: "runtime"
       });
     });
+  });
+
+  it("shows stored build-time values instead of a local-only build editor", () => {
+    render(<EnvironmentTab serviceId="svc_api" environmentId="env_daoflow_staging" />);
+
+    expect(screen.getByTestId("service-build-summary-layers-svc_api")).toHaveTextContent("1");
+    expect(screen.getByTestId("service-build-summary-secrets-svc_api")).toHaveTextContent("1");
+    expect(screen.getByTestId("service-build-resolved-svc_api-NPM_TOKEN")).toHaveTextContent(
+      "Shared environment value"
+    );
+    expect(screen.getByTestId("service-build-resolved-value-svc_api-NPM_TOKEN")).toHaveTextContent(
+      "[secret]"
+    );
+    expect(screen.queryByTestId("service-build-save-svc_api")).not.toBeInTheDocument();
   });
 });

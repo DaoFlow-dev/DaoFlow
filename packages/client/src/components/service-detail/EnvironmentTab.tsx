@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
-import { ArrowDownUp, Eye, EyeOff, FileText, Save, Wrench } from "lucide-react";
+import { ArrowDownUp, Eye, EyeOff, FileText } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { trpc } from "@/lib/trpc";
+import BuildValuePanel from "./BuildValuePanel";
 import PreviewLifecyclePanel, { type PreviewLifecycleConfig } from "./PreviewLifecyclePanel";
 import { EnvVarTable } from "./EnvVarTable";
 import { RawEnvEditor } from "./RawEnvEditor";
@@ -60,13 +61,7 @@ export default function EnvironmentTab({
   const [mode, setMode] = useState<"table" | "raw">("table");
   const [categoryFilter, setCategoryFilter] = useState<"all" | "runtime" | "build">("all");
   const [rawText, setRawText] = useState("");
-  const [buildArgs, setBuildArgs] = useState("");
-  const [buildSecrets, setBuildSecrets] = useState("");
-  const [savedBuildArgs, setSavedBuildArgs] = useState("");
-  const [savedBuildSecrets, setSavedBuildSecrets] = useState("");
   const [revealedResolvedKeys, setRevealedResolvedKeys] = useState<Set<string>>(new Set());
-
-  const hasUnsavedChanges = buildArgs !== savedBuildArgs || buildSecrets !== savedBuildSecrets;
 
   const envQuery = trpc.environmentVariables.useQuery(
     { environmentId, serviceId, limit: 100 },
@@ -173,11 +168,6 @@ export default function EnvironmentTab({
     );
   }, [environmentId, rawText, serviceId, upsertMutation]);
 
-  const handleSaveBuildConfig = useCallback(() => {
-    setSavedBuildArgs(buildArgs);
-    setSavedBuildSecrets(buildSecrets);
-  }, [buildArgs, buildSecrets]);
-
   function handleEnterRawMode() {
     setMode("raw");
     setRawText(
@@ -197,12 +187,10 @@ export default function EnvironmentTab({
         event.preventDefault();
         if (mode === "raw") {
           void handleSaveRaw();
-        } else if (hasUnsavedChanges) {
-          handleSaveBuildConfig();
         }
       }
     },
-    [handleSaveBuildConfig, handleSaveRaw, hasUnsavedChanges, mode]
+    [handleSaveRaw, mode]
   );
 
   useEffect(() => {
@@ -444,89 +432,11 @@ export default function EnvironmentTab({
         </div>
       )}
 
-      <Card className="shadow-sm">
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2 text-sm">
-              <Wrench size={14} />
-              Build Configuration
-            </CardTitle>
-            {hasUnsavedChanges ? (
-              <Badge variant="outline" className="border-amber-500 text-xs text-amber-500">
-                Unsaved changes
-              </Badge>
-            ) : null}
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div>
-            <label
-              className="mb-1.5 block text-sm font-medium"
-              htmlFor={`service-build-args-${serviceId}`}
-            >
-              Build-time Arguments
-            </label>
-            <p className="mb-2 text-xs text-muted-foreground">
-              Arguments available only at build-time (ARG in Dockerfile). One per line: KEY=value
-            </p>
-            <textarea
-              data-testid={`service-build-args-${serviceId}`}
-              id={`service-build-args-${serviceId}`}
-              aria-label="Build-time Arguments"
-              name={`service-build-args-${serviceId}`}
-              className="min-h-[80px] w-full resize-y rounded-md border bg-background px-3 py-2 text-sm font-mono placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-              placeholder={"NPM_TOKEN=xyz\nNODE_ENV=production"}
-              value={buildArgs}
-              onChange={(event) => setBuildArgs(event.target.value)}
-            />
-          </div>
-          <div>
-            <label
-              className="mb-1.5 block text-sm font-medium"
-              htmlFor={`service-build-secrets-${serviceId}`}
-            >
-              Build-time Secrets
-            </label>
-            <p className="mb-2 text-xs text-muted-foreground">
-              Secrets available only at build-time via --mount=type=secret. Never stored in image
-              layers.
-            </p>
-            <textarea
-              data-testid={`service-build-secrets-${serviceId}`}
-              id={`service-build-secrets-${serviceId}`}
-              aria-label="Build-time Secrets"
-              name={`service-build-secrets-${serviceId}`}
-              className="min-h-[80px] w-full resize-y rounded-md border bg-background px-3 py-2 text-sm font-mono placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-              placeholder={"DB_PASSWORD=secret123\nAPI_KEY=sk-..."}
-              value={buildSecrets}
-              onChange={(event) => setBuildSecrets(event.target.value)}
-            />
-          </div>
-          {hasUnsavedChanges ? (
-            <div className="flex justify-end gap-2">
-              <Button
-                data-testid={`service-build-cancel-${serviceId}`}
-                size="sm"
-                variant="outline"
-                onClick={() => {
-                  setBuildArgs(savedBuildArgs);
-                  setBuildSecrets(savedBuildSecrets);
-                }}
-              >
-                Cancel
-              </Button>
-              <Button
-                data-testid={`service-build-save-${serviceId}`}
-                size="sm"
-                onClick={handleSaveBuildConfig}
-              >
-                <Save size={14} className="mr-1" />
-                Save (⌘S)
-              </Button>
-            </div>
-          ) : null}
-        </CardContent>
-      </Card>
+      <BuildValuePanel
+        serviceId={serviceId}
+        vars={vars.filter((variable) => variable.category === "build")}
+        resolvedVars={resolvedVars.filter((variable) => variable.category === "build")}
+      />
     </div>
   );
 }

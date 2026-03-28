@@ -88,6 +88,14 @@ test.describe("Environment variables", () => {
       category: "runtime",
       source: "inline"
     });
+    await trpcRequest(page, "upsertEnvironmentVariable", {
+      environmentId: environment.id,
+      key: "NPM_TOKEN",
+      value: "npm-secret-value",
+      isSecret: true,
+      category: "build",
+      source: "inline"
+    });
 
     await page.goto(`/services/${service.id}`);
     await expect(page.getByRole("heading", { name: service.name })).toBeVisible();
@@ -96,7 +104,7 @@ test.describe("Environment variables", () => {
     await expect(page.getByTestId(`service-environment-tab-${service.id}`)).toBeVisible();
 
     await expect(page.getByTestId(`service-envvar-summary-layers-${service.id}`)).toContainText(
-      "2"
+      "3"
     );
     await expect(page.getByTestId(`service-envvar-summary-service-${service.id}`)).toContainText(
       "0"
@@ -115,6 +123,13 @@ test.describe("Environment variables", () => {
     await expect(
       page.getByTestId(`service-envvar-resolved-value-${service.id}-POSTGRES_PASSWORD`)
     ).toHaveText("shared-secret-value");
+    await expect(page.getByTestId(`service-build-summary-layers-${service.id}`)).toContainText("1");
+    await expect(page.getByTestId(`service-build-summary-secrets-${service.id}`)).toContainText(
+      "1"
+    );
+    await expect(
+      page.getByTestId(`service-build-resolved-value-${service.id}-NPM_TOKEN`)
+    ).toHaveText("[secret]");
 
     await page.getByTestId(`service-envvar-new-key-${service.id}`).fill("API_URL");
     await page
@@ -150,6 +165,19 @@ test.describe("Environment variables", () => {
     );
     await expect(page.getByText("preview/*").first()).toBeVisible();
 
+    await page.getByTestId(`service-envvar-new-key-${service.id}`).fill("ASSET_BUCKET");
+    await page.getByTestId(`service-envvar-new-value-${service.id}`).fill("build-artifacts");
+    await page.getByTestId(`service-envvar-new-category-${service.id}`).selectOption("build");
+    await page.getByTestId(`service-envvar-add-${service.id}`).click();
+
+    await expect(page.getByTestId(`service-build-summary-layers-${service.id}`)).toContainText("2");
+    await expect(page.getByTestId(`service-build-summary-resolved-${service.id}`)).toContainText(
+      "2"
+    );
+    await expect(
+      page.getByTestId(`service-build-resolved-${service.id}-ASSET_BUCKET`)
+    ).toContainText("Service override");
+
     const serviceInventory = await trpcRequest<{
       summary: {
         totalVariables: number;
@@ -169,10 +197,10 @@ test.describe("Environment variables", () => {
       limit: 100
     });
 
-    expect(serviceInventory.summary.totalVariables).toBe(4);
-    expect(serviceInventory.summary.serviceOverrides).toBe(2);
+    expect(serviceInventory.summary.totalVariables).toBe(6);
+    expect(serviceInventory.summary.serviceOverrides).toBe(3);
     expect(serviceInventory.summary.previewOverrides).toBe(1);
-    expect(serviceInventory.summary.resolvedVariables).toBe(2);
+    expect(serviceInventory.summary.resolvedVariables).toBe(4);
     expect(serviceInventory.resolvedVariables).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -183,6 +211,20 @@ test.describe("Environment variables", () => {
         }),
         expect.objectContaining({
           key: "POSTGRES_PASSWORD",
+          scopeLabel: "Shared environment value",
+          branchPattern: null
+        }),
+        expect.objectContaining({
+          key: "ASSET_BUCKET",
+          displayValue: "build-artifacts",
+          scopeLabel: "Service override",
+          branchPattern: null
+        }),
+        expect.objectContaining({
+          key: "NPM_TOKEN",
+          displayValue: "npm-secret-value",
+          isSecret: true,
+          category: "build",
           scopeLabel: "Shared environment value",
           branchPattern: null
         })
