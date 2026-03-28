@@ -16,6 +16,7 @@ import { asRecord, readString } from "./json-helpers";
 import { readComposePreviewMetadata } from "../../compose-preview";
 import { readDeploymentCancellationSnapshot } from "../../deployment-cancellation";
 import { summarizeDeploymentHealth, summarizeRolloutStrategy } from "./deployment-read-model";
+import { buildDeploymentRecoveryGuidance } from "./deployment-recovery-guidance";
 import { buildDeploymentStateArtifacts } from "./deployment-state-artifacts";
 
 export interface DeploymentIndex {
@@ -101,6 +102,7 @@ export function buildDeploymentView(
     service,
     server
   });
+  const recoveryGuidance = buildDeploymentRecoveryGuidance(deployment);
   const temporalWorkflowId = readString(snapshot, "temporalWorkflowId") || null;
   const temporalRunId = readString(snapshot, "temporalRunId") || null;
 
@@ -135,6 +137,7 @@ export function buildDeploymentView(
     startedAt: deployment.createdAt.toISOString(),
     finishedAt: deployment.concludedAt?.toISOString() ?? null,
     healthSummary,
+    recoveryGuidance,
     rolloutStrategy,
     stateArtifacts,
     steps: steps.map((step, index) => ({

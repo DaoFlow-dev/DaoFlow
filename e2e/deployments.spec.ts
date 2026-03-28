@@ -241,4 +241,35 @@ test.describe("Deployment lifecycle", () => {
       }
     }
   });
+
+  test("failed deployments show structured recovery guidance in expanded history", async ({
+    page
+  }) => {
+    await signInAsOwner(page);
+
+    await page.goto("/deployments");
+    await expect(page.getByRole("heading", { name: "Deployments" })).toBeVisible();
+
+    await page.getByPlaceholder("Search by service name...").fill("control-plane");
+
+    const failedRow = page
+      .locator("table tbody tr")
+      .filter({ hasText: "control-plane" })
+      .filter({ hasText: "Failed" })
+      .first();
+    await failedRow.click();
+
+    const guidance = page.locator('[data-testid^="deployment-recovery-guidance-"]').first();
+    await expect(guidance).toContainText("Recovery guidance");
+    await expect(guidance).toContainText("Watchdog timeout");
+    await expect(guidance).toContainText(
+      "DaoFlow stopped waiting for control-plane because deployment progress went silent"
+    );
+    await expect(guidance).toContainText(
+      "Suspected root cause: Deployment progress heartbeat timed out."
+    );
+    await expect(guidance).toContainText(
+      "Inspect the deployment logs immediately before the stall."
+    );
+  });
 });

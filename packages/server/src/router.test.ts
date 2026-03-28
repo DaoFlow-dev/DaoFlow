@@ -343,6 +343,10 @@ describe("appRouter", () => {
     expect(details.stateArtifacts.effectiveDeployment.replayableSnapshot).toEqual(
       extractReplayableConfigSnapshot(asRecord(details.configSnapshot))
     );
+
+    const guidedDeployment = response.find((item) => item.recoveryGuidance);
+    expect(guidedDeployment?.recoveryGuidance?.summary).toEqual(expect.any(String));
+    expect(Array.isArray(guidedDeployment?.recoveryGuidance?.safeActions)).toBe(true);
   });
 
   it("returns current compose release catalog and drift report shapes", async () => {

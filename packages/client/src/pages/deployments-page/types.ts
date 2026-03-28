@@ -5,6 +5,21 @@ export interface DeploymentStepData {
   detail?: string | null;
 }
 
+export interface DeploymentRecoveryGuidanceEvidenceData {
+  kind: string;
+  id: string;
+  title: string;
+  detail: string;
+}
+
+export interface DeploymentRecoveryGuidanceData {
+  source: "watchdog" | "deployment-insight";
+  summary: string;
+  suspectedRootCause: string | null;
+  safeActions: string[];
+  evidence: DeploymentRecoveryGuidanceEvidenceData[];
+}
+
 export interface DeploymentStateDeclaredData {
   sourceType: string;
   deploymentSource?: string | null;
@@ -150,5 +165,6 @@ export interface DeploymentRowData {
   temporalWorkflowId?: string | null;
   temporalRunId?: string | null;
   steps?: DeploymentStepData[];
+  recoveryGuidance?: DeploymentRecoveryGuidanceData | null;
   stateArtifacts?: DeploymentStateArtifactsData | null;
 }

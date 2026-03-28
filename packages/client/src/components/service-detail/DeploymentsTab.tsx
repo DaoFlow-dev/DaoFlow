@@ -4,8 +4,12 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import DeploymentRecoveryGuidance from "@/components/DeploymentRecoveryGuidance";
 import { DeploymentStateArtifacts } from "@/components/DeploymentStateArtifacts";
-import type { DeploymentStateArtifactsData } from "@/pages/deployments-page/types";
+import type {
+  DeploymentRecoveryGuidanceData,
+  DeploymentStateArtifactsData
+} from "@/pages/deployments-page/types";
 import {
   ChevronDown,
   ChevronRight,
@@ -137,6 +141,7 @@ export default function DeploymentsTab({ serviceId, serviceName }: DeploymentsTa
                 downtimeRisk: string;
                 supportsZeroDowntime: boolean;
               };
+              recoveryGuidance?: DeploymentRecoveryGuidanceData | null;
               steps: { label: string; status: string; detail: string | null }[];
               error?: unknown;
               stateArtifacts?: DeploymentStateArtifactsData | null;
@@ -235,7 +240,15 @@ export default function DeploymentsTab({ serviceId, serviceName }: DeploymentsTa
                         </p>
                       </div>
                     ) : null}
-                    {d.error ? (
+                    {d.recoveryGuidance ? (
+                      <div className="mb-3">
+                        <DeploymentRecoveryGuidance
+                          deploymentId={d.id}
+                          guidance={d.recoveryGuidance}
+                        />
+                      </div>
+                    ) : null}
+                    {d.error && !d.recoveryGuidance ? (
                       <div className="mb-3 rounded-md bg-destructive/10 border border-destructive/20 px-3 py-2 text-sm text-destructive">
                         {typeof d.error === "string" ? d.error : JSON.stringify(d.error)}
                       </div>

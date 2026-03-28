@@ -1,4 +1,5 @@
 import { Badge } from "@/components/ui/badge";
+import DeploymentRecoveryGuidance from "@/components/DeploymentRecoveryGuidance";
 import { DeploymentStateArtifacts } from "@/components/DeploymentStateArtifacts";
 import DeploymentLogViewer from "@/components/DeploymentLogViewer";
 import type { DeploymentRowData } from "./types";
@@ -62,6 +63,12 @@ export function DeploymentExpandedDetails({
             <p className="break-all text-sm font-medium">{deployment.temporalRunId ?? "—"}</p>
           </div>
         </div>
+      ) : null}
+      {deployment.recoveryGuidance ? (
+        <DeploymentRecoveryGuidance
+          deploymentId={deploymentId}
+          guidance={deployment.recoveryGuidance}
+        />
       ) : null}
       {Array.isArray(deployment.steps) && deployment.steps.length > 0 ? (
         <div className="space-y-2">

@@ -48,6 +48,10 @@ vi.mock("@/components/DeploymentRollbackDialog", () => ({
   default: () => null
 }));
 
+vi.mock("@/components/DeploymentLogViewer", () => ({
+  default: () => <div data-testid="deployment-log-viewer">logs</div>
+}));
+
 describe("DeploymentsPage", () => {
   function renderDeploymentsPage() {
     return render(
@@ -91,6 +95,23 @@ describe("DeploymentsPage", () => {
           createdAt: "2026-03-20T01:00:00.000Z",
           canRollback: false,
           conclusion: null,
+          recoveryGuidance: {
+            source: "watchdog",
+            summary: "DaoFlow stopped waiting because deployment progress went silent.",
+            suspectedRootCause: "Deployment progress heartbeat timed out.",
+            safeActions: [
+              "Inspect the deployment logs immediately before the stall.",
+              "Retry the rollout after the runtime is responsive again."
+            ],
+            evidence: [
+              {
+                kind: "watchdog",
+                id: "deployment-watchdog-timeout",
+                title: "Progress heartbeat timed out",
+                detail: "The last recorded deployment heartbeat timed out."
+              }
+            ]
+          },
           steps: []
         }
       ],
@@ -136,5 +157,24 @@ describe("DeploymentsPage", () => {
     fireEvent.click(screen.getByTestId("deployments-empty-open-deploy"));
 
     expect(navigateMock).toHaveBeenCalledWith("/deploy");
+  });
+
+  it("shows recovery guidance for stalled deployments in expanded history rows", () => {
+    renderDeploymentsPage();
+
+    fireEvent.click(screen.getByText("web"));
+
+    expect(screen.getByTestId("deployment-recovery-guidance-dep_2")).toHaveTextContent(
+      "DaoFlow stopped waiting because deployment progress went silent."
+    );
+    expect(screen.getByTestId("deployment-recovery-root-cause-dep_2")).toHaveTextContent(
+      "Deployment progress heartbeat timed out."
+    );
+    expect(
+      screen.getByText("Inspect the deployment logs immediately before the stall.")
+    ).toBeVisible();
+    expect(
+      screen.getByTestId("deployment-recovery-evidence-dep_2-deployment-watchdog-timeout")
+    ).toHaveTextContent("watchdog:Progress heartbeat timed out");
   });
 });
