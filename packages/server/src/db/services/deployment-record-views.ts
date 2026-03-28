@@ -16,6 +16,7 @@ import { asRecord, readString } from "./json-helpers";
 import { readComposePreviewMetadata } from "../../compose-preview";
 import { readDeploymentCancellationSnapshot } from "../../deployment-cancellation";
 import { summarizeDeploymentHealth, summarizeRolloutStrategy } from "./deployment-read-model";
+import { buildDeploymentStateArtifacts } from "./deployment-state-artifacts";
 
 export interface DeploymentIndex {
   projectById: Map<string, typeof projects.$inferSelect>;
@@ -94,6 +95,12 @@ export function buildDeploymentView(
     deploymentSnapshot: deployment.configSnapshot,
     healthcheckPath: service?.healthcheckPath ?? null
   });
+  const stateArtifacts = buildDeploymentStateArtifacts({
+    deployment,
+    environment,
+    service,
+    server
+  });
   const temporalWorkflowId = readString(snapshot, "temporalWorkflowId") || null;
   const temporalRunId = readString(snapshot, "temporalRunId") || null;
 
@@ -129,6 +136,7 @@ export function buildDeploymentView(
     finishedAt: deployment.concludedAt?.toISOString() ?? null,
     healthSummary,
     rolloutStrategy,
+    stateArtifacts,
     steps: steps.map((step, index) => ({
       ...step,
       position: index + 1,

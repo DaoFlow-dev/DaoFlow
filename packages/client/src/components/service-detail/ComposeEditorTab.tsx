@@ -1,7 +1,8 @@
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, Download, FileCode, Info } from "lucide-react";
+import { AlertTriangle, Copy, Download, FileCode, Info } from "lucide-react";
 import { getRuntimeConfigSupportReason } from "./runtime-config";
 
 interface ComposeEditorTabProps {
@@ -19,10 +20,20 @@ export default function ComposeEditorTab({
   composeServiceName,
   runtimeConfigPreview
 }: ComposeEditorTabProps) {
+  const [copied, setCopied] = useState(false);
   const supportReason = getRuntimeConfigSupportReason({
     sourceType,
     composeServiceName
   });
+
+  useEffect(() => {
+    if (!copied) {
+      return;
+    }
+
+    const timeout = window.setTimeout(() => setCopied(false), 1500);
+    return () => window.clearTimeout(timeout);
+  }, [copied]);
 
   function handleDownload() {
     if (!runtimeConfigPreview) {
@@ -38,6 +49,14 @@ export default function ComposeEditorTab({
     URL.revokeObjectURL(url);
   }
 
+  function handleCopy() {
+    if (!runtimeConfigPreview) {
+      return;
+    }
+
+    void navigator.clipboard.writeText(runtimeConfigPreview).then(() => setCopied(true));
+  }
+
   return (
     <Card className="shadow-sm" data-testid={`service-compose-preview-${serviceId}`}>
       <CardHeader>
@@ -50,6 +69,16 @@ export default function ComposeEditorTab({
             <Badge variant="outline" className="text-[10px]">
               YAML
             </Badge>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleCopy}
+              disabled={!runtimeConfigPreview}
+              data-testid={`service-compose-preview-copy-${serviceId}`}
+            >
+              <Copy size={14} className="mr-1" />
+              {copied ? "Copied" : "Copy"}
+            </Button>
             <Button
               size="sm"
               variant="outline"

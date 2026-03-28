@@ -23,6 +23,7 @@ If the web UI is reachable, also capture:
 - the failing deployment or backup run ID
 - the server name involved
 - the last successful deployment or backup before the incident
+- the deployment state artifact export from the deployment details panel
 
 ## Control Plane Will Not Start
 
@@ -58,6 +59,14 @@ Check:
 - Docker and Docker Compose availability on the managed host
 - whether the Compose deploy required a context upload and that the staging workspace is writable
 - whether the failure is in plan generation, artifact staging, Docker execution, or post-start health
+- whether the dashboard deployment details show a difference between declared config, frozen deployment input, and last observed live state
+
+From the dashboard:
+
+1. open the failed service or deployment record
+2. expand the deployment details
+3. copy or download the deployment state artifact JSON
+4. compare the frozen deployment input with the live runtime section before changing anything
 
 If Temporal mode is enabled, also inspect:
 
@@ -108,6 +117,17 @@ If you need manual recovery today:
 2. use your storage backend tooling or `rclone` to fetch the artifact
 3. restore the data with the application or database-specific procedure
 4. record the manual action in your incident notes
+
+## Compose State Recovery
+
+When a Compose-backed service looks wrong but the host is still reachable:
+
+1. open the service `Compose` tab to copy or download the DaoFlow-managed override layer
+2. open the latest deployment details and export the deployment state artifact JSON
+3. compare the declared config, frozen deployment input, and live runtime sections
+4. only then fall back to host-level `docker compose ps`, `docker inspect`, or manual file inspection
+
+This keeps DaoFlow Compose-first while still giving operators a visible escape hatch into the exact state the control plane believes it manages.
 
 ## Upgrade Regression
 

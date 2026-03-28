@@ -36,6 +36,14 @@ Every deployment records:
 - **Steps** — structured timeline of what happened
 - **Logs** — raw stdout/stderr from the deployment
 
+DaoFlow now keeps three operator-facing views of deployment truth:
+
+- **Declared config** — the repository branch, compose files, compose profiles, and target metadata DaoFlow selected before the rollout.
+- **Frozen deployment input** — the replayable snapshot DaoFlow actually queued, including Compose environment evidence, readiness gates, image overrides, and preview metadata when present.
+- **Last observed live state** — the most recent drift/runtime observation DaoFlow has for the service environment so operators can compare what was intended against what is currently running.
+
+The dashboard exposes these sections directly in deployment details, and operators can copy or download the JSON artifact for debugging and recovery.
+
 ## Deployment Sources
 
 DaoFlow supports three deployment sources:

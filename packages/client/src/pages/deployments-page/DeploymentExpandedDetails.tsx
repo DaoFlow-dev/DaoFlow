@@ -1,4 +1,5 @@
 import { Badge } from "@/components/ui/badge";
+import { DeploymentStateArtifacts } from "@/components/DeploymentStateArtifacts";
 import DeploymentLogViewer from "@/components/DeploymentLogViewer";
 import type { DeploymentRowData } from "./types";
 
@@ -87,6 +88,7 @@ export function DeploymentExpandedDetails({
           </div>
         </div>
       ) : null}
+      <DeploymentStateArtifacts deploymentId={deploymentId} artifacts={deployment.stateArtifacts} />
       <DeploymentLogViewer deploymentId={deploymentId} />
     </div>
   );

@@ -4,6 +4,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { DeploymentStateArtifacts } from "@/components/DeploymentStateArtifacts";
+import type { DeploymentStateArtifactsData } from "@/pages/deployments-page/types";
 import {
   ChevronDown,
   ChevronRight,
@@ -137,7 +139,7 @@ export default function DeploymentsTab({ serviceId, serviceName }: DeploymentsTa
               };
               steps: { label: string; status: string; detail: string | null }[];
               error?: unknown;
-              configSnapshot?: unknown;
+              stateArtifacts?: DeploymentStateArtifactsData | null;
             }) => (
               <Card key={d.id} className="shadow-sm overflow-hidden">
                 <div className="flex items-center justify-between gap-3 p-4">
@@ -263,18 +265,16 @@ export default function DeploymentsTab({ serviceId, serviceName }: DeploymentsTa
                     ) : (
                       <p className="text-sm text-muted-foreground">No step details available.</p>
                     )}
-
-                    {d.configSnapshot &&
-                    typeof d.configSnapshot === "object" &&
-                    Object.keys(d.configSnapshot as Record<string, unknown>).length > 0 ? (
+                    {d.stateArtifacts ? (
                       <div className="mt-3 pt-3 border-t">
                         <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1">
                           <GitCompare size={12} />
-                          Config Snapshot
+                          Deployment state artifacts
                         </p>
-                        <pre className="text-xs bg-background rounded p-2 overflow-x-auto font-mono">
-                          {JSON.stringify(d.configSnapshot, null, 2)}
-                        </pre>
+                        <DeploymentStateArtifacts
+                          deploymentId={d.id}
+                          artifacts={d.stateArtifacts}
+                        />
                       </div>
                     ) : null}
 

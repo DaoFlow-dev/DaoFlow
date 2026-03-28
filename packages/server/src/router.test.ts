@@ -14,6 +14,7 @@ import { asRecord } from "./db/services/json-helpers";
 import { createService } from "./db/services/services";
 import { upsertEnvironmentVariable } from "./db/services/envvars";
 import type { ComposeReadinessProbeInput } from "./compose-readiness";
+import { extractReplayableConfigSnapshot } from "./db/services/deployment-source";
 import { appRouter } from "./router";
 import { resetTestDatabaseWithControlPlane } from "./test-db";
 import {
@@ -336,6 +337,11 @@ describe("appRouter", () => {
     expect(Array.isArray(details.steps)).toBe(true);
     expect(details.executionEngine === "legacy" || details.executionEngine === "temporal").toBe(
       true
+    );
+    expect(details.stateArtifacts).toBeTruthy();
+    expect(details.stateArtifacts.declaredConfig.sourceType).toBe(details.sourceType);
+    expect(details.stateArtifacts.effectiveDeployment.replayableSnapshot).toEqual(
+      extractReplayableConfigSnapshot(asRecord(details.configSnapshot))
     );
   });
 
