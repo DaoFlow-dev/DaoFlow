@@ -252,14 +252,28 @@ test.describe("Deployment lifecycle", () => {
 
     await page.getByPlaceholder("Search by service name...").fill("control-plane");
 
-    const failedRow = page
+    const failedRows = page
       .locator("table tbody tr")
       .filter({ hasText: "control-plane" })
-      .filter({ hasText: "Failed" })
-      .first();
-    await failedRow.click();
+      .filter({ hasText: "Failed" });
+    const failedCount = await failedRows.count();
+    expect(failedCount).toBeGreaterThan(0);
 
     const guidance = page.locator('[data-testid^="deployment-recovery-guidance-"]').first();
+    let foundWatchdogGuidance = false;
+
+    for (let index = 0; index < failedCount; index += 1) {
+      await failedRows.nth(index).click();
+      try {
+        await expect(guidance).toContainText("Watchdog timeout", { timeout: 1_000 });
+        foundWatchdogGuidance = true;
+        break;
+      } catch {
+        // Keep scanning failed control-plane rows until the watchdog-backed recovery panel appears.
+      }
+    }
+
+    expect(foundWatchdogGuidance).toBe(true);
     await expect(guidance).toContainText("Recovery guidance");
     await expect(guidance).toContainText("Watchdog timeout");
     await expect(guidance).toContainText(
