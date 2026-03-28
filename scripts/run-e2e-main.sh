@@ -11,6 +11,6 @@ PLAYWRIGHT_BIN="${PLAYWRIGHT_BIN:-./node_modules/.bin/playwright}"
 DATABASE_URL="$DB_URL" bun packages/server/src/db/reset.ts
 DATABASE_URL="$DB_URL" bun run db:migrate
 # Keep seed-time encryption aligned with the Playwright server env.
-DATABASE_URL="$DB_URL" BETTER_AUTH_SECRET="$E2E_BETTER_AUTH_SECRET" ENCRYPTION_KEY="$E2E_ENCRYPTION_KEY" bun packages/server/src/db/services/run-seed.ts
+DATABASE_URL="$DB_URL" BETTER_AUTH_SECRET="$E2E_BETTER_AUTH_SECRET" ENCRYPTION_KEY="$E2E_ENCRYPTION_KEY" DAOFLOW_SEED_DEMO=1 bun packages/server/src/db/services/run-seed.ts
 DATABASE_URL="$DB_URL" BETTER_AUTH_SECRET="$E2E_BETTER_AUTH_SECRET" ENCRYPTION_KEY="$E2E_ENCRYPTION_KEY" bun packages/server/src/db/services/seed-e2e-auth-users.ts
 PLAYWRIGHT_DATABASE_URL="$DB_URL" BETTER_AUTH_SECRET="$E2E_BETTER_AUTH_SECRET" ENCRYPTION_KEY="$E2E_ENCRYPTION_KEY" PLAYWRIGHT_SKIP_DB_BOOTSTRAP=true "$PLAYWRIGHT_BIN" test "$@"

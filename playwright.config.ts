@@ -32,6 +32,7 @@ export default defineConfig({
         process.env.BETTER_AUTH_SECRET ?? "daoflow-e2e-secret-with-enough-entropy-2026",
       BETTER_AUTH_URL: playwrightBaseUrl,
       ENCRYPTION_KEY: process.env.ENCRYPTION_KEY ?? "daoflow-e2e-encryption-key-32chars00",
+      DAOFLOW_SEED_DEMO: "1",
       DISABLE_WORKER: "true",
       NODE_ENV: "production",
       PORT: playwrightServerPort
