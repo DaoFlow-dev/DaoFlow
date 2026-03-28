@@ -1,6 +1,7 @@
 import { expect, type Page } from "@playwright/test";
 import { execFileSync } from "node:child_process";
 import {
+  e2eOwnerUser,
   e2eAdminUser,
   e2eOperatorUser,
   type E2EAuthUser
@@ -52,6 +53,10 @@ export async function signInWithEmailPassword(
 
 export async function signInAsAdmin(page: Page) {
   await signInWithEmailPassword(page, e2eAdminUser);
+}
+
+export async function signInAsPlatformOwner(page: Page) {
+  await signInWithEmailPassword(page, e2eOwnerUser);
 }
 
 export async function signInAsOperator(page: Page) {

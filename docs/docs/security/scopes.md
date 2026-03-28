@@ -67,6 +67,10 @@ Scopes follow the pattern `resource:action`:
 | `terminal:open`    | Open an interactive terminal session (exceptional) |
 | `policy:override`  | Override policy-enforced guardrails                |
 
+`terminal:open` stays intentionally separate from deployment and log access. A user or token that
+can deploy, inspect services, or read logs is still denied interactive shell access unless
+`terminal:open` is explicitly granted.
+
 ## Scope Enforcement
 
 Scopes are checked at two levels:

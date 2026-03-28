@@ -1,8 +1,10 @@
 import { Suspense, lazy, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { trpc } from "../lib/trpc";
+import { useSession } from "../lib/auth-client";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Settings2,
@@ -25,6 +27,7 @@ import EnvironmentTab from "../components/service-detail/EnvironmentTab";
 import DomainsTab from "../components/service-detail/DomainsTab";
 import AdvancedTab from "../components/service-detail/AdvancedTab";
 import ActivityTab from "../components/service-detail/ActivityTab";
+import TerminalAccessNotice from "../components/service-detail/TerminalAccessNotice";
 import type { ServiceRuntimeConfig } from "../components/service-detail/runtime-config";
 import type { ServiceEndpointSummary } from "@/components/service-detail/service-endpoint-types";
 import { ServiceRecoveryPanel } from "@/components/service-detail/ServiceRecoveryPanel";
@@ -46,7 +49,9 @@ function LazyTabSkeleton({ testId }: { testId: string }) {
 export default function ServiceDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const session = useSession();
   const [activeTab, setActiveTab] = useState("general");
+  const viewer = trpc.viewer.useQuery(undefined, { enabled: Boolean(session.data) });
 
   const service = trpc.serviceDetails.useQuery(
     { serviceId: id! },
@@ -126,6 +131,8 @@ export default function ServiceDetailPage() {
       finishedAt: string | null;
     } | null;
   };
+  const canOpenTerminal = Boolean(viewer.data?.authz.capabilities.includes("terminal:open"));
+  const isCheckingTerminalAccess = Boolean(session.data) && viewer.isLoading && !viewer.data;
 
   return (
     <div className="space-y-6">
@@ -162,9 +169,22 @@ export default function ServiceDetailPage() {
             <ScrollText size={14} />
             Logs
           </TabsTrigger>
-          <TabsTrigger value="terminal" className="gap-1.5 data-[state=active]:bg-muted">
+          <TabsTrigger
+            value="terminal"
+            className="gap-1.5 data-[state=active]:bg-muted"
+            data-testid="service-detail-terminal-trigger"
+          >
             <Terminal size={14} />
             Terminal
+            {!canOpenTerminal && !isCheckingTerminalAccess ? (
+              <Badge
+                variant="outline"
+                className="ml-1 border-amber-500/50 text-[10px] uppercase tracking-wide text-amber-700 dark:text-amber-300"
+                data-testid="service-detail-terminal-restricted-badge"
+              >
+                Restricted
+              </Badge>
+            ) : null}
           </TabsTrigger>
           <TabsTrigger value="monitoring" className="gap-1.5 data-[state=active]:bg-muted">
             <BarChart3 size={14} />
@@ -212,7 +232,14 @@ export default function ServiceDetailPage() {
         </TabsContent>
 
         <TabsContent value="terminal" className="mt-4">
-          <TerminalTab serviceId={svc.id} />
+          {canOpenTerminal ? (
+            <TerminalTab serviceId={svc.id} />
+          ) : (
+            <TerminalAccessNotice
+              serviceName={svc.name}
+              isCheckingAccess={isCheckingTerminalAccess}
+            />
+          )}
         </TabsContent>
 
         <TabsContent value="monitoring" className="mt-4">

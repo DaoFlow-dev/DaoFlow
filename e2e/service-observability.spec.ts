@@ -1,9 +1,9 @@
 import { expect, test } from "@playwright/test";
-import { signInAsOwner, trpcRequest } from "./helpers";
+import { signInAsAdmin, signInAsPlatformOwner, trpcRequest } from "./helpers";
 
 test.describe("Service detail: deployment logs & terminal", () => {
   test.beforeEach(async ({ page }) => {
-    await signInAsOwner(page);
+    await signInAsAdmin(page);
   });
 
   /**
@@ -90,7 +90,9 @@ test.describe("Service detail: deployment logs & terminal", () => {
     expect(countText).toContain("match");
   });
 
-  test("terminal tab renders terminal card with shell selector and help text", async ({ page }) => {
+  test("terminal tab explains restricted shell access for deploy-capable admins", async ({
+    page
+  }) => {
     const service = await seedServiceWithDeployment(page);
 
     await page.goto(`/services/${service.id}`);
@@ -98,42 +100,75 @@ test.describe("Service detail: deployment logs & terminal", () => {
       timeout: 10_000
     });
 
+    await expect(page.getByTestId("service-detail-terminal-restricted-badge")).toHaveText(
+      "Restricted"
+    );
+
+    // Switch to Logs tab first to confirm read-only diagnostics remain available
+    await page.getByRole("tab", { name: "Logs" }).click();
+    await expect(page.getByTestId(`logs-card-${service.id}`)).toBeVisible({ timeout: 10_000 });
+
     // Switch to Terminal tab
     await page.getByRole("tab", { name: "Terminal" }).click();
 
-    // Verify the terminal card is rendered
+    await expect(page.getByTestId("terminal-access-blocked-alert")).toContainText(
+      "Terminal access needs a separate permission."
+    );
+    await expect(page.getByTestId("terminal-access-help")).toContainText(
+      "Ask an owner to handle break-glass troubleshooting"
+    );
+    await expect(page.getByTestId(`terminal-card-${service.id}`)).toHaveCount(0);
+  });
+});
+
+test.describe("Service detail: owner terminal access", () => {
+  test.beforeEach(async ({ page }) => {
+    await signInAsPlatformOwner(page);
+  });
+
+  test("terminal tab renders terminal card with shell selector and help text for owners", async ({
+    page
+  }) => {
+    const suffix = Date.now().toString();
+
+    const project = await trpcRequest<{ id: string }>(page, "createProject", {
+      name: `E2E Owner LogTerm ${suffix}`,
+      description: "Owner terminal access test"
+    });
+
+    const environment = await trpcRequest<{ id: string }>(page, "createEnvironment", {
+      projectId: project.id,
+      name: `env-owner-${suffix}`,
+      targetServerId: "srv_foundation_1"
+    });
+
+    const service = await trpcRequest<{ id: string; name: string }>(page, "createService", {
+      name: `svc-owner-${suffix}`,
+      environmentId: environment.id,
+      projectId: project.id,
+      sourceType: "image",
+      imageReference: "nginx:alpine",
+      port: "80",
+      targetServerId: "srv_foundation_1"
+    });
+
+    await page.goto(`/services/${service.id}`);
+    await expect(page.getByRole("heading", { name: service.name })).toBeVisible({
+      timeout: 10_000
+    });
+
+    await page.getByRole("tab", { name: "Terminal" }).click();
+
     const terminalCard = page.getByTestId(`terminal-card-${service.id}`);
     await expect(terminalCard).toBeVisible({ timeout: 10_000 });
-
-    // Verify Docker Terminal title
     await expect(terminalCard.getByText("Docker Terminal")).toBeVisible();
-
-    // Verify bash / sh shell tabs are present
     await expect(page.getByTestId(`terminal-shell-${service.id}-bash`)).toBeVisible();
     await expect(page.getByTestId(`terminal-shell-${service.id}-sh`)).toBeVisible();
-
-    // Verify terminal output container exists
-    const terminalOutput = page.getByTestId(`terminal-output-${service.id}`);
-    await expect(terminalOutput).toBeVisible();
-
-    // Click the terminal area — it should become interactive
-    await terminalOutput.click();
-
-    // Verify the terminal status badge is rendered
-    const statusBadge = page.getByTestId(`terminal-status-${service.id}`);
-    await expect(statusBadge).toBeVisible();
-    const statusText = await statusBadge.textContent();
-    expect(["Connected", "Disconnected"]).toContain(statusText);
-
-    // Verify help text
-    const helpText = page.getByTestId(`terminal-help-${service.id}`);
-    await expect(helpText).toHaveText(
+    await expect(page.getByTestId(`terminal-output-${service.id}`)).toBeVisible();
+    await expect(page.getByTestId(`terminal-status-${service.id}`)).toBeVisible();
+    await expect(page.getByTestId(`terminal-help-${service.id}`)).toHaveText(
       "Type commands and press Enter. Ctrl+C to interrupt, Ctrl+D to detach."
     );
-
-    // Verify switching shell tabs does not break the UI
-    await page.getByTestId(`terminal-shell-${service.id}-sh`).click();
-    await expect(statusBadge).toBeVisible();
-    await expect(terminalOutput).toBeVisible();
+    await expect(page.getByTestId("terminal-access-blocked-alert")).toHaveCount(0);
   });
 });

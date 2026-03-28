@@ -71,6 +71,10 @@ daoflow capabilities --json
 
 Use `capabilities` before performing operations to check if your token has the required scopes. This prevents `SCOPE_DENIED` errors.
 
+Terminal access is intentionally separate from normal deploy and log scopes. If a principal should
+open an interactive shell, `terminal:open` must appear explicitly in the reported capability list;
+having `deploy:start` or `logs:read` is not enough.
+
 ```bash
 # Check if we can deploy
 CAPS=$(daoflow capabilities --json)

@@ -3,10 +3,17 @@ export type E2EAuthUser = {
   name: string;
   email: string;
   password: string;
-  role: "admin" | "operator" | "viewer";
+  role: "owner" | "admin" | "operator" | "viewer";
 };
 
 export const e2eAuthUsers: readonly E2EAuthUser[] = [
+  {
+    key: "owner",
+    name: "E2E Owner",
+    email: "e2e-owner@daoflow.local",
+    password: "owner-e2e-pass-2026",
+    role: "owner"
+  },
   {
     key: "admin",
     name: "E2E Admin",
@@ -30,5 +37,6 @@ export const e2eAuthUsers: readonly E2EAuthUser[] = [
   }
 ];
 
-export const e2eAdminUser = e2eAuthUsers[0];
-export const e2eOperatorUser = e2eAuthUsers[1];
+export const e2eOwnerUser = e2eAuthUsers[0];
+export const e2eAdminUser = e2eAuthUsers[1];
+export const e2eOperatorUser = e2eAuthUsers[2];

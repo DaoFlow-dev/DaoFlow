@@ -8,6 +8,8 @@ import ServiceDetailPage from "./ServiceDetailPage";
 
 const {
   serviceDetailsUseQueryMock,
+  viewerUseQueryMock,
+  useSessionMock,
   serviceHeaderMock,
   generalTabMock,
   deploymentsTabMock,
@@ -21,6 +23,8 @@ const {
   composeEditorTabMock
 } = vi.hoisted(() => ({
   serviceDetailsUseQueryMock: vi.fn(),
+  viewerUseQueryMock: vi.fn(),
+  useSessionMock: vi.fn(),
   serviceHeaderMock: vi.fn(({ service }: { service: { name: string } }) => (
     <div data-testid="service-header">Header {service.name}</div>
   )),
@@ -58,10 +62,17 @@ const {
 
 vi.mock("../lib/trpc", () => ({
   trpc: {
+    viewer: {
+      useQuery: viewerUseQueryMock
+    },
     serviceDetails: {
       useQuery: serviceDetailsUseQueryMock
     }
   }
+}));
+
+vi.mock("../lib/auth-client", () => ({
+  useSession: useSessionMock
 }));
 
 vi.mock("../components/service-detail/ServiceHeader", () => ({
@@ -108,48 +119,66 @@ vi.mock("../components/service-detail/ComposeEditorTab", () => ({
   default: composeEditorTabMock
 }));
 
+const baseServiceData = {
+  id: "svc_api",
+  name: "api",
+  slug: "api",
+  sourceType: "compose",
+  status: "healthy",
+  statusTone: "healthy",
+  projectId: "proj_1",
+  projectName: "Console",
+  environmentId: "env_1",
+  environmentName: "Production",
+  imageReference: null,
+  dockerfilePath: null,
+  composeServiceName: "api",
+  port: "3000",
+  healthcheckPath: "/health",
+  replicaCount: "1",
+  targetServerId: "srv_1",
+  createdAt: "2026-03-20T00:00:00.000Z",
+  updatedAt: "2026-03-20T00:00:00.000Z",
+  runtimeConfig: null,
+  runtimeConfigPreview: "services:\n  api:\n    image: ghcr.io/example/api:latest\n",
+  runtimeSummary: {
+    statusLabel: "Healthy",
+    statusTone: "healthy",
+    summary: "Serving traffic normally.",
+    observedAt: "2026-03-20T00:00:00.000Z"
+  },
+  latestDeployment: {
+    id: "dep_1",
+    statusLabel: "Failed",
+    statusTone: "failed",
+    summary: "Image pull failed on the target server.",
+    failureAnalysis: "Deployment progress heartbeat timed out.",
+    targetServerName: "foundation",
+    imageTag: "ghcr.io/example/api:sha-123",
+    finishedAt: "2026-03-20T00:00:00.000Z"
+  }
+};
+
 describe("ServiceDetailPage", () => {
   beforeEach(() => {
-    serviceDetailsUseQueryMock.mockReturnValue({
+    vi.clearAllMocks();
+    useSessionMock.mockReturnValue({
       data: {
-        id: "svc_api",
-        name: "api",
-        slug: "api",
-        sourceType: "compose",
-        status: "healthy",
-        statusTone: "healthy",
-        projectId: "proj_1",
-        projectName: "Console",
-        environmentId: "env_1",
-        environmentName: "Production",
-        imageReference: null,
-        dockerfilePath: null,
-        composeServiceName: "api",
-        port: "3000",
-        healthcheckPath: "/health",
-        replicaCount: "1",
-        targetServerId: "srv_1",
-        createdAt: "2026-03-20T00:00:00.000Z",
-        updatedAt: "2026-03-20T00:00:00.000Z",
-        runtimeConfig: null,
-        runtimeConfigPreview: "services:\n  api:\n    image: ghcr.io/example/api:latest\n",
-        runtimeSummary: {
-          statusLabel: "Healthy",
-          statusTone: "healthy",
-          summary: "Serving traffic normally.",
-          observedAt: "2026-03-20T00:00:00.000Z"
-        },
-        latestDeployment: {
-          id: "dep_1",
-          statusLabel: "Failed",
-          statusTone: "failed",
-          summary: "Image pull failed on the target server.",
-          failureAnalysis: "Deployment progress heartbeat timed out.",
-          targetServerName: "foundation",
-          imageTag: "ghcr.io/example/api:sha-123",
-          finishedAt: "2026-03-20T00:00:00.000Z"
+        user: {
+          id: "user_1"
+        }
+      }
+    });
+    viewerUseQueryMock.mockReturnValue({
+      data: {
+        authz: {
+          capabilities: ["logs:read", "terminal:open"]
         }
       },
+      isLoading: false
+    });
+    serviceDetailsUseQueryMock.mockReturnValue({
+      data: baseServiceData,
       isLoading: false,
       refetch: vi.fn()
     });
@@ -207,44 +236,53 @@ describe("ServiceDetailPage", () => {
     expect(await screen.findByTestId("deployments-tab")).toHaveTextContent("Deployments api");
   });
 
+  it("shows the live terminal tab when the viewer has terminal access", async () => {
+    renderPage();
+
+    fireEvent.mouseDown(screen.getByTestId("service-detail-terminal-trigger"));
+    fireEvent.click(screen.getByTestId("service-detail-terminal-trigger"));
+
+    expect(await screen.findByTestId("terminal-tab")).toHaveTextContent("Terminal svc_api");
+    expect(screen.queryByTestId("terminal-access-blocked-alert")).not.toBeInTheDocument();
+  });
+
+  it("explains terminal restrictions instead of opening a blocked terminal session", async () => {
+    viewerUseQueryMock.mockReturnValue({
+      data: {
+        authz: {
+          capabilities: ["logs:read", "deploy:start"]
+        }
+      },
+      isLoading: false
+    });
+
+    renderPage();
+
+    expect(screen.getByTestId("service-detail-terminal-restricted-badge")).toHaveTextContent(
+      "Restricted"
+    );
+
+    fireEvent.mouseDown(screen.getByTestId("service-detail-terminal-trigger"));
+    fireEvent.click(screen.getByTestId("service-detail-terminal-trigger"));
+
+    expect(await screen.findByTestId("terminal-access-blocked-alert")).toHaveTextContent(
+      "Terminal access needs a separate permission."
+    );
+    expect(screen.getByTestId("terminal-access-help")).toHaveTextContent(
+      "Ask an owner to handle break-glass troubleshooting"
+    );
+    expect(terminalTabMock).not.toHaveBeenCalled();
+  });
+
   it("hides the recovery panel when the service is healthy and the last deployment succeeded", () => {
     serviceDetailsUseQueryMock.mockReturnValue({
       data: {
-        id: "svc_api",
-        name: "api",
-        slug: "api",
-        sourceType: "compose",
-        status: "healthy",
-        statusTone: "healthy",
-        projectId: "proj_1",
-        projectName: "Console",
-        environmentId: "env_1",
-        environmentName: "Production",
-        imageReference: null,
-        dockerfilePath: null,
-        composeServiceName: "api",
-        port: "3000",
-        healthcheckPath: "/health",
-        replicaCount: "1",
-        targetServerId: "srv_1",
-        createdAt: "2026-03-20T00:00:00.000Z",
-        updatedAt: "2026-03-20T00:00:00.000Z",
-        runtimeConfig: null,
-        runtimeConfigPreview: "services:\n  api:\n    image: ghcr.io/example/api:latest\n",
-        runtimeSummary: {
-          statusLabel: "Healthy",
-          statusTone: "healthy",
-          summary: "Serving traffic normally.",
-          observedAt: "2026-03-20T00:00:00.000Z"
-        },
+        ...baseServiceData,
         latestDeployment: {
-          id: "dep_1",
+          ...baseServiceData.latestDeployment,
           statusLabel: "Healthy",
           statusTone: "healthy",
-          summary: "Deployment completed successfully.",
-          targetServerName: "foundation",
-          imageTag: "ghcr.io/example/api:sha-123",
-          finishedAt: "2026-03-20T00:00:00.000Z"
+          summary: "Deployment completed successfully."
         }
       },
       isLoading: false,
