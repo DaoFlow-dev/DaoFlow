@@ -31,6 +31,7 @@ import TerminalAccessNotice from "../components/service-detail/TerminalAccessNot
 import type { ServiceRuntimeConfig } from "../components/service-detail/runtime-config";
 import type { ServiceEndpointSummary } from "@/components/service-detail/service-endpoint-types";
 import { ServiceRecoveryPanel } from "@/components/service-detail/ServiceRecoveryPanel";
+import type { PreviewLifecycleConfig } from "@/components/service-detail/PreviewLifecyclePanel";
 
 const LogsTab = lazy(() => import("../components/service-detail/LogsTab"));
 const MonitoringTab = lazy(() => import("../components/service-detail/MonitoringTab"));
@@ -104,6 +105,9 @@ export default function ServiceDetailPage() {
     targetServerId: string | null;
     createdAt: string;
     updatedAt: string;
+    config?: {
+      preview?: PreviewLifecycleConfig | null;
+    } | null;
     runtimeConfig: ServiceRuntimeConfig | null;
     runtimeConfigPreview: string | null;
     runtimeSummary?: {
@@ -131,7 +135,11 @@ export default function ServiceDetailPage() {
       finishedAt: string | null;
     } | null;
   };
-  const canOpenTerminal = Boolean(viewer.data?.authz.capabilities.includes("terminal:open"));
+  const viewerCapabilities = viewer.data?.authz.capabilities ?? [];
+  const canOpenTerminal = viewerCapabilities.includes("terminal:open");
+  const canReadPreviews =
+    viewerCapabilities.includes("deploy:read") || viewerCapabilities.includes("deploy:start");
+  const canManagePreviews = viewerCapabilities.includes("deploy:start");
   const isCheckingTerminalAccess = Boolean(session.data) && viewer.isLoading && !viewer.data;
 
   return (
@@ -249,7 +257,15 @@ export default function ServiceDetailPage() {
         </TabsContent>
 
         <TabsContent value="environment" className="mt-4">
-          <EnvironmentTab serviceId={svc.id} environmentId={svc.environmentId ?? undefined} />
+          <EnvironmentTab
+            serviceId={svc.id}
+            serviceName={svc.name}
+            environmentId={svc.environmentId ?? undefined}
+            sourceType={svc.sourceType}
+            previewConfig={svc.config?.preview ?? null}
+            canReadPreviews={canReadPreviews}
+            canManagePreviews={canManagePreviews}
+          />
         </TabsContent>
 
         <TabsContent value="domains" className="mt-4">

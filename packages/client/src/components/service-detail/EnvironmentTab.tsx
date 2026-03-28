@@ -5,12 +5,18 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { trpc } from "@/lib/trpc";
+import PreviewLifecyclePanel, { type PreviewLifecycleConfig } from "./PreviewLifecyclePanel";
 import { EnvVarTable } from "./EnvVarTable";
 import { RawEnvEditor } from "./RawEnvEditor";
 
 interface EnvironmentTabProps {
   serviceId: string;
   environmentId?: string;
+  serviceName?: string;
+  sourceType?: string;
+  previewConfig?: PreviewLifecycleConfig | null;
+  canReadPreviews?: boolean;
+  canManagePreviews?: boolean;
 }
 
 interface LayeredEnvVar {
@@ -42,7 +48,15 @@ function normalizeCategory(category: string): "runtime" | "build" {
   return category === "build" ? "build" : "runtime";
 }
 
-export default function EnvironmentTab({ serviceId, environmentId }: EnvironmentTabProps) {
+export default function EnvironmentTab({
+  serviceId,
+  environmentId,
+  serviceName,
+  sourceType,
+  previewConfig,
+  canReadPreviews = false,
+  canManagePreviews = false
+}: EnvironmentTabProps) {
   const [mode, setMode] = useState<"table" | "raw">("table");
   const [categoryFilter, setCategoryFilter] = useState<"all" | "runtime" | "build">("all");
   const [rawText, setRawText] = useState("");
@@ -272,6 +286,16 @@ export default function EnvironmentTab({ serviceId, environmentId }: Environment
           </div>
         </CardContent>
       </Card>
+
+      {sourceType === "compose" && previewConfig?.enabled && serviceName ? (
+        <PreviewLifecyclePanel
+          serviceId={serviceId}
+          serviceName={serviceName}
+          previewConfig={previewConfig}
+          canReadPreviews={canReadPreviews}
+          canManagePreviews={canManagePreviews}
+        />
+      ) : null}
 
       <Card className="shadow-sm">
         <CardHeader className="pb-3">

@@ -139,6 +139,14 @@ const baseServiceData = {
   targetServerId: "srv_1",
   createdAt: "2026-03-20T00:00:00.000Z",
   updatedAt: "2026-03-20T00:00:00.000Z",
+  config: {
+    preview: {
+      enabled: true,
+      mode: "pull-request",
+      domainTemplate: "preview-{pr}.example.test",
+      staleAfterHours: 24
+    }
+  },
   runtimeConfig: null,
   runtimeConfigPreview: "services:\n  api:\n    image: ghcr.io/example/api:latest\n",
   runtimeSummary: {
@@ -208,6 +216,24 @@ describe("ServiceDetailPage", () => {
       "Deployment progress heartbeat timed out."
     );
     expect(screen.getByTestId("general-tab")).toHaveTextContent("General api");
+    fireEvent.mouseDown(screen.getByRole("tab", { name: /environment/i }));
+    fireEvent.click(screen.getByRole("tab", { name: /environment/i }));
+    expect(environmentTabMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        serviceId: "svc_api",
+        serviceName: "api",
+        sourceType: "compose",
+        previewConfig: {
+          enabled: true,
+          mode: "pull-request",
+          domainTemplate: "preview-{pr}.example.test",
+          staleAfterHours: 24
+        },
+        canReadPreviews: false,
+        canManagePreviews: false
+      }),
+      undefined
+    );
     expect(logsTabMock).not.toHaveBeenCalled();
     expect(monitoringTabMock).not.toHaveBeenCalled();
     expect(composeEditorTabMock).not.toHaveBeenCalled();

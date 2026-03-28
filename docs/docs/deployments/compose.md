@@ -133,3 +133,13 @@ Preview-enabled compose services can also reconcile preview stacks directly from
 DaoFlow records the resulting preview deploy, destroy, dedupe, and ignore outcomes in deployment history plus the event timeline so operators can trace why a preview stack changed state.
 
 Preview config can also carry a retention window through `staleAfterHours`. When set, DaoFlow can compare the latest preview deployment state against observed tunnel-route hostnames and queue Compose preview cleanup for terminal preview stacks that outlive the configured window.
+
+On the service detail page, the Environment tab now shows preview lifecycle state as a first-class operator surface:
+
+- Preview mode, managed domain template, and cleanup retention policy
+- Each tracked preview branch or pull request, including stack name and preview env branch
+- Whether the preview is still live, drifted, or already due for cleanup
+- Why DaoFlow is keeping the preview around and what event or action will remove it
+- Manual preview retirement plus dry-run or live cleanup execution when the operator has deploy permissions
+
+That UI keeps preview-specific cleanup isolated from the base environment, so clearing a preview does not flatten or mutate the long-lived environment configuration.

@@ -171,4 +171,58 @@ test.describe("Service detail: owner terminal access", () => {
     );
     await expect(page.getByTestId("terminal-access-blocked-alert")).toHaveCount(0);
   });
+
+  test("environment tab surfaces preview lifecycle controls for preview-enabled compose services", async ({
+    page
+  }) => {
+    const suffix = Date.now().toString();
+
+    const project = await trpcRequest<{ id: string }>(page, "createProject", {
+      name: `E2E Preview ${suffix}`,
+      description: "Preview lifecycle surface test"
+    });
+
+    const environment = await trpcRequest<{ id: string }>(page, "createEnvironment", {
+      projectId: project.id,
+      name: `env-preview-${suffix}`,
+      targetServerId: "srv_foundation_1"
+    });
+
+    const service = await trpcRequest<{ id: string; name: string }>(page, "createService", {
+      name: `svc-preview-${suffix}`,
+      environmentId: environment.id,
+      projectId: project.id,
+      sourceType: "compose",
+      composeServiceName: "web",
+      targetServerId: "srv_foundation_1",
+      preview: {
+        enabled: true,
+        mode: "pull-request",
+        domainTemplate: "preview-{pr}.example.test",
+        staleAfterHours: 24
+      }
+    });
+
+    await page.goto(`/services/${service.id}`);
+    await expect(page.getByRole("heading", { name: service.name })).toBeVisible({
+      timeout: 10_000
+    });
+
+    await page.getByRole("tab", { name: "Environment" }).click();
+
+    await expect(page.getByTestId(`service-preview-panel-${service.id}`)).toBeVisible({
+      timeout: 10_000
+    });
+    await expect(page.getByTestId(`service-preview-mode-${service.id}`)).toHaveText(
+      "Pull requests only"
+    );
+    await expect(page.getByTestId(`service-preview-empty-${service.id}`)).toContainText(
+      "No preview history yet"
+    );
+
+    await page.getByTestId(`service-preview-dry-run-${service.id}`).click();
+    await expect(page.getByTestId(`service-preview-feedback-${service.id}`)).toContainText(
+      "0 preview environments are ready for cleanup."
+    );
+  });
 });
