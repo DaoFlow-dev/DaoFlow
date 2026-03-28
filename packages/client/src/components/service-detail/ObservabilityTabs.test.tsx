@@ -180,15 +180,13 @@ describe("service detail observability tabs", () => {
     MockWebSocket.instances[0]?.emitOpen();
     expect(await screen.findByTestId("terminal-status-svc_term")).toHaveTextContent("Connected");
 
-    const display = screen
-      .getByTestId("terminal-output-svc_term")
-      .querySelector<HTMLElement>(".terminal-display");
-    expect(display).not.toBeNull();
+    const input = screen.getByLabelText("Terminal input");
+    expect(input).not.toBeNull();
 
-    fireEvent.keyDown(display!, { key: "l" });
-    fireEvent.keyDown(display!, { key: "s" });
-    fireEvent.keyDown(display!, { key: "Enter" });
+    fireEvent.keyDown(input, { key: "l" });
+    fireEvent.keyDown(input, { key: "s" });
+    fireEvent.keyDown(input, { key: "Enter" });
 
-    expect(MockWebSocket.instances[0]?.sent).toEqual(["l", "s", "ls\n"]);
+    expect(MockWebSocket.instances[0]?.sent).toEqual(["l", "s", "\n"]);
   });
 });

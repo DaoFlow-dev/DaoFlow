@@ -10,26 +10,19 @@ interface TerminalTabProps {
 }
 
 export default function TerminalTab({ serviceId }: TerminalTabProps) {
-  const termRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const displayRef = useRef<HTMLPreElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const wsRef = useRef<WebSocket | null>(null);
-  const inputBufferRef = useRef("");
   const [shell, setShell] = useState("bash");
   const [isConnected, setIsConnected] = useState(false);
 
   useEffect(() => {
-    if (!termRef.current) {
-      return;
-    }
+    const display = displayRef.current;
+    const input = inputRef.current;
+    if (!display || !input) return;
 
-    const container = termRef.current;
-    container.innerHTML = "";
-    const display = document.createElement("div");
-    display.className = "terminal-display";
-    display.style.cssText =
-      "width:100%;height:100%;overflow-y:auto;padding:8px;font-family:monospace;font-size:13px;line-height:1.6;color:#d4d4d8;background:transparent;outline:none;";
-    display.contentEditable = "true";
-    display.spellcheck = false;
-    container.appendChild(display);
+    display.textContent = "";
 
     const url = buildObservabilityWebSocketUrl("/ws/docker-terminal", {
       serviceId,
@@ -40,47 +33,55 @@ export default function TerminalTab({ serviceId }: TerminalTabProps) {
 
     ws.onopen = () => {
       setIsConnected(true);
-      appendToTerminal(display, `Connected to ${serviceId} (${shell})\r\n`, "#22c55e");
+      appendText(display, `Connected to ${serviceId} (${shell})\r\n`, "#22c55e");
+      input.focus();
     };
     ws.onclose = () => {
       setIsConnected(false);
-      appendToTerminal(display, "\r\nConnection closed.\r\n", "#a1a1aa");
+      appendText(display, "\r\nConnection closed.\r\n", "#a1a1aa");
     };
     ws.onerror = () => {
       setIsConnected(false);
-      appendToTerminal(display, "\r\nTerminal connection unavailable.\r\n", "#facc15");
+      appendText(display, "\r\nTerminal connection unavailable.\r\n", "#facc15");
     };
     ws.onmessage = (event) => {
-      appendToTerminal(display, String(event.data), "inherit");
+      appendText(display, String(event.data), "inherit");
     };
 
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (ws.readyState !== WebSocket.OPEN) {
-        return;
-      }
+    const handleKey = (e: KeyboardEvent) => {
+      if (ws.readyState !== WebSocket.OPEN) return;
+      e.preventDefault();
 
-      event.preventDefault();
-      if (event.key === "Enter") {
-        ws.send(`${inputBufferRef.current}\n`);
-        inputBufferRef.current = "";
-      } else if (event.key === "Backspace") {
-        inputBufferRef.current = inputBufferRef.current.slice(0, -1);
+      if (e.key === "Enter") {
+        ws.send("\n");
+      } else if (e.key === "Backspace") {
         ws.send("\x7f");
-      } else if (event.ctrlKey && event.key === "c") {
+      } else if (e.key === "Tab") {
+        ws.send("\t");
+      } else if (e.key === "ArrowUp") {
+        ws.send("\x1b[A");
+      } else if (e.key === "ArrowDown") {
+        ws.send("\x1b[B");
+      } else if (e.key === "ArrowRight") {
+        ws.send("\x1b[C");
+      } else if (e.key === "ArrowLeft") {
+        ws.send("\x1b[D");
+      } else if (e.key === "Escape") {
+        ws.send("\x1b");
+      } else if (e.ctrlKey && e.key === "c") {
         ws.send("\x03");
-        inputBufferRef.current = "";
-      } else if (event.ctrlKey && event.key === "d") {
+      } else if (e.ctrlKey && e.key === "d") {
         ws.send("\x04");
-      } else if (event.key.length === 1) {
-        inputBufferRef.current += event.key;
-        ws.send(event.key);
+      } else if (e.ctrlKey && e.key === "l") {
+        ws.send("\x0c");
+      } else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
+        ws.send(e.key);
       }
     };
 
-    display.addEventListener("keydown", handleKeyDown);
-
+    input.addEventListener("keydown", handleKey);
     return () => {
-      display.removeEventListener("keydown", handleKeyDown);
+      input.removeEventListener("keydown", handleKey);
       ws.close();
     };
   }, [serviceId, shell]);
@@ -121,16 +122,25 @@ export default function TerminalTab({ serviceId }: TerminalTabProps) {
       </CardHeader>
       <CardContent>
         <div
-          ref={termRef}
-          className="h-[500px] cursor-text overflow-hidden rounded-lg border border-zinc-800 bg-zinc-950"
+          ref={containerRef}
+          className="relative h-[500px] cursor-text overflow-hidden rounded-lg border border-zinc-800 bg-zinc-950"
           data-testid={`terminal-output-${serviceId}`}
-          onClick={() => {
-            const display = termRef.current?.querySelector(
-              ".terminal-display"
-            ) as HTMLElement | null;
-            display?.focus();
-          }}
-        />
+          onClick={() => inputRef.current?.focus()}
+        >
+          {/* Visible output — read-only */}
+          <pre
+            ref={displayRef}
+            className="h-full w-full overflow-y-auto whitespace-pre-wrap break-all p-3 font-mono text-[13px] leading-relaxed text-zinc-200"
+          />
+
+          {/* Hidden textarea captures keyboard input without rendering text */}
+          <textarea
+            ref={inputRef}
+            aria-label="Terminal input"
+            className="absolute top-0 left-0 h-0 w-0 opacity-0"
+            autoFocus
+          />
+        </div>
         <p
           className="mt-2 text-xs text-muted-foreground"
           data-testid={`terminal-help-${serviceId}`}
@@ -142,10 +152,10 @@ export default function TerminalTab({ serviceId }: TerminalTabProps) {
   );
 }
 
-function appendToTerminal(display: HTMLElement, text: string, color: string) {
+function appendText(container: HTMLElement, text: string, color: string) {
   const span = document.createElement("span");
   span.style.color = color;
   span.textContent = text;
-  display.appendChild(span);
-  display.scrollTop = display.scrollHeight;
+  container.appendChild(span);
+  container.scrollTop = container.scrollHeight;
 }
