@@ -9,6 +9,10 @@ export {
   startDeploymentWatchdogMonitor,
   stopDeploymentWatchdogMonitor
 } from "./deployment-watchdog-monitor";
+export {
+  startOperationalMaintenanceMonitor,
+  stopOperationalMaintenanceMonitor
+} from "./operational-maintenance-monitor";
 export { startTemporalWorker, stopTemporalWorker } from "./temporal/worker";
 export {
   startDeploymentWorkflow,

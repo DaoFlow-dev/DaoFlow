@@ -2360,6 +2360,17 @@
       "inputSchema": null
     },
     {
+      "name": "operationalMaintenanceReport",
+      "summary": "operational Maintenance Report",
+      "path": "/trpc/operationalMaintenanceReport",
+      "method": "GET",
+      "lane": "read",
+      "auth": "authenticated",
+      "requiredRoles": [],
+      "requiredScopes": [],
+      "inputSchema": null
+    },
+    {
       "name": "operationsTimeline",
       "summary": "operations Timeline",
       "path": "/trpc/operationsTimeline",
@@ -2988,6 +2999,26 @@
           }
         },
         "required": ["serviceId"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "runOperationalMaintenance",
+      "summary": "run Operational Maintenance",
+      "path": "/trpc/runOperationalMaintenance",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin"],
+      "requiredScopes": ["server:write"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "dryRun": {
+            "type": "boolean"
+          }
+        },
         "additionalProperties": false
       }
     },

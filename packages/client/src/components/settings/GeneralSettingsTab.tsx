@@ -1,21 +1,38 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { OperationalMaintenanceCard, type MaintenanceReport } from "./OperationalMaintenanceCard";
 
 interface GeneralSettingsTabProps {
   currentRole: string;
   email: string | undefined;
   sessionExpiresAt: string | null | undefined;
   caps: readonly string[];
+  maintenanceReport: MaintenanceReport | null | undefined;
+  maintenanceLoading: boolean;
+  canManageMaintenance: boolean;
+  maintenanceActionPending: boolean;
+  maintenanceFeedback: string | null;
+  onRefreshMaintenance: () => void;
+  onDryRunMaintenance: () => void;
+  onRunMaintenance: () => void;
 }
 
 export function GeneralSettingsTab({
   currentRole,
   email,
   sessionExpiresAt,
-  caps
+  caps,
+  maintenanceReport,
+  maintenanceLoading,
+  canManageMaintenance,
+  maintenanceActionPending,
+  maintenanceFeedback,
+  onRefreshMaintenance,
+  onDryRunMaintenance,
+  onRunMaintenance
 }: GeneralSettingsTabProps) {
   return (
-    <div className="mt-4">
+    <div className="mt-4 space-y-4">
       <Card>
         <CardHeader>
           <CardTitle className="text-base">General Settings</CardTitle>
@@ -55,6 +72,19 @@ export function GeneralSettingsTab({
           </div>
         </CardContent>
       </Card>
+
+      {canManageMaintenance ? (
+        <OperationalMaintenanceCard
+          report={maintenanceReport}
+          isLoading={maintenanceLoading}
+          canManage={canManageMaintenance}
+          isRunning={maintenanceActionPending}
+          feedback={maintenanceFeedback}
+          onRefresh={onRefreshMaintenance}
+          onDryRun={onDryRunMaintenance}
+          onRunNow={onRunMaintenance}
+        />
+      ) : null}
     </div>
   );
 }

@@ -84,6 +84,7 @@ addApiGroup(
     "backupDestination",
     "backupMetrics",
     "backupDiagnosis",
+    "operationalMaintenanceReport",
     "listSecretProviders",
     "validateSecretRef",
     "listPushSubscriptions",
@@ -188,7 +189,7 @@ apiProcedureAccess.backupRestorePlan = {
   requiredScopes: ["backup:read"]
 };
 
-addApiGroup(apiProcedureAccess, ["registerServer", "deleteServer"], {
+addApiGroup(apiProcedureAccess, ["registerServer", "deleteServer", "runOperationalMaintenance"], {
   auth: "authenticated",
   requiredRoles: ADMIN_ROLES,
   requiredScopes: ["server:write"]

@@ -1,6 +1,14 @@
 import { appRoles, defaultSignupRole } from "@daoflow/shared";
+import { z } from "zod";
+import { runOperationalMaintenanceOnce } from "../db/services/operational-maintenance";
 import { listApiTokenInventory, listPrincipalInventory } from "../db/services/tokens";
-import { t, protectedProcedure, adminProcedure } from "../trpc";
+import {
+  t,
+  protectedProcedure,
+  adminProcedure,
+  getActorContext,
+  serverWriteProcedure
+} from "../trpc";
 
 export const adminRouter = t.router({
   viewer: protectedProcedure.query(({ ctx }) => {
@@ -52,6 +60,19 @@ export const adminRouter = t.router({
   agentTokenInventory: adminProcedure.query(async () => {
     return listApiTokenInventory();
   }),
+  runOperationalMaintenance: serverWriteProcedure
+    .input(
+      z.object({
+        dryRun: z.boolean().optional()
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      return runOperationalMaintenanceOnce({
+        ...getActorContext(ctx),
+        dryRun: input.dryRun === true,
+        trigger: "manual"
+      });
+    }),
   principalInventory: adminProcedure.query(async () => {
     return listPrincipalInventory();
   })

@@ -23,6 +23,7 @@ import { UsersSettingsTab } from "@/components/settings/UsersSettingsTab";
 import { TokensSettingsTab } from "@/components/settings/TokensSettingsTab";
 import { SecuritySettingsTab } from "@/components/settings/SecuritySettingsTab";
 import { VolumeRegistryPanel } from "@/components/settings/VolumeRegistryPanel";
+import { useState } from "react";
 
 const SETTINGS_TABS = [
   "general",
@@ -39,6 +40,7 @@ const SETTINGS_TABS = [
 export default function SettingsPage() {
   const session = useSession();
   const [searchParams, setSearchParams] = useSearchParams();
+  const [maintenanceFeedback, setMaintenanceFeedback] = useState<string | null>(null);
   const viewer = trpc.viewer.useQuery(undefined, {
     enabled: Boolean(session.data)
   });
@@ -49,11 +51,23 @@ export default function SettingsPage() {
     enabled: Boolean(session.data)
   });
   const audit = trpc.auditTrail.useQuery({ limit: 20 }, { enabled: Boolean(session.data) });
-
   const currentRole = viewer.data ? normalizeAppRole(viewer.data.authz.role) : "viewer";
   const isAdmin = canAssumeAnyRole(currentRole, ["owner", "admin"]);
   const caps = viewer.data ? roleCapabilities[currentRole] : [];
   const canManageRegistries = caps.includes("server:write");
+  const canManageMaintenance = caps.includes("server:write");
+  const maintenanceReport = trpc.operationalMaintenanceReport.useQuery(undefined, {
+    enabled: Boolean(session.data) && canManageMaintenance
+  });
+  const runOperationalMaintenance = trpc.runOperationalMaintenance.useMutation({
+    onSuccess: async (result) => {
+      setMaintenanceFeedback(result.summary);
+      await Promise.all([maintenanceReport.refetch(), audit.refetch()]);
+    },
+    onError: (error) => {
+      setMaintenanceFeedback(error.message);
+    }
+  });
   const requestedTab = searchParams.get("tab");
   const requestedTabIsKnown =
     requestedTab && SETTINGS_TABS.includes(requestedTab as (typeof SETTINGS_TABS)[number]);
@@ -128,6 +142,21 @@ export default function SettingsPage() {
                 email={viewer.data?.principal.email}
                 sessionExpiresAt={viewer.data?.session?.expiresAt}
                 caps={caps}
+                maintenanceReport={maintenanceReport.data ?? null}
+                maintenanceLoading={maintenanceReport.isLoading}
+                canManageMaintenance={canManageMaintenance}
+                maintenanceActionPending={runOperationalMaintenance.isPending}
+                maintenanceFeedback={maintenanceFeedback}
+                onRefreshMaintenance={() => {
+                  setMaintenanceFeedback(null);
+                  void maintenanceReport.refetch();
+                }}
+                onDryRunMaintenance={() => {
+                  void runOperationalMaintenance.mutateAsync({ dryRun: true });
+                }}
+                onRunMaintenance={() => {
+                  void runOperationalMaintenance.mutateAsync({ dryRun: false });
+                }}
               />
             )}
             {activeTab === "users" && (

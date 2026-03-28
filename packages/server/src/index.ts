@@ -23,6 +23,10 @@ import {
   startDeploymentWatchdogMonitor,
   stopDeploymentWatchdogMonitor
 } from "./worker/deployment-watchdog-monitor";
+import {
+  startOperationalMaintenanceMonitor,
+  stopOperationalMaintenanceMonitor
+} from "./worker/operational-maintenance-monitor";
 import { ensureInitialOwnerFromEnv } from "./bootstrap-initial-owner";
 import { ensureLocalhostServer } from "./bootstrap-localhost-server";
 import { runAutoMigrations } from "./db/auto-migrate";
@@ -144,11 +148,13 @@ async function start() {
 
   startServerReadinessMonitor();
   startDeploymentWatchdogMonitor();
+  startOperationalMaintenanceMonitor();
 
   const shutdown = (signal: string) => {
     console.log(`Received ${signal}; shutting down DaoFlow control plane.`);
     stopServerReadinessMonitor();
     stopDeploymentWatchdogMonitor();
+    stopOperationalMaintenanceMonitor();
     if (isTemporalEnabled()) {
       stopTemporalWorker();
       void closeTemporalClient();

@@ -45,7 +45,12 @@ function mapPendingCliAuthRequest(row: typeof cliAuthRequests.$inferSelect): Pen
 }
 
 export async function cleanupExpiredCliAuthRequests(now = new Date()) {
-  await db.delete(cliAuthRequests).where(lte(cliAuthRequests.expiresAt, now));
+  const deleted = await db
+    .delete(cliAuthRequests)
+    .where(lte(cliAuthRequests.expiresAt, now))
+    .returning({ id: cliAuthRequests.id });
+
+  return deleted.length;
 }
 
 export async function createCliAuthRequest(now = new Date()): Promise<PendingCliAuthRequest> {

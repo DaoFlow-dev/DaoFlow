@@ -23,6 +23,12 @@ const TEMP_ARTIFACT_PREFIX = ".tmp-uploaded-artifact-";
 export const UPLOADED_ARTIFACT_RETENTION_MS = 30 * 24 * 60 * 60 * 1_000;
 export const INCOMPLETE_UPLOADED_ARTIFACT_RETENTION_MS = 60 * 60 * 1_000;
 
+export interface UploadedArtifactRetentionCandidate {
+  artifactId: string;
+  kind: "retained-artifact" | "incomplete-upload";
+  ageMs: number;
+}
+
 interface UploadedArtifactManifest {
   version: 1;
   createdAt: string;
@@ -163,28 +169,75 @@ function isExpiredArtifact(entryName: string, ageMs: number): boolean {
   return ageMs >= UPLOADED_ARTIFACT_RETENTION_MS;
 }
 
-export async function pruneUploadedArtifacts(
+function classifyArtifactKind(
+  entryName: string
+): UploadedArtifactRetentionCandidate["kind"] | null {
+  if (entryName.startsWith(TEMP_ARTIFACT_PREFIX)) {
+    return "incomplete-upload";
+  }
+
+  if (ARTIFACT_ID_PATTERN.test(entryName)) {
+    return "retained-artifact";
+  }
+
+  return null;
+}
+
+export async function listUploadedArtifactRetentionCandidates(
   now = new Date()
-): Promise<{ prunedArtifacts: number }> {
+): Promise<UploadedArtifactRetentionCandidate[]> {
   const artifactsRoot = await ensureArtifactsRoot();
-  let prunedArtifacts = 0;
+  const candidates: UploadedArtifactRetentionCandidate[] = [];
 
   for (const entry of await readdir(artifactsRoot, { withFileTypes: true })) {
     if (!entry.isDirectory()) {
       continue;
     }
 
-    const artifactPath = join(artifactsRoot, entry.name);
-    const ageMs = now.getTime() - (await stat(artifactPath)).mtime.getTime();
+    const ageMs = now.getTime() - (await stat(join(artifactsRoot, entry.name))).mtime.getTime();
     if (!isExpiredArtifact(entry.name, ageMs)) {
       continue;
     }
 
-    await rm(artifactPath, { recursive: true, force: true });
-    prunedArtifacts += 1;
+    const kind = classifyArtifactKind(entry.name);
+    if (!kind) {
+      continue;
+    }
+
+    candidates.push({
+      artifactId: entry.name,
+      kind,
+      ageMs
+    });
   }
 
-  return { prunedArtifacts };
+  return candidates;
+}
+
+export async function pruneUploadedArtifacts(now = new Date()): Promise<{
+  prunedArtifacts: number;
+  prunedRetainedArtifacts: number;
+  prunedIncompleteUploads: number;
+}> {
+  const artifactsRoot = await ensureArtifactsRoot();
+  const candidates = await listUploadedArtifactRetentionCandidates(now);
+  let prunedRetainedArtifacts = 0;
+  let prunedIncompleteUploads = 0;
+
+  for (const candidate of candidates) {
+    await rm(join(artifactsRoot, candidate.artifactId), { recursive: true, force: true });
+    if (candidate.kind === "retained-artifact") {
+      prunedRetainedArtifacts += 1;
+    } else {
+      prunedIncompleteUploads += 1;
+    }
+  }
+
+  return {
+    prunedArtifacts: candidates.length,
+    prunedRetainedArtifacts,
+    prunedIncompleteUploads
+  };
 }
 
 export async function persistUploadedArtifacts(input: {

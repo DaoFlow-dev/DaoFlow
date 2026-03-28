@@ -5,7 +5,11 @@ import { auditEntries, events } from "../schema/audit";
 import { projects } from "../schema/projects";
 import { tunnelRoutes, tunnels } from "../schema/tunnels";
 import { triggerDeploy } from "./trigger-deploy";
-import { loadComposePreviewHistory, type ComposePreviewHistoryRecord } from "./compose-previews";
+import {
+  loadComposePreviewHistory,
+  loadComposePreviewHistoryForServiceId,
+  type ComposePreviewHistoryRecord
+} from "./compose-previews";
 
 type DomainStatus = "matched" | "missing" | "inactive" | "orphaned" | "cleared" | "unmanaged";
 type ReconciliationStatus = "in-sync" | "drifted" | "stale" | "unmanaged";
@@ -89,7 +93,22 @@ export async function listComposePreviewReconciliation(input: {
   now?: Date;
 }) {
   const history = await loadComposePreviewHistory(input);
-  const now = input.now ?? new Date();
+  return listComposePreviewReconciliationFromHistory(history, input.now);
+}
+
+export async function listComposePreviewReconciliationForServiceId(input: {
+  serviceId: string;
+  now?: Date;
+}) {
+  const history = await loadComposePreviewHistoryForServiceId(input.serviceId);
+  return listComposePreviewReconciliationFromHistory(history, input.now);
+}
+
+async function listComposePreviewReconciliationFromHistory(
+  history: Awaited<ReturnType<typeof loadComposePreviewHistory>>,
+  currentTime?: Date
+) {
+  const now = currentTime ?? new Date();
   const staleAfterHours = history.service.previewConfig?.staleAfterHours ?? null;
 
   const [project] = await db

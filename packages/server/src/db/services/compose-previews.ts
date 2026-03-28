@@ -6,12 +6,21 @@ import {
 } from "@daoflow/shared";
 import { db } from "../connection";
 import { deployments } from "../schema/deployments";
+import { services } from "../schema/services";
 import { asRecord } from "./json-helpers";
 import {
   readComposePreviewConfigFromConfig,
   readComposePreviewMetadata
 } from "../../compose-preview";
 import { resolveServiceForUser } from "./scoped-services";
+
+type ComposePreviewHistoryService = {
+  id: string;
+  name: string;
+  environmentId: string;
+  projectId: string;
+  config: unknown;
+};
 
 export interface ComposePreviewHistoryRecord {
   key: string;
@@ -32,12 +41,7 @@ export interface ComposePreviewHistoryRecord {
   latestDeployment: typeof deployments.$inferSelect;
 }
 
-export async function loadComposePreviewHistory(input: {
-  serviceRef: string;
-  requestedByUserId: string;
-}) {
-  const service = await resolveServiceForUser(input.serviceRef, input.requestedByUserId);
-
+async function loadComposePreviewHistoryForService(service: ComposePreviewHistoryService) {
   const rows = await db
     .select()
     .from(deployments)
@@ -94,6 +98,24 @@ export async function loadComposePreviewHistory(input: {
     },
     previews: [...previews.values()]
   };
+}
+
+export async function loadComposePreviewHistory(input: {
+  serviceRef: string;
+  requestedByUserId: string;
+}) {
+  const service = await resolveServiceForUser(input.serviceRef, input.requestedByUserId);
+  return loadComposePreviewHistoryForService(service);
+}
+
+export async function loadComposePreviewHistoryForServiceId(serviceId: string) {
+  const [service] = await db.select().from(services).where(eq(services.id, serviceId)).limit(1);
+
+  if (!service) {
+    throw new Error("Service not found for compose preview history.");
+  }
+
+  return loadComposePreviewHistoryForService(service);
 }
 
 export async function listComposePreviewDeployments(input: {

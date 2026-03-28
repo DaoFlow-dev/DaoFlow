@@ -32,6 +32,15 @@ export interface DeploymentWatchdogRunResult {
   failures: DeploymentWatchdogFailure[];
 }
 
+export interface DeploymentWatchdogCandidate {
+  deploymentId: string;
+  serviceName: string;
+  previousStatus: string;
+  lastHeartbeatAt: string;
+  staleForMs: number;
+  timeoutMs: number;
+}
+
 export function resolveDeploymentWatchdogTimeoutMs(
   rawValue = process.env.DEPLOYMENT_WATCHDOG_TIMEOUT_MS
 ): number {
@@ -46,6 +55,38 @@ export function resolveDeploymentWatchdogTimeoutMs(
 function formatStaleDurationSummary(staleForMs: number): string {
   const staleMinutes = Math.max(1, Math.round(staleForMs / 60_000));
   return `${staleMinutes} minute${staleMinutes === 1 ? "" : "s"}`;
+}
+
+export async function listDeploymentWatchdogCandidates(input?: {
+  now?: Date;
+  timeoutMs?: number;
+  limit?: number;
+}): Promise<DeploymentWatchdogCandidate[]> {
+  const now = input?.now ?? new Date();
+  const timeoutMs = input?.timeoutMs ?? resolveDeploymentWatchdogTimeoutMs();
+  const staleBefore = new Date(now.getTime() - timeoutMs);
+
+  const candidates = await db
+    .select()
+    .from(deployments)
+    .where(
+      and(
+        inArray(deployments.status, [...ACTIVE_DEPLOYMENT_STATUSES]),
+        isNull(deployments.concludedAt),
+        lt(deployments.updatedAt, staleBefore)
+      )
+    )
+    .orderBy(asc(deployments.updatedAt))
+    .limit(input?.limit ?? 8);
+
+  return candidates.map((deployment) => ({
+    deploymentId: deployment.id,
+    serviceName: deployment.serviceName,
+    previousStatus: deployment.status,
+    lastHeartbeatAt: deployment.updatedAt.toISOString(),
+    staleForMs: now.getTime() - deployment.updatedAt.getTime(),
+    timeoutMs
+  }));
 }
 
 function buildWatchdogInsight(input: {
@@ -224,20 +265,24 @@ export async function runDeploymentWatchdogOnce(input?: {
 }): Promise<DeploymentWatchdogRunResult> {
   const now = input?.now ?? new Date();
   const timeoutMs = input?.timeoutMs ?? resolveDeploymentWatchdogTimeoutMs();
-  const staleBefore = new Date(now.getTime() - timeoutMs);
-
-  const candidates = await db
-    .select()
-    .from(deployments)
-    .where(
-      and(
-        inArray(deployments.status, [...ACTIVE_DEPLOYMENT_STATUSES]),
-        isNull(deployments.concludedAt),
-        lt(deployments.updatedAt, staleBefore)
-      )
-    )
-    .orderBy(asc(deployments.updatedAt))
-    .limit(input?.limit ?? 8);
+  const candidateIds = await listDeploymentWatchdogCandidates({
+    now,
+    timeoutMs,
+    limit: input?.limit
+  });
+  const candidates =
+    candidateIds.length === 0
+      ? []
+      : await db
+          .select()
+          .from(deployments)
+          .where(
+            inArray(
+              deployments.id,
+              candidateIds.map((candidate) => candidate.deploymentId)
+            )
+          )
+          .orderBy(asc(deployments.updatedAt));
 
   const failures: DeploymentWatchdogFailure[] = [];
   for (const deployment of candidates) {

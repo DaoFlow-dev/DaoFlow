@@ -6,6 +6,7 @@ import { listBackupMetrics, backupDiagnosis } from "../db/services/backups";
 import { listDestinations, getDestination } from "../db/services/destinations";
 import { listEnvironmentVariableInventory } from "../db/services/envvars";
 import { listInfrastructureInventory, listServerReadiness } from "../db/services/servers";
+import { getOperationalMaintenanceReport } from "../db/services/operational-maintenance";
 import { listProjects, getProject, listEnvironments } from "../db/services/projects";
 import { getServiceDomainState } from "../db/services/service-domains";
 import { listServices, listServicesByProject, getService } from "../db/services/services";
@@ -230,6 +231,9 @@ const coreReadRouter = t.router({
     }),
   backupMetrics: protectedProcedure.query(async () => {
     return listBackupMetrics();
+  }),
+  operationalMaintenanceReport: serverWriteProcedure.query(async () => {
+    return getOperationalMaintenanceReport();
   }),
   backupDiagnosis: protectedProcedure
     .input(z.object({ runId: z.string().min(1) }))
