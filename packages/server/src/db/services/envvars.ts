@@ -1,37 +1,64 @@
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
+import type { AppRole } from "@daoflow/shared";
 import { db } from "../connection";
 import { decrypt, encrypt } from "../crypto";
 import { auditEntries } from "../schema/audit";
-import { environmentVariables, environments, projects } from "../schema/projects";
-import type { AppRole } from "@daoflow/shared";
-import { resolveTeamIdForUser } from "./teams";
+import { environmentVariables } from "../schema/projects";
+import { serviceVariables } from "../schema/services";
+import { readBranchPattern, normalizeStoredBranchPattern } from "./envvar-layering";
 import {
   ENVVAR_AUDIT_CHANGED_FIELDS,
   buildEnvironmentVariableSnapshot,
   summarizeEnvironmentVariableDiff
 } from "./envvar-audit";
+import {
+  buildVariableResourceMetadata,
+  buildVariableTargetLabel,
+  buildVariableTargetResource,
+  type EnvironmentVariableRow,
+  findExistingScopedVariable,
+  resolveScopedVariableTarget,
+  type ServiceVariableRow
+} from "./envvar-targeting";
+
 export { listEnvironmentVariableInventory } from "./envvar-inventory";
 
-function isSecretVariable(row: typeof environmentVariables.$inferSelect) {
+function isSecretVariable(row: { isSecret: string }) {
   return row.isSecret === "true";
 }
 
-async function getScopedEnvironmentRecord(environmentId: string, teamId: string) {
-  const [row] = await db
-    .select({
-      environment: environments,
-      project: projects
-    })
-    .from(environments)
-    .innerJoin(projects, eq(projects.id, environments.projectId))
-    .where(and(eq(environments.id, environmentId), eq(projects.teamId, teamId)))
-    .limit(1);
+function normalizeCategory(value: string): "runtime" | "build" {
+  return value === "build" ? "build" : "runtime";
+}
 
-  return row ?? null;
+function normalizeSource(value: string | null | undefined): "inline" | "1password" {
+  return value === "1password" ? "1password" : "inline";
+}
+
+function buildVariableSnapshot(input: {
+  key: string;
+  value: string;
+  isSecret: boolean;
+  category: string;
+  source: string | null | undefined;
+  secretRef: string | null;
+  branchPattern: string;
+}) {
+  return buildEnvironmentVariableSnapshot({
+    key: input.key,
+    value: input.value,
+    isSecret: input.isSecret,
+    category: normalizeCategory(input.category),
+    source: normalizeSource(input.source),
+    secretRef: input.secretRef,
+    branchPattern: readBranchPattern(input.branchPattern)
+  });
 }
 
 export interface UpsertEnvironmentVariableInput {
   environmentId: string;
+  serviceId?: string | null;
+  scope?: "environment" | "service";
   key: string;
   value: string;
   isSecret: boolean;
@@ -46,31 +73,32 @@ export interface UpsertEnvironmentVariableInput {
 }
 
 export async function upsertEnvironmentVariable(input: UpsertEnvironmentVariableInput) {
-  const teamId = input.teamId ?? (await resolveTeamIdForUser(input.updatedByUserId));
-  if (!teamId) return null;
-
-  const scopedEnvironment = await getScopedEnvironmentRecord(input.environmentId, teamId);
-  if (!scopedEnvironment) return null;
+  const scope = input.scope ?? (input.serviceId ? "service" : "environment");
+  const target = await resolveScopedVariableTarget({
+    environmentId: input.environmentId,
+    serviceId: input.serviceId,
+    scope,
+    actorUserId: input.updatedByUserId,
+    teamId: input.teamId
+  });
+  if (!target) {
+    return null;
+  }
 
   const encryptedValue = encrypt(input.value);
-  const [existing] = await db
-    .select()
-    .from(environmentVariables)
-    .where(
-      and(
-        eq(environmentVariables.environmentId, input.environmentId),
-        eq(environmentVariables.key, input.key)
-      )
-    )
-    .limit(1);
-  const existingIsSecret = existing ? isSecretVariable(existing) : false;
+  const branchPattern = normalizeStoredBranchPattern(input.branchPattern);
+  const existing = await findExistingScopedVariable({
+    target,
+    key: input.key,
+    branchPattern
+  });
   const beforeSnapshot = existing
-    ? buildEnvironmentVariableSnapshot({
+    ? buildVariableSnapshot({
         key: existing.key,
         value: decrypt(existing.valueEncrypted),
-        isSecret: existingIsSecret,
-        category: existing.category as "runtime" | "build",
-        source: existing.source as "inline" | "1password",
+        isSecret: isSecretVariable(existing),
+        category: existing.category,
+        source: existing.source,
         secretRef: existing.secretRef,
         branchPattern: existing.branchPattern
       })
@@ -82,46 +110,82 @@ export async function upsertEnvironmentVariable(input: UpsertEnvironmentVariable
     category: input.category,
     source: input.source ?? "inline",
     secretRef: input.secretRef ?? null,
-    branchPattern: input.branchPattern ?? null
+    branchPattern: readBranchPattern(branchPattern)
   });
   const changedFields = existing
     ? [
         decrypt(existing.valueEncrypted) !== input.value ? "value" : null,
-        existingIsSecret !== input.isSecret ? "isSecret" : null,
+        isSecretVariable(existing) !== input.isSecret ? "isSecret" : null,
         existing.category !== input.category ? "category" : null,
-        existing.source !== (input.source ?? "inline") ? "source" : null,
+        normalizeSource(existing.source) !== (input.source ?? "inline") ? "source" : null,
         existing.secretRef !== (input.secretRef ?? null) ? "secretRef" : null,
-        existing.branchPattern !== (input.branchPattern ?? null) ? "branchPattern" : null
+        existing.branchPattern !== branchPattern ? "branchPattern" : null
       ].filter((field): field is string => field !== null)
     : ["value", "isSecret", "category", "source", "secretRef", "branchPattern"];
   const action = existing ? "updated" : "created";
+  const detail = summarizeEnvironmentVariableDiff({
+    action,
+    targetLabel: buildVariableTargetLabel(target),
+    key: input.key,
+    changedFields
+  });
 
-  if (existing) {
-    await db
-      .update(environmentVariables)
-      .set({
+  if (target.scope === "service" && target.serviceId) {
+    if (existing) {
+      await db
+        .update(serviceVariables)
+        .set({
+          valueEncrypted: encryptedValue,
+          isSecret: input.isSecret ? "true" : "false",
+          category: input.category,
+          source: input.source ?? "inline",
+          secretRef: input.secretRef ?? null,
+          branchPattern,
+          updatedByUserId: input.updatedByUserId,
+          updatedAt: new Date()
+        })
+        .where(eq(serviceVariables.id, (existing as ServiceVariableRow).id));
+    } else {
+      await db.insert(serviceVariables).values({
+        serviceId: target.serviceId,
+        key: input.key,
         valueEncrypted: encryptedValue,
         isSecret: input.isSecret ? "true" : "false",
         category: input.category,
         source: input.source ?? "inline",
         secretRef: input.secretRef ?? null,
-        branchPattern: input.branchPattern ?? null,
-        updatedByUserId: input.updatedByUserId,
-        updatedAt: new Date()
-      })
-      .where(eq(environmentVariables.id, existing.id));
+        branchPattern,
+        updatedByUserId: input.updatedByUserId
+      });
+    }
   } else {
-    await db.insert(environmentVariables).values({
-      environmentId: input.environmentId,
-      key: input.key,
-      valueEncrypted: encryptedValue,
-      isSecret: input.isSecret ? "true" : "false",
-      category: input.category,
-      source: input.source ?? "inline",
-      secretRef: input.secretRef ?? null,
-      branchPattern: input.branchPattern ?? null,
-      updatedByUserId: input.updatedByUserId
-    });
+    if (existing) {
+      await db
+        .update(environmentVariables)
+        .set({
+          valueEncrypted: encryptedValue,
+          isSecret: input.isSecret ? "true" : "false",
+          category: input.category,
+          source: input.source ?? "inline",
+          secretRef: input.secretRef ?? null,
+          branchPattern,
+          updatedByUserId: input.updatedByUserId,
+          updatedAt: new Date()
+        })
+        .where(eq(environmentVariables.id, (existing as EnvironmentVariableRow).id));
+    } else {
+      await db.insert(environmentVariables).values({
+        environmentId: target.environmentId,
+        key: input.key,
+        valueEncrypted: encryptedValue,
+        isSecret: input.isSecret ? "true" : "false",
+        category: input.category,
+        source: input.source ?? "inline",
+        secretRef: input.secretRef ?? null,
+        branchPattern,
+        updatedByUserId: input.updatedByUserId
+      });
+    }
   }
 
   await db.insert(auditEntries).values({
@@ -129,26 +193,24 @@ export async function upsertEnvironmentVariable(input: UpsertEnvironmentVariable
     actorId: input.updatedByUserId,
     actorEmail: input.updatedByEmail,
     actorRole: input.updatedByRole,
-    targetResource: `env-var/${input.environmentId}/${input.key}`,
-    action: existing ? "envvar.update" : "envvar.create",
-    inputSummary: summarizeEnvironmentVariableDiff({
-      action,
-      environmentName: scopedEnvironment.environment.name,
+    targetResource: buildVariableTargetResource({
+      scope: target.scope,
+      environmentId: target.environmentId,
+      serviceId: target.serviceId,
       key: input.key,
-      changedFields
+      branchPattern
     }),
+    action: existing ? "envvar.update" : "envvar.create",
+    inputSummary: detail,
     permissionScope: "env:write",
     outcome: "success",
     metadata: {
-      resourceType: "env-var",
-      resourceId: `${input.environmentId}/${input.key}`,
-      resourceLabel: `${input.key}@${scopedEnvironment.environment.name}`,
-      detail: summarizeEnvironmentVariableDiff({
-        action,
-        environmentName: scopedEnvironment.environment.name,
+      ...buildVariableResourceMetadata({
+        target,
         key: input.key,
-        changedFields
+        branchPattern
       }),
+      detail,
       redactedDiff: {
         before: beforeSnapshot,
         after: afterSnapshot,
@@ -159,18 +221,23 @@ export async function upsertEnvironmentVariable(input: UpsertEnvironmentVariable
 
   return {
     key: input.key,
-    environmentId: input.environmentId,
-    environmentName: scopedEnvironment.environment.name,
+    environmentId: target.environmentId,
+    environmentName: target.environmentName,
+    serviceId: target.serviceId,
+    serviceName: target.serviceName,
     category: input.category,
+    scope: target.scope,
+    branchPattern: readBranchPattern(branchPattern),
     status: action
   };
 }
 
-// ─── Delete ─────────────────────────────────────────────────
-
 export interface DeleteEnvironmentVariableInput {
   environmentId: string;
+  serviceId?: string | null;
+  scope?: "environment" | "service";
   key: string;
+  branchPattern?: string | null;
   teamId?: string;
   deletedByUserId: string;
   deletedByEmail: string;
@@ -178,61 +245,78 @@ export interface DeleteEnvironmentVariableInput {
 }
 
 export async function deleteEnvironmentVariable(input: DeleteEnvironmentVariableInput) {
-  const teamId = input.teamId ?? (await resolveTeamIdForUser(input.deletedByUserId));
-  if (!teamId) return null;
+  const scope = input.scope ?? (input.serviceId ? "service" : "environment");
+  const target = await resolveScopedVariableTarget({
+    environmentId: input.environmentId,
+    serviceId: input.serviceId,
+    scope,
+    actorUserId: input.deletedByUserId,
+    teamId: input.teamId
+  });
+  if (!target) {
+    return null;
+  }
 
-  const scopedEnvironment = await getScopedEnvironmentRecord(input.environmentId, teamId);
-  if (!scopedEnvironment) return null;
+  const branchPattern = normalizeStoredBranchPattern(input.branchPattern);
+  const existing = await findExistingScopedVariable({
+    target,
+    key: input.key,
+    branchPattern
+  });
 
-  const [existing] = await db
-    .select()
-    .from(environmentVariables)
-    .where(
-      and(
-        eq(environmentVariables.environmentId, input.environmentId),
-        eq(environmentVariables.key, input.key)
-      )
-    )
-    .limit(1);
+  if (!existing) {
+    return null;
+  }
 
-  if (!existing) return null;
-  const beforeSnapshot = buildEnvironmentVariableSnapshot({
+  const beforeSnapshot = buildVariableSnapshot({
     key: existing.key,
     value: decrypt(existing.valueEncrypted),
     isSecret: isSecretVariable(existing),
-    category: existing.category as "runtime" | "build",
-    source: existing.source as "inline" | "1password",
+    category: existing.category,
+    source: existing.source,
     secretRef: existing.secretRef,
     branchPattern: existing.branchPattern
   });
+  const detail = summarizeEnvironmentVariableDiff({
+    action: "deleted",
+    targetLabel: buildVariableTargetLabel(target),
+    key: input.key,
+    changedFields: [...ENVVAR_AUDIT_CHANGED_FIELDS]
+  });
 
-  await db.delete(environmentVariables).where(eq(environmentVariables.id, existing.id));
+  if (target.scope === "service") {
+    await db
+      .delete(serviceVariables)
+      .where(eq(serviceVariables.id, (existing as ServiceVariableRow).id));
+  } else {
+    await db
+      .delete(environmentVariables)
+      .where(eq(environmentVariables.id, (existing as EnvironmentVariableRow).id));
+  }
 
   await db.insert(auditEntries).values({
     actorType: "user",
     actorId: input.deletedByUserId,
     actorEmail: input.deletedByEmail,
     actorRole: input.deletedByRole,
-    targetResource: `env-var/${input.environmentId}/${input.key}`,
-    action: "envvar.delete",
-    inputSummary: summarizeEnvironmentVariableDiff({
-      action: "deleted",
-      environmentName: scopedEnvironment.environment.name,
+    targetResource: buildVariableTargetResource({
+      scope: target.scope,
+      environmentId: target.environmentId,
+      serviceId: target.serviceId,
       key: input.key,
-      changedFields: [...ENVVAR_AUDIT_CHANGED_FIELDS]
+      branchPattern
     }),
+    action: "envvar.delete",
+    inputSummary: detail,
     permissionScope: "env:write",
     outcome: "success",
     metadata: {
-      resourceType: "env-var",
-      resourceId: `${input.environmentId}/${input.key}`,
-      resourceLabel: `${input.key}@${scopedEnvironment.environment.name}`,
-      detail: summarizeEnvironmentVariableDiff({
-        action: "deleted",
-        environmentName: scopedEnvironment.environment.name,
+      ...buildVariableResourceMetadata({
+        target,
         key: input.key,
-        changedFields: [...ENVVAR_AUDIT_CHANGED_FIELDS]
+        branchPattern
       }),
+      detail,
       redactedDiff: {
         before: beforeSnapshot,
         after: null,
@@ -243,8 +327,12 @@ export async function deleteEnvironmentVariable(input: DeleteEnvironmentVariable
 
   return {
     key: input.key,
-    environmentId: input.environmentId,
-    environmentName: scopedEnvironment.environment.name,
+    environmentId: target.environmentId,
+    environmentName: target.environmentName,
+    serviceId: target.serviceId,
+    serviceName: target.serviceName,
+    scope: target.scope,
+    branchPattern: readBranchPattern(branchPattern),
     status: "deleted" as const
   };
 }

@@ -903,6 +903,63 @@ describe("appRouter", () => {
     });
   });
 
+  it("returns resolved service overrides when a service-scoped inventory view is requested", async () => {
+    const serviceResult = await createService({
+      name: `envvar-route-service-${Date.now()}`,
+      environmentId: "env_daoflow_staging",
+      projectId: "proj_daoflow_control_plane",
+      sourceType: "compose",
+      targetServerId: "srv_foundation_1",
+      requestedByUserId: "user_foundation_owner",
+      requestedByEmail: "owner@daoflow.local",
+      requestedByRole: "owner"
+    });
+    if (serviceResult.status !== "ok") {
+      throw new Error("Failed to create service-scoped environment variable route fixture.");
+    }
+
+    const key = `ROUTE_SCOPE_${Date.now().toString(36).toUpperCase()}`;
+    await upsertEnvironmentVariable({
+      environmentId: "env_daoflow_staging",
+      key,
+      value: "shared",
+      isSecret: false,
+      category: "runtime",
+      updatedByUserId: "user_foundation_owner",
+      updatedByEmail: "owner@daoflow.local",
+      updatedByRole: "owner"
+    });
+    await upsertEnvironmentVariable({
+      environmentId: "env_daoflow_staging",
+      serviceId: serviceResult.service.id,
+      scope: "service",
+      key,
+      value: "override",
+      isSecret: false,
+      category: "runtime",
+      updatedByUserId: "user_foundation_owner",
+      updatedByEmail: "owner@daoflow.local",
+      updatedByRole: "owner"
+    });
+
+    const caller = appRouter.createCaller({
+      requestId: "test-service-envvar-route",
+      session: makeSession("owner")
+    });
+    const response = await caller.environmentVariables({
+      environmentId: "env_daoflow_staging",
+      serviceId: serviceResult.service.id
+    });
+
+    expect(response.summary.serviceOverrides).toBeGreaterThanOrEqual(1);
+    expect(response.variables.filter((variable) => variable.key === key)).toHaveLength(2);
+    expect(response.resolvedVariables.find((variable) => variable.key === key)).toMatchObject({
+      displayValue: "override",
+      scope: "service",
+      originSummary: "Service override"
+    });
+  });
+
   it("returns infrastructure inventory entries with normalized status tones", async () => {
     const caller = appRouter.createCaller({
       requestId: "test-inventory-status-tones",

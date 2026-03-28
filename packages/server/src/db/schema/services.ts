@@ -1,7 +1,17 @@
-import { index, jsonb, pgTable, text, timestamp, uniqueIndex, varchar } from "drizzle-orm/pg-core";
+import {
+  index,
+  jsonb,
+  pgTable,
+  serial,
+  text,
+  timestamp,
+  uniqueIndex,
+  varchar
+} from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { projects, environments } from "./projects";
 import { servers } from "./servers";
+import { users } from "./users";
 
 /**
  * Services — the runtime units within an environment.
@@ -43,7 +53,35 @@ export const services = pgTable(
   ]
 );
 
-export const servicesRelations = relations(services, ({ one }) => ({
+export const serviceVariables = pgTable(
+  "service_variables",
+  {
+    id: serial("id").primaryKey(),
+    serviceId: varchar("service_id", { length: 32 })
+      .notNull()
+      .references(() => services.id, { onDelete: "cascade" }),
+    key: varchar("key", { length: 80 }).notNull(),
+    valueEncrypted: text("value_encrypted").notNull(),
+    isSecret: varchar("is_secret", { length: 5 }).default("false").notNull(),
+    category: varchar("category", { length: 20 }).default("runtime").notNull(),
+    source: varchar("source", { length: 20 }).default("inline").notNull(),
+    secretRef: text("secret_ref"),
+    branchPattern: varchar("branch_pattern", { length: 120 }).default("").notNull(),
+    updatedByUserId: text("updated_by_user_id").references(() => users.id),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull()
+  },
+  (table) => [
+    index("service_vars_service_id_idx").on(table.serviceId),
+    uniqueIndex("service_vars_service_key_branch_idx").on(
+      table.serviceId,
+      table.key,
+      table.branchPattern
+    )
+  ]
+);
+
+export const servicesRelations = relations(services, ({ one, many }) => ({
   project: one(projects, {
     fields: [services.projectId],
     references: [projects.id]
@@ -55,5 +93,17 @@ export const servicesRelations = relations(services, ({ one }) => ({
   targetServer: one(servers, {
     fields: [services.targetServerId],
     references: [servers.id]
+  }),
+  variables: many(serviceVariables)
+}));
+
+export const serviceVariablesRelations = relations(serviceVariables, ({ one }) => ({
+  service: one(services, {
+    fields: [serviceVariables.serviceId],
+    references: [services.id]
+  }),
+  updatedByUser: one(users, {
+    fields: [serviceVariables.updatedByUserId],
+    references: [users.id]
   })
 }));

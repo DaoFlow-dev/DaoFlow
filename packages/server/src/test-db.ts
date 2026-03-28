@@ -85,6 +85,7 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
       environments: string | null;
       services: string | null;
       deployments: string | null;
+      serviceVariables: string | null;
       gitProviders: string | null;
       cliAuthRequests: string | null;
     }>(`
@@ -96,6 +97,7 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
         to_regclass('public.environments') AS "environments",
         to_regclass('public.services') AS "services",
         to_regclass('public.deployments') AS "deployments",
+        to_regclass('public.service_variables') AS "serviceVariables",
         to_regclass('public.git_providers') AS "gitProviders",
         to_regclass('public.cli_auth_requests') AS "cliAuthRequests"
     `);
@@ -109,6 +111,7 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
       row.environments &&
       row.services &&
       row.deployments &&
+      row.serviceVariables &&
       row.gitProviders &&
       row.cliAuthRequests
     );
@@ -155,6 +158,7 @@ async function readPoolSchemaState() {
     environments: string | null;
     services: string | null;
     deployments: string | null;
+    serviceVariables: string | null;
     gitProviders: string | null;
     cliAuthRequests: string | null;
   }>(`
@@ -167,6 +171,7 @@ async function readPoolSchemaState() {
       to_regclass('public.environments') AS "environments",
       to_regclass('public.services') AS "services",
       to_regclass('public.deployments') AS "deployments",
+      to_regclass('public.service_variables') AS "serviceVariables",
       to_regclass('public.git_providers') AS "gitProviders",
       to_regclass('public.cli_auth_requests') AS "cliAuthRequests"
   `);
@@ -193,6 +198,7 @@ async function ensurePooledTestSchemaReady(connectionString: string) {
         state.environments &&
         state.services &&
         state.deployments &&
+        state.serviceVariables &&
         state.gitProviders &&
         state.cliAuthRequests
       ) {

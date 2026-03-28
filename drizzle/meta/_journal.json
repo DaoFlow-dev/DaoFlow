@@ -57,6 +57,13 @@
       "when": 1774212434268,
       "tag": "0007_container_registries",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1774715620270,
+      "tag": "0008_service_env_overrides",
+      "breakpoints": true
     }
   ]
 }

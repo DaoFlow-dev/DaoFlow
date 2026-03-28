@@ -29,19 +29,19 @@ export function buildEnvironmentVariableSnapshot(input: {
 
 export function summarizeEnvironmentVariableDiff(input: {
   action: "created" | "updated" | "deleted";
-  environmentName: string;
+  targetLabel: string;
   key: string;
   changedFields: string[];
 }) {
   if (input.action === "created") {
-    return `Created ${input.key} in ${input.environmentName} with redacted audit metadata.`;
+    return `Created ${input.key} in ${input.targetLabel} with redacted audit metadata.`;
   }
 
   if (input.action === "deleted") {
-    return `Deleted ${input.key} from ${input.environmentName} with a redacted before-state snapshot.`;
+    return `Deleted ${input.key} from ${input.targetLabel} with a redacted before-state snapshot.`;
   }
 
   const fieldList =
     input.changedFields.length > 0 ? input.changedFields.join(", ") : "no visible field changes";
-  return `Updated ${input.key} in ${input.environmentName}; changed fields: ${fieldList}.`;
+  return `Updated ${input.key} in ${input.targetLabel}; changed fields: ${fieldList}.`;
 }

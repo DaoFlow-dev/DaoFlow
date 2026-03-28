@@ -86,14 +86,18 @@ export const environmentVariables = pgTable(
     category: varchar("category", { length: 20 }).default("runtime").notNull(), // runtime | build
     source: varchar("source", { length: 20 }).default("inline").notNull(), // inline | 1password
     secretRef: text("secret_ref"), // op://vault/item/field URI when source is "1password"
-    branchPattern: varchar("branch_pattern", { length: 120 }),
+    branchPattern: varchar("branch_pattern", { length: 120 }).default("").notNull(),
     updatedByUserId: text("updated_by_user_id").references(() => users.id),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull()
   },
   (table) => [
     index("env_vars_environment_id_idx").on(table.environmentId),
-    uniqueIndex("env_vars_env_key_idx").on(table.environmentId, table.key)
+    uniqueIndex("env_vars_env_key_branch_idx").on(
+      table.environmentId,
+      table.key,
+      table.branchPattern
+    )
   ]
 );
 

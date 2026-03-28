@@ -286,6 +286,7 @@ export async function triggerDeploy(input: TriggerDeployInput) {
 
       const envState = await prepareComposeDeploymentEnvState({
         environmentId: env.id,
+        serviceId: svc.id,
         branch:
           typeof configSnapshot.composeEnvBranch === "string"
             ? configSnapshot.composeEnvBranch

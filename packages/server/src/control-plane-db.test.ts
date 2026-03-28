@@ -7,11 +7,13 @@ import {
 } from "./db/crypto";
 import { db } from "./db/connection";
 import { auditEntries } from "./db/schema/audit";
+import { resolveComposeDeploymentEnvEntries } from "./db/services/compose-env";
 import {
   listEnvironmentVariableInventory,
   upsertEnvironmentVariable,
   deleteEnvironmentVariable
 } from "./db/services/envvars";
+import { createService } from "./db/services/services";
 import { resolveTeamIdForUser } from "./db/services/teams";
 import { resetSeededTestDatabase } from "./test-db";
 
@@ -127,7 +129,6 @@ describe("control-plane environment variables", () => {
       category: "build",
       source: "1password",
       secretRef: "op://dao/staging/api-token",
-      branchPattern: "preview/*",
       updatedByUserId: "user_developer",
       updatedByEmail: "developer@daoflow.local",
       updatedByRole: "developer"
@@ -145,7 +146,7 @@ describe("control-plane environment variables", () => {
     const entries = await db
       .select()
       .from(auditEntries)
-      .where(eq(auditEntries.targetResource, `env-var/env_daoflow_staging/${key}`))
+      .where(eq(auditEntries.targetResource, `env-var/environment/env_daoflow_staging/${key}`))
       .orderBy(desc(auditEntries.id));
 
     expect(entries).toHaveLength(3);
@@ -178,5 +179,116 @@ describe("control-plane environment variables", () => {
     expect(updatedDiff?.redactedDiff?.changedFields).toContain("category");
     expect(deletedDiff?.redactedDiff?.before?.value).toBe("[secret]");
     expect(deletedDiff?.redactedDiff?.after).toBeNull();
+  });
+
+  it("layers shared environment values, service overrides, and preview overrides", async () => {
+    const teamId = await resolveTeamIdForUser("user_developer");
+    if (!teamId) {
+      throw new Error("Failed to resolve foundation team.");
+    }
+
+    const serviceResult = await createService({
+      name: `layered-service-${Date.now()}`,
+      environmentId: "env_daoflow_staging",
+      projectId: "proj_daoflow_control_plane",
+      sourceType: "compose",
+      targetServerId: "srv_foundation_1",
+      requestedByUserId: "user_developer",
+      requestedByEmail: "developer@daoflow.local",
+      requestedByRole: "developer"
+    });
+    if (serviceResult.status !== "ok") {
+      throw new Error("Failed to create layered environment variable fixture service.");
+    }
+
+    const key = `LAYERED_${randomUUID().replace(/-/g, "").slice(0, 10)}`;
+    const actor = {
+      teamId,
+      updatedByUserId: "user_developer",
+      updatedByEmail: "developer@daoflow.local",
+      updatedByRole: "developer" as const
+    };
+
+    await upsertEnvironmentVariable({
+      ...actor,
+      environmentId: "env_daoflow_staging",
+      key,
+      value: "shared",
+      isSecret: false,
+      category: "runtime"
+    });
+    await upsertEnvironmentVariable({
+      ...actor,
+      environmentId: "env_daoflow_staging",
+      key,
+      value: "shared-preview",
+      isSecret: false,
+      category: "runtime",
+      branchPattern: "preview/*"
+    });
+    await upsertEnvironmentVariable({
+      ...actor,
+      environmentId: "env_daoflow_staging",
+      serviceId: serviceResult.service.id,
+      scope: "service",
+      key,
+      value: "service",
+      isSecret: false,
+      category: "runtime"
+    });
+    await upsertEnvironmentVariable({
+      ...actor,
+      environmentId: "env_daoflow_staging",
+      serviceId: serviceResult.service.id,
+      scope: "service",
+      key,
+      value: "service-preview",
+      isSecret: false,
+      category: "runtime",
+      branchPattern: "preview/*"
+    });
+
+    const baseInventory = await listEnvironmentVariableInventory({
+      teamId,
+      environmentId: "env_daoflow_staging",
+      serviceId: serviceResult.service.id,
+      canRevealSecrets: true
+    });
+    const previewInventory = await listEnvironmentVariableInventory({
+      teamId,
+      environmentId: "env_daoflow_staging",
+      serviceId: serviceResult.service.id,
+      branch: "preview/pr-42",
+      canRevealSecrets: true
+    });
+
+    expect(baseInventory.summary.serviceOverrides).toBe(2);
+    expect(baseInventory.summary.previewOverrides).toBeGreaterThanOrEqual(2);
+    expect(baseInventory.resolvedVariables.find((variable) => variable.key === key)).toMatchObject({
+      displayValue: "service",
+      scope: "service",
+      originSummary: "Service override"
+    });
+    expect(
+      previewInventory.resolvedVariables.find((variable) => variable.key === key)
+    ).toMatchObject({
+      displayValue: "service-preview",
+      scope: "service",
+      originSummary: "Service preview override"
+    });
+
+    const deploymentEntries = await resolveComposeDeploymentEnvEntries({
+      environmentId: "env_daoflow_staging",
+      serviceId: serviceResult.service.id,
+      branch: "preview/pr-42"
+    });
+
+    expect(deploymentEntries.find((entry) => entry.key === key)).toMatchObject({
+      value: "service-preview",
+      category: "runtime",
+      isSecret: false,
+      source: "inline",
+      branchPattern: "preview/*"
+    });
   });
 });

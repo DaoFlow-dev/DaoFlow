@@ -222,6 +222,7 @@ export async function queueComposeRelease(input: {
 
   const envState = await prepareComposeDeploymentEnvState({
     environmentId: environment.id,
+    serviceId: service.id,
     branch: project.defaultBranch ?? "main"
   });
 

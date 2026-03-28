@@ -1598,10 +1598,29 @@
             "type": "string",
             "minLength": 1
           },
+          "serviceId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "scope": {
+            "type": "string",
+            "enum": ["environment", "service"]
+          },
           "key": {
             "type": "string",
             "maxLength": 80,
             "pattern": "^[A-Z_][A-Z0-9_]*$"
+          },
+          "branchPattern": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 120
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": ["environmentId", "key"],
@@ -2016,6 +2035,15 @@
           "environmentId": {
             "type": "string",
             "minLength": 1
+          },
+          "serviceId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "branch": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
           },
           "limit": {
             "type": "integer",
@@ -4424,6 +4452,14 @@
           "environmentId": {
             "type": "string",
             "minLength": 1
+          },
+          "serviceId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "scope": {
+            "type": "string",
+            "enum": ["environment", "service"]
           },
           "key": {
             "type": "string",

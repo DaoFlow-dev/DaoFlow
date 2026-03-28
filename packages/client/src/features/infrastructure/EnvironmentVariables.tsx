@@ -17,11 +17,15 @@ interface EnvironmentVariable {
   id: string;
   projectName: string;
   environmentName: string;
+  serviceName?: string | null;
   key: string;
   displayValue: string;
   isSecret: boolean;
   category: string;
   source: string;
+  scope?: string;
+  scopeLabel?: string;
+  originSummary?: string;
   branchPattern: string | null;
   statusTone: string;
   statusLabel: string;
@@ -34,6 +38,9 @@ interface EnvironmentVariablesData {
     secretVariables: number;
     runtimeVariables: number;
     buildVariables: number;
+    serviceOverrides?: number;
+    previewOverrides?: number;
+    resolvedVariables?: number;
   };
   variables: EnvironmentVariable[];
 }
@@ -117,8 +124,10 @@ export function EnvironmentVariables({
             </p>
             <h3 className="text-base font-semibold text-foreground">Save scoped variable</h3>
             <p className="mt-2 text-sm text-muted-foreground">
-              Secret values stay masked by default and are revealed only to callers with explicit
-              secret-read access.
+              Shared environment values live here. Service-specific overrides live on each service
+              page, and preview-only behavior comes from the optional branch pattern. Secret values
+              stay masked by default and are revealed only to callers with explicit secret-read
+              access.
             </p>
           </div>
           <label>
@@ -231,6 +240,14 @@ export function EnvironmentVariables({
             </Card>
           </div>
 
+          <p
+            className="text-sm text-muted-foreground"
+            data-testid="environment-variable-layering-help"
+          >
+            Shared environment values are the reusable base layer. Service overrides and preview
+            overrides are counted when you inspect a specific environment or service.
+          </p>
+
           <div className="grid grid-cols-2 gap-3">
             {environmentVariables.data.variables.map((variable) => (
               <article
@@ -253,6 +270,17 @@ export function EnvironmentVariables({
                 <p className="mt-2 text-sm text-muted-foreground">
                   Category: {variable.category} · Source: {variable.source}
                 </p>
+                {variable.scopeLabel ? (
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    Layer: {variable.scopeLabel}
+                    {variable.serviceName ? ` · Service: ${variable.serviceName}` : ""}
+                  </p>
+                ) : null}
+                {variable.originSummary ? (
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    Effective source: {variable.originSummary}
+                  </p>
+                ) : null}
                 <p className="mt-2 text-sm text-muted-foreground">
                   Branch pattern: {variable.branchPattern ?? "all branches"}
                 </p>

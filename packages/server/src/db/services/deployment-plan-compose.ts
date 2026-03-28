@@ -146,6 +146,7 @@ export async function buildComposeDeploymentPlanDetails(input: {
 
   const deploymentEntries = await resolveComposeDeploymentEnvEntries({
     environmentId: input.environment.id,
+    serviceId: input.service.id,
     branch: previewMetadata?.envBranch ?? sourceBranch,
     additionalEntries:
       previewMetadata !== null ? buildComposePreviewEnvEntries(previewMetadata) : undefined

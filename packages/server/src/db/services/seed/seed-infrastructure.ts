@@ -400,7 +400,7 @@ export async function seedInfrastructure(tx: SeedTransaction) {
         valueEncrypted: encrypt("https://daoflow.example.com"),
         isSecret: "false",
         category: "runtime",
-        branchPattern: null,
+        branchPattern: "",
         updatedByUserId: "user_foundation_owner",
         createdAt: daysBefore(9),
         updatedAt: daysBefore(9)
@@ -412,7 +412,7 @@ export async function seedInfrastructure(tx: SeedTransaction) {
         valueEncrypted: encrypt("prod-super-secret-password"),
         isSecret: "true",
         category: "runtime",
-        branchPattern: null,
+        branchPattern: "",
         updatedByUserId: "user_foundation_owner",
         createdAt: daysBefore(7),
         updatedAt: daysBefore(7)

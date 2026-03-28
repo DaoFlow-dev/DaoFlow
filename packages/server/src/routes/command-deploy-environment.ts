@@ -22,6 +22,8 @@ const environmentVariableKeySchema = z
 
 const upsertEnvironmentVariableInputSchema = z.object({
   environmentId: z.string().min(1),
+  serviceId: z.string().min(1).optional(),
+  scope: z.enum(["environment", "service"]).optional(),
   key: environmentVariableKeySchema,
   value: z.string().min(1).max(4000),
   isSecret: z.boolean(),
@@ -33,7 +35,10 @@ const upsertEnvironmentVariableInputSchema = z.object({
 
 const deleteEnvironmentVariableInputSchema = z.object({
   environmentId: z.string().min(1),
-  key: environmentVariableKeySchema
+  serviceId: z.string().min(1).optional(),
+  scope: z.enum(["environment", "service"]).optional(),
+  key: environmentVariableKeySchema,
+  branchPattern: z.string().max(120).nullable().optional()
 });
 
 async function requireViewerTeamId(userId: string) {
@@ -86,8 +91,7 @@ export const deployEnvironmentCommandRouter = t.router({
     .mutation(async ({ ctx, input }) => {
       const actor = getDeleteContext(ctx);
       const result = await deleteEnvironmentVariable({
-        environmentId: input.environmentId,
-        key: input.key,
+        ...input,
         deletedByUserId: actor.userId,
         deletedByEmail: actor.email,
         deletedByRole: actor.role

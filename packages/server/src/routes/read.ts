@@ -122,6 +122,8 @@ const coreReadRouter = t.router({
     .input(
       z.object({
         environmentId: z.string().min(1).optional(),
+        serviceId: z.string().min(1).optional(),
+        branch: z.string().min(1).max(255).optional(),
         limit: z.number().int().min(1).max(100).optional()
       })
     )
@@ -130,6 +132,8 @@ const coreReadRouter = t.router({
       return listEnvironmentVariableInventory({
         teamId,
         environmentId: input.environmentId,
+        serviceId: input.serviceId,
+        branch: input.branch,
         limit: input.limit ?? 50,
         canRevealSecrets: ctx.auth.capabilities.includes("secrets:read")
       });

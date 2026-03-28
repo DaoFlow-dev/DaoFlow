@@ -3,10 +3,10 @@ import { db } from "../connection";
 import { decrypt, encrypt } from "../crypto";
 import { deployments } from "../schema/deployments";
 import { environmentVariables } from "../schema/projects";
+import { serviceVariables } from "../schema/services";
 import {
   buildMaterializedComposeEnvEvidence,
   buildQueuedComposeEnvEvidence,
-  matchesComposeEnvBranchPattern,
   type ComposeEnvVariableCategory,
   type ComposeEnvEvidence,
   type ComposeEnvMaterializedEntry,
@@ -18,6 +18,12 @@ import type {
   FrozenComposeInputsPayload
 } from "../../compose-inputs";
 import { asRecord } from "./json-helpers";
+import {
+  normalizeStoredBranchPattern,
+  readBranchPattern,
+  resolveEffectiveEnvironmentVariableRecords,
+  type LayeredEnvironmentVariableRecord
+} from "./envvar-layering";
 
 function normalizeComposeEnvCategory(value: string): ComposeEnvVariableCategory {
   return value === "build" ? "build" : "runtime";
@@ -138,25 +144,79 @@ function normalizeFrozenInputsForSerialization(
 
 export async function resolveComposeDeploymentEnvEntries(input: {
   environmentId: string;
+  serviceId?: string | null;
   branch: string;
   additionalEntries?: ComposeEnvPayloadEntry[];
 }): Promise<ComposeEnvPayloadEntry[]> {
-  const rows = await db
+  const environmentRows = await db
     .select()
     .from(environmentVariables)
     .where(eq(environmentVariables.environmentId, input.environmentId))
     .orderBy(asc(environmentVariables.key));
+  const serviceRows = input.serviceId
+    ? await db
+        .select()
+        .from(serviceVariables)
+        .where(eq(serviceVariables.serviceId, input.serviceId))
+        .orderBy(asc(serviceVariables.key))
+    : [];
 
-  const resolved: ComposeEnvPayloadEntry[] = rows
-    .filter((row) => matchesComposeEnvBranchPattern(row.branchPattern, input.branch))
-    .map((row) => ({
-      key: row.key,
-      value: decrypt(row.valueEncrypted),
-      category: normalizeComposeEnvCategory(row.category),
-      isSecret: row.isSecret === "true",
-      source: row.source === "1password" ? "1password" : "inline",
-      branchPattern: row.branchPattern
-    }));
+  const layeredRecords = [
+    ...environmentRows.map(
+      (row) =>
+        ({
+          id: `envvar_${row.id}`,
+          scope: "environment",
+          environmentId: row.environmentId,
+          environmentName: "",
+          projectName: "",
+          serviceId: null,
+          serviceName: null,
+          key: row.key,
+          value: decrypt(row.valueEncrypted),
+          isSecret: row.isSecret === "true",
+          category: normalizeComposeEnvCategory(row.category),
+          source: row.source === "1password" ? "1password" : "inline",
+          secretRef: row.secretRef,
+          branchPattern: normalizeStoredBranchPattern(row.branchPattern),
+          updatedByEmail: "",
+          updatedAt: row.updatedAt.toISOString()
+        }) satisfies LayeredEnvironmentVariableRecord
+    ),
+    ...serviceRows.map(
+      (row) =>
+        ({
+          id: `svcvar_${row.id}`,
+          scope: "service",
+          environmentId: input.environmentId,
+          environmentName: "",
+          projectName: "",
+          serviceId: row.serviceId,
+          serviceName: null,
+          key: row.key,
+          value: decrypt(row.valueEncrypted),
+          isSecret: row.isSecret === "true",
+          category: normalizeComposeEnvCategory(row.category),
+          source: row.source === "1password" ? "1password" : "inline",
+          secretRef: row.secretRef,
+          branchPattern: normalizeStoredBranchPattern(row.branchPattern),
+          updatedByEmail: "",
+          updatedAt: row.updatedAt.toISOString()
+        }) satisfies LayeredEnvironmentVariableRecord
+    )
+  ];
+
+  const resolved: ComposeEnvPayloadEntry[] = resolveEffectiveEnvironmentVariableRecords({
+    records: layeredRecords,
+    branch: input.branch
+  }).map((record) => ({
+    key: record.key,
+    value: record.value,
+    category: record.category,
+    isSecret: record.isSecret,
+    source: record.source,
+    branchPattern: readBranchPattern(record.branchPattern)
+  }));
 
   if (!input.additionalEntries?.length) {
     return resolved;
@@ -172,6 +232,7 @@ export async function resolveComposeDeploymentEnvEntries(input: {
 
 export async function prepareComposeDeploymentEnvState(input: {
   environmentId: string;
+  serviceId?: string | null;
   branch: string;
   additionalEntries?: ComposeEnvPayloadEntry[];
 }): Promise<{

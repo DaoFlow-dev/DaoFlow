@@ -256,6 +256,7 @@ export async function buildComposeDeploymentPlan(input: ComposeDeploymentPlanInp
   const deploymentEntries = scope.environment.id
     ? await resolveComposeDeploymentEnvEntries({
         environmentId: scope.environment.id,
+        serviceId: scope.service.id,
         branch
       })
     : [];
