@@ -9,6 +9,7 @@
 import { db } from "../db/connection";
 import { deploymentLogs } from "../db/schema/deployments";
 import type { LogLine } from "./docker-executor";
+import { touchDeploymentProgress } from "./step-management";
 
 /**
  * Classify a log line's severity based on content patterns.
@@ -62,8 +63,10 @@ export function createLogStreamer(deploymentId: string, source: string) {
     if (buffer.length === 0) return;
 
     const batch = buffer.splice(0, buffer.length);
+    const touchedAt = batch[batch.length - 1]?.createdAt ?? new Date();
     try {
       await db.insert(deploymentLogs).values(batch);
+      await touchDeploymentProgress(deploymentId, touchedAt);
     } catch (err) {
       // Log persistence failure should not crash the worker
       console.error(

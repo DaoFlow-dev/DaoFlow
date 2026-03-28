@@ -4,7 +4,7 @@
  * Extracted from worker.ts for modularity.
  */
 
-import { eq } from "drizzle-orm";
+import { eq, sql as rawSql } from "drizzle-orm";
 import { db } from "../db/connection";
 import { deployments, deploymentSteps } from "../db/schema/deployments";
 import { events } from "../db/schema/audit";
@@ -17,6 +17,35 @@ import type { ComposeReadinessProbeSnapshot } from "../compose-readiness";
 import type { ServiceRuntimeConfig } from "../service-runtime-config";
 
 export type DeploymentRow = typeof deployments.$inferSelect;
+
+export async function touchDeploymentProgress(
+  deploymentId: string,
+  touchedAt = new Date()
+): Promise<void> {
+  await db
+    .update(deployments)
+    .set({ updatedAt: touchedAt })
+    .where(eq(deployments.id, deploymentId));
+}
+
+async function touchDeploymentProgressForStep(
+  stepId: number,
+  touchedAt = new Date()
+): Promise<void> {
+  await db
+    .update(deployments)
+    .set({ updatedAt: touchedAt })
+    .where(
+      eq(
+        deployments.id,
+        rawSql`(
+          SELECT ${deploymentSteps.deploymentId}
+          FROM ${deploymentSteps}
+          WHERE ${deploymentSteps.id} = ${stepId}
+        )`
+      )
+    );
+}
 
 /* ──────────────────────── Step Helpers ──────────────────────── */
 
@@ -38,32 +67,38 @@ export async function createStep(
 }
 
 export async function markStepRunning(stepId: number): Promise<void> {
+  const now = new Date();
   await db
     .update(deploymentSteps)
-    .set({ status: "running", startedAt: new Date() })
+    .set({ status: "running", startedAt: now })
     .where(eq(deploymentSteps.id, stepId));
+  await touchDeploymentProgressForStep(stepId, now);
 }
 
 export async function markStepComplete(stepId: number, detail?: string): Promise<void> {
+  const now = new Date();
   await db
     .update(deploymentSteps)
     .set({
       status: "completed",
-      completedAt: new Date(),
+      completedAt: now,
       detail: detail ?? null
     })
     .where(eq(deploymentSteps.id, stepId));
+  await touchDeploymentProgressForStep(stepId, now);
 }
 
 export async function markStepFailed(stepId: number, detail: string): Promise<void> {
+  const now = new Date();
   await db
     .update(deploymentSteps)
     .set({
       status: "failed",
-      completedAt: new Date(),
+      completedAt: now,
       detail
     })
     .where(eq(deploymentSteps.id, stepId));
+  await touchDeploymentProgressForStep(stepId, now);
 }
 
 /* ──────────────────────── Deployment Transitions ──────────────────────── */

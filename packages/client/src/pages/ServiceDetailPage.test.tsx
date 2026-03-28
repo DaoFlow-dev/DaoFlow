@@ -144,6 +144,7 @@ describe("ServiceDetailPage", () => {
           statusLabel: "Failed",
           statusTone: "failed",
           summary: "Image pull failed on the target server.",
+          failureAnalysis: "Deployment progress heartbeat timed out.",
           targetServerName: "foundation",
           imageTag: "ghcr.io/example/api:sha-123",
           finishedAt: "2026-03-20T00:00:00.000Z"
@@ -174,6 +175,9 @@ describe("ServiceDetailPage", () => {
     expect(screen.getByTestId("service-header")).toHaveTextContent("Header api");
     expect(screen.getByTestId("service-recovery-panel")).toBeVisible();
     expect(screen.getByTestId("service-recovery-alert")).toHaveTextContent("Recovery path ready");
+    expect(screen.getByTestId("service-recovery-alert")).toHaveTextContent(
+      "Deployment progress heartbeat timed out."
+    );
     expect(screen.getByTestId("general-tab")).toHaveTextContent("General api");
     expect(logsTabMock).not.toHaveBeenCalled();
     expect(monitoringTabMock).not.toHaveBeenCalled();

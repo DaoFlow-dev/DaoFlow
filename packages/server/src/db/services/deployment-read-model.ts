@@ -57,6 +57,29 @@ function readDeploymentErrorReason(deployment: DeploymentRow): string | null {
   );
 }
 
+function readWatchdogFailure(deployment: DeploymentRow): {
+  summary: string;
+  rootCause: string | null;
+} | null {
+  if (!deployment.error || typeof deployment.error !== "object") {
+    return null;
+  }
+
+  const error = asRecord(deployment.error);
+  if (readString(error, "code") !== "DEPLOYMENT_WATCHDOG_TIMEOUT") {
+    return null;
+  }
+
+  return {
+    summary: readString(
+      error,
+      "message",
+      "DaoFlow marked the deployment failed after progress stopped."
+    ),
+    rootCause: readString(error, "reason", "Deployment progress heartbeat timed out.")
+  };
+}
+
 function readInsightRootCause(snapshot: Record<string, unknown>): string | null {
   const insight = asRecord(snapshot.insight);
   return readString(insight, "suspectedRootCause") || readString(insight, "summary") || null;
@@ -72,8 +95,11 @@ export function summarizeDeploymentHealth(input: {
 }): DeploymentHealthSummary {
   const snapshot = asRecord(input.deployment.configSnapshot);
   const healthStep = findHealthStep(input.steps);
+  const watchdogFailure = readWatchdogFailure(input.deployment);
   const failureAnalysis =
-    readInsightRootCause(snapshot) ?? readDeploymentErrorReason(input.deployment);
+    readInsightRootCause(snapshot) ??
+    watchdogFailure?.rootCause ??
+    readDeploymentErrorReason(input.deployment);
 
   if (healthStep) {
     if (healthStep.status === "completed") {
@@ -128,9 +154,12 @@ export function summarizeDeploymentHealth(input: {
   if (normalized === DeploymentHealthStatus.Failed) {
     return {
       status: "failed",
-      statusLabel: "Failed",
+      statusLabel: watchdogFailure ? "Stalled" : "Failed",
       statusTone: StatusTone.Failed,
-      summary: failureAnalysis ?? "Deployment failed before health verification completed.",
+      summary:
+        watchdogFailure?.summary ??
+        failureAnalysis ??
+        "Deployment failed before health verification completed.",
       failureAnalysis,
       observedAt: input.deployment.concludedAt?.toISOString() ?? null
     };

@@ -657,11 +657,14 @@ describe("compose preview reconciliation", () => {
       .where(eq(deployments.serviceName, serviceResult.service.name))
       .orderBy(deployments.createdAt);
     expect(rows).toHaveLength(2);
-    expect(readComposePreviewMetadata(asRecord(rows[1].configSnapshot).preview)).toMatchObject({
+    const cleanupDeploymentId = result.execution.queuedDeployments[0]?.deploymentId;
+    const cleanupRow = rows.find((row) => row.id === cleanupDeploymentId);
+    expect(cleanupRow).toBeDefined();
+    expect(readComposePreviewMetadata(asRecord(cleanupRow?.configSnapshot).preview)).toMatchObject({
       key: "pr-51",
       action: "destroy"
     });
-    expect(asRecord(rows[1].configSnapshot)).toMatchObject({
+    expect(asRecord(cleanupRow?.configSnapshot)).toMatchObject({
       composeOperation: "down"
     });
 

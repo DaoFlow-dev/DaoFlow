@@ -117,6 +117,7 @@ export default function ServiceDetailPage() {
       statusLabel: string;
       statusTone: string;
       summary: string;
+      failureAnalysis?: string | null;
       targetServerName: string | null;
       imageTag: string | null;
       finishedAt: string | null;

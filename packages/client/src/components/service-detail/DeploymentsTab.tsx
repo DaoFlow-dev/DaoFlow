@@ -140,11 +140,12 @@ export default function DeploymentsTab({ serviceId, serviceName }: DeploymentsTa
               configSnapshot?: unknown;
             }) => (
               <Card key={d.id} className="shadow-sm overflow-hidden">
-                <button
-                  className="w-full text-left p-4 flex items-center justify-between hover:bg-muted/50 transition-colors"
-                  onClick={() => setExpandedId(expandedId === d.id ? null : d.id)}
-                >
-                  <div className="flex items-center gap-3">
+                <div className="flex items-center justify-between gap-3 p-4">
+                  <button
+                    type="button"
+                    className="flex flex-1 items-center gap-3 rounded-md text-left transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    onClick={() => setExpandedId(expandedId === d.id ? null : d.id)}
+                  >
                     {expandedId === d.id ? (
                       <ChevronDown size={14} className="text-muted-foreground" />
                     ) : (
@@ -160,7 +161,7 @@ export default function DeploymentsTab({ serviceId, serviceName }: DeploymentsTa
                           <Badge variant="outline">{d.conclusion}</Badge>
                         )}
                       </div>
-                      <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
+                      <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
                         <Clock size={12} />
                         {new Date(d.createdAt).toLocaleString()}
                         <span className="flex items-center gap-1">
@@ -173,15 +174,13 @@ export default function DeploymentsTab({ serviceId, serviceName }: DeploymentsTa
                         {d.imageTag && <span className="font-mono">{d.imageTag}</span>}
                       </div>
                     </div>
-                  </div>
-
+                  </button>
                   <div className="flex items-center gap-1">
                     {d.canCancel && (
                       <Button
                         size="sm"
                         variant="ghost"
-                        onClick={(e) => {
-                          e.stopPropagation();
+                        onClick={() => {
                           cancelMutation.mutate({ deploymentId: d.id });
                         }}
                         title="Cancel"
@@ -193,8 +192,7 @@ export default function DeploymentsTab({ serviceId, serviceName }: DeploymentsTa
                       <Button
                         size="sm"
                         variant="ghost"
-                        onClick={(e) => {
-                          e.stopPropagation();
+                        onClick={() => {
                           setRollbackDialogOpen(true);
                         }}
                         title="Rollback to this"
@@ -203,7 +201,7 @@ export default function DeploymentsTab({ serviceId, serviceName }: DeploymentsTa
                       </Button>
                     )}
                   </div>
-                </button>
+                </div>
 
                 {/* Expanded step details */}
                 {expandedId === d.id && (

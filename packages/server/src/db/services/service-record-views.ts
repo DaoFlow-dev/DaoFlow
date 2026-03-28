@@ -165,6 +165,7 @@ export function buildServiceReadModel(
           statusLabel: healthSummary?.statusLabel ?? runtimeSummary.statusLabel,
           statusTone: healthSummary?.statusTone ?? runtimeSummary.statusTone,
           summary: healthSummary?.summary ?? runtimeSummary.summary,
+          failureAnalysis: healthSummary?.failureAnalysis ?? null,
           commitSha: latestDeployment.commitSha,
           imageTag: latestDeployment.imageTag,
           targetServerId: latestDeployment.targetServerId,

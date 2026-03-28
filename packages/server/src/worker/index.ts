@@ -5,6 +5,10 @@
  * The server entry point decides which to start based on TEMPORAL_ADDRESS.
  */
 export { startWorker, stopWorker } from "./worker";
+export {
+  startDeploymentWatchdogMonitor,
+  stopDeploymentWatchdogMonitor
+} from "./deployment-watchdog-monitor";
 export { startTemporalWorker, stopTemporalWorker } from "./temporal/worker";
 export {
   startDeploymentWorkflow,

@@ -20,6 +20,7 @@ interface ServiceRecoveryPanelProps {
     statusLabel: string;
     statusTone: string;
     summary: string;
+    failureAnalysis?: string | null;
     targetServerName: string | null;
     imageTag: string | null;
     finishedAt: string | null;
@@ -114,8 +115,9 @@ export function ServiceRecoveryPanel({
             <ShieldAlert size={16} />
             <AlertTitle>Recovery path ready</AlertTitle>
             <AlertDescription>
-              Review recent deployment history or logs first, then queue a fresh deployment when you
-              are ready to recover {serviceName}.
+              {latestDeployment?.failureAnalysis
+                ? `${latestDeployment.failureAnalysis} Review recent deployment history or logs first, then queue a fresh deployment when you are ready to recover ${serviceName}.`
+                : `Review recent deployment history or logs first, then queue a fresh deployment when you are ready to recover ${serviceName}.`}
             </AlertDescription>
           </Alert>
         ) : null}
