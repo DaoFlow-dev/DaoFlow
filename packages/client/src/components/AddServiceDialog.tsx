@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { trpc } from "../lib/trpc";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
+  DialogDescription,
   DialogTitle,
   DialogFooter
 } from "@/components/ui/dialog";
@@ -18,6 +19,7 @@ interface Props {
   onOpenChange: (open: boolean) => void;
   projectId: string;
   environments: Environment[];
+  initialEnvironmentId?: string;
   onCreated: () => void;
 }
 
@@ -28,30 +30,62 @@ export default function AddServiceDialog({
   onOpenChange,
   projectId,
   environments,
+  initialEnvironmentId,
   onCreated
 }: Props) {
+  const resolveInitialEnvironmentId = useCallback(
+    () =>
+      (initialEnvironmentId &&
+      environments.some((environment) => environment.id === initialEnvironmentId)
+        ? initialEnvironmentId
+        : environments[0]?.id) ?? "",
+    [environments, initialEnvironmentId]
+  );
   const [name, setName] = useState("");
   const [sourceType, setSourceType] = useState<(typeof sourceTypes)[number]>("compose");
-  const [environmentId, setEnvironmentId] = useState(environments[0]?.id ?? "");
+  const [environmentId, setEnvironmentId] = useState(resolveInitialEnvironmentId);
   const [imageReference, setImageReference] = useState("");
   const [dockerfilePath, setDockerfilePath] = useState("");
   const [composeServiceName, setComposeServiceName] = useState("");
+  const wasOpenRef = useRef(open);
 
   const createService = trpc.createService.useMutation({
     onSuccess: () => {
       onCreated();
-      onOpenChange(false);
-      resetForm();
+      handleOpenChange(false);
     }
   });
 
   function resetForm() {
     setName("");
     setSourceType("compose");
+    setEnvironmentId(resolveInitialEnvironmentId());
     setImageReference("");
     setDockerfilePath("");
     setComposeServiceName("");
   }
+
+  function handleOpenChange(nextOpen: boolean) {
+    if (!nextOpen) {
+      resetForm();
+    } else {
+      setEnvironmentId(resolveInitialEnvironmentId());
+    }
+
+    onOpenChange(nextOpen);
+  }
+
+  useEffect(() => {
+    if (!open) {
+      wasOpenRef.current = false;
+      return;
+    }
+
+    if (!wasOpenRef.current) {
+      setEnvironmentId(resolveInitialEnvironmentId());
+      wasOpenRef.current = true;
+    }
+  }, [open, resolveInitialEnvironmentId]);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -69,10 +103,13 @@ export default function AddServiceDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Add Service</DialogTitle>
+          <DialogDescription>
+            Create the first service for this project and keep the selected environment in place.
+          </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -93,6 +130,7 @@ export default function AddServiceDialog({
               className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               value={environmentId}
               onChange={(e) => setEnvironmentId(e.target.value)}
+              data-testid="add-service-environment-select"
             >
               {environments.map((env) => (
                 <option key={env.id} value={env.id}>
@@ -156,7 +194,7 @@ export default function AddServiceDialog({
           )}
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>
               Cancel
             </Button>
             <Button type="submit" disabled={createService.isPending || !name.trim()}>

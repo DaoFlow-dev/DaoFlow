@@ -1,5 +1,7 @@
+import { Link } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useNavigate } from "react-router-dom";
 import { getInventoryBadgeVariant, getInventoryDotClass } from "@/lib/tone-utils";
@@ -46,13 +48,17 @@ interface ProjectServicesListProps {
   isLoading: boolean;
   activeEnv: string | null;
   activeEnvName?: string;
+  onCreateService?: () => void;
+  deployHref?: string | null;
 }
 
 export function ProjectServicesList({
   services,
   isLoading,
   activeEnv,
-  activeEnvName
+  activeEnvName,
+  onCreateService,
+  deployHref
 }: ProjectServicesListProps) {
   const navigate = useNavigate();
 
@@ -74,10 +80,33 @@ export function ProjectServicesList({
         </div>
       ) : services.length === 0 ? (
         <Card className="shadow-sm">
-          <CardContent className="py-12 text-center text-muted-foreground">
-            {activeEnv
-              ? "No services in this environment."
-              : "No services yet. Add your first Docker or Compose service."}
+          <CardContent className="py-12">
+            <div className="mx-auto flex max-w-2xl flex-col items-center text-center">
+              <h3 className="text-base font-medium text-foreground">
+                {activeEnv && activeEnvName
+                  ? `No services in ${activeEnvName} yet`
+                  : "No services yet"}
+              </h3>
+              <p className="mt-2 text-sm text-muted-foreground">
+                {activeEnv && activeEnvName
+                  ? "Create your first service for this environment or start from a template-backed deployment without losing the selected context."
+                  : "Create your first service to turn this project into a real deployment target."}
+              </p>
+              {onCreateService || deployHref ? (
+                <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+                  {onCreateService ? (
+                    <Button onClick={onCreateService} data-testid="project-services-empty-add">
+                      Create First Service
+                    </Button>
+                  ) : null}
+                  {deployHref ? (
+                    <Link to={deployHref} data-testid="project-services-empty-deploy-link">
+                      <Button variant="outline">Deploy from Template</Button>
+                    </Link>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
           </CardContent>
         </Card>
       ) : (

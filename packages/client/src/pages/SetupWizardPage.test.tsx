@@ -214,6 +214,10 @@ describe("SetupWizardPage", () => {
       "href",
       "/projects/proj_console"
     );
+    expect(screen.getByTestId("setup-handoff-add-service-link")).toHaveAttribute(
+      "href",
+      "/projects/proj_console?environmentId=env_prod&openAddService=1"
+    );
     expect(screen.getByTestId("setup-handoff-deploy-link")).toHaveAttribute(
       "href",
       expect.stringContaining(

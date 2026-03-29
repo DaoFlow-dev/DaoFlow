@@ -12,6 +12,7 @@ interface SetupHandoffStepProps {
   projectName: string;
   environmentName: string;
   serverName: string;
+  addServiceHref: string;
   deployHref: string;
   projectHref: string;
 }
@@ -21,6 +22,7 @@ export function SetupHandoffStep({
   projectName,
   environmentName,
   serverName,
+  addServiceHref,
   deployHref,
   projectHref
 }: SetupHandoffStepProps) {
@@ -50,31 +52,42 @@ export function SetupHandoffStep({
 
       <div className="grid gap-4 md:grid-cols-2">
         <div className="rounded-2xl border border-border/60 bg-muted/20 p-4">
-          <p className="text-sm font-medium text-foreground">Recommended next step</p>
+          <p className="text-sm font-medium text-foreground">Create your first service</p>
           <p className="mt-2 text-sm text-muted-foreground">
-            Start with a template-backed Compose deployment so you can preview the plan before
-            DaoFlow queues any work.
+            Open the new project with the service dialog ready so you can keep the selected
+            environment and continue setup without reselecting context.
           </p>
-          <Link to={deployHref} data-testid="setup-handoff-deploy-link">
+          <Link to={addServiceHref} data-testid="setup-handoff-add-service-link">
             <Button className="mt-4 w-full">
-              <Rocket size={16} className="mr-2" />
-              Deploy from Template
+              <FolderKanban size={16} className="mr-2" />
+              Create First Service
             </Button>
           </Link>
         </div>
 
         <div className="rounded-2xl border border-border/60 bg-muted/20 p-4">
-          <p className="text-sm font-medium text-foreground">Review the project first</p>
+          <p className="text-sm font-medium text-foreground">Deploy from template</p>
           <p className="mt-2 text-sm text-muted-foreground">
-            Open the new project to inspect environments and continue with service-level setup.
+            Start with a template-backed Compose deployment so you can preview the plan before
+            DaoFlow queues any work.
           </p>
-          <Link to={projectHref} data-testid="setup-handoff-project-link">
+          <Link to={deployHref} data-testid="setup-handoff-deploy-link">
             <Button variant="outline" className="mt-4 w-full">
-              <FolderKanban size={16} className="mr-2" />
-              Open Project
+              <Rocket size={16} className="mr-2" />
+              Deploy from Template
             </Button>
           </Link>
         </div>
+      </div>
+
+      <div className="text-center">
+        <Link
+          to={projectHref}
+          className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+          data-testid="setup-handoff-project-link"
+        >
+          Open the project overview instead
+        </Link>
       </div>
     </SetupWizardStepLayout>
   );

@@ -315,6 +315,10 @@ export default function SetupWizardPage() {
     environmentId,
     environmentName: handoffEnvironmentName
   });
+  const addServiceParams = new URLSearchParams({
+    environmentId,
+    openAddService: "1"
+  });
 
   if (step === "welcome") {
     return (
@@ -470,6 +474,7 @@ export default function SetupWizardPage() {
       projectName={handoffProjectName}
       environmentName={handoffEnvironmentName}
       serverName={handoffServerName}
+      addServiceHref={`/projects/${projectId}?${addServiceParams.toString()}`}
       deployHref={`/deploy?source=template&${deployParams.toString()}`}
       projectHref={`/projects/${projectId}`}
     />

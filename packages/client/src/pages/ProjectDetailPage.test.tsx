@@ -62,15 +62,27 @@ const {
     ({
       services,
       activeEnv,
-      activeEnvName
+      activeEnvName,
+      onCreateService,
+      deployHref
     }: {
       services: { name: string }[];
       activeEnv: string | null;
       activeEnvName?: string;
+      onCreateService?: () => void;
+      deployHref?: string | null;
     }) => (
       <div data-testid="project-services-list-mock">
         <span data-testid="project-services-active-env">{activeEnv ?? "all"}</span>
         <span data-testid="project-services-active-env-name">{activeEnvName ?? "all"}</span>
+        <span data-testid="project-services-deploy-href">{deployHref ?? "none"}</span>
+        <button
+          type="button"
+          onClick={() => onCreateService?.()}
+          data-testid="project-services-create-first-service"
+        >
+          Create first service
+        </button>
         {services.map((service) => (
           <span key={service.name}>{service.name}</span>
         ))}
@@ -116,14 +128,16 @@ const {
     ({
       open,
       projectId,
-      environments
+      environments,
+      initialEnvironmentId
     }: {
       open: boolean;
       projectId: string;
       environments: { id: string; name: string }[];
+      initialEnvironmentId?: string;
     }) => (
       <div data-testid="add-service-dialog-mock">
-        {open ? "open" : "closed"} {projectId}{" "}
+        {open ? "open" : "closed"} {projectId} {initialEnvironmentId ?? "none"}{" "}
         {environments.map((environment) => environment.name).join(",")}
       </div>
     )
@@ -385,9 +399,9 @@ describe("ProjectDetailPage", () => {
     );
   });
 
-  function renderPage() {
+  function renderPage(initialEntry = "/projects/proj_1") {
     return render(
-      <MemoryRouter initialEntries={["/projects/proj_1"]}>
+      <MemoryRouter initialEntries={[initialEntry]}>
         <Routes>
           <Route path="/projects/:id" element={<ProjectDetailPage />} />
         </Routes>
@@ -462,8 +476,44 @@ describe("ProjectDetailPage", () => {
     fireEvent.click(screen.getByTestId("project-add-service-button"));
 
     expect(screen.getByTestId("add-service-dialog-mock")).toHaveTextContent(
-      "open proj_1 Production,Staging"
+      "open proj_1 none Production,Staging"
     );
+  });
+
+  it("opens the add-service dialog from onboarding query params and keeps the selected environment", async () => {
+    renderPage("/projects/proj_1?environmentId=env_stage&openAddService=1");
+
+    await waitFor(() => {
+      expect(screen.getByTestId("project-services-active-env")).toHaveTextContent("env_stage");
+    });
+    expect(screen.getByTestId("project-services-active-env-name")).toHaveTextContent("Staging");
+    expect(screen.getByTestId("add-service-dialog-mock")).toHaveTextContent(
+      "open proj_1 env_stage Production,Staging"
+    );
+    expect(screen.getByTestId("project-services-deploy-href")).toHaveTextContent(
+      "/deploy?source=template&projectId=proj_1&projectName=DaoFlow&environmentId=env_stage&environmentName=Staging"
+    );
+  });
+
+  it("opens the add-service dialog from the services empty-state action", async () => {
+    projectServicesUseQueryMock.mockReturnValue({
+      data: [],
+      isLoading: false,
+      refetch: servicesRefetchMock
+    });
+
+    renderPage("/projects/proj_1?environmentId=env_prod");
+
+    expect(screen.getByTestId("project-services-active-env")).toHaveTextContent("env_prod");
+    expect(screen.getByTestId("project-services-active-env-name")).toHaveTextContent("Production");
+
+    fireEvent.click(screen.getByTestId("project-services-create-first-service"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("add-service-dialog-mock")).toHaveTextContent(
+        "open proj_1 env_prod Production,Staging"
+      );
+    });
   });
 
   it("deletes the project and navigates back to the projects list after success", async () => {

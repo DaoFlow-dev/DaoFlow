@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 
 import "@testing-library/jest-dom/vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { ProjectServicesList } from "./ProjectServicesList";
 
 describe("ProjectServicesList", () => {
@@ -61,5 +61,31 @@ describe("ProjectServicesList", () => {
     );
 
     expect(screen.getByText("https://app.example.com · Healthy")).toBeVisible();
+  });
+
+  it("shows guided empty-state actions for a selected environment", () => {
+    const onCreateService = vi.fn();
+
+    render(
+      <MemoryRouter>
+        <ProjectServicesList
+          services={[]}
+          isLoading={false}
+          activeEnv="env_prod"
+          activeEnvName="Production"
+          onCreateService={onCreateService}
+          deployHref="/deploy?source=template&projectId=proj_1&environmentId=env_prod"
+        />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText("No services in Production yet")).toBeVisible();
+    expect(screen.getByTestId("project-services-empty-deploy-link")).toHaveAttribute(
+      "href",
+      "/deploy?source=template&projectId=proj_1&environmentId=env_prod"
+    );
+
+    fireEvent.click(screen.getByTestId("project-services-empty-add"));
+    expect(onCreateService).toHaveBeenCalledTimes(1);
   });
 });

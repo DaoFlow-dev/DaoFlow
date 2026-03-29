@@ -1,4 +1,5 @@
-import { useParams, useNavigate } from "react-router-dom";
+import { useEffect, useMemo } from "react";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import AddServiceDialog from "../components/AddServiceDialog";
@@ -15,7 +16,55 @@ import { useProjectDetailPage } from "./project-detail/useProjectDetailPage";
 export default function ProjectDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const page = useProjectDetailPage(id, navigate);
+  const requestedEnvironmentId = searchParams.get("environmentId");
+  const shouldOpenAddService = searchParams.get("openAddService") === "1";
+  const environmentOptions = useMemo(
+    () => page.projectData?.environments ?? [],
+    [page.projectData?.environments]
+  );
+  const { setActiveEnv, setShowAddService } = page;
+  const availableEnvironmentIds = useMemo(
+    () =>
+      Array.from(
+        new Set([
+          ...environmentOptions.map((environment) => environment.id),
+          ...page.environments.map((environment) => environment.id)
+        ])
+      ),
+    [environmentOptions, page.environments]
+  );
+
+  useEffect(() => {
+    if (!requestedEnvironmentId || page.activeEnv === requestedEnvironmentId) {
+      return;
+    }
+
+    if (availableEnvironmentIds.includes(requestedEnvironmentId)) {
+      setActiveEnv(requestedEnvironmentId);
+    }
+  }, [availableEnvironmentIds, page.activeEnv, requestedEnvironmentId, setActiveEnv]);
+
+  useEffect(() => {
+    if (!shouldOpenAddService) {
+      return;
+    }
+
+    setShowAddService(true);
+
+    const nextSearchParams = new URLSearchParams(searchParams);
+    nextSearchParams.delete("openAddService");
+    setSearchParams(nextSearchParams, { replace: true });
+  }, [
+    availableEnvironmentIds,
+    requestedEnvironmentId,
+    searchParams,
+    setActiveEnv,
+    setSearchParams,
+    setShowAddService,
+    shouldOpenAddService
+  ]);
 
   if (page.project.isLoading) {
     return (
@@ -40,11 +89,24 @@ export default function ProjectDetailPage() {
 
   const project = page.projectData;
 
-  function openEnvironmentDeploy(source: "template" | "compose", environment: EnvironmentRecord) {
+  const selectedEnvironment =
+    (page.activeEnv
+      ? page.environments.find((environment) => environment.id === page.activeEnv)
+      : undefined) ??
+    (requestedEnvironmentId
+      ? page.environments.find((environment) => environment.id === requestedEnvironmentId)
+      : undefined) ??
+    (page.environments.length === 1 ? page.environments[0] : null);
+
+  function buildEnvironmentDeployHref(
+    source: "template" | "compose",
+    environment: EnvironmentRecord
+  ) {
     const params = new URLSearchParams({
       source,
       projectId: project.id,
       projectName: project.name,
+      environmentId: environment.id,
       environmentName: environment.name
     });
 
@@ -58,7 +120,11 @@ export default function ProjectDetailPage() {
       }
     }
 
-    void navigate(`/deploy?${params.toString()}`);
+    return `/deploy?${params.toString()}`;
+  }
+
+  function openEnvironmentDeploy(source: "template" | "compose", environment: EnvironmentRecord) {
+    void navigate(buildEnvironmentDeployHref(source, environment));
   }
 
   return (
@@ -160,14 +226,19 @@ export default function ProjectDetailPage() {
         isLoading={page.services.isLoading}
         activeEnv={page.activeEnv}
         activeEnvName={page.activeEnvironmentName}
+        onCreateService={page.environments.length > 0 ? () => setShowAddService(true) : undefined}
+        deployHref={
+          selectedEnvironment ? buildEnvironmentDeployHref("template", selectedEnvironment) : null
+        }
       />
 
       {id ? (
         <AddServiceDialog
           open={page.showAddService}
-          onOpenChange={page.setShowAddService}
+          onOpenChange={setShowAddService}
           projectId={id}
-          environments={project.environments ?? []}
+          environments={environmentOptions}
+          initialEnvironmentId={page.activeEnv ?? requestedEnvironmentId ?? undefined}
           onCreated={() => void page.services.refetch()}
         />
       ) : null}
