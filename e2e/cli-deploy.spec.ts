@@ -83,7 +83,6 @@ type ServiceCreateResponse = {
       name: string;
       sourceType: string;
       status: string;
-      targetServerId: string | null;
     };
   };
 };
@@ -283,7 +282,6 @@ test.describe("CLI deploy execution flows", () => {
       expect(service.data.service.environmentId).toBe(environment.data.environment.id);
       expect(service.data.service.name).toBe(serviceName);
       expect(service.data.service.sourceType).toBe("image");
-      expect(service.data.service.targetServerId).toBe(serverId);
 
       const deployment = runCliJson<DeployResponse>({
         homeDir,
