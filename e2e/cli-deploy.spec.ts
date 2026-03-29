@@ -185,6 +185,7 @@ test.describe("CLI deploy execution flows", () => {
   test("compiled CLI can deploy a real service and inspect its outcome", async () => {
     test.slow();
 
+    const logLineLimit = "100";
     const homeDir = createCliHomeDir();
     const suffix = Date.now().toString(36);
     const projectName = `cli-deploy-${suffix}`;
@@ -322,7 +323,7 @@ test.describe("CLI deploy execution flows", () => {
           () =>
             runCliJson<LogsResponse>({
               homeDir,
-              args: ["logs", "--deployment", deployment.data.id, "--lines", "200", "--json"]
+              args: ["logs", "--deployment", deployment.data.id, "--lines", logLineLimit, "--json"]
             }).data.summary.totalLines,
           { timeout: 90_000, intervals: [1_000, 2_000, 5_000] }
         )
@@ -330,7 +331,7 @@ test.describe("CLI deploy execution flows", () => {
 
       const logs = runCliJson<LogsResponse>({
         homeDir,
-        args: ["logs", "--deployment", deployment.data.id, "--lines", "200", "--json"]
+        args: ["logs", "--deployment", deployment.data.id, "--lines", logLineLimit, "--json"]
       });
 
       expect(logs.ok).toBe(true);
