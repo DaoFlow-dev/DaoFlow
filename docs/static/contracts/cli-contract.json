@@ -123,6 +123,11 @@
           "required": false
         },
         {
+          "flags": "--since <window>",
+          "description": "Only include entries newer than a window like 15m, 1h, or 7d",
+          "required": false
+        },
+        {
           "flags": "--json",
           "description": "Output as JSON",
           "required": false

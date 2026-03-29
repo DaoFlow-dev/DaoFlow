@@ -1121,7 +1121,7 @@ export interface DaoFlowTRPC {
     { serviceId: string; targetDeploymentId: string },
     RollbackExecutionOutput
   >;
-  auditTrail: QueryProcedure<AuditTrailOutput, { limit?: number }>;
+  auditTrail: QueryProcedure<AuditTrailOutput, { limit?: number; since?: string }>;
   approveApprovalRequest: MutationProcedure<{ requestId: string }, ApprovalQueueRequestOutput>;
   rejectApprovalRequest: MutationProcedure<{ requestId: string }, ApprovalQueueRequestOutput>;
   deploymentLogs: QueryProcedure<

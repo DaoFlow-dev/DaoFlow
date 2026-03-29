@@ -32,16 +32,18 @@ Navigate to **Settings → Security** to see the audit trail table.
 
 ```bash
 GET /trpc/auditTrail?input={"json":{"limit":50}}
+GET /trpc/auditTrail?input={"json":{"limit":20,"since":"1h"}}
 ```
 
 ### Via CLI
 
 ```bash
 daoflow audit --limit 20
+daoflow audit --since 1h
 daoflow audit --limit 20 --json
 ```
 
-The CLI returns the same audit summary and entry feed exposed through the `auditTrail` API route.
+The CLI returns the same audit summary and entry feed exposed through the `auditTrail` API route. The optional `since` window accepts positive durations like `15m`, `1h`, `7d`, or `2w`.
 
 ## What Gets Audited
 

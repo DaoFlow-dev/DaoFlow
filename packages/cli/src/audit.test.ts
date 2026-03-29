@@ -109,6 +109,7 @@ describe("audit command", () => {
       ok: true,
       data: {
         limit: 20,
+        since: null,
         summary: {
           totalEntries: 42,
           deploymentActions: 12,
@@ -146,6 +147,60 @@ describe("audit command", () => {
     });
   });
 
+  test("audit forwards a valid since window in JSON mode", async () => {
+    globalThis.fetch = ((input: RequestInfo | URL) => {
+      const url =
+        typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+
+      expect(url).toContain("/trpc/auditTrail");
+      expect(url).toContain("1h");
+
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            result: {
+              data: {
+                summary: {
+                  totalEntries: 3,
+                  deploymentActions: 1,
+                  executionActions: 1,
+                  backupActions: 0,
+                  humanEntries: 2
+                },
+                entries: []
+              }
+            }
+          }),
+          {
+            headers: { "content-type": "application/json" }
+          }
+        )
+      );
+    }) as unknown as typeof fetch;
+
+    const result = await captureCommandExecution(async () => {
+      await runCli(["node", "daoflow", "audit", "--since", "1h", "--json"]);
+    });
+
+    expect(result.exitCode).toBeNull();
+    expect(result.errors).toEqual([]);
+    expect(JSON.parse(result.logs[0])).toEqual({
+      ok: true,
+      data: {
+        limit: 12,
+        since: "1h",
+        summary: {
+          totalEntries: 3,
+          deploymentActions: 1,
+          executionActions: 1,
+          backupActions: 0,
+          humanEntries: 2
+        },
+        entries: []
+      }
+    });
+  });
+
   test("audit rejects invalid limits before any API call", async () => {
     globalThis.fetch = (() => {
       throw new Error("fetch should not be called");
@@ -160,6 +215,24 @@ describe("audit command", () => {
     expect(JSON.parse(result.logs[0])).toEqual({
       ok: false,
       error: "Limit must be an integer between 1 and 50.",
+      code: "INVALID_INPUT"
+    });
+  });
+
+  test("audit rejects invalid since windows before any API call", async () => {
+    globalThis.fetch = (() => {
+      throw new Error("fetch should not be called");
+    }) as unknown as typeof fetch;
+
+    const result = await captureCommandExecution(async () => {
+      await runCli(["node", "daoflow", "audit", "--since", "tomorrow", "--json"]);
+    });
+
+    expect(result.exitCode).toBe(1);
+    expect(result.errors).toEqual([]);
+    expect(JSON.parse(result.logs[0])).toEqual({
+      ok: false,
+      error: "Since must be a positive duration like 15m, 1h, 7d, or 2w.",
       code: "INVALID_INPUT"
     });
   });

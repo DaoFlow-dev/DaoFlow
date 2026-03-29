@@ -842,6 +842,62 @@ describe("appRouter", () => {
     expect(entry.statusTone).toEqual(expect.any(String));
   });
 
+  it("filters audit entries to the requested recent window", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-audit-since",
+      session: makeSession("viewer")
+    });
+    const suffix = Date.now().toString(36);
+    const recentTarget = `audit-test/recent-${suffix}`;
+    const oldTarget = `audit-test/old-${suffix}`;
+
+    await db.insert(auditEntries).values([
+      {
+        actorType: "user",
+        actorId: "user_foundation_owner",
+        actorEmail: "owner@daoflow.local",
+        actorRole: "owner",
+        organizationId: "team_foundation",
+        targetResource: recentTarget,
+        action: "deployment.created",
+        inputSummary: "Recent audit fixture",
+        permissionScope: "deploy:start",
+        outcome: "success",
+        metadata: {
+          resourceType: "audit-test",
+          resourceId: `recent-${suffix}`,
+          resourceLabel: recentTarget,
+          detail: "Recent audit fixture"
+        },
+        createdAt: new Date(Date.now() - 30 * 60_000)
+      },
+      {
+        actorType: "user",
+        actorId: "user_foundation_owner",
+        actorEmail: "owner@daoflow.local",
+        actorRole: "owner",
+        organizationId: "team_foundation",
+        targetResource: oldTarget,
+        action: "deployment.created",
+        inputSummary: "Old audit fixture",
+        permissionScope: "deploy:start",
+        outcome: "success",
+        metadata: {
+          resourceType: "audit-test",
+          resourceId: `old-${suffix}`,
+          resourceLabel: oldTarget,
+          detail: "Old audit fixture"
+        },
+        createdAt: new Date(Date.now() - 2 * 60 * 60_000)
+      }
+    ]);
+
+    const response = await caller.auditTrail({ limit: 50, since: "1h" });
+
+    expect(response.entries.some((entry) => entry.targetResource === recentTarget)).toBe(true);
+    expect(response.entries.some((entry) => entry.targetResource === oldTarget)).toBe(false);
+  });
+
   it("returns environment variable inventory and redacted values", async () => {
     const caller = appRouter.createCaller({
       requestId: "test-envvars",

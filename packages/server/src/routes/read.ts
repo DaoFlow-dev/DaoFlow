@@ -116,9 +116,21 @@ const coreReadRouter = t.router({
   serverReadiness: protectedProcedure.input(limitInput(24)).query(async ({ input }) => {
     return listServerReadiness(input.limit ?? 12);
   }),
-  auditTrail: protectedProcedure.input(limitInput(50)).query(async ({ input }) => {
-    return listAuditTrail(input.limit ?? 12);
-  }),
+  auditTrail: protectedProcedure
+    .input(
+      z.object({
+        limit: z.number().int().min(1).max(50).optional(),
+        since: z
+          .string()
+          .regex(/^[1-9]\d*[mhdw]$/, {
+            message: "Since must be a positive duration like 15m, 1h, 7d, or 2w."
+          })
+          .optional()
+      })
+    )
+    .query(async ({ input }) => {
+      return listAuditTrail(input.limit ?? 12, input.since);
+    }),
   environmentVariables: envReadProcedure
     .input(
       z.object({

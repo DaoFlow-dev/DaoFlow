@@ -52,7 +52,7 @@ describe("CLI JSON option coverage", () => {
     const help = renderHelp(auditCommand());
     expect(help).toContain("Required scope:");
     expect(help).toContain("any valid token");
-    expect(help).toContain("daoflow audit --limit 20 --json");
+    expect(help).toContain("daoflow audit --since 1h --json");
     expect(help).toContain("Example JSON shape:");
   });
 

@@ -14,10 +14,11 @@ daoflow audit [options]
 
 ## Options
 
-| Flag          | Description                         |
-| ------------- | ----------------------------------- |
-| `--limit <n>` | Show up to 50 of the newest entries |
-| `--json`      | Structured JSON output              |
+| Flag          | Description                                                              |
+| ------------- | ------------------------------------------------------------------------ |
+| `--limit <n>` | Show up to 50 of the newest entries                                      |
+| `--since <w>` | Only include entries newer than a window like `15m`, `1h`, `7d`, or `2w` |
+| `--json`      | Structured JSON output                                                   |
 
 ## Required Scope
 
@@ -31,6 +32,9 @@ daoflow audit --limit 20
 
 # Return the audit feed as JSON
 daoflow audit --limit 20 --json
+
+# Only show the last hour of audit activity
+daoflow audit --since 1h --json
 ```
 
 ## JSON Output
@@ -40,6 +44,7 @@ daoflow audit --limit 20 --json
   "ok": true,
   "data": {
     "limit": 20,
+    "since": "1h",
     "summary": {
       "totalEntries": 42,
       "deploymentActions": 12,
@@ -76,3 +81,5 @@ daoflow audit --limit 20 --json
   }
 }
 ```
+
+If you use `--since`, the window must be a positive duration ending in `m`, `h`, `d`, or `w`, such as `15m`, `1h`, `7d`, or `2w`.

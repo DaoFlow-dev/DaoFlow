@@ -268,15 +268,17 @@ This file holds the detailed CLI contract, scope map, and agent-facing command r
 - Access: any valid session or API token
 - Optional input:
   - `--limit <n>` to cap returned entries from `1` to `50`
+  - `--since <window>` to filter entries newer than a positive duration like `15m`, `1h`, `7d`, or `2w`
   - `--json`
 - JSON success shape:
-  - `{ "ok": true, "data": { "limit": number, "summary": { "totalEntries": number, "deploymentActions": number, "executionActions": number, "backupActions": number, "humanEntries": number }, "entries": [{ "id": string, "actorType": string, "actorId": string, "actorEmail": string | null, "actorRole": string | null, "organizationId": string | null, "targetResource": string, "action": string, "inputSummary": string | null, "permissionScope": string | null, "outcome": string, "metadata": object | null, "createdAt": string, "actorLabel": string, "resourceType": string, "resourceId": string, "resourceLabel": string, "statusTone": "healthy" | "failed" | "running" | "queued", "detail": string }] } }`
+  - `{ "ok": true, "data": { "limit": number, "since": string | null, "summary": { "totalEntries": number, "deploymentActions": number, "executionActions": number, "backupActions": number, "humanEntries": number }, "entries": [{ "id": string, "actorType": string, "actorId": string, "actorEmail": string | null, "actorRole": string | null, "organizationId": string | null, "targetResource": string, "action": string, "inputSummary": string | null, "permissionScope": string | null, "outcome": string, "metadata": object | null, "createdAt": string, "actorLabel": string, "resourceType": string, "resourceId": string, "resourceLabel": string, "statusTone": "healthy" | "failed" | "running" | "queued", "detail": string }] } }`
 - Human output must show:
   - entry timestamp, action, and outcome tone
   - actor identity and actor type
   - resource label
   - permission scope when present
   - redacted audit detail when present
+- Invalid `--since` input must fail locally with `INVALID_INPUT` before any API call
 
 ## Approvals Contract
 
