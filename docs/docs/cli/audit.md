@@ -82,4 +82,6 @@ daoflow audit --since 1h --json
 }
 ```
 
+The `summary` counts describe the full filtered result set. The `entries` array still follows `--limit`.
+
 If you use `--since`, the window must be a positive duration ending in `m`, `h`, `d`, or `w`, such as `15m`, `1h`, `7d`, or `2w`.

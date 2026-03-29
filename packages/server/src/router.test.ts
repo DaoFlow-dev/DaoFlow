@@ -898,6 +898,99 @@ describe("appRouter", () => {
     expect(response.entries.some((entry) => entry.targetResource === oldTarget)).toBe(false);
   });
 
+  it("returns summary counts for the full filtered set instead of only the current page", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-audit-summary-scope",
+      session: makeSession("viewer")
+    });
+    const suffix = Date.now().toString(36);
+
+    await db.delete(auditEntries);
+    await db.insert(auditEntries).values([
+      {
+        actorType: "user",
+        actorId: "user_foundation_owner",
+        actorEmail: "owner@daoflow.local",
+        actorRole: "owner",
+        organizationId: "team_foundation",
+        targetResource: `audit-test/deploy-a-${suffix}`,
+        action: "deployment.created",
+        inputSummary: "Deployment fixture A",
+        permissionScope: "deploy:start",
+        outcome: "success",
+        metadata: { detail: "Deployment fixture A" },
+        createdAt: new Date(Date.now() - 10 * 60_000)
+      },
+      {
+        actorType: "agent",
+        actorId: "agent_fixture",
+        actorEmail: null,
+        actorRole: "operator",
+        organizationId: "team_foundation",
+        targetResource: `audit-test/exec-${suffix}`,
+        action: "execution.dispatch",
+        inputSummary: "Execution fixture",
+        permissionScope: "deploy:start",
+        outcome: "success",
+        metadata: { detail: "Execution fixture" },
+        createdAt: new Date(Date.now() - 9 * 60_000)
+      },
+      {
+        actorType: "user",
+        actorId: "user_foundation_owner",
+        actorEmail: "owner@daoflow.local",
+        actorRole: "owner",
+        organizationId: "team_foundation",
+        targetResource: `audit-test/backup-${suffix}`,
+        action: "backup.started",
+        inputSummary: "Backup fixture",
+        permissionScope: "backup:run",
+        outcome: "success",
+        metadata: { detail: "Backup fixture" },
+        createdAt: new Date(Date.now() - 8 * 60_000)
+      },
+      {
+        actorType: "user",
+        actorId: "user_foundation_owner",
+        actorEmail: "owner@daoflow.local",
+        actorRole: "owner",
+        organizationId: "team_foundation",
+        targetResource: `audit-test/deploy-b-${suffix}`,
+        action: "deployment.created",
+        inputSummary: "Deployment fixture B",
+        permissionScope: "deploy:start",
+        outcome: "success",
+        metadata: { detail: "Deployment fixture B" },
+        createdAt: new Date(Date.now() - 7 * 60_000)
+      },
+      {
+        actorType: "user",
+        actorId: "user_foundation_owner",
+        actorEmail: "owner@daoflow.local",
+        actorRole: "owner",
+        organizationId: "team_foundation",
+        targetResource: `audit-test/old-${suffix}`,
+        action: "deployment.created",
+        inputSummary: "Old fixture",
+        permissionScope: "deploy:start",
+        outcome: "success",
+        metadata: { detail: "Old fixture" },
+        createdAt: new Date(Date.now() - 2 * 60 * 60_000)
+      }
+    ]);
+
+    const response = await caller.auditTrail({ limit: 1, since: "1h" });
+
+    expect(response.entries).toHaveLength(1);
+    expect(response.summary).toEqual({
+      totalEntries: 4,
+      deploymentActions: 2,
+      executionActions: 1,
+      backupActions: 1,
+      humanEntries: 3
+    });
+  });
+
   it("returns environment variable inventory and redacted values", async () => {
     const caller = appRouter.createCaller({
       requestId: "test-envvars",

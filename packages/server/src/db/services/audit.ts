@@ -84,17 +84,33 @@ export async function listAuditTrail(limit = 12, since?: string) {
     .orderBy(desc(auditEntries.createdAt))
     .limit(limit);
 
-  const totalQuery = db.select({ count: sql<number>`count(*)` }).from(auditEntries);
-  const totalResult = await (filter ? totalQuery.where(filter) : totalQuery);
-  const total = Number(totalResult[0]?.count ?? 0);
+  const summaryQuery = db
+    .select({
+      totalEntries: sql<number>`count(*)`,
+      deploymentActions: sql<number>`
+        sum(case when ${auditEntries.action} like 'deployment.%' then 1 else 0 end)
+      `,
+      executionActions: sql<number>`
+        sum(case when ${auditEntries.action} like 'execution.%' then 1 else 0 end)
+      `,
+      backupActions: sql<number>`
+        sum(case when ${auditEntries.action} like 'backup.%' then 1 else 0 end)
+      `,
+      humanEntries: sql<number>`
+        sum(case when ${auditEntries.actorType} = 'user' then 1 else 0 end)
+      `
+    })
+    .from(auditEntries);
+  const summaryResult = await (filter ? summaryQuery.where(filter) : summaryQuery);
+  const summary = summaryResult[0];
 
   return {
     summary: {
-      totalEntries: total,
-      deploymentActions: entries.filter((entry) => entry.action.startsWith("deployment.")).length,
-      executionActions: entries.filter((entry) => entry.action.startsWith("execution.")).length,
-      backupActions: entries.filter((entry) => entry.action.startsWith("backup.")).length,
-      humanEntries: entries.filter((entry) => entry.actorType === "user").length
+      totalEntries: Number(summary?.totalEntries ?? 0),
+      deploymentActions: Number(summary?.deploymentActions ?? 0),
+      executionActions: Number(summary?.executionActions ?? 0),
+      backupActions: Number(summary?.backupActions ?? 0),
+      humanEntries: Number(summary?.humanEntries ?? 0)
     },
     entries: entries.map((entry) => {
       const metadata = asRecord(entry.metadata);

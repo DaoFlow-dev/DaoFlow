@@ -272,6 +272,9 @@ This file holds the detailed CLI contract, scope map, and agent-facing command r
   - `--json`
 - JSON success shape:
   - `{ "ok": true, "data": { "limit": number, "since": string | null, "summary": { "totalEntries": number, "deploymentActions": number, "executionActions": number, "backupActions": number, "humanEntries": number }, "entries": [{ "id": string, "actorType": string, "actorId": string, "actorEmail": string | null, "actorRole": string | null, "organizationId": string | null, "targetResource": string, "action": string, "inputSummary": string | null, "permissionScope": string | null, "outcome": string, "metadata": object | null, "createdAt": string, "actorLabel": string, "resourceType": string, "resourceId": string, "resourceLabel": string, "statusTone": "healthy" | "failed" | "running" | "queued", "detail": string }] } }`
+- Summary semantics:
+  - `summary` counts must describe the full filtered result set
+  - `entries` remains capped by `--limit`
 - Human output must show:
   - entry timestamp, action, and outcome tone
   - actor identity and actor type
