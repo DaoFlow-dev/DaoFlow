@@ -33,6 +33,30 @@ The CLI now supports explicit project and environment management in the same sco
 - `daoflow projects delete --project <project-id> --yes`
 - `daoflow projects env create|list|update|delete`
 
+An explicitly modeled project is not deployable yet until it has at least one service. The
+supported bootstrap path is: project, environment, first service, plan, then deploy.
+
+## Canonical First-Project Journeys
+
+### Web Setup Wizard
+
+1. Open `/setup`.
+2. Register the first server.
+3. Create the first project.
+4. Create the first environment.
+5. Use the handoff step to either open **Create First Service** on the new project or go straight
+   to **Deploy from Template** with the project, environment, and server context already selected.
+
+### CLI Explicit Bootstrap
+
+```bash
+daoflow projects create --name demo --yes --json
+daoflow projects env create --project proj_123 --name production --yes --json
+daoflow services create --project proj_123 --environment env_123 --name web --source-type image --image ghcr.io/acme/web:latest --yes --json
+daoflow plan --service svc_123 --json
+daoflow deploy --service svc_123 --yes --json
+```
+
 ### Listing Projects
 
 ```bash
@@ -111,13 +135,14 @@ Environment variable values are encrypted at rest using the `ENCRYPTION_KEY` con
 ## Project Lifecycle
 
 ```
-Model in Dashboard / Direct Compose Intake → Configure Environment → Deploy Service → Monitor → Update → Rollback
+Model in Dashboard / Direct Compose Intake → Configure Environment → Bootstrap First Service → Preview and Deploy → Monitor → Update → Rollback
 ```
 
 1. **Create** — Set up project records explicitly in the dashboard, or let direct Compose intake create them.
 2. **Configure** — Add or adjust environments and environment variables.
-3. **Deploy** — Push a deployment to an environment.
-4. **Monitor** — View logs, health, and deployment history.
-5. **Iterate** — Update configuration, redeploy, or rollback.
+3. **Bootstrap** — Add the first service explicitly or continue into a template-backed deployment.
+4. **Deploy** — Preview the plan, then push a deployment to an environment.
+5. **Monitor** — View logs, health, and deployment history.
+6. **Iterate** — Update configuration, redeploy, or rollback.
 
 When you return to an environment later, the project detail service list also surfaces the current canonical endpoint or published port summary for each service, so the "what is live now?" answer stays visible outside the deployment history view.

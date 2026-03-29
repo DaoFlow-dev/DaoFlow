@@ -57,6 +57,34 @@ daoflow capabilities --json
 
 ## Common Workflows
 
+### Bootstrap a New Project Explicitly
+
+```bash
+# 1. Create the project record
+daoflow projects create --name demo --repo-url https://github.com/acme/demo --yes --json
+
+# 2. Create the first environment
+daoflow projects env create --project proj_123 --name production --server srv_vps1 --yes --json
+
+# 3. Create the first service inside that environment
+daoflow services create \
+  --project proj_123 \
+  --environment env_123 \
+  --name web \
+  --source-type image \
+  --image ghcr.io/acme/web:latest \
+  --yes --json
+
+# 4. Preview the rollout
+daoflow plan --service svc_123 --json
+
+# 5. Queue the first deployment
+daoflow deploy --service svc_123 --yes --json
+```
+
+Use `--source-type compose --compose-service <name>` for Compose-backed services or
+`--source-type dockerfile --dockerfile <path>` for Dockerfile-backed services.
+
 ### Deploy a Service
 
 ```bash
@@ -86,11 +114,8 @@ daoflow projects list --json
 # Inspect one project plus its environments
 daoflow projects show proj_123 --json
 
-# Create a project
-daoflow projects create --name demo --repo-url https://github.com/acme/demo --yes --json
-
-# Create a staging environment override
-daoflow projects env create --project proj_123 --name staging --server srv_vps1 --yes --json
+# List environments for one project
+daoflow projects env list --project proj_123 --json
 ```
 
 ### View Logs

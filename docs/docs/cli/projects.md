@@ -120,3 +120,12 @@ daoflow projects env delete --environment env_123 --yes --json
 
 Environment overrides layer on top of the project defaults. Leaving server, compose-file, or
 compose-profile unset means the environment inherits the project-level setting.
+
+For a brand-new project, the next supported step is to register the first service, preview the
+rollout, and then deploy it:
+
+```bash
+daoflow services create --project proj_123 --environment env_123 --name web --source-type image --image ghcr.io/acme/web:latest --yes --json
+daoflow plan --service svc_123 --json
+daoflow deploy --service svc_123 --yes --json
+```

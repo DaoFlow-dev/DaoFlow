@@ -52,6 +52,15 @@ test.describe("Documentation Site", () => {
     await expect(page.locator("h1")).toBeVisible();
   });
 
+  test("CLI quick start documents the explicit bootstrap flow", async ({ page }) => {
+    await page.goto("/docs/cli/quick-start");
+    await expect(page.locator("main")).toContainText("daoflow projects create");
+    await expect(page.locator("main")).toContainText("daoflow projects env create");
+    await expect(page.locator("main")).toContainText("daoflow services create");
+    await expect(page.locator("main")).toContainText("daoflow plan --service");
+    await expect(page.locator("main")).toContainText("daoflow deploy --service");
+  });
+
   test("API docs page renders", async ({ page }) => {
     await page.goto("/docs/api");
     await expect(page.locator("h1")).toBeVisible();
@@ -60,6 +69,13 @@ test.describe("Documentation Site", () => {
   test("security docs page renders", async ({ page }) => {
     await page.goto("/docs/security");
     await expect(page.locator("h1")).toBeVisible();
+  });
+
+  test("projects and environments docs describe the first-project journeys", async ({ page }) => {
+    await page.goto("/docs/concepts/projects-and-environments");
+    await expect(page.locator("main")).toContainText("Web Setup Wizard");
+    await expect(page.locator("main")).toContainText("CLI Explicit Bootstrap");
+    await expect(page.locator("main")).toContainText("Bootstrap First Service");
   });
 
   test("agent integration docs page renders", async ({ page }) => {
