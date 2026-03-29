@@ -34,10 +34,16 @@ daoflow backup restore --backup-run-id bkp_run_123 --dry-run --json
 # If a human gate is required, the agent submits the separate approval request
 # using the plan's suggested `requestApproval` payload.
 
-# Once approved, an operator or agent with restore scope can queue the restore
-daoflow backup restore --backup-run-id bkp_run_123 --yes --json
+# Reviewer checks the queue
+daoflow approvals list --limit 10 --json
 
-# A different human reviewer then approves through the dashboard or API.
+# A different human reviewer approves or rejects from the CLI
+daoflow approvals approve --request apr_xyz789 --yes --json
+daoflow approvals reject --request apr_xyz789 --yes --json
+
+# Once approved, an operator or agent with restore scope can queue the restore
+# when the gated flow expects a separate restore execution step.
+daoflow backup restore --backup-run-id bkp_run_123 --yes --json
 ```
 
 ## API Flow

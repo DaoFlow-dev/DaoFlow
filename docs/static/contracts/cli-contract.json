@@ -4,6 +4,109 @@
   "binary": "daoflow",
   "commands": [
     {
+      "path": "approvals",
+      "summary": "Review and decide queued approvals",
+      "lane": "read",
+      "requiredScopes": [],
+      "mutating": false,
+      "hasAction": false,
+      "hasSubcommands": true,
+      "aliases": [],
+      "arguments": [],
+      "options": [],
+      "supportsJson": false,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
+      "path": "approvals approve",
+      "summary": "Approve a queued approval request",
+      "lane": "command",
+      "requiredScopes": ["approvals:decide"],
+      "mutating": true,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--request <id>",
+          "description": "Approval request ID",
+          "required": true
+        },
+        {
+          "flags": "-y, --yes",
+          "description": "Skip confirmation prompt",
+          "required": false
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": true
+    },
+    {
+      "path": "approvals list",
+      "summary": "List queued approval requests",
+      "lane": "read",
+      "requiredScopes": [],
+      "mutating": false,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--limit <n>",
+          "description": "Maximum approval requests to show",
+          "required": false
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
+      "path": "approvals reject",
+      "summary": "Reject a queued approval request",
+      "lane": "command",
+      "requiredScopes": ["approvals:decide"],
+      "mutating": true,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--request <id>",
+          "description": "Approval request ID",
+          "required": true
+        },
+        {
+          "flags": "-y, --yes",
+          "description": "Skip confirmation prompt",
+          "required": false
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": true
+    },
+    {
       "path": "audit",
       "summary": "Read the immutable audit trail",
       "lane": "read",

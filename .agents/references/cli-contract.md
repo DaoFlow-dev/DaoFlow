@@ -66,6 +66,7 @@ This file holds the detailed CLI contract, scope map, and agent-facing command r
 | `whoami`             | read                  | any valid token                                 | no       |
 | `capabilities`       | read                  | any valid token                                 | no       |
 | `audit`              | read                  | any valid token                                 | no       |
+| `approvals`          | read/command          | any valid token, `approvals:decide`             | varies   |
 | `status`             | read                  | `server:read`                                   | no       |
 | `server add`         | command               | `server:write`                                  | yes      |
 | `services`           | read/command          | `service:read`, `service:update`                | varies   |
@@ -276,6 +277,27 @@ This file holds the detailed CLI contract, scope map, and agent-facing command r
   - resource label
   - permission scope when present
   - redacted audit detail when present
+
+## Approvals Contract
+
+- `daoflow approvals list` reads the authenticated approval queue through `approvalQueue`
+- Access for `approvals list`: any valid session or API token
+- Optional input:
+  - `--limit <n>` to cap returned entries from `1` to `40`
+  - `--json`
+- JSON list success shape:
+  - `{ "ok": true, "data": { "limit": number, "summary": { "totalRequests": number, "pendingRequests": number, "approvedRequests": number, "rejectedRequests": number, "criticalRequests": number }, "requests": [{ "id": string, "actionType": "compose-release" | "backup-restore", "targetResource": string, "reason": string, "status": string, "requestedByUserId": string, "requestedByEmail": string | null, "requestedByRole": string | null, "resolvedByUserId": string | null, "resolvedByEmail": string | null, "inputSummary": object | null, "createdAt": string, "resolvedAt": string | null, "requestedBy": string, "resourceLabel": string, "riskLevel": "medium" | "elevated" | "critical", "statusTone": "healthy" | "failed" | "running", "commandSummary": string, "requestedAt": string, "expiresAt": string, "decidedBy": string | null, "decidedAt": string | null, "recommendedChecks": string[] }] } }`
+- Human output must show:
+  - queue totals with pending and critical counts
+  - per-request id, action type, resource label, requester, and reason
+  - decision metadata when already resolved
+  - recommended checks when present
+- `daoflow approvals approve --yes` writes through `approveApprovalRequest` and requires `approvals:decide`
+- `daoflow approvals reject --yes` writes through `rejectApprovalRequest` and requires `approvals:decide`
+- `daoflow approvals approve|reject` must require `--yes` and return `CONFIRMATION_REQUIRED` without any API call when confirmation is missing
+- Permission-denied responses for `approveApprovalRequest` and `rejectApprovalRequest` must preserve the exact `SCOPE_DENIED` payload details
+- JSON decision success shape:
+  - `{ "ok": true, "data": { "request": { "id": string, "actionType": "compose-release" | "backup-restore", "targetResource": string, "resourceLabel": string, "status": string, "statusTone": "healthy" | "failed" | "running", "reason": string, "decidedBy": string | null, "decidedAt": string | null } } }`
 
 ## Notifications Contract
 

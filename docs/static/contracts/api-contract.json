@@ -4809,6 +4809,22 @@
         "id": "apr_abc123",
         "status": "approved"
       }
+    },
+    {
+      "id": "approval.reject",
+      "category": "approval",
+      "procedure": "rejectApprovalRequest",
+      "request": {
+        "method": "POST",
+        "path": "/trpc/rejectApprovalRequest",
+        "input": {
+          "requestId": "apr_abc123"
+        }
+      },
+      "response": {
+        "id": "apr_abc123",
+        "status": "rejected"
+      }
     }
   ]
 }

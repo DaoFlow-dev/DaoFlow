@@ -535,12 +535,30 @@ export const apiExamples: ApiExample[] = [
       id: "apr_abc123",
       status: "approved"
     }
+  },
+  {
+    id: "approval.reject",
+    category: "approval",
+    procedure: "rejectApprovalRequest",
+    request: {
+      method: "POST",
+      path: "/trpc/rejectApprovalRequest",
+      input: { requestId: "apr_abc123" }
+    },
+    response: {
+      id: "apr_abc123",
+      status: "rejected"
+    }
   }
 ];
 
 export const cliCommandMeta: Record<string, CliCommandMeta> = {
   login: { lane: "session", requiredScopes: [], mutating: true },
   audit: { lane: "read", requiredScopes: [], mutating: false },
+  approvals: { lane: "read", requiredScopes: [], mutating: false },
+  "approvals list": { lane: "read", requiredScopes: [], mutating: false },
+  "approvals approve": { lane: "command", requiredScopes: ["approvals:decide"], mutating: true },
+  "approvals reject": { lane: "command", requiredScopes: ["approvals:decide"], mutating: true },
   services: { lane: "read", requiredScopes: ["service:read"], mutating: false },
   "services list": { lane: "read", requiredScopes: ["service:read"], mutating: false },
   "services create": { lane: "command", requiredScopes: ["service:update"], mutating: true },

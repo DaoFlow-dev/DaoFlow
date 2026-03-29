@@ -65,6 +65,7 @@ Every command accepts these flags:
 | [`whoami`](./whoami)             | read         | any valid token                                 | no       |
 | [`capabilities`](./capabilities) | read         | any valid token                                 | no       |
 | [`audit`](./audit)               | read         | any valid token                                 | no       |
+| [`approvals`](./approvals)       | read/command | any valid token / `approvals:decide`            | varies   |
 | [`status`](./status)             | read         | `server:read`                                   | no       |
 | [`server add`](./server)         | command      | `server:write`                                  | yes      |
 | `services`                       | read         | `service:read`                                  | no       |

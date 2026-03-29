@@ -111,11 +111,49 @@ export interface AuditTrailOutput {
   }>;
 }
 
+export interface ApprovalQueueRequestOutput {
+  id: string;
+  actionType: "compose-release" | "backup-restore";
+  targetResource: string;
+  reason: string;
+  status: string;
+  requestedByUserId: string;
+  requestedByEmail: string | null;
+  requestedByRole: string | null;
+  resolvedByUserId: string | null;
+  resolvedByEmail: string | null;
+  inputSummary: Record<string, unknown> | null;
+  createdAt: string;
+  resolvedAt: string | null;
+  requestedBy: string;
+  resourceLabel: string;
+  riskLevel: "medium" | "elevated" | "critical";
+  statusTone: "healthy" | "failed" | "running";
+  commandSummary: string;
+  requestedAt: string;
+  expiresAt: string;
+  decidedBy: string | null;
+  decidedAt: string | null;
+  recommendedChecks: string[];
+}
+
+export interface ApprovalQueueOutput {
+  summary: {
+    totalRequests: number;
+    pendingRequests: number;
+    approvedRequests: number;
+    rejectedRequests: number;
+    criticalRequests: number;
+  };
+  requests: ApprovalQueueRequestOutput[];
+}
+
 export interface RouterOutputs {
   viewer: ViewerOutput;
   health: HealthOutput;
   serverReadiness: ServerReadinessOutput;
   auditTrail: AuditTrailOutput;
+  approvalQueue: ApprovalQueueOutput;
 }
 
 export interface ComposeReleaseCatalogOutput {
@@ -896,6 +934,7 @@ export interface NotificationDeliveryLogOutput {
 export interface DaoFlowTRPC {
   viewer: QueryProcedure<ViewerOutput>;
   health: QueryProcedure<HealthOutput>;
+  approvalQueue: QueryProcedure<ApprovalQueueOutput, { limit?: number }>;
   serverReadiness: QueryProcedure<ServerReadinessOutput, { limit?: number }>;
   registerServer: MutationProcedure<
     {
@@ -1083,6 +1122,8 @@ export interface DaoFlowTRPC {
     RollbackExecutionOutput
   >;
   auditTrail: QueryProcedure<AuditTrailOutput, { limit?: number }>;
+  approveApprovalRequest: MutationProcedure<{ requestId: string }, ApprovalQueueRequestOutput>;
+  rejectApprovalRequest: MutationProcedure<{ requestId: string }, ApprovalQueueRequestOutput>;
   deploymentLogs: QueryProcedure<
     DeploymentLogsOutput,
     {

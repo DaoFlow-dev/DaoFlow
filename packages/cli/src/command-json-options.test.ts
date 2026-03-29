@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { Command } from "commander";
+import { approvalsCommand } from "./commands/approvals";
 import { auditCommand } from "./commands/audit";
 import { deployCommand } from "./commands/deploy";
 import { diffCommand } from "./commands/diff";
@@ -53,6 +54,35 @@ describe("CLI JSON option coverage", () => {
     expect(help).toContain("any valid token");
     expect(help).toContain("daoflow audit --limit 20 --json");
     expect(help).toContain("Example JSON shape:");
+  });
+
+  test("approvals subcommands declare --json", () => {
+    const approvals = approvalsCommand();
+    expect(hasLongOption(getSubcommand(approvals, "list"), "--json")).toBe(true);
+    expect(hasLongOption(getSubcommand(approvals, "approve"), "--json")).toBe(true);
+    expect(hasLongOption(getSubcommand(approvals, "reject"), "--json")).toBe(true);
+  });
+
+  test("approvals help includes access, examples, and JSON shapes", () => {
+    const approvals = approvalsCommand();
+
+    const listHelp = renderHelp(getSubcommand(approvals, "list"));
+    expect(listHelp).toContain("Required scope:");
+    expect(listHelp).toContain("any valid token");
+    expect(listHelp).toContain("daoflow approvals list --limit 10 --json");
+    expect(listHelp).toContain("Example JSON shape:");
+
+    const approveHelp = renderHelp(getSubcommand(approvals, "approve"));
+    expect(approveHelp).toContain("Required scope:");
+    expect(approveHelp).toContain("approvals:decide");
+    expect(approveHelp).toContain("daoflow approvals approve --request apr_123 --yes --json");
+    expect(approveHelp).toContain("Example JSON shape:");
+
+    const rejectHelp = renderHelp(getSubcommand(approvals, "reject"));
+    expect(rejectHelp).toContain("Required scope:");
+    expect(rejectHelp).toContain("approvals:decide");
+    expect(rejectHelp).toContain("daoflow approvals reject --request apr_123 --yes --json");
+    expect(rejectHelp).toContain("Example JSON shape:");
   });
 
   test("doctor declares --json", () => {
