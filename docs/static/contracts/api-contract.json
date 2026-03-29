@@ -2282,6 +2282,34 @@
       "inputSchema": null
     },
     {
+      "name": "inviteUser",
+      "summary": "invite User",
+      "path": "/trpc/inviteUser",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin"],
+      "requiredScopes": ["members:manage"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "maxLength": 320,
+            "format": "email",
+            "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+          },
+          "role": {
+            "type": "string",
+            "enum": ["admin", "operator", "developer", "viewer"]
+          }
+        },
+        "required": ["email", "role"],
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "listChannels",
       "summary": "list Channels",
       "path": "/trpc/listChannels",
@@ -2441,7 +2469,7 @@
       "lane": "read",
       "auth": "authenticated",
       "requiredRoles": ["owner", "admin"],
-      "requiredScopes": [],
+      "requiredScopes": ["members:manage"],
       "inputSchema": null
     },
     {

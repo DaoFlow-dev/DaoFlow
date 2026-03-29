@@ -125,7 +125,6 @@ addApiGroup(
   [
     "adminControlPlane",
     "agentTokenInventory",
-    "principalInventory",
     "createAgent",
     "deleteProject",
     "deleteEnvironment",
@@ -291,6 +290,12 @@ addApiGroup(apiProcedureAccess, ["generateAgentToken", "revokeAgentToken"], {
   auth: "authenticated",
   requiredRoles: ADMIN_ROLES,
   requiredScopes: ["tokens:manage"]
+});
+
+addApiGroup(apiProcedureAccess, ["principalInventory", "inviteUser"], {
+  auth: "authenticated",
+  requiredRoles: ADMIN_ROLES,
+  requiredScopes: ["members:manage"]
 });
 
 addApiGroup(

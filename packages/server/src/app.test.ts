@@ -9,6 +9,7 @@ import { db } from "./db/connection";
 import { deployments } from "./db/schema/deployments";
 import { gitInstallations, gitProviders } from "./db/schema/git-providers";
 import { projects } from "./db/schema/projects";
+import { teamInvites, teamMembers } from "./db/schema/teams";
 import { apiTokens, principals } from "./db/schema/tokens";
 import { users } from "./db/schema/users";
 import { encrypt } from "./db/crypto";
@@ -339,6 +340,85 @@ describe("createApp", () => {
 
     expect(response.status).toBe(200);
     expect(body.result.data.status).toBe("healthy");
+  });
+
+  it("applies pending invites when invited users sign up", async () => {
+    await resetAppTestState({ seedControlPlane: true });
+
+    const invitedEmail = `invitee+${Date.now()}@daoflow.local`;
+    await db.insert(teamInvites).values({
+      id: `inv_${Date.now()}`.slice(0, 32),
+      teamId: "team_foundation",
+      email: invitedEmail,
+      role: "operator",
+      status: "pending",
+      inviterId: "user_foundation_owner",
+      createdAt: new Date(),
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+    });
+
+    const app = createApp();
+    const response = await app.request("/api/auth/sign-up/email", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Origin: "http://localhost:5173"
+      },
+      body: JSON.stringify({
+        email: invitedEmail,
+        name: "Invited Operator",
+        password: "secret1234"
+      })
+    });
+    const body = (await response.json()) as {
+      user: {
+        email: string;
+        role: string;
+      };
+    };
+
+    expect(response.status).toBe(200);
+    expect(body.user.email).toBe(invitedEmail);
+    expect(body.user.role).toBe("operator");
+
+    const [createdUser] = await db
+      .select({
+        id: users.id,
+        role: users.role,
+        defaultTeamId: users.defaultTeamId
+      })
+      .from(users)
+      .where(eq(users.email, invitedEmail))
+      .limit(1);
+
+    expect(createdUser?.role).toBe("operator");
+    expect(createdUser?.defaultTeamId).toBe("team_foundation");
+    expect(createdUser).toBeDefined();
+    if (!createdUser) {
+      throw new Error("Expected invited user to be created.");
+    }
+
+    const [membership] = await db
+      .select({
+        teamId: teamMembers.teamId,
+        role: teamMembers.role
+      })
+      .from(teamMembers)
+      .where(eq(teamMembers.userId, createdUser.id))
+      .limit(1);
+
+    expect(membership).toMatchObject({
+      teamId: "team_foundation",
+      role: "member"
+    });
+
+    const [invite] = await db
+      .select({ status: teamInvites.status })
+      .from(teamInvites)
+      .where(eq(teamInvites.email, invitedEmail))
+      .limit(1);
+
+    expect(invite?.status).toBe("accepted");
   });
 
   it("supports CLI browser login handoff", async () => {

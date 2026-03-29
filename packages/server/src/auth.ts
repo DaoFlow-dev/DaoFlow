@@ -6,6 +6,7 @@ import { users } from "./db/schema/users";
 import { bootstrapOwnerRole, defaultSignupRole } from "@daoflow/shared";
 import { DEFAULT_CLIENT_PORT, DEFAULT_SERVER_PORT } from "@daoflow/shared";
 import { resolveEmailSender } from "./email-transport";
+import { findPendingTeamInviteByEmail } from "./db/services/member-access";
 
 function resolveAuthBaseURL() {
   return process.env.BETTER_AUTH_URL ?? `http://localhost:${DEFAULT_SERVER_PORT}`;
@@ -61,6 +62,12 @@ function createAuthInstance() {
           required: false,
           returned: true,
           input: false
+        },
+        defaultTeamId: {
+          type: "string",
+          required: false,
+          returned: false,
+          input: false
         }
       }
     },
@@ -73,10 +80,15 @@ function createAuthInstance() {
             // cannot be tricked by restarting the server.
             const [result] = await db.select({ count: sql<number>`count(*)` }).from(users);
             const isFirstUser = Number(result.count) === 0;
+            const pendingInvite =
+              !isFirstUser && typeof user.email === "string"
+                ? await findPendingTeamInviteByEmail(user.email)
+                : null;
             return {
               data: {
                 ...user,
-                role: isFirstUser ? bootstrapOwnerRole : defaultSignupRole
+                role: isFirstUser ? bootstrapOwnerRole : (pendingInvite?.role ?? defaultSignupRole),
+                defaultTeamId: pendingInvite?.teamId
               }
             };
           }

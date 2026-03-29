@@ -61,25 +61,3 @@ export async function listApiTokenInventory() {
     tokens: mapped
   };
 }
-
-export async function listPrincipalInventory() {
-  const rows = await db.select().from(principals).orderBy(desc(principals.createdAt));
-
-  return {
-    summary: {
-      totalPrincipals: rows.length,
-      humanPrincipals: rows.filter((p) => p.type === "user").length,
-      serviceAccounts: rows.filter((p) => p.type === "service").length,
-      agentPrincipals: rows.filter((p) => p.type === "agent").length,
-      commandCapablePrincipals: 0
-    },
-    principals: rows.map((p) => ({
-      id: p.id,
-      name: p.name,
-      type: p.type,
-      defaultScopes: p.defaultScopes,
-      status: p.status,
-      createdAt: p.createdAt.toISOString()
-    }))
-  };
-}

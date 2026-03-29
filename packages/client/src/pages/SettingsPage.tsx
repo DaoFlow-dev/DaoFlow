@@ -38,21 +38,24 @@ const SETTINGS_TABS = [
 ] as const;
 
 export default function SettingsPage() {
+  const utils = trpc.useUtils();
   const session = useSession();
   const [searchParams, setSearchParams] = useSearchParams();
   const [maintenanceFeedback, setMaintenanceFeedback] = useState<string | null>(null);
+  const [userFeedback, setUserFeedback] = useState<string | null>(null);
   const viewer = trpc.viewer.useQuery(undefined, {
     enabled: Boolean(session.data)
   });
-  const tokens = trpc.agentTokenInventory.useQuery(undefined, {
-    enabled: Boolean(session.data)
-  });
-  const principals = trpc.principalInventory.useQuery(undefined, {
-    enabled: Boolean(session.data)
-  });
-  const audit = trpc.auditTrail.useQuery({ limit: 20 }, { enabled: Boolean(session.data) });
   const currentRole = viewer.data ? normalizeAppRole(viewer.data.authz.role) : "viewer";
   const isAdmin = canAssumeAnyRole(currentRole, ["owner", "admin"]);
+  const adminDataEnabled = Boolean(session.data) && isAdmin;
+  const tokens = trpc.agentTokenInventory.useQuery(undefined, {
+    enabled: adminDataEnabled
+  });
+  const principals = trpc.principalInventory.useQuery(undefined, {
+    enabled: adminDataEnabled
+  });
+  const audit = trpc.auditTrail.useQuery({ limit: 20 }, { enabled: Boolean(session.data) });
   const caps = viewer.data ? roleCapabilities[currentRole] : [];
   const canManageRegistries = caps.includes("server:write");
   const canManageMaintenance = caps.includes("server:write");
@@ -66,6 +69,17 @@ export default function SettingsPage() {
     },
     onError: (error) => {
       setMaintenanceFeedback(error.message);
+    }
+  });
+  const inviteUser = trpc.inviteUser.useMutation({
+    onSuccess: async (invite) => {
+      await utils.principalInventory.invalidate();
+      setUserFeedback(
+        `Invite ready for ${invite.email}. They can sign up with that email before ${new Date(invite.expiresAt).toLocaleDateString()}.`
+      );
+    },
+    onError: (error) => {
+      setUserFeedback(error.message);
     }
   });
   const requestedTab = searchParams.get("tab");
@@ -162,8 +176,15 @@ export default function SettingsPage() {
             {activeTab === "users" && (
               <UsersSettingsTab
                 isAdmin={isAdmin}
-                isLoading={principals.isLoading}
+                isLoading={adminDataEnabled ? principals.isLoading : false}
                 principals={principals.data?.principals ?? []}
+                invites={principals.data?.invites ?? []}
+                inviteStatus={inviteUser.status}
+                feedback={userFeedback}
+                onInvite={(input) => {
+                  setUserFeedback(null);
+                  inviteUser.mutate(input);
+                }}
               />
             )}
 

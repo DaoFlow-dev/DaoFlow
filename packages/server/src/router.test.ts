@@ -1958,6 +1958,52 @@ describe("appRouter", () => {
     expect(token.statusTone).toEqual(expect.any(String));
   });
 
+  it("admins can invite users and review pending invites", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-admin-invite-user",
+      session: makeSession("admin")
+    });
+    const invitedEmail = `invited-${Date.now().toString(36)}@daoflow.local`;
+
+    const invite = await caller.inviteUser({
+      email: invitedEmail,
+      role: "developer"
+    });
+
+    expect(invite.email).toBe(invitedEmail);
+    expect(invite.role).toBe("developer");
+
+    const inventory = await caller.principalInventory();
+
+    expect(
+      inventory.principals.some(
+        (principal) => principal.type === "user" && principal.email === "owner@daoflow.local"
+      )
+    ).toBe(true);
+    expect(inventory.invites).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          email: invitedEmail,
+          role: "developer"
+        })
+      ])
+    );
+  });
+
+  it("rejects invites for emails that already belong to users", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-admin-invite-existing-user",
+      session: makeSession("admin")
+    });
+
+    await expect(
+      caller.inviteUser({
+        email: "developer@daoflow.local",
+        role: "viewer"
+      })
+    ).rejects.toMatchObject({ code: "CONFLICT" } satisfies Partial<TRPCError>);
+  });
+
   it("filters project inventory to the caller's active team", async () => {
     const fixture = await createOtherTeamFixture();
     const caller = appRouter.createCaller({

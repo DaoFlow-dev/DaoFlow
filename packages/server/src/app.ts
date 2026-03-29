@@ -16,6 +16,7 @@ import { serviceObservabilityRouter } from "./routes/service-observability";
 import { legacyOauthRouter, LEGACY_OAUTH_TOKEN_PATH } from "./routes/legacy-oauth";
 import { authorizeRequest } from "./routes/request-auth";
 import { ensureInitialOwnerFromEnv } from "./bootstrap-initial-owner";
+import { acceptPendingTeamInviteForEmail } from "./db/services/member-access";
 
 type Env = {
   Variables: {
@@ -124,11 +125,31 @@ export function createApp() {
   });
 
   // ── Better Auth ───────────────────────────────────────────
-  app.use("/api/auth/*", async (_c, next) => {
+  app.all("/api/auth/*", async (c) => {
     await ensureInitialOwnerFromEnv();
-    await next();
+    const requestPath = new URL(c.req.url).pathname;
+    const isEmailSignup = c.req.method === "POST" && requestPath === "/api/auth/sign-up/email";
+    const payload = isEmailSignup
+      ? await c.req.raw
+          .clone()
+          .json()
+          .catch(() => null)
+      : null;
+    const response = await auth.handler(c.req.raw);
+
+    if (
+      isEmailSignup &&
+      response.ok &&
+      payload &&
+      typeof payload === "object" &&
+      "email" in payload &&
+      typeof payload.email === "string"
+    ) {
+      await acceptPendingTeamInviteForEmail(payload.email);
+    }
+
+    return response;
   });
-  app.all("/api/auth/*", (c) => auth.handler(c.req.raw));
 
   // ── Image push (REST API) ─────────────────────────────────
   app.route("/api/v1/images", imagesRouter);
