@@ -1,29 +1,8 @@
 import { desc, eq, gte, sql } from "drizzle-orm";
+import { parseAuditSinceWindow } from "@daoflow/shared";
 import { db } from "../connection";
 import { auditEntries, events } from "../schema/audit";
 import { asRecord, readString } from "./json-helpers";
-
-const AUDIT_SINCE_PATTERN = /^(?<amount>[1-9]\d*)(?<unit>[mhdw])$/;
-
-function parseAuditSinceWindow(since: string): Date {
-  const match = AUDIT_SINCE_PATTERN.exec(since);
-  if (!match?.groups) {
-    throw new Error("Since must be a positive duration like 15m, 1h, 7d, or 2w.");
-  }
-
-  const amount = Number.parseInt(match.groups.amount ?? "", 10);
-  const unit = match.groups.unit;
-  const unitMs =
-    unit === "m"
-      ? 60_000
-      : unit === "h"
-        ? 60 * 60_000
-        : unit === "d"
-          ? 24 * 60 * 60_000
-          : 7 * 24 * 60 * 60_000;
-
-  return new Date(Date.now() - amount * unitMs);
-}
 
 function getAuditStatusTone(action: string) {
   if (action === "execution.complete" || action === "approval.approve") {

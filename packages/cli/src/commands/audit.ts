@@ -1,10 +1,9 @@
 import { Command } from "commander";
 import chalk from "chalk";
+import { normalizeAuditSinceWindow } from "@daoflow/shared";
 import { runCommandAction } from "../command-action";
 import { getCurrentContext } from "../config";
 import { createClient, type RouterOutputs } from "../trpc-client";
-
-const AUDIT_SINCE_PATTERN = /^(?<amount>[1-9]\d*)(?<unit>[mhdw])$/;
 
 function parseLimit(rawLimit: string): number {
   const limit = Number.parseInt(rawLimit, 10);
@@ -16,12 +15,7 @@ function parseLimit(rawLimit: string): number {
 }
 
 function parseSince(rawSince: string): string {
-  const normalized = rawSince.trim().toLowerCase();
-  if (!AUDIT_SINCE_PATTERN.test(normalized)) {
-    throw new Error("Since must be a positive duration like 15m, 1h, 7d, or 2w.");
-  }
-
-  return normalized;
+  return normalizeAuditSinceWindow(rawSince);
 }
 
 function colorizeTone(tone: string, value: string): string {

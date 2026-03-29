@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
+import { auditSinceWindowError, auditSinceWindowPattern } from "@daoflow/shared";
 import { listApprovalQueue } from "../db/services/approvals";
 import { listAuditTrail } from "../db/services/audit";
 import { listBackupMetrics, backupDiagnosis } from "../db/services/backups";
@@ -122,9 +123,7 @@ const coreReadRouter = t.router({
         limit: z.number().int().min(1).max(50).optional(),
         since: z
           .string()
-          .regex(/^[1-9]\d*[mhdw]$/, {
-            message: "Since must be a positive duration like 15m, 1h, 7d, or 2w."
-          })
+          .regex(auditSinceWindowPattern, { message: auditSinceWindowError })
           .optional()
       })
     )
