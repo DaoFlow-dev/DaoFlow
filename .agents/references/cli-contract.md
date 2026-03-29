@@ -67,7 +67,7 @@ This file holds the detailed CLI contract, scope map, and agent-facing command r
 | `capabilities`       | read                  | any valid token                                 | no       |
 | `status`             | read                  | `server:read`                                   | no       |
 | `server add`         | command               | `server:write`                                  | yes      |
-| `services`           | read                  | `service:read`                                  | no       |
+| `services`           | read/command          | `service:read`, `service:update`                | varies   |
 | `projects`           | read/command          | `deploy:read`, `deploy:start`, `service:update` | varies   |
 | `templates`          | read/planning/command | none, `deploy:read`, `deploy:start`             | varies   |
 | `logs`               | read                  | `logs:read`                                     | no       |
@@ -155,6 +155,36 @@ This file holds the detailed CLI contract, scope map, and agent-facing command r
   - rollout strategy and whether downtime is still possible
   - target server and current image when available
   - a summary line explaining the latest health verdict
+- `daoflow services create --dry-run` must return a local preview and exit with code `3`
+- `daoflow services create --yes` writes through `createService` and requires `service:update`
+- Required input:
+  - `--project <id>`
+  - `--environment <id>`
+  - `--name <name>`
+  - `--source-type <compose|dockerfile|image>`
+- Optional input:
+  - `--compose-service <name>` only when `--source-type compose`
+  - `--dockerfile <path>` only when `--source-type dockerfile`
+  - `--image <ref>` only when `--source-type image`
+  - `--server <id>`
+  - `--port <value>`
+  - `--healthcheck-path <path>`
+  - `--dry-run`
+  - `--yes`
+  - `--json`
+- Source-aware validation:
+  - compose services require `--compose-service` and reject `--dockerfile` / `--image`
+  - dockerfile services require `--dockerfile` and reject `--compose-service` / `--image`
+  - image services require `--image` and reject `--compose-service` / `--dockerfile`
+- JSON dry-run shape:
+  - `{ "ok": true, "data": { "dryRun": true, "projectId": string, "environmentId": string, "name": string, "sourceType": "compose" | "dockerfile" | "image", "composeServiceName"?: string, "dockerfilePath"?: string, "imageReference"?: string, "targetServerId"?: string, "port"?: string, "healthcheckPath"?: string } }`
+- JSON success shape:
+  - `{ "ok": true, "data": { "service": { "id": string, "projectId": string, "environmentId": string, "name": string, "sourceType": "compose" | "dockerfile" | "image", "status": string }, "nextSteps": { "plan": { "command": string, "description": string }, "deploy": { "command": string, "description": string } } } }`
+- Human output must show:
+  - created service name and id
+  - project and environment ids
+  - the exact next plan command
+  - the exact next deploy command
 
 ## Plan Command Contract
 

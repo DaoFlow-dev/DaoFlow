@@ -664,6 +664,29 @@ export interface ServiceReadOutput {
   } | null;
 }
 
+export interface ServiceMutationOutput {
+  id: string;
+  name: string;
+  slug: string;
+  sourceType: string;
+  status: string;
+  projectId: string;
+  environmentId: string;
+  imageReference: string | null;
+  dockerfilePath: string | null;
+  composeServiceName: string | null;
+  port: string | null;
+  healthcheckPath: string | null;
+  replicaCount: string;
+  targetServerId: string | null;
+  createdAt: string;
+  updatedAt: string;
+  config: unknown;
+  domainConfig: unknown;
+  runtimeConfig: unknown;
+  runtimeConfigPreview: string | null;
+}
+
 export interface ProjectDetailsOutput extends ProjectListItem {
   environments: ProjectEnvironmentItem[];
 }
@@ -1068,6 +1091,21 @@ export interface DaoFlowTRPC {
       composeProfiles?: string[];
     },
     EnvironmentMutationOutput
+  >;
+  createService: MutationProcedure<
+    {
+      projectId: string;
+      environmentId: string;
+      name: string;
+      sourceType: "compose" | "dockerfile" | "image";
+      imageReference?: string;
+      dockerfilePath?: string;
+      composeServiceName?: string;
+      port?: string;
+      healthcheckPath?: string;
+      targetServerId?: string;
+    },
+    ServiceMutationOutput
   >;
   updateEnvironment: MutationProcedure<
     {

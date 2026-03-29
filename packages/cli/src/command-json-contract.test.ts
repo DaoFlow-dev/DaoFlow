@@ -11,8 +11,8 @@ import { notificationsCommand } from "./commands/notifications";
 import { registerConfigCommand } from "./commands/config";
 import { planCommand } from "./commands/plan";
 import { serverCommand } from "./commands/server";
-import { servicesCommand } from "./commands/services";
 import { tokenCommand } from "./commands/token";
+import { runCli } from "./program";
 
 class ExitSignal extends Error {
   constructor(readonly code: number) {
@@ -467,9 +467,6 @@ describe("CLI JSON contract", () => {
   });
 
   test("services --project emits runtime-aware inventory in the standard success envelope", async () => {
-    const program = new Command().name("daoflow");
-    program.addCommand(servicesCommand());
-
     const originalFetch = globalThis.fetch;
 
     const result = await withTempHome(async () => {
@@ -557,14 +554,7 @@ describe("CLI JSON contract", () => {
 
       try {
         return await captureCommandExecution(async () => {
-          await program.parseAsync([
-            "node",
-            "daoflow",
-            "services",
-            "--project",
-            "proj_123",
-            "--json"
-          ]);
+          await runCli(["node", "daoflow", "services", "--project", "proj_123", "--json"]);
         });
       } finally {
         globalThis.fetch = originalFetch;

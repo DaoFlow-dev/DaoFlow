@@ -1,4 +1,4 @@
-import { Command } from "commander";
+import { Command, type ParseOptions } from "commander";
 import chalk from "chalk";
 import { CLI_VERSION } from "./version";
 import { loginCommand } from "./commands/login";
@@ -31,6 +31,42 @@ import { emitJsonError, getErrorMessage } from "./command-helpers";
 
 function wantsJson(argv: readonly string[]): boolean {
   return argv.includes("--json");
+}
+
+function normalizeServicesListInvocation(
+  argv: readonly string[],
+  from: "node" | "electron" | "user" = "node"
+): string[] {
+  const normalized = [...argv];
+  const startIndex = from === "user" ? 0 : 2;
+  let commandIndex = -1;
+
+  for (let index = startIndex; index < normalized.length; index += 1) {
+    const arg = normalized[index];
+    if (!arg || arg === "--") {
+      break;
+    }
+
+    if (!arg.startsWith("-")) {
+      commandIndex = index;
+      break;
+    }
+
+    if (arg === "--timeout" || arg === "--idempotency-key") {
+      index += 1;
+    }
+  }
+
+  if (commandIndex === -1 || normalized[commandIndex] !== "services") {
+    return normalized;
+  }
+
+  const nextArg = normalized[commandIndex + 1];
+  if (nextArg === undefined || nextArg.startsWith("-")) {
+    normalized.splice(commandIndex + 1, 0, "list");
+  }
+
+  return normalized;
 }
 
 function readProcessExitCode(error: unknown): number | null {
@@ -116,6 +152,30 @@ export function createProgram(): Command {
   program.addCommand(templatesCommand());
   program.addCommand(updateCommand());
   registerConfigCommand(program);
+
+  const originalParseAsync = program.parseAsync.bind(program);
+  program.parseAsync = async function parseAsyncWithServicesNormalization(
+    argv?: readonly string[],
+    parseOptions?: ParseOptions
+  ) {
+    const normalizedArgv =
+      argv !== undefined
+        ? normalizeServicesListInvocation(argv, parseOptions?.from ?? "node")
+        : argv;
+    return await originalParseAsync(normalizedArgv, parseOptions);
+  } as typeof program.parseAsync;
+
+  const originalParse = program.parse.bind(program);
+  program.parse = function parseWithServicesNormalization(
+    argv?: readonly string[],
+    parseOptions?: ParseOptions
+  ) {
+    const normalizedArgv =
+      argv !== undefined
+        ? normalizeServicesListInvocation(argv, parseOptions?.from ?? "node")
+        : argv;
+    return originalParse(normalizedArgv, parseOptions);
+  } as typeof program.parse;
 
   return program;
 }

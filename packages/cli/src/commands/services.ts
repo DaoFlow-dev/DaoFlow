@@ -1,11 +1,100 @@
 import { Command } from "commander";
 import chalk from "chalk";
+import { runCommandAction } from "../command-action";
 import {
   getErrorMessage,
+  normalizeCliInput,
+  normalizeOptionalCliInput,
   resolveCommandJsonOption,
   withResolvedCommandRequestOptions
 } from "../command-helpers";
 import { createClient } from "../trpc-client";
+
+type ServiceSourceType = "compose" | "dockerfile" | "image";
+
+function formatFlagList(flags: string[]): string {
+  if (flags.length === 1) {
+    return flags[0] ?? "";
+  }
+
+  if (flags.length === 2) {
+    return `${flags[0]} or ${flags[1]}`;
+  }
+
+  return `${flags.slice(0, -1).join(", ")}, or ${flags.at(-1)}`;
+}
+
+function isServiceSourceType(value: string): value is ServiceSourceType {
+  return value === "compose" || value === "dockerfile" || value === "image";
+}
+
+function buildServiceNextSteps(serviceId: string) {
+  return {
+    plan: {
+      command: `daoflow plan --service ${serviceId}`,
+      description: "Preview the rollout steps and preflight checks for this service."
+    },
+    deploy: {
+      command: `daoflow deploy --service ${serviceId} --yes`,
+      description: "Queue the first deployment when the plan looks correct."
+    }
+  };
+}
+
+function stripUndefinedValues<T extends Record<string, unknown>>(value: T): Partial<T> {
+  return Object.fromEntries(
+    Object.entries(value).filter(([, entryValue]) => entryValue !== undefined)
+  ) as Partial<T>;
+}
+
+function validateCreateOptions(input: {
+  sourceType: ServiceSourceType;
+  composeServiceName?: string;
+  dockerfilePath?: string;
+  imageReference?: string;
+}): string | null {
+  const providedFlags = [
+    input.composeServiceName ? "--compose-service" : null,
+    input.dockerfilePath ? "--dockerfile" : null,
+    input.imageReference ? "--image" : null
+  ].filter((flag): flag is string => flag !== null);
+
+  if (input.sourceType === "compose") {
+    if (!input.composeServiceName) {
+      return "Compose services require --compose-service.";
+    }
+
+    const disallowed = providedFlags.filter((flag) => flag !== "--compose-service");
+    if (disallowed.length > 0) {
+      return `Compose services cannot use ${formatFlagList(disallowed)}.`;
+    }
+    return null;
+  }
+
+  if (input.sourceType === "dockerfile") {
+    if (!input.dockerfilePath) {
+      return "Dockerfile services require --dockerfile.";
+    }
+
+    const disallowed = providedFlags.filter((flag) => flag !== "--dockerfile");
+    if (disallowed.length > 0) {
+      return `Dockerfile services cannot use ${formatFlagList(disallowed)}.`;
+    }
+    return null;
+  }
+
+  if (!input.imageReference) {
+    return "Image services require --image.";
+  }
+
+  const disallowed = providedFlags.filter((flag) => flag !== "--image");
+  if (disallowed.length > 0) {
+    return `Image services cannot use ${formatFlagList(disallowed)}.`;
+  }
+
+  return null;
+}
+
 function colorizeTone(tone: string, value: string) {
   if (tone === "healthy") {
     return chalk.green(value);
@@ -23,10 +112,14 @@ function colorizeTone(tone: string, value: string) {
 }
 
 export function servicesCommand(): Command {
-  return new Command("services")
-    .description("List services and their runtime status")
+  const services = new Command("services").description("Manage services and view runtime status");
+
+  services
+    .command("list")
+    .alias("ls")
     .option("--json", "Output as JSON")
     .option("--project <id>", "Filter by project ID")
+    .description("List services and their runtime status")
     .action(async (opts: { json?: boolean; project?: string }, command: Command) => {
       const isJson = resolveCommandJsonOption(command, opts.json);
       await withResolvedCommandRequestOptions(command, async () => {
@@ -82,4 +175,168 @@ export function servicesCommand(): Command {
         }
       });
     });
+
+  services
+    .command("create")
+    .requiredOption("--project <id>", "Project ID")
+    .requiredOption("--environment <id>", "Environment ID")
+    .requiredOption("--name <name>", "Service name")
+    .requiredOption("--source-type <type>", "Service source type (compose|dockerfile|image)")
+    .option("--compose-service <name>", "Compose service name when --source-type compose")
+    .option("--dockerfile <path>", "Dockerfile path when --source-type dockerfile")
+    .option("--image <ref>", "Container image reference when --source-type image")
+    .option("--server <id>", "Target server ID override")
+    .option("--port <value>", "Primary service port")
+    .option("--healthcheck-path <path>", "HTTP healthcheck path")
+    .option("--dry-run", "Preview the service payload without mutating")
+    .option("-y, --yes", "Skip confirmation prompt")
+    .option("--json", "Output as JSON")
+    .description("Create a service inside a project environment")
+    .action(
+      async (
+        opts: {
+          project: string;
+          environment: string;
+          name: string;
+          sourceType: string;
+          composeService?: string;
+          dockerfile?: string;
+          image?: string;
+          server?: string;
+          port?: string;
+          healthcheckPath?: string;
+          dryRun?: boolean;
+          yes?: boolean;
+          json?: boolean;
+        },
+        command: Command
+      ) => {
+        await runCommandAction<unknown>({
+          command,
+          json: opts.json,
+          action: async (ctx) => {
+            const normalizedSourceType = normalizeCliInput(opts.sourceType, "Source type");
+            if (!isServiceSourceType(normalizedSourceType)) {
+              return ctx.fail("Source type must be one of: compose, dockerfile, image.", {
+                code: "INVALID_INPUT"
+              });
+            }
+            const resolvedSourceType: ServiceSourceType = normalizedSourceType;
+
+            const payload = {
+              projectId: normalizeCliInput(opts.project, "Project ID"),
+              environmentId: normalizeCliInput(opts.environment, "Environment ID"),
+              name: normalizeCliInput(opts.name, "Service name", { maxLength: 80 }),
+              sourceType: resolvedSourceType,
+              composeServiceName: normalizeOptionalCliInput(
+                opts.composeService,
+                "Compose service name",
+                { maxLength: 100 }
+              ),
+              dockerfilePath: normalizeOptionalCliInput(opts.dockerfile, "Dockerfile path", {
+                maxLength: 500
+              }),
+              imageReference: normalizeOptionalCliInput(opts.image, "Image reference", {
+                maxLength: 255
+              }),
+              targetServerId: normalizeOptionalCliInput(opts.server, "Target server ID"),
+              port: normalizeOptionalCliInput(opts.port, "Port", { maxLength: 20 }),
+              healthcheckPath: normalizeOptionalCliInput(opts.healthcheckPath, "Healthcheck path", {
+                maxLength: 255
+              })
+            };
+
+            const validationError = validateCreateOptions(payload);
+            if (validationError) {
+              ctx.fail(validationError, { code: "INVALID_INPUT" });
+            }
+
+            if (opts.dryRun) {
+              const dryRunPayload = stripUndefinedValues({
+                dryRun: true,
+                ...payload
+              });
+
+              return ctx.dryRun(dryRunPayload, {
+                human: () => {
+                  console.log(chalk.bold(`\n  Dry-run: create service ${payload.name}\n`));
+                  console.log(`  Project:      ${payload.projectId}`);
+                  console.log(`  Environment:  ${payload.environmentId}`);
+                  console.log(`  Source type:  ${payload.sourceType}`);
+                  if (payload.composeServiceName) {
+                    console.log(`  Compose svc:  ${payload.composeServiceName}`);
+                  }
+                  if (payload.dockerfilePath) {
+                    console.log(`  Dockerfile:   ${payload.dockerfilePath}`);
+                  }
+                  if (payload.imageReference) {
+                    console.log(`  Image:        ${payload.imageReference}`);
+                  }
+                  if (payload.targetServerId) {
+                    console.log(`  Server:       ${payload.targetServerId}`);
+                  }
+                  if (payload.port) {
+                    console.log(`  Port:         ${payload.port}`);
+                  }
+                  if (payload.healthcheckPath) {
+                    console.log(`  Healthcheck:  ${payload.healthcheckPath}`);
+                  }
+                  console.log();
+                }
+              });
+            }
+
+            ctx.requireConfirmation(
+              opts.yes === true,
+              `Create service ${payload.name} in environment ${payload.environmentId}. Pass --yes to confirm.`,
+              {
+                humanMessage: `Create service ${payload.name} in environment ${payload.environmentId}. Pass --yes to confirm.`
+              }
+            );
+
+            const trpc = createClient();
+            const service = await trpc.createService.mutate({
+              projectId: payload.projectId,
+              environmentId: payload.environmentId,
+              name: payload.name,
+              sourceType: payload.sourceType,
+              composeServiceName: payload.composeServiceName,
+              dockerfilePath: payload.dockerfilePath,
+              imageReference: payload.imageReference,
+              targetServerId: payload.targetServerId,
+              port: payload.port,
+              healthcheckPath: payload.healthcheckPath
+            });
+            const nextSteps = buildServiceNextSteps(service.id);
+
+            return ctx.success(
+              {
+                service: {
+                  id: service.id,
+                  projectId: service.projectId,
+                  environmentId: service.environmentId,
+                  name: service.name,
+                  sourceType: service.sourceType,
+                  status: service.status
+                },
+                nextSteps
+              },
+              {
+                quiet: () => service.id,
+                human: () => {
+                  console.log(chalk.green(`✓ Created service ${service.name} (${service.id})`));
+                  console.log(chalk.dim(`  Project: ${service.projectId}`));
+                  console.log(chalk.dim(`  Environment: ${service.environmentId}`));
+                  console.log(chalk.dim(`  Next: ${nextSteps.plan.command}`));
+                  console.log(chalk.dim(`        ${nextSteps.deploy.command}`));
+                  console.log();
+                }
+              }
+            );
+          }
+        });
+      }
+    );
+
+  return services;
 }

@@ -24,6 +24,18 @@ Command-line interface for interacting with the DaoFlow control plane API.
 | `daoflow rollback` | Rollback a deployment             |
 | `daoflow status`   | Show service/deployment status    |
 
+## Explicit Bootstrap Flow
+
+```bash
+daoflow projects create --name myapp --yes
+daoflow projects env create --project <project-id> --name production --yes
+daoflow services create --project <project-id> --environment <environment-id> --name web --source-type image --image ghcr.io/acme/myapp:latest --yes
+daoflow plan --service <service-id>
+daoflow deploy --service <service-id> --yes
+```
+
+Use `--source-type compose --compose-service <name>` for Compose-backed services or `--source-type dockerfile --dockerfile <path>` for Dockerfile-backed services.
+
 ## Key files
 
 | Path                | Purpose                             |

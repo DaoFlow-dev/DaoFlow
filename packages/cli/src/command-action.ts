@@ -115,6 +115,47 @@ function buildScopeDeniedExtra(
   return Object.keys(extra).length > 0 ? extra : undefined;
 }
 
+function readNestedTrpcErrorBody(parsedBody: Record<string, unknown> | undefined): {
+  topLevelCode?: string;
+  message?: string;
+  extra?: Record<string, unknown>;
+  exitCode?: number;
+} {
+  if (!parsedBody) {
+    return {};
+  }
+
+  const errorRecord = isRecord(parsedBody.error) ? parsedBody.error : undefined;
+  const jsonRecord = isRecord(errorRecord?.json) ? errorRecord?.json : undefined;
+  const dataRecord = isRecord(jsonRecord?.data) ? jsonRecord.data : undefined;
+  const causeRecord = isRecord(dataRecord?.cause) ? dataRecord.cause : undefined;
+  const topLevelCode = typeof dataRecord?.code === "string" ? dataRecord.code : undefined;
+  const causeCode = typeof causeRecord?.code === "string" ? causeRecord.code : undefined;
+
+  if (
+    causeCode === "SCOPE_DENIED" ||
+    topLevelCode === "FORBIDDEN" ||
+    topLevelCode === "UNAUTHORIZED"
+  ) {
+    return {
+      topLevelCode: causeCode ?? topLevelCode,
+      message:
+        typeof jsonRecord?.message === "string"
+          ? jsonRecord.message
+          : typeof parsedBody.message === "string"
+            ? parsedBody.message
+            : undefined,
+      extra: buildScopeDeniedExtra(causeRecord),
+      exitCode: 2
+    };
+  }
+
+  return {
+    topLevelCode,
+    message: typeof jsonRecord?.message === "string" ? jsonRecord.message : undefined
+  };
+}
+
 function resolveStructuredErrorParts(error: unknown): {
   code?: string;
   message?: string;
@@ -139,11 +180,16 @@ function resolveStructuredErrorParts(error: unknown): {
         : typeof parsedBody?.message === "string"
           ? parsedBody.message
           : undefined;
+    const nestedTrpc = readNestedTrpcErrorBody(parsedBody);
 
     return {
-      code: bodyCode ?? (error.exitCode === 2 ? "API_AUTH_ERROR" : "API_ERROR"),
-      message: bodyMessage,
-      exitCode: error.exitCode
+      code:
+        nestedTrpc.topLevelCode ??
+        bodyCode ??
+        (error.exitCode === 2 ? "API_AUTH_ERROR" : "API_ERROR"),
+      message: nestedTrpc.message ?? bodyMessage,
+      extra: nestedTrpc.extra,
+      exitCode: nestedTrpc.exitCode ?? error.exitCode
     };
   }
 

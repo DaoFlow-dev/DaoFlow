@@ -2040,13 +2040,109 @@
     },
     {
       "path": "services",
+      "summary": "Manage services and view runtime status",
+      "lane": "read",
+      "requiredScopes": ["service:read"],
+      "mutating": false,
+      "hasAction": false,
+      "hasSubcommands": true,
+      "aliases": [],
+      "arguments": [],
+      "options": [],
+      "supportsJson": false,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
+      "path": "services create",
+      "summary": "Create a service inside a project environment",
+      "lane": "command",
+      "requiredScopes": ["service:update"],
+      "mutating": true,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--project <id>",
+          "description": "Project ID",
+          "required": true
+        },
+        {
+          "flags": "--environment <id>",
+          "description": "Environment ID",
+          "required": true
+        },
+        {
+          "flags": "--name <name>",
+          "description": "Service name",
+          "required": true
+        },
+        {
+          "flags": "--source-type <type>",
+          "description": "Service source type (compose|dockerfile|image)",
+          "required": true
+        },
+        {
+          "flags": "--compose-service <name>",
+          "description": "Compose service name when --source-type compose",
+          "required": false
+        },
+        {
+          "flags": "--dockerfile <path>",
+          "description": "Dockerfile path when --source-type dockerfile",
+          "required": false
+        },
+        {
+          "flags": "--image <ref>",
+          "description": "Container image reference when --source-type image",
+          "required": false
+        },
+        {
+          "flags": "--server <id>",
+          "description": "Target server ID override",
+          "required": false
+        },
+        {
+          "flags": "--port <value>",
+          "description": "Primary service port",
+          "required": false
+        },
+        {
+          "flags": "--healthcheck-path <path>",
+          "description": "HTTP healthcheck path",
+          "required": false
+        },
+        {
+          "flags": "--dry-run",
+          "description": "Preview the service payload without mutating",
+          "required": false
+        },
+        {
+          "flags": "-y, --yes",
+          "description": "Skip confirmation prompt",
+          "required": false
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": true,
+      "supportsYes": true
+    },
+    {
+      "path": "services list",
       "summary": "List services and their runtime status",
       "lane": "read",
       "requiredScopes": ["service:read"],
       "mutating": false,
       "hasAction": true,
       "hasSubcommands": false,
-      "aliases": [],
+      "aliases": ["ls"],
       "arguments": [],
       "options": [
         {
