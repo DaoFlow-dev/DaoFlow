@@ -49,6 +49,7 @@ export default defineConfig({
       testIgnore: [
         /auth-bootstrap\.spec\.ts/,
         /cli-bootstrap\.spec\.ts/,
+        /cli-deploy\.spec\.ts/,
         /docs\.spec\.ts/,
         /workflow-e2e\.spec\.ts/
       ]

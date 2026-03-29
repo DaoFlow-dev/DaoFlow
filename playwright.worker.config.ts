@@ -12,7 +12,7 @@ import {
  * Unlike the main config, this one:
  * - Does NOT set DISABLE_WORKER (so the worker starts)
  * - Sets TEMPORAL_ADDRESS so the Temporal worker connects
- * - Only runs workflow-specific spec files
+ * - Only runs worker-backed spec files
  * - Uses a dedicated database to avoid conflicts with the main E2E suite
  */
 
@@ -23,7 +23,7 @@ const DB_URL =
 
 export default defineConfig({
   testDir: "./e2e",
-  testMatch: "workflow-e2e.spec.ts",
+  testMatch: ["workflow-e2e.spec.ts", "cli-deploy.spec.ts"],
   timeout: 120_000, // workflows take longer than UI tests
   fullyParallel: false,
   workers: 1,
