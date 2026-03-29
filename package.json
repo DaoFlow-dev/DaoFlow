@@ -22,6 +22,7 @@
     "templates:report": "bun ./scripts/check-app-templates.ts --report",
     "check:server-build-references": "bun --filter @daoflow/server build && bun --filter @daoflow/client typecheck",
     "start": "NODE_ENV=production bun packages/server/dist/index.js",
+    "start:e2e": "NODE_ENV=production bun packages/server/src/index.ts",
     "typecheck": "tsc -b packages/shared packages/server packages/client packages/cli",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",

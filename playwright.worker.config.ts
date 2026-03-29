@@ -1,5 +1,6 @@
 import { defineConfig, devices } from "@playwright/test";
 import {
+  createPlaywrightServerCommand,
   playwrightBaseUrl,
   playwrightHealthcheckUrl,
   playwrightServerPort
@@ -32,7 +33,7 @@ export default defineConfig({
     trace: "on-first-retry"
   },
   webServer: {
-    command: "bun run db:rebuild && bun run db:seed:e2e-auth && bun run build && bun run start",
+    command: createPlaywrightServerCommand("bun run db:rebuild", "bun run db:seed:e2e-auth"),
     env: {
       PATH: process.env.PATH ?? "",
       HOME: process.env.HOME ?? "",

@@ -1,5 +1,6 @@
 import { defineConfig, devices } from "@playwright/test";
 import {
+  createPlaywrightServerCommand,
   playwrightBaseUrl,
   playwrightHealthcheckUrl,
   playwrightServerPort
@@ -24,8 +25,8 @@ export default defineConfig({
   },
   webServer: {
     command: SKIP_DB_BOOTSTRAP
-      ? "bun run build && bun run start"
-      : "bun run db:reset && bun run db:migrate && bun run build && bun run start",
+      ? createPlaywrightServerCommand()
+      : createPlaywrightServerCommand("bun run db:reset", "bun run db:migrate"),
     env: {
       DATABASE_URL: PLAYWRIGHT_BOOTSTRAP_DATABASE_URL,
       REDIS_URL: process.env.REDIS_URL ?? "redis://localhost:6379",
