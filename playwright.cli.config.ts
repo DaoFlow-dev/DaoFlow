@@ -6,10 +6,11 @@ import {
   playwrightServerPort
 } from "./playwright.shared";
 
-const PLAYWRIGHT_DATABASE_URL =
+const PLAYWRIGHT_CLI_DATABASE_URL =
+  process.env.PLAYWRIGHT_CLI_DATABASE_URL ??
   process.env.PLAYWRIGHT_DATABASE_URL ??
   process.env.DATABASE_URL ??
-  "postgresql://daoflow:daoflow_dev@localhost:5432/daoflow_e2e";
+  "postgresql://daoflow:daoflow_dev@localhost:5432/daoflow_e2e_cli";
 const SKIP_DB_BOOTSTRAP = process.env.PLAYWRIGHT_SKIP_DB_BOOTSTRAP === "true";
 
 export default defineConfig({
@@ -27,10 +28,10 @@ export default defineConfig({
       ? createPlaywrightServerCommand()
       : createPlaywrightServerCommand("bun run db:rebuild", "bun run db:seed:e2e-auth"),
     env: {
-      DATABASE_URL: PLAYWRIGHT_DATABASE_URL,
+      DATABASE_URL: PLAYWRIGHT_CLI_DATABASE_URL,
       REDIS_URL: process.env.REDIS_URL ?? "redis://localhost:6379",
       BETTER_AUTH_SECRET:
-        process.env.BETTER_AUTH_SECRET ?? "daoflow-e2e-secret-with-enough-entropy-2026",
+        process.env.BETTER_AUTH_SECRET ?? "daoflow-e2e-cli-secret-with-enough-entropy-2026",
       BETTER_AUTH_URL: playwrightBaseUrl,
       ENCRYPTION_KEY: process.env.ENCRYPTION_KEY ?? "daoflow-e2e-encryption-key-32chars00",
       DAOFLOW_SEED_DEMO: "1",
@@ -44,14 +45,9 @@ export default defineConfig({
   },
   projects: [
     {
-      name: "chromium",
+      name: "chromium-cli",
       use: { ...devices["Desktop Chrome"] },
-      testIgnore: [
-        /auth-bootstrap\.spec\.ts/,
-        /cli-bootstrap\.spec\.ts/,
-        /docs\.spec\.ts/,
-        /workflow-e2e\.spec\.ts/
-      ]
+      testMatch: /cli-bootstrap\.spec\.ts/
     }
   ]
 });
