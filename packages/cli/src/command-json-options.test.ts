@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { Command } from "commander";
+import { auditCommand } from "./commands/audit";
 import { deployCommand } from "./commands/deploy";
 import { diffCommand } from "./commands/diff";
 import { doctorCommand } from "./commands/doctor";
@@ -40,6 +41,18 @@ function renderHelp(command: Command): string {
 describe("CLI JSON option coverage", () => {
   test("login declares --json", () => {
     expect(hasLongOption(loginCommand(), "--json")).toBe(true);
+  });
+
+  test("audit declares --json", () => {
+    expect(hasLongOption(auditCommand(), "--json")).toBe(true);
+  });
+
+  test("audit help includes access, examples, and JSON shape", () => {
+    const help = renderHelp(auditCommand());
+    expect(help).toContain("Required scope:");
+    expect(help).toContain("any valid token");
+    expect(help).toContain("daoflow audit --limit 20 --json");
+    expect(help).toContain("Example JSON shape:");
   });
 
   test("doctor declares --json", () => {

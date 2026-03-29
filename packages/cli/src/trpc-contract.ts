@@ -80,10 +80,42 @@ export interface ServerReadinessOutput {
   }>;
 }
 
+export interface AuditTrailOutput {
+  summary: {
+    totalEntries: number;
+    deploymentActions: number;
+    executionActions: number;
+    backupActions: number;
+    humanEntries: number;
+  };
+  entries: Array<{
+    id: string;
+    actorType: string;
+    actorId: string;
+    actorEmail: string | null;
+    actorRole: string | null;
+    organizationId: string | null;
+    targetResource: string;
+    action: string;
+    inputSummary: string | null;
+    permissionScope: string | null;
+    outcome: string;
+    metadata: Record<string, unknown> | null;
+    createdAt: string;
+    actorLabel: string;
+    resourceType: string;
+    resourceId: string;
+    resourceLabel: string;
+    statusTone: string;
+    detail: string;
+  }>;
+}
+
 export interface RouterOutputs {
   viewer: ViewerOutput;
   health: HealthOutput;
   serverReadiness: ServerReadinessOutput;
+  auditTrail: AuditTrailOutput;
 }
 
 export interface ComposeReleaseCatalogOutput {
@@ -1050,6 +1082,7 @@ export interface DaoFlowTRPC {
     { serviceId: string; targetDeploymentId: string },
     RollbackExecutionOutput
   >;
+  auditTrail: QueryProcedure<AuditTrailOutput, { limit?: number }>;
   deploymentLogs: QueryProcedure<
     DeploymentLogsOutput,
     {

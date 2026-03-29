@@ -4,6 +4,32 @@
   "binary": "daoflow",
   "commands": [
     {
+      "path": "audit",
+      "summary": "Read the immutable audit trail",
+      "lane": "read",
+      "requiredScopes": [],
+      "mutating": false,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--limit <n>",
+          "description": "Maximum audit entries to show",
+          "required": false
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
       "path": "backup",
       "summary": "Manage backup policies and runs",
       "lane": "local",

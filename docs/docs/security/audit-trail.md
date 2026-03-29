@@ -36,7 +36,12 @@ GET /trpc/auditTrail?input={"json":{"limit":50}}
 
 ### Via CLI
 
-There is no dedicated `daoflow audit` command yet. Use the dashboard or query `auditTrail` directly through the API contract.
+```bash
+daoflow audit --limit 20
+daoflow audit --limit 20 --json
+```
+
+The CLI returns the same audit summary and entry feed exposed through the `auditTrail` API route.
 
 ## What Gets Audited
 

@@ -65,6 +65,7 @@ This file holds the detailed CLI contract, scope map, and agent-facing command r
 | `login`              | session               | none                                            | yes      |
 | `whoami`             | read                  | any valid token                                 | no       |
 | `capabilities`       | read                  | any valid token                                 | no       |
+| `audit`              | read                  | any valid token                                 | no       |
 | `status`             | read                  | `server:read`                                   | no       |
 | `server add`         | command               | `server:write`                                  | yes      |
 | `services`           | read/command          | `service:read`, `service:update`                | varies   |
@@ -259,6 +260,22 @@ This file holds the detailed CLI contract, scope map, and agent-facing command r
 - `--follow` is reserved for future live streaming and must return a structured `NOT_IMPLEMENTED` error today
 - JSON success shape:
   - `{ "ok": true, "data": { "service": string | null, "deploymentId": string | null, "query": string | null, "stream": "all" | "stdout" | "stderr", "limit": number, "summary": { "totalLines": number, "stderrLines": number, "deploymentCount": number }, "lines": [{ "id": string | number, "deploymentId": string, "serviceName": string, "environmentName": string, "stream": "stdout" | "stderr", "lineNumber": string | number, "level": string, "message": string, "createdAt": string }] } }`
+
+## Audit Contract
+
+- `daoflow audit` reads immutable audit records through the `auditTrail` read procedure
+- Access: any valid session or API token
+- Optional input:
+  - `--limit <n>` to cap returned entries from `1` to `50`
+  - `--json`
+- JSON success shape:
+  - `{ "ok": true, "data": { "limit": number, "summary": { "totalEntries": number, "deploymentActions": number, "executionActions": number, "backupActions": number, "humanEntries": number }, "entries": [{ "id": string, "actorType": string, "actorId": string, "actorEmail": string | null, "actorRole": string | null, "organizationId": string | null, "targetResource": string, "action": string, "inputSummary": string | null, "permissionScope": string | null, "outcome": string, "metadata": object | null, "createdAt": string, "actorLabel": string, "resourceType": string, "resourceId": string, "resourceLabel": string, "statusTone": "healthy" | "failed" | "running" | "queued", "detail": string }] } }`
+- Human output must show:
+  - entry timestamp, action, and outcome tone
+  - actor identity and actor type
+  - resource label
+  - permission scope when present
+  - redacted audit detail when present
 
 ## Notifications Contract
 

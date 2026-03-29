@@ -540,6 +540,7 @@ export const apiExamples: ApiExample[] = [
 
 export const cliCommandMeta: Record<string, CliCommandMeta> = {
   login: { lane: "session", requiredScopes: [], mutating: true },
+  audit: { lane: "read", requiredScopes: [], mutating: false },
   services: { lane: "read", requiredScopes: ["service:read"], mutating: false },
   "services list": { lane: "read", requiredScopes: ["service:read"], mutating: false },
   "services create": { lane: "command", requiredScopes: ["service:update"], mutating: true },
