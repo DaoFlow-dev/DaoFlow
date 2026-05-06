@@ -102,6 +102,22 @@ export function buildHostDockerCodexExecution(input: {
   plan: DevelopmentTaskCodexPlan;
   workspace: PreparedDevelopmentTaskCodexWorkspace;
   sandbox: HostDockerCodexSandbox;
+}) {
+  return buildHostDockerCommandExecution({
+    workspace: input.workspace,
+    sandbox: input.sandbox,
+    command: input.plan.command,
+    args: input.plan.args,
+    env: input.plan.env
+  });
+}
+
+export function buildHostDockerCommandExecution(input: {
+  workspace: PreparedDevelopmentTaskCodexWorkspace;
+  sandbox: HostDockerCodexSandbox;
+  command: string;
+  args: string[];
+  env?: Record<string, string>;
 }): {
   command: string;
   args: string[];
@@ -132,8 +148,8 @@ export function buildHostDockerCodexExecution(input: {
   ];
 
   appendNetworkArgs(args, input.sandbox.networkPolicy);
-  appendEnvArgs(args, input.plan.env);
-  args.push(input.sandbox.image, input.plan.command, ...input.plan.args);
+  appendEnvArgs(args, input.env ?? {});
+  args.push(input.sandbox.image, input.command, ...input.args);
 
   return {
     command: dockerCommand,

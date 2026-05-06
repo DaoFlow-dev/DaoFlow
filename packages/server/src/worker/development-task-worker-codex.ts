@@ -129,6 +129,7 @@ export async function runClaimedTaskCodex(input: {
   const validation = await validationExecution({
     workspace: input.workspace,
     commands: readDevelopmentTaskValidationCommands(input.metadata),
+    sandbox,
     onLog: (line) => {
       console.log(`[development-task-validation:${line.stream}] ${line.message}`);
       validationLogEvents.record(line);

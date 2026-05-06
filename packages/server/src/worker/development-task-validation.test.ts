@@ -2,12 +2,14 @@ import { mkdir, readFile, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
-import type { OnLog } from "./docker-exec-shared";
+import type { execStreaming, OnLog } from "./docker-exec-shared";
 import type { PreparedDevelopmentTaskCodexWorkspace } from "./development-task-codex-workspace";
 import {
   readDevelopmentTaskValidationCommands,
   runDevelopmentTaskValidation
 } from "./development-task-validation";
+
+type ExecRunnerCall = Parameters<typeof execStreaming>;
 
 async function validationWorkspace() {
   const root = path.join(tmpdir(), `daoflow-validation-${Date.now()}`);
@@ -92,5 +94,45 @@ describe("development task validation", () => {
       exitCode: 2
     });
     expect(execRunner).toHaveBeenCalledTimes(2);
+  });
+
+  it("runs validation commands inside the host Docker sandbox", async () => {
+    const workspace = await validationWorkspace();
+    const execRunner = vi.fn().mockResolvedValue({ exitCode: 0, signal: null });
+
+    const result = await runDevelopmentTaskValidation({
+      workspace,
+      commands: ["bun run test:unit"],
+      sandbox: {
+        containerName: "daoflow-devtask-validation",
+        image: "ghcr.io/daoflow/codex-runner:test",
+        cpuLimit: 1,
+        memoryLimitMb: 768,
+        timeoutMinutes: 2,
+        networkPolicy: "default-egress"
+      },
+      onLog: vi.fn(),
+      execRunner
+    });
+
+    expect(result.status).toBe("ok");
+    const call = execRunner.mock.calls[0] as ExecRunnerCall | undefined;
+    const args = call?.[1] ?? [];
+    expect(call?.[0]).toContain("docker");
+    expect(args).toEqual(
+      expect.arrayContaining([
+        "run",
+        "--rm",
+        "--name",
+        "daoflow-devtask-validation",
+        "--memory",
+        "768m",
+        "ghcr.io/daoflow/codex-runner:test",
+        "sh",
+        "-lc",
+        "bun run test:unit"
+      ])
+    );
+    expect(call?.[5]).toMatchObject({ timeoutMs: 120_000 });
   });
 });

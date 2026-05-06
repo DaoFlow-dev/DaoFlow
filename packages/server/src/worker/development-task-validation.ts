@@ -3,6 +3,11 @@ import { createWriteStream } from "node:fs";
 import path from "node:path";
 import { execStreaming, type LogLine, type OnLog } from "./docker-exec-shared";
 import type { PreparedDevelopmentTaskCodexWorkspace } from "./development-task-codex-workspace";
+import {
+  buildHostDockerCleanupExecution,
+  buildHostDockerCommandExecution,
+  type HostDockerCodexSandbox
+} from "./development-task-host-docker";
 
 type ExecRunner = typeof execStreaming;
 
@@ -58,6 +63,7 @@ export async function runDevelopmentTaskValidation(input: {
   workspace: PreparedDevelopmentTaskCodexWorkspace;
   commands: string[];
   onLog: OnLog;
+  sandbox?: HostDockerCodexSandbox;
   execRunner?: ExecRunner;
 }): Promise<DevelopmentTaskValidationResult> {
   await mkdir(input.workspace.logsPath, { recursive: true });
@@ -82,7 +88,34 @@ export async function runDevelopmentTaskValidation(input: {
         writeLogLine(logStream, command, line);
         input.onLog(line);
       };
-      const result = await execRunner("sh", ["-lc", command], input.workspace.repoPath, onLog);
+      const execution = input.sandbox
+        ? buildHostDockerCommandExecution({
+            workspace: input.workspace,
+            sandbox: input.sandbox,
+            command: "sh",
+            args: ["-lc", command]
+          })
+        : {
+            command: "sh",
+            args: ["-lc", command],
+            cwd: input.workspace.repoPath,
+            env: undefined,
+            options: undefined
+          };
+      const result = execution.options
+        ? await execRunner(
+            execution.command,
+            execution.args,
+            execution.cwd,
+            onLog,
+            execution.env,
+            execution.options
+          )
+        : await execRunner(execution.command, execution.args, execution.cwd, onLog);
+      if (input.sandbox && result.signal) {
+        const cleanup = buildHostDockerCleanupExecution(input.sandbox.containerName);
+        await execRunner(cleanup.command, cleanup.args, cleanup.cwd, onLog).catch(() => undefined);
+      }
       if (result.exitCode !== 0) {
         return {
           status: "failed",
@@ -90,7 +123,9 @@ export async function runDevelopmentTaskValidation(input: {
           failedCommand: command,
           exitCode: result.exitCode,
           logPath,
-          errorMessage: `Validation command failed with exit code ${result.exitCode}: ${command}`
+          errorMessage: result.signal
+            ? `Validation command terminated by signal ${result.signal}: ${command}`
+            : `Validation command failed with exit code ${result.exitCode}: ${command}`
         };
       }
     }
