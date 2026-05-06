@@ -17,7 +17,9 @@ import { createProject } from "../db/services/projects";
 import { resetSeededTestDatabase } from "../test-db";
 import {
   pollDevelopmentTaskQueue,
+  resetDevelopmentTaskCodexExecutionForTests,
   resetDevelopmentTaskRepositoryCheckoutForTests,
+  setDevelopmentTaskCodexExecutionForTests,
   setDevelopmentTaskRepositoryCheckoutForTests
 } from "./development-task-worker";
 
@@ -89,6 +91,7 @@ async function createClaimedCommentFixture() {
 
 describe("development task worker", () => {
   afterEach(() => {
+    resetDevelopmentTaskCodexExecutionForTests();
     resetDevelopmentTaskRepositoryCheckoutForTests();
     vi.restoreAllMocks();
     delete process.env.APP_BASE_URL;
@@ -172,6 +175,16 @@ describe("development task worker", () => {
       })
     );
     setDevelopmentTaskRepositoryCheckoutForTests(checkoutMock);
+    const codexExecutionMock = vi
+      .fn()
+      .mockImplementation((input: { workspace: { logsPath: string } }) =>
+        Promise.resolve({
+          status: "ok" as const,
+          exitCode: 0,
+          logPath: `${input.workspace.logsPath}/codex-exec.jsonl`
+        })
+      );
+    setDevelopmentTaskCodexExecutionForTests(codexExecutionMock);
 
     const claimed = await pollDevelopmentTaskQueue();
     const checkoutCall = checkoutMock.mock.calls[0]?.[0] as
@@ -180,6 +193,7 @@ describe("development task worker", () => {
 
     expect(claimed?.task.id).toBe(queued.task.id);
     expect(checkoutMock).toHaveBeenCalledOnce();
+    expect(codexExecutionMock).toHaveBeenCalledOnce();
     expect(checkoutCall?.repoPath).toContain(claimed?.run.id ?? "");
     expect(checkoutCall?.artifactsPath).toContain(claimed?.run.id ?? "");
     expect(fetchMock).toHaveBeenCalledTimes(2);
@@ -208,11 +222,17 @@ describe("development task worker", () => {
       .from(developmentTaskRuns)
       .where(eq(developmentTaskRuns.id, claimed?.run.id ?? ""));
     expect(run).toMatchObject({
-      status: "preparing"
+      status: "validating"
     });
     const metadata = run?.metadata as {
-      codexWorkspace?: { configPath: string; promptPath: string; repoPath: string };
+      codexWorkspace?: {
+        configPath: string;
+        logsPath: string;
+        promptPath: string;
+        repoPath: string;
+      };
       codexCommand?: { args: string[] };
+      codexExecution?: { status: string; exitCode: number; logPath: string };
       repositoryCheckout?: { status: string; displayLabel: string };
     };
     expect(metadata.codexWorkspace?.repoPath).toContain(claimed?.run.id);
@@ -221,6 +241,11 @@ describe("development task worker", () => {
       displayLabel: fixture.repoFullName
     });
     expect(metadata.codexCommand?.args).toContain(`@${metadata.codexWorkspace?.promptPath}`);
+    expect(metadata.codexExecution).toMatchObject({
+      status: "ok",
+      exitCode: 0,
+      logPath: `${metadata.codexWorkspace?.logsPath}/codex-exec.jsonl`
+    });
     expect(metadata.codexCommand?.args.join("\n")).not.toContain("Update issue when worker starts");
     expect((await stat(metadata.codexWorkspace?.repoPath ?? "")).isDirectory()).toBe(true);
     await expect(readFile(metadata.codexWorkspace?.configPath ?? "", "utf8")).resolves.toContain(
@@ -233,6 +258,8 @@ describe("development task worker", () => {
     const details = await getDevelopmentTaskDetails(queued.task.id);
     expect(details?.events.some((event) => event.kind === "comment.updated")).toBe(true);
     expect(details?.events.some((event) => event.kind === "run.preparing")).toBe(true);
+    expect(details?.events.some((event) => event.kind === "run.coding")).toBe(true);
+    expect(details?.events.some((event) => event.kind === "run.validating")).toBe(true);
     expect(details?.events.some((event) => event.kind === "repository.checkout.completed")).toBe(
       true
     );

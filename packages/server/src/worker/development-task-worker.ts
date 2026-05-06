@@ -11,14 +11,14 @@ import { upsertRunningGitHubDevelopmentTaskComment } from "../routes/github-issu
 import { buildDevelopmentTaskCodexPlan } from "./development-task-codex-plan";
 import { prepareDevelopmentTaskCodexWorkspace } from "./development-task-codex-workspace";
 import {
-  checkoutDevelopmentTaskRepository,
-  type DevelopmentTaskRepositoryCheckoutResult
-} from "./development-task-repository-checkout";
-import type { PreparedDevelopmentTaskCodexWorkspace } from "./development-task-codex-workspace";
+  executeDevelopmentTaskCodex,
+  type DevelopmentTaskCodexExecutionResult
+} from "./development-task-codex-execution";
+import { prepareClaimedTaskRepository } from "./development-task-worker-repository";
 
 const DEVELOPMENT_TASK_POLL_INTERVAL_MS = 10_000;
 let running = false;
-let repositoryCheckout = checkoutDevelopmentTaskRepository;
+let codexExecution = executeDevelopmentTaskCodex;
 
 export async function pollDevelopmentTaskQueue() {
   const claimed = await claimNextQueuedDevelopmentTask({
@@ -137,25 +137,32 @@ async function prepareClaimedTaskWorkspace(claimed: ClaimedDevelopmentTask) {
       throw new Error(`Project ${claimed.task.projectId} was not found for development task.`);
     }
 
-    const checkout = await prepareClaimedTaskRepository(claimed, workspace, project);
+    const checkout = await prepareClaimedTaskRepository({
+      task: claimed.task,
+      run: claimed.run,
+      workspace,
+      project
+    });
     if (checkout.status !== "ok") {
       return;
     }
     const metadata = readRecord(claimed.run.metadata);
+    const nextMetadata = {
+      ...metadata,
+      codexWorkspace: workspace,
+      repositoryCheckout: checkout,
+      codexCommand: {
+        command: plan.command,
+        args: plan.args.map((arg) => (arg === plan.prompt ? `@${workspace.promptPath}` : arg))
+      }
+    };
 
     await updateDevelopmentTaskRun({
       runId: claimed.run.id,
       status: "preparing",
-      metadata: {
-        ...metadata,
-        codexWorkspace: workspace,
-        repositoryCheckout: checkout,
-        codexCommand: {
-          command: plan.command,
-          args: plan.args.map((arg) => (arg === plan.prompt ? `@${workspace.promptPath}` : arg))
-        }
-      }
+      metadata: nextMetadata
     });
+    await runClaimedTaskCodex(claimed, plan, workspace, nextMetadata);
   } catch (err) {
     await updateDevelopmentTaskRun({
       runId: claimed.run.id,
@@ -170,78 +177,69 @@ async function prepareClaimedTaskWorkspace(claimed: ClaimedDevelopmentTask) {
   }
 }
 
-async function prepareClaimedTaskRepository(
+async function runClaimedTaskCodex(
   claimed: ClaimedDevelopmentTask,
-  workspace: PreparedDevelopmentTaskCodexWorkspace,
-  project: typeof projects.$inferSelect
-): Promise<DevelopmentTaskRepositoryCheckoutResult> {
-  await recordDevelopmentTaskEvent({
-    taskId: claimed.task.id,
+  plan: ReturnType<typeof buildDevelopmentTaskCodexPlan>,
+  workspace: Awaited<ReturnType<typeof prepareDevelopmentTaskCodexWorkspace>>,
+  metadata: Record<string, unknown>
+) {
+  await updateDevelopmentTaskRun({
     runId: claimed.run.id,
-    kind: "repository.checkout.started",
-    summary: "Started checking out the development task repository.",
+    status: "coding",
     metadata: {
-      repoFullName: claimed.task.repoFullName,
-      branch: claimed.task.baseBranch,
-      repoPath: workspace.repoPath
+      ...metadata,
+      codexExecution: {
+        status: "started",
+        logPath: `${workspace.logsPath}/codex-exec.jsonl`
+      }
     }
   });
 
-  const checkout = await repositoryCheckout({
-    task: claimed.task,
-    run: claimed.run,
-    project,
-    repoPath: workspace.repoPath,
-    artifactsPath: workspace.artifactsPath,
+  const execution = await codexExecution({
+    plan,
+    workspace,
     onLog: (line) => {
-      console.log(`[development-task-worker:${line.stream}] ${line.message}`);
+      console.log(`[development-task-codex:${line.stream}] ${line.message}`);
     }
-  }).catch((err: unknown): DevelopmentTaskRepositoryCheckoutResult => {
+  }).catch((err: unknown): DevelopmentTaskCodexExecutionResult => {
     return {
       status: "failed",
-      repoPath: workspace.repoPath,
+      exitCode: 1,
+      logPath: `${workspace.logsPath}/codex-exec.jsonl`,
       errorMessage: err instanceof Error ? err.message : String(err)
     };
   });
 
-  if (checkout.status !== "ok") {
+  if (execution.status !== "ok") {
     await updateDevelopmentTaskRun({
       runId: claimed.run.id,
       status: "failed",
-      failureCategory: "repository_checkout_failed",
-      failureMessage: checkout.errorMessage ?? "Repository checkout failed.",
+      failureCategory: "codex_execution_failed",
+      failureMessage: execution.errorMessage ?? "Codex execution failed.",
       metadata: {
-        ...readRecord(claimed.run.metadata),
-        codexWorkspace: workspace,
-        repositoryCheckout: checkout
+        ...metadata,
+        codexExecution: execution
       }
     });
-    return checkout;
+    return;
   }
 
-  await recordDevelopmentTaskEvent({
-    taskId: claimed.task.id,
+  await updateDevelopmentTaskRun({
     runId: claimed.run.id,
-    kind: "repository.checkout.completed",
-    summary: "Checked out the development task repository.",
+    status: "validating",
     metadata: {
-      repoFullName: checkout.displayLabel ?? claimed.task.repoFullName,
-      branch: checkout.branch ?? claimed.task.baseBranch,
-      repoPath: checkout.repoPath
+      ...metadata,
+      codexExecution: execution
     }
   });
-
-  return checkout;
 }
 
-export function setDevelopmentTaskRepositoryCheckoutForTests(
-  next: typeof checkoutDevelopmentTaskRepository
-) {
-  repositoryCheckout = next;
+export function setDevelopmentTaskCodexExecutionForTests(next: typeof executeDevelopmentTaskCodex) {
+  codexExecution = next;
 }
 
-export function resetDevelopmentTaskRepositoryCheckoutForTests() {
-  repositoryCheckout = checkoutDevelopmentTaskRepository;
+export function resetDevelopmentTaskCodexExecutionForTests() {
+  codexExecution = executeDevelopmentTaskCodex;
 }
 
 export function startDevelopmentTaskWorker(): void {
@@ -276,3 +274,8 @@ export function stopDevelopmentTaskWorker(): void {
   running = false;
   console.log("[development-task-worker] Worker stopping");
 }
+
+export {
+  resetDevelopmentTaskRepositoryCheckoutForTests,
+  setDevelopmentTaskRepositoryCheckoutForTests
+} from "./development-task-worker-repository";
