@@ -176,7 +176,8 @@ export default function ProjectDetailPage() {
             projectId: project.id,
             defaultBranch: input.defaultBranch,
             autoDeploy: input.autoDeploy,
-            autoDeployBranch: input.autoDeployBranch
+            autoDeployBranch: input.autoDeployBranch,
+            repositoryCredential: input.repositoryCredential
           });
         }}
       />

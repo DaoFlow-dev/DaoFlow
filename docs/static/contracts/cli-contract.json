@@ -1677,6 +1677,46 @@
           "required": false
         },
         {
+          "flags": "--repo-credential-kind <kind>",
+          "description": "Repository credential kind",
+          "required": false
+        },
+        {
+          "flags": "--repo-credential-username <username>",
+          "description": "Repository credential username",
+          "required": false
+        },
+        {
+          "flags": "--repo-credential-token-env <env>",
+          "description": "Read repository token from an env var",
+          "required": false
+        },
+        {
+          "flags": "--repo-credential-token-file <path>",
+          "description": "Read repository token from a file",
+          "required": false
+        },
+        {
+          "flags": "--repo-credential-password-env <env>",
+          "description": "Read repository password from an env var",
+          "required": false
+        },
+        {
+          "flags": "--repo-credential-password-file <path>",
+          "description": "Read repository password from a file",
+          "required": false
+        },
+        {
+          "flags": "--repo-credential-ssh-key-env <env>",
+          "description": "Read repository SSH key from an env var",
+          "required": false
+        },
+        {
+          "flags": "--repo-credential-ssh-key-file <path>",
+          "description": "Read repository SSH key from a file",
+          "required": false
+        },
+        {
           "flags": "--dry-run",
           "description": "Preview the project payload without mutating",
           "required": false

@@ -8,7 +8,7 @@ Deploy applications by building from a Dockerfile in a Git repository.
 
 ## How It Works
 
-1. DaoFlow clones the Git repository on the target server
+1. DaoFlow resolves the project repository credentials and clones the Git repository
 2. Builds the Docker image using the specified Dockerfile
 3. Starts the container with the configured settings
 4. Monitors health and records the outcome
@@ -35,6 +35,10 @@ The build follows these steps:
 | Build    | `docker build -t <tag> -f Dockerfile .`          |
 | Start    | `docker run` with configured ports, env, volumes |
 | Health   | Run health checks                                |
+
+Dockerfile deployments use the same credential-aware checkout path as Compose deployments. Generic
+HTTPS token/basic credentials are passed through temporary Git headers, and SSH deploy keys are
+written to temporary key files during clone and then cleaned up.
 
 ## Multi-Stage Builds
 

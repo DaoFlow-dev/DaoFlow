@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { generateKeyPairSync } from "node:crypto";
 import { db } from "../db/connection";
 import { gitInstallations, gitProviders } from "../db/schema/git-providers";
+import { projects, repositoryCredentials } from "../db/schema/projects";
 import { encodeGitInstallationPermissions } from "../db/services/git-providers";
 import { encrypt } from "../db/crypto";
 import { resetTestDatabaseWithControlPlane } from "../test-db";
@@ -34,6 +35,100 @@ describe("resolveCheckoutSpec", () => {
       },
       requiresLocalMaterialization: false
     });
+  });
+
+  it("adds encrypted HTTPS token credentials to generic checkout specs", async () => {
+    const projectId = `proj_${Date.now()}`.slice(0, 32);
+    await db.insert(projects).values({
+      id: projectId,
+      name: `Private ${Date.now()}`,
+      teamId: "team_foundation",
+      repoUrl: "https://example.com/org/private.git",
+      updatedAt: new Date()
+    });
+    await db.insert(repositoryCredentials).values({
+      id: `repo_cred_${Date.now()}`.slice(0, 32),
+      projectId,
+      kind: "https_token",
+      tokenEncrypted: encrypt("repo-token"),
+      status: "active",
+      updatedAt: new Date()
+    });
+
+    const spec = await resolveCheckoutSpec({
+      projectId,
+      repoUrl: "https://example.com/org/private.git",
+      branch: "main"
+    });
+
+    expect(spec?.gitConfig).toEqual([
+      { key: "http.extraHeader", value: "Authorization: Bearer repo-token" }
+    ]);
+    expect(spec?.repoUrl).toBe("https://example.com/org/private.git");
+  });
+
+  it("adds encrypted HTTPS basic credentials to generic checkout specs", async () => {
+    const projectId = `proj_${Date.now()}`.slice(0, 32);
+    await db.insert(projects).values({
+      id: projectId,
+      name: `Private Basic ${Date.now()}`,
+      teamId: "team_foundation",
+      repoUrl: "https://example.com/org/basic.git",
+      updatedAt: new Date()
+    });
+    await db.insert(repositoryCredentials).values({
+      id: `repo_cred_${Date.now()}`.slice(0, 32),
+      projectId,
+      kind: "https_basic",
+      usernameEncrypted: encrypt("deploy"),
+      passwordEncrypted: encrypt("repo-password"),
+      status: "active",
+      updatedAt: new Date()
+    });
+
+    const spec = await resolveCheckoutSpec({
+      projectId,
+      repoUrl: "https://example.com/org/basic.git",
+      branch: "main"
+    });
+
+    expect(spec?.gitConfig).toEqual([
+      {
+        key: "http.extraHeader",
+        value: `Authorization: Basic ${Buffer.from("deploy:repo-password").toString("base64")}`
+      }
+    ]);
+    expect(spec?.repoUrl).toBe("https://example.com/org/basic.git");
+  });
+
+  it("adds encrypted SSH keys to generic checkout specs", async () => {
+    const projectId = `proj_${Date.now()}`.slice(0, 32);
+    const privateKey =
+      "-----BEGIN OPENSSH PRIVATE KEY-----\nabc\n-----END OPENSSH PRIVATE KEY-----";
+    await db.insert(projects).values({
+      id: projectId,
+      name: `Private SSH ${Date.now()}`,
+      teamId: "team_foundation",
+      repoUrl: "git@example.com:org/private.git",
+      updatedAt: new Date()
+    });
+    await db.insert(repositoryCredentials).values({
+      id: `repo_cred_${Date.now()}`.slice(0, 32),
+      projectId,
+      kind: "ssh_key",
+      privateKeyEncrypted: encrypt(privateKey),
+      status: "active",
+      updatedAt: new Date()
+    });
+
+    const spec = await resolveCheckoutSpec({
+      projectId,
+      repoUrl: "git@example.com:org/private.git",
+      branch: "main"
+    });
+
+    expect(spec?.gitConfig).toEqual([]);
+    expect(spec?.sshPrivateKey).toBe(privateKey);
   });
 
   it("forces local materialization when repository preparation requires submodules or Git LFS", async () => {

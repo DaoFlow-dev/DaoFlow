@@ -1152,6 +1152,32 @@ export interface DaoFlowTRPC {
       defaultBranch?: string;
       autoDeploy?: boolean;
       autoDeployBranch?: string;
+      repositoryCredential?:
+        | { kind: "https_token"; token: string; username?: string | null }
+        | { kind: "https_basic"; username: string; password: string }
+        | { kind: "ssh_key"; privateKey: string }
+        | null;
+    },
+    ProjectMutationOutput
+  >;
+  updateProject: MutationProcedure<
+    {
+      projectId: string;
+      name?: string;
+      description?: string;
+      repoUrl?: string;
+      repoFullName?: string;
+      composePath?: string;
+      composeFiles?: string[];
+      composeProfiles?: string[];
+      defaultBranch?: string;
+      autoDeploy?: boolean;
+      autoDeployBranch?: string;
+      repositoryCredential?:
+        | { kind: "https_token"; token: string; username?: string | null }
+        | { kind: "https_basic"; username: string; password: string }
+        | { kind: "ssh_key"; privateKey: string }
+        | null;
     },
     ProjectMutationOutput
   >;

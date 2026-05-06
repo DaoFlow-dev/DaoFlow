@@ -32,6 +32,14 @@ function safeGitConfigFileName(runId: string) {
   return `${runId}.gitconfig`;
 }
 
+function safeGitSshKeyFileName(runId: string) {
+  if (!/^[A-Za-z0-9_-]+$/.test(runId)) {
+    throw new Error("Run id must be a safe path segment.");
+  }
+
+  return `${runId}.git_ssh_key`;
+}
+
 async function writeGitConfigFile(
   artifactsPath: string,
   runId: string,
@@ -57,6 +65,17 @@ async function writeGitConfigFile(
   return configPath;
 }
 
+async function writeGitSshKeyFile(artifactsPath: string, runId: string, privateKey?: string) {
+  if (!privateKey?.trim()) {
+    return null;
+  }
+
+  const keyPath = path.join(artifactsPath, safeGitSshKeyFileName(runId));
+  await writeFile(keyPath, `${privateKey.trim()}\n`, { mode: 0o600 });
+  await chmod(keyPath, 0o600);
+  return keyPath;
+}
+
 export function buildDevelopmentTaskCheckoutConfig(input: {
   task: typeof developmentTasks.$inferSelect;
   project: typeof projects.$inferSelect;
@@ -64,6 +83,7 @@ export function buildDevelopmentTaskCheckoutConfig(input: {
   const projectConfig = asRecord(input.project.config);
 
   return {
+    projectId: input.project.id,
     repoUrl: input.project.repoUrl ?? undefined,
     repoFullName: input.task.repoFullName ?? input.project.repoFullName ?? undefined,
     gitProviderId: input.project.gitProviderId ?? undefined,
@@ -101,7 +121,19 @@ export async function checkoutDevelopmentTaskRepository(input: {
     input.run.id,
     checkout.gitConfig
   );
-  const envOverrides = gitConfigPath ? { GIT_CONFIG_GLOBAL: gitConfigPath } : undefined;
+  const gitSshKeyPath = await writeGitSshKeyFile(
+    input.artifactsPath,
+    input.run.id,
+    checkout.sshPrivateKey
+  );
+  const envOverrides = {
+    ...(gitConfigPath ? { GIT_CONFIG_GLOBAL: gitConfigPath } : {}),
+    ...(gitSshKeyPath
+      ? {
+          GIT_SSH_COMMAND: `ssh -i ${gitSshKeyPath} -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new`
+        }
+      : {})
+  };
 
   try {
     input.onLog({
@@ -125,7 +157,7 @@ export async function checkoutDevelopmentTaskRepository(input: {
       ],
       input.repoPath,
       input.onLog,
-      envOverrides
+      Object.keys(envOverrides).length > 0 ? envOverrides : undefined
     );
     if (clone.exitCode !== 0) {
       return {
@@ -165,6 +197,9 @@ export async function checkoutDevelopmentTaskRepository(input: {
   } finally {
     if (gitConfigPath) {
       await rm(gitConfigPath, { force: true });
+    }
+    if (gitSshKeyPath) {
+      await rm(gitSshKeyPath, { force: true });
     }
   }
 }

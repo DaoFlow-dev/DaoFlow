@@ -1,4 +1,5 @@
 import type { AppRole } from "@daoflow/shared";
+import type { RepositoryCredentialInput } from "./repository-credentials";
 
 export interface CreateProjectInput {
   name: string;
@@ -16,6 +17,7 @@ export interface CreateProjectInput {
   webhookWatchedPaths?: string[];
   repositorySubmodules?: boolean;
   repositoryGitLfs?: boolean;
+  repositoryCredential?: RepositoryCredentialInput | null;
   teamId: string;
   requestedByUserId: string;
   requestedByEmail: string;
@@ -40,6 +42,7 @@ export interface UpdateProjectInput {
   webhookWatchedPaths?: string[];
   repositorySubmodules?: boolean;
   repositoryGitLfs?: boolean;
+  repositoryCredential?: RepositoryCredentialInput | null;
   requestedByUserId: string;
   requestedByEmail: string;
   requestedByRole: AppRole;

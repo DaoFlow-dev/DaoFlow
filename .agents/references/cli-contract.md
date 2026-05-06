@@ -332,6 +332,13 @@ This file holds the detailed CLI contract, scope map, and agent-facing command r
 - `daoflow projects show <project-id>` reads one scoped project plus its environments
 - `daoflow projects create --dry-run` must return a local preview and exit with code `3`
 - `daoflow projects create --yes` writes through `createProject` and requires `deploy:start`
+- `daoflow projects create` supports generic private repository credentials with:
+  - `--repo-credential-kind <https-token|https-basic|ssh-key>`
+  - `--repo-credential-username <username>` for HTTPS token username overrides and HTTPS basic auth
+  - `--repo-credential-token-env <env>` or `--repo-credential-token-file <path>`
+  - `--repo-credential-password-env <env>` or `--repo-credential-password-file <path>`
+  - `--repo-credential-ssh-key-env <env>` or `--repo-credential-ssh-key-file <path>`
+- Repository credential dry-runs and success responses must never print token, password, or private-key material.
 - `daoflow projects delete --dry-run` must return a local preview and exit with code `3`
 - `daoflow projects delete --yes` writes through `deleteProject` and requires `service:update`
 - `daoflow projects env list --project <id>` reads scoped environments for the project and requires `deploy:read`

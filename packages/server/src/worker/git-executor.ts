@@ -18,6 +18,7 @@ type ExecRunner = typeof execStreaming;
 export interface GitCloneOptions {
   displayLabel?: string;
   gitConfig?: Array<{ key: string; value: string }>;
+  sshPrivateKey?: string;
   repositoryPreparation?: RepositoryPreparationConfig;
   commitSha?: string;
 }
@@ -60,6 +61,16 @@ function writeGitConfigFile(
   return configPath;
 }
 
+function writeGitSshKeyFile(deploymentId: string, privateKey: string | undefined): string | null {
+  if (!privateKey?.trim()) {
+    return null;
+  }
+
+  const keyPath = join(STAGING_DIR, `${deploymentId}.git_ssh_key`);
+  writeFileSync(keyPath, `${privateKey.trim()}\n`, { mode: 0o600 });
+  return keyPath;
+}
+
 export { prepareClonedRepository } from "./git-repository-preparation";
 
 /**
@@ -69,6 +80,7 @@ export function cleanupStagingDir(deploymentId: string): void {
   const dir = join(STAGING_DIR, deploymentId);
   const archivePath = getStagingArchivePath(deploymentId);
   const gitConfigPath = join(STAGING_DIR, `${deploymentId}.gitconfig`);
+  const gitSshKeyPath = join(STAGING_DIR, `${deploymentId}.git_ssh_key`);
   try {
     if (existsSync(dir)) {
       rmSync(dir, { recursive: true, force: true });
@@ -78,6 +90,9 @@ export function cleanupStagingDir(deploymentId: string): void {
     }
     if (existsSync(gitConfigPath)) {
       rmSync(gitConfigPath, { force: true });
+    }
+    if (existsSync(gitSshKeyPath)) {
+      rmSync(gitSshKeyPath, { force: true });
     }
   } catch {
     /* best effort cleanup */
@@ -98,7 +113,16 @@ export async function gitClone(
   const workDir = ensureStagingDir(deploymentId);
   const displayLabel = options?.displayLabel ?? repoUrl;
   const gitConfigPath = writeGitConfigFile(deploymentId, options?.gitConfig ?? []);
+  const gitSshKeyPath = writeGitSshKeyFile(deploymentId, options?.sshPrivateKey);
   const commitSha = options?.commitSha?.trim();
+  const gitEnv = {
+    ...(gitConfigPath ? { GIT_CONFIG_GLOBAL: gitConfigPath } : {}),
+    ...(gitSshKeyPath
+      ? {
+          GIT_SSH_COMMAND: `ssh -i ${gitSshKeyPath} -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new`
+        }
+      : {})
+  };
 
   onLog({
     stream: "stdout",
@@ -111,7 +135,7 @@ export async function gitClone(
     ["clone", "--depth", "1", "--branch", branch, "--single-branch", "--", repoUrl, "."],
     workDir,
     onLog,
-    gitConfigPath ? { GIT_CONFIG_GLOBAL: gitConfigPath } : undefined
+    Object.keys(gitEnv).length > 0 ? gitEnv : undefined
   );
 
   if (result.exitCode !== 0) {

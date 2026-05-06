@@ -73,6 +73,28 @@ export const environments = pgTable(
   ]
 );
 
+export const repositoryCredentials = pgTable(
+  "repository_credentials",
+  {
+    id: varchar("id", { length: 32 }).primaryKey(),
+    projectId: varchar("project_id", { length: 32 })
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    kind: varchar("kind", { length: 20 }).notNull(), // https_token | https_basic | ssh_key
+    usernameEncrypted: text("username_encrypted"),
+    passwordEncrypted: text("password_encrypted"),
+    tokenEncrypted: text("token_encrypted"),
+    privateKeyEncrypted: text("private_key_encrypted"),
+    status: varchar("status", { length: 20 }).default("active").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull()
+  },
+  (table) => [
+    index("repository_credentials_project_idx").on(table.projectId),
+    index("repository_credentials_project_status_idx").on(table.projectId, table.status)
+  ]
+);
+
 export const environmentVariables = pgTable(
   "environment_variables",
   {
@@ -129,5 +151,12 @@ export const environmentVariablesRelations = relations(environmentVariables, ({ 
   updatedByUser: one(users, {
     fields: [environmentVariables.updatedByUserId],
     references: [users.id]
+  })
+}));
+
+export const repositoryCredentialsRelations = relations(repositoryCredentials, ({ one }) => ({
+  project: one(projects, {
+    fields: [repositoryCredentials.projectId],
+    references: [projects.id]
   })
 }));

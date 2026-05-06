@@ -6,6 +6,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { GitBranch, ExternalLink, Copy, RefreshCw, Save } from "lucide-react";
+import {
+  ProjectGitCredentialFields,
+  type RepositoryCredentialDraftKind
+} from "./ProjectGitCredentialFields";
+
+type RepositoryCredentialInput =
+  | { kind: "https_token"; token: string; username?: string }
+  | { kind: "https_basic"; username: string; password: string }
+  | { kind: "ssh_key"; privateKey: string }
+  | null;
 
 interface ProjectGitCardProps {
   config: Record<string, unknown>;
@@ -20,6 +30,7 @@ interface ProjectGitCardProps {
     defaultBranch: string;
     autoDeploy: boolean;
     autoDeployBranch: string;
+    repositoryCredential?: RepositoryCredentialInput;
   }) => void;
 }
 
@@ -44,6 +55,11 @@ export function ProjectGitCard({
   const [draftBranch, setDraftBranch] = useState(branch);
   const [draftAutoDeploy, setDraftAutoDeploy] = useState(autoDeploy);
   const [draftDeployBranch, setDraftDeployBranch] = useState(deployBranch);
+  const [credentialKind, setCredentialKind] = useState<RepositoryCredentialDraftKind>("unchanged");
+  const [credentialUsername, setCredentialUsername] = useState("");
+  const [credentialToken, setCredentialToken] = useState("");
+  const [credentialPassword, setCredentialPassword] = useState("");
+  const [credentialPrivateKey, setCredentialPrivateKey] = useState("");
   const provider =
     typeof config.gitProvider === "string"
       ? config.gitProvider
@@ -62,16 +78,68 @@ export function ProjectGitCard({
     () =>
       trimmedBranch !== branch ||
       draftAutoDeploy !== autoDeploy ||
-      trimmedDeployBranch !== deployBranch,
-    [autoDeploy, branch, deployBranch, draftAutoDeploy, trimmedBranch, trimmedDeployBranch]
+      trimmedDeployBranch !== deployBranch ||
+      credentialKind !== "unchanged",
+    [
+      autoDeploy,
+      branch,
+      credentialKind,
+      deployBranch,
+      draftAutoDeploy,
+      trimmedBranch,
+      trimmedDeployBranch
+    ]
   );
+  const repositoryCredential = useMemo<RepositoryCredentialInput | undefined>(() => {
+    if (credentialKind === "unchanged") return undefined;
+    if (credentialKind === "clear") return null;
+    if (credentialKind === "https_token" && credentialToken.trim()) {
+      return {
+        kind: "https_token",
+        token: credentialToken,
+        username: credentialUsername.trim() || undefined
+      };
+    }
+    if (
+      credentialKind === "https_basic" &&
+      credentialUsername.trim() &&
+      credentialPassword.trim()
+    ) {
+      return {
+        kind: "https_basic",
+        username: credentialUsername,
+        password: credentialPassword
+      };
+    }
+    if (credentialKind === "ssh_key" && credentialPrivateKey.trim()) {
+      return { kind: "ssh_key", privateKey: credentialPrivateKey };
+    }
+    return undefined;
+  }, [
+    credentialKind,
+    credentialPassword,
+    credentialPrivateKey,
+    credentialToken,
+    credentialUsername
+  ]);
+  const credentialIncomplete = credentialKind !== "unchanged" && repositoryCredential === undefined;
   const saveDisabled =
-    !onSaveSettings || isSaving || !trimmedBranch || !trimmedDeployBranch || !settingsChanged;
+    !onSaveSettings ||
+    isSaving ||
+    !trimmedBranch ||
+    !trimmedDeployBranch ||
+    !settingsChanged ||
+    credentialIncomplete;
 
   useEffect(() => {
     setDraftBranch(branch);
     setDraftAutoDeploy(autoDeploy);
     setDraftDeployBranch(deployBranch);
+    setCredentialKind("unchanged");
+    setCredentialUsername("");
+    setCredentialToken("");
+    setCredentialPassword("");
+    setCredentialPrivateKey("");
   }, [autoDeploy, branch, deployBranch]);
 
   const saveSettings = () => {
@@ -81,7 +149,8 @@ export function ProjectGitCard({
     onSaveSettings?.({
       defaultBranch: trimmedBranch,
       autoDeploy: draftAutoDeploy,
-      autoDeployBranch: trimmedDeployBranch
+      autoDeployBranch: trimmedDeployBranch,
+      ...(credentialKind !== "unchanged" ? { repositoryCredential } : {})
     });
   };
 
@@ -101,7 +170,6 @@ export function ProjectGitCard({
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
-        {/* Repo URL */}
         <div className="flex items-center justify-between gap-2">
           <div className="min-w-0 flex-1">
             <p className="text-xs text-muted-foreground mb-0.5">Repository</p>
@@ -129,7 +197,6 @@ export function ProjectGitCard({
           </div>
         </div>
 
-        {/* Branch + SHA row */}
         <div className="flex items-center gap-4">
           <div>
             <p className="text-xs text-muted-foreground mb-0.5">Branch</p>
@@ -190,6 +257,20 @@ export function ProjectGitCard({
                   Auto-deploy
                 </Label>
               </div>
+            </div>
+            <ProjectGitCredentialFields
+              credentialKind={credentialKind}
+              credentialUsername={credentialUsername}
+              credentialToken={credentialToken}
+              credentialPassword={credentialPassword}
+              credentialPrivateKey={credentialPrivateKey}
+              onCredentialKind={setCredentialKind}
+              onCredentialUsername={setCredentialUsername}
+              onCredentialToken={setCredentialToken}
+              onCredentialPassword={setCredentialPassword}
+              onCredentialPrivateKey={setCredentialPrivateKey}
+            />
+            <div className="flex justify-end">
               <Button
                 size="sm"
                 variant="outline"

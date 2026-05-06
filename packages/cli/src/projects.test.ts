@@ -40,6 +40,8 @@ describe("projects command", () => {
     }
 
     globalThis.fetch = originalFetch;
+    delete process.env.DAOFLOW_REPO_TOKEN;
+    delete process.env.DAOFLOW_REPO_PASSWORD;
     rmSync(homeDir, { recursive: true, force: true });
   });
 
@@ -87,6 +89,136 @@ describe("projects command", () => {
         composeProfiles: [],
         autoDeploy: false
       }
+    });
+  });
+
+  test("projects create dry-run redacts repository credential secrets", async () => {
+    process.env.DAOFLOW_REPO_TOKEN = "secret-token-value";
+    const program = createProgram();
+
+    const result = await captureCommandExecution(async () => {
+      await program.parseAsync([
+        "node",
+        "daoflow",
+        "projects",
+        "create",
+        "--name",
+        "private-demo",
+        "--repo-url",
+        "https://github.com/acme/private-demo",
+        "--repo-credential-kind",
+        "https-token",
+        "--repo-credential-token-env",
+        "DAOFLOW_REPO_TOKEN",
+        "--dry-run",
+        "--json"
+      ]);
+    });
+
+    delete process.env.DAOFLOW_REPO_TOKEN;
+
+    expect(result.exitCode).toBe(3);
+    expect(result.errors).toEqual([]);
+    expect(result.logs[0]).not.toContain("secret-token-value");
+    expect(JSON.parse(result.logs[0])).toEqual({
+      ok: true,
+      data: {
+        dryRun: true,
+        name: "private-demo",
+        repoUrl: "https://github.com/acme/private-demo",
+        composeFiles: [],
+        composeProfiles: [],
+        autoDeploy: false,
+        repositoryCredential: { kind: "https_token" }
+      }
+    });
+  });
+
+  test("projects create sends repository credentials from env to the API", async () => {
+    process.env.DAOFLOW_REPO_PASSWORD = "secret-password";
+    let requestBody = "";
+    globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
+      const url =
+        typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+      expect(url).toContain("/trpc/createProject");
+      const body = init?.body;
+      requestBody =
+        typeof body === "string" ? body : body instanceof URLSearchParams ? body.toString() : "";
+
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            result: {
+              data: {
+                id: "proj_private",
+                name: "Private Demo",
+                repoFullName: null,
+                repoUrl: "https://git.example.com/acme/private-demo.git",
+                status: "active"
+              }
+            }
+          }),
+          { headers: { "content-type": "application/json" } }
+        )
+      );
+    }) as unknown as typeof fetch;
+
+    const result = await captureCommandExecution(async () => {
+      await runCli([
+        "node",
+        "daoflow",
+        "projects",
+        "create",
+        "--name",
+        "Private Demo",
+        "--repo-url",
+        "https://git.example.com/acme/private-demo.git",
+        "--repo-credential-kind",
+        "https-basic",
+        "--repo-credential-username",
+        "deploy",
+        "--repo-credential-password-env",
+        "DAOFLOW_REPO_PASSWORD",
+        "--yes",
+        "--json"
+      ]);
+    });
+
+    delete process.env.DAOFLOW_REPO_PASSWORD;
+
+    expect(result.exitCode).toBeNull();
+    expect(result.errors).toEqual([]);
+    expect(JSON.parse(result.logs[0])).toEqual({
+      ok: true,
+      data: {
+        project: {
+          id: "proj_private",
+          name: "Private Demo",
+          repoFullName: null,
+          repoUrl: "https://git.example.com/acme/private-demo.git",
+          status: "active"
+        }
+      }
+    });
+    expect(requestBody).toContain("secret-password");
+    function findRepositoryCredential(value: unknown): unknown {
+      if (!value || typeof value !== "object") {
+        return undefined;
+      }
+      if ("repositoryCredential" in value) {
+        return (value as { repositoryCredential?: unknown }).repositoryCredential;
+      }
+      for (const child of Object.values(value)) {
+        const found = findRepositoryCredential(child);
+        if (found) return found;
+      }
+      return undefined;
+    }
+
+    expect(findRepositoryCredential(JSON.parse(requestBody))).toEqual({
+      kind: "https_basic",
+      username: "deploy",
+      password: "secret-password"
     });
   });
 

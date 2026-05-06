@@ -12,6 +12,10 @@ import { findScopedProject } from "./project-scoped-queries";
 import { toSlug } from "./project-service-helpers";
 import type { CreateProjectInput, UpdateProjectInput } from "./project-service-types";
 import {
+  replaceProjectRepositoryCredential,
+  sanitizeRepositoryCredentialInput
+} from "./repository-credentials";
+import {
   normalizeComposeFilePaths,
   normalizeComposeProfiles,
   writeComposeSourceSelectionToConfig
@@ -95,6 +99,13 @@ export async function createProject(input: CreateProjectInput) {
     })
     .returning();
 
+  if (input.repositoryCredential !== undefined) {
+    await replaceProjectRepositoryCredential({
+      projectId,
+      credential: input.repositoryCredential
+    });
+  }
+
   await db.insert(auditEntries).values({
     actorType: "user",
     actorId: input.requestedByUserId,
@@ -105,7 +116,12 @@ export async function createProject(input: CreateProjectInput) {
     inputSummary: `Created project "${input.name}"`,
     permissionScope: "service:update",
     outcome: "success",
-    metadata: { resourceType: "project", resourceId: projectId, resourceLabel: input.name }
+    metadata: {
+      resourceType: "project",
+      resourceId: projectId,
+      resourceLabel: input.name,
+      repositoryCredential: sanitizeRepositoryCredentialInput(input.repositoryCredential)
+    }
   });
 
   return { status: "ok" as const, project };
@@ -133,7 +149,8 @@ export async function updateProject(input: UpdateProjectInput) {
     input.defaultBranch !== undefined ||
     input.composePath !== undefined ||
     input.composeFiles !== undefined ||
-    input.composeProfiles !== undefined;
+    input.composeProfiles !== undefined ||
+    input.repositoryCredential !== undefined;
   const repositoryPreparationTouched =
     input.repositorySubmodules !== undefined || input.repositoryGitLfs !== undefined;
   const webhookAutoDeployTouched =
@@ -257,6 +274,13 @@ export async function updateProject(input: UpdateProjectInput) {
     .where(eq(projects.id, input.projectId))
     .returning();
 
+  if (input.repositoryCredential !== undefined) {
+    await replaceProjectRepositoryCredential({
+      projectId: input.projectId,
+      credential: input.repositoryCredential
+    });
+  }
+
   await db.insert(auditEntries).values({
     actorType: "user",
     actorId: input.requestedByUserId,
@@ -267,7 +291,11 @@ export async function updateProject(input: UpdateProjectInput) {
     inputSummary: `Updated project "${project.name}"`,
     permissionScope: "service:update",
     outcome: "success",
-    metadata: { resourceType: "project", resourceId: input.projectId }
+    metadata: {
+      resourceType: "project",
+      resourceId: input.projectId,
+      repositoryCredential: sanitizeRepositoryCredentialInput(input.repositoryCredential)
+    }
   });
 
   return { status: "ok" as const, project };

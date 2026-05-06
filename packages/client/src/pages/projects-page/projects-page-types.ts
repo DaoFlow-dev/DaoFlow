@@ -2,6 +2,11 @@ export interface NewProjectDraft {
   name: string;
   description: string;
   repoUrl: string;
+  repositoryCredentialKind: "none" | "https_token" | "https_basic" | "ssh_key";
+  repositoryCredentialUsername: string;
+  repositoryCredentialToken: string;
+  repositoryCredentialPassword: string;
+  repositoryCredentialPrivateKey: string;
 }
 
 export interface ProjectsPageProject {

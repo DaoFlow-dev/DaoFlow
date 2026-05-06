@@ -85,6 +85,41 @@ daoflow projects create \
   --yes --json
 ```
 
+Private generic repositories can attach an encrypted credential without putting secrets in the
+repository URL. Prefer file or environment inputs so tokens and keys do not land in shell history.
+
+```bash
+# HTTPS token
+DAOFLOW_REPO_TOKEN=ghp_redacted \
+daoflow projects create \
+  --name private-demo \
+  --repo-url https://github.com/acme/private-demo \
+  --repo-credential-kind https-token \
+  --repo-credential-token-env DAOFLOW_REPO_TOKEN \
+  --yes
+
+# HTTPS basic auth
+DAOFLOW_REPO_PASSWORD=redacted \
+daoflow projects create \
+  --name basic-demo \
+  --repo-url https://git.example.com/acme/basic-demo.git \
+  --repo-credential-kind https-basic \
+  --repo-credential-username deploy \
+  --repo-credential-password-env DAOFLOW_REPO_PASSWORD \
+  --yes
+
+# SSH deploy key
+daoflow projects create \
+  --name ssh-demo \
+  --repo-url git@git.example.com:acme/ssh-demo.git \
+  --repo-credential-kind ssh-key \
+  --repo-credential-ssh-key-file ./deploy-key.pem \
+  --yes
+```
+
+Dry-run output only shows the credential kind. It does not print token, password, or private-key
+material.
+
 ## Delete A Project
 
 ```bash

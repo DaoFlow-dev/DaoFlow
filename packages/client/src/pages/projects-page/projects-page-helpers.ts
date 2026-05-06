@@ -3,7 +3,12 @@ import type { NewProjectDraft, ProjectsPageProject, ProjectsSortBy } from "./pro
 export const DEFAULT_NEW_PROJECT: NewProjectDraft = {
   name: "",
   description: "",
-  repoUrl: ""
+  repoUrl: "",
+  repositoryCredentialKind: "none",
+  repositoryCredentialUsername: "",
+  repositoryCredentialToken: "",
+  repositoryCredentialPassword: "",
+  repositoryCredentialPrivateKey: ""
 };
 
 export function filterProjects(

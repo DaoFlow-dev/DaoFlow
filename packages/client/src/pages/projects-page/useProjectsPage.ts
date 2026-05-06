@@ -91,13 +91,40 @@ export function useProjectsPage() {
     }
   });
 
+  const repositoryCredential = useMemo(
+    () =>
+      newProject.repositoryCredentialKind === "https_token" && newProject.repositoryCredentialToken
+        ? {
+            kind: "https_token" as const,
+            token: newProject.repositoryCredentialToken,
+            username: newProject.repositoryCredentialUsername || undefined
+          }
+        : newProject.repositoryCredentialKind === "https_basic" &&
+            newProject.repositoryCredentialUsername &&
+            newProject.repositoryCredentialPassword
+          ? {
+              kind: "https_basic" as const,
+              username: newProject.repositoryCredentialUsername,
+              password: newProject.repositoryCredentialPassword
+            }
+          : newProject.repositoryCredentialKind === "ssh_key" &&
+              newProject.repositoryCredentialPrivateKey
+            ? {
+                kind: "ssh_key" as const,
+                privateKey: newProject.repositoryCredentialPrivateKey
+              }
+            : undefined,
+    [newProject]
+  );
+
   const handleCreateProjectSubmit = useCallback(() => {
     createProject.mutate({
       name: newProject.name,
       description: newProject.description || undefined,
-      repoUrl: newProject.repoUrl || undefined
+      repoUrl: newProject.repoUrl || undefined,
+      ...(repositoryCredential ? { repositoryCredential } : {})
     });
-  }, [createProject, newProject]);
+  }, [createProject, newProject, repositoryCredential]);
 
   return {
     projectsQuery,

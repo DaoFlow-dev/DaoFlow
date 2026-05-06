@@ -78,6 +78,13 @@
       "when": 1778044479098,
       "tag": "0010_reflective_garia",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1778105704176,
+      "tag": "0011_fresh_nighthawk",
+      "breakpoints": true
     }
   ]
 }

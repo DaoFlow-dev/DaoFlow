@@ -18,6 +18,23 @@ import {
 } from "../trpc";
 import { requireActorTeamId } from "./command-admin-shared";
 
+const repositoryCredentialSchema = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("https_token"),
+    token: z.string().min(1).max(20_000),
+    username: z.string().max(200).optional()
+  }),
+  z.object({
+    kind: z.literal("https_basic"),
+    username: z.string().min(1).max(200),
+    password: z.string().min(1).max(20_000)
+  }),
+  z.object({
+    kind: z.literal("ssh_key"),
+    privateKey: z.string().min(1).max(50_000)
+  })
+]);
+
 export const adminServerProjectRouter = t.router({
   registerServer: serverWriteProcedure
     .input(
@@ -95,6 +112,7 @@ export const adminServerProjectRouter = t.router({
         webhookWatchedPaths: z.array(z.string().max(500)).max(50).optional(),
         repositorySubmodules: z.boolean().optional(),
         repositoryGitLfs: z.boolean().optional(),
+        repositoryCredential: repositoryCredentialSchema.nullable().optional(),
         teamId: z.string().min(1).optional()
       })
     )
@@ -145,7 +163,8 @@ export const adminServerProjectRouter = t.router({
         autoDeployBranch: z.string().max(120).optional(),
         webhookWatchedPaths: z.array(z.string().max(500)).max(50).optional(),
         repositorySubmodules: z.boolean().optional(),
-        repositoryGitLfs: z.boolean().optional()
+        repositoryGitLfs: z.boolean().optional(),
+        repositoryCredential: repositoryCredentialSchema.nullable().optional()
       })
     )
     .mutation(async ({ ctx, input }) => {

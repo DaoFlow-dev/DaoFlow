@@ -5,6 +5,10 @@ import { normalizeCliInput, normalizeOptionalCliInput } from "../command-helpers
 import { createClient } from "../trpc-client";
 import { renderProjectDetailsHuman, renderProjectListHuman } from "./projects-renderers";
 import {
+  buildRepositoryCredential,
+  summarizeRepositoryCredential
+} from "./projects-repository-credentials";
+import {
   collectValues,
   normalizeRepeatedValues,
   summarizeEnvironment,
@@ -83,6 +87,14 @@ export function registerProjectCommands(cmd: Command) {
     .option("--compose-profile <name>", "Compose profile override", collectValues, [])
     .option("--auto-deploy", "Enable webhook auto-deploy")
     .option("--auto-deploy-branch <branch>", "Auto-deploy branch")
+    .option("--repo-credential-kind <kind>", "Repository credential kind")
+    .option("--repo-credential-username <username>", "Repository credential username")
+    .option("--repo-credential-token-env <env>", "Read repository token from an env var")
+    .option("--repo-credential-token-file <path>", "Read repository token from a file")
+    .option("--repo-credential-password-env <env>", "Read repository password from an env var")
+    .option("--repo-credential-password-file <path>", "Read repository password from a file")
+    .option("--repo-credential-ssh-key-env <env>", "Read repository SSH key from an env var")
+    .option("--repo-credential-ssh-key-file <path>", "Read repository SSH key from a file")
     .option("--dry-run", "Preview the project payload without mutating")
     .option("-y, --yes", "Skip confirmation prompt")
     .option("--json", "Output as JSON")
@@ -99,6 +111,14 @@ export function registerProjectCommands(cmd: Command) {
           composeProfile?: string[];
           autoDeploy?: boolean;
           autoDeployBranch?: string;
+          repoCredentialKind?: string;
+          repoCredentialUsername?: string;
+          repoCredentialTokenEnv?: string;
+          repoCredentialTokenFile?: string;
+          repoCredentialPasswordEnv?: string;
+          repoCredentialPasswordFile?: string;
+          repoCredentialSshKeyEnv?: string;
+          repoCredentialSshKeyFile?: string;
           dryRun?: boolean;
           yes?: boolean;
           json?: boolean;
@@ -127,14 +147,16 @@ export function registerProjectCommands(cmd: Command) {
               autoDeployBranch: normalizeOptionalCliInput(
                 opts.autoDeployBranch,
                 "Auto-deploy branch"
-              )
+              ),
+              repositoryCredential: buildRepositoryCredential(opts)
             };
 
             if (opts.dryRun) {
               return ctx.dryRun(
                 {
                   dryRun: true,
-                  ...payload
+                  ...payload,
+                  repositoryCredential: summarizeRepositoryCredential(payload.repositoryCredential)
                 },
                 {
                   human: () => {
@@ -144,6 +166,9 @@ export function registerProjectCommands(cmd: Command) {
                     );
                     console.log(`  Branch:       ${payload.defaultBranch ?? "main"}`);
                     console.log(`  Auto-deploy:  ${payload.autoDeploy ? "enabled" : "disabled"}`);
+                    if (payload.repositoryCredential) {
+                      console.log(`  Credential:   ${payload.repositoryCredential.kind}`);
+                    }
                     if (payload.composeFiles.length > 0) {
                       console.log(`  Compose:      ${payload.composeFiles.join(", ")}`);
                     }
@@ -169,7 +194,8 @@ export function registerProjectCommands(cmd: Command) {
               ...payload,
               composeFiles: payload.composeFiles.length > 0 ? payload.composeFiles : undefined,
               composeProfiles:
-                payload.composeProfiles.length > 0 ? payload.composeProfiles : undefined
+                payload.composeProfiles.length > 0 ? payload.composeProfiles : undefined,
+              repositoryCredential: payload.repositoryCredential
             });
 
             return ctx.success(

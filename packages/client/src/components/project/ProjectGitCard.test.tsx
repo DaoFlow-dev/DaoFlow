@@ -60,4 +60,41 @@ describe("ProjectGitCard", () => {
     });
     expect(screen.getByRole("button", { name: "Save" })).toBeEnabled();
   });
+
+  it("saves a replacement HTTPS token credential without showing the secret", () => {
+    const onSaveSettings = vi.fn();
+
+    render(
+      <ProjectGitCard
+        config={{}}
+        repoUrl="https://github.com/DaoFlow-dev/private"
+        defaultBranch="main"
+        autoDeployBranch="main"
+        autoDeploy={false}
+        onSaveSettings={onSaveSettings}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("combobox", { name: "Repository Credential" }));
+    fireEvent.click(screen.getByRole("option", { name: "HTTPS token" }));
+    fireEvent.change(screen.getByTestId("project-git-credential-username"), {
+      target: { value: "x-access-token" }
+    });
+    fireEvent.change(screen.getByTestId("project-git-credential-token"), {
+      target: { value: "secret-token" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(onSaveSettings).toHaveBeenCalledWith({
+      defaultBranch: "main",
+      autoDeploy: false,
+      autoDeployBranch: "main",
+      repositoryCredential: {
+        kind: "https_token",
+        username: "x-access-token",
+        token: "secret-token"
+      }
+    });
+    expect(screen.queryByText("secret-token")).not.toBeInTheDocument();
+  });
 });

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -224,6 +224,39 @@ describe("gitClone", () => {
     } finally {
       cleanupStagingDir(deploymentId);
     }
+  });
+
+  it("writes SSH deploy keys only as temporary clone files and removes them during cleanup", async () => {
+    const collector = createLogCollector();
+    const deploymentId = "ssh-key-checkout";
+    const execRunner = vi.fn().mockResolvedValueOnce({ exitCode: 0, signal: null });
+    let keyPath: string | null = null;
+
+    try {
+      const result = await gitClone(
+        "git@example.com:org/repo.git",
+        "main",
+        deploymentId,
+        collector.onLog,
+        {
+          sshPrivateKey:
+            "-----BEGIN OPENSSH PRIVATE KEY-----\nabc\n-----END OPENSSH PRIVATE KEY-----"
+        },
+        execRunner
+      );
+
+      expect(result).toMatchObject({ exitCode: 0 });
+      const env = (execRunner.mock.calls[0] as Parameters<typeof execStreaming>[][number])[4];
+      expect(env?.GIT_SSH_COMMAND).toContain("-o IdentitiesOnly=yes");
+      const match = env?.GIT_SSH_COMMAND?.match(/-i ([^ ]+)/);
+      keyPath = match?.[1] ?? null;
+      expect(keyPath).toBeTruthy();
+      expect(existsSync(keyPath ?? "")).toBe(true);
+    } finally {
+      cleanupStagingDir(deploymentId);
+    }
+
+    expect(existsSync(keyPath ?? "")).toBe(false);
   });
 });
 

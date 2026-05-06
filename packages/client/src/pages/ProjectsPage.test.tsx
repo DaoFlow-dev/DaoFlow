@@ -143,6 +143,35 @@ describe("ProjectsPage", () => {
     expect(screen.getByTestId("projects-create-repo-url")).toHaveValue("");
   });
 
+  it("submits repository credentials from the create-project form", async () => {
+    renderProjectsPage("/projects?action=new");
+
+    fireEvent.change(await screen.findByTestId("projects-create-name"), {
+      target: { value: "Private Console" }
+    });
+    fireEvent.change(screen.getByTestId("projects-create-repo-url"), {
+      target: { value: "git@git.example.com:acme/private-console.git" }
+    });
+    fireEvent.click(screen.getByRole("combobox", { name: "Repository Credential" }));
+    fireEvent.click(screen.getByRole("option", { name: "SSH key" }));
+    fireEvent.change(screen.getByTestId("projects-create-repo-credential-ssh-key"), {
+      target: {
+        value: "-----BEGIN OPENSSH PRIVATE KEY-----\nsecret\n-----END OPENSSH PRIVATE KEY-----"
+      }
+    });
+    fireEvent.click(screen.getByTestId("projects-create-submit"));
+
+    expect(createProjectMutateMock).toHaveBeenCalledWith({
+      name: "Private Console",
+      repoUrl: "git@git.example.com:acme/private-console.git",
+      repositoryCredential: {
+        kind: "ssh_key",
+        privateKey: "-----BEGIN OPENSSH PRIVATE KEY-----\nsecret\n-----END OPENSSH PRIVATE KEY-----"
+      }
+    });
+    expect(screen.queryByText("secret")).not.toBeInTheDocument();
+  });
+
   it("navigates to the selected project from the rendered card list", () => {
     projectsUseQueryMock.mockReturnValue({
       data: [

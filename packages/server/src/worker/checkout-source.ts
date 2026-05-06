@@ -4,6 +4,7 @@ import { db } from "../db/connection";
 import { gitProviders } from "../db/schema/git-providers";
 import { getGitInstallation, readGitInstallationAccessToken } from "../db/services/git-providers";
 import { decrypt } from "../db/crypto";
+import { resolveActiveProjectRepositoryCredential } from "../db/services/repository-credentials";
 import type { ConfigSnapshot } from "./step-management";
 import {
   hasRepositoryPreparation,
@@ -21,6 +22,7 @@ export interface CheckoutSpec {
   branch: string;
   displayLabel: string;
   gitConfig: GitConfigEntry[];
+  sshPrivateKey?: string;
   repositoryPreparation: RepositoryPreparationConfig;
   requiresLocalMaterialization: boolean;
 }
@@ -31,6 +33,13 @@ function trimTrailingSlash(value: string): string {
 
 function toBase64(value: string): string {
   return Buffer.from(value, "utf8").toString("base64");
+}
+
+function authorizationHeader(value: string) {
+  return {
+    key: "http.extraHeader",
+    value
+  };
 }
 
 function toBase64Url(value: string): string {
@@ -135,10 +144,7 @@ async function resolveGitHubCheckoutSpec(config: ConfigSnapshot): Promise<Checko
     branch: config.branch ?? "main",
     displayLabel: repoFullName,
     gitConfig: [
-      {
-        key: "http.extraHeader",
-        value: `AUTHORIZATION: basic ${toBase64(`x-access-token:${tokenData.token}`)}`
-      }
+      authorizationHeader(`AUTHORIZATION: basic ${toBase64(`x-access-token:${tokenData.token}`)}`)
     ],
     repositoryPreparation,
     requiresLocalMaterialization: true
@@ -179,12 +185,7 @@ async function resolveGitLabCheckoutSpec(config: ConfigSnapshot): Promise<Checko
     repoUrl: buildGitLabRepoUrl(provider[0].baseUrl, repoFullName),
     branch: config.branch ?? "main",
     displayLabel: repoFullName,
-    gitConfig: [
-      {
-        key: "http.extraHeader",
-        value: `Authorization: Bearer ${accessToken}`
-      }
-    ],
+    gitConfig: [authorizationHeader(`Authorization: Bearer ${accessToken}`)],
     repositoryPreparation,
     requiresLocalMaterialization: true
   };
@@ -219,11 +220,46 @@ export async function resolveCheckoutSpec(config: ConfigSnapshot): Promise<Check
     return null;
   }
 
+  const credential = await resolveActiveProjectRepositoryCredential(config.projectId);
+  const credentialCheckout =
+    credential?.kind === "https_token"
+      ? {
+          gitConfig: [
+            authorizationHeader(
+              credential.username
+                ? `Authorization: Basic ${toBase64(`${credential.username}:${credential.token}`)}`
+                : `Authorization: Bearer ${credential.token}`
+            )
+          ],
+          sshPrivateKey: undefined
+        }
+      : credential?.kind === "https_basic"
+        ? {
+            gitConfig: [
+              authorizationHeader(
+                `Authorization: Basic ${toBase64(`${credential.username}:${credential.password}`)}`
+              )
+            ],
+            sshPrivateKey: undefined
+          }
+        : credential?.kind === "ssh_key"
+          ? {
+              gitConfig: [],
+              sshPrivateKey: credential.privateKey
+            }
+          : {
+              gitConfig: [],
+              sshPrivateKey: undefined
+            };
+
   return {
     repoUrl: config.repoUrl,
     branch: config.branch ?? "main",
     displayLabel: config.repoFullName ?? config.repoUrl,
-    gitConfig: [],
+    gitConfig: credentialCheckout.gitConfig,
+    ...(credentialCheckout.sshPrivateKey
+      ? { sshPrivateKey: credentialCheckout.sshPrivateKey }
+      : {}),
     repositoryPreparation,
     requiresLocalMaterialization: hasRepositoryPreparation(repositoryPreparation)
   };

@@ -1,12 +1,3 @@
-/**
- * deploy-strategies.ts — Deployment execution strategies.
- *
- * Contains: compose, dockerfile, and image deployment strategies,
- * plus the shared health-check helper.
- *
- * Extracted from worker.ts for modularity.
- */
-
 import { eq } from "drizzle-orm";
 import { db } from "../db/connection";
 import { deployments } from "../db/schema/deployments";
@@ -20,7 +11,8 @@ import {
   dockerPull,
   dockerRun,
   checkContainerHealth,
-  ensureStagingDir,
+  createTarArchive,
+  getStagingArchivePath,
   type OnLog
 } from "./docker-executor";
 import type { ExecutionTarget } from "./execution-target";
@@ -29,9 +21,12 @@ import {
   remoteDockerBuild,
   remoteDockerPull,
   remoteDockerRun,
-  remoteGitClone
+  remoteEnsureDir,
+  remoteExtractArchive,
+  scpUpload
 } from "./ssh-executor";
 export { executeComposeDeployment } from "./compose-deploy-strategy";
+import { resolveCheckoutSpec } from "./checkout-source";
 import {
   createStep,
   markStepRunning,
@@ -45,8 +40,6 @@ import { throwIfDeploymentCancellationRequested } from "../db/services/deploymen
 
 const HEALTH_CHECK_TIMEOUT_MS = 60_000;
 const HEALTH_CHECK_INTERVAL_MS = 3_000;
-/* ──────────────────────── Dockerfile ──────────────────────── */
-
 export async function executeDockerfileDeployment(
   deployment: DeploymentRow,
   config: ConfigSnapshot,
@@ -54,8 +47,6 @@ export async function executeDockerfileDeployment(
   onLog: OnLog,
   target: ExecutionTarget
 ): Promise<void> {
-  const repoUrl = config.repoUrl ?? "";
-  const branch = config.branch ?? "main";
   const dockerfile = config.dockerfile ?? "Dockerfile";
   const buildContext = config.buildContext ?? ".";
   const tag =
@@ -68,19 +59,53 @@ export async function executeDockerfileDeployment(
   const cloneStepId = await createStep(deployment.id, "Clone repository", 1);
   await markStepRunning(cloneStepId);
 
-  if (!repoUrl) {
+  const checkout = await resolveCheckoutSpec(config);
+  if (!checkout) {
     await markStepFailed(cloneStepId, "No repository URL provided for Dockerfile deployment");
     throw new Error("Dockerfile deployment requires a repository URL");
   }
 
-  const workDir = target.mode === "remote" ? target.remoteWorkDir : ensureStagingDir(deployment.id);
-  const cloneResult =
-    target.mode === "remote"
-      ? await remoteGitClone(target.ssh, repoUrl, branch, workDir, onLog)
-      : await gitClone(repoUrl, branch, deployment.id, onLog);
+  const cloneResult = await gitClone(checkout.repoUrl, checkout.branch, deployment.id, onLog, {
+    displayLabel: checkout.displayLabel,
+    gitConfig: checkout.gitConfig,
+    sshPrivateKey: checkout.sshPrivateKey,
+    repositoryPreparation: checkout.repositoryPreparation,
+    commitSha: deployment.commitSha ?? undefined
+  });
   if (cloneResult.exitCode !== 0) {
     await markStepFailed(cloneStepId, `git clone exited with code ${cloneResult.exitCode}`);
     throw new Error(`git clone failed with exit code ${cloneResult.exitCode}`);
+  }
+  let workDir = cloneResult.workDir;
+  if (target.mode === "remote") {
+    const localArchivePath = getStagingArchivePath(deployment.id);
+    const remoteArchivePath = `${target.remoteWorkDir}/${deployment.id}.tar.gz`;
+    const archiveResult = await createTarArchive(cloneResult.workDir, localArchivePath, onLog);
+    if (archiveResult.exitCode !== 0) {
+      await markStepFailed(cloneStepId, `tar archive exited with code ${archiveResult.exitCode}`);
+      throw new Error(`tar archive creation failed with exit code ${archiveResult.exitCode}`);
+    }
+    const ensureDirResult = await remoteEnsureDir(target.ssh, target.remoteWorkDir, onLog);
+    if (ensureDirResult.exitCode !== 0) {
+      await markStepFailed(cloneStepId, "Remote workspace preparation failed");
+      throw new Error(`Failed to prepare remote workspace ${target.remoteWorkDir}.`);
+    }
+    const uploadArchive = await scpUpload(target.ssh, localArchivePath, remoteArchivePath, onLog);
+    if (uploadArchive.exitCode !== 0) {
+      await markStepFailed(cloneStepId, "Repository archive upload failed");
+      throw new Error(`Failed to upload repository archive for deployment ${deployment.id}.`);
+    }
+    const extractRemote = await remoteExtractArchive(
+      target.ssh,
+      remoteArchivePath,
+      target.remoteWorkDir,
+      onLog
+    );
+    if (extractRemote.exitCode !== 0) {
+      await markStepFailed(cloneStepId, "Repository archive extraction failed");
+      throw new Error(`Failed to extract repository archive for deployment ${deployment.id}.`);
+    }
+    workDir = target.remoteWorkDir;
   }
   await markStepComplete(cloneStepId, `Repository cloned to ${workDir}`);
   await throwIfDeploymentCancellationRequested(deployment.id);
@@ -156,8 +181,6 @@ export async function executeDockerfileDeployment(
   // Step 4: Health check
   await waitForHealthy(deployment, containerName, onLog, target);
 }
-
-/* ──────────────────────── Image ──────────────────────── */
 
 export async function executeImageDeployment(
   deployment: DeploymentRow,

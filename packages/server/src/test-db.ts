@@ -26,7 +26,7 @@ import { resetAuthState } from "./auth";
 
 const { Client } = pg;
 const TEST_DB_PREPARE_LOCK_ID = 8_705_231;
-const MIN_EXPECTED_PUBLIC_TABLES = 35;
+const MIN_EXPECTED_PUBLIC_TABLES = 36;
 
 let prepared = false;
 let preparePromise: Promise<string> | null = null;
@@ -87,6 +87,7 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
       deployments: string | null;
       serviceVariables: string | null;
       gitProviders: string | null;
+      repositoryCredentials: string | null;
       cliAuthRequests: string | null;
       developmentTasks: string | null;
     }>(`
@@ -100,6 +101,7 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
         to_regclass('public.deployments') AS "deployments",
         to_regclass('public.service_variables') AS "serviceVariables",
         to_regclass('public.git_providers') AS "gitProviders",
+        to_regclass('public.repository_credentials') AS "repositoryCredentials",
         to_regclass('public.cli_auth_requests') AS "cliAuthRequests",
         to_regclass('public.development_tasks') AS "developmentTasks"
     `);
@@ -115,6 +117,7 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
       row.deployments &&
       row.serviceVariables &&
       row.gitProviders &&
+      row.repositoryCredentials &&
       row.cliAuthRequests &&
       row.developmentTasks
     );
@@ -163,6 +166,7 @@ async function readPoolSchemaState() {
     deployments: string | null;
     serviceVariables: string | null;
     gitProviders: string | null;
+    repositoryCredentials: string | null;
     cliAuthRequests: string | null;
     developmentTasks: string | null;
   }>(`
@@ -177,6 +181,7 @@ async function readPoolSchemaState() {
       to_regclass('public.deployments') AS "deployments",
       to_regclass('public.service_variables') AS "serviceVariables",
       to_regclass('public.git_providers') AS "gitProviders",
+      to_regclass('public.repository_credentials') AS "repositoryCredentials",
       to_regclass('public.cli_auth_requests') AS "cliAuthRequests",
       to_regclass('public.development_tasks') AS "developmentTasks"
   `);
@@ -205,6 +210,7 @@ async function ensurePooledTestSchemaReady(connectionString: string) {
         state.deployments &&
         state.serviceVariables &&
         state.gitProviders &&
+        state.repositoryCredentials &&
         state.cliAuthRequests &&
         state.developmentTasks
       ) {
