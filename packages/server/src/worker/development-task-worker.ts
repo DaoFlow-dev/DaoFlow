@@ -12,6 +12,7 @@ import { buildDevelopmentTaskCodexPlan } from "./development-task-codex-plan";
 import { prepareDevelopmentTaskCodexWorkspace } from "./development-task-codex-workspace";
 import { runClaimedTaskCodex } from "./development-task-worker-codex";
 import { prepareClaimedTaskRepository } from "./development-task-worker-repository";
+import type { DevelopmentTaskReviewTarget } from "./development-task-review-target";
 
 const DEVELOPMENT_TASK_POLL_INTERVAL_MS = 10_000;
 let running = false;
@@ -48,8 +49,10 @@ function developmentTaskWorkspaceRoot() {
   return process.env.DAOFLOW_DEVELOPMENT_TASK_WORKSPACE_ROOT ?? "/runner/work";
 }
 
-async function loadGitHubCommentTarget(claimed: ClaimedDevelopmentTask) {
-  if (claimed.task.providerType !== "github" || !claimed.task.providerInstallationId) {
+async function loadReviewTarget(
+  claimed: ClaimedDevelopmentTask
+): Promise<DevelopmentTaskReviewTarget | null> {
+  if (!claimed.task.providerInstallationId) {
     return null;
   }
 
@@ -66,6 +69,14 @@ async function loadGitHubCommentTarget(claimed: ClaimedDevelopmentTask) {
     .limit(1);
 
   return target ?? null;
+}
+
+async function loadGitHubCommentTarget(claimed: ClaimedDevelopmentTask) {
+  if (claimed.task.providerType !== "github") {
+    return null;
+  }
+
+  return loadReviewTarget(claimed);
 }
 
 async function loadDevelopmentTaskProject(claimed: ClaimedDevelopmentTask) {
@@ -162,7 +173,7 @@ async function prepareClaimedTaskWorkspace(claimed: ClaimedDevelopmentTask) {
       task: claimed.task,
       run: claimed.run,
       project,
-      githubTarget: await loadGitHubCommentTarget(claimed),
+      reviewTarget: await loadReviewTarget(claimed),
       plan,
       workspace,
       metadata: nextMetadata

@@ -11,6 +11,7 @@ import {
   buildDevelopmentTaskBranchName,
   createGitHubDevelopmentTaskPullRequest
 } from "./development-task-pull-request-github";
+import { createGitLabDevelopmentTaskMergeRequest } from "./development-task-merge-request-gitlab";
 
 type ExecRunner = typeof execStreaming;
 
@@ -125,7 +126,8 @@ export async function openGitHubDevelopmentTaskPullRequest(input: {
   execRunner?: ExecRunner;
 }): Promise<DevelopmentTaskPullRequestResult> {
   const execRunner = input.execRunner ?? execStreaming;
-  const logPath = `${input.workspace.logsPath}/pull-request.jsonl`;
+  const logName = input.provider.type === "gitlab" ? "merge-request" : "pull-request";
+  const logPath = `${input.workspace.logsPath}/${logName}.jsonl`;
   const branchName = buildDevelopmentTaskBranchName(input.task, input.run.id);
   const checkout = await resolveCheckoutSpec(
     buildDevelopmentTaskCheckoutConfig({ task: input.task, project: input.project })
@@ -231,14 +233,24 @@ export async function openGitHubDevelopmentTaskPullRequest(input: {
       onLog: input.onLog,
       envOverrides
     });
-    const pullRequest = await createGitHubDevelopmentTaskPullRequest({
-      provider: input.provider,
-      installation: input.installation,
-      task: input.task,
-      run: input.run,
-      branchName,
-      validationStatus: input.validationStatus
-    });
+    const pullRequest =
+      input.provider.type === "gitlab"
+        ? await createGitLabDevelopmentTaskMergeRequest({
+            provider: input.provider,
+            installation: input.installation,
+            task: input.task,
+            run: input.run,
+            branchName,
+            validationStatus: input.validationStatus
+          })
+        : await createGitHubDevelopmentTaskPullRequest({
+            provider: input.provider,
+            installation: input.installation,
+            task: input.task,
+            run: input.run,
+            branchName,
+            validationStatus: input.validationStatus
+          });
 
     return {
       status: "ok",

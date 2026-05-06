@@ -1,7 +1,6 @@
 import type { developmentTaskRuns, developmentTasks } from "../db/schema/development-tasks";
 import type { projects } from "../db/schema/projects";
 import { updateDevelopmentTaskRun } from "../db/services/development-tasks";
-import type { GitHubCommentTarget } from "../routes/github-issue-comments";
 import {
   executeDevelopmentTaskCodex,
   type DevelopmentTaskCodexExecutionResult
@@ -17,6 +16,7 @@ import {
 import { openGitHubDevelopmentTaskPullRequest } from "./development-task-pull-request";
 import { queueDevelopmentTaskPreviewDeployments } from "./development-task-preview";
 import { completeDevelopmentTaskHandoff } from "./development-task-worker-handoff";
+import type { DevelopmentTaskReviewTarget } from "./development-task-review-target";
 
 let codexExecution = executeDevelopmentTaskCodex;
 let validationExecution = runDevelopmentTaskValidation;
@@ -27,7 +27,7 @@ export async function runClaimedTaskCodex(input: {
   task: typeof developmentTasks.$inferSelect;
   run: typeof developmentTaskRuns.$inferSelect;
   project: typeof projects.$inferSelect;
-  githubTarget: GitHubCommentTarget | null;
+  reviewTarget: DevelopmentTaskReviewTarget | null;
   plan: DevelopmentTaskCodexPlan;
   workspace: PreparedDevelopmentTaskCodexWorkspace;
   metadata: Record<string, unknown>;
@@ -134,7 +134,7 @@ export async function runClaimedTaskCodex(input: {
     task: input.task,
     run: input.run,
     project: input.project,
-    githubTarget: input.githubTarget,
+    reviewTarget: input.reviewTarget,
     workspace: input.workspace,
     metadata: input.metadata,
     codexExecution: execution,
