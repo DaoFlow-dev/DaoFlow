@@ -2,9 +2,14 @@ import { claimNextQueuedDevelopmentTask } from "../db/services/development-task-
 import { db } from "../db/connection";
 import { gitInstallations, gitProviders } from "../db/schema/git-providers";
 import { projects } from "../db/schema/projects";
-import { recordDevelopmentTaskEvent } from "../db/services/development-tasks";
+import {
+  recordDevelopmentTaskEvent,
+  updateDevelopmentTaskRun
+} from "../db/services/development-tasks";
 import { eq } from "drizzle-orm";
 import { upsertRunningGitHubDevelopmentTaskComment } from "../routes/github-issue-comments";
+import { buildDevelopmentTaskCodexPlan } from "./development-task-codex-plan";
+import { prepareDevelopmentTaskCodexWorkspace } from "./development-task-codex-workspace";
 
 const DEVELOPMENT_TASK_POLL_INTERVAL_MS = 10_000;
 let running = false;
@@ -23,12 +28,23 @@ export async function pollDevelopmentTaskQueue() {
     `[development-task-worker] Claimed task ${claimed.task.id} with run ${claimed.run.id}`
   );
   await updateClaimedTaskStatusComment(claimed);
+  await prepareClaimedTaskWorkspace(claimed);
   return claimed;
 }
 
 type ClaimedDevelopmentTask = NonNullable<
   Awaited<ReturnType<typeof claimNextQueuedDevelopmentTask>>
 >;
+
+function readRecord(value: unknown) {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function developmentTaskWorkspaceRoot() {
+  return process.env.DAOFLOW_DEVELOPMENT_TASK_WORKSPACE_ROOT ?? "/runner/work";
+}
 
 async function loadGitHubCommentTarget(claimed: ClaimedDevelopmentTask) {
   if (claimed.task.providerType !== "github" || !claimed.task.providerInstallationId) {
@@ -75,6 +91,56 @@ async function updateClaimedTaskStatusComment(claimed: ClaimedDevelopmentTask) {
       }
     });
   });
+}
+
+async function prepareClaimedTaskWorkspace(claimed: ClaimedDevelopmentTask) {
+  if (claimed.run.sandboxProvider !== "host_docker") {
+    await updateDevelopmentTaskRun({
+      runId: claimed.run.id,
+      status: "failed",
+      failureCategory: "unsupported_sandbox_provider",
+      failureMessage: `Development task worker does not yet support sandbox provider ${claimed.run.sandboxProvider ?? "unknown"}.`,
+      metadata: {
+        ...readRecord(claimed.run.metadata),
+        unsupportedSandboxProvider: claimed.run.sandboxProvider ?? null
+      }
+    });
+    return;
+  }
+
+  try {
+    const plan = buildDevelopmentTaskCodexPlan({
+      task: claimed.task,
+      run: claimed.run,
+      workspaceRoot: developmentTaskWorkspaceRoot()
+    });
+    const workspace = await prepareDevelopmentTaskCodexWorkspace(plan);
+    const metadata = readRecord(claimed.run.metadata);
+
+    await updateDevelopmentTaskRun({
+      runId: claimed.run.id,
+      status: "preparing",
+      metadata: {
+        ...metadata,
+        codexWorkspace: workspace,
+        codexCommand: {
+          command: plan.command,
+          args: plan.args.map((arg) => (arg === plan.prompt ? `@${workspace.promptPath}` : arg))
+        }
+      }
+    });
+  } catch (err) {
+    await updateDevelopmentTaskRun({
+      runId: claimed.run.id,
+      status: "failed",
+      failureCategory: "workspace_prepare_failed",
+      failureMessage: err instanceof Error ? err.message : String(err),
+      metadata: {
+        ...readRecord(claimed.run.metadata),
+        workspacePrepareFailed: true
+      }
+    });
+  }
 }
 
 export function startDevelopmentTaskWorker(): void {

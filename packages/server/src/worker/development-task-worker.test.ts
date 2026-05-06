@@ -1,9 +1,11 @@
 import { generateKeyPairSync } from "node:crypto";
+import { mkdtemp, readFile, stat } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { eq } from "drizzle-orm";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { db } from "../db/connection";
 import { encrypt } from "../db/crypto";
-import { developmentTaskComments } from "../db/schema/development-tasks";
+import { developmentTaskComments, developmentTaskRuns } from "../db/schema/development-tasks";
 import { gitInstallations, gitProviders } from "../db/schema/git-providers";
 import { projects } from "../db/schema/projects";
 import {
@@ -85,11 +87,15 @@ describe("development task worker", () => {
   afterEach(() => {
     vi.restoreAllMocks();
     delete process.env.APP_BASE_URL;
+    delete process.env.DAOFLOW_DEVELOPMENT_TASK_WORKSPACE_ROOT;
   });
 
-  it("updates the durable GitHub status comment when claiming a task", async () => {
+  it("updates the durable GitHub status comment and prepares the Codex workspace", async () => {
     await resetSeededTestDatabase();
     process.env.APP_BASE_URL = "https://daoflow.example.test";
+    process.env.DAOFLOW_DEVELOPMENT_TASK_WORKSPACE_ROOT = await mkdtemp(
+      `${tmpdir()}/daoflow-worker-workspace-`
+    );
     const fixture = await createClaimedCommentFixture();
     const queued = await queueDevelopmentTask({
       providerType: "github",
@@ -176,7 +182,30 @@ describe("development task worker", () => {
       commentUrl: `https://github.com/${fixture.repoFullName}/issues/191#issuecomment-990010`
     });
 
+    const [run] = await db
+      .select()
+      .from(developmentTaskRuns)
+      .where(eq(developmentTaskRuns.id, claimed?.run.id ?? ""));
+    expect(run).toMatchObject({
+      status: "preparing"
+    });
+    const metadata = run?.metadata as {
+      codexWorkspace?: { configPath: string; promptPath: string; repoPath: string };
+      codexCommand?: { args: string[] };
+    };
+    expect(metadata.codexWorkspace?.repoPath).toContain(claimed?.run.id);
+    expect(metadata.codexCommand?.args).toContain(`@${metadata.codexWorkspace?.promptPath}`);
+    expect(metadata.codexCommand?.args.join("\n")).not.toContain("Update issue when worker starts");
+    expect((await stat(metadata.codexWorkspace?.repoPath ?? "")).isDirectory()).toBe(true);
+    await expect(readFile(metadata.codexWorkspace?.configPath ?? "", "utf8")).resolves.toContain(
+      "[profiles.daoflow]"
+    );
+    await expect(readFile(metadata.codexWorkspace?.promptPath ?? "", "utf8")).resolves.toContain(
+      "Update issue when worker starts"
+    );
+
     const details = await getDevelopmentTaskDetails(queued.task.id);
     expect(details?.events.some((event) => event.kind === "comment.updated")).toBe(true);
+    expect(details?.events.some((event) => event.kind === "run.preparing")).toBe(true);
   });
 });
