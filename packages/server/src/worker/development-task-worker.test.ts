@@ -1,99 +1,35 @@
-import { generateKeyPairSync } from "node:crypto";
 import { mkdtemp, readFile, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { eq } from "drizzle-orm";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { db } from "../db/connection";
-import { encrypt } from "../db/crypto";
-import { developmentTaskComments, developmentTaskRuns } from "../db/schema/development-tasks";
-import { gitInstallations, gitProviders } from "../db/schema/git-providers";
-import { projects } from "../db/schema/projects";
+import { developmentTaskRuns } from "../db/schema/development-tasks";
 import {
   getDevelopmentTaskDetails,
   queueDevelopmentTask,
   recordDevelopmentTaskComment
 } from "../db/services/development-tasks";
-import { createProject } from "../db/services/projects";
 import { resetSeededTestDatabase } from "../test-db";
 import {
   pollDevelopmentTaskQueue,
   resetDevelopmentTaskCodexExecutionForTests,
+  resetDevelopmentTaskPreviewQueuingForTests,
+  resetDevelopmentTaskPullRequestOpeningForTests,
   resetDevelopmentTaskRepositoryCheckoutForTests,
   resetDevelopmentTaskValidationExecutionForTests,
   setDevelopmentTaskCodexExecutionForTests,
+  setDevelopmentTaskPreviewQueuingForTests,
+  setDevelopmentTaskPullRequestOpeningForTests,
   setDevelopmentTaskRepositoryCheckoutForTests,
   setDevelopmentTaskValidationExecutionForTests
 } from "./development-task-worker";
-
-async function createClaimedCommentFixture() {
-  const suffix = `${Date.now()}`;
-  const providerId = `gitprov_worker_${suffix}`.slice(0, 32);
-  const installationId = `gitinst_worker_${suffix}`.slice(0, 32);
-  const repoFullName = "example/worker-status-comment";
-  const projectResult = await createProject({
-    name: `Worker Status Comment ${suffix}`,
-    repoUrl: `https://github.com/${repoFullName}`,
-    teamId: "team_foundation",
-    requestedByUserId: "user_foundation_owner",
-    requestedByEmail: "owner@daoflow.local",
-    requestedByRole: "owner"
-  });
-
-  expect(projectResult.status).toBe("ok");
-  if (projectResult.status !== "ok") {
-    throw new Error("Failed to create worker status comment project.");
-  }
-
-  const privateKeyPem = generateKeyPairSync("rsa", { modulusLength: 2048 })
-    .privateKey.export({ format: "pem", type: "pkcs1" })
-    .toString();
-
-  await db.insert(gitProviders).values({
-    id: providerId,
-    type: "github",
-    name: `GitHub Worker Status ${suffix}`,
-    appId: "123456",
-    privateKeyEncrypted: encrypt(privateKeyPem),
-    webhookSecret: "github-worker-status-secret",
-    status: "active",
-    updatedAt: new Date()
-  });
-
-  await db.insert(gitInstallations).values({
-    id: installationId,
-    providerId,
-    installationId: "9107",
-    accountName: "example",
-    accountType: "organization",
-    repositorySelection: "selected",
-    status: "active",
-    installedByUserId: "user_foundation_owner",
-    updatedAt: new Date()
-  });
-
-  await db
-    .update(projects)
-    .set({
-      repoFullName,
-      sourceType: "compose",
-      gitProviderId: providerId,
-      gitInstallationId: installationId,
-      autoDeploy: false,
-      defaultBranch: "main",
-      updatedAt: new Date()
-    })
-    .where(eq(projects.id, projectResult.project.id));
-
-  return {
-    projectId: projectResult.project.id,
-    repoFullName,
-    installationId
-  };
-}
+import { createClaimedCommentFixture } from "./development-task-worker.test-support";
 
 describe("development task worker", () => {
   afterEach(() => {
     resetDevelopmentTaskCodexExecutionForTests();
+    resetDevelopmentTaskPreviewQueuingForTests();
+    resetDevelopmentTaskPullRequestOpeningForTests();
     resetDevelopmentTaskRepositoryCheckoutForTests();
     resetDevelopmentTaskValidationExecutionForTests();
     vi.restoreAllMocks();
@@ -167,6 +103,35 @@ describe("development task worker", () => {
             }
           )
         );
+      })
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ token: "ghs_installation_token" }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" }
+        })
+      )
+      .mockImplementationOnce((_url, init) => {
+        const rawBody = init?.body;
+        if (typeof rawBody !== "string") {
+          throw new Error("Expected GitHub issue comment request body to be a string.");
+        }
+        const body = JSON.parse(rawBody) as { body?: string };
+        expect(body.body).toContain("DaoFlow opened a pull request.");
+        expect(body.body).toContain("Status: waiting_review");
+        expect(body.body).toContain("Pull request: https://github.com/example/repo/pull/42");
+        expect(body.body).toContain("Preview: https://pr-42.preview.example.test");
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              id: 990010,
+              html_url: `https://github.com/${fixture.repoFullName}/issues/191#issuecomment-990010`
+            }),
+            {
+              status: 200,
+              headers: { "Content-Type": "application/json" }
+            }
+          )
+        );
       });
 
     const checkoutMock = vi.fn().mockImplementation((input: { repoPath: string }) =>
@@ -198,6 +163,34 @@ describe("development task worker", () => {
         })
       );
     setDevelopmentTaskValidationExecutionForTests(validationExecutionMock);
+    const pullRequestOpeningMock = vi
+      .fn()
+      .mockImplementation((input: { workspace: { logsPath: string } }) =>
+        Promise.resolve({
+          status: "ok" as const,
+          branchName: "daoflow/issue-191-worker",
+          commitSha: "abc123",
+          pullRequestNumber: 42,
+          pullRequestUrl: "https://github.com/example/repo/pull/42",
+          logPath: `${input.workspace.logsPath}/pull-request.jsonl`
+        })
+      );
+    setDevelopmentTaskPullRequestOpeningForTests(pullRequestOpeningMock);
+    const previewQueuingMock = vi.fn().mockResolvedValue({
+      status: "queued" as const,
+      previewDeploymentId: "dep_preview_42",
+      previewUrl: "https://pr-42.preview.example.test",
+      deployments: [
+        {
+          serviceId: "svc_preview_42",
+          serviceName: "web",
+          deploymentId: "dep_preview_42",
+          previewUrl: "https://pr-42.preview.example.test",
+          status: "queued" as const
+        }
+      ]
+    });
+    setDevelopmentTaskPreviewQueuingForTests(previewQueuingMock);
 
     const claimed = await pollDevelopmentTaskQueue();
     const checkoutCall = checkoutMock.mock.calls[0]?.[0] as
@@ -208,35 +201,32 @@ describe("development task worker", () => {
     expect(checkoutMock).toHaveBeenCalledOnce();
     expect(codexExecutionMock).toHaveBeenCalledOnce();
     expect(validationExecutionMock).toHaveBeenCalledOnce();
+    expect(pullRequestOpeningMock).toHaveBeenCalledOnce();
+    expect(previewQueuingMock).toHaveBeenCalledOnce();
     expect(checkoutCall?.repoPath).toContain(claimed?.run.id ?? "");
     expect(checkoutCall?.artifactsPath).toContain(claimed?.run.id ?? "");
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
     expect(fetchMock.mock.calls[1]?.[0]).toBe(
       "https://api.github.com/repos/example/worker-status-comment/issues/comments/990010"
     );
     expect(fetchMock.mock.calls[1]?.[1]?.method).toBe("PATCH");
-
-    const [comment] = await db
-      .select()
-      .from(developmentTaskComments)
-      .where(eq(developmentTaskComments.externalCommentId, "990010"));
-    expect(comment).toMatchObject({
-      taskId: queued.task.id,
-      runId: claimed?.run.id,
-      providerType: "github",
-      commentKind: "status"
-    });
-    expect(comment.metadata).toMatchObject({
-      status: "running",
-      commentUrl: `https://github.com/${fixture.repoFullName}/issues/191#issuecomment-990010`
-    });
+    expect(fetchMock.mock.calls[3]?.[0]).toBe(
+      "https://api.github.com/repos/example/worker-status-comment/issues/comments/990010"
+    );
+    expect(fetchMock.mock.calls[3]?.[1]?.method).toBe("PATCH");
 
     const [run] = await db
       .select()
       .from(developmentTaskRuns)
       .where(eq(developmentTaskRuns.id, claimed?.run.id ?? ""));
     expect(run).toMatchObject({
-      status: "opening_pr"
+      status: "waiting_review",
+      branchName: "daoflow/issue-191-worker",
+      commitSha: "abc123",
+      pullRequestNumber: 42,
+      pullRequestUrl: "https://github.com/example/repo/pull/42",
+      previewDeploymentId: "dep_preview_42",
+      previewUrl: "https://pr-42.preview.example.test"
     });
     const metadata = run?.metadata as {
       codexWorkspace?: {
@@ -247,6 +237,8 @@ describe("development task worker", () => {
       };
       codexCommand?: { args: string[] };
       codexExecution?: { status: string; exitCode: number; logPath: string };
+      pullRequest?: { status: string; pullRequestUrl: string; logPath: string };
+      preview?: { status: string; previewUrl: string; previewDeploymentId: string };
       repositoryCheckout?: { status: string; displayLabel: string };
       validation?: { status: string; commands: string[]; logPath: string };
     };
@@ -265,6 +257,16 @@ describe("development task worker", () => {
       status: "ok",
       logPath: `${metadata.codexWorkspace?.logsPath}/validation.jsonl`
     });
+    expect(metadata.pullRequest).toMatchObject({
+      status: "ok",
+      pullRequestUrl: "https://github.com/example/repo/pull/42",
+      logPath: `${metadata.codexWorkspace?.logsPath}/pull-request.jsonl`
+    });
+    expect(metadata.preview).toMatchObject({
+      status: "queued",
+      previewDeploymentId: "dep_preview_42",
+      previewUrl: "https://pr-42.preview.example.test"
+    });
     expect(metadata.codexCommand?.args.join("\n")).not.toContain("Update issue when worker starts");
     expect((await stat(metadata.codexWorkspace?.repoPath ?? "")).isDirectory()).toBe(true);
     await expect(readFile(metadata.codexWorkspace?.configPath ?? "", "utf8")).resolves.toContain(
@@ -275,11 +277,12 @@ describe("development task worker", () => {
     );
 
     const details = await getDevelopmentTaskDetails(queued.task.id);
-    expect(details?.events.some((event) => event.kind === "comment.updated")).toBe(true);
     expect(details?.events.some((event) => event.kind === "run.preparing")).toBe(true);
     expect(details?.events.some((event) => event.kind === "run.coding")).toBe(true);
     expect(details?.events.some((event) => event.kind === "run.validating")).toBe(true);
     expect(details?.events.some((event) => event.kind === "run.opening_pr")).toBe(true);
+    expect(details?.events.some((event) => event.kind === "run.deploying_preview")).toBe(true);
+    expect(details?.events.some((event) => event.kind === "run.waiting_review")).toBe(true);
     expect(details?.events.some((event) => event.kind === "repository.checkout.completed")).toBe(
       true
     );

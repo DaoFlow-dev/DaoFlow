@@ -161,6 +161,8 @@ async function prepareClaimedTaskWorkspace(claimed: ClaimedDevelopmentTask) {
     await runClaimedTaskCodex({
       task: claimed.task,
       run: claimed.run,
+      project,
+      githubTarget: await loadGitHubCommentTarget(claimed),
       plan,
       workspace,
       metadata: nextMetadata
@@ -214,8 +216,12 @@ export function stopDevelopmentTaskWorker(): void {
 
 export {
   resetDevelopmentTaskCodexExecutionForTests,
+  resetDevelopmentTaskPreviewQueuingForTests,
+  resetDevelopmentTaskPullRequestOpeningForTests,
   resetDevelopmentTaskValidationExecutionForTests,
   setDevelopmentTaskCodexExecutionForTests,
+  setDevelopmentTaskPreviewQueuingForTests,
+  setDevelopmentTaskPullRequestOpeningForTests,
   setDevelopmentTaskValidationExecutionForTests
 } from "./development-task-worker-codex";
 
