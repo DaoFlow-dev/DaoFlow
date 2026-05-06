@@ -9,8 +9,10 @@ import {
 } from "../db/services/webhook-deliveries";
 import {
   queueDevelopmentTask,
+  recordDevelopmentTaskEvent,
   recordDevelopmentTaskComment
 } from "../db/services/development-tasks";
+import { upsertQueuedGitHubDevelopmentTaskComment } from "./github-issue-comments";
 import { buildTargetResource, writeWebhookAuditEntry } from "./webhooks-delivery";
 import type { GitHubPushEvent, WebhookTarget } from "./webhooks-types";
 
@@ -209,6 +211,24 @@ export async function processGitHubDevelopmentTaskTrigger(input: {
 
     if (result.status === "created") {
       queued += 1;
+      await upsertQueuedGitHubDevelopmentTaskComment({
+        taskId: result.task.id,
+        repoFullName: input.repoFullName,
+        issueNumber,
+        target
+      }).catch(async (err: unknown) => {
+        await recordDevelopmentTaskEvent({
+          taskId: result.task.id,
+          kind: "comment.failed",
+          summary: "Failed to post the queued status comment on the GitHub issue.",
+          detail: err instanceof Error ? err.message : String(err),
+          metadata: {
+            providerType: "github",
+            issueNumber,
+            status: "queued"
+          }
+        });
+      });
     } else {
       deduped += 1;
     }

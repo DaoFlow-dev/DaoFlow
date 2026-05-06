@@ -1,8 +1,9 @@
-import { createHmac } from "node:crypto";
+import { createHmac, generateKeyPairSync } from "node:crypto";
 import { eq } from "drizzle-orm";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createApp } from "./app";
 import { db } from "./db/connection";
+import { encrypt } from "./db/crypto";
 import { developmentTaskComments, developmentTasks } from "./db/schema/development-tasks";
 import { gitInstallations, gitProviders } from "./db/schema/git-providers";
 import { projects } from "./db/schema/projects";
@@ -18,6 +19,7 @@ async function createDevelopmentTaskWebhookFixture(input: {
   repoFullName: string;
   webhookSecret: string;
   externalInstallationId: string;
+  githubAppCredentials?: boolean;
 }) {
   const providerId = `gitprov_dev_${input.suffix}`.slice(0, 32);
   const installationId = `gitinst_dev_${input.suffix}`.slice(0, 32);
@@ -35,10 +37,18 @@ async function createDevelopmentTaskWebhookFixture(input: {
     throw new Error("Failed to create development task webhook project fixture.");
   }
 
+  const privateKeyPem = input.githubAppCredentials
+    ? generateKeyPairSync("rsa", { modulusLength: 2048 })
+        .privateKey.export({ format: "pem", type: "pkcs1" })
+        .toString()
+    : null;
+
   await db.insert(gitProviders).values({
     id: providerId,
     type: "github",
     name: `GitHub Development Task ${input.suffix}`,
+    appId: input.githubAppCredentials ? "123456" : null,
+    privateKeyEncrypted: privateKeyPem ? encrypt(privateKeyPem) : null,
     webhookSecret: input.webhookSecret,
     status: "active",
     updatedAt: new Date()
@@ -76,6 +86,11 @@ async function createDevelopmentTaskWebhookFixture(input: {
 }
 
 describe("GitHub development task webhooks", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    delete process.env.APP_BASE_URL;
+  });
+
   it("queues a development task from a daoflow:run issue label without requiring auto-deploy", async () => {
     await resetTestDatabaseWithControlPlane();
     const fixture = await createDevelopmentTaskWebhookFixture({
@@ -128,6 +143,112 @@ describe("GitHub development task webhooks", () => {
       issueTitle: "Build the agent task runner",
       requestedByExternalUser: "octocat",
       status: "queued"
+    });
+  });
+
+  it("posts a durable queued status comment for accepted issue label deliveries", async () => {
+    await resetTestDatabaseWithControlPlane();
+    process.env.APP_BASE_URL = "https://daoflow.example.test/";
+    const fixture = await createDevelopmentTaskWebhookFixture({
+      suffix: `${Date.now()}`,
+      repoFullName: "example/dev-task-status-comment",
+      webhookSecret: "github-dev-task-status-secret",
+      externalInstallationId: "9105",
+      githubAppCredentials: true
+    });
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ token: "ghs_installation_token" }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" }
+        })
+      )
+      .mockImplementationOnce((_url, init) => {
+        const rawBody = init?.body;
+        if (typeof rawBody !== "string") {
+          throw new Error("Expected GitHub issue comment request body to be a string.");
+        }
+        const body = JSON.parse(rawBody) as { body?: string };
+        expect(body.body).toContain("DaoFlow accepted this task.");
+        expect(body.body).toContain("Status: queued");
+        expect(body.body).toContain("Project: Development Task Webhook");
+        expect(body.body).toContain("Run: https://daoflow.example.test/development-tasks/");
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              id: 990001,
+              html_url:
+                "https://github.com/example/dev-task-status-comment/issues/189#issuecomment-990001"
+            }),
+            {
+              status: 201,
+              headers: { "Content-Type": "application/json" }
+            }
+          )
+        );
+      });
+
+    const payload = JSON.stringify({
+      action: "labeled",
+      label: { name: "daoflow:run" },
+      issue: {
+        id: 185005,
+        number: 189,
+        html_url: "https://github.com/example/dev-task-status-comment/issues/189",
+        title: "Post status comment",
+        user: { login: "issue-author" },
+        labels: [{ name: "daoflow:run" }]
+      },
+      repository: { full_name: "example/dev-task-status-comment" },
+      installation: { id: Number(fixture.externalInstallationId) },
+      sender: { login: "octocat" }
+    });
+
+    const response = await createApp().request("/api/webhooks/github", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-GitHub-Event": "issues",
+        "X-GitHub-Delivery": "gh-dev-task-status-comment",
+        "X-Hub-Signature-256": signGitHubPayload("github-dev-task-status-secret", payload)
+      },
+      body: payload
+    });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ ok: true, tasksQueued: 1 });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      "https://api.github.com/app/installations/9105/access_tokens"
+    );
+    expect(fetchMock.mock.calls[1]?.[0]).toBe(
+      "https://api.github.com/repos/example/dev-task-status-comment/issues/189/comments"
+    );
+    expect((fetchMock.mock.calls[1]?.[1]?.headers as Record<string, string>).Authorization).toBe(
+      "Bearer ghs_installation_token"
+    );
+
+    const [task] = await db
+      .select()
+      .from(developmentTasks)
+      .where(eq(developmentTasks.repoFullName, "example/dev-task-status-comment"));
+    const comments = await db
+      .select()
+      .from(developmentTaskComments)
+      .where(eq(developmentTaskComments.externalCommentId, "990001"));
+    expect(comments).toHaveLength(1);
+    expect(comments[0]).toMatchObject({
+      taskId: task.id,
+      providerType: "github",
+      commentKind: "status"
+    });
+    expect(comments[0].lastBodyHash).toMatch(/^[a-f0-9]{64}$/);
+    expect(comments[0].metadata).toMatchObject({
+      status: "queued",
+      commentUrl:
+        "https://github.com/example/dev-task-status-comment/issues/189#issuecomment-990001"
     });
   });
 
