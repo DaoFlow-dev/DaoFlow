@@ -20,6 +20,21 @@ function readMetadataRecord(value: unknown) {
     : {};
 }
 
+function buildPreviewLine(run: typeof developmentTaskRuns.$inferSelect) {
+  if (run.previewUrl) {
+    return `Preview: ${run.previewUrl}`;
+  }
+
+  const preview = readMetadataRecord(readMetadataRecord(run.metadata).preview);
+  const status = preview.status;
+  if (status === "failed" || status === "skipped") {
+    const message = typeof preview.message === "string" ? ` (${preview.message})` : "";
+    return `Preview: ${status}${message}`;
+  }
+
+  return "Preview: pending";
+}
+
 export function buildDevelopmentTaskQueuedComment(input: {
   taskId: string;
   repoFullName: string;
@@ -67,14 +82,30 @@ export function buildDevelopmentTaskReadyForReviewComment(input: {
   reviewRequestLabel?: string;
   openedSummary?: string;
 }) {
-  const previewUrl = input.run.previewUrl ?? "pending";
   const reviewRequestLabel = input.reviewRequestLabel ?? "Pull request";
   return [
     input.openedSummary ?? "DaoFlow opened a pull request.",
     "",
     "Status: waiting_review",
     `${reviewRequestLabel}: ${input.run.pullRequestUrl ?? "pending"}`,
-    `Preview: ${previewUrl}`,
+    buildPreviewLine(input.run),
+    `Run: ${buildDevelopmentTaskRunUrl(input.task.id)}`,
+    `Project: ${input.projectName}`,
+    `Issue: ${input.task.repoFullName}#${input.task.issueNumber}`
+  ].join("\n");
+}
+
+export function buildDevelopmentTaskFailedComment(input: {
+  task: typeof developmentTasks.$inferSelect;
+  run: typeof developmentTaskRuns.$inferSelect;
+  projectName: string;
+}) {
+  return [
+    "DaoFlow stopped work on this task.",
+    "",
+    "Status: failed",
+    `Failure: ${input.run.failureCategory ?? "unknown"}`,
+    `Message: ${input.run.failureMessage ?? "Development task failed."}`,
     `Run: ${buildDevelopmentTaskRunUrl(input.task.id)}`,
     `Project: ${input.projectName}`,
     `Issue: ${input.task.repoFullName}#${input.task.issueNumber}`

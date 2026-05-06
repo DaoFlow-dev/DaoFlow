@@ -1,5 +1,5 @@
 import { generateKeyPairSync } from "node:crypto";
-import { mkdir, mkdtemp, readdir, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { eq } from "drizzle-orm";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -227,9 +227,19 @@ describe("openGitHubDevelopmentTaskPullRequest", () => {
       commitSha: "abc123",
       changedFiles: [{ path: "README.md", status: "M" }],
       diffStat: "README.md | 1 +",
+      reviewArtifacts: {
+        diffStatPath: `${fixture.workspace.artifactsPath}/diff-stat.txt`,
+        changedFilesPath: `${fixture.workspace.artifactsPath}/changed-files.json`
+      },
       pullRequestNumber: 42,
       pullRequestUrl: "https://github.com/example/development-task-pr/pull/42"
     });
+    await expect(
+      readFile(`${fixture.workspace.artifactsPath}/diff-stat.txt`, "utf8")
+    ).resolves.toBe("README.md | 1 +\n");
+    await expect(
+      readFile(`${fixture.workspace.artifactsPath}/changed-files.json`, "utf8")
+    ).resolves.toContain('"path": "README.md"');
     const gitCommands = execRunner.mock.calls.map(([, args]) => args.join(" "));
     expect(gitCommands).toEqual([
       "checkout -B daoflow/issue-185-" +

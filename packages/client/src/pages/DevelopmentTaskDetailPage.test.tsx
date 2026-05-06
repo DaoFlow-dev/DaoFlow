@@ -70,7 +70,22 @@ describe("DevelopmentTaskDetailPage", () => {
             pullRequestUrl: null,
             previewUrl: null,
             failureCategory: null,
-            failureMessage: null
+            failureMessage: null,
+            metadata: {
+              codexExecution: {
+                logPath: "/runner/work/drun_1/logs/codex-exec.jsonl"
+              },
+              validation: {
+                logPath: "/runner/work/drun_1/logs/validation.jsonl"
+              },
+              pullRequest: {
+                logPath: "/runner/work/drun_1/logs/pull-request.jsonl",
+                reviewArtifacts: {
+                  diffStatPath: "/runner/work/drun_1/artifacts/diff-stat.txt",
+                  changedFilesPath: "/runner/work/drun_1/artifacts/changed-files.json"
+                }
+              }
+            }
           }
         ],
         events: [
@@ -112,6 +127,13 @@ describe("DevelopmentTaskDetailPage", () => {
     expect(screen.getByText("DaoFlow-dev/DaoFlow")).toBeInTheDocument();
     expect(screen.getByText("running")).toBeInTheDocument();
     expect(screen.getByText("claimed")).toBeInTheDocument();
+    expect(screen.getByText("/runner/work/drun_1/artifacts/diff-stat.txt")).toBeInTheDocument();
+    expect(
+      screen.getByText("/runner/work/drun_1/artifacts/changed-files.json")
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Codex log: .*codex-exec\.jsonl/)).toBeInTheDocument();
+    expect(screen.getByText(/Validation log: .*validation\.jsonl/)).toBeInTheDocument();
+    expect(screen.getByText(/Review handoff log: .*pull-request\.jsonl/)).toBeInTheDocument();
     expect(screen.getByText("run.claimed")).toBeInTheDocument();
     expect(screen.getByText("440001")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Back/ })).toHaveAttribute(

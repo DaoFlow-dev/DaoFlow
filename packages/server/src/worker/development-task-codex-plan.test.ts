@@ -28,7 +28,10 @@ describe("development task Codex plan", () => {
       issueTitle: "Agent development task runner",
       issueAuthor: "MikeChongCan",
       requestedByExternalUser: "MikeChongCan",
-      baseBranch: "main"
+      baseBranch: "main",
+      metadata: {
+        issueBody: "Build a queue that turns labeled GitHub issues into reviewed PRs."
+      }
     });
 
     const prompt = buildDevelopmentTaskPrompt({
@@ -38,6 +41,8 @@ describe("development task Codex plan", () => {
 
     expect(prompt).toContain("Repository: DaoFlow-dev/DaoFlow");
     expect(prompt).toContain("Issue: #185 Agent development task runner");
+    expect(prompt).toContain("Untrusted issue body:");
+    expect(prompt).toContain("Build a queue that turns labeled GitHub issues into reviewed PRs.");
     expect(prompt).toContain("Do not expose secrets.");
     expect(prompt).toContain("- bun run test:unit");
     expect(prompt).toContain("Pull request body draft");

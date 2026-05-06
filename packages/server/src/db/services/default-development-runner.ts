@@ -25,6 +25,14 @@ export function defaultHostRunnerMetadata(input?: { hostServerDefault?: boolean 
     codexHomePath: DEFAULT_CODEX_HOME_PATH,
     codexConfigPath: DEFAULT_CODEX_CONFIG_PATH,
     sandbankProvider: "host_docker",
+    capabilities: [
+      "exec",
+      "exec.stream",
+      "files.read",
+      "files.write",
+      "archive.upload",
+      "archive.download"
+    ],
     laterProvider: "sandbank_boxlite",
     laterPackage: "@sandbank.dev/boxlite",
     boxliteModes: ["remote", "local"]

@@ -14,6 +14,7 @@ import { prepareDevelopmentTaskCodexWorkspace } from "./development-task-codex-w
 import { runClaimedTaskCodex } from "./development-task-worker-codex";
 import { prepareClaimedTaskRepository } from "./development-task-worker-repository";
 import type { DevelopmentTaskReviewTarget } from "./development-task-review-target";
+import { updateDevelopmentTaskFailedStatusComment } from "./development-task-worker-comments";
 
 const DEVELOPMENT_TASK_POLL_INTERVAL_MS = 10_000;
 let running = false;
@@ -129,7 +130,7 @@ async function updateClaimedTaskStatusComment(claimed: ClaimedDevelopmentTask) {
 
 async function prepareClaimedTaskWorkspace(claimed: ClaimedDevelopmentTask) {
   if (claimed.run.sandboxProvider !== "host_docker") {
-    await updateDevelopmentTaskRun({
+    const failedRun = await updateDevelopmentTaskRun({
       runId: claimed.run.id,
       status: "failed",
       failureCategory: "unsupported_sandbox_provider",
@@ -139,6 +140,9 @@ async function prepareClaimedTaskWorkspace(claimed: ClaimedDevelopmentTask) {
         unsupportedSandboxProvider: claimed.run.sandboxProvider ?? null
       }
     });
+    if (failedRun) {
+      await updateDevelopmentTaskFailedStatusComment({ task: claimed.task, run: failedRun });
+    }
     return;
   }
 
@@ -190,7 +194,7 @@ async function prepareClaimedTaskWorkspace(claimed: ClaimedDevelopmentTask) {
       metadata: nextMetadata
     });
   } catch (err) {
-    await updateDevelopmentTaskRun({
+    const failedRun = await updateDevelopmentTaskRun({
       runId: claimed.run.id,
       status: "failed",
       failureCategory: "workspace_prepare_failed",
@@ -200,6 +204,9 @@ async function prepareClaimedTaskWorkspace(claimed: ClaimedDevelopmentTask) {
         workspacePrepareFailed: true
       }
     });
+    if (failedRun) {
+      await updateDevelopmentTaskFailedStatusComment({ task: claimed.task, run: failedRun });
+    }
   }
 }
 

@@ -12,6 +12,7 @@ import {
 } from "../schema/development-tasks";
 import { projects } from "../schema/projects";
 import type { AppRole } from "@daoflow/shared";
+import { resolveSandboxRunnerCapabilities } from "./development-task-runner-capabilities";
 import { asRecord, newId } from "./json-helpers";
 
 export type DevelopmentTaskStatus = (typeof DEVELOPMENT_TASK_STATUSES)[number];
@@ -446,8 +447,12 @@ export async function listSandboxRunnerProfiles(input?: { status?: string; limit
     .orderBy(desc(sandboxRunnerProfiles.createdAt))
     .limit(input?.limit ?? 24);
 
-  return rows.map((profile) => ({
-    ...profile,
-    metadata: asRecord(profile.metadata)
-  }));
+  return rows.map((profile) => {
+    const metadata = asRecord(profile.metadata);
+    return {
+      ...profile,
+      metadata,
+      capabilities: resolveSandboxRunnerCapabilities({ provider: profile.provider, metadata })
+    };
+  });
 }

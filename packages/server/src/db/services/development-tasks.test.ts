@@ -158,6 +158,9 @@ describe("development task service", () => {
       runnerLabel: "development-task-worker",
       runnerProfileName: "Host Docker Default",
       serverId: "srv_foundation_1",
+      cpuLimit: 2,
+      memoryLimitMb: 4096,
+      diskLimitMb: 20480,
       codexAuthMode: "custom_provider_env",
       validationCommands: [
         "bun run format",
@@ -250,6 +253,14 @@ describe("development task service", () => {
           provider: "host_docker",
           serverId: "srv_foundation_1",
           status: "disabled",
+          capabilities: [
+            "exec",
+            "exec.stream",
+            "files.read",
+            "files.write",
+            "archive.upload",
+            "archive.download"
+          ],
           metadata: {
             defaultTarget: "registered-host"
           }
@@ -275,10 +286,19 @@ describe("development task service", () => {
       codexAuthModes: ["api_key", "chatgpt_auth_json", "custom_provider_env"],
       codexConfigPath: "/runner/home/.codex/config.toml",
       sandbankProvider: "host_docker",
+      capabilities: [
+        "exec",
+        "exec.stream",
+        "files.read",
+        "files.write",
+        "archive.upload",
+        "archive.download"
+      ],
       laterProvider: "sandbank_boxlite",
       laterPackage: "@sandbank.dev/boxlite",
       boxliteModes: ["remote", "local"]
     });
+    expect(seededProfile?.capabilities).toContain("exec.stream");
     expect(seededProfile?.codexConfigTemplate).toContain("[profiles.daoflow]");
   });
 });

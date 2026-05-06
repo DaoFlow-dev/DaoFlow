@@ -21,6 +21,7 @@ export interface GitHubPushEvent {
     number?: number;
     html_url?: string;
     title?: string;
+    body?: string | null;
     user?: {
       login?: string;
     };
@@ -69,6 +70,7 @@ export interface GitLabPushEvent {
     id?: number;
     iid?: number;
     title?: string;
+    description?: string | null;
     url?: string;
     web_url?: string;
     labels?: { title?: string; name?: string }[];
@@ -80,6 +82,7 @@ export interface GitLabPushEvent {
     action?: string;
     state?: string;
     title?: string;
+    description?: string | null;
     url?: string;
     source_branch?: string;
     note?: string;

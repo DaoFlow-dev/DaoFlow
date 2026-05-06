@@ -22,7 +22,7 @@ import {
   TableRow
 } from "@/components/ui/table";
 import { getInventoryBadgeVariant } from "@/lib/tone-utils";
-import { Bot, Cpu, ExternalLink, HardDrive, MemoryStick, RefreshCw } from "lucide-react";
+import { Bot, Cpu, ExternalLink, HardDrive, MemoryStick, RefreshCw, Terminal } from "lucide-react";
 
 const TASK_STATUSES = [
   "queued",
@@ -193,6 +193,8 @@ export default function DevelopmentTasksPage() {
             <div className="grid gap-3 md:grid-cols-2">
               {runnerProfiles.data?.map((profile) => {
                 const commands = readStringList(profile.validationCommands);
+                const allowedCommands = readStringList(profile.allowedCommands);
+                const capabilities = readStringList(profile.capabilities);
                 return (
                   <div key={profile.id} className="min-w-0 rounded-md border p-3">
                     <div className="flex items-start justify-between gap-3">
@@ -222,6 +224,17 @@ export default function DevelopmentTasksPage() {
                     </p>
                     <p className="mt-1 break-words text-xs text-muted-foreground">
                       Validation: {commands.length > 0 ? commands.join(", ") : "not configured"}
+                    </p>
+                    <p className="mt-1 flex items-start gap-1 break-words text-xs text-muted-foreground">
+                      <Terminal size={12} className="mt-0.5 shrink-0" />
+                      <span>
+                        Allowed:{" "}
+                        {allowedCommands.length > 0 ? allowedCommands.join(", ") : "profile only"}
+                      </span>
+                    </p>
+                    <p className="mt-1 break-words text-xs text-muted-foreground">
+                      Capabilities:{" "}
+                      {capabilities.length > 0 ? capabilities.join(", ") : "not reported"}
                     </p>
                   </div>
                 );

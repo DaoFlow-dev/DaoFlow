@@ -57,6 +57,8 @@ describe("DevelopmentTasksPage", () => {
           memoryLimitMb: 4096,
           diskLimitMb: 20480,
           codexAuthMode: "custom_provider_env",
+          allowedCommands: ["bun run test:unit", "bun run typecheck", "git status"],
+          capabilities: ["exec", "exec.stream", "files.read"],
           validationCommands: ["bun run test:unit", "bun run typecheck"]
         }
       ],
@@ -85,7 +87,9 @@ describe("DevelopmentTasksPage", () => {
     );
     expect(screen.getByText("Host Docker Default")).toBeInTheDocument();
     expect(screen.getByText(/host docker/)).toBeInTheDocument();
-    expect(screen.getByText(/bun run typecheck/)).toBeInTheDocument();
+    expect(screen.getAllByText(/bun run typecheck/)).toHaveLength(2);
+    expect(screen.getByText(/git status/)).toBeInTheDocument();
+    expect(screen.getByText(/exec\.stream/)).toBeInTheDocument();
   });
 
   it("refreshes the development task queue", () => {

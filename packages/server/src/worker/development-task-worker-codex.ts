@@ -18,6 +18,7 @@ import { queueDevelopmentTaskPreviewDeployments } from "./development-task-previ
 import { completeDevelopmentTaskHandoff } from "./development-task-worker-handoff";
 import type { DevelopmentTaskReviewTarget } from "./development-task-review-target";
 import { buildHostDockerSandboxFromRun } from "./development-task-host-docker";
+import { updateDevelopmentTaskFailedStatusComment } from "./development-task-worker-comments";
 
 let codexExecution = executeDevelopmentTaskCodex;
 let validationExecution = runDevelopmentTaskValidation;
@@ -95,7 +96,7 @@ export async function runClaimedTaskCodex(input: {
   await codexLogEvents.flush();
 
   if (execution.status !== "ok") {
-    await updateDevelopmentTaskRun({
+    const failedRun = await updateDevelopmentTaskRun({
       runId: input.run.id,
       status: "failed",
       failureCategory: "codex_execution_failed",
@@ -105,6 +106,9 @@ export async function runClaimedTaskCodex(input: {
         codexExecution: execution
       }
     });
+    if (failedRun) {
+      await updateDevelopmentTaskFailedStatusComment({ task: input.task, run: failedRun });
+    }
     return;
   }
 
@@ -145,7 +149,7 @@ export async function runClaimedTaskCodex(input: {
   await validationLogEvents.flush();
 
   if (validation.status === "failed") {
-    await updateDevelopmentTaskRun({
+    const failedRun = await updateDevelopmentTaskRun({
       runId: input.run.id,
       status: "failed",
       failureCategory: "validation_failed",
@@ -156,6 +160,9 @@ export async function runClaimedTaskCodex(input: {
         validation
       }
     });
+    if (failedRun) {
+      await updateDevelopmentTaskFailedStatusComment({ task: input.task, run: failedRun });
+    }
     return;
   }
 

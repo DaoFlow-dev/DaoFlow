@@ -12,6 +12,11 @@ import {
   createGitHubDevelopmentTaskPullRequest
 } from "./development-task-pull-request-github";
 import { createGitLabDevelopmentTaskMergeRequest } from "./development-task-merge-request-gitlab";
+import {
+  parseDevelopmentTaskChangedFiles,
+  writeDevelopmentTaskReviewArtifacts,
+  type DevelopmentTaskChangedFile
+} from "./development-task-review-artifacts";
 
 type ExecRunner = typeof execStreaming;
 
@@ -19,8 +24,9 @@ export interface DevelopmentTaskPullRequestResult {
   status: "ok" | "failed";
   branchName?: string;
   commitSha?: string;
-  changedFiles?: Array<{ path: string; status: string }>;
+  changedFiles?: DevelopmentTaskChangedFile[];
   diffStat?: string;
+  reviewArtifacts?: { diffStatPath: string; changedFilesPath: string };
   pullRequestNumber?: number;
   pullRequestUrl?: string;
   logPath: string;
@@ -97,21 +103,6 @@ async function captureGit(input: {
     }
   });
   return lines.join("\n").trim();
-}
-
-function parseChangedFiles(output: string) {
-  return output
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => {
-      const [status, ...pathParts] = line.split("\t");
-      return {
-        status: status ?? "unknown",
-        path: pathParts.join(" -> ")
-      };
-    })
-    .filter((file) => file.path);
 }
 
 export async function openGitHubDevelopmentTaskPullRequest(input: {
@@ -211,6 +202,12 @@ export async function openGitHubDevelopmentTaskPullRequest(input: {
         envOverrides
       })
     ]);
+    const changedFiles = parseDevelopmentTaskChangedFiles(changedFilesOutput);
+    const reviewArtifacts = await writeDevelopmentTaskReviewArtifacts({
+      artifactsPath: input.workspace.artifactsPath,
+      diffStat,
+      changedFiles
+    });
 
     await runGit({
       execRunner,
@@ -256,8 +253,9 @@ export async function openGitHubDevelopmentTaskPullRequest(input: {
       status: "ok",
       branchName,
       commitSha,
-      changedFiles: parseChangedFiles(changedFilesOutput),
+      changedFiles,
       diffStat,
+      reviewArtifacts,
       logPath,
       ...pullRequest
     };

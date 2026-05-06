@@ -14,6 +14,7 @@ import {
   recordPreviewHandoffAudit,
   recordPullRequestHandoffAudit
 } from "./development-task-handoff-audit";
+import { updateDevelopmentTaskFailedStatusComment } from "./development-task-worker-comments";
 import type {
   openGitHubDevelopmentTaskPullRequest,
   DevelopmentTaskPullRequestResult
@@ -121,7 +122,7 @@ export async function completeDevelopmentTaskHandoff(input: {
         pullRequest: reviewRequest
       });
     }
-    await updateDevelopmentTaskRun({
+    const failedRun = await updateDevelopmentTaskRun({
       runId: input.run.id,
       status: "failed",
       failureCategory: isGitLabTask ? "merge_request_failed" : "pull_request_failed",
@@ -133,6 +134,9 @@ export async function completeDevelopmentTaskHandoff(input: {
         [reviewRequestKey]: reviewRequest
       }
     });
+    if (failedRun) {
+      await updateDevelopmentTaskFailedStatusComment({ task: input.task, run: failedRun });
+    }
     return;
   }
 
@@ -174,7 +178,7 @@ export async function completeDevelopmentTaskHandoff(input: {
     });
   }
   if (reviewRequest.status !== "ok") {
-    await updateDevelopmentTaskRun({
+    const failedRun = await updateDevelopmentTaskRun({
       runId: input.run.id,
       status: "failed",
       failureCategory: isGitLabTask ? "merge_request_failed" : "pull_request_failed",
@@ -188,6 +192,9 @@ export async function completeDevelopmentTaskHandoff(input: {
         [reviewRequestKey]: reviewRequest
       }
     });
+    if (failedRun) {
+      await updateDevelopmentTaskFailedStatusComment({ task: input.task, run: failedRun });
+    }
     return;
   }
 

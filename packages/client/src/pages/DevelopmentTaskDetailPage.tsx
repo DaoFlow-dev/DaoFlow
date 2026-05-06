@@ -16,14 +16,8 @@ import {
   TableRow
 } from "@/components/ui/table";
 import { getInventoryBadgeVariant } from "@/lib/tone-utils";
-import {
-  ArrowLeft,
-  ExternalLink,
-  GitPullRequest,
-  MonitorUp,
-  RotateCcw,
-  XCircle
-} from "lucide-react";
+import { ArrowLeft, ExternalLink, RotateCcw, XCircle } from "lucide-react";
+import { DevelopmentTaskReviewOutputs } from "./DevelopmentTaskReviewOutputs";
 
 const CANCELABLE_STATUSES = new Set(["queued", "running", "waiting_review", "blocked"]);
 const RETRYABLE_STATUSES = new Set(["failed", "canceled", "blocked"]);
@@ -192,37 +186,7 @@ export default function DevelopmentTaskDetailPage() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">Review Outputs</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2 text-sm">
-            {latestRun?.pullRequestUrl ? (
-              <a
-                href={latestRun.pullRequestUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-1 font-medium hover:underline"
-              >
-                Pull request <GitPullRequest size={13} />
-              </a>
-            ) : (
-              <p className="text-muted-foreground">No pull request yet.</p>
-            )}
-            {latestRun?.previewUrl ? (
-              <a
-                href={latestRun.previewUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-1 font-medium hover:underline"
-              >
-                Preview <MonitorUp size={13} />
-              </a>
-            ) : (
-              <p className="text-muted-foreground">No preview URL yet.</p>
-            )}
-          </CardContent>
-        </Card>
+        <DevelopmentTaskReviewOutputs latestRun={latestRun} />
       </div>
 
       <Card>

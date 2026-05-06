@@ -152,6 +152,7 @@ export async function processGitHubDevelopmentTaskTrigger(input: {
   const issueNumber = Number(issue.number);
   const issueUrl = String(issue.html_url);
   const issueTitle = String(issue.title);
+  const issueBody = typeof issue.body === "string" ? issue.body : null;
 
   const deliveryClaim = await claimWebhookDelivery({
     providerType: "github",
@@ -205,6 +206,7 @@ export async function processGitHubDevelopmentTaskTrigger(input: {
       metadata: {
         trigger: input.trigger.kind,
         deliveryKey: deliveryClaim.deliveryKey,
+        issueBody,
         targetResource: buildTargetResource("github", input.repoFullName)
       }
     });

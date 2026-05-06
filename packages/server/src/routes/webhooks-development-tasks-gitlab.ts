@@ -61,6 +61,7 @@ function readIssue(payload: GitLabPushEvent) {
     number: issueNumber,
     url: issueUrl,
     title: issueTitle,
+    body: payload.issue?.description ?? payload.object_attributes?.description ?? null,
     author: payload.issue?.author?.username ?? null,
     labels: payload.issue?.labels ?? payload.object_attributes?.labels ?? payload.labels
   };
@@ -160,6 +161,7 @@ export async function processGitLabDevelopmentTaskTrigger(input: {
       metadata: {
         trigger: input.trigger.kind,
         deliveryKey: deliveryClaim.deliveryKey,
+        issueBody: issue.body,
         targetResource: buildTargetResource("gitlab", input.repoFullName)
       }
     });

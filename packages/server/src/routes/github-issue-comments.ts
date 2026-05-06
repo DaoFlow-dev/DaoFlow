@@ -15,6 +15,7 @@ import {
 import { buildGitHubApiBaseUrl } from "../db/services/project-source-provider-validation-shared";
 import type { WebhookTarget } from "./webhooks-types";
 import {
+  buildDevelopmentTaskFailedComment,
   buildDevelopmentTaskQueuedComment,
   buildDevelopmentTaskReadyForReviewComment,
   buildDevelopmentTaskRunningComment
@@ -39,6 +40,18 @@ function readMetadataRecord(value: unknown) {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : {};
+}
+
+function toGitHubCommentTarget(target: WebhookTarget): GitHubCommentTarget {
+  if (!target.installation) {
+    throw new Error("GitHub development task comment requires an installation.");
+  }
+
+  return {
+    project: target.project,
+    provider: target.provider,
+    installation: target.installation
+  };
 }
 
 async function findStatusComment(taskId: string) {
@@ -143,10 +156,6 @@ export async function upsertQueuedGitHubDevelopmentTaskComment(input: {
   issueNumber: number;
   target: WebhookTarget;
 }) {
-  if (!input.target.installation) {
-    throw new Error("GitHub development task comment requires an installation.");
-  }
-
   await upsertGitHubDevelopmentTaskStatusComment({
     taskId: input.taskId,
     body: buildDevelopmentTaskQueuedComment({
@@ -157,11 +166,7 @@ export async function upsertQueuedGitHubDevelopmentTaskComment(input: {
     }),
     repoFullName: input.repoFullName,
     issueNumber: input.issueNumber,
-    target: {
-      project: input.target.project,
-      provider: input.target.provider,
-      installation: input.target.installation
-    },
+    target: toGitHubCommentTarget(input.target),
     status: "queued",
     postedSummary: "Posted the queued status comment on the GitHub issue.",
     updatedSummary: "Updated the queued status comment on the GitHub issue."
@@ -173,10 +178,6 @@ export async function upsertRunningGitHubDevelopmentTaskComment(input: {
   run: typeof developmentTaskRuns.$inferSelect;
   target: WebhookTarget;
 }) {
-  if (!input.target.installation) {
-    throw new Error("GitHub development task comment requires an installation.");
-  }
-
   await upsertGitHubDevelopmentTaskStatusComment({
     taskId: input.task.id,
     runId: input.run.id,
@@ -187,11 +188,7 @@ export async function upsertRunningGitHubDevelopmentTaskComment(input: {
     }),
     repoFullName: input.task.repoFullName,
     issueNumber: input.task.issueNumber,
-    target: {
-      project: input.target.project,
-      provider: input.target.provider,
-      installation: input.target.installation
-    },
+    target: toGitHubCommentTarget(input.target),
     status: "running",
     postedSummary: "Posted the running status comment on the GitHub issue.",
     updatedSummary: "Updated the status comment to show that work has started."
@@ -203,10 +200,6 @@ export async function upsertReadyForReviewGitHubDevelopmentTaskComment(input: {
   run: typeof developmentTaskRuns.$inferSelect;
   target: WebhookTarget;
 }) {
-  if (!input.target.installation) {
-    throw new Error("GitHub development task comment requires an installation.");
-  }
-
   await upsertGitHubDevelopmentTaskStatusComment({
     taskId: input.task.id,
     runId: input.run.id,
@@ -217,14 +210,32 @@ export async function upsertReadyForReviewGitHubDevelopmentTaskComment(input: {
     }),
     repoFullName: input.task.repoFullName,
     issueNumber: input.task.issueNumber,
-    target: {
-      project: input.target.project,
-      provider: input.target.provider,
-      installation: input.target.installation
-    },
+    target: toGitHubCommentTarget(input.target),
     status: "waiting_review",
     postedSummary: "Posted the pull request status comment on the GitHub issue.",
     updatedSummary: "Updated the status comment with the pull request handoff."
+  });
+}
+
+export async function upsertFailedGitHubDevelopmentTaskComment(input: {
+  task: typeof developmentTasks.$inferSelect;
+  run: typeof developmentTaskRuns.$inferSelect;
+  target: WebhookTarget;
+}) {
+  await upsertGitHubDevelopmentTaskStatusComment({
+    taskId: input.task.id,
+    runId: input.run.id,
+    body: buildDevelopmentTaskFailedComment({
+      task: input.task,
+      run: input.run,
+      projectName: input.target.project.name
+    }),
+    repoFullName: input.task.repoFullName,
+    issueNumber: input.task.issueNumber,
+    target: toGitHubCommentTarget(input.target),
+    status: "failed",
+    postedSummary: "Posted the failed status comment on the GitHub issue.",
+    updatedSummary: "Updated the status comment with the failure reason."
   });
 }
 

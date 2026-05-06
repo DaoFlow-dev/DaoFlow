@@ -9,6 +9,7 @@ import {
   checkoutDevelopmentTaskRepository,
   type DevelopmentTaskRepositoryCheckoutResult
 } from "./development-task-repository-checkout";
+import { updateDevelopmentTaskFailedStatusComment } from "./development-task-worker-comments";
 
 let repositoryCheckout = checkoutDevelopmentTaskRepository;
 
@@ -54,7 +55,7 @@ export async function prepareClaimedTaskRepository(input: {
   });
 
   if (checkout.status !== "ok") {
-    await updateDevelopmentTaskRun({
+    const failedRun = await updateDevelopmentTaskRun({
       runId: input.run.id,
       status: "failed",
       failureCategory: "repository_checkout_failed",
@@ -65,6 +66,9 @@ export async function prepareClaimedTaskRepository(input: {
         repositoryCheckout: checkout
       }
     });
+    if (failedRun) {
+      await updateDevelopmentTaskFailedStatusComment({ task: input.task, run: failedRun });
+    }
     return checkout;
   }
 

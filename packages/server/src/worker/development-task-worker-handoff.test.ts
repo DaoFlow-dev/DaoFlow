@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { eq } from "drizzle-orm";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { db } from "../db/connection";
 import { auditEntries } from "../db/schema/audit";
 import { developmentTaskRuns } from "../db/schema/development-tasks";
@@ -12,6 +12,13 @@ import { createProject } from "../db/services/projects";
 import { resetSeededTestDatabase } from "../test-db";
 import type { PreparedDevelopmentTaskCodexWorkspace } from "./development-task-codex-workspace";
 import { completeDevelopmentTaskHandoff } from "./development-task-worker-handoff";
+
+function readIssueNoteBody(init: RequestInit | undefined) {
+  if (typeof init?.body !== "string") {
+    throw new Error("Expected issue note request body.");
+  }
+  return JSON.parse(init.body) as { body?: string };
+}
 
 async function createGitLabHandoffFixture() {
   await resetSeededTestDatabase();
@@ -95,10 +102,28 @@ async function createGitLabHandoffFixture() {
 }
 
 describe("development task worker handoff", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("records GitLab merge request audit evidence when MR handoff is unavailable", async () => {
     const fixture = await createGitLabHandoffFixture();
     const pullRequestOpening = vi.fn();
     const previewQueuing = vi.fn();
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementationOnce((_url, init) => {
+      const body = readIssueNoteBody(init);
+      expect(body.body).toContain("Status: failed");
+      expect(body.body).toContain("Failure: merge_request_failed");
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            id: 990202,
+            web_url: "https://gitlab.com/example/development-task-mr/-/issues/185#note_990202"
+          }),
+          { status: 201, headers: { "Content-Type": "application/json" } }
+        )
+      );
+    });
 
     await completeDevelopmentTaskHandoff({
       ...fixture,
@@ -120,6 +145,10 @@ describe("development task worker handoff", () => {
 
     expect(pullRequestOpening).not.toHaveBeenCalled();
     expect(previewQueuing).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      "https://gitlab.com/api/v4/projects/example%2Fdevelopment-task-mr/issues/185/notes"
+    );
 
     const [run] = await db
       .select()
@@ -174,14 +203,12 @@ describe("development task worker handoff", () => {
       message: "No preview target."
     });
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementationOnce((_url, init) => {
-      if (typeof init?.body !== "string") {
-        throw new Error("Expected GitLab note request body.");
-      }
-      const body = JSON.parse(init.body) as { body?: string };
+      const body = readIssueNoteBody(init);
       expect(body.body).toContain("DaoFlow opened a merge request.");
       expect(body.body).toContain(
         "Merge request: https://gitlab.com/example/development-task-mr/-/merge_requests/7"
       );
+      expect(body.body).toContain("Preview: skipped (No preview target.)");
       return Promise.resolve(
         new Response(
           JSON.stringify({

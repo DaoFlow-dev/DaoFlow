@@ -13,6 +13,7 @@ import {
 } from "../db/services/development-tasks";
 import type { WebhookTarget } from "./webhooks-types";
 import {
+  buildDevelopmentTaskFailedComment,
   buildDevelopmentTaskQueuedComment,
   buildDevelopmentTaskReadyForReviewComment,
   buildDevelopmentTaskRunningComment
@@ -143,6 +144,28 @@ export async function upsertReadyForReviewGitLabDevelopmentTaskComment(input: {
     status: "waiting_review",
     postedSummary: "Posted the merge request status note on the GitLab issue.",
     updatedSummary: "Updated the status note with the merge request handoff."
+  });
+}
+
+export async function upsertFailedGitLabDevelopmentTaskComment(input: {
+  task: typeof developmentTasks.$inferSelect;
+  run: typeof developmentTaskRuns.$inferSelect;
+  target: WebhookTarget;
+}) {
+  await upsertGitLabDevelopmentTaskStatusComment({
+    taskId: input.task.id,
+    runId: input.run.id,
+    body: buildDevelopmentTaskFailedComment({
+      task: input.task,
+      run: input.run,
+      projectName: input.target.project.name
+    }),
+    repoFullName: input.task.repoFullName,
+    issueNumber: input.task.issueNumber,
+    target: requireGitLabCommentTarget(input.target),
+    status: "failed",
+    postedSummary: "Posted the failed status note on the GitLab issue.",
+    updatedSummary: "Updated the status note with the failure reason."
   });
 }
 

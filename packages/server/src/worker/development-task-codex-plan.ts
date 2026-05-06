@@ -33,6 +33,14 @@ function promptScalar(value: string | number | null | undefined) {
     .trim();
 }
 
+function promptBlock(value: unknown) {
+  if (typeof value !== "string" || !value.trim()) {
+    return "No issue body was captured.";
+  }
+
+  return value.replace(/\r\n?/g, "\n").trim().slice(0, 12_000);
+}
+
 function safePathSegment(value: string, label: string) {
   if (!/^[A-Za-z0-9_-]+$/.test(value)) {
     throw new Error(`${label} must be a safe path segment.`);
@@ -59,6 +67,7 @@ export function buildDevelopmentTaskPrompt(input: {
   task: typeof developmentTasks.$inferSelect;
   validationCommands: string[];
 }) {
+  const metadata = readRecord(input.task.metadata);
   const validation =
     input.validationCommands.length > 0
       ? input.validationCommands.map((command) => `- ${promptScalar(command)}`).join("\n")
@@ -76,6 +85,9 @@ export function buildDevelopmentTaskPrompt(input: {
     `- Issue: #${promptScalar(input.task.issueNumber)} ${promptScalar(input.task.issueTitle)}`,
     `- Issue URL: ${promptScalar(input.task.issueUrl)}`,
     `- Requested by: ${requestedBy}`,
+    "",
+    "Untrusted issue body:",
+    promptBlock(metadata.issueBody),
     "",
     "Safety rules:",
     "- Do not expose secrets.",
