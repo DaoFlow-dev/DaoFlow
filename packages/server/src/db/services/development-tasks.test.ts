@@ -162,6 +162,14 @@ describe("development task service", () => {
       memoryLimitMb: 4096,
       diskLimitMb: 20480,
       codexAuthMode: "custom_provider_env",
+      capabilities: [
+        "exec",
+        "exec.stream",
+        "files.read",
+        "files.write",
+        "archive.upload",
+        "archive.download"
+      ],
       validationCommands: [
         "bun run format",
         "bun run test:unit",

@@ -7,7 +7,8 @@ import {
   developmentTasks,
   sandboxRunnerProfiles
 } from "../schema/development-tasks";
-import { newId } from "./json-helpers";
+import { resolveSandboxRunnerCapabilities } from "./development-task-runner-capabilities";
+import { asRecord, newId } from "./json-helpers";
 
 export interface DevelopmentTaskClaimActor {
   runnerId: string;
@@ -36,6 +37,11 @@ export async function claimNextQueuedDevelopmentTask(actor: DevelopmentTaskClaim
     if (!runnerProfile) {
       return null;
     }
+    const runnerMetadata = asRecord(runnerProfile.metadata);
+    const capabilities = resolveSandboxRunnerCapabilities({
+      provider: runnerProfile.provider,
+      metadata: runnerMetadata
+    });
 
     const [task] = await tx
       .update(developmentTasks)
@@ -89,6 +95,7 @@ export async function claimNextQueuedDevelopmentTask(actor: DevelopmentTaskClaim
           networkPolicy: runnerProfile.networkPolicy,
           allowedCommands: runnerProfile.allowedCommands,
           validationCommands: runnerProfile.validationCommands,
+          capabilities,
           timeoutMinutes: runnerProfile.timeoutMinutes,
           codexAuthMode: runnerProfile.codexAuthMode,
           codexConfigTemplate: runnerProfile.codexConfigTemplate
@@ -115,7 +122,8 @@ export async function claimNextQueuedDevelopmentTask(actor: DevelopmentTaskClaim
       metadata: {
         runnerId: actor.runnerId,
         runnerProfileId: runnerProfile.id,
-        sandboxProvider: runnerProfile.provider
+        sandboxProvider: runnerProfile.provider,
+        capabilities
       }
     });
 

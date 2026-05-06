@@ -25,6 +25,16 @@ let validationExecution = runDevelopmentTaskValidation;
 let pullRequestOpening = openGitHubDevelopmentTaskPullRequest;
 let previewQueuing = queueDevelopmentTaskPreviewDeployments;
 
+function readRunnerCapabilities(metadata: unknown) {
+  const record =
+    metadata && typeof metadata === "object" && !Array.isArray(metadata)
+      ? (metadata as Record<string, unknown>)
+      : {};
+  return Array.isArray(record.capabilities)
+    ? record.capabilities.filter((item): item is string => typeof item === "string")
+    : [];
+}
+
 export async function runClaimedTaskCodex(input: {
   task: typeof developmentTasks.$inferSelect;
   run: typeof developmentTaskRuns.$inferSelect;
@@ -58,6 +68,23 @@ export async function runClaimedTaskCodex(input: {
     ...input.metadata,
     ...sandboxMetadata
   };
+  const capabilities = readRunnerCapabilities(input.run.metadata);
+  if (capabilities.length > 0 && !capabilities.includes("exec")) {
+    const failedRun = await updateDevelopmentTaskRun({
+      runId: input.run.id,
+      status: "failed",
+      failureCategory: "sandbox_capability_missing",
+      failureMessage: "The selected sandbox runner does not support command execution.",
+      metadata: {
+        ...executionMetadata,
+        sandboxCapabilities: capabilities
+      }
+    });
+    if (failedRun) {
+      await updateDevelopmentTaskFailedStatusComment({ task: input.task, run: failedRun });
+    }
+    return;
+  }
 
   await updateDevelopmentTaskRun({
     runId: input.run.id,

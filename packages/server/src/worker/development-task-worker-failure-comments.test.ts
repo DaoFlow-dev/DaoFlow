@@ -1,6 +1,10 @@
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
+import { eq } from "drizzle-orm";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { db } from "../db/connection";
+import { sandboxRunnerProfiles } from "../db/schema/development-tasks";
+import { DEFAULT_HOST_RUNNER_PROFILE_ID } from "../db/services/default-development-runner";
 import {
   queueDevelopmentTask,
   recordDevelopmentTaskComment
@@ -115,5 +119,63 @@ describe("development task worker failure comments", () => {
     );
     expect(fetchMock.mock.calls[3]?.[1]?.method).toBe("PATCH");
     expect(validationExecution).not.toHaveBeenCalled();
+  });
+
+  it("updates the source issue status comment when sandbox capabilities block execution", async () => {
+    await resetSeededTestDatabase();
+    process.env.APP_BASE_URL = "https://daoflow.example.test";
+    process.env.DAOFLOW_DEVELOPMENT_TASK_WORKSPACE_ROOT = await mkdtemp(
+      `${tmpdir()}/daoflow-worker-capability-`
+    );
+    await db
+      .update(sandboxRunnerProfiles)
+      .set({ metadata: { capabilities: ["files.read"] }, updatedAt: new Date() })
+      .where(eq(sandboxRunnerProfiles.id, DEFAULT_HOST_RUNNER_PROFILE_ID));
+    const fixture = await createClaimedCommentFixture();
+    const queued = await queueDevelopmentTask({
+      providerType: "github",
+      providerInstallationId: fixture.installationId,
+      projectId: fixture.projectId,
+      repoFullName: fixture.repoFullName,
+      externalIssueId: "worker-capability-issue",
+      issueNumber: 193,
+      issueUrl: `https://github.com/${fixture.repoFullName}/issues/193`,
+      issueTitle: "Report sandbox capability failure",
+      requestedByExternalUser: "octocat"
+    });
+
+    if (queued.status !== "created") {
+      throw new Error("Expected development task to be created.");
+    }
+
+    await recordDevelopmentTaskComment({
+      taskId: queued.task.id,
+      providerType: "github",
+      externalCommentId: "990012",
+      commentKind: "status",
+      lastBodyHash: "queued-hash",
+      metadata: { status: "queued" }
+    });
+
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify({ token: "ghs_token" }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: 990012 }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ token: "ghs_token" }), { status: 200 }))
+      .mockImplementationOnce((_url, init) => {
+        const body = readCommentBody(init);
+        expect(body.body).toContain("Failure: sandbox_capability_missing");
+        expect(body.body).toContain(
+          "Message: The selected sandbox runner does not support command execution."
+        );
+        return Promise.resolve(new Response(JSON.stringify({ id: 990012 }), { status: 200 }));
+      });
+    const codexExecution = vi.fn();
+    setDevelopmentTaskCodexExecutionForTests(codexExecution);
+
+    await pollDevelopmentTaskQueue();
+
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(codexExecution).not.toHaveBeenCalled();
   });
 });
