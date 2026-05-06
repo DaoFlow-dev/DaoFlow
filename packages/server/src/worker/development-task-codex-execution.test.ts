@@ -117,7 +117,8 @@ describe("executeDevelopmentTaskCodex", () => {
         memoryLimitMb: 1024,
         timeoutMinutes: 3,
         networkPolicy: "none",
-        user: "1000:1000"
+        user: "1000:1000",
+        retainOnFailure: false
       },
       onLog: vi.fn(),
       execRunner
@@ -185,7 +186,8 @@ describe("executeDevelopmentTaskCodex", () => {
         memoryLimitMb: 512,
         timeoutMinutes: 1,
         networkPolicy: "default-egress",
-        user: "1000:1000"
+        user: "1000:1000",
+        retainOnFailure: false
       },
       onLog: vi.fn(),
       execRunner
@@ -198,6 +200,36 @@ describe("executeDevelopmentTaskCodex", () => {
     expect(execRunner.mock.calls[1]?.[1]).toEqual(["rm", "-f", "daoflow-devtask-timeout"]);
   });
 
+  it("retains failed sandbox containers when requested", async () => {
+    const { plan, workspace } = await executionFixture();
+    const execRunner = vi.fn().mockResolvedValue({ exitCode: 42, signal: null });
+
+    const result = await executeDevelopmentTaskCodex({
+      plan,
+      workspace,
+      sandbox: {
+        provider: "host_docker",
+        containerName: "daoflow-devtask-retained",
+        image: "ghcr.io/daoflow/codex-runner:test",
+        cpuLimit: 1,
+        memoryLimitMb: 512,
+        timeoutMinutes: 1,
+        networkPolicy: "default-egress",
+        user: "1000:1000",
+        retainOnFailure: true
+      },
+      onLog: vi.fn(),
+      execRunner
+    });
+
+    expect(result).toMatchObject({
+      status: "failed",
+      errorMessage: "Codex exited with code 42"
+    });
+    expect(execRunner).toHaveBeenCalledTimes(1);
+    expect(execRunner.mock.calls[0]?.[1]).not.toContain("--rm");
+  });
+
   it("defaults host Docker sandboxes to a non-root process user", () => {
     const sandbox = buildHostDockerSandboxFromRun({
       runId: "run_user",
@@ -206,6 +238,16 @@ describe("executeDevelopmentTaskCodex", () => {
     });
 
     expect(sandbox.user).toMatch(/^[1-9]\d*:[1-9]\d*$/);
+  });
+
+  it("reads optional sandbox retention from runner metadata", () => {
+    const sandbox = buildHostDockerSandboxFromRun({
+      runId: "run_retain",
+      provider: "host_docker",
+      metadata: { retainOnFailure: true }
+    });
+
+    expect(sandbox.retainOnFailure).toBe(true);
   });
 
   it("builds a BoxLite-compatible sandbox profile on the host runner", () => {

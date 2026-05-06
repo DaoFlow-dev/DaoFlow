@@ -13,6 +13,7 @@ export interface HostDockerCodexSandbox {
   timeoutMinutes: number;
   networkPolicy: string;
   user: string;
+  retainOnFailure: boolean;
 }
 
 const PROVIDER_ENV_KEYS = [
@@ -67,6 +68,10 @@ function safeSandboxUser(value: unknown) {
   return /^[1-9]\d*:[1-9]\d*$/.test(user) ? user : defaultSandboxUser();
 }
 
+function readRetainOnFailure(metadata: Record<string, unknown>) {
+  return metadata.retainOnFailure === true || metadata.sandboxRetainOnFailure === true;
+}
+
 export function buildHostDockerSandboxFromRun(input: {
   runId: string;
   provider?: string | null;
@@ -93,7 +98,8 @@ export function buildHostDockerSandboxFromRun(input: {
       typeof metadata.networkPolicy === "string" && metadata.networkPolicy.trim()
         ? metadata.networkPolicy.trim()
         : "default-egress",
-    user: safeSandboxUser(metadata.sandboxUser)
+    user: safeSandboxUser(metadata.sandboxUser),
+    retainOnFailure: readRetainOnFailure(metadata)
   };
 }
 
@@ -158,9 +164,11 @@ export function buildHostDockerCommandExecution(input: {
   options: ExecStreamingOptions;
 } {
   const root = runWorkspaceRoot(input.workspace);
-  const args = [
-    "run",
-    "--rm",
+  const args = ["run"];
+  if (!input.sandbox.retainOnFailure) {
+    args.push("--rm");
+  }
+  args.push(
     "--name",
     input.sandbox.containerName,
     "--cpus",
@@ -181,7 +189,7 @@ export function buildHostDockerCommandExecution(input: {
     `${root}:${root}`,
     "--workdir",
     input.workspace.repoPath
-  ];
+  );
 
   appendNetworkArgs(args, input.sandbox.networkPolicy);
   appendEnvArgs(args, input.env ?? {});

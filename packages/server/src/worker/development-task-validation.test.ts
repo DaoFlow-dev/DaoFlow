@@ -112,7 +112,8 @@ describe("development task validation", () => {
         memoryLimitMb: 768,
         timeoutMinutes: 2,
         networkPolicy: "default-egress",
-        user: "1000:1000"
+        user: "1000:1000",
+        retainOnFailure: false
       },
       onLog: vi.fn(),
       execRunner

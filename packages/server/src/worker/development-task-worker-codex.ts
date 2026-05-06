@@ -55,7 +55,8 @@ export async function runClaimedTaskCodex(input: {
           cpuLimit: sandbox.cpuLimit,
           memoryLimitMb: sandbox.memoryLimitMb,
           timeoutMinutes: sandbox.timeoutMinutes,
-          networkPolicy: sandbox.networkPolicy
+          networkPolicy: sandbox.networkPolicy,
+          retainOnFailure: sandbox.retainOnFailure
         }
       }
     : {};

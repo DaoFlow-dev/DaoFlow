@@ -90,7 +90,10 @@ export async function executeDevelopmentTaskCodex(input: {
         )
       : await execRunner(execution.command, execution.args, execution.cwd, onLog, execution.env);
 
-    if (input.sandbox && result.signal) {
+    if (
+      input.sandbox &&
+      (result.signal || (input.sandbox.retainOnFailure && result.exitCode === 0))
+    ) {
       const cleanup = buildHostDockerCleanupExecution(input.sandbox.containerName);
       await execRunner(cleanup.command, cleanup.args, cleanup.cwd, onLog).catch(() => undefined);
     }
