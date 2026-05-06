@@ -12,6 +12,7 @@ import type { DevelopmentTaskValidationResult } from "./development-task-validat
 import type { DevelopmentTaskCodexExecutionResult } from "./development-task-codex-execution";
 import type { PreparedDevelopmentTaskCodexWorkspace } from "./development-task-codex-workspace";
 import {
+  recordMergeRequestHandoffAudit,
   recordPreviewHandoffAudit,
   recordPullRequestHandoffAudit
 } from "./development-task-handoff-audit";
@@ -32,6 +33,20 @@ async function recordPullRequestAuditSafely(input: {
   await recordPullRequestHandoffAudit(input).catch((err: unknown) => {
     console.error(
       "[development-task-worker] Failed to record pull request handoff audit:",
+      err instanceof Error ? err.message : String(err)
+    );
+  });
+}
+
+async function recordMergeRequestAuditSafely(input: {
+  task: typeof developmentTasks.$inferSelect;
+  run: typeof developmentTaskRuns.$inferSelect;
+  project: typeof projects.$inferSelect;
+  mergeRequest: DevelopmentTaskPullRequestResult;
+}) {
+  await recordMergeRequestHandoffAudit(input).catch((err: unknown) => {
+    console.error(
+      "[development-task-worker] Failed to record merge request handoff audit:",
       err instanceof Error ? err.message : String(err)
     );
   });
@@ -63,6 +78,12 @@ export async function completeDevelopmentTaskHandoff(input: {
   pullRequestOpening: typeof openGitHubDevelopmentTaskPullRequest;
   previewQueuing: typeof queueDevelopmentTaskPreviewDeployments;
 }) {
+  const isGitLabTask = input.task.providerType === "gitlab";
+  const reviewRequestKey = isGitLabTask ? "mergeRequest" : "pullRequest";
+  const reviewRequestLogPath = `${input.workspace.logsPath}/${
+    isGitLabTask ? "merge-request" : "pull-request"
+  }.jsonl`;
+
   await updateDevelopmentTaskRun({
     runId: input.run.id,
     status: "opening_pr",
@@ -70,36 +91,47 @@ export async function completeDevelopmentTaskHandoff(input: {
       ...input.metadata,
       codexExecution: input.codexExecution,
       validation: input.validation,
-      pullRequest: {
+      [reviewRequestKey]: {
         status: "started",
-        logPath: `${input.workspace.logsPath}/pull-request.jsonl`
+        logPath: reviewRequestLogPath
       }
     }
   });
 
-  const missingTarget = "GitHub target is not available for pull request creation.";
+  const missingTarget = isGitLabTask
+    ? "GitLab merge request creation is not available for this task."
+    : "GitHub target is not available for pull request creation.";
   if (!input.githubTarget) {
-    const pullRequest = {
+    const reviewRequest = {
       status: "failed" as const,
-      logPath: `${input.workspace.logsPath}/pull-request.jsonl`,
+      logPath: reviewRequestLogPath,
       errorMessage: missingTarget
     };
-    await recordPullRequestAuditSafely({
-      task: input.task,
-      run: input.run,
-      project: input.project,
-      pullRequest
-    });
+    if (isGitLabTask) {
+      await recordMergeRequestAuditSafely({
+        task: input.task,
+        run: input.run,
+        project: input.project,
+        mergeRequest: reviewRequest
+      });
+    } else {
+      await recordPullRequestAuditSafely({
+        task: input.task,
+        run: input.run,
+        project: input.project,
+        pullRequest: reviewRequest
+      });
+    }
     await updateDevelopmentTaskRun({
       runId: input.run.id,
       status: "failed",
-      failureCategory: "pull_request_failed",
+      failureCategory: isGitLabTask ? "merge_request_failed" : "pull_request_failed",
       failureMessage: missingTarget,
       metadata: {
         ...input.metadata,
         codexExecution: input.codexExecution,
         validation: input.validation,
-        pullRequest
+        [reviewRequestKey]: reviewRequest
       }
     });
     return;

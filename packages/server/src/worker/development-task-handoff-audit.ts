@@ -80,6 +80,29 @@ export async function recordPullRequestHandoffAudit(input: {
   });
 }
 
+export async function recordMergeRequestHandoffAudit(input: {
+  task: typeof developmentTasks.$inferSelect;
+  run: typeof developmentTaskRuns.$inferSelect;
+  project: typeof projects.$inferSelect;
+  mergeRequest: DevelopmentTaskPullRequestResult;
+}) {
+  await recordHandoffAuditEntry({
+    task: input.task,
+    run: input.run,
+    project: input.project,
+    action: "development_task.merge_request.open",
+    inputSummary: `Opened merge request for ${input.task.repoFullName}#${input.task.issueNumber}`,
+    outcome: input.mergeRequest.status === "ok" ? "success" : "failure",
+    metadata: {
+      branchName: input.mergeRequest.branchName ?? null,
+      commitSha: input.mergeRequest.commitSha ?? null,
+      mergeRequestNumber: input.mergeRequest.pullRequestNumber ?? null,
+      mergeRequestUrl: input.mergeRequest.pullRequestUrl ?? null,
+      errorMessage: input.mergeRequest.errorMessage ?? null
+    }
+  });
+}
+
 export async function recordPreviewHandoffAudit(input: {
   task: typeof developmentTasks.$inferSelect;
   run: typeof developmentTaskRuns.$inferSelect;
