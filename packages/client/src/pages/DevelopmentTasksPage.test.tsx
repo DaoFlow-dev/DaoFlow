@@ -6,14 +6,18 @@ import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import DevelopmentTasksPage from "./DevelopmentTasksPage";
 
-const { developmentTasksUseQueryMock } = vi.hoisted(() => ({
-  developmentTasksUseQueryMock: vi.fn()
+const { developmentTasksUseQueryMock, sandboxRunnerProfilesUseQueryMock } = vi.hoisted(() => ({
+  developmentTasksUseQueryMock: vi.fn(),
+  sandboxRunnerProfilesUseQueryMock: vi.fn()
 }));
 
 vi.mock("@/lib/trpc", () => ({
   trpc: {
     developmentTasks: {
       useQuery: developmentTasksUseQueryMock
+    },
+    sandboxRunnerProfiles: {
+      useQuery: sandboxRunnerProfilesUseQueryMock
     }
   }
 }));
@@ -40,6 +44,24 @@ describe("DevelopmentTasksPage", () => {
       isLoading: false,
       refetch: refetchMock
     });
+    sandboxRunnerProfilesUseQueryMock.mockReturnValue({
+      data: [
+        {
+          id: "runner_profile_host_default",
+          name: "Host Docker Default",
+          provider: "host_docker",
+          status: "enabled",
+          image: "ghcr.io/daoflow/codex-runner:latest",
+          cpuLimit: 2,
+          memoryLimitMb: 4096,
+          diskLimitMb: 20480,
+          codexAuthMode: "custom_provider_env",
+          validationCommands: ["bun run test:unit", "bun run typecheck"]
+        }
+      ],
+      isError: false,
+      isLoading: false
+    });
   });
 
   afterEach(() => {
@@ -60,6 +82,9 @@ describe("DevelopmentTasksPage", () => {
       "href",
       "/development-tasks/dtask_1"
     );
+    expect(screen.getByText("Host Docker Default")).toBeInTheDocument();
+    expect(screen.getByText(/host docker/)).toBeInTheDocument();
+    expect(screen.getByText(/bun run typecheck/)).toBeInTheDocument();
   });
 
   it("refreshes the development task queue", () => {
@@ -88,5 +113,21 @@ describe("DevelopmentTasksPage", () => {
       limit: 50,
       status: "failed"
     });
+  });
+
+  it("shows a runner profile load error", () => {
+    sandboxRunnerProfilesUseQueryMock.mockReturnValueOnce({
+      data: undefined,
+      isError: true,
+      isLoading: false
+    });
+
+    render(
+      <MemoryRouter>
+        <DevelopmentTasksPage />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText("Unable to load sandbox runner profiles.")).toBeInTheDocument();
   });
 });
