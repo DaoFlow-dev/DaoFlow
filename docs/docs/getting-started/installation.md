@@ -72,7 +72,7 @@ Requirements:
 The `.env` file contains everything — no hidden config:
 
 ```bash
-DAOFLOW_VERSION=latest
+DAOFLOW_VERSION=0.7.0
 BETTER_AUTH_URL=https://deploy.example.com
 DAOFLOW_PORT=3000
 DAOFLOW_INITIAL_ADMIN_EMAIL=admin@example.com
@@ -84,6 +84,8 @@ ENCRYPTION_KEY=GENERATED_32_CHAR_HEX
 DAOFLOW_ENABLE_TEMPORAL=true
 TEMPORAL_ADDRESS=temporal:7233
 ```
+
+The installer writes the concrete DaoFlow version into `.env` so production installs do not silently track a floating image tag. Change `DAOFLOW_VERSION` only when you intentionally upgrade or roll back.
 
 When you choose `--expose traefik`, the installer also writes:
 
