@@ -27,6 +27,7 @@ import {
 } from "../trpc";
 import { limitInput } from "../schemas";
 import { backupReadRouter } from "./read-backups";
+import { developmentTaskReadRouter } from "./read-development-tasks";
 import { deploymentReadRouter } from "./read-deployments";
 
 const productPrinciples = [
@@ -257,4 +258,9 @@ const coreReadRouter = t.router({
     })
 });
 
-export const readRouter = t.mergeRouters(coreReadRouter, deploymentReadRouter, backupReadRouter);
+export const readRouter = t.mergeRouters(
+  coreReadRouter,
+  deploymentReadRouter,
+  backupReadRouter,
+  developmentTaskReadRouter
+);

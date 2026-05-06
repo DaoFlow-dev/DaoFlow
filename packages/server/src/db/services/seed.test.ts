@@ -5,13 +5,15 @@ const {
   seedUsersMock,
   seedInfrastructureMock,
   seedDeploymentsMock,
-  seedObservabilityMock
+  seedObservabilityMock,
+  seedDevelopmentRunnerMock
 } = vi.hoisted(() => ({
   transactionMock: vi.fn(),
   seedUsersMock: vi.fn(),
   seedInfrastructureMock: vi.fn(),
   seedDeploymentsMock: vi.fn(),
-  seedObservabilityMock: vi.fn()
+  seedObservabilityMock: vi.fn(),
+  seedDevelopmentRunnerMock: vi.fn()
 }));
 
 vi.mock("../connection", () => ({
@@ -36,6 +38,10 @@ vi.mock("./seed/seed-observability", () => ({
   seedObservability: seedObservabilityMock
 }));
 
+vi.mock("./seed/seed-development-runner", () => ({
+  seedDevelopmentRunner: seedDevelopmentRunnerMock
+}));
+
 async function loadSeedModule() {
   return import("./seed");
 }
@@ -47,6 +53,7 @@ describe("control-plane seed state", () => {
     seedInfrastructureMock.mockReset();
     seedDeploymentsMock.mockReset();
     seedObservabilityMock.mockReset();
+    seedDevelopmentRunnerMock.mockReset();
 
     transactionMock.mockImplementation(async (callback: (tx: unknown) => Promise<void>) => {
       await callback({ tx: "mock" });
@@ -78,6 +85,7 @@ describe("control-plane seed state", () => {
     seedInfrastructureMock.mockResolvedValue(undefined);
     seedDeploymentsMock.mockResolvedValue(undefined);
     seedObservabilityMock.mockResolvedValue(undefined);
+    seedDevelopmentRunnerMock.mockResolvedValue(undefined);
 
     const seed = await loadSeedModule();
 
@@ -86,5 +94,6 @@ describe("control-plane seed state", () => {
 
     expect(transactionMock).toHaveBeenCalledTimes(2);
     expect(seedUsersMock).toHaveBeenCalledTimes(2);
+    expect(seedDevelopmentRunnerMock).toHaveBeenCalledTimes(1);
   });
 });

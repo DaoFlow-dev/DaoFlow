@@ -3,6 +3,7 @@ import { seedUsers } from "./seed/seed-users";
 import { seedInfrastructure } from "./seed/seed-infrastructure";
 import { seedDeployments } from "./seed/seed-deployments";
 import { seedObservability } from "./seed/seed-observability";
+import { seedDevelopmentRunner } from "./seed/seed-development-runner";
 import { getProcessValueAccessor } from "../../process-singleton";
 
 const PROCESS_SEED_PROMISE_KEY = "__daoflowFoundationSeedPromise__";
@@ -69,8 +70,11 @@ export async function seedControlPlaneData() {
 
     if (seedDemo) {
       await seedInfrastructure(tx);
+      await seedDevelopmentRunner(tx, { defaultServerId: "srv_foundation_1" });
       await seedDeployments(tx);
       await seedObservability(tx);
+    } else {
+      await seedDevelopmentRunner(tx);
     }
   });
 
