@@ -1,6 +1,9 @@
+import { useState } from "react";
+import { isTRPCClientError } from "@trpc/client";
 import { Link, useParams } from "react-router-dom";
 import { trpc } from "@/lib/trpc";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { buttonVariants } from "@/components/ui/button-variants";
@@ -13,7 +16,17 @@ import {
   TableRow
 } from "@/components/ui/table";
 import { getInventoryBadgeVariant } from "@/lib/tone-utils";
-import { ArrowLeft, ExternalLink, GitPullRequest, MonitorUp } from "lucide-react";
+import {
+  ArrowLeft,
+  ExternalLink,
+  GitPullRequest,
+  MonitorUp,
+  RotateCcw,
+  XCircle
+} from "lucide-react";
+
+const CANCELABLE_STATUSES = new Set(["queued", "running", "waiting_review", "blocked"]);
+const RETRYABLE_STATUSES = new Set(["failed", "canceled", "blocked"]);
 
 function formatDate(value: string | Date) {
   return new Date(value).toLocaleString();
@@ -21,7 +34,35 @@ function formatDate(value: string | Date) {
 
 export default function DevelopmentTaskDetailPage() {
   const { id } = useParams();
+  const [feedback, setFeedback] = useState<string | null>(null);
   const task = trpc.developmentTaskDetails.useQuery({ taskId: id ?? "" }, { enabled: Boolean(id) });
+  const cancelTask = trpc.cancelDevelopmentTask.useMutation();
+  const retryTask = trpc.retryDevelopmentTask.useMutation();
+  const actionPending = cancelTask.isPending || retryTask.isPending;
+
+  async function handleCancel() {
+    if (!id) return;
+    setFeedback(null);
+    try {
+      await cancelTask.mutateAsync({ taskId: id });
+      await task.refetch();
+      setFeedback("Development task canceled.");
+    } catch (error) {
+      setFeedback(isTRPCClientError(error) ? error.message : "Unable to cancel the task.");
+    }
+  }
+
+  async function handleRetry() {
+    if (!id) return;
+    setFeedback(null);
+    try {
+      await retryTask.mutateAsync({ taskId: id });
+      await task.refetch();
+      setFeedback("Development task retry queued.");
+    } catch (error) {
+      setFeedback(isTRPCClientError(error) ? error.message : "Unable to retry the task.");
+    }
+  }
 
   if (task.isLoading) {
     return (
@@ -53,6 +94,8 @@ export default function DevelopmentTaskDetailPage() {
 
   const { task: details, runs, events, comments } = task.data;
   const latestRun = runs[0];
+  const canCancel = CANCELABLE_STATUSES.has(details.status);
+  const canRetry = RETRYABLE_STATUSES.has(details.status);
 
   return (
     <main className="shell space-y-6" data-testid="development-task-detail-page">
@@ -72,8 +115,34 @@ export default function DevelopmentTaskDetailPage() {
             <p className="mt-1 font-mono text-sm text-muted-foreground">{details.repoFullName}</p>
           </div>
         </div>
-        <Badge variant={getInventoryBadgeVariant(details.status)}>{details.status}</Badge>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <Badge variant={getInventoryBadgeVariant(details.status)}>{details.status}</Badge>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={!canCancel || actionPending}
+            onClick={() => void handleCancel()}
+          >
+            <XCircle size={14} className="mr-2" />
+            Cancel
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={!canRetry || actionPending}
+            onClick={() => void handleRetry()}
+          >
+            <RotateCcw size={14} className="mr-2" />
+            Retry
+          </Button>
+        </div>
       </div>
+
+      {feedback ? (
+        <Card>
+          <CardContent className="py-3 text-sm text-muted-foreground">{feedback}</CardContent>
+        </Card>
+      ) : null}
 
       <div className="grid gap-4 md:grid-cols-3">
         <Card>

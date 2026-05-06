@@ -1,8 +1,16 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { trpc } from "@/lib/trpc";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { buttonVariants } from "@/components/ui/button-variants";
 import {
@@ -16,12 +24,28 @@ import {
 import { getInventoryBadgeVariant } from "@/lib/tone-utils";
 import { Bot, ExternalLink, RefreshCw } from "lucide-react";
 
+const TASK_STATUSES = [
+  "queued",
+  "running",
+  "waiting_review",
+  "blocked",
+  "failed",
+  "canceled",
+  "completed"
+] as const;
+
+type TaskStatusFilter = "all" | (typeof TASK_STATUSES)[number];
+
 function formatDate(value: string | Date) {
   return new Date(value).toLocaleString();
 }
 
 export default function DevelopmentTasksPage() {
-  const tasks = trpc.developmentTasks.useQuery({ limit: 50 });
+  const [statusFilter, setStatusFilter] = useState<TaskStatusFilter>("all");
+  const tasks = trpc.developmentTasks.useQuery({
+    limit: 50,
+    ...(statusFilter === "all" ? {} : { status: statusFilter })
+  });
 
   return (
     <main className="shell space-y-6" data-testid="development-tasks-page">
@@ -34,10 +58,28 @@ export default function DevelopmentTasksPage() {
             Issue-triggered agent work queued for human review.
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => void tasks.refetch()}>
-          <RefreshCw size={14} className="mr-2" />
-          Refresh
-        </Button>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <Select
+            value={statusFilter}
+            onValueChange={(value) => setStatusFilter(value as TaskStatusFilter)}
+          >
+            <SelectTrigger className="w-[160px]" aria-label="Task status filter">
+              <SelectValue placeholder="Task status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All tasks</SelectItem>
+              {TASK_STATUSES.map((status) => (
+                <SelectItem key={status} value={status}>
+                  {status}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button variant="outline" size="sm" onClick={() => void tasks.refetch()}>
+            <RefreshCw size={14} className="mr-2" />
+            Refresh
+          </Button>
+        </div>
       </div>
 
       <Card>

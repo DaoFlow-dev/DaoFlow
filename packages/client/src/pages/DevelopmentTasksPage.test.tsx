@@ -73,4 +73,20 @@ describe("DevelopmentTasksPage", () => {
 
     expect(refetchMock).toHaveBeenCalledTimes(1);
   });
+
+  it("filters tasks by status", () => {
+    render(
+      <MemoryRouter>
+        <DevelopmentTasksPage />
+      </MemoryRouter>
+    );
+
+    fireEvent.click(screen.getByRole("combobox", { name: "Task status filter" }));
+    fireEvent.click(screen.getByRole("option", { name: "failed" }));
+
+    expect(developmentTasksUseQueryMock).toHaveBeenLastCalledWith({
+      limit: 50,
+      status: "failed"
+    });
+  });
 });
