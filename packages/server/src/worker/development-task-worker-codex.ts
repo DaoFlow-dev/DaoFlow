@@ -8,6 +8,7 @@ import {
 } from "./development-task-codex-execution";
 import type { DevelopmentTaskCodexPlan } from "./development-task-codex-plan";
 import type { PreparedDevelopmentTaskCodexWorkspace } from "./development-task-codex-workspace";
+import { createDevelopmentTaskLogEventStream } from "./development-task-log-events";
 import {
   readDevelopmentTaskValidationCommands,
   runDevelopmentTaskValidation,
@@ -43,11 +44,17 @@ export async function runClaimedTaskCodex(input: {
     }
   });
 
+  const codexLogEvents = createDevelopmentTaskLogEventStream({
+    taskId: input.task.id,
+    runId: input.run.id,
+    phase: "codex"
+  });
   const execution = await codexExecution({
     plan: input.plan,
     workspace: input.workspace,
     onLog: (line) => {
       console.log(`[development-task-codex:${line.stream}] ${line.message}`);
+      codexLogEvents.record(line);
     }
   }).catch((err: unknown): DevelopmentTaskCodexExecutionResult => {
     return {
@@ -57,6 +64,7 @@ export async function runClaimedTaskCodex(input: {
       errorMessage: err instanceof Error ? err.message : String(err)
     };
   });
+  await codexLogEvents.flush();
 
   if (execution.status !== "ok") {
     await updateDevelopmentTaskRun({
@@ -85,11 +93,17 @@ export async function runClaimedTaskCodex(input: {
     }
   });
 
+  const validationLogEvents = createDevelopmentTaskLogEventStream({
+    taskId: input.task.id,
+    runId: input.run.id,
+    phase: "validation"
+  });
   const validation = await validationExecution({
     workspace: input.workspace,
     commands: readDevelopmentTaskValidationCommands(input.metadata),
     onLog: (line) => {
       console.log(`[development-task-validation:${line.stream}] ${line.message}`);
+      validationLogEvents.record(line);
     }
   }).catch((err: unknown): DevelopmentTaskValidationResult => {
     return {
@@ -99,6 +113,7 @@ export async function runClaimedTaskCodex(input: {
       errorMessage: err instanceof Error ? err.message : String(err)
     };
   });
+  await validationLogEvents.flush();
 
   if (validation.status === "failed") {
     await updateDevelopmentTaskRun({
