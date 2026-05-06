@@ -104,6 +104,10 @@ export default function DevelopmentTasksPage() {
               <Skeleton className="h-10 w-full" />
               <Skeleton className="h-10 w-full" />
             </div>
+          ) : tasks.isError ? (
+            <div className="py-12 text-center text-sm text-destructive">
+              Unable to load development tasks.
+            </div>
           ) : tasks.data?.length === 0 ? (
             <div className="py-12 text-center text-sm text-muted-foreground">
               No development tasks have been queued.

@@ -41,6 +41,7 @@ describe("DevelopmentTasksPage", () => {
           createdAt: "2026-05-06T03:33:42.000Z"
         }
       ],
+      isError: false,
       isLoading: false,
       refetch: refetchMock
     });
@@ -129,5 +130,22 @@ describe("DevelopmentTasksPage", () => {
     );
 
     expect(screen.getByText("Unable to load sandbox runner profiles.")).toBeInTheDocument();
+  });
+
+  it("shows a task queue load error", () => {
+    developmentTasksUseQueryMock.mockReturnValueOnce({
+      data: undefined,
+      isError: true,
+      isLoading: false,
+      refetch: refetchMock
+    });
+
+    render(
+      <MemoryRouter>
+        <DevelopmentTasksPage />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText("Unable to load development tasks.")).toBeInTheDocument();
   });
 });
