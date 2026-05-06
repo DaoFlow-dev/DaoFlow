@@ -132,3 +132,5 @@ export function buildDevelopmentTaskCodexPlan(input: {
     }
   };
 }
+
+export type DevelopmentTaskCodexPlan = ReturnType<typeof buildDevelopmentTaskCodexPlan>;
