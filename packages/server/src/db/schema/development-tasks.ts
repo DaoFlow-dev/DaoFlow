@@ -73,6 +73,7 @@ export const developmentTasks = pgTable(
     uniqueIndex("development_tasks_provider_issue_idx").on(
       table.providerType,
       table.repoFullName,
+      table.projectId,
       table.externalIssueId
     ),
     index("development_tasks_project_idx").on(table.projectId),

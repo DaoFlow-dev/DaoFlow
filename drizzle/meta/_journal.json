@@ -71,6 +71,13 @@
       "when": 1778040088008,
       "tag": "0009_nifty_black_crow",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1778044479098,
+      "tag": "0010_reflective_garia",
+      "breakpoints": true
     }
   ]
 }

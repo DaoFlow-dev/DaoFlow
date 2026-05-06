@@ -131,7 +131,14 @@ export async function queueDevelopmentTask(input: QueueDevelopmentTaskInput) {
       metadata: normalizeMetadata(input.metadata),
       updatedAt: now
     })
-    .onConflictDoNothing()
+    .onConflictDoNothing({
+      target: [
+        developmentTasks.providerType,
+        developmentTasks.repoFullName,
+        developmentTasks.projectId,
+        developmentTasks.externalIssueId
+      ]
+    })
     .returning();
 
   if (!created) {
@@ -142,6 +149,7 @@ export async function queueDevelopmentTask(input: QueueDevelopmentTaskInput) {
         and(
           eq(developmentTasks.providerType, input.providerType),
           eq(developmentTasks.repoFullName, input.repoFullName),
+          eq(developmentTasks.projectId, input.projectId),
           eq(developmentTasks.externalIssueId, input.externalIssueId)
         )
       )

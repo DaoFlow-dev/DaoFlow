@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { db } from "../connection";
 import { sandboxRunnerProfiles } from "../schema/development-tasks";
 import { resetSeededTestDatabase } from "../../test-db";
+import { claimNextQueuedDevelopmentTask } from "./development-task-claims";
+import { createProject } from "./projects";
 import {
   createDevelopmentTaskRun,
   getDevelopmentTaskDetails,
@@ -60,6 +62,34 @@ describe("development task service", () => {
     });
   });
 
+  it("deduplicates development tasks per project, not globally by repository", async () => {
+    const secondProject = await createProject({
+      name: `Second Dev Task Project ${Date.now()}`,
+      repoUrl: "https://github.com/DaoFlow-dev/DaoFlow",
+      teamId: "team_foundation",
+      requestedByUserId: "user_foundation_owner",
+      requestedByEmail: "owner@daoflow.local",
+      requestedByRole: "owner"
+    });
+    expect(secondProject.status).toBe("ok");
+    if (secondProject.status !== "ok") {
+      throw new Error("Failed to create second development task project fixture.");
+    }
+
+    const first = await queueDevelopmentTask(taskInput());
+    const second = await queueDevelopmentTask(
+      taskInput({
+        projectId: secondProject.project.id
+      })
+    );
+
+    expect(first.status).toBe("created");
+    expect(second.status).toBe("created");
+
+    const tasks = await listDevelopmentTasks({ limit: 10 });
+    expect(tasks.filter((task) => task.repoFullName === "DaoFlow-dev/DaoFlow")).toHaveLength(2);
+  });
+
   it("creates a run and mirrors terminal run states onto the parent task", async () => {
     const queued = await queueDevelopmentTask(taskInput());
     const taskId = queued.task.id;
@@ -104,6 +134,33 @@ describe("development task service", () => {
       previewUrl: "https://preview.example.test"
     });
     expect(waitingReview?.events.some((event) => event.kind === "run.waiting_review")).toBe(true);
+  });
+
+  it("claims the next queued task and records a claimed run without running Codex", async () => {
+    const queued = await queueDevelopmentTask(taskInput());
+    const claim = await claimNextQueuedDevelopmentTask({
+      runnerId: "development-task-worker",
+      runnerLabel: "development-task-worker"
+    });
+
+    expect(claim?.task.id).toBe(queued.task.id);
+    expect(claim?.task.status).toBe("running");
+    expect(claim?.run).toMatchObject({
+      taskId: queued.task.id,
+      status: "claimed",
+      runnerId: "development-task-worker"
+    });
+
+    const details = await getDevelopmentTaskDetails(queued.task.id);
+    expect(details?.task.status).toBe("running");
+    expect(details?.task.currentRunId).toBe(claim?.run.id);
+    expect(details?.events.some((event) => event.kind === "run.claimed")).toBe(true);
+
+    const nextClaim = await claimNextQueuedDevelopmentTask({
+      runnerId: "development-task-worker",
+      runnerLabel: "development-task-worker"
+    });
+    expect(nextClaim).toBeNull();
   });
 
   it("upserts external issue comments for durable status updates", async () => {

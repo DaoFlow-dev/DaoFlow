@@ -1,0 +1,2 @@
+DROP INDEX "development_tasks_provider_issue_idx";--> statement-breakpoint
+CREATE UNIQUE INDEX "development_tasks_provider_issue_idx" ON "development_tasks" USING btree ("provider_type","repo_full_name","project_id","external_issue_id");

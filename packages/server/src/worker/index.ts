@@ -6,6 +6,11 @@
  */
 export { startWorker, stopWorker } from "./worker";
 export {
+  pollDevelopmentTaskQueue,
+  startDevelopmentTaskWorker,
+  stopDevelopmentTaskWorker
+} from "./development-task-worker";
+export {
   startDeploymentWatchdogMonitor,
   stopDeploymentWatchdogMonitor
 } from "./deployment-watchdog-monitor";

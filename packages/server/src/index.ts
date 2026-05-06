@@ -11,6 +11,8 @@ import {
 import {
   startWorker,
   stopWorker,
+  startDevelopmentTaskWorker,
+  stopDevelopmentTaskWorker,
   startTemporalWorker,
   stopTemporalWorker,
   closeTemporalClient
@@ -47,6 +49,10 @@ function shouldStartWorker(): boolean {
     return false;
   }
   return true;
+}
+
+function shouldStartDevelopmentTaskWorker(): boolean {
+  return process.env.ENABLE_DEVELOPMENT_TASK_WORKER === "true";
 }
 
 import { isTemporalEnabled } from "./worker/temporal/temporal-config";
@@ -146,6 +152,10 @@ async function start() {
     }
   }
 
+  if (shouldStartDevelopmentTaskWorker()) {
+    startDevelopmentTaskWorker();
+  }
+
   startServerReadinessMonitor();
   startDeploymentWatchdogMonitor();
   startOperationalMaintenanceMonitor();
@@ -155,6 +165,9 @@ async function start() {
     stopServerReadinessMonitor();
     stopDeploymentWatchdogMonitor();
     stopOperationalMaintenanceMonitor();
+    if (shouldStartDevelopmentTaskWorker()) {
+      stopDevelopmentTaskWorker();
+    }
     if (isTemporalEnabled()) {
       stopTemporalWorker();
       void closeTemporalClient();

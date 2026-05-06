@@ -35,6 +35,7 @@ import {
   ChevronsUpDown,
   Hexagon,
   Bot,
+  Workflow,
   Radio,
   Sun,
   Moon,
@@ -51,6 +52,7 @@ const homeNav = [
   { to: "/destinations", label: "Destinations", icon: HardDrive },
   { to: "/notifications", label: "Notifications", icon: Radio },
   { to: "/agents", label: "Agents", icon: Bot },
+  { to: "/development-tasks", label: "Dev Tasks", icon: Workflow },
   { to: "/approvals", label: "Approvals", icon: ShieldCheck }
 ] as const;
 

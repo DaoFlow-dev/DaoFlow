@@ -15,6 +15,26 @@ export interface GitHubPushEvent {
   repository?: { full_name?: string };
   sender?: { login?: string };
   installation?: { id?: number };
+  label?: { name?: string };
+  issue?: {
+    id?: number;
+    number?: number;
+    html_url?: string;
+    title?: string;
+    user?: {
+      login?: string;
+    };
+    labels?: { name?: string }[];
+    pull_request?: unknown;
+  };
+  comment?: {
+    id?: number;
+    html_url?: string;
+    body?: string;
+    user?: {
+      login?: string;
+    };
+  };
   pull_request?: {
     number?: number;
     merged?: boolean;

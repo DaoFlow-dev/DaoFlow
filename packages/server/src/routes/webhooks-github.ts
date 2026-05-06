@@ -8,6 +8,11 @@ import {
   verifyGitHubSignature,
   writeWebhookAuditEntry
 } from "./webhooks-delivery";
+import {
+  listDevelopmentTaskWebhookTargets,
+  processGitHubDevelopmentTaskTrigger,
+  readGitHubDevelopmentTaskTrigger
+} from "./webhooks-development-tasks";
 import { processWebhookPushTargets } from "./webhooks-push";
 import { triggerPreviewWebhookDeploys } from "./webhooks-preview";
 import type { GitHubPushEvent } from "./webhooks-types";
@@ -27,7 +32,12 @@ export async function handleGitHubWebhook(c: Context) {
       return c.json({ ok: false, error: "Missing event type" }, 400);
     }
 
-    if (event !== "push" && event !== "pull_request") {
+    if (
+      event !== "push" &&
+      event !== "pull_request" &&
+      event !== "issues" &&
+      event !== "issue_comment"
+    ) {
       return c.json({ ok: true, skipped: true, reason: `unsupported event ${event}` });
     }
 
@@ -46,11 +56,18 @@ export async function handleGitHubWebhook(c: Context) {
     const externalInstallationId = payload.installation?.id
       ? String(payload.installation.id)
       : null;
-    const matchingTargets = await listWebhookTargets({
-      repoFullName,
-      providerType: "github",
-      externalInstallationId
-    });
+    const isDevelopmentTaskEvent = event === "issues" || event === "issue_comment";
+    const matchingTargets = isDevelopmentTaskEvent
+      ? await listDevelopmentTaskWebhookTargets({
+          repoFullName,
+          providerType: "github",
+          externalInstallationId
+        })
+      : await listWebhookTargets({
+          repoFullName,
+          providerType: "github",
+          externalInstallationId
+        });
 
     if (matchingTargets.length === 0) {
       return c.json({ ok: true, skipped: true, reason: "no matching projects" });
@@ -75,6 +92,26 @@ export async function handleGitHubWebhook(c: Context) {
     const verifiedTargets = matchingTargets.filter(({ provider }) =>
       verifiedProviderIds.includes(provider.id)
     );
+
+    if (isDevelopmentTaskEvent) {
+      const trigger = readGitHubDevelopmentTaskTrigger(event, payload);
+      if (!trigger) {
+        return c.json({ ok: true, skipped: true, reason: "unsupported development task trigger" });
+      }
+
+      return c.json(
+        await processGitHubDevelopmentTaskTrigger({
+          event,
+          rawBody,
+          deliveryId: c.req.header("x-github-delivery"),
+          payload,
+          repoFullName,
+          externalInstallationId,
+          matchingTargets: verifiedTargets,
+          trigger
+        })
+      );
+    }
 
     if (event === "pull_request") {
       const lifecycle = readGitHubPreviewLifecycle(payload);
