@@ -1,5 +1,9 @@
 import type { developmentTaskRuns, developmentTasks } from "../db/schema/development-tasks";
 import type { projects } from "../db/schema/projects";
+import {
+  hasSandboxCapability,
+  readSandboxCapabilities
+} from "../db/services/development-task-runner-capabilities";
 import { updateDevelopmentTaskRun } from "../db/services/development-tasks";
 import {
   executeDevelopmentTaskCodex,
@@ -24,16 +28,6 @@ let codexExecution = executeDevelopmentTaskCodex;
 let validationExecution = runDevelopmentTaskValidation;
 let pullRequestOpening = openGitHubDevelopmentTaskPullRequest;
 let previewQueuing = queueDevelopmentTaskPreviewDeployments;
-
-function readRunnerCapabilities(metadata: unknown) {
-  const record =
-    metadata && typeof metadata === "object" && !Array.isArray(metadata)
-      ? (metadata as Record<string, unknown>)
-      : {};
-  return Array.isArray(record.capabilities)
-    ? record.capabilities.filter((item): item is string => typeof item === "string")
-    : [];
-}
 
 export async function runClaimedTaskCodex(input: {
   task: typeof developmentTasks.$inferSelect;
@@ -69,8 +63,8 @@ export async function runClaimedTaskCodex(input: {
     ...input.metadata,
     ...sandboxMetadata
   };
-  const capabilities = readRunnerCapabilities(input.run.metadata);
-  if (capabilities.length > 0 && !capabilities.includes("exec")) {
+  const capabilities = readSandboxCapabilities(input.run.metadata);
+  if (capabilities.length > 0 && !hasSandboxCapability(input.run.metadata, "exec")) {
     const failedRun = await updateDevelopmentTaskRun({
       runId: input.run.id,
       status: "failed",
