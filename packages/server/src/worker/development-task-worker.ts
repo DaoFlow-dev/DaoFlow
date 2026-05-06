@@ -10,9 +10,15 @@ import { eq } from "drizzle-orm";
 import { upsertRunningGitHubDevelopmentTaskComment } from "../routes/github-issue-comments";
 import { buildDevelopmentTaskCodexPlan } from "./development-task-codex-plan";
 import { prepareDevelopmentTaskCodexWorkspace } from "./development-task-codex-workspace";
+import {
+  checkoutDevelopmentTaskRepository,
+  type DevelopmentTaskRepositoryCheckoutResult
+} from "./development-task-repository-checkout";
+import type { PreparedDevelopmentTaskCodexWorkspace } from "./development-task-codex-workspace";
 
 const DEVELOPMENT_TASK_POLL_INTERVAL_MS = 10_000;
 let running = false;
+let repositoryCheckout = checkoutDevelopmentTaskRepository;
 
 export async function pollDevelopmentTaskQueue() {
   const claimed = await claimNextQueuedDevelopmentTask({
@@ -66,6 +72,16 @@ async function loadGitHubCommentTarget(claimed: ClaimedDevelopmentTask) {
   return target ?? null;
 }
 
+async function loadDevelopmentTaskProject(claimed: ClaimedDevelopmentTask) {
+  const [project] = await db
+    .select()
+    .from(projects)
+    .where(eq(projects.id, claimed.task.projectId))
+    .limit(1);
+
+  return project ?? null;
+}
+
 async function updateClaimedTaskStatusComment(claimed: ClaimedDevelopmentTask) {
   const target = await loadGitHubCommentTarget(claimed);
   if (!target) {
@@ -115,6 +131,16 @@ async function prepareClaimedTaskWorkspace(claimed: ClaimedDevelopmentTask) {
       workspaceRoot: developmentTaskWorkspaceRoot()
     });
     const workspace = await prepareDevelopmentTaskCodexWorkspace(plan);
+    const project = await loadDevelopmentTaskProject(claimed);
+
+    if (!project) {
+      throw new Error(`Project ${claimed.task.projectId} was not found for development task.`);
+    }
+
+    const checkout = await prepareClaimedTaskRepository(claimed, workspace, project);
+    if (checkout.status !== "ok") {
+      return;
+    }
     const metadata = readRecord(claimed.run.metadata);
 
     await updateDevelopmentTaskRun({
@@ -123,6 +149,7 @@ async function prepareClaimedTaskWorkspace(claimed: ClaimedDevelopmentTask) {
       metadata: {
         ...metadata,
         codexWorkspace: workspace,
+        repositoryCheckout: checkout,
         codexCommand: {
           command: plan.command,
           args: plan.args.map((arg) => (arg === plan.prompt ? `@${workspace.promptPath}` : arg))
@@ -141,6 +168,80 @@ async function prepareClaimedTaskWorkspace(claimed: ClaimedDevelopmentTask) {
       }
     });
   }
+}
+
+async function prepareClaimedTaskRepository(
+  claimed: ClaimedDevelopmentTask,
+  workspace: PreparedDevelopmentTaskCodexWorkspace,
+  project: typeof projects.$inferSelect
+): Promise<DevelopmentTaskRepositoryCheckoutResult> {
+  await recordDevelopmentTaskEvent({
+    taskId: claimed.task.id,
+    runId: claimed.run.id,
+    kind: "repository.checkout.started",
+    summary: "Started checking out the development task repository.",
+    metadata: {
+      repoFullName: claimed.task.repoFullName,
+      branch: claimed.task.baseBranch,
+      repoPath: workspace.repoPath
+    }
+  });
+
+  const checkout = await repositoryCheckout({
+    task: claimed.task,
+    run: claimed.run,
+    project,
+    repoPath: workspace.repoPath,
+    artifactsPath: workspace.artifactsPath,
+    onLog: (line) => {
+      console.log(`[development-task-worker:${line.stream}] ${line.message}`);
+    }
+  }).catch((err: unknown): DevelopmentTaskRepositoryCheckoutResult => {
+    return {
+      status: "failed",
+      repoPath: workspace.repoPath,
+      errorMessage: err instanceof Error ? err.message : String(err)
+    };
+  });
+
+  if (checkout.status !== "ok") {
+    await updateDevelopmentTaskRun({
+      runId: claimed.run.id,
+      status: "failed",
+      failureCategory: "repository_checkout_failed",
+      failureMessage: checkout.errorMessage ?? "Repository checkout failed.",
+      metadata: {
+        ...readRecord(claimed.run.metadata),
+        codexWorkspace: workspace,
+        repositoryCheckout: checkout
+      }
+    });
+    return checkout;
+  }
+
+  await recordDevelopmentTaskEvent({
+    taskId: claimed.task.id,
+    runId: claimed.run.id,
+    kind: "repository.checkout.completed",
+    summary: "Checked out the development task repository.",
+    metadata: {
+      repoFullName: checkout.displayLabel ?? claimed.task.repoFullName,
+      branch: checkout.branch ?? claimed.task.baseBranch,
+      repoPath: checkout.repoPath
+    }
+  });
+
+  return checkout;
+}
+
+export function setDevelopmentTaskRepositoryCheckoutForTests(
+  next: typeof checkoutDevelopmentTaskRepository
+) {
+  repositoryCheckout = next;
+}
+
+export function resetDevelopmentTaskRepositoryCheckoutForTests() {
+  repositoryCheckout = checkoutDevelopmentTaskRepository;
 }
 
 export function startDevelopmentTaskWorker(): void {

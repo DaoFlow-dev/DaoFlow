@@ -15,7 +15,11 @@ import {
 } from "../db/services/development-tasks";
 import { createProject } from "../db/services/projects";
 import { resetSeededTestDatabase } from "../test-db";
-import { pollDevelopmentTaskQueue } from "./development-task-worker";
+import {
+  pollDevelopmentTaskQueue,
+  resetDevelopmentTaskRepositoryCheckoutForTests,
+  setDevelopmentTaskRepositoryCheckoutForTests
+} from "./development-task-worker";
 
 async function createClaimedCommentFixture() {
   const suffix = `${Date.now()}`;
@@ -85,6 +89,7 @@ async function createClaimedCommentFixture() {
 
 describe("development task worker", () => {
   afterEach(() => {
+    resetDevelopmentTaskRepositoryCheckoutForTests();
     vi.restoreAllMocks();
     delete process.env.APP_BASE_URL;
     delete process.env.DAOFLOW_DEVELOPMENT_TASK_WORKSPACE_ROOT;
@@ -158,9 +163,25 @@ describe("development task worker", () => {
         );
       });
 
+    const checkoutMock = vi.fn().mockImplementation((input: { repoPath: string }) =>
+      Promise.resolve({
+        status: "ok" as const,
+        repoPath: input.repoPath,
+        branch: "main",
+        displayLabel: fixture.repoFullName
+      })
+    );
+    setDevelopmentTaskRepositoryCheckoutForTests(checkoutMock);
+
     const claimed = await pollDevelopmentTaskQueue();
+    const checkoutCall = checkoutMock.mock.calls[0]?.[0] as
+      | { repoPath: string; artifactsPath: string }
+      | undefined;
 
     expect(claimed?.task.id).toBe(queued.task.id);
+    expect(checkoutMock).toHaveBeenCalledOnce();
+    expect(checkoutCall?.repoPath).toContain(claimed?.run.id ?? "");
+    expect(checkoutCall?.artifactsPath).toContain(claimed?.run.id ?? "");
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(fetchMock.mock.calls[1]?.[0]).toBe(
       "https://api.github.com/repos/example/worker-status-comment/issues/comments/990010"
@@ -192,8 +213,13 @@ describe("development task worker", () => {
     const metadata = run?.metadata as {
       codexWorkspace?: { configPath: string; promptPath: string; repoPath: string };
       codexCommand?: { args: string[] };
+      repositoryCheckout?: { status: string; displayLabel: string };
     };
     expect(metadata.codexWorkspace?.repoPath).toContain(claimed?.run.id);
+    expect(metadata.repositoryCheckout).toMatchObject({
+      status: "ok",
+      displayLabel: fixture.repoFullName
+    });
     expect(metadata.codexCommand?.args).toContain(`@${metadata.codexWorkspace?.promptPath}`);
     expect(metadata.codexCommand?.args.join("\n")).not.toContain("Update issue when worker starts");
     expect((await stat(metadata.codexWorkspace?.repoPath ?? "")).isDirectory()).toBe(true);
@@ -207,5 +233,8 @@ describe("development task worker", () => {
     const details = await getDevelopmentTaskDetails(queued.task.id);
     expect(details?.events.some((event) => event.kind === "comment.updated")).toBe(true);
     expect(details?.events.some((event) => event.kind === "run.preparing")).toBe(true);
+    expect(details?.events.some((event) => event.kind === "repository.checkout.completed")).toBe(
+      true
+    );
   });
 });
