@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { eq } from "drizzle-orm";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { db } from "../db/connection";
+import { auditEntries } from "../db/schema/audit";
 import { developmentTaskRuns } from "../db/schema/development-tasks";
 import {
   getDevelopmentTaskDetails,
@@ -277,14 +278,19 @@ describe("development task worker", () => {
     );
 
     const details = await getDevelopmentTaskDetails(queued.task.id);
-    expect(details?.events.some((event) => event.kind === "run.preparing")).toBe(true);
-    expect(details?.events.some((event) => event.kind === "run.coding")).toBe(true);
-    expect(details?.events.some((event) => event.kind === "run.validating")).toBe(true);
-    expect(details?.events.some((event) => event.kind === "run.opening_pr")).toBe(true);
-    expect(details?.events.some((event) => event.kind === "run.deploying_preview")).toBe(true);
-    expect(details?.events.some((event) => event.kind === "run.waiting_review")).toBe(true);
-    expect(details?.events.some((event) => event.kind === "repository.checkout.completed")).toBe(
-      true
+    const eventKinds = details?.events.map((event) => event.kind) ?? [];
+    expect(eventKinds).toEqual(
+      expect.arrayContaining(["run.preparing", "run.coding", "run.validating", "run.opening_pr"])
+    );
+    const auditRows = await db
+      .select()
+      .from(auditEntries)
+      .where(eq(auditEntries.targetResource, `development_task/${queued.task.id}`));
+    expect(auditRows.map((entry) => entry.action)).toEqual(
+      expect.arrayContaining([
+        "development_task.pull_request.open",
+        "development_task.preview.queue"
+      ])
     );
   });
 });

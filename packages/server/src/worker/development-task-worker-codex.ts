@@ -1,13 +1,7 @@
 import type { developmentTaskRuns, developmentTasks } from "../db/schema/development-tasks";
 import type { projects } from "../db/schema/projects";
-import {
-  recordDevelopmentTaskEvent,
-  updateDevelopmentTaskRun
-} from "../db/services/development-tasks";
-import {
-  upsertReadyForReviewGitHubDevelopmentTaskComment,
-  type GitHubCommentTarget
-} from "../routes/github-issue-comments";
+import { updateDevelopmentTaskRun } from "../db/services/development-tasks";
+import type { GitHubCommentTarget } from "../routes/github-issue-comments";
 import {
   executeDevelopmentTaskCodex,
   type DevelopmentTaskCodexExecutionResult
@@ -19,17 +13,14 @@ import {
   runDevelopmentTaskValidation,
   type DevelopmentTaskValidationResult
 } from "./development-task-validation";
-import {
-  openGitHubDevelopmentTaskPullRequest,
-  type DevelopmentTaskPullRequestResult
-} from "./development-task-pull-request";
+import { openGitHubDevelopmentTaskPullRequest } from "./development-task-pull-request";
 import { queueDevelopmentTaskPreviewDeployments } from "./development-task-preview";
+import { completeDevelopmentTaskHandoff } from "./development-task-worker-handoff";
 
 let codexExecution = executeDevelopmentTaskCodex;
 let validationExecution = runDevelopmentTaskValidation;
 let pullRequestOpening = openGitHubDevelopmentTaskPullRequest;
 let previewQueuing = queueDevelopmentTaskPreviewDeployments;
-const NO_PREVIEW_FIELDS = { previewDeploymentId: undefined, previewUrl: undefined };
 
 export async function runClaimedTaskCodex(input: {
   task: typeof developmentTasks.$inferSelect;
@@ -124,143 +115,18 @@ export async function runClaimedTaskCodex(input: {
     return;
   }
 
-  await updateDevelopmentTaskRun({
-    runId: input.run.id,
-    status: "opening_pr",
-    metadata: {
-      ...input.metadata,
-      codexExecution: execution,
-      validation,
-      pullRequest: {
-        status: "started",
-        logPath: `${input.workspace.logsPath}/pull-request.jsonl`
-      }
-    }
-  });
-
-  if (!input.githubTarget) {
-    await updateDevelopmentTaskRun({
-      runId: input.run.id,
-      status: "failed",
-      failureCategory: "pull_request_failed",
-      failureMessage: "GitHub target is not available for pull request creation.",
-      metadata: {
-        ...input.metadata,
-        codexExecution: execution,
-        validation,
-        pullRequest: {
-          status: "failed",
-          logPath: `${input.workspace.logsPath}/pull-request.jsonl`,
-          errorMessage: "GitHub target is not available for pull request creation."
-        }
-      }
-    });
-    return;
-  }
-
-  const pullRequest = await pullRequestOpening({
+  await completeDevelopmentTaskHandoff({
     task: input.task,
     run: input.run,
     project: input.project,
-    provider: input.githubTarget.provider,
-    installation: input.githubTarget.installation,
+    githubTarget: input.githubTarget,
     workspace: input.workspace,
-    validationStatus: validation.status,
-    onLog: (line) => {
-      console.log(`[development-task-pr:${line.stream}] ${line.message}`);
-    }
-  }).catch((err: unknown): DevelopmentTaskPullRequestResult => {
-    return {
-      status: "failed",
-      logPath: `${input.workspace.logsPath}/pull-request.jsonl`,
-      errorMessage: err instanceof Error ? err.message : String(err)
-    };
+    metadata: input.metadata,
+    codexExecution: execution,
+    validation,
+    pullRequestOpening,
+    previewQueuing
   });
-
-  if (pullRequest.status !== "ok") {
-    await updateDevelopmentTaskRun({
-      runId: input.run.id,
-      status: "failed",
-      failureCategory: "pull_request_failed",
-      failureMessage: pullRequest.errorMessage ?? "Pull request creation failed.",
-      metadata: {
-        ...input.metadata,
-        codexExecution: execution,
-        validation,
-        pullRequest
-      }
-    });
-    return;
-  }
-
-  const previewRun = await updateDevelopmentTaskRun({
-    runId: input.run.id,
-    status: "deploying_preview",
-    branchName: pullRequest.branchName,
-    commitSha: pullRequest.commitSha,
-    pullRequestNumber: pullRequest.pullRequestNumber,
-    pullRequestUrl: pullRequest.pullRequestUrl,
-    metadata: {
-      ...input.metadata,
-      codexExecution: execution,
-      validation,
-      pullRequest
-    }
-  });
-  const preview = previewRun
-    ? await previewQueuing({ task: input.task, run: previewRun }).catch((err: unknown) => ({
-        status: "failed" as const,
-        deployments: [],
-        ...NO_PREVIEW_FIELDS,
-        message: err instanceof Error ? err.message : String(err)
-      }))
-    : {
-        status: "skipped" as const,
-        deployments: [],
-        ...NO_PREVIEW_FIELDS,
-        message: "Run update failed before preview deployment."
-      };
-
-  const waitingRun = await updateDevelopmentTaskRun({
-    runId: input.run.id,
-    status: "waiting_review",
-    branchName: pullRequest.branchName,
-    commitSha: pullRequest.commitSha,
-    pullRequestNumber: pullRequest.pullRequestNumber,
-    pullRequestUrl: pullRequest.pullRequestUrl,
-    previewDeploymentId: preview.previewDeploymentId,
-    previewUrl: preview.previewUrl,
-    metadata: {
-      ...input.metadata,
-      codexExecution: execution,
-      validation,
-      pullRequest,
-      preview
-    }
-  });
-
-  if (waitingRun) {
-    await upsertReadyForReviewGitHubDevelopmentTaskComment({
-      task: input.task,
-      run: waitingRun,
-      target: input.githubTarget
-    }).catch(async (err: unknown) => {
-      await recordDevelopmentTaskEvent({
-        taskId: input.task.id,
-        runId: input.run.id,
-        kind: "comment.failed",
-        summary: "Failed to update the GitHub issue status comment with the pull request.",
-        detail: err instanceof Error ? err.message : String(err),
-        metadata: {
-          providerType: "github",
-          repoFullName: input.task.repoFullName,
-          issueNumber: input.task.issueNumber,
-          status: "waiting_review",
-          pullRequestUrl: pullRequest.pullRequestUrl ?? null
-        }
-      });
-    });
-  }
 }
 
 export function setDevelopmentTaskCodexExecutionForTests(next: typeof executeDevelopmentTaskCodex) {
