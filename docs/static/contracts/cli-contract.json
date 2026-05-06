@@ -1647,6 +1647,16 @@
           "required": false
         },
         {
+          "flags": "--git-provider-id <id>",
+          "description": "Linked Git provider ID",
+          "required": false
+        },
+        {
+          "flags": "--git-installation-id <id>",
+          "description": "Linked Git installation ID",
+          "required": false
+        },
+        {
           "flags": "--repo-full-name <owner/repo>",
           "description": "Repository full name",
           "required": false
@@ -1654,6 +1664,11 @@
         {
           "flags": "--default-branch <name>",
           "description": "Default branch",
+          "required": false
+        },
+        {
+          "flags": "--compose-path <path>",
+          "description": "Primary Compose file path",
           "required": false
         },
         {

@@ -75,6 +75,7 @@ daoflow projects create \
   --name demo \
   --repo-url https://github.com/acme/demo \
   --default-branch main \
+  --compose-path compose.yaml \
   --compose-file compose.yaml \
   --compose-profile web \
   --dry-run
@@ -82,6 +83,24 @@ daoflow projects create \
 daoflow projects create \
   --name demo \
   --repo-url https://github.com/acme/demo \
+  --yes --json
+```
+
+Provider-linked projects use an installed GitHub App, GitLab.com OAuth connection, or self-hosted
+GitLab OAuth connection. Use the provider and installation IDs from the Git settings page or API,
+then create the project with the repository path, branch, Compose path, and webhook auto-deploy
+settings.
+
+```bash
+daoflow projects create \
+  --name provider-demo \
+  --git-provider-id gitprov_123 \
+  --git-installation-id gitinst_123 \
+  --repo-full-name acme/provider-demo \
+  --default-branch main \
+  --compose-path deploy/compose.yaml \
+  --auto-deploy \
+  --auto-deploy-branch main \
   --yes --json
 ```
 

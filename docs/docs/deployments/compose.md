@@ -132,6 +132,46 @@ Preview-enabled compose services can also reconcile preview stacks directly from
 
 DaoFlow records the resulting preview deploy, destroy, dedupe, and ignore outcomes in deployment history plus the event timeline so operators can trace why a preview stack changed state.
 
+## Git Provider Setup
+
+Git-backed Compose projects can be attached to a registered provider during project creation.
+Register the provider in Git settings, connect the installation or OAuth account, then create the
+project from the setup wizard, the Projects page, or the CLI with:
+
+- Git provider
+- Git installation
+- repository full name, such as `acme/api`
+- default branch
+- auto-deploy branch
+- Compose path, such as `compose.yaml` or `deploy/compose.yaml`
+
+For GitHub App projects, install the app into the target account, select that installation during
+project creation, enable webhook auto-deploy when branch pushes should deploy automatically, and
+configure preview behavior on the Compose service after the project exists. GitHub pull request
+events then drive preview deploy and cleanup for preview-enabled services.
+
+For GitLab.com, register a GitLab provider with the GitLab OAuth app client ID, client secret, and
+webhook secret. The OAuth callback URL is:
+
+```text
+https://<daoflow-host>/settings/git/callback
+```
+
+The webhook URL is:
+
+```text
+https://<daoflow-host>/api/webhooks/gitlab
+```
+
+Set the GitLab webhook secret token to the same secret stored on the provider. Use push and merge
+request events for auto-deploy and preview lifecycle automation.
+
+For self-hosted GitLab, set the provider base URL to the root GitLab URL, for example
+`https://gitlab.example.com`. Use the same callback URL and webhook URL shown above, but create the
+OAuth application and webhook inside the self-hosted GitLab instance. DaoFlow uses the provider base
+URL when exchanging OAuth codes, validating source access, and matching webhook project URLs, so the
+same `group/project` path can exist safely on GitLab.com and a self-hosted GitLab host.
+
 Preview config can also carry a retention window through `staleAfterHours`. When set, DaoFlow can compare the latest preview deployment state against observed tunnel-route hostnames and queue Compose preview cleanup for terminal preview stacks that outlive the configured window.
 
 On the service detail page, the Environment tab now shows preview lifecycle state as a first-class operator surface:

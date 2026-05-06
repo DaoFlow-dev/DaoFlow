@@ -222,6 +222,103 @@ describe("projects command", () => {
     });
   });
 
+  test("projects create sends provider-linked source settings to the API", async () => {
+    let requestBody = "";
+    globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
+      const url =
+        typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+      expect(url).toContain("/trpc/createProject");
+      const body = init?.body;
+      requestBody =
+        typeof body === "string" ? body : body instanceof URLSearchParams ? body.toString() : "";
+
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            result: {
+              data: {
+                id: "proj_provider",
+                name: "Provider Demo",
+                repoFullName: "acme/provider-demo",
+                repoUrl: null,
+                status: "active"
+              }
+            }
+          }),
+          { headers: { "content-type": "application/json" } }
+        )
+      );
+    }) as unknown as typeof fetch;
+
+    const result = await captureCommandExecution(async () => {
+      await runCli([
+        "node",
+        "daoflow",
+        "projects",
+        "create",
+        "--name",
+        "Provider Demo",
+        "--git-provider-id",
+        "gitprov_123",
+        "--git-installation-id",
+        "gitinst_123",
+        "--repo-full-name",
+        "acme/provider-demo",
+        "--default-branch",
+        "main",
+        "--compose-path",
+        "deploy/compose.yaml",
+        "--auto-deploy",
+        "--auto-deploy-branch",
+        "main",
+        "--yes",
+        "--json"
+      ]);
+    });
+
+    expect(result.exitCode).toBeNull();
+    expect(result.errors).toEqual([]);
+    expect(JSON.parse(result.logs[0])).toEqual({
+      ok: true,
+      data: {
+        project: {
+          id: "proj_provider",
+          name: "Provider Demo",
+          repoFullName: "acme/provider-demo",
+          repoUrl: null,
+          status: "active"
+        }
+      }
+    });
+
+    function findCreateProjectPayload(value: unknown): Record<string, unknown> | undefined {
+      if (!value || typeof value !== "object") {
+        return undefined;
+      }
+      if ("gitProviderId" in value) {
+        return value as Record<string, unknown>;
+      }
+      for (const child of Object.values(value)) {
+        const found = findCreateProjectPayload(child);
+        if (found) return found;
+      }
+      return undefined;
+    }
+
+    const parsedRequestBody: unknown = JSON.parse(requestBody);
+    const createProjectPayload = findCreateProjectPayload(parsedRequestBody);
+
+    expect(createProjectPayload).toBeDefined();
+    expect(createProjectPayload?.name).toBe("Provider Demo");
+    expect(createProjectPayload?.gitProviderId).toBe("gitprov_123");
+    expect(createProjectPayload?.gitInstallationId).toBe("gitinst_123");
+    expect(createProjectPayload?.repoFullName).toBe("acme/provider-demo");
+    expect(createProjectPayload?.defaultBranch).toBe("main");
+    expect(createProjectPayload?.composePath).toBe("deploy/compose.yaml");
+    expect(createProjectPayload?.autoDeploy).toBe(true);
+    expect(createProjectPayload?.autoDeployBranch).toBe("main");
+  });
+
   test("projects list returns summary metadata in JSON mode", async () => {
     globalThis.fetch = ((input: RequestInfo | URL) => {
       const url =

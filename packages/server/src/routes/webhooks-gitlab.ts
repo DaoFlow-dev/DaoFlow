@@ -15,10 +15,39 @@ import {
 } from "./webhooks-development-tasks-gitlab";
 import { processWebhookPushTargets } from "./webhooks-push";
 import { triggerPreviewWebhookDeploys } from "./webhooks-preview";
-import type { GitLabPushEvent } from "./webhooks-types";
+import type { GitLabPushEvent, WebhookTarget } from "./webhooks-types";
 
 function summarizeCommit(commitSha: string) {
   return commitSha ? commitSha.slice(0, 7) : "unknown";
+}
+
+function normalizeOrigin(value?: string | null) {
+  if (!value) {
+    return null;
+  }
+
+  try {
+    return new URL(value).origin.replace(/\/+$/, "").toLowerCase();
+  } catch {
+    return null;
+  }
+}
+
+function providerOrigin(target: WebhookTarget) {
+  return normalizeOrigin(target.provider.baseUrl) ?? "https://gitlab.com";
+}
+
+function payloadProjectOrigin(payload: GitLabPushEvent) {
+  return normalizeOrigin(payload.project?.web_url);
+}
+
+function filterGitLabTargetsByPayloadOrigin(targets: WebhookTarget[], payload: GitLabPushEvent) {
+  const origin = payloadProjectOrigin(payload);
+  if (!origin) {
+    return targets;
+  }
+
+  return targets.filter((target) => providerOrigin(target) === origin);
 }
 
 export async function handleGitLabWebhook(c: Context) {
@@ -51,13 +80,15 @@ export async function handleGitLabWebhook(c: Context) {
           providerType: "gitlab"
         });
 
-    if (matchingTargets.length === 0) {
+    const originMatchedTargets = filterGitLabTargetsByPayloadOrigin(matchingTargets, payload);
+
+    if (originMatchedTargets.length === 0) {
       return c.json({ ok: true, skipped: true, reason: "no matching projects" });
     }
 
     const verifiedProviderIds = [
       ...new Set(
-        matchingTargets
+        originMatchedTargets
           .filter(
             ({ provider }) =>
               Boolean(provider.webhookSecret) && verifyGitLabToken(token, provider.webhookSecret!)
@@ -70,7 +101,7 @@ export async function handleGitLabWebhook(c: Context) {
       return c.json({ ok: false, error: "Invalid token" }, 401);
     }
 
-    const verifiedTargets = matchingTargets.filter(({ provider }) =>
+    const verifiedTargets = originMatchedTargets.filter(({ provider }) =>
       verifiedProviderIds.includes(provider.id)
     );
 

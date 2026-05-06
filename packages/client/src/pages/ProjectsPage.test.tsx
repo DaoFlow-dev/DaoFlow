@@ -6,8 +6,16 @@ import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import ProjectsPage from "./ProjectsPage";
 
-const { createProjectUseMutationMock, navigateMock, projectsUseQueryMock } = vi.hoisted(() => ({
+const {
+  createProjectUseMutationMock,
+  gitInstallationsUseQueryMock,
+  gitProvidersUseQueryMock,
+  navigateMock,
+  projectsUseQueryMock
+} = vi.hoisted(() => ({
   createProjectUseMutationMock: vi.fn(),
+  gitInstallationsUseQueryMock: vi.fn(),
+  gitProvidersUseQueryMock: vi.fn(),
   navigateMock: vi.fn(),
   projectsUseQueryMock: vi.fn()
 }));
@@ -29,6 +37,12 @@ vi.mock("../lib/trpc", () => ({
     },
     createProject: {
       useMutation: createProjectUseMutationMock
+    },
+    gitProviders: {
+      useQuery: gitProvidersUseQueryMock
+    },
+    gitInstallations: {
+      useQuery: gitInstallationsUseQueryMock
     }
   }
 }));
@@ -59,14 +73,27 @@ describe("ProjectsPage", () => {
   });
 
   beforeEach(() => {
+    globalThis.ResizeObserver = class ResizeObserver {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    };
     navigateMock.mockReset();
     refetchMock.mockReset();
     createProjectMutateMock.mockReset();
+    gitProvidersUseQueryMock.mockReset();
+    gitInstallationsUseQueryMock.mockReset();
 
     projectsUseQueryMock.mockReturnValue({
       data: [],
       isLoading: false,
       refetch: refetchMock
+    });
+    gitProvidersUseQueryMock.mockReturnValue({
+      data: []
+    });
+    gitInstallationsUseQueryMock.mockReturnValue({
+      data: []
     });
     createProjectUseMutationMock.mockImplementation((options?: { onSuccess?: () => void }) => ({
       error: null,
@@ -120,7 +147,8 @@ describe("ProjectsPage", () => {
     expect(createProjectMutateMock).toHaveBeenCalledWith({
       name: "Console",
       description: "Frontend control plane",
-      repoUrl: "https://github.com/DaoFlow-dev/console"
+      repoUrl: "https://github.com/DaoFlow-dev/console",
+      defaultBranch: "main"
     });
 
     const createProjectMutation = createProjectUseMutationMock.mock.results.at(-1)?.value as {
@@ -164,12 +192,70 @@ describe("ProjectsPage", () => {
     expect(createProjectMutateMock).toHaveBeenCalledWith({
       name: "Private Console",
       repoUrl: "git@git.example.com:acme/private-console.git",
+      defaultBranch: "main",
       repositoryCredential: {
         kind: "ssh_key",
         privateKey: "-----BEGIN OPENSSH PRIVATE KEY-----\nsecret\n-----END OPENSSH PRIVATE KEY-----"
       }
     });
     expect(screen.queryByText("secret")).not.toBeInTheDocument();
+  });
+
+  it("submits provider-linked source settings from the create-project form", async () => {
+    gitProvidersUseQueryMock.mockReturnValue({
+      data: [
+        {
+          id: "gitprov_1",
+          type: "github",
+          name: "DaoFlow GitHub App",
+          status: "active"
+        }
+      ]
+    });
+    gitInstallationsUseQueryMock.mockReturnValue({
+      data: [
+        {
+          id: "gitinst_1",
+          providerId: "gitprov_1",
+          installationId: "123",
+          accountName: "DaoFlow-dev",
+          accountType: "organization",
+          status: "active"
+        }
+      ]
+    });
+
+    renderProjectsPage("/projects?action=new");
+
+    fireEvent.change(await screen.findByTestId("projects-create-name"), {
+      target: { value: "Console" }
+    });
+    fireEvent.click(screen.getByRole("combobox", { name: "Git Provider" }));
+    fireEvent.click(screen.getByRole("option", { name: "DaoFlow GitHub App - github" }));
+    fireEvent.click(screen.getByRole("combobox", { name: "Git Installation" }));
+    fireEvent.click(screen.getByRole("option", { name: "DaoFlow-dev (organization)" }));
+    fireEvent.change(screen.getByTestId("projects-create-repo-full-name"), {
+      target: { value: "DaoFlow-dev/console" }
+    });
+    fireEvent.change(screen.getByTestId("projects-create-compose-path"), {
+      target: { value: "deploy/compose.yaml" }
+    });
+    fireEvent.click(screen.getByTestId("projects-create-auto-deploy"));
+    fireEvent.change(screen.getByTestId("projects-create-auto-deploy-branch"), {
+      target: { value: "main" }
+    });
+    fireEvent.click(screen.getByTestId("projects-create-submit"));
+
+    expect(createProjectMutateMock).toHaveBeenCalledWith({
+      name: "Console",
+      gitProviderId: "gitprov_1",
+      gitInstallationId: "gitinst_1",
+      repoFullName: "DaoFlow-dev/console",
+      defaultBranch: "main",
+      composePath: "deploy/compose.yaml",
+      autoDeploy: true,
+      autoDeployBranch: "main"
+    });
   });
 
   it("navigates to the selected project from the rendered card list", () => {

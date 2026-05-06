@@ -13,6 +13,13 @@ export interface SetupProjectFormData {
   name: string;
   description: string;
   repoUrl: string;
+  gitProviderId: string;
+  gitInstallationId: string;
+  repoFullName: string;
+  defaultBranch: string;
+  autoDeploy: string;
+  autoDeployBranch: string;
+  composePath: string;
 }
 
 export interface SetupEnvironmentFormData {

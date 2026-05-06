@@ -3,6 +3,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { FolderKanban } from "lucide-react";
+import {
+  ProjectSourceFields,
+  type GitInstallationOption,
+  type GitProviderOption
+} from "@/components/project-source/ProjectSourceFields";
 import { SetupWizardStepLayout } from "./SetupWizardStepLayout";
 import type { SetupProjectFormData } from "./setup-wizard-types";
 
@@ -13,6 +18,8 @@ interface SetupProjectStepProps {
     active: boolean;
   }>;
   value: SetupProjectFormData;
+  gitProviders: GitProviderOption[];
+  gitInstallations: GitInstallationOption[];
   feedback: string | null;
   isPending: boolean;
   onChange: (field: keyof SetupProjectFormData, value: string) => void;
@@ -22,6 +29,8 @@ interface SetupProjectStepProps {
 export function SetupProjectStep({
   steps,
   value,
+  gitProviders,
+  gitInstallations,
   feedback,
   isPending,
   onChange,
@@ -79,16 +88,13 @@ export function SetupProjectStep({
           />
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="setup-project-repo">Repository URL (optional)</Label>
-          <Input
-            id="setup-project-repo"
-            value={value.repoUrl}
-            onChange={(event) => onChange("repoUrl", event.target.value)}
-            placeholder="https://github.com/org/repo"
-            data-testid="setup-project-repo"
-          />
-        </div>
+        <ProjectSourceFields
+          value={value}
+          providers={gitProviders}
+          installations={gitInstallations}
+          testIdPrefix="setup-project"
+          onChange={onChange}
+        />
 
         <Button
           type="submit"

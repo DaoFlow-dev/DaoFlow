@@ -25,6 +25,8 @@ export default function ProjectsPage() {
         <ProjectsPageCreateDialog
           open={page.dialogOpen}
           draft={page.newProject}
+          gitProviders={page.gitProviders}
+          gitInstallations={page.gitInstallations}
           isPending={page.createProject.isPending}
           errorMessage={page.createProject.error?.message}
           onOpenChange={page.handleDialogOpenChange}

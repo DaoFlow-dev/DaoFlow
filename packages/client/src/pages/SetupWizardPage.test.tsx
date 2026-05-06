@@ -9,12 +9,16 @@ import SetupWizardPage from "./SetupWizardPage";
 const {
   useSessionMock,
   infrastructureInventoryUseQueryMock,
+  gitInstallationsUseQueryMock,
+  gitProvidersUseQueryMock,
   registerServerUseMutationMock,
   createProjectUseMutationMock,
   createEnvironmentUseMutationMock
 } = vi.hoisted(() => ({
   useSessionMock: vi.fn(),
   infrastructureInventoryUseQueryMock: vi.fn(),
+  gitInstallationsUseQueryMock: vi.fn(),
+  gitProvidersUseQueryMock: vi.fn(),
   registerServerUseMutationMock: vi.fn(),
   createProjectUseMutationMock: vi.fn(),
   createEnvironmentUseMutationMock: vi.fn()
@@ -37,6 +41,12 @@ vi.mock("../lib/trpc", () => ({
     },
     createEnvironment: {
       useMutation: createEnvironmentUseMutationMock
+    },
+    gitProviders: {
+      useQuery: gitProvidersUseQueryMock
+    },
+    gitInstallations: {
+      useQuery: gitInstallationsUseQueryMock
     }
   }
 }));
@@ -56,10 +66,17 @@ describe("SetupWizardPage", () => {
   }
 
   beforeEach(() => {
+    globalThis.ResizeObserver = class ResizeObserver {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    };
     inventoryRefetchMock.mockReset();
     registerServerMutateMock.mockReset();
     createProjectMutateMock.mockReset();
     createEnvironmentMutateMock.mockReset();
+    gitProvidersUseQueryMock.mockReset();
+    gitInstallationsUseQueryMock.mockReset();
 
     useSessionMock.mockReturnValue({
       data: {
@@ -82,6 +99,12 @@ describe("SetupWizardPage", () => {
         ]
       },
       refetch: inventoryRefetchMock
+    });
+    gitProvidersUseQueryMock.mockReturnValue({
+      data: []
+    });
+    gitInstallationsUseQueryMock.mockReturnValue({
+      data: []
     });
 
     registerServerUseMutationMock.mockImplementation(
@@ -160,7 +183,7 @@ describe("SetupWizardPage", () => {
     fireEvent.change(screen.getByTestId("setup-project-description"), {
       target: { value: "Frontend control plane" }
     });
-    fireEvent.change(screen.getByTestId("setup-project-repo"), {
+    fireEvent.change(screen.getByTestId("setup-project-repo-url"), {
       target: { value: "https://github.com/DaoFlow-dev/console" }
     });
     fireEvent.click(screen.getByTestId("setup-project-submit"));
@@ -168,7 +191,8 @@ describe("SetupWizardPage", () => {
     expect(createProjectMutateMock).toHaveBeenCalledWith({
       name: "Console",
       description: "Frontend control plane",
-      repoUrl: "https://github.com/DaoFlow-dev/console"
+      repoUrl: "https://github.com/DaoFlow-dev/console",
+      defaultBranch: "main"
     });
 
     const createProjectMutation = createProjectUseMutationMock.mock.results.at(-1)?.value as {
@@ -224,6 +248,70 @@ describe("SetupWizardPage", () => {
         "/deploy?source=template&serverId=srv_foundation&serverName=foundation&projectId=proj_console&projectName=Console&environmentId=env_prod&environmentName=production"
       )
     );
+  });
+
+  it("creates a provider-linked project from the setup wizard", async () => {
+    gitProvidersUseQueryMock.mockReturnValue({
+      data: [
+        {
+          id: "gitprov_self",
+          type: "gitlab",
+          name: "Self GitLab",
+          baseUrl: "https://gitlab.example.com",
+          status: "active"
+        }
+      ]
+    });
+    gitInstallationsUseQueryMock.mockReturnValue({
+      data: [
+        {
+          id: "gitinst_self",
+          providerId: "gitprov_self",
+          installationId: "501",
+          accountName: "platform",
+          accountType: "group",
+          status: "active"
+        }
+      ]
+    });
+
+    renderPage("/setup?step=project&serverId=srv_foundation&serverName=foundation");
+
+    expect(await screen.findByTestId("setup-project-step")).toBeVisible();
+
+    fireEvent.change(screen.getByTestId("setup-project-name"), {
+      target: { value: "Console" }
+    });
+    fireEvent.click(screen.getByRole("combobox", { name: "Git Provider" }));
+    fireEvent.click(
+      screen.getByRole("option", {
+        name: "Self GitLab - gitlab (https://gitlab.example.com)"
+      })
+    );
+    fireEvent.click(screen.getByRole("combobox", { name: "Git Installation" }));
+    fireEvent.click(screen.getByRole("option", { name: "platform (group)" }));
+    fireEvent.change(screen.getByTestId("setup-project-repo-full-name"), {
+      target: { value: "platform/console" }
+    });
+    fireEvent.change(screen.getByTestId("setup-project-compose-path"), {
+      target: { value: "deploy/compose.yaml" }
+    });
+    fireEvent.click(screen.getByTestId("setup-project-auto-deploy"));
+    fireEvent.change(screen.getByTestId("setup-project-auto-deploy-branch"), {
+      target: { value: "main" }
+    });
+    fireEvent.click(screen.getByTestId("setup-project-submit"));
+
+    expect(createProjectMutateMock).toHaveBeenCalledWith({
+      name: "Console",
+      gitProviderId: "gitprov_self",
+      gitInstallationId: "gitinst_self",
+      repoFullName: "platform/console",
+      defaultBranch: "main",
+      composePath: "deploy/compose.yaml",
+      autoDeploy: true,
+      autoDeployBranch: "main"
+    });
   });
 
   it("redirects unauthenticated protected steps back to the account step", async () => {

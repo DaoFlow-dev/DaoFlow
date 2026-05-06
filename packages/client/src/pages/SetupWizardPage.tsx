@@ -14,6 +14,7 @@ import type {
   SetupServerOption,
   SetupStep
 } from "./setup-wizard/setup-wizard-types";
+import { buildSetupProjectPayload } from "./setup-wizard/setup-project-payload";
 import { useSession } from "../lib/auth-client";
 import { trpc } from "../lib/trpc";
 
@@ -40,7 +41,14 @@ const DEFAULT_SERVER_FORM: SetupServerFormData = {
 const DEFAULT_PROJECT_FORM: SetupProjectFormData = {
   name: "",
   description: "",
-  repoUrl: ""
+  repoUrl: "",
+  gitProviderId: "none",
+  gitInstallationId: "none",
+  repoFullName: "",
+  defaultBranch: "main",
+  autoDeploy: "false",
+  autoDeployBranch: "",
+  composePath: ""
 };
 
 const DEFAULT_ENVIRONMENT_FORM: SetupEnvironmentFormData = {
@@ -116,6 +124,15 @@ export default function SetupWizardPage() {
   const infrastructureInventory = trpc.infrastructureInventory.useQuery(undefined, {
     enabled: Boolean(session.data)
   });
+  const gitProvidersQuery = trpc.gitProviders.useQuery(undefined, {
+    enabled: Boolean(session.data) && step === "project"
+  });
+  const selectedGitProviderId =
+    projectForm.gitProviderId !== "none" ? projectForm.gitProviderId : undefined;
+  const gitInstallationsQuery = trpc.gitInstallations.useQuery(
+    { providerId: selectedGitProviderId },
+    { enabled: Boolean(session.data) && step === "project" && Boolean(selectedGitProviderId) }
+  );
 
   const knownServers = (
     (infrastructureInventory.data?.servers ?? []) as Array<{
@@ -411,21 +428,20 @@ export default function SetupWizardPage() {
       <SetupProjectStep
         steps={stepItems}
         value={projectForm}
+        gitProviders={gitProvidersQuery.data ?? []}
+        gitInstallations={gitInstallationsQuery.data ?? []}
         feedback={projectFeedback}
         isPending={createProject.isPending}
         onChange={(field, value) => {
           setProjectFeedback(null);
           setProjectForm((current) => ({
             ...current,
-            [field]: value
+            [field]: value,
+            ...(field === "gitProviderId" ? { gitInstallationId: "none" } : {})
           }));
         }}
         onSubmit={() => {
-          createProject.mutate({
-            name: projectForm.name.trim(),
-            description: projectForm.description.trim() || undefined,
-            repoUrl: projectForm.repoUrl.trim() || undefined
-          });
+          createProject.mutate(buildSetupProjectPayload(projectForm));
         }}
       />
     );

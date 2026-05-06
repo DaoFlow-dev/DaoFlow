@@ -1740,6 +1740,158 @@ describe("createApp", () => {
     );
   });
 
+  it("isolates GitLab webhook auto-deploy targets by provider base URL when repo paths overlap", async () => {
+    await resetAppTestState({ seedControlPlane: true });
+
+    const suffix = Date.now();
+    const sharedRepoFullName = "example/gitlab-overlap-app";
+
+    const gitlabComFixture = await createAppComposeFixture({
+      projectName: `GitLab.com ${suffix}`,
+      repoUrl: `https://gitlab.com/${sharedRepoFullName}`,
+      serviceName: "gitlab-com-runtime"
+    });
+
+    const selfHostedFixture = await createAppComposeFixture({
+      projectName: `Self GitLab ${suffix}`,
+      repoUrl: `https://gitlab.example.com/${sharedRepoFullName}`,
+      serviceName: "self-gitlab-runtime"
+    });
+
+    const gitlabComProviderId = `gitprov_glcom_${suffix}`.slice(0, 32);
+    const gitlabComInstallationId = `gitinst_glcom_${suffix}`.slice(0, 32);
+    const selfProviderId = `gitprov_glself_${suffix}`.slice(0, 32);
+    const selfInstallationId = `gitinst_glself_${suffix}`.slice(0, 32);
+
+    await db.insert(gitProviders).values([
+      {
+        id: gitlabComProviderId,
+        type: "gitlab",
+        name: `GitLab.com ${suffix}`,
+        webhookSecret: "shared-gitlab-webhook-secret",
+        status: "active",
+        updatedAt: new Date()
+      },
+      {
+        id: selfProviderId,
+        type: "gitlab",
+        name: `Self GitLab ${suffix}`,
+        baseUrl: "https://gitlab.example.com/",
+        webhookSecret: "shared-gitlab-webhook-secret",
+        status: "active",
+        updatedAt: new Date()
+      }
+    ]);
+
+    await db.insert(gitInstallations).values([
+      {
+        id: gitlabComInstallationId,
+        providerId: gitlabComProviderId,
+        installationId: "805",
+        accountName: "example",
+        accountType: "group",
+        repositorySelection: "all",
+        permissions: encodeGitInstallationPermissions({ accessToken: "glpat-gitlab-com" }),
+        status: "active",
+        installedByUserId: "user_foundation_owner",
+        updatedAt: new Date()
+      },
+      {
+        id: selfInstallationId,
+        providerId: selfProviderId,
+        installationId: "806",
+        accountName: "example",
+        accountType: "group",
+        repositorySelection: "all",
+        permissions: encodeGitInstallationPermissions({ accessToken: "glpat-self-gitlab" }),
+        status: "active",
+        installedByUserId: "user_foundation_owner",
+        updatedAt: new Date()
+      }
+    ]);
+
+    const gitlabFetch = mockGitLabSourceFetch({
+      repoFullName: sharedRepoFullName,
+      projectId: 806
+    });
+
+    vi.spyOn(globalThis, "fetch").mockImplementation((request) => {
+      const url = toRequestUrl(request);
+      if (
+        url.startsWith("https://gitlab.com/api/v4/") ||
+        url.startsWith("https://gitlab.example.com/api/v4/")
+      ) {
+        return gitlabFetch(request);
+      }
+
+      throw new Error(`Unexpected fetch request: ${url}`);
+    });
+
+    await db
+      .update(projects)
+      .set({
+        repoFullName: sharedRepoFullName,
+        sourceType: "compose",
+        gitProviderId: gitlabComProviderId,
+        gitInstallationId: gitlabComInstallationId,
+        autoDeploy: true,
+        autoDeployBranch: "main",
+        defaultBranch: "main",
+        updatedAt: new Date()
+      })
+      .where(eq(projects.id, gitlabComFixture.project.id));
+
+    await db
+      .update(projects)
+      .set({
+        repoFullName: sharedRepoFullName,
+        sourceType: "compose",
+        gitProviderId: selfProviderId,
+        gitInstallationId: selfInstallationId,
+        autoDeploy: true,
+        autoDeployBranch: "main",
+        defaultBranch: "main",
+        updatedAt: new Date()
+      })
+      .where(eq(projects.id, selfHostedFixture.project.id));
+
+    const commitSha = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+    const app = createApp();
+    const response = await app.request("/api/webhooks/gitlab", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-GitLab-Event": "Push Hook",
+        "X-GitLab-Token": "shared-gitlab-webhook-secret"
+      },
+      body: JSON.stringify({
+        ref: "refs/heads/main",
+        checkout_sha: commitSha,
+        project: {
+          path_with_namespace: sharedRepoFullName,
+          web_url: `https://gitlab.example.com/${sharedRepoFullName}`
+        },
+        user_name: "gitlab-bot"
+      })
+    });
+    const body = (await response.json()) as { ok: boolean; deployments: number };
+
+    expect(response.status).toBe(200);
+    expect(body.ok).toBe(true);
+    expect(body.deployments).toBe(1);
+
+    const queued = await db.select().from(deployments).where(eq(deployments.commitSha, commitSha));
+
+    expect(queued).toHaveLength(1);
+    expect(queued[0]).toEqual(
+      expect.objectContaining({
+        serviceName: "self-gitlab-runtime",
+        requestedByEmail: "gitlab-bot",
+        requestedByRole: "agent"
+      })
+    );
+  });
+
   it("rejects unauthenticated GET /api/v1/logs/stream with 401", async () => {
     const app = createApp();
     const response = await app.request("/api/v1/logs/stream/dep-test-123");

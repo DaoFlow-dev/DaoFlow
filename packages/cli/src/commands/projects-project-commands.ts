@@ -81,8 +81,11 @@ export function registerProjectCommands(cmd: Command) {
     .requiredOption("--name <name>", "Project name")
     .option("--description <text>", "Project description")
     .option("--repo-url <url>", "Repository URL")
+    .option("--git-provider-id <id>", "Linked Git provider ID")
+    .option("--git-installation-id <id>", "Linked Git installation ID")
     .option("--repo-full-name <owner/repo>", "Repository full name")
     .option("--default-branch <name>", "Default branch")
+    .option("--compose-path <path>", "Primary Compose file path")
     .option("--compose-file <path>", "Compose file override", collectValues, [])
     .option("--compose-profile <name>", "Compose profile override", collectValues, [])
     .option("--auto-deploy", "Enable webhook auto-deploy")
@@ -105,8 +108,11 @@ export function registerProjectCommands(cmd: Command) {
           name: string;
           description?: string;
           repoUrl?: string;
+          gitProviderId?: string;
+          gitInstallationId?: string;
           repoFullName?: string;
           defaultBranch?: string;
+          composePath?: string;
           composeFile?: string[];
           composeProfile?: string[];
           autoDeploy?: boolean;
@@ -139,8 +145,16 @@ export function registerProjectCommands(cmd: Command) {
                 allowShellMetacharacters: true,
                 maxLength: 2048
               }),
+              gitProviderId: normalizeOptionalCliInput(opts.gitProviderId, "Git provider ID"),
+              gitInstallationId: normalizeOptionalCliInput(
+                opts.gitInstallationId,
+                "Git installation ID"
+              ),
               repoFullName: normalizeOptionalCliInput(opts.repoFullName, "Repository full name"),
               defaultBranch: normalizeOptionalCliInput(opts.defaultBranch, "Default branch"),
+              composePath: normalizeOptionalCliInput(opts.composePath, "Compose path", {
+                allowPathTraversal: true
+              }),
               composeFiles: normalizeRepeatedValues(opts.composeFile, "Compose file"),
               composeProfiles: normalizeRepeatedValues(opts.composeProfile, "Compose profile"),
               autoDeploy: opts.autoDeploy ?? false,
@@ -164,10 +178,19 @@ export function registerProjectCommands(cmd: Command) {
                     console.log(
                       `  Repo:         ${payload.repoFullName ?? payload.repoUrl ?? "—"}`
                     );
+                    if (payload.gitProviderId) {
+                      console.log(`  Provider:     ${payload.gitProviderId}`);
+                    }
+                    if (payload.gitInstallationId) {
+                      console.log(`  Installation: ${payload.gitInstallationId}`);
+                    }
                     console.log(`  Branch:       ${payload.defaultBranch ?? "main"}`);
                     console.log(`  Auto-deploy:  ${payload.autoDeploy ? "enabled" : "disabled"}`);
                     if (payload.repositoryCredential) {
                       console.log(`  Credential:   ${payload.repositoryCredential.kind}`);
+                    }
+                    if (payload.composePath) {
+                      console.log(`  Compose path: ${payload.composePath}`);
                     }
                     if (payload.composeFiles.length > 0) {
                       console.log(`  Compose:      ${payload.composeFiles.join(", ")}`);

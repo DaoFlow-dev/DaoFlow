@@ -332,6 +332,13 @@ This file holds the detailed CLI contract, scope map, and agent-facing command r
 - `daoflow projects show <project-id>` reads one scoped project plus its environments
 - `daoflow projects create --dry-run` must return a local preview and exit with code `3`
 - `daoflow projects create --yes` writes through `createProject` and requires `deploy:start`
+- `daoflow projects create` supports provider-linked repositories with:
+  - `--git-provider-id <id>`
+  - `--git-installation-id <id>`
+  - `--repo-full-name <owner/repo-or-group/project>`
+  - `--default-branch <branch>`
+  - `--compose-path <path>`
+  - `--auto-deploy` and `--auto-deploy-branch <branch>`
 - `daoflow projects create` supports generic private repository credentials with:
   - `--repo-credential-kind <https-token|https-basic|ssh-key>`
   - `--repo-credential-username <username>` for HTTPS token username overrides and HTTPS basic auth

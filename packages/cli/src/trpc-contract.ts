@@ -1145,6 +1145,8 @@ export interface DaoFlowTRPC {
       name: string;
       description?: string;
       repoUrl?: string;
+      gitProviderId?: string;
+      gitInstallationId?: string;
       repoFullName?: string;
       composePath?: string;
       composeFiles?: string[];
@@ -1166,6 +1168,8 @@ export interface DaoFlowTRPC {
       name?: string;
       description?: string;
       repoUrl?: string;
+      gitProviderId?: string;
+      gitInstallationId?: string;
       repoFullName?: string;
       composePath?: string;
       composeFiles?: string[];

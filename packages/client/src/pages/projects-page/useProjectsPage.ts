@@ -18,6 +18,15 @@ export function useProjectsPage() {
   const consumedRouteActionRef = useRef(false);
 
   const projectsQuery = trpc.projects.useQuery({ limit: 50 }, { enabled: Boolean(session.data) });
+  const gitProvidersQuery = trpc.gitProviders.useQuery(undefined, {
+    enabled: Boolean(session.data)
+  });
+  const selectedGitProviderId =
+    newProject.gitProviderId !== "none" ? newProject.gitProviderId : undefined;
+  const gitInstallationsQuery = trpc.gitInstallations.useQuery(
+    { providerId: selectedGitProviderId },
+    { enabled: Boolean(session.data) && Boolean(selectedGitProviderId) }
+  );
   const requestedAction = searchParams.get("action");
   const projects = useMemo(
     () => (projectsQuery.data ?? []) as ProjectsPageProject[],
@@ -68,7 +77,8 @@ export function useProjectsPage() {
   const handleNewProjectChange = useCallback((field: keyof NewProjectDraft, value: string) => {
     setNewProject((current) => ({
       ...current,
-      [field]: value
+      [field]: value,
+      ...(field === "gitProviderId" ? { gitInstallationId: "none" } : {})
     }));
   }, []);
 
@@ -118,16 +128,34 @@ export function useProjectsPage() {
   );
 
   const handleCreateProjectSubmit = useCallback(() => {
+    const gitProviderId =
+      newProject.gitProviderId !== "none" ? newProject.gitProviderId.trim() : "";
+    const gitInstallationId =
+      newProject.gitInstallationId !== "none" ? newProject.gitInstallationId.trim() : "";
+
     createProject.mutate({
       name: newProject.name,
       description: newProject.description || undefined,
       repoUrl: newProject.repoUrl || undefined,
+      ...(gitProviderId ? { gitProviderId } : {}),
+      ...(gitInstallationId ? { gitInstallationId } : {}),
+      ...(newProject.repoFullName.trim() ? { repoFullName: newProject.repoFullName.trim() } : {}),
+      ...(newProject.defaultBranch.trim()
+        ? { defaultBranch: newProject.defaultBranch.trim() }
+        : {}),
+      ...(newProject.composePath.trim() ? { composePath: newProject.composePath.trim() } : {}),
+      ...(newProject.autoDeploy === "true" ? { autoDeploy: true } : {}),
+      ...(newProject.autoDeployBranch.trim()
+        ? { autoDeployBranch: newProject.autoDeployBranch.trim() }
+        : {}),
       ...(repositoryCredential ? { repositoryCredential } : {})
     });
   }, [createProject, newProject, repositoryCredential]);
 
   return {
     projectsQuery,
+    gitProviders: gitProvidersQuery.data ?? [],
+    gitInstallations: gitInstallationsQuery.data ?? [],
     createProject,
     sortedProjects,
     hasProjects,

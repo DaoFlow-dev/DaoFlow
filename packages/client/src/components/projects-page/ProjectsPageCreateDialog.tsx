@@ -18,11 +18,18 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Loader2, Plus } from "lucide-react";
+import {
+  ProjectSourceFields,
+  type GitInstallationOption,
+  type GitProviderOption
+} from "@/components/project-source/ProjectSourceFields";
 import type { NewProjectDraft } from "@/pages/projects-page/projects-page-types";
 
 interface ProjectsPageCreateDialogProps {
   open: boolean;
   draft: NewProjectDraft;
+  gitProviders: GitProviderOption[];
+  gitInstallations: GitInstallationOption[];
   isPending: boolean;
   errorMessage?: string;
   onOpenChange: (open: boolean) => void;
@@ -33,6 +40,8 @@ interface ProjectsPageCreateDialogProps {
 export function ProjectsPageCreateDialog({
   open,
   draft,
+  gitProviders,
+  gitInstallations,
   isPending,
   errorMessage,
   onOpenChange,
@@ -46,7 +55,7 @@ export function ProjectsPageCreateDialog({
           <Plus size={16} /> New Project
         </Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Create Project</DialogTitle>
           <DialogDescription>
@@ -84,17 +93,13 @@ export function ProjectsPageCreateDialog({
               maxLength={500}
             />
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="project-repo">Git Repository URL</Label>
-            <Input
-              id="project-repo"
-              data-testid="projects-create-repo-url"
-              placeholder="https://github.com/org/repo"
-              value={draft.repoUrl}
-              onChange={(event) => onDraftChange("repoUrl", event.target.value)}
-              maxLength={300}
-            />
-          </div>
+          <ProjectSourceFields
+            value={draft}
+            providers={gitProviders}
+            installations={gitInstallations}
+            testIdPrefix="projects-create"
+            onChange={onDraftChange}
+          />
           <div className="space-y-2">
             <Label htmlFor="project-repo-credential-kind">Repository Credential</Label>
             <Select
