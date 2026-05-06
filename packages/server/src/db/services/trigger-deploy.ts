@@ -41,6 +41,8 @@ import {
   type ComposePreviewRequestInput
 } from "../../compose-preview";
 import { readServiceRuntimeConfigFromConfig } from "../../service-runtime-config";
+import { buildManagedTraefikRoutingPlan } from "../../managed-traefik";
+import { readServiceDomainConfigFromConfig } from "../../service-domain-config";
 
 export interface TriggerDeployInput {
   serviceId: string;
@@ -225,6 +227,7 @@ export async function triggerDeploy(input: TriggerDeployInput) {
   const readinessProbe = readComposeReadinessProbeFromConfig(buildConfig);
   const previewConfig = readComposePreviewConfigFromConfig(buildConfig);
   const runtimeConfig = readServiceRuntimeConfigFromConfig(buildConfig);
+  const domainConfig = readServiceDomainConfigFromConfig(buildConfig);
   const configSnapshot: Record<string, unknown> = composeProjectHasRepositorySource
     ? buildRepositorySourceSnapshot(project)
     : {};
@@ -331,6 +334,21 @@ export async function triggerDeploy(input: TriggerDeployInput) {
   }
   if (runtimeConfig) {
     configSnapshot.runtimeConfig = runtimeConfig;
+  }
+  if (
+    svc.sourceType === "compose" &&
+    configSnapshot.composeOperation !== "down" &&
+    targetServer.kind === "docker-engine"
+  ) {
+    const managedTraefikRouting = buildManagedTraefikRoutingPlan({
+      service: svc,
+      server: targetServer,
+      domains: domainConfig?.domains ?? [],
+      portMappings: domainConfig?.portMappings ?? []
+    });
+    if (managedTraefikRouting?.routes.length) {
+      configSnapshot.managedTraefikRouting = managedTraefikRouting;
+    }
   }
 
   if (svc.sourceType === "dockerfile") {

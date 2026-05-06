@@ -87,6 +87,58 @@ describe("compose input materialization", () => {
     expect(renderedCompose).toContain("image: ghcr.io/daoflow/web:stable");
   });
 
+  it("applies managed Traefik labels and external proxy network to rendered compose", () => {
+    const workDir = mkdtempSync(join(tmpdir(), "daoflow-compose-traefik-"));
+    tempDirs.push(workDir);
+
+    writeFileSync(
+      join(workDir, "compose.yaml"),
+      ["services:", "  api:", "    image: ghcr.io/daoflow/api:stable"].join("\n")
+    );
+
+    const result = materializeComposeInputs({
+      workDir,
+      composeFile: "compose.yaml",
+      sourceProvenance: "repository-checkout",
+      composeEnvFileContents: "",
+      managedTraefikRouting: {
+        provider: "traefik",
+        proxy: {
+          enabled: true,
+          networkName: "daoflow-proxy",
+          entrypoint: "websecure",
+          certificateResolver: "letsencrypt",
+          dnsTarget: "203.0.113.10"
+        },
+        routes: [
+          {
+            domainId: "dom_1",
+            hostname: "app.example.com",
+            targetServiceName: "api",
+            targetPort: 3000,
+            routerName: "daoflow-api-app-example-com",
+            traefikServiceName: "daoflow-api-app-example-com-svc",
+            networkName: "daoflow-proxy",
+            entrypoint: "websecure",
+            certificateResolver: "letsencrypt"
+          }
+        ],
+        unresolvedDomains: []
+      }
+    });
+
+    const renderedCompose = readFileSync(join(workDir, result.composeFile), "utf8");
+    expect(renderedCompose).toContain("daoflow-proxy");
+    expect(renderedCompose).toContain("external: true");
+    expect(renderedCompose).toContain("traefik.enable=true");
+    expect(renderedCompose).toContain(
+      "traefik.http.routers.daoflow-api-app-example-com.rule=Host(`app.example.com`)"
+    );
+    expect(renderedCompose).toContain(
+      "traefik.http.services.daoflow-api-app-example-com-svc.loadbalancer.server.port=3000"
+    );
+  });
+
   it("replays previously frozen compose inputs without rereading repository files", () => {
     const workDir = mkdtempSync(join(tmpdir(), "daoflow-compose-replay-"));
     tempDirs.push(workDir);

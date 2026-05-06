@@ -2,7 +2,8 @@ import { and, eq, inArray } from "drizzle-orm";
 import type { AppRole } from "@daoflow/shared";
 import { db } from "../connection";
 import { auditEntries } from "../schema/audit";
-import { projects } from "../schema/projects";
+import { environments, projects } from "../schema/projects";
+import { servers } from "../schema/servers";
 import { services } from "../schema/services";
 import { tunnelRoutes, tunnels } from "../schema/tunnels";
 import { newId as id } from "./json-helpers";
@@ -11,12 +12,14 @@ import {
   readServiceDomainConfigFromConfig,
   type ServiceDomainEntry,
   type ServicePortMapping,
-  type ServicePortProtocol,
   writeServiceDomainConfigToConfig
 } from "../../service-domain-config";
+import { buildManagedTraefikRoutingPlan } from "../../managed-traefik";
 
 export type ServiceDomainProxyStatus = "matched" | "missing" | "inactive" | "conflict";
 export type ServiceDomainTlsStatus = "ready" | "pending" | "inactive" | "conflict";
+export type ManagedRouteStatus = "inactive" | "planned" | "missing_config" | "unsupported";
+export type ManagedCertificateStatus = "inactive" | "pending" | "ready";
 
 export interface ServiceDomainObservedRoute {
   hostname: string;
@@ -30,19 +33,15 @@ export interface ServiceDomainObservedRoute {
 export interface ServiceDomainStateRecord extends ServiceDomainEntry {
   proxyStatus: ServiceDomainProxyStatus;
   tlsStatus: ServiceDomainTlsStatus;
+  managedRouteStatus: ManagedRouteStatus;
+  managedCertificateStatus: ManagedCertificateStatus;
   observedRoute: ServiceDomainObservedRoute | null;
 }
 
-export interface ServicePortMappingInput {
-  id?: string;
-  hostPort: number;
-  containerPort: number;
-  protocol: ServicePortProtocol;
-}
-
-interface ServiceContext {
+export interface ServiceContext {
   service: typeof services.$inferSelect;
   teamId: string;
+  targetServer: typeof servers.$inferSelect | null;
 }
 
 export interface ServiceDomainState {
@@ -57,6 +56,8 @@ export interface ServiceDomainState {
     missingDomainCount: number;
     inactiveDomainCount: number;
     conflictDomainCount: number;
+    managedDomainCount: number;
+    plannedManagedRouteCount: number;
   };
 }
 
@@ -65,10 +66,6 @@ export interface DomainMutationInputBase {
   requestedByUserId: string;
   requestedByEmail: string;
   requestedByRole: AppRole;
-}
-
-function invalidPort(value: number) {
-  return !Number.isInteger(value) || value < 1 || value > 65535;
 }
 
 function normalizeDomainEntries(domains: ServiceDomainEntry[]): ServiceDomainEntry[] {
@@ -87,18 +84,41 @@ function normalizeDomainEntries(domains: ServiceDomainEntry[]): ServiceDomainEnt
   return normalized;
 }
 
-async function loadServiceContext(serviceId: string): Promise<ServiceContext | null> {
+export async function loadServiceContext(serviceId: string): Promise<ServiceContext | null> {
   const [row] = await db
     .select({
       service: services,
-      teamId: projects.teamId
+      teamId: projects.teamId,
+      environmentConfig: environments.config
     })
     .from(services)
     .innerJoin(projects, eq(projects.id, services.projectId))
+    .innerJoin(environments, eq(environments.id, services.environmentId))
     .where(eq(services.id, serviceId))
     .limit(1);
 
-  return row ?? null;
+  if (!row) {
+    return null;
+  }
+
+  const environmentConfig =
+    row.environmentConfig && typeof row.environmentConfig === "object"
+      ? (row.environmentConfig as Record<string, unknown>)
+      : {};
+  const targetServerId =
+    row.service.targetServerId ??
+    (typeof environmentConfig.targetServerId === "string"
+      ? environmentConfig.targetServerId
+      : null);
+  const [targetServer] = targetServerId
+    ? await db.select().from(servers).where(eq(servers.id, targetServerId)).limit(1)
+    : [];
+
+  return {
+    service: row.service,
+    teamId: row.teamId,
+    targetServer: targetServer ?? null
+  };
 }
 
 function classifyDomainState(input: {
@@ -167,6 +187,15 @@ export async function getServiceDomainState(input: {
           );
 
   const routeByHostname = new Map(routeRows.map((route) => [route.hostname, route]));
+  const managedTraefikRouting = buildManagedTraefikRoutingPlan({
+    service: context.service,
+    server: context.targetServer,
+    domains: desiredDomains,
+    portMappings: config?.portMappings ?? []
+  });
+  const plannedRouteIds = new Set(
+    managedTraefikRouting?.routes.map((route) => route.domainId) ?? []
+  );
   const domains = desiredDomains.map((domain) => {
     const observedRoute = routeByHostname.get(domain.hostname) ?? null;
     const status = classifyDomainState({
@@ -178,6 +207,20 @@ export async function getServiceDomainState(input: {
     return {
       ...domain,
       ...status,
+      managedRouteStatus:
+        domain.routingMode !== "managed-traefik"
+          ? "inactive"
+          : plannedRouteIds.has(domain.id)
+            ? "planned"
+            : context.targetServer?.kind && context.targetServer.kind !== "docker-engine"
+              ? "unsupported"
+              : "missing_config",
+      managedCertificateStatus:
+        domain.routingMode === "managed-traefik"
+          ? status.tlsStatus === "ready"
+            ? "ready"
+            : "pending"
+          : "inactive",
       observedRoute
     } satisfies ServiceDomainStateRecord;
   });
@@ -193,12 +236,16 @@ export async function getServiceDomainState(input: {
       matchedDomainCount: domains.filter((domain) => domain.proxyStatus === "matched").length,
       missingDomainCount: domains.filter((domain) => domain.proxyStatus === "missing").length,
       inactiveDomainCount: domains.filter((domain) => domain.proxyStatus === "inactive").length,
-      conflictDomainCount: domains.filter((domain) => domain.proxyStatus === "conflict").length
+      conflictDomainCount: domains.filter((domain) => domain.proxyStatus === "conflict").length,
+      managedDomainCount: domains.filter((domain) => domain.routingMode === "managed-traefik")
+        .length,
+      plannedManagedRouteCount: domains.filter((domain) => domain.managedRouteStatus === "planned")
+        .length
     }
   };
 }
 
-async function writeServiceConfig(input: {
+export async function writeServiceConfig(input: {
   context: ServiceContext;
   config: unknown;
   action: string;
@@ -276,6 +323,8 @@ export async function addServiceDomain(
       id: id(),
       hostname,
       isPrimary: currentDomains.length === 0,
+      routingMode: "observed",
+      targetPort: null,
       createdAt: new Date().toISOString()
     }
   ]);
@@ -387,79 +436,6 @@ export async function setPrimaryServiceDomain(
     metadata: {
       hostname: primary.hostname,
       domainId: primary.id
-    },
-    requestedByUserId: input.requestedByUserId,
-    requestedByEmail: input.requestedByEmail,
-    requestedByRole: input.requestedByRole
-  });
-
-  return { status: "ok" as const, state };
-}
-
-export async function updateServicePortMappings(
-  input: DomainMutationInputBase & {
-    portMappings: ServicePortMappingInput[];
-  }
-) {
-  const context = await loadServiceContext(input.serviceId);
-  if (!context) {
-    return { status: "not_found" as const };
-  }
-
-  const seenKeys = new Set<string>();
-  const existing = readServiceDomainConfigFromConfig(context.service.config);
-  const existingPortMappings = new Map(
-    (existing?.portMappings ?? []).map((mapping) => [mapping.id, mapping])
-  );
-
-  const portMappings: ServicePortMapping[] = [];
-  for (const mapping of input.portMappings) {
-    if (invalidPort(mapping.hostPort) || invalidPort(mapping.containerPort)) {
-      return {
-        status: "invalid" as const,
-        message: "Port mappings must use integer ports between 1 and 65535."
-      };
-    }
-
-    const protocol = mapping.protocol === "udp" ? "udp" : "tcp";
-    const dedupeKey = `${mapping.hostPort}:${protocol}`;
-    if (seenKeys.has(dedupeKey)) {
-      return {
-        status: "conflict" as const,
-        message: `Duplicate host port ${mapping.hostPort}/${protocol} is not allowed.`
-      };
-    }
-    seenKeys.add(dedupeKey);
-
-    const existingMapping =
-      typeof mapping.id === "string" ? existingPortMappings.get(mapping.id) : undefined;
-    portMappings.push({
-      id: existingMapping?.id ?? id(),
-      hostPort: mapping.hostPort,
-      containerPort: mapping.containerPort,
-      protocol,
-      createdAt: existingMapping?.createdAt ?? new Date().toISOString()
-    });
-  }
-
-  const config = writeServiceDomainConfigToConfig({
-    config: context.service.config,
-    patch: {
-      portMappings
-    }
-  });
-
-  const state = await writeServiceConfig({
-    context,
-    config,
-    action: "service.port-mappings.update",
-    inputSummary: `Updated ${portMappings.length} port mappings for "${context.service.name}"`,
-    metadata: {
-      portMappings: portMappings.map((mapping) => ({
-        hostPort: mapping.hostPort,
-        containerPort: mapping.containerPort,
-        protocol: mapping.protocol
-      }))
     },
     requestedByUserId: input.requestedByUserId,
     requestedByEmail: input.requestedByEmail,

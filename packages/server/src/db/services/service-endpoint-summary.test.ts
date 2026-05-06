@@ -12,6 +12,8 @@ describe("buildServiceEndpointSummary", () => {
             id: "dom_primary",
             hostname: "app.example.com",
             isPrimary: true,
+            routingMode: "observed",
+            targetPort: null,
             createdAt: "2026-03-28T00:00:00.000Z"
           }
         ],
@@ -59,12 +61,16 @@ describe("buildServiceEndpointSummary", () => {
             id: "dom_primary",
             hostname: "app.example.com",
             isPrimary: true,
+            routingMode: "observed",
+            targetPort: null,
             createdAt: "2026-03-28T00:00:00.000Z"
           },
           {
             id: "dom_secondary",
             hostname: "api.example.com",
             isPrimary: false,
+            routingMode: "observed",
+            targetPort: null,
             createdAt: "2026-03-28T00:00:01.000Z"
           }
         ],

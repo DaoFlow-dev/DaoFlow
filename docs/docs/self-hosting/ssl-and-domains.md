@@ -18,14 +18,18 @@ What DaoFlow does today:
 - Stores service-level custom domains and primary-domain selection
 - Stores explicit port-mapping metadata that operators want to keep outside the source compose file
 - Shows observed route and route-backed TLS readiness based on existing tunnel or proxy state
+- Can opt individual service domains into DaoFlow-managed Traefik routing for Compose deployments
 
-What DaoFlow does not do from that tab:
+What stays operator-controlled:
 
-- Automatically provision Traefik, Caddy, or Nginx rules for you
-- Mint or inspect certificates directly outside the route state it can already observe
+- DNS still needs to point each managed hostname at the target server before Let's Encrypt can issue certificates
+- DaoFlow does not manage Caddy or Nginx rules
+- Certificate readiness is tracked separately from observed tunnel status
 
-You still need to point your reverse proxy or tunnel at the correct published service entrypoint.
-Once that external routing is in place, the Domains tab reflects the observed state.
+Unmanaged domains still use the observation workflow: point your reverse proxy or tunnel at the
+published service entrypoint, then return to the Domains tab to confirm DaoFlow sees the route.
+Managed Traefik domains are rendered into the deployment's Compose file when the target server has
+a managed proxy configuration.
 
 ## Option 1: Reverse Proxy (Recommended)
 
@@ -76,7 +80,33 @@ server {
 
 ### Traefik for Additional Services
 
-For services beyond the DaoFlow dashboard, you still need to add routing labels or file-provider rules yourself today. Example:
+For services beyond the DaoFlow dashboard, DaoFlow can now render Traefik labels and attach the
+Compose service to an external proxy network. Configure the target server once:
+
+```bash
+daoflow server proxy \
+  --server srv_prod \
+  --network daoflow-proxy \
+  --entrypoint websecure \
+  --cert-resolver letsencrypt \
+  --dns-target 203.0.113.10 \
+  --yes
+```
+
+Then switch a service domain from observation to managed Traefik:
+
+```bash
+daoflow services domain routing \
+  --service svc_api \
+  --domain dom_app \
+  --mode managed-traefik \
+  --target-port 3000 \
+  --yes
+```
+
+Deployment plans show the generated route intent and fail preflight when the proxy configuration,
+target port, DNS expectation, or server target is not ready. During execution DaoFlow adds labels
+equivalent to:
 
 ```yaml
 services:
@@ -85,6 +115,12 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.custom-service.rule=Host(`app.example.com`)"
       - "traefik.http.routers.custom-service.tls.certresolver=letsencrypt"
+    networks:
+      - daoflow-proxy
+
+networks:
+  daoflow-proxy:
+    external: true
 ```
 
 ## Option 2: Cloudflare Tunnel

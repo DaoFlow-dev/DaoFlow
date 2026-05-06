@@ -624,6 +624,79 @@
       }
     },
     {
+      "name": "configureServerManagedTraefikProxy",
+      "summary": "configure Server Managed Traefik Proxy",
+      "path": "/trpc/configureServerManagedTraefikProxy",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin"],
+      "requiredScopes": ["server:write"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "serverId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "networkName": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "entrypoint": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 80
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "certificateResolver": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 80
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "dnsTarget": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": ["serverId", "enabled"],
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "containerRegistries",
       "summary": "container Registries",
       "path": "/trpc/containerRegistries",
@@ -4453,6 +4526,49 @@
           }
         },
         "required": ["serviceId"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "updateServiceDomainRouting",
+      "summary": "update Service Domain Routing",
+      "path": "/trpc/updateServiceDomainRouting",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator", "developer"],
+      "requiredScopes": ["service:update"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "serviceId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "domainId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "routingMode": {
+            "type": "string",
+            "enum": ["observed", "managed-traefik"]
+          },
+          "targetPort": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 65535
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": ["serviceId", "domainId", "routingMode"],
         "additionalProperties": false
       }
     },

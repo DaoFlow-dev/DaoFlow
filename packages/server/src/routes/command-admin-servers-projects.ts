@@ -8,7 +8,11 @@ import {
   updateEnvironment,
   updateProject
 } from "../db/services/projects";
-import { deleteServer, registerServer } from "../db/services/servers";
+import {
+  configureServerManagedTraefikProxy,
+  deleteServer,
+  registerServer
+} from "../db/services/servers";
 import {
   deployStartProcedure,
   getActorContext,
@@ -92,6 +96,30 @@ export const adminServerProjectRouter = t.router({
       }
 
       return { deleted: true, serverName: result.serverName };
+    }),
+
+  configureServerManagedTraefikProxy: serverWriteProcedure
+    .input(
+      z.object({
+        serverId: z.string().min(1),
+        enabled: z.boolean(),
+        networkName: z.string().min(1).max(120).nullable().optional(),
+        entrypoint: z.string().min(1).max(80).nullable().optional(),
+        certificateResolver: z.string().min(1).max(80).nullable().optional(),
+        dnsTarget: z.string().min(1).max(255).nullable().optional()
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const result = await configureServerManagedTraefikProxy({
+        ...input,
+        ...getActorContext(ctx)
+      });
+
+      if (result.status === "not_found") {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Server not found." });
+      }
+
+      return result.server;
     }),
 
   createProject: deployStartProcedure

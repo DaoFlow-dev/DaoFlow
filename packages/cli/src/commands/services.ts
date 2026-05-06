@@ -9,6 +9,7 @@ import {
   withResolvedCommandRequestOptions
 } from "../command-helpers";
 import { createClient } from "../trpc-client";
+import { serviceDomainCommand } from "./service-domain-commands";
 
 type ServiceSourceType = "compose" | "dockerfile" | "image";
 
@@ -113,6 +114,7 @@ function colorizeTone(tone: string, value: string) {
 
 export function servicesCommand(): Command {
   const services = new Command("services").description("Manage services and view runtime status");
+  services.addCommand(serviceDomainCommand());
 
   services
     .command("list")

@@ -204,11 +204,20 @@ apiProcedureAccess.backupRestorePlan = {
   requiredScopes: ["backup:read"]
 };
 
-addApiGroup(apiProcedureAccess, ["registerServer", "deleteServer", "runOperationalMaintenance"], {
-  auth: "authenticated",
-  requiredRoles: ADMIN_ROLES,
-  requiredScopes: ["server:write"]
-});
+addApiGroup(
+  apiProcedureAccess,
+  [
+    "registerServer",
+    "deleteServer",
+    "configureServerManagedTraefikProxy",
+    "runOperationalMaintenance"
+  ],
+  {
+    auth: "authenticated",
+    requiredRoles: ADMIN_ROLES,
+    requiredScopes: ["server:write"]
+  }
+);
 
 addApiGroup(
   apiProcedureAccess,
@@ -281,6 +290,7 @@ addApiGroup(
     "addServiceDomain",
     "removeServiceDomain",
     "setPrimaryServiceDomain",
+    "updateServiceDomainRouting",
     "updateServicePortMappings"
   ],
   {
@@ -589,6 +599,12 @@ export const cliCommandMeta: Record<string, CliCommandMeta> = {
   services: { lane: "read", requiredScopes: ["service:read"], mutating: false },
   "services list": { lane: "read", requiredScopes: ["service:read"], mutating: false },
   "services create": { lane: "command", requiredScopes: ["service:update"], mutating: true },
+  "services domain": { lane: "command", requiredScopes: ["service:update"], mutating: true },
+  "services domain routing": {
+    lane: "command",
+    requiredScopes: ["service:update"],
+    mutating: true
+  },
   deploy: { lane: "command", requiredScopes: ["deploy:start"], mutating: true },
   push: { lane: "command", requiredScopes: ["deploy:start"], mutating: true },
   "env list": { lane: "read", requiredScopes: ["env:read"], mutating: false },
@@ -604,6 +620,7 @@ export const cliCommandMeta: Record<string, CliCommandMeta> = {
   rollback: { lane: "command", requiredScopes: ["deploy:rollback"], mutating: true },
   status: { lane: "read", requiredScopes: ["server:read"], mutating: false },
   "server add": { lane: "command", requiredScopes: ["server:write"], mutating: true },
+  "server proxy": { lane: "command", requiredScopes: ["server:write"], mutating: true },
   projects: { lane: "read", requiredScopes: ["deploy:read"], mutating: false },
   "projects list": { lane: "read", requiredScopes: ["deploy:read"], mutating: false },
   "projects show": { lane: "read", requiredScopes: ["deploy:read"], mutating: false },

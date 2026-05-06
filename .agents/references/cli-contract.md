@@ -69,6 +69,7 @@ This file holds the detailed CLI contract, scope map, and agent-facing command r
 | `approvals`          | read/command          | any valid token, `approvals:decide`             | varies   |
 | `status`             | read                  | `server:read`                                   | no       |
 | `server add`         | command               | `server:write`                                  | yes      |
+| `server proxy`       | command               | `server:write`                                  | yes      |
 | `services`           | read/command          | `service:read`, `service:update`                | varies   |
 | `projects`           | read/command          | `deploy:read`, `deploy:start`, `service:update` | varies   |
 | `templates`          | read/planning/command | none, `deploy:read`, `deploy:start`             | varies   |
@@ -187,6 +188,18 @@ This file holds the detailed CLI contract, scope map, and agent-facing command r
   - project and environment ids
   - the exact next plan command
   - the exact next deploy command
+- `daoflow services domain routing` writes through `updateServiceDomainRouting` and requires `service:update`
+- Required input:
+  - `--service <id>`
+  - `--domain <id>`
+  - `--mode <observed|managed-traefik>`
+- Optional input:
+  - `--target-port <port>`
+  - `--dry-run`
+  - `--yes`
+  - `--json`
+- JSON success shape:
+  - `{ "ok": true, "data": { "serviceId": string, "domain": { "id": string, "hostname": string, "routingMode": "observed" | "managed-traefik", "targetPort": number | null } | null } }`
 
 ## Plan Command Contract
 
@@ -200,7 +213,7 @@ This file holds the detailed CLI contract, scope map, and agent-facing command r
 - Preview targeting is only valid for service planning and service deploys. The CLI must reject preview flags with direct `--compose` plan or deploy requests using `INVALID_INPUT`.
 - For compose plan and direct compose deploy, `--context` must cover every compose-relative local input that needs upload, including `build.context`, bundleable `build.additional_contexts`, file-backed build secrets, and local `env_file` assets. The CLI must fail with `INVALID_INPUT` before any API call when the configured context root is too narrow.
 - JSON service success shape:
-  - `{ "ok": true, "data": { "isReady": boolean, "service": {...}, "composeEnvPlan": { "branch": string, "matchedBranchOverrideCount": number, "composeEnv": { "precedence": string[], "counts": { "total": number, "repoDefaults": number, "environmentVariables": number, "runtime": number, "build": number, "secrets": number, "overriddenRepoDefaults": number }, "warnings": string[], "entries": [{ "key": string, "displayValue": string, "category": "runtime" | "build" | "default", "isSecret": boolean, "source": "inline" | "1password" | "repo-default", "branchPattern": string | null, "origin": "repo-default" | "environment-variable", "overrodeRepoDefault": boolean }] }, "interpolation": { "status": "ok" | "warn" | "fail" | "unavailable", "summary": { "totalReferences": number, "unresolved": number, "requiredMissing": number, "optionalMissing": number }, "warnings": string[], "unresolved": [{ "key": string, "expression": string, "severity": "warn" | "fail", "detail": string }] } } | null, "target": {...}, "currentDeployment": {...} | null, "preflightChecks": [{ "status": "ok" | "warn" | "fail", "detail": string }], "steps": string[], "executeCommand": string } }`
+  - `{ "ok": true, "data": { "isReady": boolean, "service": {...}, "managedTraefikRouting": { "provider": "traefik", "routes": [...] } | null, "composeEnvPlan": { "branch": string, "matchedBranchOverrideCount": number, "composeEnv": { "precedence": string[], "counts": { "total": number, "repoDefaults": number, "environmentVariables": number, "runtime": number, "build": number, "secrets": number, "overriddenRepoDefaults": number }, "warnings": string[], "entries": [{ "key": string, "displayValue": string, "category": "runtime" | "build" | "default", "isSecret": boolean, "source": "inline" | "1password" | "repo-default", "branchPattern": string | null, "origin": "repo-default" | "environment-variable", "overrodeRepoDefault": boolean }] }, "interpolation": { "status": "ok" | "warn" | "fail" | "unavailable", "summary": { "totalReferences": number, "unresolved": number, "requiredMissing": number, "optionalMissing": number }, "warnings": string[], "unresolved": [{ "key": string, "expression": string, "severity": "warn" | "fail", "detail": string }] } } | null, "target": {...}, "currentDeployment": {...} | null, "preflightChecks": [{ "status": "ok" | "warn" | "fail", "detail": string }], "steps": string[], "executeCommand": string } }`
 - JSON compose success shape:
   - `{ "ok": true, "data": { "isReady": boolean, "deploymentSource": "uploaded-context" | "uploaded-compose", "project": { "id": string | null, "name": string, "action": "reuse" | "create" }, "environment": { "id": string | null, "name": string, "action": "reuse" | "create" }, "service": { "id": string | null, "name": string, "action": "reuse" | "create", "sourceType": "compose" }, "composeEnvPlan": { "branch": string, "matchedBranchOverrideCount": number, "composeEnv": { "precedence": string[], "counts": { "total": number, "repoDefaults": number, "environmentVariables": number, "runtime": number, "build": number, "secrets": number, "overriddenRepoDefaults": number }, "warnings": string[], "entries": [{ "key": string, "displayValue": string, "category": "runtime" | "build" | "default", "isSecret": boolean, "source": "inline" | "1password" | "repo-default", "branchPattern": string | null, "origin": "repo-default" | "environment-variable", "overrodeRepoDefault": boolean }] }, "interpolation": { "status": "ok" | "warn" | "fail" | "unavailable", "summary": { "totalReferences": number, "unresolved": number, "requiredMissing": number, "optionalMissing": number }, "warnings": string[], "unresolved": [{ "key": string, "expression": string, "severity": "warn" | "fail", "detail": string }] } }, "target": { "serverId": string, "serverName": string, "serverHost": string, "composePath": string | null, "contextPath": string | null, "requiresContextUpload": boolean, "localBuildContexts": [{ "serviceName": string, "context": string, "dockerfile": string | null }], "contextBundle": { "fileCount": number, "sizeBytes": number, "includedOverrides": string[] } | null }, "preflightChecks": [{ "status": "ok" | "warn" | "fail", "detail": string }], "steps": string[], "executeCommand": string } }`
 - Human output must show:
@@ -442,3 +455,18 @@ This file holds the detailed CLI contract, scope map, and agent-facing command r
 - Execution must require `--yes`
 - JSON success shape:
   - `{ "ok": true, "data": { "server": { "id": string, "name": string, "host": string, "region": string | null, "sshPort": number, "sshUser": string | null, "kind": string, "status": string, "dockerVersion": string | null, "composeVersion": string | null, "readiness"?: { "readinessStatus": string, "sshReachable": boolean, "dockerReachable": boolean, "composeReachable": boolean, "latencyMs": number | null, "checkedAt": string, "issues": string[], "recommendedActions": string[] } }, "readiness": { "readinessStatus": string, "sshReachable": boolean, "dockerReachable": boolean, "composeReachable": boolean, "latencyMs": number | null, "checkedAt": string | null, "issues": string[], "recommendedActions": string[] } } }`
+- `daoflow server proxy` writes through `configureServerManagedTraefikProxy`
+- Scope: `server:write`
+- Required input:
+  - `--server <id>`
+- Optional input:
+  - `--disable`
+  - `--network <name>`
+  - `--entrypoint <name>`
+  - `--cert-resolver <name>`
+  - `--dns-target <host>`
+  - `--dry-run`
+  - `--yes`
+  - `--json`
+- JSON success shape:
+  - `{ "ok": true, "data": { "server": { "id": string, "name": string, "host": string, "metadata": object } } }`

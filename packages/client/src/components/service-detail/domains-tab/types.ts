@@ -1,6 +1,7 @@
 export type DomainProxyStatus = "matched" | "missing" | "inactive" | "conflict";
 export type DomainTlsStatus = "ready" | "pending" | "inactive" | "conflict";
 export type ServicePortProtocol = "tcp" | "udp";
+export type ServiceDomainRoutingMode = "observed" | "managed-traefik";
 
 export interface ObservedRouteRecord {
   hostname: string;
@@ -15,9 +16,13 @@ export interface ServiceDomainStateRecord {
   id: string;
   hostname: string;
   isPrimary: boolean;
+  routingMode: ServiceDomainRoutingMode;
+  targetPort: number | null;
   createdAt: string;
   proxyStatus: DomainProxyStatus;
   tlsStatus: DomainTlsStatus;
+  managedRouteStatus: "inactive" | "planned" | "missing_config" | "unsupported";
+  managedCertificateStatus: "inactive" | "pending" | "ready";
   observedRoute: ObservedRouteRecord | null;
 }
 
@@ -36,6 +41,8 @@ export interface ServiceDomainSummary {
   missingDomainCount: number;
   inactiveDomainCount: number;
   conflictDomainCount: number;
+  managedDomainCount: number;
+  plannedManagedRouteCount: number;
 }
 
 export interface PortMappingDraft {

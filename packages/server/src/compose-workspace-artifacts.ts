@@ -17,6 +17,7 @@ import {
   type ComposeInputManifest,
   type FrozenComposeInputsPayload
 } from "./compose-inputs";
+import { readManagedTraefikRoutingPlan } from "./managed-traefik";
 import type { DeploymentComposeEnvState, DeploymentComposeState } from "./db/services/compose-env";
 
 export interface MaterializedComposeWorkspaceArtifacts {
@@ -105,6 +106,7 @@ export function materializeComposeWorkspaceArtifacts(input: {
   existingComposeBuildPlan?: ComposeBuildPlan;
   existingComposeEnv?: ComposeEnvEvidence;
   existingComposeInputs?: ComposeInputManifest;
+  managedTraefikRouting?: unknown;
 }): MaterializedComposeWorkspaceArtifacts {
   const repoDefaultContent = readRepoDefaultEnvFile(input.workDir, input.composeFile);
   const composeEnv = materializeComposeEnv({
@@ -123,7 +125,8 @@ export function materializeComposeWorkspaceArtifacts(input: {
     imageOverride: input.imageOverride,
     existingBuildPlan: input.existingComposeBuildPlan,
     existingManifest: input.existingComposeInputs,
-    existingFrozenInputs: input.deploymentState.frozenInputs
+    existingFrozenInputs: input.deploymentState.frozenInputs,
+    managedTraefikRouting: readManagedTraefikRoutingPlan(input.managedTraefikRouting)
   });
 
   return {

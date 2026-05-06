@@ -133,7 +133,8 @@ export async function prepareComposeWorkspace(
       imageOverride: config.composeImageOverride,
       existingComposeBuildPlan: config.composeBuildPlan,
       existingComposeEnv: config.composeEnv,
-      existingComposeInputs: config.composeInputs
+      existingComposeInputs: config.composeInputs,
+      managedTraefikRouting: config.managedTraefikRouting
     });
 
     if (target.mode === "remote") {
@@ -212,7 +213,8 @@ export async function prepareComposeWorkspace(
     imageOverride: config.composeImageOverride,
     existingComposeBuildPlan: config.composeBuildPlan,
     existingComposeEnv: config.composeEnv,
-    existingComposeInputs: config.composeInputs
+    existingComposeInputs: config.composeInputs,
+    managedTraefikRouting: config.managedTraefikRouting
   });
 
   if (target.mode === "local") {

@@ -21,6 +21,7 @@ import {
   readStringArray
 } from "./json-helpers";
 import { readServerSwarmTopology, withRegisteredServerTopologyMetadata } from "./server-topology";
+import { writeManagedTraefikProxyConfigToMetadata } from "../../managed-traefik";
 
 export interface RegisterServerInput {
   name: string;
@@ -331,4 +332,56 @@ export async function deleteServer(input: DeleteServerInput) {
   });
 
   return { status: "deleted" as const, serverId: input.serverId, serverName: server.name };
+}
+
+export async function configureServerManagedTraefikProxy(input: {
+  serverId: string;
+  enabled: boolean;
+  networkName?: string | null;
+  entrypoint?: string | null;
+  certificateResolver?: string | null;
+  dnsTarget?: string | null;
+  requestedByUserId: string;
+  requestedByEmail: string;
+  requestedByRole: AppRole;
+}) {
+  const [server] = await db.select().from(servers).where(eq(servers.id, input.serverId)).limit(1);
+  if (!server) {
+    return { status: "not_found" as const };
+  }
+
+  const metadata = writeManagedTraefikProxyConfigToMetadata({
+    metadata: server.metadata,
+    patch: input
+  });
+  const [updatedServer] = await db
+    .update(servers)
+    .set({
+      metadata,
+      updatedAt: new Date()
+    })
+    .where(eq(servers.id, input.serverId))
+    .returning();
+
+  await db.insert(auditEntries).values({
+    actorType: "user",
+    actorId: input.requestedByUserId,
+    actorEmail: input.requestedByEmail,
+    actorRole: input.requestedByRole,
+    targetResource: `server/${input.serverId}`,
+    action: "server.managed-traefik.configure",
+    inputSummary: `${input.enabled ? "Enabled" : "Disabled"} managed Traefik routing for "${server.name}"`,
+    permissionScope: "server:write",
+    outcome: "success",
+    metadata: {
+      resourceType: "server",
+      resourceId: input.serverId,
+      enabled: input.enabled,
+      networkName: input.networkName ?? null,
+      entrypoint: input.entrypoint ?? null,
+      certificateResolver: input.certificateResolver ?? null
+    }
+  });
+
+  return { status: "ok" as const, server: updatedServer };
 }

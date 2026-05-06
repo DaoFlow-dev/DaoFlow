@@ -23,8 +23,8 @@ export function ReverseProxyStatusCard({
           className="text-sm text-muted-foreground"
           data-testid={`service-proxy-copy-${serviceId}`}
         >
-          DaoFlow persists desired hostnames and compares them against observed tunnel or
-          reverse-proxy routes. This tab does not provision Traefik or Caddy rules on its own.
+          DaoFlow compares desired hostnames against observed tunnel routes and separately tracks
+          domains that are opted into managed Traefik routing.
         </p>
         <div className="flex flex-wrap gap-2">
           <StatusBadge
@@ -56,9 +56,23 @@ export function ReverseProxyStatusCard({
           className="rounded-lg border border-dashed px-3 py-3 text-xs text-muted-foreground"
           data-testid={`service-proxy-next-step-${serviceId}`}
         >
-          Use tunnel routes or your external reverse proxy to point each hostname at the published
-          service entrypoint, then return here to confirm DaoFlow sees the route as matched and
-          TLS-ready.
+          Managed Traefik routes are applied during Compose deployments when the target server has a
+          managed proxy configured. Unmanaged domains continue to rely on external tunnel or proxy
+          observation.
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <StatusBadge
+            count={summary.managedDomainCount}
+            label="Managed"
+            className="border-cyan-500/40 text-cyan-600"
+            testId={`service-proxy-managed-${serviceId}`}
+          />
+          <StatusBadge
+            count={summary.plannedManagedRouteCount}
+            label="Planned"
+            className="border-emerald-500/40 text-emerald-600"
+            testId={`service-proxy-planned-${serviceId}`}
+          />
         </div>
       </CardContent>
     </Card>

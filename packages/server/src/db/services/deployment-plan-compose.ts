@@ -15,6 +15,11 @@ import {
   readComposeReadinessProbeFromConfig,
   type ComposeReadinessProbe
 } from "../../compose-readiness";
+import {
+  buildManagedTraefikRoutingPlan,
+  type ManagedTraefikRoutingPlan
+} from "../../managed-traefik";
+import { readServiceDomainConfigFromConfig } from "../../service-domain-config";
 import { environments, projects } from "../schema/projects";
 import { servers } from "../schema/servers";
 import { services } from "../schema/services";
@@ -25,6 +30,7 @@ import {
   hasRepositorySource,
   materializeComposePlanningPreflight
 } from "./deployment-plan-preflight";
+import { buildManagedTraefikPlanChecks } from "./managed-traefik-plan-checks";
 
 function readReplayableComposePlanSource(envVarsEncrypted: string | null | undefined): {
   composeContent: string | null;
@@ -66,6 +72,7 @@ export async function buildComposeDeploymentPlanDetails(input: {
   previewMetadata: ComposePreviewMetadata | null;
   composeOperation: "up" | "down";
   readinessProbe: ComposeReadinessProbe | null;
+  managedTraefikRouting: ManagedTraefikRoutingPlan | null;
 }> {
   const checks: PlanCheck[] = [];
   const readinessProbe = readComposeReadinessProbeFromConfig(input.service.config);
@@ -78,6 +85,16 @@ export async function buildComposeDeploymentPlanDetails(input: {
   let composeBuildPlan: ComposeBuildPlan | null = null;
   const composeOperation = previewRequest?.action === "destroy" ? "down" : "up";
   const sourceBranch = previewRequest?.branch ?? input.project.defaultBranch ?? "main";
+  const domainConfig = readServiceDomainConfigFromConfig(input.service.config);
+  const managedTraefikRouting =
+    composeOperation === "down"
+      ? null
+      : buildManagedTraefikRoutingPlan({
+          service: input.service,
+          server: input.resolvedServer,
+          domains: domainConfig?.domains ?? [],
+          portMappings: domainConfig?.portMappings ?? []
+        });
 
   if (previewRequest) {
     if (!previewConfig?.enabled) {
@@ -244,6 +261,12 @@ export async function buildComposeDeploymentPlanDetails(input: {
       )
     );
   }
+  checks.push(
+    ...buildManagedTraefikPlanChecks({
+      server: input.resolvedServer,
+      plan: managedTraefikRouting
+    })
+  );
 
   return {
     checks,
@@ -252,6 +275,7 @@ export async function buildComposeDeploymentPlanDetails(input: {
     previewRequest,
     previewMetadata,
     composeOperation,
-    readinessProbe
+    readinessProbe,
+    managedTraefikRouting
   };
 }

@@ -19,6 +19,14 @@ export interface DeploymentPlanPreview {
     statusLabel: string;
     imageTag: string | null;
   } | null;
+  managedTraefikRouting?: {
+    routes: Array<{
+      hostname: string;
+      targetServiceName: string;
+      targetPort: number;
+      networkName: string;
+    }>;
+  } | null;
   preflightChecks: Array<{
     status: "ok" | "warn" | "fail";
     detail: string;
@@ -70,6 +78,16 @@ export function printDeploymentPlan(
 
   if (plan.composeEnvPlan) {
     printComposeEnvPlan(plan.composeEnvPlan);
+  }
+
+  if (plan.managedTraefikRouting?.routes.length) {
+    console.log(`  ${chalk.bold("Managed Traefik:")}`);
+    for (const route of plan.managedTraefikRouting.routes) {
+      console.log(
+        `    ${route.hostname} -> ${route.targetServiceName}:${route.targetPort} on ${route.networkName}`
+      );
+    }
+    console.log();
   }
 
   console.log(`  ${chalk.bold("Planned steps:")}`);

@@ -10,10 +10,12 @@ const {
   addServiceDomainMutateAsyncMock,
   removeServiceDomainMutateAsyncMock,
   setPrimaryServiceDomainMutateAsyncMock,
+  updateServiceDomainRoutingMutateAsyncMock,
   updateServicePortMappingsMutateAsyncMock,
   addServiceDomainUseMutationMock,
   removeServiceDomainUseMutationMock,
   setPrimaryServiceDomainUseMutationMock,
+  updateServiceDomainRoutingUseMutationMock,
   updateServicePortMappingsUseMutationMock,
   invalidateServiceDomainStateMock,
   invalidateServiceDetailsMock
@@ -22,10 +24,12 @@ const {
   addServiceDomainMutateAsyncMock: vi.fn(),
   removeServiceDomainMutateAsyncMock: vi.fn(),
   setPrimaryServiceDomainMutateAsyncMock: vi.fn(),
+  updateServiceDomainRoutingMutateAsyncMock: vi.fn(),
   updateServicePortMappingsMutateAsyncMock: vi.fn(),
   addServiceDomainUseMutationMock: vi.fn(),
   removeServiceDomainUseMutationMock: vi.fn(),
   setPrimaryServiceDomainUseMutationMock: vi.fn(),
+  updateServiceDomainRoutingUseMutationMock: vi.fn(),
   updateServicePortMappingsUseMutationMock: vi.fn(),
   invalidateServiceDomainStateMock: vi.fn(),
   invalidateServiceDetailsMock: vi.fn()
@@ -53,6 +57,9 @@ vi.mock("@/lib/trpc", () => ({
     setPrimaryServiceDomain: {
       useMutation: setPrimaryServiceDomainUseMutationMock
     },
+    updateServiceDomainRouting: {
+      useMutation: updateServiceDomainRoutingUseMutationMock
+    },
     updateServicePortMappings: {
       useMutation: updateServicePortMappingsUseMutationMock
     }
@@ -65,9 +72,13 @@ function makeDomainState(
       id: string;
       hostname: string;
       isPrimary: boolean;
+      routingMode: "observed" | "managed-traefik";
+      targetPort: number | null;
       createdAt: string;
       proxyStatus: "matched" | "missing" | "inactive" | "conflict";
       tlsStatus: "ready" | "pending" | "inactive" | "conflict";
+      managedRouteStatus: "inactive" | "planned" | "missing_config" | "unsupported";
+      managedCertificateStatus: "inactive" | "pending" | "ready";
       observedRoute: {
         hostname: string;
         service: string;
@@ -91,6 +102,8 @@ function makeDomainState(
       missingDomainCount: number;
       inactiveDomainCount: number;
       conflictDomainCount: number;
+      managedDomainCount: number;
+      plannedManagedRouteCount: number;
     };
   }>
 ) {
@@ -102,9 +115,13 @@ function makeDomainState(
         id: "dom_primary",
         hostname: "app.example.com",
         isPrimary: true,
+        routingMode: "observed" as const,
+        targetPort: null,
         createdAt: "2026-03-20T12:00:00.000Z",
         proxyStatus: "matched" as const,
         tlsStatus: "ready" as const,
+        managedRouteStatus: "inactive" as const,
+        managedCertificateStatus: "inactive" as const,
         observedRoute: {
           hostname: "app.example.com",
           service: "api",
@@ -130,7 +147,9 @@ function makeDomainState(
       matchedDomainCount: 1,
       missingDomainCount: 0,
       inactiveDomainCount: 0,
-      conflictDomainCount: 0
+      conflictDomainCount: 0,
+      managedDomainCount: 0,
+      plannedManagedRouteCount: 0
     },
     ...overrides
   };
@@ -146,10 +165,12 @@ describe("DomainsTab", () => {
     addServiceDomainMutateAsyncMock.mockReset();
     removeServiceDomainMutateAsyncMock.mockReset();
     setPrimaryServiceDomainMutateAsyncMock.mockReset();
+    updateServiceDomainRoutingMutateAsyncMock.mockReset();
     updateServicePortMappingsMutateAsyncMock.mockReset();
     addServiceDomainUseMutationMock.mockReset();
     removeServiceDomainUseMutationMock.mockReset();
     setPrimaryServiceDomainUseMutationMock.mockReset();
+    updateServiceDomainRoutingUseMutationMock.mockReset();
     updateServicePortMappingsUseMutationMock.mockReset();
     invalidateServiceDomainStateMock.mockReset();
     invalidateServiceDetailsMock.mockReset();
@@ -159,6 +180,7 @@ describe("DomainsTab", () => {
     addServiceDomainMutateAsyncMock.mockResolvedValue({});
     removeServiceDomainMutateAsyncMock.mockResolvedValue({});
     setPrimaryServiceDomainMutateAsyncMock.mockResolvedValue({});
+    updateServiceDomainRoutingMutateAsyncMock.mockResolvedValue({});
     updateServicePortMappingsMutateAsyncMock.mockResolvedValue({});
 
     serviceDomainStateUseQueryMock.mockReturnValue({
@@ -178,6 +200,10 @@ describe("DomainsTab", () => {
     setPrimaryServiceDomainUseMutationMock.mockReturnValue({
       isPending: false,
       mutateAsync: setPrimaryServiceDomainMutateAsyncMock
+    });
+    updateServiceDomainRoutingUseMutationMock.mockReturnValue({
+      isPending: false,
+      mutateAsync: updateServiceDomainRoutingMutateAsyncMock
     });
     updateServicePortMappingsUseMutationMock.mockReturnValue({
       isPending: false,
@@ -215,7 +241,9 @@ describe("DomainsTab", () => {
           matchedDomainCount: 0,
           missingDomainCount: 0,
           inactiveDomainCount: 0,
-          conflictDomainCount: 0
+          conflictDomainCount: 0,
+          managedDomainCount: 0,
+          plannedManagedRouteCount: 0
         }
       }),
       isLoading: false,
@@ -250,7 +278,9 @@ describe("DomainsTab", () => {
           matchedDomainCount: 1,
           missingDomainCount: 0,
           inactiveDomainCount: 0,
-          conflictDomainCount: 0
+          conflictDomainCount: 0,
+          managedDomainCount: 0,
+          plannedManagedRouteCount: 0
         }
       }),
       isLoading: false,
@@ -328,18 +358,26 @@ describe("DomainsTab", () => {
             id: "dom_primary",
             hostname: "app.example.com",
             isPrimary: true,
+            routingMode: "observed",
+            targetPort: null,
             createdAt: "2026-03-20T12:00:00.000Z",
             proxyStatus: "matched",
             tlsStatus: "ready",
+            managedRouteStatus: "inactive",
+            managedCertificateStatus: "inactive",
             observedRoute: null
           },
           {
             id: "dom_secondary",
             hostname: "api.example.com",
             isPrimary: false,
+            routingMode: "observed",
+            targetPort: null,
             createdAt: "2026-03-20T12:05:00.000Z",
             proxyStatus: "missing",
             tlsStatus: "pending",
+            managedRouteStatus: "inactive",
+            managedCertificateStatus: "inactive",
             observedRoute: null
           }
         ],
@@ -349,7 +387,9 @@ describe("DomainsTab", () => {
           matchedDomainCount: 1,
           missingDomainCount: 1,
           inactiveDomainCount: 0,
-          conflictDomainCount: 0
+          conflictDomainCount: 0,
+          managedDomainCount: 0,
+          plannedManagedRouteCount: 0
         }
       }),
       isLoading: false,
@@ -365,6 +405,44 @@ describe("DomainsTab", () => {
       expect(setPrimaryServiceDomainMutateAsyncMock).toHaveBeenCalledWith({
         serviceId: "svc_api",
         domainId: "dom_secondary"
+      });
+    });
+  });
+
+  it("opts a domain into managed Traefik routing", async () => {
+    serviceDomainStateUseQueryMock.mockReturnValue({
+      data: makeDomainState({
+        domains: [
+          {
+            id: "dom_primary",
+            hostname: "app.example.com",
+            isPrimary: true,
+            routingMode: "observed",
+            targetPort: null,
+            createdAt: "2026-03-20T12:00:00.000Z",
+            proxyStatus: "missing",
+            tlsStatus: "pending",
+            managedRouteStatus: "inactive",
+            managedCertificateStatus: "inactive",
+            observedRoute: null
+          }
+        ]
+      }),
+      isLoading: false,
+      error: null,
+      refetch: vi.fn()
+    });
+
+    render(<DomainsTab serviceId="svc_api" serviceName="api" />);
+
+    fireEvent.click(screen.getByTestId("service-domain-routing-managed-svc_api-dom_primary"));
+
+    await waitFor(() => {
+      expect(updateServiceDomainRoutingMutateAsyncMock).toHaveBeenCalledWith({
+        serviceId: "svc_api",
+        domainId: "dom_primary",
+        routingMode: "managed-traefik",
+        targetPort: null
       });
     });
   });

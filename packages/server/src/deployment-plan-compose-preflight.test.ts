@@ -244,4 +244,71 @@ describe("deployment plan compose workspace preflight", () => {
       fixture.repository.cleanup();
     }
   });
+
+  it("shows managed Traefik route intent in service deployment plans", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-plan-managed-traefik",
+      session: makeSession("owner")
+    });
+    const fixture = await createRepoBackedComposeService({
+      composeServiceName: "api",
+      files: {
+        "deploy/compose.yaml": [
+          "services:",
+          "  api:",
+          "    image: ghcr.io/daoflow/api:stable"
+        ].join("\n")
+      }
+    });
+
+    try {
+      await caller.configureServerManagedTraefikProxy({
+        serverId: "srv_foundation_1",
+        enabled: true,
+        networkName: "daoflow-proxy",
+        entrypoint: "websecure",
+        certificateResolver: "letsencrypt",
+        dnsTarget: "203.0.113.10"
+      });
+      const state = await caller.addServiceDomain({
+        serviceId: fixture.serviceId,
+        hostname: "app.example.com"
+      });
+      await caller.updateServicePortMappings({
+        serviceId: fixture.serviceId,
+        portMappings: [{ hostPort: 443, containerPort: 3000, protocol: "tcp" }]
+      });
+      await caller.updateServiceDomainRouting({
+        serviceId: fixture.serviceId,
+        domainId: state.domains[0]?.id ?? "",
+        routingMode: "managed-traefik",
+        targetPort: 3000
+      });
+
+      const plan = await caller.deploymentPlan({
+        service: fixture.serviceId
+      });
+
+      expect(plan.isReady).toBe(true);
+      expect(plan.managedTraefikRouting?.routes).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            hostname: "app.example.com",
+            targetServiceName: "api",
+            targetPort: 3000,
+            networkName: "daoflow-proxy"
+          })
+        ])
+      );
+      expect(
+        plan.preflightChecks.some(
+          (check) =>
+            check.status === "ok" &&
+            check.detail.includes("Traefik route app.example.com -> api:3000")
+        )
+      ).toBe(true);
+    } finally {
+      fixture.repository.cleanup();
+    }
+  });
 });

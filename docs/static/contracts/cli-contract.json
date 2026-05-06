@@ -2228,6 +2228,67 @@
       "supportsYes": true
     },
     {
+      "path": "server proxy",
+      "summary": "Configure DaoFlow-managed Traefik routing for a server",
+      "lane": "command",
+      "requiredScopes": ["server:write"],
+      "mutating": true,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--server <id>",
+          "description": "Server ID",
+          "required": true
+        },
+        {
+          "flags": "--disable",
+          "description": "Disable managed Traefik routing",
+          "required": false
+        },
+        {
+          "flags": "--network <name>",
+          "description": "External Traefik Docker network",
+          "required": false
+        },
+        {
+          "flags": "--entrypoint <name>",
+          "description": "Traefik HTTPS entrypoint",
+          "required": false
+        },
+        {
+          "flags": "--cert-resolver <name>",
+          "description": "Traefik certificate resolver",
+          "required": false
+        },
+        {
+          "flags": "--dns-target <host>",
+          "description": "Expected DNS target for managed hostnames",
+          "required": false
+        },
+        {
+          "flags": "--dry-run",
+          "description": "Preview the proxy payload without mutating",
+          "required": false
+        },
+        {
+          "flags": "-y, --yes",
+          "description": "Skip confirmation prompt",
+          "required": false
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": true,
+      "supportsYes": true
+    },
+    {
       "path": "services",
       "summary": "Manage services and view runtime status",
       "lane": "read",
@@ -2306,6 +2367,72 @@
         {
           "flags": "--dry-run",
           "description": "Preview the service payload without mutating",
+          "required": false
+        },
+        {
+          "flags": "-y, --yes",
+          "description": "Skip confirmation prompt",
+          "required": false
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": true,
+      "supportsYes": true
+    },
+    {
+      "path": "services domain",
+      "summary": "Manage service domain routing",
+      "lane": "command",
+      "requiredScopes": ["service:update"],
+      "mutating": true,
+      "hasAction": false,
+      "hasSubcommands": true,
+      "aliases": [],
+      "arguments": [],
+      "options": [],
+      "supportsJson": false,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
+      "path": "services domain routing",
+      "summary": "Switch a service domain between observation and managed Traefik",
+      "lane": "command",
+      "requiredScopes": ["service:update"],
+      "mutating": true,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--service <id>",
+          "description": "Service ID",
+          "required": true
+        },
+        {
+          "flags": "--domain <id>",
+          "description": "Domain ID",
+          "required": true
+        },
+        {
+          "flags": "--mode <mode>",
+          "description": "Routing mode (observed|managed-traefik)",
+          "required": true
+        },
+        {
+          "flags": "--target-port <port>",
+          "description": "Container port for managed Traefik",
+          "required": false
+        },
+        {
+          "flags": "--dry-run",
+          "description": "Preview the routing payload without mutating",
           "required": false
         },
         {

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,6 +17,11 @@ interface CustomDomainsCardProps {
   onNewDomainChange: (value: string) => void;
   onAddDomain: () => void;
   onSetPrimary: (domain: ServiceDomainStateRecord) => void;
+  onUpdateRouting: (
+    domain: ServiceDomainStateRecord,
+    routingMode: ServiceDomainStateRecord["routingMode"],
+    targetPort: number | null
+  ) => void;
   onRemoveDomain: (domain: ServiceDomainStateRecord) => void;
 }
 
@@ -29,6 +35,7 @@ export function CustomDomainsCard({
   onNewDomainChange,
   onAddDomain,
   onSetPrimary,
+  onUpdateRouting,
   onRemoveDomain
 }: CustomDomainsCardProps) {
   const needsAttention =
@@ -109,6 +116,7 @@ export function CustomDomainsCard({
                 serviceId={serviceId}
                 domainMutating={domainMutating}
                 onSetPrimary={onSetPrimary}
+                onUpdateRouting={onUpdateRouting}
                 onRemoveDomain={onRemoveDomain}
               />
             ))}
@@ -157,14 +165,26 @@ function DomainRow({
   serviceId,
   domainMutating,
   onSetPrimary,
+  onUpdateRouting,
   onRemoveDomain
 }: {
   domain: ServiceDomainStateRecord;
   serviceId: string;
   domainMutating: boolean;
   onSetPrimary: (domain: ServiceDomainStateRecord) => void;
+  onUpdateRouting: (
+    domain: ServiceDomainStateRecord,
+    routingMode: ServiceDomainStateRecord["routingMode"],
+    targetPort: number | null
+  ) => void;
   onRemoveDomain: (domain: ServiceDomainStateRecord) => void;
 }) {
+  const [targetPort, setTargetPort] = useState(domain.targetPort?.toString() ?? "");
+  const parsedPort = Number.parseInt(targetPort, 10);
+  const nextTargetPort =
+    Number.isInteger(parsedPort) && parsedPort >= 1 && parsedPort <= 65535 ? parsedPort : null;
+  const isManaged = domain.routingMode === "managed-traefik";
+
   return (
     <div
       className="rounded-lg border px-3 py-3"
@@ -203,6 +223,15 @@ function DomainRow({
             >
               TLS {domain.tlsStatus}
             </Badge>
+            {isManaged ? (
+              <Badge
+                variant="outline"
+                className={`text-xs ${statusBadgeClass(domain.managedRouteStatus === "planned" ? "matched" : "missing")}`}
+                data-testid={`service-domain-managed-route-${serviceId}-${domain.id}`}
+              >
+                Managed {domain.managedRouteStatus}
+              </Badge>
+            ) : null}
           </div>
 
           <div
@@ -221,6 +250,38 @@ function DomainRow({
             )}
             {" Added "}
             {new Date(domain.createdAt).toLocaleDateString()}.
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              size="sm"
+              variant={isManaged ? "outline" : "default"}
+              disabled={domainMutating}
+              onClick={() => onUpdateRouting(domain, "observed", null)}
+              data-testid={`service-domain-routing-observed-${serviceId}-${domain.id}`}
+            >
+              Observe
+            </Button>
+            <Button
+              size="sm"
+              variant={isManaged ? "default" : "outline"}
+              disabled={domainMutating}
+              onClick={() => onUpdateRouting(domain, "managed-traefik", nextTargetPort)}
+              data-testid={`service-domain-routing-managed-${serviceId}-${domain.id}`}
+            >
+              Manage
+            </Button>
+            {isManaged ? (
+              <Input
+                type="number"
+                min={1}
+                max={65535}
+                value={targetPort}
+                onChange={(event) => setTargetPort(event.target.value)}
+                placeholder="Target port"
+                className="h-8 w-28 text-sm"
+                data-testid={`service-domain-routing-port-${serviceId}-${domain.id}`}
+              />
+            ) : null}
           </div>
         </div>
 

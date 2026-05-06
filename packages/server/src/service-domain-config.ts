@@ -1,11 +1,14 @@
 type JsonRecord = Record<string, unknown>;
 
 export type ServicePortProtocol = "tcp" | "udp";
+export type ServiceDomainRoutingMode = "observed" | "managed-traefik";
 
 export interface ServiceDomainEntry {
   id: string;
   hostname: string;
   isPrimary: boolean;
+  routingMode: ServiceDomainRoutingMode;
+  targetPort: number | null;
   createdAt: string;
 }
 
@@ -37,6 +40,11 @@ function readNonEmptyString(value: unknown): string | null {
 
 function readPositiveInteger(value: unknown): number | null {
   return typeof value === "number" && Number.isInteger(value) && value >= 1 ? value : null;
+}
+
+function readOptionalPort(value: unknown): number | null {
+  const port = readPositiveInteger(value);
+  return port && port <= 65535 ? port : null;
 }
 
 function readIsoTimestamp(value: unknown): string | null {
@@ -92,6 +100,8 @@ function normalizeDomainEntries(value: unknown): ServiceDomainEntry[] {
         id,
         hostname,
         isPrimary,
+        routingMode: record.routingMode === "managed-traefik" ? "managed-traefik" : "observed",
+        targetPort: readOptionalPort(record.targetPort),
         createdAt
       } satisfies ServiceDomainEntry;
     })

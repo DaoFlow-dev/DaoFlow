@@ -1,5 +1,6 @@
 import { eq } from "drizzle-orm";
 import type { ComposeBuildPlan } from "../../compose-build-plan";
+import type { ManagedTraefikRoutingPlan } from "../../managed-traefik";
 import type { ComposePreviewMetadata, ComposePreviewRequestInput } from "../../compose-preview";
 import type { ComposeReadinessProbe } from "../../compose-readiness";
 import { db } from "../connection";
@@ -77,6 +78,7 @@ export async function buildDeploymentPlan(input: BuildDeploymentPlanInput) {
   let previewMetadata: ComposePreviewMetadata | null = null;
   let composeOperation: "up" | "down" = "up";
   let readinessProbe: ComposeReadinessProbe | null = null;
+  let managedTraefikRouting: ManagedTraefikRoutingPlan | null = null;
 
   const checks = [
     makePlanCheck("ok", `Service ${service.name} is registered in ${environment.name}.`),
@@ -124,6 +126,7 @@ export async function buildDeploymentPlan(input: BuildDeploymentPlanInput) {
     previewMetadata = composePlan.previewMetadata;
     composeOperation = composePlan.composeOperation;
     readinessProbe = composePlan.readinessProbe;
+    managedTraefikRouting = composePlan.managedTraefikRouting;
   }
 
   const steps = buildDeploymentPlanSteps({
@@ -157,6 +160,7 @@ export async function buildDeploymentPlan(input: BuildDeploymentPlanInput) {
       healthcheckPath: service.healthcheckPath,
       readinessProbe
     },
+    managedTraefikRouting,
     composeEnvPlan,
     target: {
       serverId: resolvedServer?.id ?? null,

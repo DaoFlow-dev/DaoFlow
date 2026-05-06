@@ -433,6 +433,7 @@ export interface RegisterServerOutput {
   dockerVersion: string | null;
   composeVersion: string | null;
   metadata?: {
+    managedTraefikProxy?: unknown;
     readinessCheck?: {
       readinessStatus?: string;
       sshReachable?: boolean;
@@ -454,6 +455,17 @@ export interface RegisterServerOutput {
     issues: string[];
     recommendedActions: string[];
   };
+}
+
+export interface ServiceDomainStateOutput {
+  serviceId: string;
+  serviceName: string;
+  domains: Array<{
+    id: string;
+    hostname: string;
+    routingMode: "observed" | "managed-traefik";
+    targetPort: number | null;
+  }>;
 }
 
 export interface BackupRunOutput {
@@ -948,6 +960,17 @@ export interface DaoFlowTRPC {
     },
     RegisterServerOutput
   >;
+  configureServerManagedTraefikProxy: MutationProcedure<
+    {
+      serverId: string;
+      enabled: boolean;
+      networkName?: string | null;
+      entrypoint?: string | null;
+      certificateResolver?: string | null;
+      dnsTarget?: string | null;
+    },
+    RegisterServerOutput
+  >;
   deploymentPlan: QueryProcedure<
     DeploymentPlanPreview,
     {
@@ -1210,6 +1233,15 @@ export interface DaoFlowTRPC {
       targetServerId?: string;
     },
     ServiceMutationOutput
+  >;
+  updateServiceDomainRouting: MutationProcedure<
+    {
+      serviceId: string;
+      domainId: string;
+      routingMode: "observed" | "managed-traefik";
+      targetPort?: number | null;
+    },
+    ServiceDomainStateOutput
   >;
   updateEnvironment: MutationProcedure<
     {

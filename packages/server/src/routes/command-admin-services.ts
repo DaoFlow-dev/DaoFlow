@@ -3,9 +3,10 @@ import { z } from "zod";
 import {
   addServiceDomain,
   removeServiceDomain,
-  setPrimaryServiceDomain,
-  updateServicePortMappings
+  setPrimaryServiceDomain
 } from "../db/services/service-domains";
+import { updateServiceDomainRouting } from "../db/services/service-domain-routing";
+import { updateServicePortMappings } from "../db/services/service-port-mappings";
 import { updateServiceRuntimeConfig } from "../db/services/service-runtime-config";
 import { createService, deleteService, updateService } from "../db/services/services";
 import { adminProcedure, getActorContext, serviceUpdateProcedure, t } from "../trpc";
@@ -230,6 +231,37 @@ export const adminServiceRouter = t.router({
         throw new TRPCError({ code: "NOT_FOUND", message: "Service not found." });
       }
       if (result.status === "invalid" || result.status === "conflict") {
+        throw new TRPCError({ code: "BAD_REQUEST", message: result.message });
+      }
+
+      return result.state;
+    }),
+
+  updateServiceDomainRouting: serviceUpdateProcedure
+    .input(
+      z.object({
+        serviceId: z.string().min(1),
+        domainId: z.string().min(1).max(64),
+        routingMode: z.enum(["observed", "managed-traefik"]),
+        targetPort: z.number().int().min(1).max(65535).nullable().optional()
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const result = await updateServiceDomainRouting({
+        serviceId: input.serviceId,
+        domainId: input.domainId,
+        routingMode: input.routingMode,
+        targetPort: input.targetPort,
+        ...getActorContext(ctx)
+      });
+
+      if (result.status === "not_found") {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Service not found." });
+      }
+      if (result.status === "domain_not_found") {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Domain not found." });
+      }
+      if (result.status === "invalid") {
         throw new TRPCError({ code: "BAD_REQUEST", message: result.message });
       }
 

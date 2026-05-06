@@ -15,18 +15,24 @@ describe("service domain config", () => {
             id: "dom_primary",
             hostname: "App.Example.com.",
             isPrimary: true,
+            routingMode: "managed-traefik",
+            targetPort: 3000,
             createdAt: "2026-03-20T12:00:00.000Z"
           },
           {
             id: "dom_duplicate",
             hostname: "app.example.com",
             isPrimary: false,
+            routingMode: "managed-traefik",
+            targetPort: 8080,
             createdAt: "2026-03-20T12:01:00.000Z"
           },
           {
             id: "dom_www",
             hostname: "www.example.com",
             isPrimary: true,
+            routingMode: "observed",
+            targetPort: null,
             createdAt: "2026-03-20T12:02:00.000Z"
           }
         ],
@@ -62,12 +68,16 @@ describe("service domain config", () => {
           id: "dom_primary",
           hostname: "app.example.com",
           isPrimary: true,
+          routingMode: "managed-traefik",
+          targetPort: 3000,
           createdAt: "2026-03-20T12:00:00.000Z"
         },
         {
           id: "dom_www",
           hostname: "www.example.com",
           isPrimary: false,
+          routingMode: "observed",
+          targetPort: null,
           createdAt: "2026-03-20T12:02:00.000Z"
         }
       ],

@@ -59,6 +59,7 @@ describe("service domain workflows", () => {
         expect.objectContaining({
           hostname: primaryHostname,
           isPrimary: true,
+          routingMode: "observed",
           proxyStatus: "missing",
           tlsStatus: "pending"
         })
@@ -108,6 +109,31 @@ describe("service domain workflows", () => {
         })
       ])
     );
+
+    await caller.configureServerManagedTraefikProxy({
+      serverId: "srv_foundation_1",
+      enabled: true,
+      networkName: "daoflow-proxy",
+      entrypoint: "websecure",
+      certificateResolver: "letsencrypt"
+    });
+    const routedState = await caller.updateServiceDomainRouting({
+      serviceId: fixture.service.id,
+      domainId: portsState.domains[0]?.id ?? "",
+      routingMode: "managed-traefik",
+      targetPort: 3000
+    });
+    expect(routedState.domains[0]).toMatchObject({
+      hostname: primaryHostname,
+      routingMode: "managed-traefik",
+      targetPort: 3000,
+      managedRouteStatus: "planned",
+      managedCertificateStatus: "pending"
+    });
+    expect(routedState.summary).toMatchObject({
+      managedDomainCount: 1,
+      plannedManagedRouteCount: 1
+    });
 
     const tunnelId = newId();
     await db.insert(tunnels).values({

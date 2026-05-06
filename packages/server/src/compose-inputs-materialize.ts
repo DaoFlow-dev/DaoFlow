@@ -24,6 +24,8 @@ import {
   type FrozenComposeInputsPayload,
   type MaterializedComposeInputs
 } from "./compose-inputs-shared";
+import { applyManagedTraefikRoutingToComposeDoc } from "./managed-traefik-compose";
+import type { ManagedTraefikRoutingPlan } from "./managed-traefik";
 
 interface MaterializeComposeInputsOptions {
   workDir: string;
@@ -35,6 +37,7 @@ interface MaterializeComposeInputsOptions {
   existingFrozenInputs?: FrozenComposeInputsPayload;
   existingBuildPlan?: ComposeBuildPlan;
   imageOverride?: ComposeImageOverrideRequest;
+  managedTraefikRouting?: ManagedTraefikRoutingPlan | null;
 }
 
 function buildManifestFromFrozenInputs(input: {
@@ -88,6 +91,7 @@ function materializeExistingFrozenComposeInputs(
       unknown
     > | null) ?? {};
   applyComposeImageOverride(doc, input.imageOverride);
+  applyManagedTraefikRoutingToComposeDoc(doc, input.managedTraefikRouting ?? null);
   const buildPlan = buildComposeBuildPlan(doc, input.existingBuildPlan?.warnings ?? []);
   const frozenInputs: FrozenComposeInputsPayload = {
     composeFile: {
@@ -178,6 +182,7 @@ function materializeFreshComposeInputs(
     composeFile: input.composeFile
   });
   applyComposeImageOverride(doc, input.imageOverride);
+  applyManagedTraefikRoutingToComposeDoc(doc, input.managedTraefikRouting ?? null);
   const buildPlan = buildComposeBuildPlan(doc, buildWarnings);
   const services =
     doc.services && typeof doc.services === "object" && !Array.isArray(doc.services)

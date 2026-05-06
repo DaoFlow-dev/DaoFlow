@@ -42,6 +42,7 @@ export default function DomainsTab({ serviceId, serviceName }: DomainsTabProps) 
   const addDomain = trpc.addServiceDomain.useMutation();
   const removeDomain = trpc.removeServiceDomain.useMutation();
   const setPrimaryDomain = trpc.setPrimaryServiceDomain.useMutation();
+  const updateDomainRouting = trpc.updateServiceDomainRouting.useMutation();
   const updatePortMappings = trpc.updateServicePortMappings.useMutation();
   const domainData = domainState.data;
 
@@ -113,6 +114,26 @@ export default function DomainsTab({ serviceId, serviceName }: DomainsTabProps) 
       await refreshOperationalViews();
     } catch (error) {
       setDomainFeedback(formatMutationError(error, "Unable to update the primary domain."));
+    }
+  }
+
+  async function handleUpdateRouting(
+    domain: ServiceDomainStateRecord,
+    routingMode: ServiceDomainStateRecord["routingMode"],
+    targetPort: number | null
+  ) {
+    setDomainFeedback(null);
+    try {
+      await updateDomainRouting.mutateAsync({
+        serviceId,
+        domainId: domain.id,
+        routingMode,
+        targetPort
+      });
+      setDomainFeedback(`${domain.hostname} routing updated.`);
+      await refreshOperationalViews();
+    } catch (error) {
+      setDomainFeedback(formatMutationError(error, "Unable to update domain routing."));
     }
   }
 
@@ -234,7 +255,10 @@ export default function DomainsTab({ serviceId, serviceName }: DomainsTabProps) 
   }
 
   const domainMutating =
-    addDomain.isPending || removeDomain.isPending || setPrimaryDomain.isPending;
+    addDomain.isPending ||
+    removeDomain.isPending ||
+    setPrimaryDomain.isPending ||
+    updateDomainRouting.isPending;
 
   return (
     <div className="space-y-6" data-testid={`service-domains-tab-${serviceId}`}>
@@ -248,6 +272,9 @@ export default function DomainsTab({ serviceId, serviceName }: DomainsTabProps) 
         onNewDomainChange={setNewDomain}
         onAddDomain={() => void handleAddDomain()}
         onSetPrimary={(domain) => void handleSetPrimary(domain)}
+        onUpdateRouting={(domain, routingMode, targetPort) =>
+          void handleUpdateRouting(domain, routingMode, targetPort)
+        }
         onRemoveDomain={(domain) => void handleRemoveDomain(domain)}
       />
       <PortMappingsCard

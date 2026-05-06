@@ -198,6 +198,7 @@ export interface ConfigSnapshot extends Record<string, unknown> {
   composeEnv?: ComposeEnvEvidence;
   composeInputs?: ComposeInputManifest;
   runtimeConfig?: ServiceRuntimeConfig;
+  managedTraefikRouting?: unknown;
 }
 
 export function readConfig(deployment: DeploymentRow): ConfigSnapshot {
