@@ -5,6 +5,7 @@ import type { DevelopmentTaskCodexPlan } from "./development-task-codex-plan";
 export interface PreparedDevelopmentTaskCodexWorkspace {
   codexHomePath: string;
   configPath: string;
+  authJsonPath: string;
   repoPath: string;
   artifactsPath: string;
   logsPath: string;
@@ -39,12 +40,35 @@ function redactedPlan(plan: DevelopmentTaskCodexPlan, promptPath: string) {
     paths: {
       codexHomePath: plan.codexHomePath,
       configPath: plan.configPath,
+      authJsonPath: plan.authJsonPath,
       repoPath: plan.repoPath,
       artifactsPath: plan.artifactsPath,
       logsPath: plan.logsPath,
       promptPath
-    }
+    },
+    codexAuthMode: plan.codexAuthMode,
+    codexAuthJsonEnvKey:
+      plan.codexAuthMode === "chatgpt_auth_json" ? plan.codexAuthJsonEnvKey : undefined
   };
+}
+
+function readAuthJson(plan: DevelopmentTaskCodexPlan) {
+  if (plan.codexAuthMode !== "chatgpt_auth_json") {
+    return null;
+  }
+
+  const rawAuthJson = process.env[plan.codexAuthJsonEnvKey];
+  if (!rawAuthJson?.trim()) {
+    throw new Error(`${plan.codexAuthJsonEnvKey} is required for chatgpt_auth_json Codex auth.`);
+  }
+
+  try {
+    JSON.parse(rawAuthJson) as unknown;
+  } catch {
+    throw new Error(`${plan.codexAuthJsonEnvKey} must contain valid Codex auth JSON.`);
+  }
+
+  return rawAuthJson;
 }
 
 export async function prepareDevelopmentTaskCodexWorkspace(
@@ -62,6 +86,11 @@ export async function prepareDevelopmentTaskCodexWorkspace(
 
   await writeFile(plan.configPath, withTrailingNewline(plan.configToml), { mode: 0o600 });
   await chmod(plan.configPath, 0o600);
+  const authJson = readAuthJson(plan);
+  if (authJson) {
+    await writeFile(plan.authJsonPath, withTrailingNewline(authJson), { mode: 0o600 });
+    await chmod(plan.authJsonPath, 0o600);
+  }
   await writeFile(promptPath, withTrailingNewline(plan.prompt), { mode: 0o600 });
   await chmod(promptPath, 0o600);
   await writeFile(runPlanPath, `${JSON.stringify(redactedPlan(plan, promptPath), null, 2)}\n`, {
@@ -72,6 +101,7 @@ export async function prepareDevelopmentTaskCodexWorkspace(
   return {
     codexHomePath: plan.codexHomePath,
     configPath: plan.configPath,
+    authJsonPath: plan.authJsonPath,
     repoPath: plan.repoPath,
     artifactsPath: plan.artifactsPath,
     logsPath: plan.logsPath,

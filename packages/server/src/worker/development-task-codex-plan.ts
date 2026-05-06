@@ -16,6 +16,16 @@ function readStringArray(value: unknown) {
     : [];
 }
 
+function readCodexAuthMode(value: unknown) {
+  return value === "api_key" || value === "chatgpt_auth_json" || value === "custom_provider_env"
+    ? value
+    : "custom_provider_env";
+}
+
+function readEnvKey(value: unknown, fallback: string) {
+  return typeof value === "string" && /^[A-Z_][A-Z0-9_]*$/.test(value) ? value : fallback;
+}
+
 function promptScalar(value: string | number | null | undefined) {
   return String(value ?? "unknown")
     .replace(/[\r\n]+/g, " ")
@@ -99,6 +109,8 @@ export function buildDevelopmentTaskCodexPlan(input: {
       ? metadata.codexConfigTemplate
       : DEFAULT_CODEX_CONFIG_TEMPLATE;
   const codexProfile = input.run.codexProfile ?? "daoflow";
+  const codexAuthMode = readCodexAuthMode(metadata.codexAuthMode);
+  const codexAuthJsonEnvKey = readEnvKey(metadata.codexAuthJsonEnvKey, "CODEX_AUTH_JSON");
   const codexHomePath = buildWorkspacePath(
     input.workspaceRoot ?? "/runner/work",
     input.run.id,
@@ -120,6 +132,9 @@ export function buildDevelopmentTaskCodexPlan(input: {
       "artifacts"
     ),
     logsPath: buildWorkspacePath(input.workspaceRoot ?? "/runner/work", input.run.id, "logs"),
+    authJsonPath: `${codexHomePath}/auth.json`,
+    codexAuthMode,
+    codexAuthJsonEnvKey,
     defaultCodexHomePath: DEFAULT_CODEX_HOME_PATH,
     configToml,
     prompt,

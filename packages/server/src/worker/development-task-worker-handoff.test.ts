@@ -75,6 +75,7 @@ async function createGitLabHandoffFixture() {
   const workspace = {
     codexHomePath: `${root}/codex-home`,
     configPath: `${root}/codex-home/config.toml`,
+    authJsonPath: `${root}/codex-home/auth.json`,
     repoPath: `${root}/repo`,
     artifactsPath: `${root}/artifacts`,
     logsPath: `${root}/logs`,

@@ -20,6 +20,7 @@ async function validationWorkspace() {
   return {
     codexHomePath: path.join(root, "home/.codex"),
     configPath: path.join(root, "home/.codex/config.toml"),
+    authJsonPath: path.join(root, "home/.codex/auth.json"),
     repoPath,
     artifactsPath: path.join(root, "artifacts"),
     logsPath,

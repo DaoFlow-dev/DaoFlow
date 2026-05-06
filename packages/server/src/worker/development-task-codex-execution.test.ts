@@ -18,6 +18,7 @@ async function executionFixture() {
   const workspace = {
     codexHomePath: path.join(root, "home/.codex"),
     configPath: path.join(root, "home/.codex/config.toml"),
+    authJsonPath: path.join(root, "home/.codex/auth.json"),
     repoPath,
     artifactsPath: path.join(root, "artifacts"),
     logsPath,
@@ -34,9 +35,12 @@ async function executionFixture() {
     },
     codexHomePath: workspace.codexHomePath,
     configPath: workspace.configPath,
+    authJsonPath: path.join(workspace.codexHomePath, "auth.json"),
     repoPath,
     artifactsPath: workspace.artifactsPath,
     logsPath,
+    codexAuthMode: "custom_provider_env",
+    codexAuthJsonEnvKey: "CODEX_AUTH_JSON",
     defaultCodexHomePath: "/runner/home/.codex",
     configToml: "",
     prompt: "Do the task"
