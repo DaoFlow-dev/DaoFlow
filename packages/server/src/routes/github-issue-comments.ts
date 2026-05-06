@@ -2,7 +2,11 @@ import { createHash } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { db } from "../db/connection";
 import { gitInstallations, gitProviders } from "../db/schema/git-providers";
-import { developmentTaskComments } from "../db/schema/development-tasks";
+import {
+  developmentTaskComments,
+  developmentTaskRuns,
+  developmentTasks
+} from "../db/schema/development-tasks";
 import { fetchGitHubInstallationAccessToken } from "../db/services/github-app-auth";
 import {
   recordDevelopmentTaskComment,
@@ -10,6 +14,10 @@ import {
 } from "../db/services/development-tasks";
 import { buildGitHubApiBaseUrl } from "../db/services/project-source-provider-validation-shared";
 import type { WebhookTarget } from "./webhooks-types";
+
+type GitHubCommentTarget = Omit<WebhookTarget, "installation"> & {
+  installation: typeof gitInstallations.$inferSelect;
+};
 
 function trimTrailingSlash(value: string) {
   return value.replace(/\/$/, "");
@@ -44,7 +52,7 @@ export function buildDevelopmentTaskQueuedComment(input: {
   issueNumber: number;
   projectName: string;
 }) {
-  const runUrl = `${resolveAppBaseUrl()}/development-tasks/${input.taskId}`;
+  const runUrl = buildDevelopmentTaskRunUrl(input.taskId);
   return [
     "DaoFlow accepted this task.",
     "",
@@ -52,6 +60,33 @@ export function buildDevelopmentTaskQueuedComment(input: {
     `Run: ${runUrl}`,
     `Project: ${input.projectName}`,
     `Issue: ${input.repoFullName}#${input.issueNumber}`
+  ].join("\n");
+}
+
+function buildDevelopmentTaskRunUrl(taskId: string) {
+  return `${resolveAppBaseUrl()}/development-tasks/${taskId}`;
+}
+
+export function buildDevelopmentTaskRunningComment(input: {
+  task: typeof developmentTasks.$inferSelect;
+  run: typeof developmentTaskRuns.$inferSelect;
+  projectName: string;
+}) {
+  const metadata = readMetadataRecord(input.run.metadata);
+  const runner =
+    typeof metadata.runnerLabel === "string"
+      ? metadata.runnerLabel
+      : (input.run.runnerId ?? "development-task-worker");
+  const startedAt = input.run.startedAt?.toISOString() ?? new Date().toISOString();
+  return [
+    "DaoFlow started work.",
+    "",
+    "Status: running",
+    `Runner: ${runner}`,
+    `Started: ${startedAt}`,
+    `Run: ${buildDevelopmentTaskRunUrl(input.task.id)}`,
+    `Project: ${input.projectName}`,
+    `Issue: ${input.task.repoFullName}#${input.task.issueNumber}`
   ].join("\n");
 }
 
@@ -161,19 +196,75 @@ export async function upsertQueuedGitHubDevelopmentTaskComment(input: {
     throw new Error("GitHub development task comment requires an installation.");
   }
 
-  const body = buildDevelopmentTaskQueuedComment({
+  await upsertGitHubDevelopmentTaskStatusComment({
     taskId: input.taskId,
+    body: buildDevelopmentTaskQueuedComment({
+      taskId: input.taskId,
+      repoFullName: input.repoFullName,
+      issueNumber: input.issueNumber,
+      projectName: input.target.project.name
+    }),
     repoFullName: input.repoFullName,
     issueNumber: input.issueNumber,
-    projectName: input.target.project.name
+    target: {
+      project: input.target.project,
+      provider: input.target.provider,
+      installation: input.target.installation
+    },
+    status: "queued",
+    postedSummary: "Posted the queued status comment on the GitHub issue.",
+    updatedSummary: "Updated the queued status comment on the GitHub issue."
   });
+}
+
+export async function upsertRunningGitHubDevelopmentTaskComment(input: {
+  task: typeof developmentTasks.$inferSelect;
+  run: typeof developmentTaskRuns.$inferSelect;
+  target: WebhookTarget;
+}) {
+  if (!input.target.installation) {
+    throw new Error("GitHub development task comment requires an installation.");
+  }
+
+  await upsertGitHubDevelopmentTaskStatusComment({
+    taskId: input.task.id,
+    runId: input.run.id,
+    body: buildDevelopmentTaskRunningComment({
+      task: input.task,
+      run: input.run,
+      projectName: input.target.project.name
+    }),
+    repoFullName: input.task.repoFullName,
+    issueNumber: input.task.issueNumber,
+    target: {
+      project: input.target.project,
+      provider: input.target.provider,
+      installation: input.target.installation
+    },
+    status: "running",
+    postedSummary: "Posted the running status comment on the GitHub issue.",
+    updatedSummary: "Updated the status comment to show that work has started."
+  });
+}
+
+async function upsertGitHubDevelopmentTaskStatusComment(input: {
+  taskId: string;
+  runId?: string | null;
+  body: string;
+  repoFullName: string;
+  issueNumber: number;
+  target: GitHubCommentTarget;
+  status: string;
+  postedSummary: string;
+  updatedSummary: string;
+}) {
   const existingComment = await findStatusComment(input.taskId);
   const written = await sendGitHubIssueComment({
     provider: input.target.provider,
     installation: input.target.installation,
     repoFullName: input.repoFullName,
     issueNumber: input.issueNumber,
-    body,
+    body: input.body,
     existingCommentId: existingComment?.externalCommentId ?? null
   });
   const externalCommentId = String(written.comment.id ?? existingComment?.externalCommentId ?? "");
@@ -190,28 +281,27 @@ export async function upsertQueuedGitHubDevelopmentTaskComment(input: {
 
   await recordDevelopmentTaskComment({
     taskId: input.taskId,
+    runId: input.runId ?? null,
     providerType: "github",
     externalCommentId,
     commentKind: "status",
-    lastBodyHash: hashBody(body),
+    lastBodyHash: hashBody(input.body),
     metadata: {
       commentUrl,
-      status: "queued"
+      status: input.status
     }
   });
 
   await recordDevelopmentTaskEvent({
     taskId: input.taskId,
+    runId: input.runId ?? null,
     kind: written.operation === "updated" ? "comment.updated" : "comment.posted",
-    summary:
-      written.operation === "updated"
-        ? "Updated the queued status comment on the GitHub issue."
-        : "Posted the queued status comment on the GitHub issue.",
+    summary: written.operation === "updated" ? input.updatedSummary : input.postedSummary,
     metadata: {
       providerType: "github",
       externalCommentId,
       commentUrl,
-      status: "queued"
+      status: input.status
     }
   });
 }
