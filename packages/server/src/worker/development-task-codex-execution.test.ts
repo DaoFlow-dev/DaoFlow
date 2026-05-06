@@ -5,7 +5,9 @@ import { describe, expect, it, vi } from "vitest";
 import { executeDevelopmentTaskCodex } from "./development-task-codex-execution";
 import type { DevelopmentTaskCodexPlan } from "./development-task-codex-plan";
 import type { PreparedDevelopmentTaskCodexWorkspace } from "./development-task-codex-workspace";
-import type { OnLog } from "./docker-exec-shared";
+import type { execStreaming, OnLog } from "./docker-exec-shared";
+
+type ExecRunnerCall = Parameters<typeof execStreaming>;
 
 async function executionFixture() {
   const root = path.join(tmpdir(), `daoflow-codex-exec-${Date.now()}`);
@@ -93,5 +95,92 @@ describe("executeDevelopmentTaskCodex", () => {
       exitCode: 17,
       errorMessage: "Codex exited with code 17"
     });
+  });
+
+  it("runs host Docker sandboxes with bounded container options", async () => {
+    const { plan, workspace } = await executionFixture();
+    const execRunner = vi.fn().mockResolvedValue({ exitCode: 0, signal: null });
+
+    const result = await executeDevelopmentTaskCodex({
+      plan,
+      workspace,
+      sandbox: {
+        containerName: "daoflow-devtask-run-exec",
+        image: "ghcr.io/daoflow/codex-runner:test",
+        cpuLimit: 2,
+        memoryLimitMb: 1024,
+        timeoutMinutes: 3,
+        networkPolicy: "none"
+      },
+      onLog: vi.fn(),
+      execRunner
+    });
+
+    expect(result.status).toBe("ok");
+    const call = execRunner.mock.calls[0] as ExecRunnerCall | undefined;
+    const command = call?.[0];
+    const args = call?.[1] ?? [];
+    const cwd = call?.[2];
+    const env = call?.[4];
+    const options = call?.[5];
+    expect(command).toContain("docker");
+    expect(cwd).toBe(process.env.GIT_WORK_DIR ?? "/tmp/daoflow-staging");
+    expect(args).toEqual(
+      expect.arrayContaining([
+        "run",
+        "--rm",
+        "--name",
+        "daoflow-devtask-run-exec",
+        "--cpus",
+        "2",
+        "--memory",
+        "1024m",
+        "--pids-limit",
+        "512",
+        "--security-opt",
+        "no-new-privileges",
+        "--cap-drop",
+        "ALL",
+        "--network",
+        "none",
+        "ghcr.io/daoflow/codex-runner:test",
+        "codex"
+      ])
+    );
+    expect(args).toContain(
+      `${path.dirname(workspace.repoPath)}:${path.dirname(workspace.repoPath)}`
+    );
+    expect(args).toContain(`CODEX_HOME=${workspace.codexHomePath}`);
+    expect(env).toBeUndefined();
+    expect(options).toMatchObject({ timeoutMs: 180_000 });
+  });
+
+  it("removes the host Docker container when the run is terminated", async () => {
+    const { plan, workspace } = await executionFixture();
+    const execRunner = vi
+      .fn()
+      .mockResolvedValueOnce({ exitCode: 1, signal: "SIGTERM" })
+      .mockResolvedValueOnce({ exitCode: 0, signal: null });
+
+    const result = await executeDevelopmentTaskCodex({
+      plan,
+      workspace,
+      sandbox: {
+        containerName: "daoflow-devtask-timeout",
+        image: "ghcr.io/daoflow/codex-runner:test",
+        cpuLimit: 1,
+        memoryLimitMb: 512,
+        timeoutMinutes: 1,
+        networkPolicy: "default-egress"
+      },
+      onLog: vi.fn(),
+      execRunner
+    });
+
+    expect(result).toMatchObject({
+      status: "failed",
+      errorMessage: "Codex terminated by signal SIGTERM"
+    });
+    expect(execRunner.mock.calls[1]?.[1]).toEqual(["rm", "-f", "daoflow-devtask-timeout"]);
   });
 });

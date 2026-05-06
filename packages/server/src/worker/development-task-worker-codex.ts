@@ -17,6 +17,7 @@ import { openGitHubDevelopmentTaskPullRequest } from "./development-task-pull-re
 import { queueDevelopmentTaskPreviewDeployments } from "./development-task-preview";
 import { completeDevelopmentTaskHandoff } from "./development-task-worker-handoff";
 import type { DevelopmentTaskReviewTarget } from "./development-task-review-target";
+import { buildHostDockerSandboxFromRun } from "./development-task-host-docker";
 
 let codexExecution = executeDevelopmentTaskCodex;
 let validationExecution = runDevelopmentTaskValidation;
@@ -32,11 +33,37 @@ export async function runClaimedTaskCodex(input: {
   workspace: PreparedDevelopmentTaskCodexWorkspace;
   metadata: Record<string, unknown>;
 }) {
+  const sandbox =
+    input.run.sandboxProvider === "host_docker"
+      ? buildHostDockerSandboxFromRun({
+          runId: input.run.id,
+          metadata: input.run.metadata
+        })
+      : undefined;
+  const sandboxMetadata = sandbox
+    ? {
+        sandboxExecution: {
+          provider: "host_docker",
+          containerName: sandbox.containerName,
+          image: sandbox.image,
+          cpuLimit: sandbox.cpuLimit,
+          memoryLimitMb: sandbox.memoryLimitMb,
+          timeoutMinutes: sandbox.timeoutMinutes,
+          networkPolicy: sandbox.networkPolicy
+        }
+      }
+    : {};
+  const executionMetadata = {
+    ...input.metadata,
+    ...sandboxMetadata
+  };
+
   await updateDevelopmentTaskRun({
     runId: input.run.id,
     status: "coding",
+    sandboxId: sandbox?.containerName,
     metadata: {
-      ...input.metadata,
+      ...executionMetadata,
       codexExecution: {
         status: "started",
         logPath: `${input.workspace.logsPath}/codex-exec.jsonl`
@@ -52,6 +79,7 @@ export async function runClaimedTaskCodex(input: {
   const execution = await codexExecution({
     plan: input.plan,
     workspace: input.workspace,
+    sandbox,
     onLog: (line) => {
       console.log(`[development-task-codex:${line.stream}] ${line.message}`);
       codexLogEvents.record(line);
@@ -73,7 +101,7 @@ export async function runClaimedTaskCodex(input: {
       failureCategory: "codex_execution_failed",
       failureMessage: execution.errorMessage ?? "Codex execution failed.",
       metadata: {
-        ...input.metadata,
+        ...executionMetadata,
         codexExecution: execution
       }
     });
@@ -84,7 +112,7 @@ export async function runClaimedTaskCodex(input: {
     runId: input.run.id,
     status: "validating",
     metadata: {
-      ...input.metadata,
+      ...executionMetadata,
       codexExecution: execution,
       validation: {
         status: "started",
@@ -122,7 +150,7 @@ export async function runClaimedTaskCodex(input: {
       failureCategory: "validation_failed",
       failureMessage: validation.errorMessage ?? "Development task validation failed.",
       metadata: {
-        ...input.metadata,
+        ...executionMetadata,
         codexExecution: execution,
         validation
       }
@@ -136,7 +164,7 @@ export async function runClaimedTaskCodex(input: {
     project: input.project,
     reviewTarget: input.reviewTarget,
     workspace: input.workspace,
-    metadata: input.metadata,
+    metadata: executionMetadata,
     codexExecution: execution,
     validation,
     pullRequestOpening,

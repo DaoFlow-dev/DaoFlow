@@ -15,6 +15,7 @@ export type OnLog = (line: LogLine) => void;
 export interface ExecStreamingOptions {
   inheritParentEnv?: boolean;
   stdin?: string;
+  timeoutMs?: number;
 }
 
 /**
@@ -62,15 +63,41 @@ export function execStreaming(
     child.stdout?.on("data", (data: Buffer) => processStream("stdout", data));
     child.stderr?.on("data", (data: Buffer) => processStream("stderr", data));
 
+    let killTimer: NodeJS.Timeout | undefined;
+    const timeout =
+      options?.timeoutMs && Number.isFinite(options.timeoutMs) && options.timeoutMs > 0
+        ? setTimeout(() => {
+            onLog({
+              stream: "stderr",
+              message: `Command timed out after ${Math.ceil(options.timeoutMs! / 1000)}s`,
+              timestamp: new Date()
+            });
+            child.kill("SIGTERM");
+            killTimer = setTimeout(() => child.kill("SIGKILL"), 5_000);
+          }, options.timeoutMs)
+        : undefined;
+
     if (options?.stdin !== undefined) {
       child.stdin?.end(options.stdin.endsWith("\n") ? options.stdin : `${options.stdin}\n`);
     }
 
     child.on("close", (code, signal) => {
+      if (timeout) {
+        clearTimeout(timeout);
+      }
+      if (killTimer) {
+        clearTimeout(killTimer);
+      }
       resolve({ exitCode: code ?? 1, signal: signal ?? null });
     });
 
     child.on("error", (err) => {
+      if (timeout) {
+        clearTimeout(timeout);
+      }
+      if (killTimer) {
+        clearTimeout(killTimer);
+      }
       reject(err);
     });
   });

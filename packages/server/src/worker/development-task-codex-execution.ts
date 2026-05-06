@@ -4,6 +4,11 @@ import path from "node:path";
 import { execStreaming, type LogLine, type OnLog } from "./docker-exec-shared";
 import type { DevelopmentTaskCodexPlan } from "./development-task-codex-plan";
 import type { PreparedDevelopmentTaskCodexWorkspace } from "./development-task-codex-workspace";
+import {
+  buildHostDockerCleanupExecution,
+  buildHostDockerCodexExecution,
+  type HostDockerCodexSandbox
+} from "./development-task-host-docker";
 
 type ExecRunner = typeof execStreaming;
 
@@ -46,6 +51,7 @@ export async function executeDevelopmentTaskCodex(input: {
   plan: DevelopmentTaskCodexPlan;
   workspace: PreparedDevelopmentTaskCodexWorkspace;
   onLog: OnLog;
+  sandbox?: HostDockerCodexSandbox;
   execRunner?: ExecRunner;
 }): Promise<DevelopmentTaskCodexExecutionResult> {
   await mkdir(input.workspace.logsPath, { recursive: true });
@@ -60,20 +66,43 @@ export async function executeDevelopmentTaskCodex(input: {
 
   try {
     const execRunner = input.execRunner ?? execStreaming;
-    const result = await execRunner(
-      input.plan.command,
-      input.plan.args,
-      input.workspace.repoPath,
-      onLog,
-      input.plan.env
-    );
+    const execution = input.sandbox
+      ? buildHostDockerCodexExecution({
+          plan: input.plan,
+          workspace: input.workspace,
+          sandbox: input.sandbox
+        })
+      : {
+          command: input.plan.command,
+          args: input.plan.args,
+          cwd: input.workspace.repoPath,
+          env: input.plan.env,
+          options: undefined
+        };
+    const result = execution.options
+      ? await execRunner(
+          execution.command,
+          execution.args,
+          execution.cwd,
+          onLog,
+          execution.env,
+          execution.options
+        )
+      : await execRunner(execution.command, execution.args, execution.cwd, onLog, execution.env);
+
+    if (input.sandbox && result.signal) {
+      const cleanup = buildHostDockerCleanupExecution(input.sandbox.containerName);
+      await execRunner(cleanup.command, cleanup.args, cleanup.cwd, onLog).catch(() => undefined);
+    }
 
     if (result.exitCode !== 0) {
       return {
         status: "failed",
         exitCode: result.exitCode,
         logPath,
-        errorMessage: `Codex exited with code ${result.exitCode}`
+        errorMessage: result.signal
+          ? `Codex terminated by signal ${result.signal}`
+          : `Codex exited with code ${result.exitCode}`
       };
     }
 
