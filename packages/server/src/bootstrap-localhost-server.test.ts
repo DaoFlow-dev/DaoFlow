@@ -39,6 +39,17 @@ describe("bootstrapLocalhostServer", () => {
       serverId: row.id,
       status: "enabled"
     });
+
+    const [boxLiteProfile] = await db
+      .select()
+      .from(sandboxRunnerProfiles)
+      .where(eq(sandboxRunnerProfiles.id, "runner_profile_boxlite_default"))
+      .limit(1);
+    expect(boxLiteProfile).toMatchObject({
+      provider: "sandbank_boxlite",
+      serverId: row.id,
+      status: "disabled"
+    });
   });
 
   it("skips registration when a localhost server already exists", async () => {
@@ -90,6 +101,21 @@ describe("bootstrapLocalhostServer", () => {
     });
     expect(runnerProfile.codexConfigTemplate).toContain('base_url = "https://api.openai.com/v1"');
     expect(runnerProfile.codexConfigTemplate).not.toContain("${");
+
+    const [boxLiteProfile] = await db
+      .select()
+      .from(sandboxRunnerProfiles)
+      .where(eq(sandboxRunnerProfiles.id, "runner_profile_boxlite_default"))
+      .limit(1);
+    expect(boxLiteProfile).toMatchObject({
+      serverId: "srv_existing_localhost",
+      status: "disabled",
+      codexAuthMode: "custom_provider_env"
+    });
+    expect(boxLiteProfile.metadata).toMatchObject({
+      hostServerDefault: true,
+      sandbankProvider: "sandbank_boxlite"
+    });
   });
 
   it("is idempotent across multiple calls", async () => {

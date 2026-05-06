@@ -45,16 +45,17 @@ export async function runClaimedTaskCodex(input: {
   metadata: Record<string, unknown>;
 }) {
   const sandbox =
-    input.run.sandboxProvider === "host_docker"
+    input.run.sandboxProvider === "host_docker" || input.run.sandboxProvider === "sandbank_boxlite"
       ? buildHostDockerSandboxFromRun({
           runId: input.run.id,
+          provider: input.run.sandboxProvider,
           metadata: input.run.metadata
         })
       : undefined;
   const sandboxMetadata = sandbox
     ? {
         sandboxExecution: {
-          provider: "host_docker",
+          provider: sandbox.provider,
           containerName: sandbox.containerName,
           image: sandbox.image,
           cpuLimit: sandbox.cpuLimit,

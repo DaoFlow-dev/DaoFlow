@@ -3,9 +3,11 @@ import { db } from "./db/connection";
 import { servers } from "./db/schema/servers";
 import { sandboxRunnerProfiles } from "./db/schema/development-tasks";
 import {
+  DEFAULT_BOXLITE_RUNNER_PROFILE_ID,
   DEFAULT_CODEX_AUTH_MODE,
   DEFAULT_CODEX_CONFIG_TEMPLATE,
   DEFAULT_HOST_RUNNER_PROFILE_ID,
+  defaultBoxLiteRunnerMetadata,
   defaultHostRunnerMetadata
 } from "./db/services/default-development-runner";
 import { verifyServerReadiness } from "./db/services/server-readiness";
@@ -56,7 +58,7 @@ async function bootstrapLocalhostServer() {
     .limit(1);
 
   if (existing) {
-    await enableDefaultHostRunnerProfile(existing.id);
+    await configureDefaultRunnerProfiles(existing.id);
     console.log("[bootstrap] Localhost server already registered; skipping");
     return;
   }
@@ -84,11 +86,11 @@ async function bootstrapLocalhostServer() {
   }
 
   await verifyServerReadiness(server);
-  await enableDefaultHostRunnerProfile(server.id);
+  await configureDefaultRunnerProfiles(server.id);
   console.log(`[bootstrap] Registered localhost server (${serverId})`);
 }
 
-async function enableDefaultHostRunnerProfile(serverId: string) {
+async function configureDefaultRunnerProfiles(serverId: string) {
   const metadataPatch = defaultHostRunnerMetadata({ hostServerDefault: true });
   await db
     .update(sandboxRunnerProfiles)
@@ -101,4 +103,16 @@ async function enableDefaultHostRunnerProfile(serverId: string) {
       updatedAt: new Date()
     })
     .where(eq(sandboxRunnerProfiles.id, DEFAULT_HOST_RUNNER_PROFILE_ID));
+
+  const boxLiteMetadataPatch = defaultBoxLiteRunnerMetadata({ hostServerDefault: true });
+  await db
+    .update(sandboxRunnerProfiles)
+    .set({
+      serverId,
+      codexAuthMode: DEFAULT_CODEX_AUTH_MODE,
+      codexConfigTemplate: DEFAULT_CODEX_CONFIG_TEMPLATE,
+      metadata: sql`${sandboxRunnerProfiles.metadata} || ${JSON.stringify(boxLiteMetadataPatch)}::jsonb`,
+      updatedAt: new Date()
+    })
+    .where(eq(sandboxRunnerProfiles.id, DEFAULT_BOXLITE_RUNNER_PROFILE_ID));
 }

@@ -105,6 +105,7 @@ describe("development task validation", () => {
       workspace,
       commands: ["bun run test:unit"],
       sandbox: {
+        provider: "host_docker",
         containerName: "daoflow-devtask-validation",
         image: "ghcr.io/daoflow/codex-runner:test",
         cpuLimit: 1,
@@ -129,6 +130,8 @@ describe("development task validation", () => {
         "daoflow-devtask-validation",
         "--memory",
         "768m",
+        "--label",
+        "dev.daoflow.sandbox.provider=host_docker",
         "--user",
         "1000:1000",
         "ghcr.io/daoflow/codex-runner:test",

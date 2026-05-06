@@ -11,7 +11,8 @@ const SANDBANK_BOXLITE_CAPABILITIES = [
   ...HOST_DOCKER_CAPABILITIES,
   "snapshot",
   "port.expose",
-  "terminal"
+  "terminal",
+  "sleep"
 ];
 
 function readConfiguredCapabilities(metadata: Record<string, unknown>) {

@@ -129,7 +129,10 @@ async function updateClaimedTaskStatusComment(claimed: ClaimedDevelopmentTask) {
 }
 
 async function prepareClaimedTaskWorkspace(claimed: ClaimedDevelopmentTask) {
-  if (claimed.run.sandboxProvider !== "host_docker") {
+  if (
+    claimed.run.sandboxProvider !== "host_docker" &&
+    claimed.run.sandboxProvider !== "sandbank_boxlite"
+  ) {
     const failedRun = await updateDevelopmentTaskRun({
       runId: claimed.run.id,
       status: "failed",

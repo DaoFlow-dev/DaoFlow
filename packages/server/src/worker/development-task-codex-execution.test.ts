@@ -110,6 +110,7 @@ describe("executeDevelopmentTaskCodex", () => {
       plan,
       workspace,
       sandbox: {
+        provider: "host_docker",
         containerName: "daoflow-devtask-run-exec",
         image: "ghcr.io/daoflow/codex-runner:test",
         cpuLimit: 2,
@@ -147,6 +148,8 @@ describe("executeDevelopmentTaskCodex", () => {
         "no-new-privileges",
         "--cap-drop",
         "ALL",
+        "--label",
+        "dev.daoflow.sandbox.provider=host_docker",
         "--user",
         "1000:1000",
         "--network",
@@ -175,6 +178,7 @@ describe("executeDevelopmentTaskCodex", () => {
       plan,
       workspace,
       sandbox: {
+        provider: "host_docker",
         containerName: "daoflow-devtask-timeout",
         image: "ghcr.io/daoflow/codex-runner:test",
         cpuLimit: 1,
@@ -197,9 +201,24 @@ describe("executeDevelopmentTaskCodex", () => {
   it("defaults host Docker sandboxes to a non-root process user", () => {
     const sandbox = buildHostDockerSandboxFromRun({
       runId: "run_user",
+      provider: "host_docker",
       metadata: { sandboxUser: "0:0" }
     });
 
     expect(sandbox.user).toMatch(/^[1-9]\d*:[1-9]\d*$/);
+  });
+
+  it("builds a BoxLite-compatible sandbox profile on the host runner", () => {
+    const sandbox = buildHostDockerSandboxFromRun({
+      runId: "run_boxlite",
+      provider: "sandbank_boxlite",
+      metadata: { sandboxUser: "1001:1001" }
+    });
+
+    expect(sandbox).toMatchObject({
+      provider: "sandbank_boxlite",
+      containerName: "daoflow-boxlite-devtask-run_boxlite",
+      user: "1001:1001"
+    });
   });
 });

@@ -277,6 +277,31 @@ describe("development task service", () => {
     );
   });
 
+  it("lists the BoxLite-compatible sandbox runner profile", async () => {
+    const profiles = await listSandboxRunnerProfiles({ limit: 10 });
+    const boxLiteProfile = profiles.find(
+      (profile) => profile.id === "runner_profile_boxlite_default"
+    );
+
+    expect(boxLiteProfile).toMatchObject({
+      id: "runner_profile_boxlite_default",
+      provider: "sandbank_boxlite",
+      serverId: "srv_foundation_1",
+      status: "disabled",
+      codexAuthMode: "custom_provider_env"
+    });
+    expect(boxLiteProfile?.metadata).toMatchObject({
+      defaultTarget: "registered-host",
+      hostServerDefault: true,
+      sandbankProvider: "sandbank_boxlite",
+      sandbankPackage: "@sandbank.dev/boxlite",
+      boxliteMode: "remote"
+    });
+    expect(boxLiteProfile?.capabilities).toEqual(
+      expect.arrayContaining(["exec.stream", "snapshot", "port.expose", "terminal", "sleep"])
+    );
+  });
+
   it("seeds an enabled default host Docker runner profile for the default host server", async () => {
     const profiles = await listSandboxRunnerProfiles({ limit: 10 });
     const seededProfile = profiles.find((profile) => profile.id === "runner_profile_host_default");

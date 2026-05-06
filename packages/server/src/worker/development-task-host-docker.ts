@@ -5,6 +5,7 @@ import type { DevelopmentTaskCodexPlan } from "./development-task-codex-plan";
 import type { PreparedDevelopmentTaskCodexWorkspace } from "./development-task-codex-workspace";
 
 export interface HostDockerCodexSandbox {
+  provider: "host_docker" | "sandbank_boxlite";
   containerName: string;
   image: string;
   cpuLimit: number;
@@ -68,6 +69,7 @@ function safeSandboxUser(value: unknown) {
 
 export function buildHostDockerSandboxFromRun(input: {
   runId: string;
+  provider?: string | null;
   metadata: unknown;
 }): HostDockerCodexSandbox {
   const metadata = readRecord(input.metadata);
@@ -76,8 +78,13 @@ export function buildHostDockerSandboxFromRun(input: {
       ? metadata.image.trim()
       : "ghcr.io/daoflow/codex-runner:latest";
 
+  const provider = input.provider === "sandbank_boxlite" ? "sandbank_boxlite" : "host_docker";
+  const namePrefix =
+    provider === "sandbank_boxlite" ? "daoflow-boxlite-devtask" : "daoflow-devtask";
+
   return {
-    containerName: safeContainerName(`daoflow-devtask-${input.runId}`),
+    provider,
+    containerName: safeContainerName(`${namePrefix}-${input.runId}`),
     image,
     cpuLimit: positiveNumber(metadata.cpuLimit, 2),
     memoryLimitMb: positiveInteger(metadata.memoryLimitMb, 4096),
@@ -166,6 +173,8 @@ export function buildHostDockerCommandExecution(input: {
     "no-new-privileges",
     "--cap-drop",
     "ALL",
+    "--label",
+    `dev.daoflow.sandbox.provider=${input.sandbox.provider}`,
     "--user",
     input.sandbox.user,
     "--volume",
