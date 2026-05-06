@@ -11,6 +11,7 @@ export interface HostDockerCodexSandbox {
   memoryLimitMb: number;
   timeoutMinutes: number;
   networkPolicy: string;
+  user: string;
 }
 
 const PROVIDER_ENV_KEYS = [
@@ -42,6 +43,29 @@ function readRecord(value: unknown) {
     : {};
 }
 
+function defaultSandboxUser() {
+  const uid = typeof process.getuid === "function" ? process.getuid() : undefined;
+  const gid = typeof process.getgid === "function" ? process.getgid() : undefined;
+
+  return typeof uid === "number" &&
+    typeof gid === "number" &&
+    Number.isInteger(uid) &&
+    Number.isInteger(gid) &&
+    uid > 0 &&
+    gid > 0
+    ? `${uid}:${gid}`
+    : "1000:1000";
+}
+
+function safeSandboxUser(value: unknown) {
+  if (typeof value !== "string") {
+    return defaultSandboxUser();
+  }
+
+  const user = value.trim();
+  return /^[1-9]\d*:[1-9]\d*$/.test(user) ? user : defaultSandboxUser();
+}
+
 export function buildHostDockerSandboxFromRun(input: {
   runId: string;
   metadata: unknown;
@@ -61,7 +85,8 @@ export function buildHostDockerSandboxFromRun(input: {
     networkPolicy:
       typeof metadata.networkPolicy === "string" && metadata.networkPolicy.trim()
         ? metadata.networkPolicy.trim()
-        : "default-egress"
+        : "default-egress",
+    user: safeSandboxUser(metadata.sandboxUser)
   };
 }
 
@@ -141,6 +166,8 @@ export function buildHostDockerCommandExecution(input: {
     "no-new-privileges",
     "--cap-drop",
     "ALL",
+    "--user",
+    input.sandbox.user,
     "--volume",
     `${root}:${root}`,
     "--workdir",

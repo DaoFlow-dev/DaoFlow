@@ -6,6 +6,7 @@ import { executeDevelopmentTaskCodex } from "./development-task-codex-execution"
 import type { DevelopmentTaskCodexPlan } from "./development-task-codex-plan";
 import type { PreparedDevelopmentTaskCodexWorkspace } from "./development-task-codex-workspace";
 import type { execStreaming, OnLog } from "./docker-exec-shared";
+import { buildHostDockerSandboxFromRun } from "./development-task-host-docker";
 
 type ExecRunnerCall = Parameters<typeof execStreaming>;
 
@@ -114,7 +115,8 @@ describe("executeDevelopmentTaskCodex", () => {
         cpuLimit: 2,
         memoryLimitMb: 1024,
         timeoutMinutes: 3,
-        networkPolicy: "none"
+        networkPolicy: "none",
+        user: "1000:1000"
       },
       onLog: vi.fn(),
       execRunner
@@ -145,6 +147,8 @@ describe("executeDevelopmentTaskCodex", () => {
         "no-new-privileges",
         "--cap-drop",
         "ALL",
+        "--user",
+        "1000:1000",
         "--network",
         "none",
         "ghcr.io/daoflow/codex-runner:test",
@@ -154,6 +158,7 @@ describe("executeDevelopmentTaskCodex", () => {
     expect(args).toContain(
       `${path.dirname(workspace.repoPath)}:${path.dirname(workspace.repoPath)}`
     );
+    expect(args.some((arg) => arg.includes("/var/run/docker.sock"))).toBe(false);
     expect(args).toContain(`CODEX_HOME=${workspace.codexHomePath}`);
     expect(env).toBeUndefined();
     expect(options).toMatchObject({ timeoutMs: 180_000 });
@@ -175,7 +180,8 @@ describe("executeDevelopmentTaskCodex", () => {
         cpuLimit: 1,
         memoryLimitMb: 512,
         timeoutMinutes: 1,
-        networkPolicy: "default-egress"
+        networkPolicy: "default-egress",
+        user: "1000:1000"
       },
       onLog: vi.fn(),
       execRunner
@@ -186,5 +192,14 @@ describe("executeDevelopmentTaskCodex", () => {
       errorMessage: "Codex terminated by signal SIGTERM"
     });
     expect(execRunner.mock.calls[1]?.[1]).toEqual(["rm", "-f", "daoflow-devtask-timeout"]);
+  });
+
+  it("defaults host Docker sandboxes to a non-root process user", () => {
+    const sandbox = buildHostDockerSandboxFromRun({
+      runId: "run_user",
+      metadata: { sandboxUser: "0:0" }
+    });
+
+    expect(sandbox.user).toMatch(/^[1-9]\d*:[1-9]\d*$/);
   });
 });

@@ -110,7 +110,8 @@ describe("development task validation", () => {
         cpuLimit: 1,
         memoryLimitMb: 768,
         timeoutMinutes: 2,
-        networkPolicy: "default-egress"
+        networkPolicy: "default-egress",
+        user: "1000:1000"
       },
       onLog: vi.fn(),
       execRunner
@@ -128,6 +129,8 @@ describe("development task validation", () => {
         "daoflow-devtask-validation",
         "--memory",
         "768m",
+        "--user",
+        "1000:1000",
         "ghcr.io/daoflow/codex-runner:test",
         "sh",
         "-lc",
