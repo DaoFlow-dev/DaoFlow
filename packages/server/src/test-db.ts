@@ -26,7 +26,7 @@ import { resetAuthState } from "./auth";
 
 const { Client } = pg;
 const TEST_DB_PREPARE_LOCK_ID = 8_705_231;
-const MIN_EXPECTED_PUBLIC_TABLES = 30;
+const MIN_EXPECTED_PUBLIC_TABLES = 35;
 
 let prepared = false;
 let preparePromise: Promise<string> | null = null;
@@ -88,6 +88,7 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
       serviceVariables: string | null;
       gitProviders: string | null;
       cliAuthRequests: string | null;
+      developmentTasks: string | null;
     }>(`
       SELECT
         (SELECT count(*)::int FROM pg_tables WHERE schemaname = 'public') AS "tableCount",
@@ -99,7 +100,8 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
         to_regclass('public.deployments') AS "deployments",
         to_regclass('public.service_variables') AS "serviceVariables",
         to_regclass('public.git_providers') AS "gitProviders",
-        to_regclass('public.cli_auth_requests') AS "cliAuthRequests"
+        to_regclass('public.cli_auth_requests') AS "cliAuthRequests",
+        to_regclass('public.development_tasks') AS "developmentTasks"
     `);
     const row = result.rows[0];
     return Boolean(
@@ -113,7 +115,8 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
       row.deployments &&
       row.serviceVariables &&
       row.gitProviders &&
-      row.cliAuthRequests
+      row.cliAuthRequests &&
+      row.developmentTasks
     );
   } finally {
     await client.end();
@@ -161,6 +164,7 @@ async function readPoolSchemaState() {
     serviceVariables: string | null;
     gitProviders: string | null;
     cliAuthRequests: string | null;
+    developmentTasks: string | null;
   }>(`
     SELECT
       current_database() AS "databaseName",
@@ -173,7 +177,8 @@ async function readPoolSchemaState() {
       to_regclass('public.deployments') AS "deployments",
       to_regclass('public.service_variables') AS "serviceVariables",
       to_regclass('public.git_providers') AS "gitProviders",
-      to_regclass('public.cli_auth_requests') AS "cliAuthRequests"
+      to_regclass('public.cli_auth_requests') AS "cliAuthRequests",
+      to_regclass('public.development_tasks') AS "developmentTasks"
   `);
 
   return result.rows[0];
@@ -200,7 +205,8 @@ async function ensurePooledTestSchemaReady(connectionString: string) {
         state.deployments &&
         state.serviceVariables &&
         state.gitProviders &&
-        state.cliAuthRequests
+        state.cliAuthRequests &&
+        state.developmentTasks
       ) {
         return;
       }

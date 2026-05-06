@@ -1953,6 +1953,73 @@
       }
     },
     {
+      "name": "developmentTaskDetails",
+      "summary": "development Task Details",
+      "path": "/trpc/developmentTaskDetails",
+      "method": "GET",
+      "lane": "read",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator", "developer", "viewer", "agent"],
+      "requiredScopes": ["deploy:read"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "taskId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["taskId"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "developmentTasks",
+      "summary": "development Tasks",
+      "path": "/trpc/developmentTasks",
+      "method": "GET",
+      "lane": "read",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator", "developer", "viewer", "agent"],
+      "requiredScopes": ["deploy:read"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "running",
+              "waiting_review",
+              "blocked",
+              "failed",
+              "canceled",
+              "completed"
+            ]
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "developmentTaskStatuses",
+      "summary": "development Task Statuses",
+      "path": "/trpc/developmentTaskStatuses",
+      "method": "GET",
+      "lane": "read",
+      "auth": "authenticated",
+      "requiredRoles": [],
+      "requiredScopes": [],
+      "inputSchema": null
+    },
+    {
       "name": "disableBackupSchedule",
       "summary": "disable Backup Schedule",
       "path": "/trpc/disableBackupSchedule",
@@ -3049,6 +3116,32 @@
         "properties": {
           "dryRun": {
             "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "sandboxRunnerProfiles",
+      "summary": "sandbox Runner Profiles",
+      "path": "/trpc/sandboxRunnerProfiles",
+      "method": "GET",
+      "lane": "read",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator", "developer", "viewer", "agent"],
+      "requiredScopes": ["deploy:read"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": ["enabled", "disabled"]
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
           }
         },
         "additionalProperties": false

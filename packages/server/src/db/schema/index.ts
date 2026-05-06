@@ -12,6 +12,7 @@ export * from "./tunnels";
 export * from "./services";
 export * from "./git-providers";
 export * from "./webhook-deliveries";
+export * from "./development-tasks";
 export * from "./notifications";
 export * from "./secret-providers";
 export * from "./cli-auth";

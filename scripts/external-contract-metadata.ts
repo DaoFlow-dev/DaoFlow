@@ -102,6 +102,22 @@ addApiGroup(
 
 addApiGroup(
   apiProcedureAccess,
+  ["developmentTasks", "developmentTaskDetails", "sandboxRunnerProfiles"],
+  {
+    auth: "authenticated",
+    requiredRoles: READ_ROLES,
+    requiredScopes: ["deploy:read"]
+  }
+);
+
+addApiGroup(apiProcedureAccess, ["developmentTaskStatuses"], {
+  auth: "authenticated",
+  requiredRoles: [],
+  requiredScopes: []
+});
+
+addApiGroup(
+  apiProcedureAccess,
   [
     "subscribePush",
     "unsubscribePush",
