@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { eq } from "drizzle-orm";
 import { db } from "../connection";
 import { sandboxRunnerProfiles } from "../schema/development-tasks";
 import { resetSeededTestDatabase } from "../../test-db";
@@ -148,7 +149,23 @@ describe("development task service", () => {
     expect(claim?.run).toMatchObject({
       taskId: queued.task.id,
       status: "claimed",
-      runnerId: "development-task-worker"
+      runnerId: "development-task-worker",
+      runnerProfileId: "runner_profile_host_default",
+      sandboxProvider: "host_docker",
+      codexProfile: "daoflow"
+    });
+    expect(claim?.run.metadata).toMatchObject({
+      runnerLabel: "development-task-worker",
+      runnerProfileName: "Host Docker Default",
+      serverId: "srv_foundation_1",
+      codexAuthMode: "custom_provider_env",
+      validationCommands: [
+        "bun run format",
+        "bun run test:unit",
+        "bun run lint",
+        "bun run typecheck",
+        "bun run contracts:check"
+      ]
     });
 
     const details = await getDevelopmentTaskDetails(queued.task.id);
@@ -161,6 +178,25 @@ describe("development task service", () => {
       runnerLabel: "development-task-worker"
     });
     expect(nextClaim).toBeNull();
+  });
+
+  it("leaves queued tasks untouched when no runner profile is enabled", async () => {
+    const queued = await queueDevelopmentTask(taskInput());
+    await db
+      .update(sandboxRunnerProfiles)
+      .set({ status: "disabled", updatedAt: new Date() })
+      .where(eq(sandboxRunnerProfiles.id, "runner_profile_host_default"));
+
+    const claim = await claimNextQueuedDevelopmentTask({
+      runnerId: "development-task-worker",
+      runnerLabel: "development-task-worker"
+    });
+
+    expect(claim).toBeNull();
+
+    const details = await getDevelopmentTaskDetails(queued.task.id);
+    expect(details?.task.status).toBe("queued");
+    expect(details?.runs).toHaveLength(0);
   });
 
   it("upserts external issue comments for durable status updates", async () => {
@@ -222,7 +258,7 @@ describe("development task service", () => {
     );
   });
 
-  it("seeds a disabled default host Docker runner profile", async () => {
+  it("seeds an enabled default host Docker runner profile for the default host server", async () => {
     const profiles = await listSandboxRunnerProfiles({ limit: 10 });
     const seededProfile = profiles.find((profile) => profile.id === "runner_profile_host_default");
 
@@ -230,13 +266,19 @@ describe("development task service", () => {
       id: "runner_profile_host_default",
       provider: "host_docker",
       serverId: "srv_foundation_1",
-      status: "disabled"
+      status: "enabled",
+      codexAuthMode: "custom_provider_env"
     });
     expect(seededProfile?.metadata).toMatchObject({
       defaultTarget: "registered-host",
+      hostServerDefault: true,
+      codexAuthModes: ["api_key", "chatgpt_auth_json", "custom_provider_env"],
+      codexConfigPath: "/runner/home/.codex/config.toml",
       sandbankProvider: "host_docker",
       laterProvider: "sandbank_boxlite",
-      laterPackage: "@sandbank.dev/boxlite"
+      laterPackage: "@sandbank.dev/boxlite",
+      boxliteModes: ["remote", "local"]
     });
+    expect(seededProfile?.codexConfigTemplate).toContain("[profiles.daoflow]");
   });
 });

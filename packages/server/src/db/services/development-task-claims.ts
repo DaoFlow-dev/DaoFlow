@@ -4,7 +4,8 @@ import { auditEntries } from "../schema/audit";
 import {
   developmentTaskEvents,
   developmentTaskRuns,
-  developmentTasks
+  developmentTasks,
+  sandboxRunnerProfiles
 } from "../schema/development-tasks";
 import { newId } from "./json-helpers";
 
@@ -16,6 +17,26 @@ export interface DevelopmentTaskClaimActor {
 export async function claimNextQueuedDevelopmentTask(actor: DevelopmentTaskClaimActor) {
   const now = new Date();
   return db.transaction(async (tx) => {
+    const [runnerProfile] = await tx
+      .select()
+      .from(sandboxRunnerProfiles)
+      .where(eq(sandboxRunnerProfiles.status, "enabled"))
+      .orderBy(
+        sql`
+        CASE
+          WHEN ${sandboxRunnerProfiles.provider} = 'host_docker' THEN 0
+          WHEN ${sandboxRunnerProfiles.provider} = 'sandbank_boxlite' THEN 1
+          ELSE 2
+        END,
+        ${sandboxRunnerProfiles.createdAt} ASC
+      `
+      )
+      .limit(1);
+
+    if (!runnerProfile) {
+      return null;
+    }
+
     const [task] = await tx
       .update(developmentTasks)
       .set({
@@ -54,8 +75,20 @@ export async function claimNextQueuedDevelopmentTask(actor: DevelopmentTaskClaim
         taskId: task.id,
         status: "claimed",
         runnerId: actor.runnerId,
+        runnerProfileId: runnerProfile.id,
+        sandboxProvider: runnerProfile.provider,
+        codexProfile: "daoflow",
         metadata: {
-          runnerLabel: actor.runnerLabel
+          runnerLabel: actor.runnerLabel,
+          runnerProfileName: runnerProfile.name,
+          image: runnerProfile.image,
+          serverId: runnerProfile.serverId,
+          networkPolicy: runnerProfile.networkPolicy,
+          allowedCommands: runnerProfile.allowedCommands,
+          validationCommands: runnerProfile.validationCommands,
+          timeoutMinutes: runnerProfile.timeoutMinutes,
+          codexAuthMode: runnerProfile.codexAuthMode,
+          codexConfigTemplate: runnerProfile.codexConfigTemplate
         },
         startedAt: now,
         updatedAt: now
@@ -77,7 +110,9 @@ export async function claimNextQueuedDevelopmentTask(actor: DevelopmentTaskClaim
       kind: "run.claimed",
       summary: `${actor.runnerLabel} claimed the development task.`,
       metadata: {
-        runnerId: actor.runnerId
+        runnerId: actor.runnerId,
+        runnerProfileId: runnerProfile.id,
+        sandboxProvider: runnerProfile.provider
       }
     });
 
@@ -95,7 +130,9 @@ export async function claimNextQueuedDevelopmentTask(actor: DevelopmentTaskClaim
         resourceType: "development_task",
         resourceId: task.id,
         runId: run.id,
-        runnerId: actor.runnerId
+        runnerId: actor.runnerId,
+        runnerProfileId: runnerProfile.id,
+        sandboxProvider: runnerProfile.provider
       }
     });
 

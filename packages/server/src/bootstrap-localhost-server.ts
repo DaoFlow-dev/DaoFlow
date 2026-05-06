@@ -1,6 +1,13 @@
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { db } from "./db/connection";
 import { servers } from "./db/schema/servers";
+import { sandboxRunnerProfiles } from "./db/schema/development-tasks";
+import {
+  DEFAULT_CODEX_AUTH_MODE,
+  DEFAULT_CODEX_CONFIG_TEMPLATE,
+  DEFAULT_HOST_RUNNER_PROFILE_ID,
+  defaultHostRunnerMetadata
+} from "./db/services/default-development-runner";
 import { verifyServerReadiness } from "./db/services/server-readiness";
 import { newId } from "./db/services/json-helpers";
 import { getProcessValueAccessor } from "./process-singleton";
@@ -49,6 +56,7 @@ async function bootstrapLocalhostServer() {
     .limit(1);
 
   if (existing) {
+    await enableDefaultHostRunnerProfile(existing.id);
     console.log("[bootstrap] Localhost server already registered; skipping");
     return;
   }
@@ -76,5 +84,21 @@ async function bootstrapLocalhostServer() {
   }
 
   await verifyServerReadiness(server);
+  await enableDefaultHostRunnerProfile(server.id);
   console.log(`[bootstrap] Registered localhost server (${serverId})`);
+}
+
+async function enableDefaultHostRunnerProfile(serverId: string) {
+  const metadataPatch = defaultHostRunnerMetadata({ hostServerDefault: true });
+  await db
+    .update(sandboxRunnerProfiles)
+    .set({
+      serverId,
+      status: "enabled",
+      codexAuthMode: DEFAULT_CODEX_AUTH_MODE,
+      codexConfigTemplate: DEFAULT_CODEX_CONFIG_TEMPLATE,
+      metadata: sql`${sandboxRunnerProfiles.metadata} || ${JSON.stringify(metadataPatch)}::jsonb`,
+      updatedAt: new Date()
+    })
+    .where(eq(sandboxRunnerProfiles.id, DEFAULT_HOST_RUNNER_PROFILE_ID));
 }

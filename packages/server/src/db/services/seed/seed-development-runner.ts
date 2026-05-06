@@ -1,4 +1,10 @@
 import { sandboxRunnerProfiles } from "../../schema/development-tasks";
+import {
+  DEFAULT_CODEX_AUTH_MODE,
+  DEFAULT_CODEX_CONFIG_TEMPLATE,
+  DEFAULT_HOST_RUNNER_PROFILE_ID,
+  defaultHostRunnerMetadata
+} from "../default-development-runner";
 import { daysBefore } from "./seed-helpers";
 import type { SeedTransaction } from "./seed-types";
 
@@ -9,7 +15,7 @@ export async function seedDevelopmentRunner(
   await tx
     .insert(sandboxRunnerProfiles)
     .values({
-      id: "runner_profile_host_default",
+      id: DEFAULT_HOST_RUNNER_PROFILE_ID,
       name: "Host Docker Default",
       provider: "host_docker",
       serverId: input?.defaultServerId ?? null,
@@ -27,14 +33,10 @@ export async function seedDevelopmentRunner(
         "bun run contracts:check"
       ],
       timeoutMinutes: 60,
-      codexAuthMode: "api_key",
-      status: "disabled",
-      metadata: {
-        defaultTarget: "registered-host",
-        sandbankProvider: "host_docker",
-        laterProvider: "sandbank_boxlite",
-        laterPackage: "@sandbank.dev/boxlite"
-      },
+      codexAuthMode: DEFAULT_CODEX_AUTH_MODE,
+      codexConfigTemplate: DEFAULT_CODEX_CONFIG_TEMPLATE,
+      status: input?.defaultServerId ? "enabled" : "disabled",
+      metadata: defaultHostRunnerMetadata({ hostServerDefault: Boolean(input?.defaultServerId) }),
       createdAt: daysBefore(1),
       updatedAt: daysBefore(1)
     })
