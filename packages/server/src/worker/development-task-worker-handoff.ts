@@ -5,6 +5,7 @@ import {
   updateDevelopmentTaskRun
 } from "../db/services/development-tasks";
 import { upsertReadyForReviewGitHubDevelopmentTaskComment } from "../routes/github-issue-comments";
+import { upsertReadyForReviewGitLabDevelopmentTaskComment } from "../routes/gitlab-issue-comments";
 import type { DevelopmentTaskValidationResult } from "./development-task-validation";
 import type { DevelopmentTaskCodexExecutionResult } from "./development-task-codex-execution";
 import type { PreparedDevelopmentTaskCodexWorkspace } from "./development-task-codex-workspace";
@@ -242,8 +243,12 @@ export async function completeDevelopmentTaskHandoff(input: {
     }
   });
 
-  if (waitingRun && !isGitLabTask) {
-    await upsertReadyForReviewGitHubDevelopmentTaskComment({
+  if (waitingRun) {
+    const updateComment = isGitLabTask
+      ? upsertReadyForReviewGitLabDevelopmentTaskComment
+      : upsertReadyForReviewGitHubDevelopmentTaskComment;
+
+    await updateComment({
       task: input.task,
       run: waitingRun,
       target: input.reviewTarget
@@ -252,10 +257,12 @@ export async function completeDevelopmentTaskHandoff(input: {
         taskId: input.task.id,
         runId: input.run.id,
         kind: "comment.failed",
-        summary: "Failed to update the GitHub issue status comment with the pull request.",
+        summary: isGitLabTask
+          ? "Failed to update the GitLab issue status note with the merge request."
+          : "Failed to update the GitHub issue status comment with the pull request.",
         detail: err instanceof Error ? err.message : String(err),
         metadata: {
-          providerType: "github",
+          providerType: input.task.providerType,
           repoFullName: input.task.repoFullName,
           issueNumber: input.task.issueNumber,
           status: "waiting_review",

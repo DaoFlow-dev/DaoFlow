@@ -172,7 +172,25 @@ describe("development task worker handoff", () => {
       previewUrl: undefined,
       message: "No preview target."
     });
-    const fetchMock = vi.spyOn(globalThis, "fetch");
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementationOnce((_url, init) => {
+      if (typeof init?.body !== "string") {
+        throw new Error("Expected GitLab note request body.");
+      }
+      const body = JSON.parse(init.body) as { body?: string };
+      expect(body.body).toContain("DaoFlow opened a merge request.");
+      expect(body.body).toContain(
+        "Merge request: https://gitlab.com/example/development-task-mr/-/merge_requests/7"
+      );
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            id: 990201,
+            web_url: "https://gitlab.com/example/development-task-mr/-/issues/185#note_990201"
+          }),
+          { status: 201, headers: { "Content-Type": "application/json" } }
+        )
+      );
+    });
 
     await completeDevelopmentTaskHandoff({
       task: fixture.task,
@@ -199,7 +217,10 @@ describe("development task worker handoff", () => {
       previewQueuing
     });
 
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      "https://gitlab.com/api/v4/projects/example%2Fdevelopment-task-mr/issues/185/notes"
+    );
     expect(previewQueuing).toHaveBeenCalledOnce();
 
     const [run] = await db

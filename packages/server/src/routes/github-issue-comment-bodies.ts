@@ -64,13 +64,16 @@ export function buildDevelopmentTaskReadyForReviewComment(input: {
   task: typeof developmentTasks.$inferSelect;
   run: typeof developmentTaskRuns.$inferSelect;
   projectName: string;
+  reviewRequestLabel?: string;
+  openedSummary?: string;
 }) {
   const previewUrl = input.run.previewUrl ?? "pending";
+  const reviewRequestLabel = input.reviewRequestLabel ?? "Pull request";
   return [
-    "DaoFlow opened a pull request.",
+    input.openedSummary ?? "DaoFlow opened a pull request.",
     "",
     "Status: waiting_review",
-    `Pull request: ${input.run.pullRequestUrl ?? "pending"}`,
+    `${reviewRequestLabel}: ${input.run.pullRequestUrl ?? "pending"}`,
     `Preview: ${previewUrl}`,
     `Run: ${buildDevelopmentTaskRunUrl(input.task.id)}`,
     `Project: ${input.projectName}`,

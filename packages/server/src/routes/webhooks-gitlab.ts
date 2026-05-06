@@ -4,10 +4,15 @@ import { buildWebhookDeliveryKey, readGitLabPreviewLifecycle } from "../webhook-
 import {
   collectChangedPaths,
   determineWebhookDeliveryStatus,
-  listWebhookTargets,
   verifyGitLabToken,
   writeWebhookAuditEntry
 } from "./webhooks-delivery";
+import { listWebhookTargets } from "./webhooks-delivery";
+import { listDevelopmentTaskWebhookTargets } from "./webhooks-development-tasks";
+import {
+  processGitLabDevelopmentTaskTrigger,
+  readGitLabDevelopmentTaskTrigger
+} from "./webhooks-development-tasks-gitlab";
 import { processWebhookPushTargets } from "./webhooks-push";
 import { triggerPreviewWebhookDeploys } from "./webhooks-preview";
 import type { GitLabPushEvent } from "./webhooks-types";
@@ -34,10 +39,17 @@ export async function handleGitLabWebhook(c: Context) {
       return c.json({ ok: false, error: "Missing project" }, 400);
     }
 
-    const matchingTargets = await listWebhookTargets({
-      repoFullName,
-      providerType: "gitlab"
-    });
+    const gitlabEvent = (c.req.header("x-gitlab-event") ?? "").toLowerCase();
+    const isDevelopmentTaskEvent = gitlabEvent.includes("issue") || gitlabEvent.includes("note");
+    const matchingTargets = isDevelopmentTaskEvent
+      ? await listDevelopmentTaskWebhookTargets({
+          repoFullName,
+          providerType: "gitlab"
+        })
+      : await listWebhookTargets({
+          repoFullName,
+          providerType: "gitlab"
+        });
 
     if (matchingTargets.length === 0) {
       return c.json({ ok: true, skipped: true, reason: "no matching projects" });
@@ -62,7 +74,25 @@ export async function handleGitLabWebhook(c: Context) {
       verifiedProviderIds.includes(provider.id)
     );
 
-    const gitlabEvent = (c.req.header("x-gitlab-event") ?? "").toLowerCase();
+    if (isDevelopmentTaskEvent) {
+      const trigger = readGitLabDevelopmentTaskTrigger(gitlabEvent, payload);
+      if (!trigger) {
+        return c.json({ ok: true, skipped: true, reason: "unsupported development task trigger" });
+      }
+
+      return c.json(
+        await processGitLabDevelopmentTaskTrigger({
+          event: gitlabEvent,
+          rawBody,
+          deliveryId: c.req.header("x-gitlab-event-uuid") ?? c.req.header("x-gitlab-webhook-uuid"),
+          payload,
+          repoFullName,
+          matchingTargets: verifiedTargets,
+          trigger
+        })
+      );
+    }
+
     const lifecycle = readGitLabPreviewLifecycle(payload);
     if (gitlabEvent.includes("merge request") || lifecycle) {
       if (!lifecycle) {

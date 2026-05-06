@@ -8,6 +8,7 @@ import {
 } from "../db/services/development-tasks";
 import { eq } from "drizzle-orm";
 import { upsertRunningGitHubDevelopmentTaskComment } from "../routes/github-issue-comments";
+import { upsertRunningGitLabDevelopmentTaskComment } from "../routes/gitlab-issue-comments";
 import { buildDevelopmentTaskCodexPlan } from "./development-task-codex-plan";
 import { prepareDevelopmentTaskCodexWorkspace } from "./development-task-codex-workspace";
 import { runClaimedTaskCodex } from "./development-task-worker-codex";
@@ -90,12 +91,22 @@ async function loadDevelopmentTaskProject(claimed: ClaimedDevelopmentTask) {
 }
 
 async function updateClaimedTaskStatusComment(claimed: ClaimedDevelopmentTask) {
-  const target = await loadGitHubCommentTarget(claimed);
+  const target =
+    claimed.task.providerType === "github"
+      ? await loadGitHubCommentTarget(claimed)
+      : claimed.task.providerType === "gitlab"
+        ? await loadReviewTarget(claimed)
+        : null;
   if (!target) {
     return;
   }
 
-  await upsertRunningGitHubDevelopmentTaskComment({
+  const updateComment =
+    claimed.task.providerType === "gitlab"
+      ? upsertRunningGitLabDevelopmentTaskComment
+      : upsertRunningGitHubDevelopmentTaskComment;
+
+  await updateComment({
     task: claimed.task,
     run: claimed.run,
     target
@@ -104,10 +115,10 @@ async function updateClaimedTaskStatusComment(claimed: ClaimedDevelopmentTask) {
       taskId: claimed.task.id,
       runId: claimed.run.id,
       kind: "comment.failed",
-      summary: "Failed to update the GitHub issue status comment after claiming the task.",
+      summary: `Failed to update the ${claimed.task.providerType} issue status comment after claiming the task.`,
       detail: err instanceof Error ? err.message : String(err),
       metadata: {
-        providerType: "github",
+        providerType: claimed.task.providerType,
         repoFullName: claimed.task.repoFullName,
         issueNumber: claimed.task.issueNumber,
         status: "running"
