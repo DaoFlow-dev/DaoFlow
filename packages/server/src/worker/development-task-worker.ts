@@ -10,15 +10,11 @@ import { eq } from "drizzle-orm";
 import { upsertRunningGitHubDevelopmentTaskComment } from "../routes/github-issue-comments";
 import { buildDevelopmentTaskCodexPlan } from "./development-task-codex-plan";
 import { prepareDevelopmentTaskCodexWorkspace } from "./development-task-codex-workspace";
-import {
-  executeDevelopmentTaskCodex,
-  type DevelopmentTaskCodexExecutionResult
-} from "./development-task-codex-execution";
+import { runClaimedTaskCodex } from "./development-task-worker-codex";
 import { prepareClaimedTaskRepository } from "./development-task-worker-repository";
 
 const DEVELOPMENT_TASK_POLL_INTERVAL_MS = 10_000;
 let running = false;
-let codexExecution = executeDevelopmentTaskCodex;
 
 export async function pollDevelopmentTaskQueue() {
   const claimed = await claimNextQueuedDevelopmentTask({
@@ -162,7 +158,13 @@ async function prepareClaimedTaskWorkspace(claimed: ClaimedDevelopmentTask) {
       status: "preparing",
       metadata: nextMetadata
     });
-    await runClaimedTaskCodex(claimed, plan, workspace, nextMetadata);
+    await runClaimedTaskCodex({
+      task: claimed.task,
+      run: claimed.run,
+      plan,
+      workspace,
+      metadata: nextMetadata
+    });
   } catch (err) {
     await updateDevelopmentTaskRun({
       runId: claimed.run.id,
@@ -175,71 +177,6 @@ async function prepareClaimedTaskWorkspace(claimed: ClaimedDevelopmentTask) {
       }
     });
   }
-}
-
-async function runClaimedTaskCodex(
-  claimed: ClaimedDevelopmentTask,
-  plan: ReturnType<typeof buildDevelopmentTaskCodexPlan>,
-  workspace: Awaited<ReturnType<typeof prepareDevelopmentTaskCodexWorkspace>>,
-  metadata: Record<string, unknown>
-) {
-  await updateDevelopmentTaskRun({
-    runId: claimed.run.id,
-    status: "coding",
-    metadata: {
-      ...metadata,
-      codexExecution: {
-        status: "started",
-        logPath: `${workspace.logsPath}/codex-exec.jsonl`
-      }
-    }
-  });
-
-  const execution = await codexExecution({
-    plan,
-    workspace,
-    onLog: (line) => {
-      console.log(`[development-task-codex:${line.stream}] ${line.message}`);
-    }
-  }).catch((err: unknown): DevelopmentTaskCodexExecutionResult => {
-    return {
-      status: "failed",
-      exitCode: 1,
-      logPath: `${workspace.logsPath}/codex-exec.jsonl`,
-      errorMessage: err instanceof Error ? err.message : String(err)
-    };
-  });
-
-  if (execution.status !== "ok") {
-    await updateDevelopmentTaskRun({
-      runId: claimed.run.id,
-      status: "failed",
-      failureCategory: "codex_execution_failed",
-      failureMessage: execution.errorMessage ?? "Codex execution failed.",
-      metadata: {
-        ...metadata,
-        codexExecution: execution
-      }
-    });
-    return;
-  }
-
-  await updateDevelopmentTaskRun({
-    runId: claimed.run.id,
-    status: "validating",
-    metadata: {
-      ...metadata,
-      codexExecution: execution
-    }
-  });
-}
-
-export function setDevelopmentTaskCodexExecutionForTests(next: typeof executeDevelopmentTaskCodex) {
-  codexExecution = next;
-}
-
-export function resetDevelopmentTaskCodexExecutionForTests() {
-  codexExecution = executeDevelopmentTaskCodex;
 }
 
 export function startDevelopmentTaskWorker(): void {
@@ -274,6 +211,13 @@ export function stopDevelopmentTaskWorker(): void {
   running = false;
   console.log("[development-task-worker] Worker stopping");
 }
+
+export {
+  resetDevelopmentTaskCodexExecutionForTests,
+  resetDevelopmentTaskValidationExecutionForTests,
+  setDevelopmentTaskCodexExecutionForTests,
+  setDevelopmentTaskValidationExecutionForTests
+} from "./development-task-worker-codex";
 
 export {
   resetDevelopmentTaskRepositoryCheckoutForTests,

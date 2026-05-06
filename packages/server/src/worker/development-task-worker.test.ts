@@ -19,8 +19,10 @@ import {
   pollDevelopmentTaskQueue,
   resetDevelopmentTaskCodexExecutionForTests,
   resetDevelopmentTaskRepositoryCheckoutForTests,
+  resetDevelopmentTaskValidationExecutionForTests,
   setDevelopmentTaskCodexExecutionForTests,
-  setDevelopmentTaskRepositoryCheckoutForTests
+  setDevelopmentTaskRepositoryCheckoutForTests,
+  setDevelopmentTaskValidationExecutionForTests
 } from "./development-task-worker";
 
 async function createClaimedCommentFixture() {
@@ -93,6 +95,7 @@ describe("development task worker", () => {
   afterEach(() => {
     resetDevelopmentTaskCodexExecutionForTests();
     resetDevelopmentTaskRepositoryCheckoutForTests();
+    resetDevelopmentTaskValidationExecutionForTests();
     vi.restoreAllMocks();
     delete process.env.APP_BASE_URL;
     delete process.env.DAOFLOW_DEVELOPMENT_TASK_WORKSPACE_ROOT;
@@ -185,6 +188,16 @@ describe("development task worker", () => {
         })
       );
     setDevelopmentTaskCodexExecutionForTests(codexExecutionMock);
+    const validationExecutionMock = vi
+      .fn()
+      .mockImplementation((input: { workspace: { logsPath: string }; commands: string[] }) =>
+        Promise.resolve({
+          status: "ok" as const,
+          commands: input.commands,
+          logPath: `${input.workspace.logsPath}/validation.jsonl`
+        })
+      );
+    setDevelopmentTaskValidationExecutionForTests(validationExecutionMock);
 
     const claimed = await pollDevelopmentTaskQueue();
     const checkoutCall = checkoutMock.mock.calls[0]?.[0] as
@@ -194,6 +207,7 @@ describe("development task worker", () => {
     expect(claimed?.task.id).toBe(queued.task.id);
     expect(checkoutMock).toHaveBeenCalledOnce();
     expect(codexExecutionMock).toHaveBeenCalledOnce();
+    expect(validationExecutionMock).toHaveBeenCalledOnce();
     expect(checkoutCall?.repoPath).toContain(claimed?.run.id ?? "");
     expect(checkoutCall?.artifactsPath).toContain(claimed?.run.id ?? "");
     expect(fetchMock).toHaveBeenCalledTimes(2);
@@ -222,7 +236,7 @@ describe("development task worker", () => {
       .from(developmentTaskRuns)
       .where(eq(developmentTaskRuns.id, claimed?.run.id ?? ""));
     expect(run).toMatchObject({
-      status: "validating"
+      status: "opening_pr"
     });
     const metadata = run?.metadata as {
       codexWorkspace?: {
@@ -234,6 +248,7 @@ describe("development task worker", () => {
       codexCommand?: { args: string[] };
       codexExecution?: { status: string; exitCode: number; logPath: string };
       repositoryCheckout?: { status: string; displayLabel: string };
+      validation?: { status: string; commands: string[]; logPath: string };
     };
     expect(metadata.codexWorkspace?.repoPath).toContain(claimed?.run.id);
     expect(metadata.repositoryCheckout).toMatchObject({
@@ -245,6 +260,10 @@ describe("development task worker", () => {
       status: "ok",
       exitCode: 0,
       logPath: `${metadata.codexWorkspace?.logsPath}/codex-exec.jsonl`
+    });
+    expect(metadata.validation).toMatchObject({
+      status: "ok",
+      logPath: `${metadata.codexWorkspace?.logsPath}/validation.jsonl`
     });
     expect(metadata.codexCommand?.args.join("\n")).not.toContain("Update issue when worker starts");
     expect((await stat(metadata.codexWorkspace?.repoPath ?? "")).isDirectory()).toBe(true);
@@ -260,6 +279,7 @@ describe("development task worker", () => {
     expect(details?.events.some((event) => event.kind === "run.preparing")).toBe(true);
     expect(details?.events.some((event) => event.kind === "run.coding")).toBe(true);
     expect(details?.events.some((event) => event.kind === "run.validating")).toBe(true);
+    expect(details?.events.some((event) => event.kind === "run.opening_pr")).toBe(true);
     expect(details?.events.some((event) => event.kind === "repository.checkout.completed")).toBe(
       true
     );
