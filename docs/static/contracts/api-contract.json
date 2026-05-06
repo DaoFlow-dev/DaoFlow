@@ -321,6 +321,28 @@
       }
     },
     {
+      "name": "cancelDevelopmentTask",
+      "summary": "cancel Development Task",
+      "path": "/trpc/cancelDevelopmentTask",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator", "developer"],
+      "requiredScopes": ["deploy:cancel"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "taskId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["taskId"],
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "completeExecutionJob",
       "summary": "complete Execution Job",
       "path": "/trpc/completeExecutionJob",
@@ -3007,6 +3029,28 @@
           }
         },
         "required": ["environmentId"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "retryDevelopmentTask",
+      "summary": "retry Development Task",
+      "path": "/trpc/retryDevelopmentTask",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator", "developer"],
+      "requiredScopes": ["deploy:start"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "taskId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["taskId"],
         "additionalProperties": false
       }
     },

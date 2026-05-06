@@ -230,7 +230,13 @@ addApiGroup(
   }
 );
 
-addApiGroup(apiProcedureAccess, ["cancelDeployment"], {
+addApiGroup(apiProcedureAccess, ["retryDevelopmentTask"], {
+  auth: "authenticated",
+  requiredRoles: WRITE_ROLES,
+  requiredScopes: ["deploy:start"]
+});
+
+addApiGroup(apiProcedureAccess, ["cancelDeployment", "cancelDevelopmentTask"], {
   auth: "authenticated",
   requiredRoles: WRITE_ROLES,
   requiredScopes: ["deploy:cancel"]
