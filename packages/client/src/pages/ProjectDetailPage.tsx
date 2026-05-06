@@ -166,7 +166,19 @@ export default function ProjectDetailPage() {
         repoUrl={project.repoUrl}
         repoFullName={project.repoFullName}
         defaultBranch={project.defaultBranch}
+        autoDeployBranch={project.autoDeployBranch}
         autoDeploy={project.autoDeploy}
+        isSaving={page.updateProject.isPending}
+        errorMessage={page.updateProject.error?.message}
+        onSaveSettings={(input) => {
+          page.updateProject.reset();
+          page.updateProject.mutate({
+            projectId: project.id,
+            defaultBranch: input.defaultBranch,
+            autoDeploy: input.autoDeploy,
+            autoDeployBranch: input.autoDeployBranch
+          });
+        }}
       />
 
       <ProjectOverviewCards

@@ -4,6 +4,7 @@ export interface ProjectDetailProject {
   repoUrl: string | null;
   repoFullName: string | null;
   defaultBranch: string | null;
+  autoDeployBranch?: string | null;
   autoDeploy: boolean;
   config?: unknown;
   environments?:
