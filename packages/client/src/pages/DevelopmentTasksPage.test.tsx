@@ -90,6 +90,9 @@ describe("DevelopmentTasksPage", () => {
     expect(screen.getAllByText(/bun run typecheck/)).toHaveLength(2);
     expect(screen.getByText(/git status/)).toBeInTheDocument();
     expect(screen.getByText(/exec\.stream/)).toBeInTheDocument();
+    expect(screen.getByLabelText("Run available")).toBeEnabled();
+    expect(screen.getByLabelText("Stream available")).toBeEnabled();
+    expect(screen.getByLabelText("Snapshot unavailable")).toBeDisabled();
   });
 
   it("refreshes the development task queue", () => {

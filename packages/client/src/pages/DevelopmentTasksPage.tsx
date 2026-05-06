@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { buttonVariants } from "@/components/ui/button-variants";
+import { SandboxRunnerCard } from "@/components/SandboxRunnerCard";
 import {
   Table,
   TableBody,
@@ -22,7 +23,7 @@ import {
   TableRow
 } from "@/components/ui/table";
 import { getInventoryBadgeVariant } from "@/lib/tone-utils";
-import { Bot, Cpu, ExternalLink, HardDrive, MemoryStick, RefreshCw, Terminal } from "lucide-react";
+import { Bot, ExternalLink, RefreshCw } from "lucide-react";
 
 const TASK_STATUSES = [
   "queued",
@@ -38,16 +39,6 @@ type TaskStatusFilter = "all" | (typeof TASK_STATUSES)[number];
 
 function formatDate(value: string | Date) {
   return new Date(value).toLocaleString();
-}
-
-function formatLabel(value: string | null | undefined) {
-  return value?.replaceAll("_", " ") ?? "unassigned";
-}
-
-function readStringList(value: unknown) {
-  return Array.isArray(value)
-    ? value.filter((item): item is string => typeof item === "string")
-    : [];
 }
 
 export default function DevelopmentTasksPage() {
@@ -191,54 +182,9 @@ export default function DevelopmentTasksPage() {
             </div>
           ) : (
             <div className="grid gap-3 md:grid-cols-2">
-              {runnerProfiles.data?.map((profile) => {
-                const commands = readStringList(profile.validationCommands);
-                const allowedCommands = readStringList(profile.allowedCommands);
-                const capabilities = readStringList(profile.capabilities);
-                return (
-                  <div key={profile.id} className="min-w-0 rounded-md border p-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-medium">{profile.name}</p>
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          {formatLabel(profile.provider)} · {formatLabel(profile.codexAuthMode)}
-                        </p>
-                      </div>
-                      <Badge variant={getInventoryBadgeVariant(profile.status)}>
-                        {profile.status}
-                      </Badge>
-                    </div>
-                    <div className="mt-3 grid gap-2 text-xs text-muted-foreground sm:grid-cols-3">
-                      <span className="inline-flex items-center gap-1">
-                        <Cpu size={12} /> {profile.cpuLimit} CPU
-                      </span>
-                      <span className="inline-flex items-center gap-1">
-                        <MemoryStick size={12} /> {profile.memoryLimitMb} MB
-                      </span>
-                      <span className="inline-flex items-center gap-1">
-                        <HardDrive size={12} /> {profile.diskLimitMb} MB
-                      </span>
-                    </div>
-                    <p className="mt-2 break-all text-xs text-muted-foreground">
-                      Image: <span className="font-mono">{profile.image}</span>
-                    </p>
-                    <p className="mt-1 break-words text-xs text-muted-foreground">
-                      Validation: {commands.length > 0 ? commands.join(", ") : "not configured"}
-                    </p>
-                    <p className="mt-1 flex items-start gap-1 break-words text-xs text-muted-foreground">
-                      <Terminal size={12} className="mt-0.5 shrink-0" />
-                      <span>
-                        Allowed:{" "}
-                        {allowedCommands.length > 0 ? allowedCommands.join(", ") : "profile only"}
-                      </span>
-                    </p>
-                    <p className="mt-1 break-words text-xs text-muted-foreground">
-                      Capabilities:{" "}
-                      {capabilities.length > 0 ? capabilities.join(", ") : "not reported"}
-                    </p>
-                  </div>
-                );
-              })}
+              {runnerProfiles.data?.map((profile) => (
+                <SandboxRunnerCard key={profile.id} profile={profile} />
+              ))}
             </div>
           )}
         </CardContent>
