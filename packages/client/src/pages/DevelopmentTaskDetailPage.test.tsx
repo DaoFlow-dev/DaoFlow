@@ -68,7 +68,9 @@ describe("DevelopmentTaskDetailPage", () => {
             runnerId: "development-task-worker",
             branchName: null,
             pullRequestUrl: null,
-            previewUrl: null
+            previewUrl: null,
+            failureCategory: null,
+            failureMessage: null
           }
         ],
         events: [
@@ -76,6 +78,7 @@ describe("DevelopmentTaskDetailPage", () => {
             id: "devent_1",
             kind: "run.claimed",
             summary: "development-task-worker claimed the development task.",
+            detail: null,
             createdAt: "2026-05-06T03:40:00.000Z"
           }
         ],
@@ -171,5 +174,57 @@ describe("DevelopmentTaskDetailPage", () => {
     });
     expect(refetchMock).toHaveBeenCalledTimes(1);
     expect(await screen.findByText("Development task retry queued.")).toBeInTheDocument();
+  });
+
+  it("shows run failure diagnostics and event details", () => {
+    developmentTaskDetailsUseQueryMock.mockReturnValueOnce({
+      isLoading: false,
+      refetch: refetchMock,
+      data: {
+        task: {
+          id: "dtask_1",
+          repoFullName: "DaoFlow-dev/DaoFlow",
+          issueNumber: 185,
+          issueTitle: "Major: Agent swarm dev platform",
+          issueUrl: "https://github.com/DaoFlow-dev/DaoFlow/issues/185",
+          issueAuthor: "MikeChongCan",
+          requestedByExternalUser: "octocat",
+          status: "failed"
+        },
+        runs: [
+          {
+            id: "drun_1",
+            status: "failed",
+            runnerId: "development-task-worker",
+            branchName: "daoflow/issue-185",
+            pullRequestUrl: null,
+            previewUrl: null,
+            failureCategory: "validation_failed",
+            failureMessage: "bun run typecheck failed."
+          }
+        ],
+        events: [
+          {
+            id: "devent_1",
+            kind: "run.failed",
+            summary: "Development task run moved to failed.",
+            detail: "bun run typecheck failed.",
+            createdAt: "2026-05-06T03:40:00.000Z"
+          }
+        ],
+        comments: []
+      }
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/development-tasks/dtask_1"]}>
+        <Routes>
+          <Route path="/development-tasks/:id" element={<DevelopmentTaskDetailPage />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText("Failure: validation_failed")).toBeInTheDocument();
+    expect(screen.getAllByText("bun run typecheck failed.")).toHaveLength(2);
   });
 });

@@ -179,6 +179,12 @@ export default function DevelopmentTaskDetailPage() {
                 <p className="text-muted-foreground">
                   Branch: {latestRun.branchName ?? "not created"}
                 </p>
+                {latestRun.failureCategory ? (
+                  <p className="text-muted-foreground">Failure: {latestRun.failureCategory}</p>
+                ) : null}
+                {latestRun.failureMessage ? (
+                  <p className="break-words text-destructive">{latestRun.failureMessage}</p>
+                ) : null}
               </>
             ) : (
               <p className="text-muted-foreground">No run has claimed this task.</p>
@@ -239,7 +245,14 @@ export default function DevelopmentTaskDetailPage() {
                     {formatDate(event.createdAt)}
                   </TableCell>
                   <TableCell className="font-mono text-xs">{event.kind}</TableCell>
-                  <TableCell>{event.summary}</TableCell>
+                  <TableCell>
+                    <p>{event.summary}</p>
+                    {event.detail ? (
+                      <p className="mt-1 break-words text-xs text-muted-foreground">
+                        {event.detail}
+                      </p>
+                    ) : null}
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
