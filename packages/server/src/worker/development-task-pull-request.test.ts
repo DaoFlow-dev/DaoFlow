@@ -196,6 +196,12 @@ describe("openGitHubDevelopmentTaskPullRequest", () => {
           if (args.join(" ") === "diff --cached --quiet") {
             return Promise.resolve({ exitCode: 1, signal: null });
           }
+          if (args.join(" ") === "diff --cached --stat") {
+            onLog({ stream: "stdout", message: " README.md | 1 +", timestamp: new Date() });
+          }
+          if (args.join(" ") === "diff --cached --name-status") {
+            onLog({ stream: "stdout", message: "M\tREADME.md", timestamp: new Date() });
+          }
           if (args.join(" ") === "rev-parse HEAD") {
             onLog({ stream: "stdout", message: "abc123", timestamp: new Date() });
           }
@@ -218,6 +224,8 @@ describe("openGitHubDevelopmentTaskPullRequest", () => {
     expect(result).toMatchObject({
       status: "ok",
       commitSha: "abc123",
+      changedFiles: [{ path: "README.md", status: "M" }],
+      diffStat: "README.md | 1 +",
       pullRequestNumber: 42,
       pullRequestUrl: "https://github.com/example/development-task-pr/pull/42"
     });
@@ -230,6 +238,8 @@ describe("openGitHubDevelopmentTaskPullRequest", () => {
       "config user.email daoflow-bot@daoflow.local",
       "add -A",
       "diff --cached --quiet",
+      "diff --cached --stat",
+      "diff --cached --name-status",
       "commit -m chore: address development task #185",
       "rev-parse HEAD",
       "push --set-upstream origin HEAD:refs/heads/" + result.branchName

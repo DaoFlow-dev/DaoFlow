@@ -18,6 +18,8 @@ export interface DevelopmentTaskPullRequestResult {
   status: "ok" | "failed";
   branchName?: string;
   commitSha?: string;
+  changedFiles?: Array<{ path: string; status: string }>;
+  diffStat?: string;
   pullRequestNumber?: number;
   pullRequestUrl?: string;
   logPath: string;
@@ -94,6 +96,21 @@ async function captureGit(input: {
     }
   });
   return lines.join("\n").trim();
+}
+
+function parseChangedFiles(output: string) {
+  return output
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const [status, ...pathParts] = line.split("\t");
+      return {
+        status: status ?? "unknown",
+        path: pathParts.join(" -> ")
+      };
+    })
+    .filter((file) => file.path);
 }
 
 export async function openGitHubDevelopmentTaskPullRequest(input: {
@@ -176,6 +193,23 @@ export async function openGitHubDevelopmentTaskPullRequest(input: {
       };
     }
 
+    const [diffStat, changedFilesOutput] = await Promise.all([
+      captureGit({
+        execRunner,
+        repoPath: input.workspace.repoPath,
+        args: ["diff", "--cached", "--stat"],
+        onLog: input.onLog,
+        envOverrides
+      }),
+      captureGit({
+        execRunner,
+        repoPath: input.workspace.repoPath,
+        args: ["diff", "--cached", "--name-status"],
+        onLog: input.onLog,
+        envOverrides
+      })
+    ]);
+
     await runGit({
       execRunner,
       repoPath: input.workspace.repoPath,
@@ -210,6 +244,8 @@ export async function openGitHubDevelopmentTaskPullRequest(input: {
       status: "ok",
       branchName,
       commitSha,
+      changedFiles: parseChangedFiles(changedFilesOutput),
+      diffStat,
       logPath,
       ...pullRequest
     };
