@@ -71,6 +71,8 @@ This file holds the detailed CLI contract, scope map, and agent-facing command r
 | `server add`         | command               | `server:write`                                  | yes      |
 | `server proxy`       | command               | `server:write`                                  | yes      |
 | `server ops`         | read/command          | `server:read`, `server:write`                   | varies   |
+| `tunnels`            | read/command          | `server:read`, `server:write`                   | varies   |
+| `log-drains`         | read/command          | `server:read`, `server:write`                   | varies   |
 | `services`           | read/command          | `service:read`, `service:update`                | varies   |
 | `projects`           | read/command          | `deploy:read`, `deploy:start`, `service:update` | varies   |
 | `templates`          | read/planning/command | none, `deploy:read`, `deploy:start`             | varies   |
@@ -212,6 +214,37 @@ This file holds the detailed CLI contract, scope map, and agent-facing command r
 - Host terminal access is web-only in this iteration and uses `/ws/host-terminal` with `terminal:open`
 - JSON operation success shape:
   - `{ "ok": true, "data": { "status": "ok", "operation": { "id": string, "serverId": string, "kind": string, "status": string, "dryRun": boolean, "summary": string | null, "createdAt": string, "completedAt": string | null }, "result": unknown } }`
+
+## Managed Tunnels Contract
+
+- `daoflow tunnels list` reads registered tunnel inventory and observed routes through `managedTunnels`
+- `daoflow tunnels create --yes` registers a managed tunnel and requires `server:write`
+- `daoflow tunnels sync --yes` replaces observed routes for one tunnel and requires `server:write`
+- `daoflow tunnels update --yes` updates tunnel metadata and requires `server:write`
+- `daoflow tunnels rotate --yes` replaces encrypted tunnel credentials and requires `server:write`
+- `daoflow tunnels delete --yes` removes a tunnel and its observed routes and requires `server:write`
+- JSON list success shape:
+  - `{ "ok": true, "data": { "tunnels": [{ "id": string, "name": string, "teamId": string, "tunnelId": string | null, "domain": string | null, "status": string, "hasCredentials": boolean, "createdAt": string, "updatedAt": string, "routes": [{ "id": string, "hostname": string, "service": string, "path": string | null, "status": string, "createdAt": string, "updatedAt": string }] }] } }`
+- JSON mutation success shapes:
+  - `tunnels create|sync|update|rotate`: `{ "ok": true, "data": { "tunnel": { "id": string, "name": string, "status": string, "hasCredentials": boolean, "routes": [] } } }`
+  - `tunnels delete`: `{ "ok": true, "data": { "deleted": true, "tunnelId": string } }`
+
+## Log Drains Contract
+
+- `daoflow log-drains list` reads configured external log drains through `logDrains`
+- `daoflow log-drains deliveries` reads recent delivery attempts through `logDrainDeliveries`
+- `daoflow log-drains create --yes` creates a drain and requires `server:write`
+- `daoflow log-drains test --yes` sends a test payload and records a delivery attempt
+- `daoflow log-drains retry --yes` retries a failed delivery by creating a new delivery row
+- `daoflow log-drains delete --yes` deletes a drain and requires `server:write`
+- JSON list success shape:
+  - `{ "ok": true, "data": { "drains": [{ "id": string, "name": string, "teamId": string, "destinationType": string, "endpointUrl": string, "hasHeaders": boolean, "serviceFilter": string | null, "environmentFilter": string | null, "status": string, "lastDeliveredAt": string | null, "lastError": string | null, "createdAt": string, "updatedAt": string }] } }`
+- JSON delivery success shape:
+  - `{ "ok": true, "data": { "deliveries": [{ "id": string, "drainId": string, "status": string, "httpStatus": string | null, "payload": object, "responseBody": string | null, "error": string | null, "attemptedAt": string, "completedAt": string | null }] } }`
+- JSON mutation success shapes:
+  - `log-drains create`: `{ "ok": true, "data": { "drain": { "id": string, "name": string, "status": string } } }`
+  - `log-drains test|retry`: `{ "ok": true, "data": { "delivery": { "id": string, "status": "delivered" | "failed", "httpStatus": string | null } } }`
+  - `log-drains delete`: `{ "ok": true, "data": { "deleted": true, "drainId": string } }`
 
 ## Plan Command Contract
 

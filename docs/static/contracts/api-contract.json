@@ -1154,6 +1154,125 @@
       }
     },
     {
+      "name": "createLogDrain",
+      "summary": "create Log Drain",
+      "path": "/trpc/createLogDrain",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator"],
+      "requiredScopes": ["server:write"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "destinationType": {
+            "type": "string",
+            "enum": ["webhook", "generic_http", "loki", "s3"]
+          },
+          "endpointUrl": {
+            "type": "string",
+            "format": "uri"
+          },
+          "headers": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "serviceFilter": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 100
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "environmentFilter": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 100
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": ["name", "destinationType", "endpointUrl"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "createManagedTunnel",
+      "summary": "create Managed Tunnel",
+      "path": "/trpc/createManagedTunnel",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator"],
+      "requiredScopes": ["server:write"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "tunnelId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "domain": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "credentials": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": ["name"],
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "createProject",
       "summary": "create Project",
       "path": "/trpc/createProject",
@@ -1835,6 +1954,50 @@
           }
         },
         "required": ["providerId"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "deleteLogDrain",
+      "summary": "delete Log Drain",
+      "path": "/trpc/deleteLogDrain",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator"],
+      "requiredScopes": ["server:write"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "drainId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["drainId"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "deleteManagedTunnel",
+      "summary": "delete Managed Tunnel",
+      "path": "/trpc/deleteManagedTunnel",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator"],
+      "requiredScopes": ["server:write"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "tunnelId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["tunnelId"],
         "additionalProperties": false
       }
     },
@@ -2644,6 +2807,72 @@
       "inputSchema": null
     },
     {
+      "name": "logDrainDeliveries",
+      "summary": "log Drain Deliveries",
+      "path": "/trpc/logDrainDeliveries",
+      "method": "GET",
+      "lane": "read",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator", "developer", "viewer", "agent"],
+      "requiredScopes": ["server:read"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "logDrains",
+      "summary": "log Drains",
+      "path": "/trpc/logDrains",
+      "method": "GET",
+      "lane": "read",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator", "developer", "viewer", "agent"],
+      "requiredScopes": ["server:read"],
+      "inputSchema": null
+    },
+    {
+      "name": "managedTunnel",
+      "summary": "managed Tunnel",
+      "path": "/trpc/managedTunnel",
+      "method": "GET",
+      "lane": "read",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator", "developer", "viewer", "agent"],
+      "requiredScopes": ["server:read"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "tunnelId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["tunnelId"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "managedTunnels",
+      "summary": "managed Tunnels",
+      "path": "/trpc/managedTunnels",
+      "method": "GET",
+      "lane": "read",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator", "developer", "viewer", "agent"],
+      "requiredScopes": ["server:read"],
+      "inputSchema": null
+    },
+    {
       "name": "operationalMaintenanceReport",
       "summary": "operational Maintenance Report",
       "path": "/trpc/operationalMaintenanceReport",
@@ -3265,6 +3494,28 @@
       }
     },
     {
+      "name": "retryLogDrainDelivery",
+      "summary": "retry Log Drain Delivery",
+      "path": "/trpc/retryLogDrainDelivery",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator"],
+      "requiredScopes": ["server:write"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "deliveryId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["deliveryId"],
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "revokeAgentToken",
       "summary": "revoke Agent Token",
       "path": "/trpc/revokeAgentToken",
@@ -3352,6 +3603,32 @@
           }
         },
         "required": ["serviceId"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "rotateManagedTunnelCredentials",
+      "summary": "rotate Managed Tunnel Credentials",
+      "path": "/trpc/rotateManagedTunnelCredentials",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator"],
+      "requiredScopes": ["server:write"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "tunnelId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "credentials": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["tunnelId", "credentials"],
         "additionalProperties": false
       }
     },
@@ -3699,6 +3976,64 @@
       }
     },
     {
+      "name": "syncManagedTunnelRoutes",
+      "summary": "sync Managed Tunnel Routes",
+      "path": "/trpc/syncManagedTunnelRoutes",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator"],
+      "requiredScopes": ["server:write"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "tunnelId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "routes": {
+            "maxItems": 100,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "hostname": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 255
+                },
+                "service": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 255
+                },
+                "path": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 255
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "status": {
+                  "type": "string",
+                  "enum": ["active", "inactive", "error"]
+                }
+              },
+              "required": ["hostname", "service"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["tunnelId", "routes"],
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "testBackupDestination",
       "summary": "test Backup Destination",
       "path": "/trpc/testBackupDestination",
@@ -3738,6 +4073,28 @@
           }
         },
         "required": ["id"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "testLogDrain",
+      "summary": "test Log Drain",
+      "path": "/trpc/testLogDrain",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator"],
+      "requiredScopes": ["server:write"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "drainId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["drainId"],
         "additionalProperties": false
       }
     },
@@ -4249,6 +4606,59 @@
           }
         },
         "required": ["environmentId"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "updateManagedTunnel",
+      "summary": "update Managed Tunnel",
+      "path": "/trpc/updateManagedTunnel",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator"],
+      "requiredScopes": ["server:write"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "tunnelId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "providerTunnelId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "domain": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": ["active", "inactive", "error"]
+          }
+        },
+        "required": ["tunnelId"],
         "additionalProperties": false
       }
     },

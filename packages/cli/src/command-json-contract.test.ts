@@ -6,12 +6,14 @@ import { join } from "node:path";
 import { backupCommand } from "./commands/backup";
 import { deployCommand } from "./commands/deploy";
 import { envCommand } from "./commands/env";
+import { logDrainsCommand } from "./commands/log-drains";
 import { logsCommand } from "./commands/logs";
 import { notificationsCommand } from "./commands/notifications";
 import { registerConfigCommand } from "./commands/config";
 import { planCommand } from "./commands/plan";
 import { serverCommand } from "./commands/server";
 import { tokenCommand } from "./commands/token";
+import { tunnelsCommand } from "./commands/tunnels";
 import { runCli } from "./program";
 
 class ExitSignal extends Error {
@@ -555,6 +557,106 @@ describe("CLI JSON contract", () => {
         },
         result: { exitedContainers: 0 }
       }
+    });
+  });
+
+  test("tunnels create requires confirmation before execution", async () => {
+    const program = new Command().name("daoflow");
+    program.addCommand(tunnelsCommand());
+
+    const result = await captureCommandExecution(async () => {
+      await program.parseAsync([
+        "node",
+        "daoflow",
+        "tunnels",
+        "create",
+        "--name",
+        "edge",
+        "--json"
+      ]);
+    });
+
+    expect(result.exitCode).toBe(1);
+    expect(JSON.parse(result.logs[0])).toEqual({
+      ok: false,
+      error: "Create managed tunnel edge. Pass --yes to confirm.",
+      code: "CONFIRMATION_REQUIRED"
+    });
+  });
+
+  test("log-drains create requires confirmation before execution", async () => {
+    const program = new Command().name("daoflow");
+    program.addCommand(logDrainsCommand());
+
+    const result = await captureCommandExecution(async () => {
+      await program.parseAsync([
+        "node",
+        "daoflow",
+        "log-drains",
+        "create",
+        "--name",
+        "ops",
+        "--type",
+        "generic_http",
+        "--endpoint-url",
+        "https://logs.example.com/ingest",
+        "--json"
+      ]);
+    });
+
+    expect(result.exitCode).toBe(1);
+    expect(JSON.parse(result.logs[0])).toEqual({
+      ok: false,
+      error: "Create log drain ops. Pass --yes to confirm.",
+      code: "CONFIRMATION_REQUIRED"
+    });
+  });
+
+  test("tunnels delete requires confirmation before execution", async () => {
+    const program = new Command().name("daoflow");
+    program.addCommand(tunnelsCommand());
+
+    const result = await captureCommandExecution(async () => {
+      await program.parseAsync([
+        "node",
+        "daoflow",
+        "tunnels",
+        "delete",
+        "--tunnel-id",
+        "tun_123",
+        "--json"
+      ]);
+    });
+
+    expect(result.exitCode).toBe(1);
+    expect(JSON.parse(result.logs[0])).toEqual({
+      ok: false,
+      error: "Delete managed tunnel tun_123. Pass --yes to confirm.",
+      code: "CONFIRMATION_REQUIRED"
+    });
+  });
+
+  test("log-drains retry requires confirmation before execution", async () => {
+    const program = new Command().name("daoflow");
+    program.addCommand(logDrainsCommand());
+
+    const result = await captureCommandExecution(async () => {
+      await program.parseAsync([
+        "node",
+        "daoflow",
+        "log-drains",
+        "retry",
+        "--delivery-id",
+        "ldl_123",
+        "--json"
+      ]);
+    });
+
+    expect(result.exitCode).toBe(1);
+    expect(JSON.parse(result.logs[0])).toEqual({
+      ok: false,
+      error: "Retry log drain delivery ldl_123. Pass --yes to confirm.",
+      code: "CONFIRMATION_REQUIRED"
     });
   });
 

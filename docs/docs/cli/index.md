@@ -68,6 +68,8 @@ Every command accepts these flags:
 | [`approvals`](./approvals)       | read/command | any valid token / `approvals:decide`            | varies   |
 | [`status`](./status)             | read         | `server:read`                                   | no       |
 | [`server add`](./server)         | command      | `server:write`                                  | yes      |
+| `tunnels`                        | read/command | `server:read` / `server:write`                  | varies   |
+| `log-drains`                     | read/command | `server:read` / `server:write`                  | varies   |
 | `services`                       | read         | `service:read`                                  | no       |
 | [`projects`](./projects)         | read/command | `deploy:read`, `deploy:start`, `service:update` | varies   |
 | [`templates`](./templates)       | varies       | none / `deploy:read` / `deploy:start`           | varies   |

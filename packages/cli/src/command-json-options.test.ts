@@ -7,11 +7,13 @@ import { diffCommand } from "./commands/diff";
 import { doctorCommand } from "./commands/doctor";
 import { envCommand } from "./commands/env";
 import { loginCommand } from "./commands/login";
+import { logDrainsCommand } from "./commands/log-drains";
 import { logsCommand } from "./commands/logs";
 import { notificationsCommand } from "./commands/notifications";
 import { planCommand } from "./commands/plan";
 import { serverCommand } from "./commands/server";
 import { backupCommand } from "./commands/backup";
+import { tunnelsCommand } from "./commands/tunnels";
 import { volumesCommand } from "./commands/volumes";
 import { rollbackCommand } from "./commands/rollback";
 
@@ -125,6 +127,24 @@ describe("CLI JSON option coverage", () => {
     expect(logsHelp).toContain("Required scope:");
     expect(logsHelp).toContain("daoflow notifications logs --limit 50 --json");
     expect(logsHelp).toContain("Example JSON shape:");
+  });
+
+  test("tunnels and log-drains subcommands declare --json", () => {
+    const tunnels = tunnelsCommand();
+    expect(hasLongOption(getSubcommand(tunnels, "list"), "--json")).toBe(true);
+    expect(hasLongOption(getSubcommand(tunnels, "create"), "--json")).toBe(true);
+    expect(hasLongOption(getSubcommand(tunnels, "sync"), "--json")).toBe(true);
+    expect(hasLongOption(getSubcommand(tunnels, "update"), "--json")).toBe(true);
+    expect(hasLongOption(getSubcommand(tunnels, "rotate"), "--json")).toBe(true);
+    expect(hasLongOption(getSubcommand(tunnels, "delete"), "--json")).toBe(true);
+
+    const drains = logDrainsCommand();
+    expect(hasLongOption(getSubcommand(drains, "list"), "--json")).toBe(true);
+    expect(hasLongOption(getSubcommand(drains, "create"), "--json")).toBe(true);
+    expect(hasLongOption(getSubcommand(drains, "test"), "--json")).toBe(true);
+    expect(hasLongOption(getSubcommand(drains, "deliveries"), "--json")).toBe(true);
+    expect(hasLongOption(getSubcommand(drains, "retry"), "--json")).toBe(true);
+    expect(hasLongOption(getSubcommand(drains, "delete"), "--json")).toBe(true);
   });
 
   test("plan declares --json", () => {

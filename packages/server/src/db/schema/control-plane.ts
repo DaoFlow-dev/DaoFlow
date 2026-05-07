@@ -4,6 +4,7 @@ export * from "./webhook-deliveries";
 export * from "./development-tasks";
 export * from "./servers";
 export * from "./server-operations";
+export * from "./log-drains";
 export * from "./projects";
 export * from "./deployments";
 export * from "./destinations";

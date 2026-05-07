@@ -15,6 +15,7 @@ export * from "./git-providers";
 export * from "./webhook-deliveries";
 export * from "./development-tasks";
 export * from "./notifications";
+export * from "./log-drains";
 export * from "./secret-providers";
 export * from "./cli-auth";
 export * from "./registries";

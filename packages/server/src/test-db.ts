@@ -91,6 +91,8 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
       cliAuthRequests: string | null;
       developmentTasks: string | null;
       serverOperations: string | null;
+      logDrains: string | null;
+      logDrainsTeamId: string | null;
     }>(`
       SELECT
         (SELECT count(*)::int FROM pg_tables WHERE schemaname = 'public') AS "tableCount",
@@ -105,7 +107,9 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
         to_regclass('public.repository_credentials') AS "repositoryCredentials",
         to_regclass('public.cli_auth_requests') AS "cliAuthRequests",
         to_regclass('public.development_tasks') AS "developmentTasks"
-        ,to_regclass('public.server_operations') AS "serverOperations"
+        ,to_regclass('public.server_operations') AS "serverOperations",
+        to_regclass('public.log_drains') AS "logDrains",
+        (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'log_drains' AND column_name = 'team_id') AS "logDrainsTeamId"
     `);
     const row = result.rows[0];
     return Boolean(
@@ -122,7 +126,9 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
       row.repositoryCredentials &&
       row.cliAuthRequests &&
       row.developmentTasks &&
-      row.serverOperations
+      row.serverOperations &&
+      row.logDrains &&
+      row.logDrainsTeamId
     );
   } finally {
     await client.end();
@@ -173,6 +179,8 @@ async function readPoolSchemaState() {
     cliAuthRequests: string | null;
     developmentTasks: string | null;
     serverOperations: string | null;
+    logDrains: string | null;
+    logDrainsTeamId: string | null;
   }>(`
     SELECT
       current_database() AS "databaseName",
@@ -188,7 +196,9 @@ async function readPoolSchemaState() {
       to_regclass('public.repository_credentials') AS "repositoryCredentials",
       to_regclass('public.cli_auth_requests') AS "cliAuthRequests",
       to_regclass('public.development_tasks') AS "developmentTasks"
-      ,to_regclass('public.server_operations') AS "serverOperations"
+      ,to_regclass('public.server_operations') AS "serverOperations",
+      to_regclass('public.log_drains') AS "logDrains",
+      (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'log_drains' AND column_name = 'team_id') AS "logDrainsTeamId"
   `);
 
   return result.rows[0];
@@ -218,7 +228,9 @@ async function ensurePooledTestSchemaReady(connectionString: string) {
         state.repositoryCredentials &&
         state.cliAuthRequests &&
         state.developmentTasks &&
-        state.serverOperations
+        state.serverOperations &&
+        state.logDrains &&
+        state.logDrainsTeamId
       ) {
         return;
       }

@@ -33,6 +33,7 @@ import { limitInput } from "../schemas";
 import { backupReadRouter } from "./read-backups";
 import { developmentTaskReadRouter } from "./read-development-tasks";
 import { deploymentReadRouter } from "./read-deployments";
+import { managedOperationsReadRouter } from "./read-managed-operations";
 import { serverOperationsReadRouter } from "./read-server-operations";
 import { serviceAccessActor } from "./service-scope";
 
@@ -298,5 +299,6 @@ export const readRouter = t.mergeRouters(
   deploymentReadRouter,
   backupReadRouter,
   developmentTaskReadRouter,
+  managedOperationsReadRouter,
   serverOperationsReadRouter
 );

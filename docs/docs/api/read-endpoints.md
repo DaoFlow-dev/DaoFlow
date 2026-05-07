@@ -48,6 +48,10 @@ These routes require both authentication and the listed scope set:
 | `backupRunDetails`             | `backup:read`     | One backup run with detailed metadata                          |
 | `resolveEnvironmentSecrets`    | `secrets:read`    | Secret resolution inventory for one environment                |
 | `listDestinationFiles`         | `backup:run`      | Remote file listing for one backup destination                 |
+| `managedTunnels`               | `server:read`     | Managed tunnel inventory with observed routes                  |
+| `managedTunnel`                | `server:read`     | One managed tunnel with observed routes                        |
+| `logDrains`                    | `server:read`     | Configured external log drains                                 |
+| `logDrainDeliveries`           | `server:read`     | Recent log drain delivery attempts                             |
 
 ## Examples
 

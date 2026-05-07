@@ -167,6 +167,21 @@ Host terminal access is separate from service container terminals. The web UI op
 `/ws/host-terminal`, records `server.terminal.open` and `server.terminal.close`, and requires the
 exceptional `terminal:open` scope.
 
+## Managed Tunnels
+
+Managed tunnels track external route providers separately from service domains. Operators can
+register a tunnel, sync observed hostnames to services, rotate stored provider credentials, and
+delete stale tunnel records from the dashboard or CLI.
+
+```bash
+daoflow tunnels list --json
+daoflow tunnels create --name edge --domain app.example.com --yes
+daoflow tunnels sync --tunnel-id tun_123 --route app.example.com=web:3000 --yes
+```
+
+Service-domain observation still works without managed tunnels. The tunnel inventory gives
+operators a safer place to record what the external provider is currently exposing.
+
 ## Server Permissions
 
 Access to server operations requires specific scopes:
@@ -176,8 +191,10 @@ Access to server operations requires specific scopes:
 | List servers         | `server:read`   |
 | View server health   | `server:read`   |
 | View operation logs  | `server:read`   |
+| View managed tunnels | `server:read`   |
 | Register server      | `server:write`  |
 | Update server config | `server:write`  |
 | Cleanup and patching | `server:write`  |
+| Manage tunnels       | `server:write`  |
 | Open host terminal   | `terminal:open` |
 | Remove server        | `server:write`  |

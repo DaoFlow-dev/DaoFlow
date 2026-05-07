@@ -65,6 +65,25 @@ GET /trpc/deploymentLogs?input={"json":{"deploymentId":"dep_abc123","query":"rea
 - Structured events are normalized and queryable
 - AI-generated summaries link back to exact log line IDs
 
+## External Log Drains
+
+Operators can configure external log drains for webhook-style destinations, send a test payload,
+inspect delivery attempts, and retry failed deliveries.
+
+```bash
+daoflow log-drains list --json
+daoflow log-drains create \
+  --name ops-webhook \
+  --type generic_http \
+  --endpoint-url https://logs.example.com/ingest \
+  --yes
+daoflow log-drains deliveries --json
+```
+
+Delivery failures are stored with HTTP status, response body, and error text so operators can see
+what failed before retrying.
+
 ## Required Scope
 
-`logs:read`
+Reading deployment logs requires `logs:read`. Managing external log drains requires `server:read`
+for inventory and `server:write` for create, test, retry, and delete actions.

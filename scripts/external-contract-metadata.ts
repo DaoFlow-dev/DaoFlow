@@ -232,6 +232,36 @@ apiProcedureAccess.collectServerResources = {
 
 addApiGroup(
   apiProcedureAccess,
+  ["managedTunnels", "managedTunnel", "logDrains", "logDrainDeliveries"],
+  {
+    auth: "authenticated",
+    requiredRoles: READ_ROLES,
+    requiredScopes: ["server:read"]
+  }
+);
+
+addApiGroup(
+  apiProcedureAccess,
+  [
+    "createManagedTunnel",
+    "updateManagedTunnel",
+    "syncManagedTunnelRoutes",
+    "rotateManagedTunnelCredentials",
+    "deleteManagedTunnel",
+    "createLogDrain",
+    "deleteLogDrain",
+    "testLogDrain",
+    "retryLogDrainDelivery"
+  ],
+  {
+    auth: "authenticated",
+    requiredRoles: OPS_ROLES,
+    requiredScopes: ["server:write"]
+  }
+);
+
+addApiGroup(
+  apiProcedureAccess,
   [
     "createProject",
     "createEnvironment",
@@ -637,6 +667,20 @@ export const cliCommandMeta: Record<string, CliCommandMeta> = {
   "server ops cleanup": { lane: "command", requiredScopes: ["server:write"], mutating: true },
   "server ops patch": { lane: "command", requiredScopes: ["server:write"], mutating: true },
   "server ops history": { lane: "read", requiredScopes: ["server:read"], mutating: false },
+  tunnels: { lane: "read", requiredScopes: ["server:read"], mutating: false },
+  "tunnels list": { lane: "read", requiredScopes: ["server:read"], mutating: false },
+  "tunnels create": { lane: "command", requiredScopes: ["server:write"], mutating: true },
+  "tunnels sync": { lane: "command", requiredScopes: ["server:write"], mutating: true },
+  "tunnels update": { lane: "command", requiredScopes: ["server:write"], mutating: true },
+  "tunnels rotate": { lane: "command", requiredScopes: ["server:write"], mutating: true },
+  "tunnels delete": { lane: "command", requiredScopes: ["server:write"], mutating: true },
+  "log-drains": { lane: "read", requiredScopes: ["server:read"], mutating: false },
+  "log-drains list": { lane: "read", requiredScopes: ["server:read"], mutating: false },
+  "log-drains deliveries": { lane: "read", requiredScopes: ["server:read"], mutating: false },
+  "log-drains create": { lane: "command", requiredScopes: ["server:write"], mutating: true },
+  "log-drains test": { lane: "command", requiredScopes: ["server:write"], mutating: true },
+  "log-drains retry": { lane: "command", requiredScopes: ["server:write"], mutating: true },
+  "log-drains delete": { lane: "command", requiredScopes: ["server:write"], mutating: true },
   projects: { lane: "read", requiredScopes: ["deploy:read"], mutating: false },
   "projects list": { lane: "read", requiredScopes: ["deploy:read"], mutating: false },
   "projects show": { lane: "read", requiredScopes: ["deploy:read"], mutating: false },

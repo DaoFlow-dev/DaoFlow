@@ -18,10 +18,10 @@ Scopes follow the pattern `resource:action`:
 
 ### Infrastructure
 
-| Scope          | Description                                                                    |
-| -------------- | ------------------------------------------------------------------------------ |
-| `server:read`  | List servers, view readiness, resources, operation history, and operation logs |
-| `server:write` | Register, update, remove, cleanup, or patch-plan servers                       |
+| Scope          | Description                                                                                         |
+| -------------- | --------------------------------------------------------------------------------------------------- |
+| `server:read`  | List servers, view readiness, resources, tunnels, log drains, operation history, and operation logs |
+| `server:write` | Register, update, remove, cleanup, patch-plan servers, manage tunnels, or manage log drains         |
 
 ### Deployment
 

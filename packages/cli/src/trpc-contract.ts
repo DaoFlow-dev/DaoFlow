@@ -982,6 +982,58 @@ export interface NotificationDeliveryLogOutput {
   sentAt: string;
 }
 
+export interface ManagedTunnelOutput {
+  id: string;
+  name: string;
+  teamId: string;
+  tunnelId: string | null;
+  domain: string | null;
+  status: string;
+  config: unknown;
+  hasCredentials: boolean;
+  createdAt: string;
+  updatedAt: string;
+  routes: Array<{
+    id: string;
+    tunnelId: string;
+    hostname: string;
+    service: string;
+    path: string | null;
+    status: string;
+    createdAt: string;
+    updatedAt: string;
+  }>;
+}
+
+export interface LogDrainOutput {
+  id: string;
+  name: string;
+  teamId: string;
+  destinationType: string;
+  endpointUrl: string;
+  hasHeaders: boolean;
+  serviceFilter: string | null;
+  environmentFilter: string | null;
+  status: string;
+  metadata: unknown;
+  lastDeliveredAt: string | null;
+  lastError: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface LogDrainDeliveryOutput {
+  id: string;
+  drainId: string;
+  status: string;
+  httpStatus: string | null;
+  payload: unknown;
+  responseBody: string | null;
+  error: string | null;
+  attemptedAt: string;
+  completedAt: string | null;
+}
+
 export interface DaoFlowTRPC {
   viewer: QueryProcedure<ViewerOutput>;
   health: QueryProcedure<HealthOutput>;
@@ -1342,5 +1394,65 @@ export interface DaoFlowTRPC {
   >;
   listChannels: QueryProcedure<NotificationChannelOutput[]>;
   listDeliveryLogs: QueryProcedure<NotificationDeliveryLogOutput[], { limit: number }>;
+  managedTunnels: QueryProcedure<ManagedTunnelOutput[]>;
+  managedTunnel: QueryProcedure<ManagedTunnelOutput, { tunnelId: string }>;
+  createManagedTunnel: MutationProcedure<
+    {
+      name: string;
+      tunnelId?: string | null;
+      domain?: string | null;
+      credentials?: string | null;
+    },
+    ManagedTunnelOutput
+  >;
+  updateManagedTunnel: MutationProcedure<
+    {
+      tunnelId: string;
+      name?: string;
+      providerTunnelId?: string | null;
+      domain?: string | null;
+      status?: "active" | "inactive" | "error";
+    },
+    ManagedTunnelOutput
+  >;
+  syncManagedTunnelRoutes: MutationProcedure<
+    {
+      tunnelId: string;
+      routes: Array<{
+        hostname: string;
+        service: string;
+        path?: string | null;
+        status?: "active" | "inactive" | "error";
+      }>;
+    },
+    ManagedTunnelOutput
+  >;
+  rotateManagedTunnelCredentials: MutationProcedure<
+    { tunnelId: string; credentials: string },
+    ManagedTunnelOutput
+  >;
+  deleteManagedTunnel: MutationProcedure<{ tunnelId: string }, { deleted: true; tunnelId: string }>;
+  logDrains: QueryProcedure<LogDrainOutput[]>;
+  logDrainDeliveries: QueryProcedure<LogDrainDeliveryOutput[], { limit?: number }>;
+  createLogDrain: MutationProcedure<
+    {
+      name: string;
+      destinationType: "webhook" | "generic_http" | "loki" | "s3";
+      endpointUrl: string;
+      headers?: Record<string, string>;
+      serviceFilter?: string | null;
+      environmentFilter?: string | null;
+    },
+    LogDrainOutput
+  >;
+  deleteLogDrain: MutationProcedure<{ drainId: string }, { deleted: true; drainId: string }>;
+  testLogDrain: MutationProcedure<
+    { drainId: string },
+    { drain: LogDrainOutput; delivery: LogDrainDeliveryOutput }
+  >;
+  retryLogDrainDelivery: MutationProcedure<
+    { deliveryId: string },
+    { originalDeliveryId: string; drainName: string; delivery: LogDrainDeliveryOutput }
+  >;
   configDiff: QueryProcedure<ConfigDiffOutput, { deploymentIdA: string; deploymentIdB: string }>;
 }

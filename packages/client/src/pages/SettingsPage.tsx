@@ -12,7 +12,8 @@ import {
   HardDrive,
   GitBranch,
   Lock,
-  Boxes
+  Boxes,
+  Network
 } from "lucide-react";
 import GitProvidersTab from "@/components/GitProvidersTab";
 import SecretProvidersTab from "@/components/SecretProvidersTab";
@@ -23,6 +24,7 @@ import { UsersSettingsTab } from "@/components/settings/UsersSettingsTab";
 import { TokensSettingsTab } from "@/components/settings/TokensSettingsTab";
 import { SecuritySettingsTab } from "@/components/settings/SecuritySettingsTab";
 import { VolumeRegistryPanel } from "@/components/settings/VolumeRegistryPanel";
+import { ManagedOperationsPanel } from "@/components/settings/ManagedOperationsPanel";
 import { useState } from "react";
 
 const SETTINGS_TABS = [
@@ -32,6 +34,7 @@ const SETTINGS_TABS = [
   "security",
   "notifications",
   "volumes",
+  "operations",
   "registries",
   "git",
   "secrets"
@@ -59,6 +62,7 @@ export default function SettingsPage() {
   const caps = viewer.data ? roleCapabilities[currentRole] : [];
   const canManageRegistries = caps.includes("server:write");
   const canManageMaintenance = caps.includes("server:write");
+  const canManageOperations = caps.includes("server:write");
   const maintenanceReport = trpc.operationalMaintenanceReport.useQuery(undefined, {
     enabled: Boolean(session.data) && canManageMaintenance
   });
@@ -137,6 +141,9 @@ export default function SettingsPage() {
             <TabsTrigger value="volumes" className="gap-1.5">
               <HardDrive size={14} /> Volumes
             </TabsTrigger>
+            <TabsTrigger value="operations" className="gap-1.5">
+              <Network size={14} /> Operations
+            </TabsTrigger>
             {canManageRegistries ? (
               <TabsTrigger value="registries" className="gap-1.5">
                 <Boxes size={14} /> Registries
@@ -214,6 +221,12 @@ export default function SettingsPage() {
             {activeTab === "volumes" && (
               <div className="mt-4">
                 <VolumeRegistryPanel canManage={caps.includes("volumes:write")} />
+              </div>
+            )}
+
+            {activeTab === "operations" && (
+              <div className="mt-4">
+                <ManagedOperationsPanel canManage={canManageOperations} />
               </div>
             )}
 

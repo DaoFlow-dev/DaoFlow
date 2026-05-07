@@ -1380,6 +1380,217 @@
       "supportsYes": true
     },
     {
+      "path": "log-drains",
+      "summary": "Manage external log drains",
+      "lane": "read",
+      "requiredScopes": ["server:read"],
+      "mutating": false,
+      "hasAction": false,
+      "hasSubcommands": true,
+      "aliases": [],
+      "arguments": [],
+      "options": [],
+      "supportsJson": false,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
+      "path": "log-drains create",
+      "summary": "Configure an external log drain",
+      "lane": "command",
+      "requiredScopes": ["server:write"],
+      "mutating": true,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--name <name>",
+          "description": "Drain name",
+          "required": true
+        },
+        {
+          "flags": "--type <type>",
+          "description": "webhook, generic_http, loki, or s3",
+          "required": true
+        },
+        {
+          "flags": "--endpoint-url <url>",
+          "description": "Delivery endpoint URL",
+          "required": true
+        },
+        {
+          "flags": "--header <key=value>",
+          "description": "HTTP header",
+          "required": false
+        },
+        {
+          "flags": "--service <name>",
+          "description": "Service filter",
+          "required": false
+        },
+        {
+          "flags": "--environment <name>",
+          "description": "Environment filter",
+          "required": false
+        },
+        {
+          "flags": "-y, --yes",
+          "description": "Skip confirmation prompt",
+          "required": false
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": true
+    },
+    {
+      "path": "log-drains delete",
+      "summary": "Delete a log drain",
+      "lane": "command",
+      "requiredScopes": ["server:write"],
+      "mutating": true,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--drain-id <id>",
+          "description": "Log drain ID",
+          "required": true
+        },
+        {
+          "flags": "-y, --yes",
+          "description": "Skip confirmation prompt",
+          "required": false
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": true
+    },
+    {
+      "path": "log-drains deliveries",
+      "summary": "List log drain delivery attempts",
+      "lane": "read",
+      "requiredScopes": ["server:read"],
+      "mutating": false,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--limit <n>",
+          "description": "Delivery attempts to show",
+          "required": false
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
+      "path": "log-drains list",
+      "summary": "List configured log drains",
+      "lane": "read",
+      "requiredScopes": ["server:read"],
+      "mutating": false,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
+      "path": "log-drains retry",
+      "summary": "Retry a failed log drain delivery",
+      "lane": "command",
+      "requiredScopes": ["server:write"],
+      "mutating": true,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--delivery-id <id>",
+          "description": "Delivery attempt ID",
+          "required": true
+        },
+        {
+          "flags": "-y, --yes",
+          "description": "Skip confirmation prompt",
+          "required": false
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": true
+    },
+    {
+      "path": "log-drains test",
+      "summary": "Send a test delivery to a log drain",
+      "lane": "command",
+      "requiredScopes": ["server:write"],
+      "mutating": true,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--drain-id <id>",
+          "description": "Log drain ID",
+          "required": true
+        },
+        {
+          "flags": "-y, --yes",
+          "description": "Skip confirmation prompt",
+          "required": false
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": true
+    },
+    {
       "path": "login",
       "summary": "Authenticate with a DaoFlow server",
       "lane": "session",
@@ -2925,6 +3136,242 @@
         {
           "flags": "-y, --yes",
           "description": "Skip confirmation prompt",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": true
+    },
+    {
+      "path": "tunnels",
+      "summary": "Manage observed external tunnels",
+      "lane": "read",
+      "requiredScopes": ["server:read"],
+      "mutating": false,
+      "hasAction": false,
+      "hasSubcommands": true,
+      "aliases": [],
+      "arguments": [],
+      "options": [],
+      "supportsJson": false,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
+      "path": "tunnels create",
+      "summary": "Register a managed tunnel",
+      "lane": "command",
+      "requiredScopes": ["server:write"],
+      "mutating": true,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--name <name>",
+          "description": "Tunnel display name",
+          "required": true
+        },
+        {
+          "flags": "--provider-tunnel-id <id>",
+          "description": "Provider tunnel ID",
+          "required": false
+        },
+        {
+          "flags": "--domain <domain>",
+          "description": "Primary tunnel domain",
+          "required": false
+        },
+        {
+          "flags": "--credentials <json>",
+          "description": "Provider credentials JSON",
+          "required": false
+        },
+        {
+          "flags": "-y, --yes",
+          "description": "Skip confirmation prompt",
+          "required": false
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": true
+    },
+    {
+      "path": "tunnels delete",
+      "summary": "Delete a managed tunnel",
+      "lane": "command",
+      "requiredScopes": ["server:write"],
+      "mutating": true,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--tunnel-id <id>",
+          "description": "Managed tunnel ID",
+          "required": true
+        },
+        {
+          "flags": "-y, --yes",
+          "description": "Skip confirmation prompt",
+          "required": false
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": true
+    },
+    {
+      "path": "tunnels list",
+      "summary": "List managed tunnels and observed routes",
+      "lane": "read",
+      "requiredScopes": ["server:read"],
+      "mutating": false,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
+      "path": "tunnels rotate",
+      "summary": "Rotate stored tunnel credentials",
+      "lane": "command",
+      "requiredScopes": ["server:write"],
+      "mutating": true,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--tunnel-id <id>",
+          "description": "Managed tunnel ID",
+          "required": true
+        },
+        {
+          "flags": "--credentials <json>",
+          "description": "Replacement credentials JSON",
+          "required": true
+        },
+        {
+          "flags": "-y, --yes",
+          "description": "Skip confirmation prompt",
+          "required": false
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": true
+    },
+    {
+      "path": "tunnels sync",
+      "summary": "Replace observed routes for a managed tunnel",
+      "lane": "command",
+      "requiredScopes": ["server:write"],
+      "mutating": true,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--tunnel-id <id>",
+          "description": "Managed tunnel ID",
+          "required": true
+        },
+        {
+          "flags": "--route <hostname=service>",
+          "description": "Observed route",
+          "required": false
+        },
+        {
+          "flags": "-y, --yes",
+          "description": "Skip confirmation prompt",
+          "required": false
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": true
+    },
+    {
+      "path": "tunnels update",
+      "summary": "Update managed tunnel metadata",
+      "lane": "command",
+      "requiredScopes": ["server:write"],
+      "mutating": true,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--tunnel-id <id>",
+          "description": "Managed tunnel ID",
+          "required": true
+        },
+        {
+          "flags": "--name <name>",
+          "description": "Tunnel display name",
+          "required": false
+        },
+        {
+          "flags": "--provider-tunnel-id <id>",
+          "description": "Provider tunnel ID",
+          "required": false
+        },
+        {
+          "flags": "--domain <domain>",
+          "description": "Primary tunnel domain",
+          "required": false
+        },
+        {
+          "flags": "--status <status>",
+          "description": "active, inactive, or error",
+          "required": false
+        },
+        {
+          "flags": "-y, --yes",
+          "description": "Skip confirmation prompt",
+          "required": false
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
           "required": false
         }
       ],
