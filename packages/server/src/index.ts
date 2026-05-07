@@ -15,6 +15,8 @@ import {
   stopWorker,
   startDevelopmentTaskWorker,
   stopDevelopmentTaskWorker,
+  startDevelopmentTaskWatchdogMonitor,
+  stopDevelopmentTaskWatchdogMonitor,
   startTemporalWorker,
   stopTemporalWorker,
   closeTemporalClient
@@ -186,6 +188,7 @@ async function start() {
 
   startServerReadinessMonitor();
   startDeploymentWatchdogMonitor();
+  startDevelopmentTaskWatchdogMonitor();
   startOperationalMaintenanceMonitor();
   startServiceScheduleMonitor();
 
@@ -193,6 +196,7 @@ async function start() {
     console.log(`Received ${signal}; shutting down DaoFlow control plane.`);
     stopServerReadinessMonitor();
     stopDeploymentWatchdogMonitor();
+    stopDevelopmentTaskWatchdogMonitor();
     stopOperationalMaintenanceMonitor();
     stopServiceScheduleMonitor();
     if (shouldStartDevelopmentTaskWorker()) {

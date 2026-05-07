@@ -11,6 +11,10 @@ export {
   stopDevelopmentTaskWorker
 } from "./development-task-worker";
 export {
+  startDevelopmentTaskWatchdogMonitor,
+  stopDevelopmentTaskWatchdogMonitor
+} from "./development-task-watchdog-monitor";
+export {
   startDeploymentWatchdogMonitor,
   stopDeploymentWatchdogMonitor
 } from "./deployment-watchdog-monitor";
