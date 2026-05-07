@@ -69,6 +69,25 @@ async function createGitLabDevelopmentTaskFixture(input: {
   return { projectId: projectResult.project.id };
 }
 
+function mockGitLabActorAuthorization(actor: string, accessLevel = 30) {
+  return vi.spyOn(globalThis, "fetch").mockImplementationOnce((url) => {
+    expect(requestUrl(url)).toContain(`/members/all?query=${encodeURIComponent(actor)}`);
+    return Promise.resolve(
+      new Response(JSON.stringify([{ username: actor, access_level: accessLevel }]), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      })
+    );
+  });
+}
+
+function requestUrl(url: unknown) {
+  if (typeof url === "string") return url;
+  if (url instanceof URL) return url.href;
+  if (url instanceof Request) return url.url;
+  return "";
+}
+
 describe("GitLab development task webhooks", () => {
   afterEach(() => {
     vi.restoreAllMocks();
@@ -83,24 +102,26 @@ describe("GitLab development task webhooks", () => {
       repoFullName: "example/gitlab-dev-task-label",
       webhookSecret: "gitlab-dev-task-label-secret"
     });
-    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementationOnce((_url, init) => {
-      if (typeof init?.body !== "string") {
-        throw new Error("Expected GitLab note body.");
+    const fetchMock = mockGitLabActorAuthorization("octocat").mockImplementationOnce(
+      (_url, init) => {
+        if (typeof init?.body !== "string") {
+          throw new Error("Expected GitLab note body.");
+        }
+        const body = JSON.parse(init.body) as { body?: string };
+        expect(body.body).toContain("DaoFlow accepted this task.");
+        expect(body.body).toContain("Status: queued");
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              id: 990101,
+              web_url:
+                "https://gitlab.example.com/example/gitlab-dev-task-label/-/issues/185#note_990101"
+            }),
+            { status: 201, headers: { "Content-Type": "application/json" } }
+          )
+        );
       }
-      const body = JSON.parse(init.body) as { body?: string };
-      expect(body.body).toContain("DaoFlow accepted this task.");
-      expect(body.body).toContain("Status: queued");
-      return Promise.resolve(
-        new Response(
-          JSON.stringify({
-            id: 990101,
-            web_url:
-              "https://gitlab.example.com/example/gitlab-dev-task-label/-/issues/185#note_990101"
-          }),
-          { status: 201, headers: { "Content-Type": "application/json" } }
-        )
-      );
-    });
+    );
 
     const payload = JSON.stringify({
       object_kind: "issue",
@@ -139,7 +160,7 @@ describe("GitLab development task webhooks", () => {
 
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({ ok: true, tasksQueued: 1 });
-    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+    expect(fetchMock.mock.calls[1]?.[0]).toBe(
       "https://gitlab.example.com/api/v4/projects/example%2Fgitlab-dev-task-label/issues/185/notes"
     );
 
@@ -226,7 +247,7 @@ describe("GitLab development task webhooks", () => {
       repoFullName: "example/gitlab-dev-task-note",
       webhookSecret: "gitlab-dev-task-note-secret"
     });
-    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+    mockGitLabActorAuthorization("reviewer").mockResolvedValueOnce(
       new Response(JSON.stringify({ id: 990102 }), {
         status: 201,
         headers: { "Content-Type": "application/json" }
@@ -295,5 +316,63 @@ describe("GitLab development task webhooks", () => {
       providerType: "gitlab",
       commentKind: "trigger"
     });
+  });
+
+  it("rejects a /daoflow run issue note from an actor below Developer access", async () => {
+    await resetTestDatabaseWithControlPlane();
+    await createGitLabDevelopmentTaskFixture({
+      suffix: `${Date.now()}`,
+      repoFullName: "example/gitlab-dev-task-unauthorized",
+      webhookSecret: "gitlab-dev-task-unauthorized-secret"
+    });
+    mockGitLabActorAuthorization("guest", 20);
+
+    const payload = JSON.stringify({
+      object_kind: "note",
+      event_type: "note",
+      user: { username: "guest" },
+      project: {
+        path_with_namespace: "example/gitlab-dev-task-unauthorized",
+        web_url: "https://gitlab.example.com/example/gitlab-dev-task-unauthorized"
+      },
+      issue: {
+        id: 185004,
+        iid: 188,
+        title: "Unauthorized GitLab task",
+        web_url: "https://gitlab.example.com/example/gitlab-dev-task-unauthorized/-/issues/188",
+        author: { username: "issue-author" }
+      },
+      object_attributes: {
+        id: 440104,
+        action: "create",
+        noteable_type: "Issue",
+        note: "/daoflow run",
+        url: "https://gitlab.example.com/example/gitlab-dev-task-unauthorized/-/issues/188#note_440104"
+      }
+    });
+
+    const response = await createApp().request("/api/webhooks/gitlab", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-GitLab-Event": "Note Hook",
+        "X-Gitlab-Event-UUID": "gl-dev-task-unauthorized",
+        "X-Gitlab-Token": "gitlab-dev-task-unauthorized-secret"
+      },
+      body: payload
+    });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      ok: true,
+      tasksQueued: 0,
+      trigger: "comment"
+    });
+
+    const rows = await db
+      .select()
+      .from(developmentTasks)
+      .where(eq(developmentTasks.repoFullName, "example/gitlab-dev-task-unauthorized"));
+    expect(rows).toHaveLength(0);
   });
 });

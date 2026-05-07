@@ -1,4 +1,4 @@
-import { and, eq, sql } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
 import { db } from "../connection";
 import { auditEntries } from "../schema/audit";
 import {
@@ -7,6 +7,8 @@ import {
   developmentTasks,
   sandboxRunnerProfiles
 } from "../schema/development-tasks";
+import { projects } from "../schema/projects";
+import { servers } from "../schema/servers";
 import { resolveSandboxRunnerCapabilities } from "./development-task-runner-capabilities";
 import { asRecord, newId } from "./json-helpers";
 
@@ -18,11 +20,25 @@ export interface DevelopmentTaskClaimActor {
 export async function claimNextQueuedDevelopmentTask(actor: DevelopmentTaskClaimActor) {
   const now = new Date();
   return db.transaction(async (tx) => {
-    const [runnerProfile] = await tx
-      .select()
-      .from(sandboxRunnerProfiles)
-      .where(eq(sandboxRunnerProfiles.status, "enabled"))
+    const [candidate] = await tx
+      .select({
+        task: developmentTasks,
+        runnerProfile: sandboxRunnerProfiles
+      })
+      .from(developmentTasks)
+      .innerJoin(projects, eq(projects.id, developmentTasks.projectId))
+      .innerJoin(servers, eq(servers.teamId, projects.teamId))
+      .innerJoin(
+        sandboxRunnerProfiles,
+        and(
+          eq(sandboxRunnerProfiles.serverId, servers.id),
+          eq(sandboxRunnerProfiles.status, "enabled")
+        )
+      )
+      .where(eq(developmentTasks.status, "queued"))
       .orderBy(
+        asc(developmentTasks.priority),
+        asc(developmentTasks.createdAt),
         sql`
         CASE
           WHEN ${sandboxRunnerProfiles.provider} = 'host_docker' THEN 0
@@ -32,11 +48,13 @@ export async function claimNextQueuedDevelopmentTask(actor: DevelopmentTaskClaim
         ${sandboxRunnerProfiles.createdAt} ASC
       `
       )
-      .limit(1);
+      .limit(1)
+      .for("update", { skipLocked: true });
 
-    if (!runnerProfile) {
+    if (!candidate) {
       return null;
     }
+    const { runnerProfile } = candidate;
     const runnerMetadata = asRecord(runnerProfile.metadata);
     const capabilities = resolveSandboxRunnerCapabilities({
       provider: runnerProfile.provider,
@@ -49,24 +67,7 @@ export async function claimNextQueuedDevelopmentTask(actor: DevelopmentTaskClaim
         status: "running",
         updatedAt: now
       })
-      .where(
-        and(
-          eq(developmentTasks.status, "queued"),
-          eq(
-            developmentTasks.id,
-            sql`
-              (
-                SELECT candidate.id
-                FROM ${developmentTasks} AS candidate
-                WHERE candidate.status = 'queued'
-                ORDER BY candidate.priority ASC, candidate.created_at ASC
-                LIMIT 1
-                FOR UPDATE SKIP LOCKED
-              )
-            `
-          )
-        )
-      )
+      .where(and(eq(developmentTasks.status, "queued"), eq(developmentTasks.id, candidate.task.id)))
       .returning();
 
     if (!task) {

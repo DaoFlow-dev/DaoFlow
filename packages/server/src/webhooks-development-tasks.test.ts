@@ -85,6 +85,33 @@ async function createDevelopmentTaskWebhookFixture(input: {
   };
 }
 
+function mockGitHubActorAuthorization(actor: string, permission = "write") {
+  return vi
+    .spyOn(globalThis, "fetch")
+    .mockResolvedValueOnce(
+      new Response(JSON.stringify({ token: "ghs_installation_token" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      })
+    )
+    .mockImplementationOnce((url) => {
+      expect(requestUrl(url)).toContain(`/collaborators/${actor}/permission`);
+      return Promise.resolve(
+        new Response(JSON.stringify({ permission }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" }
+        })
+      );
+    });
+}
+
+function requestUrl(url: unknown) {
+  if (typeof url === "string") return url;
+  if (url instanceof URL) return url.href;
+  if (url instanceof Request) return url.url;
+  return "";
+}
+
 describe("GitHub development task webhooks", () => {
   afterEach(() => {
     vi.restoreAllMocks();
@@ -97,8 +124,10 @@ describe("GitHub development task webhooks", () => {
       suffix: `${Date.now()}`,
       repoFullName: "example/dev-task-label",
       webhookSecret: "github-dev-task-label-secret",
-      externalInstallationId: "9101"
+      externalInstallationId: "9101",
+      githubAppCredentials: true
     });
+    mockGitHubActorAuthorization("octocat");
 
     const payload = JSON.stringify({
       action: "labeled",
@@ -164,6 +193,21 @@ describe("GitHub development task webhooks", () => {
           headers: { "Content-Type": "application/json" }
         })
       )
+      .mockImplementationOnce((url) => {
+        expect(requestUrl(url)).toContain("/collaborators/octocat/permission");
+        return Promise.resolve(
+          new Response(JSON.stringify({ permission: "write" }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" }
+          })
+        );
+      })
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ token: "ghs_installation_token" }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" }
+        })
+      )
       .mockImplementationOnce((_url, init) => {
         const rawBody = init?.body;
         if (typeof rawBody !== "string") {
@@ -219,14 +263,20 @@ describe("GitHub development task webhooks", () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({ ok: true, tasksQueued: 1 });
 
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
     expect(fetchMock.mock.calls[0]?.[0]).toBe(
       "https://api.github.com/app/installations/9105/access_tokens"
     );
     expect(fetchMock.mock.calls[1]?.[0]).toBe(
+      "https://api.github.com/repos/example/dev-task-status-comment/collaborators/octocat/permission"
+    );
+    expect(fetchMock.mock.calls[2]?.[0]).toBe(
+      "https://api.github.com/app/installations/9105/access_tokens"
+    );
+    expect(fetchMock.mock.calls[3]?.[0]).toBe(
       "https://api.github.com/repos/example/dev-task-status-comment/issues/189/comments"
     );
-    expect((fetchMock.mock.calls[1]?.[1]?.headers as Record<string, string>).Authorization).toBe(
+    expect((fetchMock.mock.calls[3]?.[1]?.headers as Record<string, string>).Authorization).toBe(
       "Bearer ghs_installation_token"
     );
 
@@ -258,8 +308,10 @@ describe("GitHub development task webhooks", () => {
       suffix: `${Date.now()}`,
       repoFullName: "example/dev-task-dedupe",
       webhookSecret: "github-dev-task-dedupe-secret",
-      externalInstallationId: "9102"
+      externalInstallationId: "9102",
+      githubAppCredentials: true
     });
+    mockGitHubActorAuthorization("octocat");
 
     const payload = JSON.stringify({
       action: "labeled",
@@ -371,8 +423,10 @@ describe("GitHub development task webhooks", () => {
       suffix: `${Date.now()}`,
       repoFullName: "example/dev-task-comment",
       webhookSecret: "github-dev-task-comment-secret",
-      externalInstallationId: "9103"
+      externalInstallationId: "9103",
+      githubAppCredentials: true
     });
+    mockGitHubActorAuthorization("reviewer");
 
     const payload = JSON.stringify({
       action: "created",
@@ -433,5 +487,63 @@ describe("GitHub development task webhooks", () => {
       providerType: "github",
       commentKind: "trigger"
     });
+  });
+
+  it("rejects a /daoflow run issue comment from an actor without write permission", async () => {
+    await resetTestDatabaseWithControlPlane();
+    const fixture = await createDevelopmentTaskWebhookFixture({
+      suffix: `${Date.now()}`,
+      repoFullName: "example/dev-task-unauthorized",
+      webhookSecret: "github-dev-task-unauthorized-secret",
+      externalInstallationId: "9106",
+      githubAppCredentials: true
+    });
+    expect(fixture.projectId).toBeTruthy();
+    mockGitHubActorAuthorization("drive-by", "read");
+
+    const payload = JSON.stringify({
+      action: "created",
+      issue: {
+        id: 185006,
+        number: 190,
+        html_url: "https://github.com/example/dev-task-unauthorized/issues/190",
+        title: "Unauthorized task",
+        user: { login: "issue-author" },
+        labels: []
+      },
+      comment: {
+        id: 440006,
+        html_url: "https://github.com/example/dev-task-unauthorized/issues/190#issuecomment-440006",
+        body: "/daoflow run",
+        user: { login: "drive-by" }
+      },
+      repository: { full_name: "example/dev-task-unauthorized" },
+      installation: { id: Number(fixture.externalInstallationId) },
+      sender: { login: "drive-by" }
+    });
+
+    const response = await createApp().request("/api/webhooks/github", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-GitHub-Event": "issue_comment",
+        "X-GitHub-Delivery": "gh-dev-task-unauthorized",
+        "X-Hub-Signature-256": signGitHubPayload("github-dev-task-unauthorized-secret", payload)
+      },
+      body: payload
+    });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      ok: true,
+      tasksQueued: 0,
+      trigger: "comment"
+    });
+
+    const rows = await db
+      .select()
+      .from(developmentTasks)
+      .where(eq(developmentTasks.repoFullName, "example/dev-task-unauthorized"));
+    expect(rows).toHaveLength(0);
   });
 });

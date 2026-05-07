@@ -13,6 +13,10 @@ import {
   recordDevelopmentTaskComment
 } from "../db/services/development-tasks";
 import { upsertQueuedGitHubDevelopmentTaskComment } from "./github-issue-comments";
+import {
+  authorizeGitHubDevelopmentTaskActor,
+  type DevelopmentTaskActorAuthorization
+} from "./development-task-trigger-authorization";
 import { buildTargetResource, writeWebhookAuditEntry } from "./webhooks-delivery";
 import type { GitHubPushEvent, WebhookTarget } from "./webhooks-types";
 
@@ -188,8 +192,46 @@ export async function processGitHubDevelopmentTaskTrigger(input: {
 
   let queued = 0;
   let deduped = 0;
+  let unauthorized = 0;
+  const actorLogin =
+    input.trigger.kind === "comment"
+      ? input.payload.comment?.user?.login
+      : input.payload.sender?.login;
 
   for (const target of input.matchingTargets) {
+    const authorization: DevelopmentTaskActorAuthorization =
+      await authorizeGitHubDevelopmentTaskActor({
+        target,
+        repoFullName: input.repoFullName,
+        actorLogin
+      }).catch((err: unknown) => ({
+        ok: false,
+        reason: err instanceof Error ? err.message : String(err)
+      }));
+
+    if (!authorization.ok) {
+      unauthorized += 1;
+      await writeWebhookAuditEntry({
+        providerType: "github",
+        repoFullName: input.repoFullName,
+        actorId: actorLogin ?? "github-webhook",
+        actorEmail: actorLogin ?? "github-webhook",
+        action: "development_task.webhook.denied",
+        inputSummary: `Denied GitHub development task trigger for ${input.repoFullName}#${issueNumber}`,
+        outcome: "denied",
+        metadata: {
+          deliveryKey: deliveryClaim.deliveryKey,
+          issueNumber,
+          trigger: input.trigger.kind,
+          actorLogin: actorLogin ?? null,
+          projectId: target.project.id,
+          reason: authorization.reason ?? "unauthorized",
+          permission: authorization.permission ?? null
+        }
+      });
+      continue;
+    }
+
     const result = await queueDevelopmentTask({
       providerType: "github",
       providerInstallationId: target.installation?.id ?? null,
@@ -252,12 +294,14 @@ export async function processGitHubDevelopmentTaskTrigger(input: {
   await finalizeWebhookDelivery({
     providerType: "github",
     deliveryKey: deliveryClaim.deliveryKey,
-    status: queued > 0 ? "queued" : deduped > 0 ? "deduped" : "ignored",
+    status:
+      queued > 0 ? "queued" : deduped > 0 ? "deduped" : unauthorized > 0 ? "rejected" : "ignored",
     metadata: {
       repoFullName: input.repoFullName,
       issueNumber,
       queued,
       deduped,
+      unauthorized,
       trigger: input.trigger.kind
     }
   });
@@ -278,6 +322,7 @@ export async function processGitHubDevelopmentTaskTrigger(input: {
       issueNumber,
       queued,
       deduped,
+      unauthorized,
       trigger: input.trigger.kind
     }
   });

@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { db } from "../connection";
 import { sandboxRunnerProfiles } from "../schema/development-tasks";
+import { servers } from "../schema/servers";
+import { teams } from "../schema/teams";
 import { resetSeededTestDatabase } from "../../test-db";
 import { claimNextQueuedDevelopmentTask } from "./development-task-claims";
 import { createProject } from "./projects";
@@ -210,6 +212,49 @@ describe("development task service", () => {
     expect(details?.runs).toHaveLength(0);
   });
 
+  it("does not claim a task with another team's runner profile", async () => {
+    const queued = await queueDevelopmentTask(taskInput());
+    await db
+      .update(sandboxRunnerProfiles)
+      .set({ status: "disabled", updatedAt: new Date() })
+      .where(eq(sandboxRunnerProfiles.id, "runner_profile_host_default"));
+    await db.insert(teams).values({
+      id: "team_dev_task_other",
+      name: "Other Dev Task Team",
+      slug: "other-dev-task-team"
+    });
+    await db.insert(servers).values({
+      id: "srv_dev_task_other",
+      name: "other-dev-task-host",
+      host: "other-dev-task-host.local",
+      region: "test",
+      teamId: "team_dev_task_other",
+      kind: "docker-engine",
+      status: "ready",
+      metadata: {}
+    });
+    await db.insert(sandboxRunnerProfiles).values({
+      id: "runner_profile_other_team",
+      name: "Other Team Runner",
+      provider: "host_docker",
+      serverId: "srv_dev_task_other",
+      image: "ghcr.io/daoflow/codex-runner:latest",
+      status: "enabled",
+      metadata: {}
+    });
+
+    const claim = await claimNextQueuedDevelopmentTask({
+      runnerId: "development-task-worker",
+      runnerLabel: "development-task-worker"
+    });
+
+    expect(claim).toBeNull();
+
+    const details = await getDevelopmentTaskDetails(queued.task.id);
+    expect(details?.task.status).toBe("queued");
+    expect(details?.runs).toHaveLength(0);
+  });
+
   it("upserts external issue comments for durable status updates", async () => {
     const queued = await queueDevelopmentTask(taskInput());
     const taskId = queued.task.id;
@@ -275,6 +320,41 @@ describe("development task service", () => {
         })
       ])
     );
+  });
+
+  it("filters sandbox runner profiles by team-owned server", async () => {
+    await db.insert(teams).values({
+      id: "team_dev_task_profiles",
+      name: "Other Profile Team",
+      slug: "other-profile-team"
+    });
+    await db.insert(servers).values({
+      id: "srv_dev_task_profiles",
+      name: "other-profile-host",
+      host: "other-profile-host.local",
+      region: "test",
+      teamId: "team_dev_task_profiles",
+      kind: "docker-engine",
+      status: "ready",
+      metadata: {}
+    });
+    await db.insert(sandboxRunnerProfiles).values({
+      id: "runner_profile_other_profiles",
+      name: "Other Profile Runner",
+      provider: "host_docker",
+      serverId: "srv_dev_task_profiles",
+      image: "ghcr.io/daoflow/codex-runner:latest",
+      status: "enabled",
+      metadata: {}
+    });
+
+    const profiles = await listSandboxRunnerProfiles({
+      teamId: "team_foundation",
+      limit: 20
+    });
+
+    expect(profiles.map((profile) => profile.id)).toContain("runner_profile_host_default");
+    expect(profiles.map((profile) => profile.id)).not.toContain("runner_profile_other_profiles");
   });
 
   it("lists the BoxLite-compatible sandbox runner profile", async () => {

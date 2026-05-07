@@ -11,6 +11,7 @@ import {
   sandboxRunnerProfiles
 } from "../schema/development-tasks";
 import { projects } from "../schema/projects";
+import { servers } from "../schema/servers";
 import type { AppRole } from "@daoflow/shared";
 import { resolveSandboxRunnerCapabilities } from "./development-task-runner-capabilities";
 import { asRecord, newId } from "./json-helpers";
@@ -438,16 +439,26 @@ export async function getDevelopmentTaskDetails(taskId: string, teamId?: string)
   };
 }
 
-export async function listSandboxRunnerProfiles(input?: { status?: string; limit?: number }) {
+export async function listSandboxRunnerProfiles(input?: {
+  status?: string;
+  teamId?: string;
+  limit?: number;
+}) {
   const statuses = input?.status ? [input.status] : ["enabled", "disabled"];
-  const rows = await db
-    .select()
+  const query = db
+    .select({ profile: sandboxRunnerProfiles })
     .from(sandboxRunnerProfiles)
-    .where(inArray(sandboxRunnerProfiles.status, statuses))
+    .innerJoin(servers, eq(servers.id, sandboxRunnerProfiles.serverId));
+  const filters = [
+    inArray(sandboxRunnerProfiles.status, statuses),
+    input?.teamId ? eq(servers.teamId, input.teamId) : undefined
+  ].filter((filter): filter is Exclude<typeof filter, undefined> => Boolean(filter));
+  const rows = await query
+    .where(and(...filters))
     .orderBy(desc(sandboxRunnerProfiles.createdAt))
     .limit(input?.limit ?? 24);
 
-  return rows.map((profile) => {
+  return rows.map(({ profile }) => {
     const metadata = asRecord(profile.metadata);
     return {
       ...profile,

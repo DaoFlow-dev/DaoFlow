@@ -4,6 +4,10 @@ import {
   recordDevelopmentTaskComment,
   recordDevelopmentTaskEvent
 } from "../db/services/development-tasks";
+import {
+  authorizeGitLabDevelopmentTaskActor,
+  type DevelopmentTaskActorAuthorization
+} from "./development-task-trigger-authorization";
 import { upsertQueuedGitLabDevelopmentTaskComment } from "./gitlab-issue-comments";
 import { buildTargetResource, writeWebhookAuditEntry } from "./webhooks-delivery";
 import type { GitLabPushEvent, WebhookTarget } from "./webhooks-types";
@@ -143,8 +147,44 @@ export async function processGitLabDevelopmentTaskTrigger(input: {
 
   let queued = 0;
   let deduped = 0;
+  let unauthorized = 0;
+  const actorUsername =
+    input.payload.user?.username ?? input.payload.user_username ?? input.payload.user_name;
 
   for (const target of input.matchingTargets) {
+    const authorization: DevelopmentTaskActorAuthorization =
+      await authorizeGitLabDevelopmentTaskActor({
+        target,
+        repoFullName: input.repoFullName,
+        actorUsername
+      }).catch((err: unknown) => ({
+        ok: false,
+        reason: err instanceof Error ? err.message : String(err)
+      }));
+
+    if (!authorization.ok) {
+      unauthorized += 1;
+      await writeWebhookAuditEntry({
+        providerType: "gitlab",
+        repoFullName: input.repoFullName,
+        actorId: actorUsername ?? "gitlab-webhook",
+        actorEmail: actorUsername ?? "gitlab-webhook",
+        action: "development_task.webhook.denied",
+        inputSummary: `Denied GitLab development task trigger for ${input.repoFullName}#${issue.number}`,
+        outcome: "denied",
+        metadata: {
+          deliveryKey: deliveryClaim.deliveryKey,
+          issueNumber: issue.number,
+          trigger: input.trigger.kind,
+          actorUsername: actorUsername ?? null,
+          projectId: target.project.id,
+          reason: authorization.reason ?? "unauthorized",
+          permission: authorization.permission ?? null
+        }
+      });
+      continue;
+    }
+
     const result = await queueDevelopmentTask({
       providerType: "gitlab",
       providerInstallationId: target.installation?.id ?? null,
@@ -207,12 +247,14 @@ export async function processGitLabDevelopmentTaskTrigger(input: {
   await finalizeWebhookDelivery({
     providerType: "gitlab",
     deliveryKey: deliveryClaim.deliveryKey,
-    status: queued > 0 ? "queued" : deduped > 0 ? "deduped" : "ignored",
+    status:
+      queued > 0 ? "queued" : deduped > 0 ? "deduped" : unauthorized > 0 ? "rejected" : "ignored",
     metadata: {
       repoFullName: input.repoFullName,
       issueNumber: issue.number,
       queued,
       deduped,
+      unauthorized,
       trigger: input.trigger.kind
     }
   });
@@ -233,6 +275,7 @@ export async function processGitLabDevelopmentTaskTrigger(input: {
       issueNumber: issue.number,
       queued,
       deduped,
+      unauthorized,
       trigger: input.trigger.kind
     }
   });

@@ -63,9 +63,11 @@ export const developmentTaskReadRouter = t.router({
         limit: z.number().int().min(1).max(100).optional()
       })
     )
-    .query(async ({ input }) => {
+    .query(async ({ ctx, input }) => {
+      const teamId = await requireViewerTeamId(ctx.session.user.id);
       return listSandboxRunnerProfiles({
         status: input.status,
+        teamId,
         limit: input.limit ?? 24
       });
     }),
