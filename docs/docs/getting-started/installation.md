@@ -72,7 +72,7 @@ Requirements:
 The `.env` file contains everything — no hidden config:
 
 ```bash
-DAOFLOW_VERSION=0.8.1
+DAOFLOW_VERSION=0.8.3
 BETTER_AUTH_URL=https://deploy.example.com
 DAOFLOW_PORT=3000
 DAOFLOW_INITIAL_ADMIN_EMAIL=admin@example.com

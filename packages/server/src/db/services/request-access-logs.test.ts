@@ -68,7 +68,7 @@ describe("request access logs", () => {
       statusCode: 403,
       durationMs: 1500,
       sourceIp: "198.51.100.20",
-      userAgent: "daoflow-cli/0.8.1",
+      userAgent: "daoflow-cli/0.8.3",
       now,
       attribution: {
         authMethod: "api-token",

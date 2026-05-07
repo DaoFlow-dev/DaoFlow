@@ -53,7 +53,7 @@ describe("AccessLogsPage", () => {
             tokenName: "agent-token",
             tokenPrefix: "dfl_agent_1",
             sourceIp: "203.0.113.10",
-            userAgent: "daoflow-cli/0.8.1",
+            userAgent: "daoflow-cli/0.8.3",
             errorCategory: "SCOPE_DENIED",
             requiredScopes: ["deploy:start"],
             grantedScopes: ["logs:read"],
