@@ -435,10 +435,11 @@ describe("dockerComposeUp", () => {
       expect.any(Object),
       expect.objectContaining({
         inheritParentEnv: false,
-        stdin: expect.stringContaining("docker login 'ghcr.io'")
+        stdin: expect.stringContaining("docker login 'ghcr.io'") as unknown
       })
     );
-    expect(execRunner.mock.calls[0]?.[5]?.stdin).not.toContain("-lc");
+    const calls = execRunner.mock.calls as Parameters<typeof execStreaming>[];
+    expect(calls[0]?.[5]?.stdin).not.toContain("-lc");
   });
 });
 

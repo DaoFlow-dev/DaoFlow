@@ -6,8 +6,11 @@ import {
   remoteDockerComposeDown,
   remoteDockerComposePull,
   remoteDockerComposeUp,
+  type execRemote,
   type SSHTarget
 } from "./ssh-executor";
+
+type ExecRemoteCall = Parameters<typeof execRemote>;
 
 const target: SSHTarget = {
   serverName: "prod",
@@ -48,8 +51,9 @@ describe("remoteDockerComposePull", () => {
     );
 
     expect(execRemoteImpl).toHaveBeenCalledTimes(1);
-    const command = String(execRemoteImpl.mock.calls[0]?.[1] ?? "");
-    const options = execRemoteImpl.mock.calls[0]?.[3];
+    const calls = execRemoteImpl.mock.calls as ExecRemoteCall[];
+    const command = String(calls[0]?.[1] ?? "");
+    const options = calls[0]?.[3];
     expect(command).toBe("sh");
     expect(options?.stdin).toContain('env -i DOCKER_CLI_HINTS=false PATH="${PATH:-}"');
     expect(options?.stdin).toContain(".daoflow.compose.export.sh");
@@ -83,8 +87,9 @@ describe("remoteDockerComposeUp", () => {
     );
 
     expect(execRemoteImpl).toHaveBeenCalledTimes(1);
-    const command = String(execRemoteImpl.mock.calls[0]?.[1] ?? "");
-    const options = execRemoteImpl.mock.calls[0]?.[3];
+    const calls = execRemoteImpl.mock.calls as ExecRemoteCall[];
+    const command = String(calls[0]?.[1] ?? "");
+    const options = calls[0]?.[3];
     expect(command).toBe("sh");
     expect(options?.stdin).toContain(".daoflow.compose.export.sh");
     expect(options?.stdin).toContain("docker compose");
@@ -120,8 +125,10 @@ describe("remoteDockerComposeUp", () => {
       "sh",
       onLog,
       expect.objectContaining({
-        stdin: expect.stringContaining("docker login 'ghcr.io'"),
-        preview: expect.stringContaining("docker compose -f .daoflow.compose.rendered.yaml")
+        stdin: expect.stringContaining("docker login 'ghcr.io'") as unknown,
+        preview: expect.stringContaining(
+          "docker compose -f .daoflow.compose.rendered.yaml"
+        ) as unknown
       })
     );
   });
@@ -160,8 +167,9 @@ describe("remoteDockerComposePs", () => {
     );
 
     expect(execRemoteImpl).toHaveBeenCalledTimes(1);
-    const command = String(execRemoteImpl.mock.calls[0]?.[1] ?? "");
-    const options = execRemoteImpl.mock.calls[0]?.[3];
+    const calls = execRemoteImpl.mock.calls as ExecRemoteCall[];
+    const command = String(calls[0]?.[1] ?? "");
+    const options = calls[0]?.[3];
     expect(command).toBe("sh");
     expect(options?.stdin).toContain(".daoflow.compose.export.sh");
     expect(options?.stdin).toContain("docker compose");
@@ -200,8 +208,9 @@ describe("remoteDockerComposeDown", () => {
     );
 
     expect(execRemoteImpl).toHaveBeenCalledTimes(1);
-    const command = String(execRemoteImpl.mock.calls[0]?.[1] ?? "");
-    const options = execRemoteImpl.mock.calls[0]?.[3];
+    const calls = execRemoteImpl.mock.calls as ExecRemoteCall[];
+    const command = String(calls[0]?.[1] ?? "");
+    const options = calls[0]?.[3];
     expect(command).toBe("sh");
     expect(options?.stdin).toContain(".daoflow.compose.export.sh");
     expect(options?.stdin).toContain("docker compose");
@@ -227,8 +236,9 @@ describe("remoteDockerComposeBuild", () => {
     );
 
     expect(execRemoteImpl).toHaveBeenCalledTimes(1);
-    const command = String(execRemoteImpl.mock.calls[0]?.[1] ?? "");
-    const options = execRemoteImpl.mock.calls[0]?.[3];
+    const calls = execRemoteImpl.mock.calls as ExecRemoteCall[];
+    const command = String(calls[0]?.[1] ?? "");
+    const options = calls[0]?.[3];
     expect(command).toBe("sh");
     expect(options?.stdin).toContain(".daoflow.compose.export.sh");
     expect(options?.stdin).toContain("DOCKER_BUILDKIT=1");

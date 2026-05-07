@@ -2303,7 +2303,7 @@ describe("appRouter", () => {
       cause: expect.objectContaining({
         code: "MFA_REQUIRED",
         requirement: "privileged"
-      })
+      }) as unknown
     });
 
     await db
@@ -2330,7 +2330,7 @@ describe("appRouter", () => {
       cause: expect.objectContaining({
         code: "MFA_REQUIRED",
         requirement: "privileged"
-      })
+      }) as unknown
     });
 
     const mfaOwner = appRouter.createCaller({
