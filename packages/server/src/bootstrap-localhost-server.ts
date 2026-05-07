@@ -1,6 +1,7 @@
-import { eq, sql } from "drizzle-orm";
+import { asc, eq, sql } from "drizzle-orm";
 import { db } from "./db/connection";
 import { servers } from "./db/schema/servers";
+import { teams } from "./db/schema/teams";
 import { sandboxRunnerProfiles } from "./db/schema/development-tasks";
 import {
   DEFAULT_BOXLITE_RUNNER_PROFILE_ID,
@@ -51,13 +52,17 @@ export function ensureLocalhostServer() {
 }
 
 async function bootstrapLocalhostServer() {
+  const teamId = await resolveBootstrapTeamId();
   const [existing] = await db
-    .select({ id: servers.id })
+    .select({ id: servers.id, teamId: servers.teamId })
     .from(servers)
     .where(eq(servers.host, LOCALHOST_HOST))
     .limit(1);
 
   if (existing) {
+    if (!existing.teamId && teamId) {
+      await claimLocalhostServerForTeam(existing.id, teamId);
+    }
     await configureDefaultRunnerProfiles(existing.id);
     console.log("[bootstrap] Localhost server already registered; skipping");
     return;
@@ -71,6 +76,7 @@ async function bootstrapLocalhostServer() {
       name: LOCALHOST_SERVER_NAME,
       host: LOCALHOST_HOST,
       region: "local",
+      teamId,
       sshPort: 22,
       kind: "docker-engine",
       status: "pending verification",
@@ -88,6 +94,26 @@ async function bootstrapLocalhostServer() {
   await verifyServerReadiness(server);
   await configureDefaultRunnerProfiles(server.id);
   console.log(`[bootstrap] Registered localhost server (${serverId})`);
+}
+
+async function resolveBootstrapTeamId() {
+  const [team] = await db
+    .select({ id: teams.id })
+    .from(teams)
+    .orderBy(asc(teams.createdAt))
+    .limit(1);
+
+  return team?.id ?? null;
+}
+
+export async function claimLocalhostServerForTeam(serverId: string, teamId: string) {
+  await db
+    .update(servers)
+    .set({
+      teamId,
+      updatedAt: new Date()
+    })
+    .where(eq(servers.id, serverId));
 }
 
 async function configureDefaultRunnerProfiles(serverId: string) {

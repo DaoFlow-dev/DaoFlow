@@ -1,3 +1,4 @@
+import { and, asc, eq, isNull } from "drizzle-orm";
 import { db } from "../connection";
 import { seedUsers } from "./seed/seed-users";
 import { seedInfrastructure } from "./seed/seed-infrastructure";
@@ -5,6 +6,8 @@ import { seedDeployments } from "./seed/seed-deployments";
 import { seedObservability } from "./seed/seed-observability";
 import { seedDevelopmentRunner } from "./seed/seed-development-runner";
 import { getProcessValueAccessor } from "../../process-singleton";
+import { servers } from "../schema/servers";
+import { teams } from "../schema/teams";
 
 const PROCESS_SEED_PROMISE_KEY = "__daoflowFoundationSeedPromise__";
 
@@ -78,9 +81,38 @@ export async function seedControlPlaneData() {
     }
   });
 
+  await claimUnownedLocalhostServer();
+
   console.log(
     seedDemo
       ? "Seeded DaoFlow foundation control-plane data (demo fixtures)."
       : "Seeded DaoFlow admin bootstrap data."
   );
+}
+
+async function claimUnownedLocalhostServer() {
+  const [team] = await db
+    .select({ id: teams.id })
+    .from(teams)
+    .orderBy(asc(teams.createdAt))
+    .limit(1);
+
+  if (!team) {
+    return;
+  }
+
+  const [localhostServer] = await db
+    .select({ id: servers.id })
+    .from(servers)
+    .where(eq(servers.host, "localhost"))
+    .limit(1);
+
+  if (!localhostServer) {
+    return;
+  }
+
+  await db
+    .update(servers)
+    .set({ teamId: team.id, updatedAt: new Date() })
+    .where(and(eq(servers.id, localhostServer.id), isNull(servers.teamId)));
 }

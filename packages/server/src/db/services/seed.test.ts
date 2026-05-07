@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
   transactionMock,
+  selectMock,
   seedUsersMock,
   seedInfrastructureMock,
   seedDeploymentsMock,
@@ -9,6 +10,7 @@ const {
   seedDevelopmentRunnerMock
 } = vi.hoisted(() => ({
   transactionMock: vi.fn(),
+  selectMock: vi.fn(),
   seedUsersMock: vi.fn(),
   seedInfrastructureMock: vi.fn(),
   seedDeploymentsMock: vi.fn(),
@@ -18,7 +20,8 @@ const {
 
 vi.mock("../connection", () => ({
   db: {
-    transaction: transactionMock
+    transaction: transactionMock,
+    select: selectMock
   }
 }));
 
@@ -49,6 +52,7 @@ async function loadSeedModule() {
 describe("control-plane seed state", () => {
   beforeEach(() => {
     transactionMock.mockReset();
+    selectMock.mockReset();
     seedUsersMock.mockReset();
     seedInfrastructureMock.mockReset();
     seedDeploymentsMock.mockReset();
@@ -57,6 +61,13 @@ describe("control-plane seed state", () => {
 
     transactionMock.mockImplementation(async (callback: (tx: unknown) => Promise<void>) => {
       await callback({ tx: "mock" });
+    });
+    selectMock.mockReturnValue({
+      from: () => ({
+        orderBy: () => ({
+          limit: () => Promise.resolve([])
+        })
+      })
     });
   });
 

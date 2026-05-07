@@ -28,6 +28,7 @@ describe("bootstrapLocalhostServer", () => {
     expect(row.host).toBe("localhost");
     expect(row.kind).toBe("docker-engine");
     expect(row.region).toBe("local");
+    expect(row.teamId).toBe("team_foundation");
 
     const [runnerProfile] = await db
       .select()
@@ -84,6 +85,7 @@ describe("bootstrapLocalhostServer", () => {
     // Should still be exactly one — the original, not a duplicate
     expect(rows).toHaveLength(1);
     expect(rows[0].id).toBe("srv_existing_localhost");
+    expect(rows[0].teamId).toBe("team_foundation");
 
     const [runnerProfile] = await db
       .select()
