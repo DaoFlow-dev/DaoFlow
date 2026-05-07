@@ -18,62 +18,32 @@ import {
   DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
 import {
-  LayoutDashboard,
-  FolderKanban,
-  Server,
-  Rocket,
-  DatabaseBackup,
-  CalendarClock,
-  Settings,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   LogOut,
   User,
-  Shield,
-  KeyRound,
-  Bell,
-  HardDrive,
   ChevronsUpDown,
   Hexagon,
-  Bot,
-  Workflow,
-  Radio,
   Sun,
   Moon,
-  ShieldCheck,
-  ScrollText
+  Menu
 } from "lucide-react";
+import { homeNavGroups, settingsNav } from "./sidebar-nav";
 
-const homeNav = [
-  { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true },
-  { to: "/projects", label: "Projects", icon: FolderKanban },
-  { to: "/deploy", label: "Deploy", icon: Rocket },
-  { to: "/servers", label: "Servers", icon: Server },
-  { to: "/deployments", label: "Deployments", icon: Rocket },
-  { to: "/backups", label: "Backups", icon: DatabaseBackup },
-  { to: "/schedules", label: "Schedules", icon: CalendarClock },
-  { to: "/destinations", label: "Destinations", icon: HardDrive },
-  { to: "/notifications", label: "Notifications", icon: Radio },
-  { to: "/agents", label: "Agents", icon: Bot },
-  { to: "/development-tasks", label: "Dev Tasks", icon: Workflow },
-  { to: "/approvals", label: "Approvals", icon: ShieldCheck },
-  { to: "/requests", label: "Requests", icon: ScrollText }
-] as const;
+const ID_SEGMENT_RE = /^[0-9a-f]{9,}$|^[0-9a-f-]{20,}$|.*[_-].*\d{2,}/i;
 
-const settingsNav = [
-  { to: "/settings", label: "General", icon: Settings, tab: null },
-  { to: "/settings?tab=users", label: "Users", icon: User, tab: "users" },
-  { to: "/settings?tab=tokens", label: "Tokens", icon: KeyRound, tab: "tokens" },
-  { to: "/settings?tab=security", label: "Security", icon: Shield, tab: "security" },
-  { to: "/settings?tab=notifications", label: "Notifications", icon: Bell, tab: "notifications" }
-] as const;
+function formatSegment(s: string): string {
+  if (ID_SEGMENT_RE.test(s)) return s.slice(0, 8) + "…";
+  return s
+    .split("-")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+}
 
 function breadcrumbFromPath(pathname: string): string[] {
   if (pathname === "/") return ["Dashboard"];
-  return pathname
-    .split("/")
-    .filter(Boolean)
-    .map((s) => s.charAt(0).toUpperCase() + s.slice(1));
+  return pathname.split("/").filter(Boolean).map(formatSegment);
 }
 
 export function DashboardLayout() {
@@ -81,10 +51,33 @@ export function DashboardLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const themeCtx = useTheme();
   const crumbs = breadcrumbFromPath(location.pathname);
 
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() => {
+    try {
+      const stored = localStorage.getItem("df-sidebar-groups");
+      if (stored) return JSON.parse(stored) as Record<string, boolean>;
+    } catch {
+      /* ignore */
+    }
+    return Object.fromEntries(homeNavGroups.map((g) => [g.key, true]));
+  });
+
+  const toggleGroup = (key: string) => {
+    setOpenGroups((prev) => {
+      const next = { ...prev, [key]: !prev[key] };
+      localStorage.setItem("df-sidebar-groups", JSON.stringify(next));
+      return next;
+    });
+  };
+
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
+
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [location.pathname, location.search]);
 
   useEffect(() => {
     const handleOnline = () => setIsOffline(false);
@@ -137,8 +130,13 @@ export function DashboardLayout() {
         Skip to content
       </a>
       <div className="layout" data-collapsed={collapsed ? "true" : "false"}>
+        <div
+          className="mobile-backdrop"
+          data-open={mobileOpen ? "true" : "false"}
+          onClick={() => setMobileOpen(false)}
+        />
         {/* ── Sidebar ── */}
-        <aside className="sidebar">
+        <aside className="sidebar" data-mobile-open={mobileOpen ? "true" : "false"}>
           <div className="sidebar__brand">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
               <Hexagon size={18} strokeWidth={1.5} className="text-primary" />
@@ -156,28 +154,53 @@ export function DashboardLayout() {
 
           <TooltipProvider delay={0}>
             <nav className="sidebar__nav">
-              <p className="sidebar__group-label">{!collapsed && "Home"}</p>
-              {homeNav.map((item) => {
-                const link = (
-                  <NavLink
-                    key={item.to}
-                    to={item.to}
-                    end={"end" in item ? item.end : false}
-                    className={({ isActive }) =>
-                      `sidebar__link${isActive ? " sidebar__link--active" : ""}`
-                    }
-                  >
-                    <item.icon size={18} className="sidebar__link-icon" />
-                    {!collapsed && <span>{item.label}</span>}
-                  </NavLink>
-                );
-                return collapsed ? (
-                  <Tooltip key={item.to}>
-                    <TooltipTrigger render={link} />
-                    <TooltipContent side="right">{item.label}</TooltipContent>
-                  </Tooltip>
-                ) : (
-                  link
+              {homeNavGroups.map((group) => {
+                const isOpen = openGroups[group.key] !== false;
+                return (
+                  <div key={group.key}>
+                    {collapsed ? (
+                      <p className="sidebar__group-label" />
+                    ) : (
+                      <button
+                        className="sidebar__group-toggle"
+                        data-open={isOpen ? "true" : "false"}
+                        onClick={() => toggleGroup(group.key)}
+                      >
+                        {group.label}
+                        <ChevronDown size={12} />
+                      </button>
+                    )}
+                    <div
+                      className="sidebar__group-items"
+                      data-open={collapsed || isOpen ? "true" : "false"}
+                    >
+                      <div className="sidebar__group-items-inner">
+                        {group.items.map((item) => {
+                          const link = (
+                            <NavLink
+                              key={item.to}
+                              to={item.to}
+                              end={item.end ?? false}
+                              className={({ isActive }) =>
+                                `sidebar__link${isActive ? " sidebar__link--active" : ""}`
+                              }
+                            >
+                              <item.icon size={18} className="sidebar__link-icon" />
+                              {!collapsed && <span>{item.label}</span>}
+                            </NavLink>
+                          );
+                          return collapsed ? (
+                            <Tooltip key={item.to}>
+                              <TooltipTrigger render={link} />
+                              <TooltipContent side="right">{item.label}</TooltipContent>
+                            </Tooltip>
+                          ) : (
+                            link
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
                 );
               })}
 
@@ -287,6 +310,13 @@ export function DashboardLayout() {
         {/* ── Main content ── */}
         <section className="layout__content">
           <header className="topbar" role="banner">
+            <button
+              className="mobile-menu-btn"
+              onClick={() => setMobileOpen((v) => !v)}
+              aria-label="Toggle menu"
+            >
+              <Menu size={20} />
+            </button>
             <nav className="topbar__breadcrumb" aria-label="Breadcrumb">
               {crumbs.map((crumb, i) => {
                 const path =
