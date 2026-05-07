@@ -33,6 +33,7 @@ import {
   logsReadProcedure
 } from "../trpc";
 import { limitInput } from "../schemas";
+import { getStartupReadiness } from "../startup-readiness";
 import { accessAssetsReadRouter } from "./read-access-assets";
 import { backupReadRouter } from "./read-backups";
 import { developmentTaskReadRouter } from "./read-development-tasks";
@@ -65,11 +66,17 @@ async function requireViewerTeamId(userId: string) {
 }
 
 const coreReadRouter = t.router({
-  health: t.procedure.query(() => ({
-    status: "healthy" as const,
-    service: "daoflow-control-plane",
-    timestamp: new Date().toISOString()
-  })),
+  health: t.procedure.query(() => {
+    const readiness = getStartupReadiness();
+
+    return {
+      status: "healthy" as const,
+      ready: readiness.ready,
+      readinessStatus: readiness.status,
+      service: "daoflow-control-plane",
+      timestamp: new Date().toISOString()
+    };
+  }),
   platformOverview: t.procedure.query(() => ({
     name: "DaoFlow",
     currentSlice: "principal-inventory",

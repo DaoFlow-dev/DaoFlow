@@ -56,13 +56,15 @@ Before the first rehearsal, confirm at least:
 cd /opt/daoflow-staging
 docker compose ps
 docker compose logs --tail=200 daoflow
-curl http://127.0.0.1:3000/trpc/health
+curl http://127.0.0.1:3000/health
+curl http://127.0.0.1:3000/ready
 ```
 
 Expected result:
 
 - `daoflow`, `postgres`, `redis`, and Temporal services are running
-- the health endpoint responds
+- `/health` responds and `/ready` returns `ready`
+- the `daoflow` logs show database migrations completed before the HTTP server started
 - the UI loads and you can sign in as the initial owner
 
 ## 5. Register A Deployment Target
@@ -133,7 +135,7 @@ Keep the fallback in mind: if Temporal mode is unstable, set `DAOFLOW_ENABLE_TEM
 
 ## Exit Checklist
 
-- Control plane healthy after restart
+- Control plane healthy and ready after restart
 - Owner sign-in works
 - Managed target reachable over SSH
 - At least one deployment dry-run and one real deployment succeed

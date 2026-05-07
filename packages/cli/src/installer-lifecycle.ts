@@ -247,7 +247,7 @@ export async function waitForInstallHealth(input: {
 
   for (let i = 0; i < attempts; i++) {
     try {
-      const response = await input.runtime.fetch(`http://127.0.0.1:${input.port}/trpc/health`);
+      const response = await input.runtime.fetch(`http://127.0.0.1:${input.port}/ready`);
       if (response.ok) {
         return true;
       }

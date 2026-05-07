@@ -40,7 +40,7 @@ describe("upgrade command", () => {
       return "";
     };
     upgradeRuntime.fetch = (url: string) => {
-      expect(url).toBe("http://127.0.0.1:8080/trpc/health");
+      expect(url).toBe("http://127.0.0.1:8080/ready");
       return Promise.resolve(new Response(JSON.stringify({ ok: true }), { status: 200 }));
     };
     upgradeRuntime.fetchComposeYml = () =>

@@ -207,7 +207,7 @@ export function installCommand(): Command {
           }
 
           const healthSpinner = !ctx.isJson
-            ? ora("Waiting for DaoFlow to be healthy...").start()
+            ? ora("Waiting for DaoFlow startup readiness...").start()
             : null;
           let healthy = await waitForInstallHealth({
             runtime: installRuntime,
@@ -215,9 +215,9 @@ export function installCommand(): Command {
           });
 
           if (healthy) {
-            healthSpinner?.succeed("DaoFlow is healthy!");
+            healthSpinner?.succeed("DaoFlow is ready!");
           } else {
-            healthSpinner?.warn("Health check timed out — check 'docker compose logs daoflow'");
+            healthSpinner?.warn("Readiness check timed out — check 'docker compose logs daoflow'");
           }
 
           const exposureSpinner =

@@ -35,6 +35,11 @@ jobs:
       - name: Check generated API and CLI contracts
         run: bun run contracts:check
 
+      - name: Check generated database migrations
+        run: |
+          bun run db:generate
+          git diff --exit-code drizzle
+
       - name: Check agent instructions and skills
         run: bun run skills:check
 
@@ -69,6 +74,9 @@ jobs:
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
+
+      - name: Migration smoke test
+        run: bun run db:migrate
 
       - name: Run unit tests
         run: bun run test:unit

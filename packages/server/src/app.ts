@@ -14,6 +14,7 @@ import { deployContextRouter } from "./routes/deploy-context";
 import { cliAuthRouter } from "./routes/cli-auth";
 import { serviceObservabilityRouter } from "./routes/service-observability";
 import { legacyOauthRouter, LEGACY_OAUTH_TOKEN_PATH } from "./routes/legacy-oauth";
+import { healthRouter } from "./routes/health";
 import { authorizeRequest } from "./routes/request-auth";
 import { ensureInitialOwnerFromEnv } from "./bootstrap-initial-owner";
 import { acceptPendingTeamInviteForEmail } from "./db/services/member-access";
@@ -220,15 +221,8 @@ export function createApp() {
   // ── Webhooks (GitHub/GitLab) ──────────────────────────────
   app.route("/api/webhooks", webhooksRouter);
 
-  // ── Health ────────────────────────────────────────────────
-  app.get("/health", (c) =>
-    c.json({
-      status: "healthy",
-      service: "daoflow-control-plane",
-      requestId: c.get("requestId"),
-      timestamp: new Date().toISOString()
-    })
-  );
+  // ── Health and readiness ──────────────────────────────────
+  app.route("/", healthRouter);
 
   // ── SSE Log Streaming (T-15) ──────────────────────────────
   app.get("/api/v1/logs/stream/:deploymentId", async (c) => {

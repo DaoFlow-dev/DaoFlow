@@ -117,7 +117,9 @@ export function upgradeCommand(): Command {
 
           writeInstallFile(installState.envPath, newEnvContent);
 
-          const healthSpinner = !ctx.isJson ? ora("Waiting for health check...").start() : null;
+          const healthSpinner = !ctx.isJson
+            ? ora("Waiting for DaoFlow startup readiness...").start()
+            : null;
           const healthy = await waitForInstallHealth({
             runtime: upgradeRuntime,
             port: resolveInstallHealthPort(installState.env),
@@ -125,9 +127,9 @@ export function upgradeCommand(): Command {
           });
 
           if (healthy) {
-            healthSpinner?.succeed("DaoFlow is healthy!");
+            healthSpinner?.succeed("DaoFlow is ready!");
           } else {
-            healthSpinner?.warn("Health check timed out — check 'docker compose logs daoflow'");
+            healthSpinner?.warn("Readiness check timed out — check 'docker compose logs daoflow'");
           }
 
           return ctx.complete({

@@ -15,7 +15,8 @@ cd /opt/daoflow
 docker compose ps
 docker compose logs --tail=200 daoflow
 docker compose logs --tail=100 postgres redis temporal temporal-ui
-curl http://127.0.0.1:3000/trpc/health
+curl http://127.0.0.1:3000/health
+curl http://127.0.0.1:3000/ready
 ```
 
 If the web UI is reachable, also capture:
@@ -33,15 +34,19 @@ Check:
 2. `BETTER_AUTH_URL` matches the public origin operators are actually using
 3. `/var/run/docker.sock` is mounted into the `daoflow` container
 4. `postgres` is healthy before `daoflow` starts
+5. the `daoflow` logs show whether startup stopped during database migration, owner bootstrap, or worker startup
 
 Useful commands:
 
 ```bash
 docker compose logs --tail=200 daoflow
 docker compose logs --tail=200 postgres
+docker compose run --rm -e DAOFLOW_RUN_MIGRATIONS_ONLY=true daoflow
 ```
 
 If startup fails during owner bootstrap, correct the `DAOFLOW_INITIAL_ADMIN_*` values and restart `daoflow`.
+
+If startup fails during migration, restore from the database backup taken before upgrade or fix the schema drift before starting the app. Do not set `DAOFLOW_ALLOW_START_WITH_MIGRATION_FAILURE=true` unless you intentionally want an emergency degraded process; `/ready` remains unavailable when migrations fail.
 
 ## Deployments Fail Or Stall
 

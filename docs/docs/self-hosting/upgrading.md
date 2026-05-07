@@ -15,17 +15,26 @@ docker compose pull
 # Restart with the new version
 docker compose up -d
 
-# Check health
-curl http://localhost:3000/trpc/health
+# Check process health and startup readiness
+curl http://localhost:3000/health
+curl http://localhost:3000/ready
 ```
 
-DaoFlow automatically runs database migrations on startup.
+DaoFlow automatically runs required database migrations before the HTTP server starts accepting traffic. In production, a migration failure stops startup by default instead of serving requests against an incompatible schema.
 
-## Checking Your Version
+If you want to run migrations as an explicit preflight without starting the web server:
 
 ```bash
-# Via API
-curl http://localhost:3000/trpc/health | jq '.result.data.json.version'
+docker compose run --rm -e DAOFLOW_RUN_MIGRATIONS_ONLY=true daoflow
+```
+
+Use `DAOFLOW_ALLOW_START_WITH_MIGRATION_FAILURE=true` only as an emergency operator bypass. With that flag set, the process may continue after migration failure, but `/ready` stays unavailable and the container healthcheck remains unhealthy.
+
+## Checking Status And Version
+
+```bash
+# Via API status
+curl http://localhost:3000/trpc/health | jq '.result.data.json'
 
 # Via CLI
 daoflow --cli-version

@@ -20,7 +20,7 @@ This downloads the `daoflow` CLI binary and runs the interactive installer, whic
 2. Asks for your domain, dashboard exposure mode, admin email, and password
 3. Creates `/opt/daoflow/` with `.env` and `docker-compose.yml`
 4. Auto-generates all secrets (auth, encryption, database)
-5. Pulls images, starts services, and verifies health
+5. Pulls images, starts services, and verifies startup readiness
 
 Re-running the install script always refreshes the local `daoflow` CLI binary before the installer starts.
 

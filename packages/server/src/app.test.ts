@@ -17,6 +17,7 @@ import { encrypt } from "./db/crypto";
 import { encodeGitInstallationPermissions } from "./db/services/git-providers";
 import { resetSeededTestDatabase, resetTestDatabase } from "./test-db";
 import { createProjectEnvironmentServiceFixture } from "./testing/project-fixtures";
+import { markStartupCheck, resetStartupReadiness } from "./startup-readiness";
 import * as serviceObservabilityWorker from "./worker/service-observability";
 import {
   ensureInitialOwnerFromEnv,
@@ -311,6 +312,7 @@ async function createAppComposeFixture(input: {
 
 describe("createApp", () => {
   afterEach(() => {
+    resetStartupReadiness();
     vi.restoreAllMocks();
   });
 
@@ -327,6 +329,32 @@ describe("createApp", () => {
     expect(body.requestId).toMatch(/^req-/);
     expect(response.headers.get("x-request-id")).toMatch(/^req-/);
     expect(response.headers.get("x-content-type-options")).toBe("nosniff");
+  });
+
+  it("distinguishes process health from startup readiness", async () => {
+    const app = createApp();
+    const startingResponse = await app.request("/ready");
+    const startingBody = (await startingResponse.json()) as {
+      status: string;
+      checks: Array<{ name: string; status: string }>;
+    };
+
+    expect(startingResponse.status).toBe(503);
+    expect(startingBody.status).toBe("not-ready");
+    expect(startingBody.checks).toEqual(
+      expect.arrayContaining([expect.objectContaining({ name: "migrations", status: "pending" })])
+    );
+
+    markStartupCheck("migrations", "ok", "Database migrations completed.");
+    markStartupCheck("initial-owner", "ok", "Initial owner bootstrap completed.");
+    markStartupCheck("localhost-server", "skipped", "Localhost server bootstrap skipped.");
+    markStartupCheck("workers", "skipped", "Execution worker disabled.");
+
+    const readyResponse = await app.request("/ready");
+    const readyBody = (await readyResponse.json()) as { status: string };
+
+    expect(readyResponse.status).toBe(200);
+    expect(readyBody.status).toBe("ready");
   });
 
   it("persists durable access logs with request id and redacted path metadata", async () => {

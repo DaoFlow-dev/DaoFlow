@@ -107,13 +107,16 @@ docker compose --profile temporal-ui up -d temporal-ui
 
 Then access it through `http://127.0.0.1:8233` or your chosen `TEMPORAL_UI_PORT`. Do not publish this dashboard directly to the internet.
 
-## Health Check
+## Health And Readiness
 
 ```bash
-curl http://127.0.0.1:3000/trpc/health
+curl http://127.0.0.1:3000/health
+curl http://127.0.0.1:3000/ready
 ```
 
-The `daoflow` container also includes a Docker healthcheck against this endpoint so `docker compose ps` can report readiness.
+`/health` only reports that the HTTP process is alive. `/ready` reports whether startup checks have completed, including database migrations, initial owner bootstrap, localhost target bootstrap, and worker startup or skip state.
+
+The `daoflow` container healthcheck uses `/ready`, so `docker compose ps` reports unhealthy until startup is safe enough to serve normal app traffic.
 
 ## Docker Socket Trust Boundary
 

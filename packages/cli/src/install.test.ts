@@ -41,7 +41,7 @@ describe("install command", () => {
     });
     installRuntime.exec = () => "";
     installRuntime.fetch = (url: string) => {
-      expect(url).toBe("http://127.0.0.1:3000/trpc/health");
+      expect(url).toBe("http://127.0.0.1:3000/ready");
       return Promise.resolve(new Response(JSON.stringify({ ok: true }), { status: 200 }));
     };
     installRuntime.fetchComposeYml = () =>
@@ -175,7 +175,7 @@ DEPLOY_TIMEOUT_MS=900000
     );
 
     installRuntime.fetch = (url: string) => {
-      expect(url).toBe("http://127.0.0.1:8080/trpc/health");
+      expect(url).toBe("http://127.0.0.1:8080/ready");
       return Promise.resolve(new Response(JSON.stringify({ ok: true }), { status: 200 }));
     };
 
@@ -296,7 +296,7 @@ DEPLOY_TIMEOUT_MS=900000
     process.env.DAOFLOW_INITIAL_ADMIN_PASSWORD = "env-secret-123";
 
     installRuntime.fetch = (url: string) => {
-      expect(url).toBe("http://127.0.0.1:3000/trpc/health");
+      expect(url).toBe("http://127.0.0.1:3000/ready");
       return Promise.resolve(new Response(JSON.stringify({ ok: true }), { status: 200 }));
     };
 
@@ -463,7 +463,7 @@ DEPLOY_TIMEOUT_MS=900000
     );
 
     installRuntime.fetch = (url: string) => {
-      expect(url).toBe("http://127.0.0.1:3000/trpc/health");
+      expect(url).toBe("http://127.0.0.1:3000/ready");
       return Promise.resolve(new Response(JSON.stringify({ ok: true }), { status: 200 }));
     };
 

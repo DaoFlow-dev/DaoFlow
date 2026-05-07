@@ -31,10 +31,12 @@ import {
 } from "./worker/operational-maintenance-monitor";
 import { ensureInitialOwnerFromEnv } from "./bootstrap-initial-owner";
 import { ensureLocalhostServer } from "./bootstrap-localhost-server";
-import { runAutoMigrations } from "./db/auto-migrate";
+import { runStartupMigrations } from "./startup-migrations";
+import { markStartupCheck } from "./startup-readiness";
 
 const port = Number(process.env.PORT ?? DEFAULT_SERVER_PORT);
 const isProduction = process.env.NODE_ENV === "production";
+const migrationOnly = process.env.DAOFLOW_RUN_MIGRATIONS_ONLY === "true";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -58,6 +60,13 @@ function shouldStartDevelopmentTaskWorker(): boolean {
 import { isTemporalEnabled } from "./worker/temporal/temporal-config";
 
 async function start() {
+  await runStartupMigrations({ isProduction });
+
+  if (migrationOnly) {
+    console.log("[migrate] Migration-only mode completed; exiting without starting HTTP server.");
+    process.exit(0);
+  }
+
   const app = createApp();
 
   if (isProduction) {
@@ -103,22 +112,13 @@ async function start() {
 
   console.log(`DaoFlow control plane listening on http://localhost:${server.port}`);
 
-  // Run database migrations before any DB-dependent code
-  try {
-    await runAutoMigrations();
-  } catch (err) {
-    console.error(
-      "[migrate] Auto-migration failed:",
-      err instanceof Error ? err.message : String(err)
-    );
-    // Continue — the server can still serve health checks
-  }
-
   try {
     await ensureInitialOwnerFromEnv();
+    markStartupCheck("initial-owner", "ok", "Initial owner bootstrap completed or was skipped.");
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
     const isPasswordError = /password/i.test(msg);
+    markStartupCheck("initial-owner", "failed", `Initial owner bootstrap failed: ${msg}`);
     console.error(
       `[auth] Initial owner bootstrap failed: ${msg}` +
         (isPasswordError
@@ -128,17 +128,23 @@ async function start() {
   }
 
   // Auto-register localhost as a deployment target when Docker socket is available
-  if (shouldStartWorker()) {
+  const workerEnabled = shouldStartWorker();
+
+  if (workerEnabled) {
     try {
       await ensureLocalhostServer();
+      markStartupCheck("localhost-server", "ok", "Localhost server bootstrap completed.");
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
+      markStartupCheck("localhost-server", "failed", `Localhost server bootstrap failed: ${msg}`);
       console.error(`[bootstrap] Localhost server registration failed: ${msg}`);
     }
+  } else {
+    markStartupCheck("localhost-server", "skipped", "Localhost server bootstrap skipped.");
   }
 
   // Start the execution worker when Docker is available
-  if (shouldStartWorker()) {
+  if (workerEnabled) {
     if (isTemporalEnabled()) {
       console.log("[worker] Temporal mode enabled, starting Temporal worker...");
       void startTemporalWorker().catch((err) => {
@@ -150,6 +156,9 @@ async function start() {
       console.log("[worker] No TEMPORAL_ADDRESS set, using legacy polling worker");
       startWorker();
     }
+    markStartupCheck("workers", "ok", "Execution worker startup was requested.");
+  } else {
+    markStartupCheck("workers", "skipped", "Execution worker disabled.");
   }
 
   if (shouldStartDevelopmentTaskWorker()) {
@@ -187,4 +196,7 @@ process.on("unhandledRejection", (reason) => {
   console.error("[warn] Unhandled rejection:", reason);
 });
 
-void start();
+start().catch((error) => {
+  console.error("[startup] DaoFlow control plane failed to start:", error);
+  process.exit(1);
+});
