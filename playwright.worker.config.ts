@@ -2,7 +2,6 @@ import { defineConfig, devices } from "@playwright/test";
 import {
   createPlaywrightServerCommand,
   playwrightBaseUrl,
-  playwrightHealthcheckUrl,
   playwrightServerPort
 } from "./playwright.shared";
 
@@ -20,6 +19,7 @@ const DB_URL =
   process.env.PLAYWRIGHT_WORKER_DATABASE_URL ??
   process.env.DATABASE_URL ??
   "postgresql://daoflow:daoflow_dev@localhost:5432/daoflow_e2e_worker";
+const playwrightReadinessUrl = new URL("/ready", playwrightBaseUrl).toString();
 
 export default defineConfig({
   testDir: "./e2e",
@@ -51,7 +51,7 @@ export default defineConfig({
       PORT: playwrightServerPort
       // NOTE: DISABLE_WORKER is intentionally NOT set
     },
-    url: playwrightHealthcheckUrl,
+    url: playwrightReadinessUrl,
     reuseExistingServer: false,
     timeout: 120_000
   },

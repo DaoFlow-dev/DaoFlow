@@ -88,4 +88,22 @@ describe("startTemporalWorker", () => {
     expect(workerCreateMock).toHaveBeenCalledTimes(1);
     expect(workerRunMock).toHaveBeenCalledTimes(1);
   });
+
+  it("reports ready only after the Temporal worker is created", async () => {
+    const lifecycleEvents: string[] = [];
+    workerRunMock.mockImplementation(() => {
+      lifecycleEvents.push("run");
+      return Promise.resolve();
+    });
+    const { startTemporalWorker } = await import("./worker");
+
+    await startTemporalWorker({
+      onReady: () => {
+        lifecycleEvents.push("ready");
+      }
+    });
+
+    expect(workerCreateMock).toHaveBeenCalledTimes(1);
+    expect(lifecycleEvents).toEqual(["ready", "run"]);
+  });
 });

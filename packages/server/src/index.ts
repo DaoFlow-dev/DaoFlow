@@ -74,6 +74,7 @@ async function start() {
   }
 
   const app = createApp();
+  let legacyWorkerStarted = false;
 
   if (isProduction) {
     const clientDistDir = path.resolve(__dirname, "../../client/dist");
@@ -153,16 +154,28 @@ async function start() {
   if (workerEnabled) {
     if (isTemporalEnabled()) {
       console.log("[worker] Temporal mode enabled, starting Temporal worker...");
-      void startTemporalWorker().catch((err) => {
+      void startTemporalWorker({
+        onReady: () => {
+          markStartupCheck("workers", "ok", "Temporal execution worker connected.");
+        }
+      }).catch((err) => {
+        const msg = err instanceof Error ? err.message : String(err);
         console.error("[worker] Temporal worker failed:", err);
         console.log("[worker] Falling back to legacy polling worker");
         startWorker();
+        legacyWorkerStarted = true;
+        markStartupCheck(
+          "workers",
+          "ok",
+          `Temporal execution worker failed; using legacy polling worker: ${msg}`
+        );
       });
     } else {
       console.log("[worker] No TEMPORAL_ADDRESS set, using legacy polling worker");
       startWorker();
+      legacyWorkerStarted = true;
+      markStartupCheck("workers", "ok", "Legacy execution worker started.");
     }
-    markStartupCheck("workers", "ok", "Execution worker startup was requested.");
   } else {
     markStartupCheck("workers", "skipped", "Execution worker disabled.");
   }
@@ -188,6 +201,9 @@ async function start() {
     if (isTemporalEnabled()) {
       stopTemporalWorker();
       void closeTemporalClient();
+      if (legacyWorkerStarted) {
+        stopWorker();
+      }
     } else {
       stopWorker();
     }

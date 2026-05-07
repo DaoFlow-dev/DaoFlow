@@ -34,6 +34,10 @@ const TEMPORAL_CONNECT_RETRY_DELAY_MS = Number(
   process.env.TEMPORAL_CONNECT_RETRY_DELAY_MS ?? 2_000
 );
 
+export type TemporalWorkerLifecycle = {
+  onReady?: () => void;
+};
+
 function sleep(ms: number): Promise<void> {
   return new Promise((resolveSleep) => {
     setTimeout(resolveSleep, ms);
@@ -75,9 +79,10 @@ async function connectWithRetry(): Promise<NativeConnection> {
  * - Workflows from the `workflows/` directory (bundled by Temporal's webpack)
  * - Activities from `deploy-activities.ts` (direct function references)
  */
-export async function startTemporalWorker(): Promise<void> {
+export async function startTemporalWorker(lifecycle: TemporalWorkerLifecycle = {}): Promise<void> {
   if (worker) {
     console.warn("[temporal-worker] Worker already running, skipping duplicate start");
+    lifecycle.onReady?.();
     return;
   }
 
@@ -96,6 +101,7 @@ export async function startTemporalWorker(): Promise<void> {
   });
 
   console.log(`[temporal-worker] Worker started on task queue: ${TEMPORAL_TASK_QUEUE}`);
+  lifecycle.onReady?.();
 
   // Worker.run() blocks until shutdown signal
   await worker.run();
