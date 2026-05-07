@@ -1,5 +1,5 @@
 import { describe, expect, it, mock } from "bun:test";
-import { fetchComposeYml } from "./templates";
+import { fetchComposeYml, generateEnvFile, parseEnvFile } from "./templates";
 
 describe("fetchComposeYml", () => {
   it("falls back to the embedded compose template when the network fetch fails", async () => {
@@ -16,5 +16,44 @@ describe("fetchComposeYml", () => {
     } finally {
       globalThis.fetch = originalFetch;
     }
+  });
+});
+
+describe("generateEnvFile", () => {
+  it("quotes generated and preserved values that would otherwise corrupt dotenv parsing", () => {
+    const envContent = generateEnvFile({
+      version: "0.7.0",
+      domain: "deploy.example.com",
+      port: 3000,
+      scheme: "https",
+      exposureMode: "cloudflare-quick",
+      cloudflareTunnelEnabled: true,
+      cloudflareTunnelToken: "cf token #literal $HOME",
+      initialAdminEmail: "owner@example.com",
+      initialAdminPassword: 'pa ss #literal $HOME "quoted"',
+      postgresPassword: "pg'quoted$value\\n",
+      temporalPostgresPassword: "temporal value",
+      authSecret: "auth secret #literal",
+      encryptionKey: "enc\tkey",
+      preservedEnv: {
+        SMTP_PASSWORD: "smtp # secret $HOME",
+        CUSTOM_VALUE: "kept'value"
+      }
+    });
+
+    expect(envContent).toContain("CLOUDFLARE_TUNNEL_TOKEN='cf token #literal $HOME'");
+    expect(envContent).toContain('POSTGRES_PASSWORD="pg\'quoted$$value\\\\n"');
+    expect(envContent).toContain("SMTP_PASSWORD='smtp # secret $HOME'");
+
+    const parsed = parseEnvFile(envContent);
+    expect(parsed.CLOUDFLARE_TUNNEL_TOKEN).toBe("cf token #literal $HOME");
+    expect(parsed.DAOFLOW_INITIAL_ADMIN_PASSWORD).toBe('pa ss #literal $HOME "quoted"');
+    expect(parsed.POSTGRES_PASSWORD).toBe("pg'quoted$value\\n");
+    expect(parsed.TEMPORAL_POSTGRES_PASSWORD).toBe("temporal value");
+    expect(parsed.AUTH_SECRET).toBeUndefined();
+    expect(parsed.BETTER_AUTH_SECRET).toBe("auth secret #literal");
+    expect(parsed.ENCRYPTION_KEY).toBe("enc\tkey");
+    expect(parsed.SMTP_PASSWORD).toBe("smtp # secret $HOME");
+    expect(parsed.CUSTOM_VALUE).toBe("kept'value");
   });
 });

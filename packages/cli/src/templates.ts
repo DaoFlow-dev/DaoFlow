@@ -2,6 +2,7 @@ import { randomBytes } from "crypto";
 import embeddedCompose from "../../../docker-compose.yml" with { type: "text" };
 
 const embeddedComposeTemplate = String(embeddedCompose);
+const SAFE_ENV_VALUE = /^[A-Za-z0-9_./:@+-]*$/;
 
 /**
  * GitHub raw URL for the production docker-compose.yml.
@@ -50,6 +51,58 @@ export async function fetchComposeYml(): Promise<string> {
  */
 function secureHex(bytes: number): string {
   return randomBytes(bytes).toString("hex");
+}
+
+function serializeEnvValue(value: string): string {
+  if (SAFE_ENV_VALUE.test(value)) {
+    return value;
+  }
+
+  if (!value.includes("'") && !value.includes("\n") && !value.includes("\r")) {
+    return `'${value}'`;
+  }
+
+  return `"${value
+    .replace(/\\/g, "\\\\")
+    .replace(/\$/g, "$$$$")
+    .replace(/"/g, '\\"')
+    .replace(/\n/g, "\\n")
+    .replace(/\r/g, "\\r")
+    .replace(/\t/g, "\\t")}"`;
+}
+
+function envLine(key: string, value: string | number | undefined): string {
+  return `${key}=${serializeEnvValue(value === undefined ? "" : String(value))}`;
+}
+
+function parseDoubleQuotedEnvValue(value: string): string {
+  let parsed = "";
+
+  for (let i = 0; i < value.length; i++) {
+    const current = value[i];
+    const next = value[i + 1];
+
+    if (current === "$" && next === "$") {
+      parsed += "$";
+      i++;
+      continue;
+    }
+
+    if (current === "\\" && next) {
+      if (next === "n") parsed += "\n";
+      else if (next === "r") parsed += "\r";
+      else if (next === "t") parsed += "\t";
+      else if (next === '"') parsed += '"';
+      else if (next === "\\") parsed += "\\";
+      else parsed += next;
+      i++;
+      continue;
+    }
+
+    parsed += current;
+  }
+
+  return parsed;
 }
 
 /**
@@ -112,35 +165,35 @@ export function generateEnvFile(opts: {
 # NOTE: 'docker compose restart' does NOT re-read .env -- always use 'up -d'.
 
 # -- Version ---------------------------------------------------------------
-DAOFLOW_VERSION=${opts.version}
+${envLine("DAOFLOW_VERSION", opts.version)}
 
 # -- Public URL -------------------------------------------------------------
-BETTER_AUTH_URL=${scheme}://${opts.domain}${portSuffix}
-DAOFLOW_BIND=127.0.0.1
-DAOFLOW_PORT=${opts.port}
-${opts.exposureMode === "traefik" || opts.cloudflareTunnelEnabled ? `DAOFLOW_DOMAIN=${opts.domain}\n` : ""}${opts.exposureMode === "traefik" ? `DAOFLOW_ACME_EMAIL=${opts.acmeEmail ?? opts.initialAdminEmail ?? ""}\nDAOFLOW_PROXY_NETWORK=daoflow-proxy\n` : ""}${opts.cloudflareTunnelEnabled ? `CLOUDFLARE_TUNNEL_TOKEN=${opts.cloudflareTunnelToken ?? ""}\n` : ""}
+${envLine("BETTER_AUTH_URL", `${scheme}://${opts.domain}${portSuffix}`)}
+${envLine("DAOFLOW_BIND", "127.0.0.1")}
+${envLine("DAOFLOW_PORT", opts.port)}
+${opts.exposureMode === "traefik" || opts.cloudflareTunnelEnabled ? `${envLine("DAOFLOW_DOMAIN", opts.domain)}\n` : ""}${opts.exposureMode === "traefik" ? `${envLine("DAOFLOW_ACME_EMAIL", opts.acmeEmail ?? opts.initialAdminEmail ?? "")}\n${envLine("DAOFLOW_PROXY_NETWORK", "daoflow-proxy")}\n` : ""}${opts.cloudflareTunnelEnabled ? `${envLine("CLOUDFLARE_TUNNEL_TOKEN", opts.cloudflareTunnelToken ?? "")}\n` : ""}
 
 # -- First-Boot Owner Bootstrap ---------------------------------------------
 # Password must be at least 8 characters.
-DAOFLOW_INITIAL_ADMIN_EMAIL=${opts.initialAdminEmail ?? ""}
-DAOFLOW_INITIAL_ADMIN_PASSWORD=${opts.initialAdminPassword ?? ""}
+${envLine("DAOFLOW_INITIAL_ADMIN_EMAIL", opts.initialAdminEmail)}
+${envLine("DAOFLOW_INITIAL_ADMIN_PASSWORD", opts.initialAdminPassword)}
 
 # -- Database (auto-generated password) -------------------------------------
-POSTGRES_PASSWORD=${pgPass}
+${envLine("POSTGRES_PASSWORD", pgPass)}
 
 # -- Temporal Database (auto-generated password) ----------------------------
-TEMPORAL_POSTGRES_PASSWORD=${temporalPgPass}
+${envLine("TEMPORAL_POSTGRES_PASSWORD", temporalPgPass)}
 
 # -- Secrets (auto-generated, do not share) ---------------------------------
-BETTER_AUTH_SECRET=${authSecret}
-ENCRYPTION_KEY=${encKey}
+${envLine("BETTER_AUTH_SECRET", authSecret)}
+${envLine("ENCRYPTION_KEY", encKey)}
 
 # -- Deployment Worker ------------------------------------------------------
 # DEPLOY_TIMEOUT_MS=600000
 
 # -- Temporal (workflow orchestration) --------------------------------------
-DAOFLOW_ENABLE_TEMPORAL=true
-TEMPORAL_ADDRESS=temporal:7233
+${envLine("DAOFLOW_ENABLE_TEMPORAL", "true")}
+${envLine("TEMPORAL_ADDRESS", "temporal:7233")}
 # TEMPORAL_NAMESPACE=daoflow
 # TEMPORAL_TASK_QUEUE=daoflow-deployments
 # TEMPORAL_UI_PORT=8233
@@ -158,7 +211,7 @@ TEMPORAL_ADDRESS=temporal:7233
 # SMTP_USER=
 # SMTP_PASSWORD=
 # SMTP_FROM=
-${preservedEntries.length > 0 ? `\n# -- Preserved Existing Settings --------------------------------------------\n${preservedEntries.map(([key, value]) => `${key}=${value}`).join("\n")}\n` : ""}`;
+${preservedEntries.length > 0 ? `\n# -- Preserved Existing Settings --------------------------------------------\n${preservedEntries.map(([key, value]) => envLine(key, value)).join("\n")}\n` : ""}`;
 }
 
 /**
@@ -172,7 +225,13 @@ export function parseEnvFile(content: string): Record<string, string> {
     const eq = trimmed.indexOf("=");
     if (eq === -1) continue;
     const key = trimmed.slice(0, eq).trim();
-    const value = trimmed.slice(eq + 1).trim();
+    const rawValue = trimmed.slice(eq + 1).trim();
+    const value =
+      rawValue.startsWith("'") && rawValue.endsWith("'")
+        ? rawValue.slice(1, -1)
+        : rawValue.startsWith('"') && rawValue.endsWith('"')
+          ? parseDoubleQuotedEnvValue(rawValue.slice(1, -1))
+          : rawValue;
     env[key] = value;
   }
   return env;
