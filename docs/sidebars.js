@@ -68,6 +68,7 @@ const sidebars = {
         "security/index",
         "security/roles",
         "security/scopes",
+        "security/mfa",
         "security/api-tokens",
         "security/agent-principals",
         "security/audit-trail"

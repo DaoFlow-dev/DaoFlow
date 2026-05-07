@@ -8,7 +8,7 @@
  * These tables are part of Better Auth's core and are required for
  * authentication to work. See: https://better-auth.com/docs/adapters/drizzle
  */
-import { pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import { boolean, index, pgTable, text, timestamp } from "drizzle-orm/pg-core";
 import { users } from "./users";
 
 export const sessions = pgTable("sessions", {
@@ -50,3 +50,17 @@ export const verifications = pgTable("verifications", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull()
 });
+
+export const twoFactor = pgTable(
+  "two_factor",
+  {
+    id: text("id").primaryKey(),
+    secret: text("secret").notNull(),
+    backupCodes: text("backup_codes").notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    verified: boolean("verified").default(false).notNull()
+  },
+  (table) => [index("two_factor_user_id_idx").on(table.userId)]
+);

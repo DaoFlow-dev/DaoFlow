@@ -2364,6 +2364,16 @@
           "required": false
         },
         {
+          "flags": "--totp-code <code>",
+          "description": "TOTP code for MFA-protected email/password sign-in",
+          "required": false
+        },
+        {
+          "flags": "--recovery-code <code>",
+          "description": "Recovery code for MFA-protected email/password sign-in",
+          "required": false
+        },
+        {
           "flags": "--sso",
           "description": "Start browser-based CLI sign-in",
           "required": false

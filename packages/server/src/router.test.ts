@@ -2123,6 +2123,77 @@ describe("appRouter", () => {
     );
   });
 
+  it("enforces team MFA policy for privileged human sessions", async () => {
+    const owner = appRouter.createCaller({
+      requestId: "test-mfa-policy-owner",
+      session: makeSession("owner")
+    });
+
+    const status = await owner.updateAccountSecurityPolicy({
+      mfaRequirement: "privileged"
+    });
+    expect(status.policy.mfaRequirement).toBe("privileged");
+    const [policyAudit] = await db
+      .select()
+      .from(auditEntries)
+      .where(eq(auditEntries.action, "security.mfa.policy.update"))
+      .limit(1);
+    expect(policyAudit?.outcome).toBe("success");
+
+    await expect(owner.adminControlPlane()).rejects.toMatchObject({
+      code: "PRECONDITION_FAILED",
+      cause: expect.objectContaining({
+        code: "MFA_REQUIRED",
+        requirement: "privileged"
+      })
+    });
+
+    await db
+      .update(users)
+      .set({
+        twoFactorEnabled: true,
+        mfaEnrolledAt: new Date("2026-01-01T00:00:00.000Z")
+      })
+      .where(eq(users.id, "user_foundation_owner"));
+
+    const staleMfaOwner = appRouter.createCaller({
+      requestId: "test-mfa-policy-owner-stale-session",
+      session: makeCustomSession({
+        id: "user_foundation_owner",
+        email: "owner@daoflow.local",
+        name: "Foundation Owner",
+        role: "owner",
+        twoFactorEnabled: true,
+        sessionCreatedAt: new Date("2000-01-01T00:00:00.000Z")
+      })
+    });
+    await expect(staleMfaOwner.adminControlPlane()).rejects.toMatchObject({
+      code: "PRECONDITION_FAILED",
+      cause: expect.objectContaining({
+        code: "MFA_REQUIRED",
+        requirement: "privileged"
+      })
+    });
+
+    const mfaOwner = appRouter.createCaller({
+      requestId: "test-mfa-policy-owner-satisfied",
+      session: makeCustomSession({
+        id: "user_foundation_owner",
+        email: "owner@daoflow.local",
+        name: "Foundation Owner",
+        role: "owner",
+        twoFactorEnabled: true
+      })
+    });
+
+    await expect(mfaOwner.adminControlPlane()).resolves.toMatchObject({
+      operator: {
+        email: "owner@daoflow.local",
+        role: "owner"
+      }
+    });
+  });
+
   it("rejects invites for emails that already belong to users", async () => {
     const caller = appRouter.createCaller({
       requestId: "test-admin-invite-existing-user",

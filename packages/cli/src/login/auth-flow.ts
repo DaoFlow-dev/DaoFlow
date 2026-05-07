@@ -21,6 +21,8 @@ export interface LoginCommandOptions {
   token?: string;
   email?: string;
   password?: string;
+  totpCode?: string;
+  recoveryCode?: string;
   sso?: boolean;
 }
 
@@ -156,6 +158,7 @@ async function authenticateWithEmailPassword(input: {
   baseUrl: string;
   email: string;
   password: string;
+  opts: LoginCommandOptions;
   isJson: boolean;
   runtime: LoginRuntime;
 }): Promise<LoginAuthResult> {
@@ -168,6 +171,10 @@ async function authenticateWithEmailPassword(input: {
         input.baseUrl,
         input.email,
         input.password,
+        {
+          totpCode: input.opts.totpCode,
+          recoveryCode: input.opts.recoveryCode
+        },
         input.runtime
       )
     };
@@ -202,6 +209,7 @@ export async function authenticateForLogin(input: {
         baseUrl: input.baseUrl,
         email: input.opts.email ?? "",
         password: input.opts.password ?? "",
+        opts: input.opts,
         isJson: input.isJson,
         runtime: input.runtime
       });

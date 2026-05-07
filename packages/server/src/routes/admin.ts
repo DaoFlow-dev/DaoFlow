@@ -3,6 +3,11 @@ import { appRoles, defaultSignupRole } from "@daoflow/shared";
 import { z } from "zod";
 import { runOperationalMaintenanceOnce } from "../db/services/operational-maintenance";
 import {
+  getAccountSecurityStatus,
+  mfaRequirementValues,
+  upsertAccountSecurityPolicy
+} from "../db/services/account-security";
+import {
   createTeamInvite,
   inviteableUserRoles,
   listMemberAccessInventory
@@ -68,6 +73,29 @@ export const adminRouter = t.router({
   agentTokenInventory: adminProcedure.query(async () => {
     return listApiTokenInventory();
   }),
+  accountSecurityStatus: protectedProcedure.query(async ({ ctx }) => {
+    return getAccountSecurityStatus(ctx.session.user.id, ctx.auth.role, {
+      twoFactorEnabled: Boolean((ctx.session.user as Record<string, unknown>).twoFactorEnabled),
+      createdAt: ctx.session.session.createdAt
+    });
+  }),
+  updateAccountSecurityPolicy: membersManageProcedure
+    .input(
+      z.object({
+        mfaRequirement: z.enum(mfaRequirementValues)
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const actorUserId = ctx.auth.principal.linkedUserId ?? ctx.session.user.id;
+      const teamId = await requireActorTeamId(actorUserId);
+      return upsertAccountSecurityPolicy({
+        teamId,
+        mfaRequirement: input.mfaRequirement,
+        actorUserId,
+        actorEmail: ctx.auth.principal.email,
+        actorRole: ctx.auth.role
+      });
+    }),
   runOperationalMaintenance: serverWriteProcedure
     .input(
       z.object({

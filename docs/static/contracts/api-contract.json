@@ -72,6 +72,17 @@
       }
     },
     {
+      "name": "accountSecurityStatus",
+      "summary": "account Security Status",
+      "path": "/trpc/accountSecurityStatus",
+      "method": "GET",
+      "lane": "read",
+      "auth": "authenticated",
+      "requiredRoles": [],
+      "requiredScopes": [],
+      "inputSchema": null
+    },
+    {
       "name": "addServiceDomain",
       "summary": "add Service Domain",
       "path": "/trpc/addServiceDomain",
@@ -4762,6 +4773,28 @@
           }
         },
         "required": ["endpoint"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "updateAccountSecurityPolicy",
+      "summary": "update Account Security Policy",
+      "path": "/trpc/updateAccountSecurityPolicy",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin"],
+      "requiredScopes": ["members:manage"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "mfaRequirement": {
+            "type": "string",
+            "enum": ["optional", "privileged", "all"]
+          }
+        },
+        "required": ["mfaRequirement"],
         "additionalProperties": false
       }
     },

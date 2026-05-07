@@ -26,7 +26,7 @@ import { resetAuthState } from "./auth";
 
 const { Client } = pg;
 const TEST_DB_PREPARE_LOCK_ID = 8_705_231;
-const MIN_EXPECTED_PUBLIC_TABLES = 39;
+const MIN_EXPECTED_PUBLIC_TABLES = 41;
 
 let prepared = false;
 let preparePromise: Promise<string> | null = null;
@@ -108,6 +108,10 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
       approvalRequestsRequestedByRole: string | null;
       approvalRequestsInputSummary: string | null;
       requestAccessLogs: string | null;
+      accountSecurityPolicies: string | null;
+      twoFactor: string | null;
+      usersTwoFactorEnabled: string | null;
+      usersMfaEnrolledAt: string | null;
       apiTokensLastUsedIp: string | null;
       apiTokensLastUsedUserAgent: string | null;
       apiTokensLastFailureAt: string | null;
@@ -138,6 +142,10 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
         (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'approval_requests' AND column_name = 'requested_by_role') AS "approvalRequestsRequestedByRole",
         (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'approval_requests' AND column_name = 'input_summary') AS "approvalRequestsInputSummary",
         to_regclass('public.request_access_logs') AS "requestAccessLogs",
+        to_regclass('public.account_security_policies') AS "accountSecurityPolicies",
+        to_regclass('public.two_factor') AS "twoFactor",
+        (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'two_factor_enabled') AS "usersTwoFactorEnabled",
+        (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'mfa_enrolled_at') AS "usersMfaEnrolledAt",
         (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'api_tokens' AND column_name = 'last_used_ip') AS "apiTokensLastUsedIp",
         (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'api_tokens' AND column_name = 'last_used_user_agent') AS "apiTokensLastUsedUserAgent",
         (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'api_tokens' AND column_name = 'last_failure_at') AS "apiTokensLastFailureAt",
@@ -170,6 +178,10 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
       row.approvalRequestsRequestedByRole &&
       row.approvalRequestsInputSummary &&
       row.requestAccessLogs &&
+      row.accountSecurityPolicies &&
+      row.twoFactor &&
+      row.usersTwoFactorEnabled &&
+      row.usersMfaEnrolledAt &&
       row.apiTokensLastUsedIp &&
       row.apiTokensLastUsedUserAgent &&
       row.apiTokensLastFailureAt &&
@@ -232,6 +244,10 @@ async function readPoolSchemaState() {
     approvalRequestsRequestedByRole: string | null;
     approvalRequestsInputSummary: string | null;
     requestAccessLogs: string | null;
+    accountSecurityPolicies: string | null;
+    twoFactor: string | null;
+    usersTwoFactorEnabled: string | null;
+    usersMfaEnrolledAt: string | null;
     apiTokensLastUsedIp: string | null;
     apiTokensLastUsedUserAgent: string | null;
     apiTokensLastFailureAt: string | null;
@@ -260,6 +276,10 @@ async function readPoolSchemaState() {
       (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'approval_requests' AND column_name = 'requested_by_role') AS "approvalRequestsRequestedByRole",
       (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'approval_requests' AND column_name = 'input_summary') AS "approvalRequestsInputSummary",
       to_regclass('public.request_access_logs') AS "requestAccessLogs",
+      to_regclass('public.account_security_policies') AS "accountSecurityPolicies",
+      to_regclass('public.two_factor') AS "twoFactor",
+      (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'two_factor_enabled') AS "usersTwoFactorEnabled",
+      (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'mfa_enrolled_at') AS "usersMfaEnrolledAt",
       (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'api_tokens' AND column_name = 'last_used_ip') AS "apiTokensLastUsedIp",
       (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'api_tokens' AND column_name = 'last_used_user_agent') AS "apiTokensLastUsedUserAgent",
       (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'api_tokens' AND column_name = 'last_failure_at') AS "apiTokensLastFailureAt",
@@ -302,6 +322,10 @@ async function ensurePooledTestSchemaReady(connectionString: string) {
         state.approvalRequestsRequestedByRole &&
         state.approvalRequestsInputSummary &&
         state.requestAccessLogs &&
+        state.accountSecurityPolicies &&
+        state.twoFactor &&
+        state.usersTwoFactorEnabled &&
+        state.usersMfaEnrolledAt &&
         state.apiTokensLastUsedIp &&
         state.apiTokensLastUsedUserAgent &&
         state.apiTokensLastFailureAt &&

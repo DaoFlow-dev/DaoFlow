@@ -20,6 +20,8 @@ export function loginCommand(): Command {
     .option("--token <token>", "Session token (from browser or API)")
     .option("--email <email>", "Email address for sign-in")
     .option("--password <password>", "Password for sign-in")
+    .option("--totp-code <code>", "TOTP code for MFA-protected email/password sign-in")
+    .option("--recovery-code <code>", "Recovery code for MFA-protected email/password sign-in")
     .option("--sso", "Start browser-based CLI sign-in")
     .option("--context <name>", "Context name", "default")
     .option("--json", "Output as JSON")
@@ -30,6 +32,8 @@ export function loginCommand(): Command {
           token?: string;
           email?: string;
           password?: string;
+          totpCode?: string;
+          recoveryCode?: string;
           sso?: boolean;
           context: string;
           json?: boolean;

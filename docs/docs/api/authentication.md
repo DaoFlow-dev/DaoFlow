@@ -8,11 +8,20 @@ DaoFlow supports two authentication methods: session-based (for the web UI) and 
 
 ## Session Authentication
 
-The web dashboard uses Better Auth with email/password:
+The web dashboard uses Better Auth with email/password and optional TOTP MFA:
 
 1. User signs up or logs in via the web UI
-2. A session cookie is set with `httpOnly` and `secure` flags
-3. All subsequent requests include the cookie automatically
+2. If MFA is enabled, Better Auth returns a second-factor challenge before creating the final session
+3. A session cookie is set with `httpOnly` and `secure` flags after password-only or MFA-verified login
+4. All subsequent requests include the cookie automatically
+
+DaoFlow stores MFA secrets and recovery codes through the Better Auth two-factor plugin. The secret and backup codes are encrypted by Better Auth and are never returned after enrollment or recovery-code rotation.
+
+Team MFA policy is available from the Settings security panel and the `accountSecurityStatus` / `updateAccountSecurityPolicy` tRPC procedures. Policy values are:
+
+- `optional`: users choose whether to enroll
+- `privileged`: owners, admins, and operators must enroll before privileged tRPC access
+- `all`: all non-agent human users must enroll before role-gated tRPC access
 
 ## Token Authentication
 
@@ -78,6 +87,8 @@ Tokens follow the format: `dfl_<random_string>`
 ### CLI Behavior
 
 - `daoflow login --token dfl_...` stores the token as-is
+- `daoflow login --email ... --password ... --totp-code ...` completes MFA-protected password login
+- `daoflow login --email ... --password ... --recovery-code ...` consumes one recovery code for MFA-protected password login
 - CLI requests with `dfl_...` tokens use `Authorization: Bearer ...`
 - CLI requests with non-`dfl_...` tokens continue to use Better Auth session cookies
 - `daoflow whoami --json` reports `authMethod`, token metadata, and `session: null` when the current identity is token-backed

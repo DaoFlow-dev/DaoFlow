@@ -308,6 +308,155 @@ describe("login command", () => {
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
+  test("finishes email/password login with a TOTP challenge", async () => {
+    const signInResponse = new Response(JSON.stringify({ twoFactorRedirect: true }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" }
+    });
+    (signInResponse.headers as Headers & { getSetCookie?: () => string[] }).getSetCookie = () => [
+      "better-auth.two_factor=temp_2fa_cookie; Path=/; HttpOnly"
+    ];
+
+    const mfaResponse = new Response(JSON.stringify({ token: "session_after_mfa" }), {
+      status: 200
+    });
+    (mfaResponse.headers as Headers & { getSetCookie?: () => string[] }).getSetCookie = () => [
+      "better-auth.session_token=session_after_mfa; Path=/; HttpOnly"
+    ];
+
+    const fetchMock = mock(
+      (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
+        const url =
+          typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+
+        if (url.endsWith("/health")) {
+          return Promise.resolve(
+            new Response(JSON.stringify({ status: "healthy" }), { status: 200 })
+          );
+        }
+
+        if (url.endsWith("/api/auth/sign-in/email")) {
+          return Promise.resolve(signInResponse);
+        }
+
+        if (url.endsWith("/api/auth/two-factor/verify-totp")) {
+          expect((init?.headers as Record<string, string>)?.Cookie).toBe(
+            "better-auth.two_factor=temp_2fa_cookie"
+          );
+          expect(init?.body).toBe(JSON.stringify({ code: "123456" }));
+          return Promise.resolve(mfaResponse);
+        }
+
+        if (url.endsWith("/trpc/viewer")) {
+          expect((init?.headers as Record<string, string>)?.Cookie).toBe(
+            "better-auth.session_token=session_after_mfa; __Secure-better-auth.session_token=session_after_mfa"
+          );
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                result: {
+                  data: {
+                    principal: { email: "owner@daoflow.local" },
+                    authz: { authMethod: "session", role: "owner" }
+                  }
+                }
+              }),
+              { status: 200 }
+            )
+          );
+        }
+
+        throw new Error(`Unexpected fetch ${url}`);
+      }
+    );
+    loginRuntime.fetch = fetchMock as unknown as typeof loginRuntime.fetch;
+
+    const program = new Command().name("daoflow");
+    program.addCommand(loginCommand());
+
+    const result = await captureCommandExecution(async () => {
+      await program.parseAsync([
+        "node",
+        "daoflow",
+        "login",
+        "--url",
+        "https://deploy.example.com",
+        "--email",
+        "owner@daoflow.local",
+        "--password",
+        "secret-password",
+        "--totp-code",
+        "123456",
+        "--json"
+      ]);
+    });
+
+    expect(result.exitCode).toBeNull();
+    expect(JSON.parse(result.logs[0])).toMatchObject({
+      ok: true,
+      data: {
+        authMode: "email-password",
+        authMethod: "session",
+        principalEmail: "owner@daoflow.local",
+        role: "owner"
+      }
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+  });
+
+  test("returns structured JSON when email/password login requires MFA but no code is provided", async () => {
+    const signInResponse = new Response(JSON.stringify({ twoFactorRedirect: true }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" }
+    });
+    (signInResponse.headers as Headers & { getSetCookie?: () => string[] }).getSetCookie = () => [
+      "better-auth.two_factor=temp_2fa_cookie; Path=/; HttpOnly"
+    ];
+
+    const fetchMock = mock((input: string | URL | Request): Promise<Response> => {
+      const url =
+        typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+
+      if (url.endsWith("/health")) {
+        return Promise.resolve(
+          new Response(JSON.stringify({ status: "healthy" }), { status: 200 })
+        );
+      }
+
+      if (url.endsWith("/api/auth/sign-in/email")) {
+        return Promise.resolve(signInResponse);
+      }
+
+      throw new Error(`Unexpected fetch ${url}`);
+    });
+    loginRuntime.fetch = fetchMock as unknown as typeof loginRuntime.fetch;
+
+    const program = new Command().name("daoflow");
+    program.addCommand(loginCommand());
+
+    const result = await captureCommandExecution(async () => {
+      await program.parseAsync([
+        "node",
+        "daoflow",
+        "login",
+        "--url",
+        "https://deploy.example.com",
+        "--email",
+        "owner@daoflow.local",
+        "--password",
+        "secret-password",
+        "--json"
+      ]);
+    });
+
+    expect(result.exitCode).toBe(1);
+    expect(JSON.parse(result.logs[0])).toEqual({
+      ok: false,
+      error: "MFA is required. Re-run with --totp-code or --recovery-code, or use --sso.",
+      code: "MFA_REQUIRED"
+    });
+  });
+
   test("returns structured JSON when credential validation rejects the token", async () => {
     const fetchMock = mock((input: string | URL | Request): Promise<Response> => {
       const url =

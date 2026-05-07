@@ -127,6 +127,13 @@
       "when": 1778131074941,
       "tag": "0017_lyrical_nightmare",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1778137006983,
+      "tag": "0018_round_dagger",
+      "breakpoints": true
     }
   ]
 }

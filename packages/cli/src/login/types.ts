@@ -2,6 +2,7 @@ export interface LoginResponseBody {
   token?: string;
   message?: string;
   error?: string;
+  twoFactorRedirect?: boolean;
 }
 
 export interface DeviceStartResponse {

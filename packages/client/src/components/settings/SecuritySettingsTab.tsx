@@ -1,3 +1,8 @@
+import {
+  MfaSettingsCard,
+  type AccountSecurityStatus,
+  type MfaRequirement
+} from "@/components/settings/MfaSettingsCard";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -13,6 +18,10 @@ import {
 interface SecuritySettingsTabProps {
   isLoading: boolean;
   auditEntries: Record<string, unknown>[];
+  accountSecurity: AccountSecurityStatus | null;
+  policyPending: boolean;
+  onPolicyChange: (mfaRequirement: MfaRequirement) => void;
+  onSecurityRefresh: () => void;
 }
 
 function readCellValue(record: Record<string, unknown>, key: string, fallback = "—") {
@@ -20,9 +29,23 @@ function readCellValue(record: Record<string, unknown>, key: string, fallback = 
   return typeof value === "string" && value.length > 0 ? value : fallback;
 }
 
-export function SecuritySettingsTab({ isLoading, auditEntries }: SecuritySettingsTabProps) {
+export function SecuritySettingsTab({
+  isLoading,
+  auditEntries,
+  accountSecurity,
+  policyPending,
+  onPolicyChange,
+  onSecurityRefresh
+}: SecuritySettingsTabProps) {
   return (
-    <div className="mt-4">
+    <div className="mt-4 space-y-4">
+      <MfaSettingsCard
+        accountSecurity={accountSecurity}
+        policyPending={policyPending}
+        onPolicyChange={onPolicyChange}
+        onSecurityRefresh={onSecurityRefresh}
+      />
+
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Security & Audit</CardTitle>

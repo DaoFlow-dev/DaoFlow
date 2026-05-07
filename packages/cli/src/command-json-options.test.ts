@@ -47,7 +47,10 @@ function renderHelp(command: Command): string {
 
 describe("CLI JSON option coverage", () => {
   test("login declares --json", () => {
-    expect(hasLongOption(loginCommand(), "--json")).toBe(true);
+    const command = loginCommand();
+    expect(hasLongOption(command, "--json")).toBe(true);
+    expect(hasLongOption(command, "--totp-code")).toBe(true);
+    expect(hasLongOption(command, "--recovery-code")).toBe(true);
   });
 
   test("audit declares --json", () => {

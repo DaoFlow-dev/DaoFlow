@@ -19,6 +19,9 @@ This file holds the detailed CLI contract, scope map, and agent-facing command r
 ## Identity Contract
 
 - `daoflow login --token <value>` must accept both Better Auth session tokens and DaoFlow API tokens
+- `daoflow login --email <email> --password <password>` must return `MFA_REQUIRED` instead of storing a partial session when the server asks for a second factor
+- `daoflow login --email <email> --password <password> --totp-code <code>` must complete TOTP-protected login
+- `daoflow login --email <email> --password <password> --recovery-code <code>` must complete recovery-code login and let Better Auth consume that code server-side
 - When the stored token starts with `dfl_`, the CLI must send `Authorization: Bearer <token>`
 - Otherwise the CLI must send `Cookie: better-auth.session_token=<token>`
 - Environment-based auth override requires both `DAOFLOW_URL` and `DAOFLOW_TOKEN`; partial overrides must fail closed

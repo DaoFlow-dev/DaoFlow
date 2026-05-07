@@ -18,6 +18,8 @@ export const users = pgTable(
     name: varchar("name", { length: 256 }),
     username: varchar("username", { length: 50 }),
     emailVerified: boolean("email_verified").default(false).notNull(),
+    twoFactorEnabled: boolean("two_factor_enabled").default(false).notNull(),
+    mfaEnrolledAt: timestamp("mfa_enrolled_at"),
     hasAvatar: boolean("has_avatar").default(false).notNull(),
     image: text("image"),
     role: varchar("role", { length: 20 }).default("viewer").notNull(),

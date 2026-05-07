@@ -1,5 +1,6 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { twoFactor } from "better-auth/plugins";
 import { sql } from "drizzle-orm";
 import { db } from "./db/connection";
 import { users } from "./db/schema/users";
@@ -55,6 +56,15 @@ function createAuthInstance() {
       autoSignIn: true,
       sendResetPassword: emailSender
     },
+    plugins: [
+      twoFactor({
+        issuer: "DaoFlow",
+        backupCodeOptions: {
+          amount: 10,
+          length: 10
+        }
+      })
+    ],
     user: {
       additionalFields: {
         role: {

@@ -69,6 +69,7 @@ addApiGroup(
     "deploymentInsights",
     "deploymentRollbackPlans",
     "auditTrail",
+    "accountSecurityStatus",
     "environmentVariables",
     "deploymentLogs",
     "operationsTimeline",
@@ -408,11 +409,15 @@ addApiGroup(apiProcedureAccess, ["generateAgentToken", "revokeAgentToken"], {
   requiredScopes: ["tokens:manage"]
 });
 
-addApiGroup(apiProcedureAccess, ["principalInventory", "inviteUser"], {
-  auth: "authenticated",
-  requiredRoles: ADMIN_ROLES,
-  requiredScopes: ["members:manage"]
-});
+addApiGroup(
+  apiProcedureAccess,
+  ["principalInventory", "inviteUser", "updateAccountSecurityPolicy"],
+  {
+    auth: "authenticated",
+    requiredRoles: ADMIN_ROLES,
+    requiredScopes: ["members:manage"]
+  }
+);
 
 addApiGroup(
   apiProcedureAccess,

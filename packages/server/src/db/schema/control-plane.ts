@@ -12,4 +12,5 @@ export * from "./destinations";
 export * from "./storage";
 export * from "./audit";
 export * from "./request-access-logs";
+export * from "./account-security";
 export * from "./services";

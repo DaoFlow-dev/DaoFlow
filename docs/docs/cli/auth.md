@@ -9,20 +9,22 @@ Authenticate the CLI with a DaoFlow instance.
 ## Usage
 
 ```bash
-daoflow login --url <api_url> (--token <token> | --email <email> --password <password> | --sso)
+daoflow login --url <api_url> (--token <token> | --email <email> --password <password> [--totp-code <code> | --recovery-code <code>] | --sso)
 ```
 
 ## Options
 
-| Flag         | Required | Description                                       |
-| ------------ | -------- | ------------------------------------------------- |
-| `--url`      | Yes      | URL of the DaoFlow instance                       |
-| `--token`    | No       | DaoFlow API token or Better Auth session token    |
-| `--email`    | No       | Email address for password sign-in                |
-| `--password` | No       | Password for password sign-in                     |
-| `--sso`      | No       | Start browser/device-code login                   |
-| `--context`  | No       | Context name to store in `~/.daoflow/config.json` |
-| `--json`     | No       | Structured JSON output                            |
+| Flag              | Required | Description                                       |
+| ----------------- | -------- | ------------------------------------------------- |
+| `--url`           | Yes      | URL of the DaoFlow instance                       |
+| `--token`         | No       | DaoFlow API token or Better Auth session token    |
+| `--email`         | No       | Email address for password sign-in                |
+| `--password`      | No       | Password for password sign-in                     |
+| `--totp-code`     | No       | TOTP code for MFA-protected password sign-in      |
+| `--recovery-code` | No       | Recovery code for MFA-protected password sign-in  |
+| `--sso`           | No       | Start browser/device-code login                   |
+| `--context`       | No       | Context name to store in `~/.daoflow/config.json` |
+| `--json`          | No       | Structured JSON output                            |
 
 ## Behavior
 
@@ -40,6 +42,9 @@ daoflow login --url http://localhost:3000 --token dfl_abc123
 
 # Login with email/password
 daoflow login --url http://localhost:3000 --email owner@daoflow.local --password secret1234
+
+# Login with email/password and MFA
+daoflow login --url http://localhost:3000 --email owner@daoflow.local --password secret1234 --totp-code 123456
 
 # Login with SSO
 daoflow login --url https://deploy.example.com --sso

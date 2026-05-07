@@ -107,6 +107,7 @@ export async function signInWithEmailPassword(
   baseUrl: string,
   email: string,
   password: string,
+  mfa: { totpCode?: string; recoveryCode?: string },
   runtime: LoginRuntime
 ): Promise<string> {
   const response = await runtime.fetch(`${baseUrl}/api/auth/sign-in/email`, {
@@ -137,7 +138,8 @@ export async function signInWithEmailPassword(
     ? {
         token: readString(rawBody.token),
         message: readString(rawBody.message),
-        error: readString(rawBody.error)
+        error: readString(rawBody.error),
+        twoFactorRedirect: rawBody.twoFactorRedirect === true
       }
     : null;
 
@@ -145,8 +147,73 @@ export async function signInWithEmailPassword(
     return body.token;
   }
 
+  if (body?.twoFactorRedirect) {
+    return verifyEmailPasswordMfa(baseUrl, setCookie, mfa, runtime);
+  }
+
   const errorMessage = body?.message || body?.error || `Status ${response.status}`;
   throw new LoginCommandError(`Sign-in failed: ${errorMessage}`, "AUTH_FAILED");
+}
+
+async function verifyEmailPasswordMfa(
+  baseUrl: string,
+  signInCookies: string[],
+  mfa: { totpCode?: string; recoveryCode?: string },
+  runtime: LoginRuntime
+): Promise<string> {
+  if (mfa.totpCode && mfa.recoveryCode) {
+    throw new LoginCommandError(
+      "Use either --totp-code or --recovery-code, not both.",
+      "INVALID_MFA_MODE"
+    );
+  }
+
+  const code = mfa.totpCode ?? mfa.recoveryCode;
+  if (!code) {
+    throw new LoginCommandError(
+      "MFA is required. Re-run with --totp-code or --recovery-code, or use --sso.",
+      "MFA_REQUIRED"
+    );
+  }
+
+  const response = await runtime.fetch(
+    `${baseUrl}/api/auth/two-factor/${mfa.recoveryCode ? "verify-backup-code" : "verify-totp"}`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Cookie: buildCookieHeader(signInCookies)
+      },
+      body: JSON.stringify({ code }),
+      redirect: "manual"
+    }
+  );
+
+  const sessionCookie = (response.headers.getSetCookie?.() ?? []).find(
+    (cookie) =>
+      cookie.startsWith("better-auth.session_token=") ||
+      cookie.startsWith("__Secure-better-auth.session_token=")
+  );
+  if (sessionCookie) {
+    const match = sessionCookie.match(/(?:__Secure-)?better-auth\.session_token=([^;]+)/);
+    if (match?.[1]) {
+      return decodeURIComponent(match[1]);
+    }
+  }
+
+  const body = (await response.json().catch(() => null)) as unknown;
+  const message = isRecord(body) ? readString(body.message) || readString(body.error) : null;
+  throw new LoginCommandError(
+    `MFA verification failed: ${message || `Status ${response.status}`}`,
+    "MFA_FAILED"
+  );
+}
+
+function buildCookieHeader(cookies: string[]) {
+  return cookies
+    .map((cookie) => cookie.split(";")[0]?.trim())
+    .filter((cookie): cookie is string => Boolean(cookie))
+    .join("; ");
 }
 
 export async function validateCredential(

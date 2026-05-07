@@ -6,6 +6,7 @@ import {
   buildAccessLogAttribution,
   rememberRequestAccessLogAttribution
 } from "./request-access-log-context";
+import { assertHumanMfaSatisfied } from "./db/services/account-security";
 
 export const t = initTRPC.context<Context>().create({
   errorFormatter({ shape, error }) {
@@ -52,7 +53,7 @@ export const protectedProcedure = t.procedure.use(async ({ ctx, next }) => {
 
 // ── Role-gated ───────────────────────────────────────────────
 export const roleProcedure = (allowedRoles: readonly AppRole[]) =>
-  protectedProcedure.use(({ ctx, next }) => {
+  protectedProcedure.use(async ({ ctx, next }) => {
     const role = ctx.auth.role;
 
     if (!canAssumeAnyRole(role, allowedRoles)) {
@@ -60,6 +61,27 @@ export const roleProcedure = (allowedRoles: readonly AppRole[]) =>
         code: "FORBIDDEN",
         message: "Your role is not allowed to access this procedure."
       });
+    }
+
+    if (ctx.auth.method === "session") {
+      const mfaBlocked = await assertHumanMfaSatisfied({
+        userId: ctx.session.user.id,
+        role,
+        twoFactorEnabled: Boolean((ctx.session.user as Record<string, unknown>).twoFactorEnabled),
+        sessionCreatedAt: ctx.session.session.createdAt
+      });
+
+      if (mfaBlocked) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: mfaBlocked.message,
+          cause: {
+            ok: false,
+            code: mfaBlocked.code,
+            requirement: mfaBlocked.requirement
+          }
+        });
+      }
     }
 
     return next({

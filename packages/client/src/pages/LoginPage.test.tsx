@@ -6,13 +6,22 @@ import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import LoginPage from "./LoginPage";
 
-const { signInEmailMock, signUpEmailMock, useSessionMock } = vi.hoisted(() => ({
-  signInEmailMock: vi.fn(),
-  signUpEmailMock: vi.fn(),
-  useSessionMock: vi.fn()
-}));
+const { signInEmailMock, signUpEmailMock, useSessionMock, verifyTotpMock, verifyBackupCodeMock } =
+  vi.hoisted(() => ({
+    signInEmailMock: vi.fn(),
+    signUpEmailMock: vi.fn(),
+    useSessionMock: vi.fn(),
+    verifyTotpMock: vi.fn(),
+    verifyBackupCodeMock: vi.fn()
+  }));
 
 vi.mock("../lib/auth-client", () => ({
+  authClient: {
+    twoFactor: {
+      verifyTotp: verifyTotpMock,
+      verifyBackupCode: verifyBackupCodeMock
+    }
+  },
   signIn: {
     email: signInEmailMock
   },
@@ -38,6 +47,8 @@ describe("LoginPage", () => {
     });
     signInEmailMock.mockResolvedValue({});
     signUpEmailMock.mockResolvedValue({});
+    verifyTotpMock.mockResolvedValue({});
+    verifyBackupCodeMock.mockResolvedValue({});
   });
 
   afterEach(() => {
@@ -95,5 +106,29 @@ describe("LoginPage", () => {
     expect(authShell).toHaveClass("max-w-[460px]", "lg:max-w-[560px]");
     expect(authShell).toHaveClass("px-6", "py-8");
     expect(authCard).toHaveClass("lg:shadow-xl");
+  });
+
+  it("shows an MFA challenge after password sign-in requests second factor", async () => {
+    signInEmailMock.mockResolvedValue({ data: { twoFactorRedirect: true } });
+    renderLoginPage();
+
+    fireEvent.change(screen.getByTestId("login-signin-email"), {
+      target: { value: "owner@daoflow.local" }
+    });
+    fireEvent.change(screen.getByTestId("login-signin-password"), {
+      target: { value: "secret-password" }
+    });
+    fireEvent.click(screen.getByTestId("login-signin-submit"));
+
+    expect(await screen.findByTestId("login-mfa-code")).toBeVisible();
+    fireEvent.change(screen.getByTestId("login-mfa-code"), {
+      target: { value: "123456" }
+    });
+    fireEvent.click(screen.getByTestId("login-mfa-submit"));
+
+    expect(verifyTotpMock).toHaveBeenCalledWith({
+      code: "123456",
+      trustDevice: false
+    });
   });
 });

@@ -13,6 +13,8 @@ type CustomSessionInput = {
   email: string;
   name: string;
   role: string;
+  twoFactorEnabled?: boolean;
+  sessionCreatedAt?: Date;
 };
 
 const seededSessionActors = {
@@ -55,6 +57,7 @@ function buildSession(input: CustomSessionInput): NonNullable<AuthSession> {
       email: input.email,
       name: input.name,
       emailVerified: true,
+      twoFactorEnabled: input.twoFactorEnabled ?? false,
       createdAt: new Date(),
       updatedAt: new Date(),
       image: null,
@@ -65,7 +68,7 @@ function buildSession(input: CustomSessionInput): NonNullable<AuthSession> {
       userId: input.id,
       expiresAt: new Date(),
       token: `token_${input.id}`,
-      createdAt: new Date(),
+      createdAt: input.sessionCreatedAt ?? new Date(),
       updatedAt: new Date(),
       ipAddress: null,
       userAgent: null

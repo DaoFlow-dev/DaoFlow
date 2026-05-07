@@ -59,6 +59,9 @@ export default function SettingsPage() {
     enabled: adminDataEnabled
   });
   const audit = trpc.auditTrail.useQuery({ limit: 20 }, { enabled: Boolean(session.data) });
+  const accountSecurity = trpc.accountSecurityStatus.useQuery(undefined, {
+    enabled: Boolean(session.data)
+  });
   const caps = viewer.data ? roleCapabilities[currentRole] : [];
   const canManageRegistries = caps.includes("server:write");
   const canManageMaintenance = caps.includes("server:write");
@@ -84,6 +87,11 @@ export default function SettingsPage() {
     },
     onError: (error) => {
       setUserFeedback(error.message);
+    }
+  });
+  const updateAccountSecurityPolicy = trpc.updateAccountSecurityPolicy.useMutation({
+    onSuccess: async () => {
+      await Promise.all([accountSecurity.refetch(), audit.refetch()]);
     }
   });
   const requestedTab = searchParams.get("tab");
@@ -205,10 +213,18 @@ export default function SettingsPage() {
 
             {activeTab === "security" && (
               <SecuritySettingsTab
-                isLoading={audit.isLoading}
+                isLoading={audit.isLoading || accountSecurity.isLoading}
                 auditEntries={
                   Array.isArray(audit.data) ? (audit.data as Record<string, unknown>[]) : []
                 }
+                accountSecurity={accountSecurity.data ?? null}
+                policyPending={updateAccountSecurityPolicy.isPending}
+                onPolicyChange={(mfaRequirement) => {
+                  updateAccountSecurityPolicy.mutate({ mfaRequirement });
+                }}
+                onSecurityRefresh={() => {
+                  void Promise.all([accountSecurity.refetch(), audit.refetch(), session.refetch()]);
+                }}
               />
             )}
 

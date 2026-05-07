@@ -17,6 +17,7 @@ import { legacyOauthRouter, LEGACY_OAUTH_TOKEN_PATH } from "./routes/legacy-oaut
 import { authorizeRequest } from "./routes/request-auth";
 import { ensureInitialOwnerFromEnv } from "./bootstrap-initial-owner";
 import { acceptPendingTeamInviteForEmail } from "./db/services/member-access";
+import { auditMfaAuthResponse } from "./mfa-auth-audit";
 import { recordRequestAccessLog } from "./db/services/request-access-logs";
 import { readRequestAccessLogAttribution } from "./request-access-log-context";
 
@@ -166,6 +167,10 @@ export function createApp() {
     await ensureInitialOwnerFromEnv();
     const requestPath = new URL(c.req.url).pathname;
     const isEmailSignup = c.req.method === "POST" && requestPath === "/api/auth/sign-up/email";
+    const shouldAuditMfa = c.req.method === "POST" && requestPath.includes("/two-factor/");
+    const sessionBeforeMfa = shouldAuditMfa
+      ? await auth.api.getSession({ headers: c.req.raw.headers })
+      : null;
     const payload = isEmailSignup
       ? await c.req.raw
           .clone()
@@ -173,6 +178,14 @@ export function createApp() {
           .catch(() => null)
       : null;
     const response = await auth.handler(c.req.raw);
+    if (shouldAuditMfa) {
+      await auditMfaAuthResponse({
+        path: requestPath,
+        ok: response.ok,
+        response,
+        session: sessionBeforeMfa
+      });
+    }
 
     if (
       isEmailSignup &&
