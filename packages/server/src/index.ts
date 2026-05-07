@@ -1,3 +1,5 @@
+import "./startup-encryption-config";
+
 import path from "node:path";
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -37,7 +39,6 @@ import { ensureInitialOwnerFromEnv } from "./bootstrap-initial-owner";
 import { ensureLocalhostServer } from "./bootstrap-localhost-server";
 import { runStartupMigrations } from "./startup-migrations";
 import { markStartupCheck } from "./startup-readiness";
-import { validateEncryptionConfiguration } from "./db/crypto";
 
 const port = Number(process.env.PORT ?? DEFAULT_SERVER_PORT);
 const isProduction = process.env.NODE_ENV === "production";
@@ -65,7 +66,6 @@ function shouldStartDevelopmentTaskWorker(): boolean {
 import { isTemporalEnabled } from "./worker/temporal/temporal-config";
 
 async function start() {
-  validateEncryptionConfiguration();
   await runStartupMigrations({ isProduction });
 
   if (migrationOnly) {
