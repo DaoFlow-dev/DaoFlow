@@ -160,6 +160,14 @@ describe("CLI JSON option coverage", () => {
     expect(hasLongOption(getSubcommand(server, "add"), "--json")).toBe(true);
   });
 
+  test("server ops subcommands declare --json", () => {
+    const ops = getSubcommand(serverCommand(), "ops");
+    expect(hasLongOption(getSubcommand(ops, "resources"), "--json")).toBe(true);
+    expect(hasLongOption(getSubcommand(ops, "cleanup"), "--json")).toBe(true);
+    expect(hasLongOption(getSubcommand(ops, "patch"), "--json")).toBe(true);
+    expect(hasLongOption(getSubcommand(ops, "history"), "--json")).toBe(true);
+  });
+
   test("server add help includes scope, examples, and JSON shapes", () => {
     const help = renderHelp(getSubcommand(serverCommand(), "add"));
     expect(help).toContain("Required scope:");
@@ -167,6 +175,14 @@ describe("CLI JSON option coverage", () => {
     expect(help).toContain("Examples:");
     expect(help).toContain("daoflow server add --name edge-vps-1");
     expect(help).toContain("Example JSON shapes:");
+  });
+
+  test("server ops help includes scopes and examples", () => {
+    const help = renderHelp(getSubcommand(serverCommand(), "ops"));
+    expect(help).toContain("Required scopes:");
+    expect(help).toContain("server:read");
+    expect(help).toContain("server:write");
+    expect(help).toContain("daoflow server ops cleanup --server srv_123 --dry-run --json");
   });
 
   test("backup policy create declares --json", () => {

@@ -70,6 +70,7 @@ This file holds the detailed CLI contract, scope map, and agent-facing command r
 | `status`             | read                  | `server:read`                                   | no       |
 | `server add`         | command               | `server:write`                                  | yes      |
 | `server proxy`       | command               | `server:write`                                  | yes      |
+| `server ops`         | read/command          | `server:read`, `server:write`                   | varies   |
 | `services`           | read/command          | `service:read`, `service:update`                | varies   |
 | `projects`           | read/command          | `deploy:read`, `deploy:start`, `service:update` | varies   |
 | `templates`          | read/planning/command | none, `deploy:read`, `deploy:start`             | varies   |
@@ -200,6 +201,17 @@ This file holds the detailed CLI contract, scope map, and agent-facing command r
   - `--json`
 - JSON success shape:
   - `{ "ok": true, "data": { "serviceId": string, "domain": { "id": string, "hostname": string, "routingMode": "observed" | "managed-traefik", "targetPort": number | null } | null } }`
+
+## Server Operations Contract
+
+- `daoflow server ops resources` writes a durable `resource_check` operation through `collectServerResources` and requires `server:read`
+- `daoflow server ops cleanup --dry-run` writes a durable `cleanup_preview` operation through `previewServerCleanup` and requires `server:write`
+- `daoflow server ops cleanup --yes` writes a durable `cleanup_run` operation through `runServerCleanup` and requires a recent successful cleanup preview
+- `daoflow server ops patch` writes a durable non-mutating `patch_plan` operation through `planServerPatches` and requires `server:write`
+- `daoflow server ops history` reads `serverOperationsHub` and requires `server:read`
+- Host terminal access is web-only in this iteration and uses `/ws/host-terminal` with `terminal:open`
+- JSON operation success shape:
+  - `{ "ok": true, "data": { "status": "ok", "operation": { "id": string, "serverId": string, "kind": string, "status": string, "dryRun": boolean, "summary": string | null, "createdAt": string, "completedAt": string | null }, "result": unknown } }`
 
 ## Plan Command Contract
 

@@ -90,6 +90,7 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
       repositoryCredentials: string | null;
       cliAuthRequests: string | null;
       developmentTasks: string | null;
+      serverOperations: string | null;
     }>(`
       SELECT
         (SELECT count(*)::int FROM pg_tables WHERE schemaname = 'public') AS "tableCount",
@@ -104,6 +105,7 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
         to_regclass('public.repository_credentials') AS "repositoryCredentials",
         to_regclass('public.cli_auth_requests') AS "cliAuthRequests",
         to_regclass('public.development_tasks') AS "developmentTasks"
+        ,to_regclass('public.server_operations') AS "serverOperations"
     `);
     const row = result.rows[0];
     return Boolean(
@@ -119,7 +121,8 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
       row.gitProviders &&
       row.repositoryCredentials &&
       row.cliAuthRequests &&
-      row.developmentTasks
+      row.developmentTasks &&
+      row.serverOperations
     );
   } finally {
     await client.end();
@@ -169,6 +172,7 @@ async function readPoolSchemaState() {
     repositoryCredentials: string | null;
     cliAuthRequests: string | null;
     developmentTasks: string | null;
+    serverOperations: string | null;
   }>(`
     SELECT
       current_database() AS "databaseName",
@@ -184,6 +188,7 @@ async function readPoolSchemaState() {
       to_regclass('public.repository_credentials') AS "repositoryCredentials",
       to_regclass('public.cli_auth_requests') AS "cliAuthRequests",
       to_regclass('public.development_tasks') AS "developmentTasks"
+      ,to_regclass('public.server_operations') AS "serverOperations"
   `);
 
   return result.rows[0];
@@ -212,7 +217,8 @@ async function ensurePooledTestSchemaReady(connectionString: string) {
         state.gitProviders &&
         state.repositoryCredentials &&
         state.cliAuthRequests &&
-        state.developmentTasks
+        state.developmentTasks &&
+        state.serverOperations
       ) {
         return;
       }

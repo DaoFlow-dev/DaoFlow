@@ -1,15 +1,22 @@
 import type { Server, ServerWebSocket } from "bun";
-import { db } from "./db/connection";
-import { auditEntries } from "./db/schema/audit";
+import {
+  appendOperationLog,
+  closeHostTerminalOperation,
+  createHostTerminalOperation,
+  type ServerOperationActor
+} from "./db/services/server-operations";
 import { resolveServiceRuntime, type ResolvedServiceRuntime } from "./db/services/service-runtime";
 import { resolveTeamIdForUser } from "./db/services/teams";
 import { authorizeRequest, type AuthorizedRequestActor } from "./routes/request-auth";
+import { recordServiceTerminalAudit } from "./service-terminal-audit";
+import { resolveExecutionTarget, type ExecutionTarget } from "./worker/execution-target";
 import {
   startServiceLogStream,
   startServiceTerminal,
   type ServiceStreamHandle,
   type ServiceTerminalHandle
 } from "./worker/service-observability";
+import { startHostTerminal, type HostTerminalHandle } from "./worker/server-host-terminal";
 
 type LogsSocketData = {
   kind: "logs";
@@ -26,7 +33,18 @@ type TerminalSocketData = {
   handle?: ServiceTerminalHandle;
 };
 
-type ObservabilitySocketData = LogsSocketData | TerminalSocketData;
+type HostTerminalSocketData = {
+  kind: "host-terminal";
+  operationId: string;
+  serverId: string;
+  serverName: string;
+  target: ExecutionTarget;
+  shell: "bash" | "sh";
+  actor: AuthorizedRequestActor;
+  handle?: HostTerminalHandle;
+};
+
+type ObservabilitySocketData = LogsSocketData | TerminalSocketData | HostTerminalSocketData;
 
 function jsonResponse(body: Record<string, unknown>, status: number): Response {
   return new Response(JSON.stringify(body), {
@@ -35,40 +53,12 @@ function jsonResponse(body: Record<string, unknown>, status: number): Response {
   });
 }
 
-function normalizeActorType(actor: AuthorizedRequestActor): string {
-  return actor.auth.method === "api-token" ? actor.auth.principal.type : "user";
-}
-
-async function recordTerminalAudit(input: {
-  actor: AuthorizedRequestActor;
-  runtime: ResolvedServiceRuntime;
-  shell: "bash" | "sh";
-  outcome: "success" | "failed";
-  action: "service.terminal.open" | "service.terminal.close";
-  summary: string;
-}) {
-  const targetResource = `service/${input.runtime.service.id}`;
-  const actorType = normalizeActorType(input.actor);
-
-  await db.insert(auditEntries).values({
-    actorType,
-    actorId: input.actor.auth.principal.id,
-    actorEmail: input.actor.session.user.email,
-    actorRole: input.actor.role,
-    targetResource,
-    action: input.action,
-    inputSummary: input.summary,
-    permissionScope: "terminal:open",
-    outcome: input.outcome,
-    metadata: {
-      resourceType: "service",
-      resourceId: input.runtime.service.id,
-      serviceName: input.runtime.service.name,
-      targetServerId: input.runtime.server.id,
-      targetServerName: input.runtime.server.name,
-      shell: input.shell
-    }
-  });
+function serverOperationActor(actor: AuthorizedRequestActor): ServerOperationActor {
+  return {
+    requestedByUserId: actor.auth.principal.linkedUserId ?? actor.session.user.id,
+    requestedByEmail: actor.session.user.email,
+    requestedByRole: actor.role
+  };
 }
 
 async function resolveWebSocketRuntime(
@@ -121,7 +111,11 @@ export async function handleServiceObservabilityWebSocketUpgrade(
   server: Server<ObservabilitySocketData>
 ): Promise<Response | undefined | null> {
   const url = new URL(req.url);
-  if (url.pathname !== "/ws/container-logs" && url.pathname !== "/ws/docker-terminal") {
+  if (
+    url.pathname !== "/ws/container-logs" &&
+    url.pathname !== "/ws/docker-terminal" &&
+    url.pathname !== "/ws/host-terminal"
+  ) {
     return null;
   }
 
@@ -165,6 +159,37 @@ export async function handleServiceObservabilityWebSocketUpgrade(
   });
   if (!authResult.ok) {
     return jsonResponse(authResult.body, authResult.status);
+  }
+
+  if (url.pathname === "/ws/host-terminal") {
+    const serverId = url.searchParams.get("serverId")?.trim() ?? "";
+    if (!serverId) {
+      return jsonResponse({ ok: false, error: "Missing serverId", code: "INVALID_REQUEST" }, 400);
+    }
+
+    const shell = url.searchParams.get("shell") === "sh" ? "sh" : "bash";
+    const operationResult = await createHostTerminalOperation({
+      serverId,
+      shell,
+      actor: serverOperationActor(authResult.actor)
+    });
+    if (operationResult.status !== "ok") {
+      return jsonResponse({ ok: false, error: "Server not found", code: "NOT_FOUND" }, 404);
+    }
+
+    const upgraded = server.upgrade(req, {
+      data: {
+        kind: "host-terminal",
+        operationId: operationResult.operation.id,
+        serverId,
+        serverName: operationResult.server.name,
+        target: resolveExecutionTarget(operationResult.server, operationResult.operation.id),
+        shell,
+        actor: authResult.actor
+      } satisfies HostTerminalSocketData
+    });
+
+    return upgraded ? undefined : jsonResponse({ ok: false, error: "Upgrade failed" }, 500);
   }
 
   const serviceId =
@@ -213,8 +238,28 @@ export const serviceObservabilityWebSocket = {
       return;
     }
 
+    if (ws.data.kind === "host-terminal") {
+      try {
+        ws.data.handle = startHostTerminal({
+          target: ws.data.target,
+          shell: ws.data.shell,
+          onData: (chunk) => ws.send(chunk),
+          onExit: (code) => {
+            ws.send(`\r\n[host terminal exited with code ${code ?? 0}]\r\n`);
+            ws.close(1000, "host terminal exited");
+          }
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        await appendOperationLog(ws.data.operationId, "error", message);
+        ws.send(`\r\nHost terminal unavailable: ${message}\r\n`);
+        ws.close(1011, "host terminal unavailable");
+      }
+      return;
+    }
+
     try {
-      await recordTerminalAudit({
+      await recordServiceTerminalAudit({
         actor: ws.data.actor,
         runtime: ws.data.runtime,
         shell: ws.data.shell,
@@ -232,7 +277,7 @@ export const serviceObservabilityWebSocket = {
         }
       });
     } catch (error) {
-      await recordTerminalAudit({
+      await recordServiceTerminalAudit({
         actor: ws.data.actor,
         runtime: ws.data.runtime,
         shell: ws.data.shell,
@@ -250,7 +295,7 @@ export const serviceObservabilityWebSocket = {
     }
   },
   message(ws: ServerWebSocket<ObservabilitySocketData>, message: string | Buffer) {
-    if (ws.data.kind !== "terminal" || !ws.data.handle) {
+    if ((ws.data.kind !== "terminal" && ws.data.kind !== "host-terminal") || !ws.data.handle) {
       return;
     }
 
@@ -260,13 +305,18 @@ export const serviceObservabilityWebSocket = {
     ws.data.handle?.close();
 
     if (ws.data.kind === "terminal") {
-      void recordTerminalAudit({
+      void recordServiceTerminalAudit({
         actor: ws.data.actor,
         runtime: ws.data.runtime,
         shell: ws.data.shell,
         action: "service.terminal.close",
         outcome: "success",
         summary: `Closed ${ws.data.shell} session for ${ws.data.runtime.service.name}.`
+      });
+    } else if (ws.data.kind === "host-terminal") {
+      void closeHostTerminalOperation({
+        operationId: ws.data.operationId,
+        actor: serverOperationActor(ws.data.actor)
       });
     }
   },

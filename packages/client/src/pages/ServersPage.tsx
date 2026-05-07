@@ -1,4 +1,5 @@
 import { memo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { isTRPCClientError } from "@trpc/client";
 import { trpc } from "../lib/trpc";
 import { useSession } from "../lib/auth-client";
@@ -16,6 +17,7 @@ import type { SwarmTopologySnapshot } from "@daoflow/shared";
 
 export default function ServersPage() {
   const session = useSession();
+  const navigate = useNavigate();
   const utils = trpc.useUtils();
   const serverReadiness = trpc.serverReadiness.useQuery({}, { enabled: Boolean(session.data) });
   const viewer = trpc.viewer.useQuery(undefined, { enabled: Boolean(session.data) });
@@ -113,7 +115,11 @@ export default function ServersPage() {
           ) : (
             <div className="grid gap-4 lg:grid-cols-2">
               {checks.map((check) => (
-                <ServerCheckCard key={String(check.serverId)} check={check as ServerCheck} />
+                <ServerCheckCard
+                  key={String(check.serverId)}
+                  check={check as ServerCheck}
+                  onOpen={(serverId) => void navigate(`/servers/${serverId}`)}
+                />
               ))}
             </div>
           )}
@@ -145,9 +151,14 @@ interface ServerCheck {
 
 interface ServerCheckCardProps {
   check: ServerCheck;
+  onOpen?: (serverId: string) => void;
 }
 
-export const ServerCheckCard = memo(function ServerCheckCard({ check }: ServerCheckCardProps) {
+export const ServerCheckCard = memo(function ServerCheckCard({
+  check,
+  onOpen
+}: ServerCheckCardProps) {
+  const serverId = String(check.serverId);
   return (
     <Card className="border-border/50 shadow-sm transition-all duration-200 hover:shadow-md">
       <CardHeader className="gap-2">
@@ -225,6 +236,14 @@ export const ServerCheckCard = memo(function ServerCheckCard({ check }: ServerCh
             </ul>
           </div>
         </div>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => onOpen?.(serverId)}
+          data-testid={`server-open-${serverId}`}
+        >
+          Operations
+        </Button>
       </CardContent>
     </Card>
   );

@@ -18,10 +18,10 @@ Scopes follow the pattern `resource:action`:
 
 ### Infrastructure
 
-| Scope          | Description                            |
-| -------------- | -------------------------------------- |
-| `server:read`  | List servers, view connectivity status |
-| `server:write` | Register, update, or remove servers    |
+| Scope          | Description                                                                    |
+| -------------- | ------------------------------------------------------------------------------ |
+| `server:read`  | List servers, view readiness, resources, operation history, and operation logs |
+| `server:write` | Register, update, remove, cleanup, or patch-plan servers                       |
 
 ### Deployment
 
@@ -67,9 +67,9 @@ Scopes follow the pattern `resource:action`:
 | `terminal:open`    | Open an interactive terminal session (exceptional) |
 | `policy:override`  | Override policy-enforced guardrails                |
 
-`terminal:open` stays intentionally separate from deployment and log access. A user or token that
-can deploy, inspect services, or read logs is still denied interactive shell access unless
-`terminal:open` is explicitly granted.
+`terminal:open` stays intentionally separate from deployment, server, and log access. A user or
+token that can deploy, inspect services, read logs, or run server cleanup is still denied
+interactive service and host shell access unless `terminal:open` is explicitly granted.
 
 ## Scope Enforcement
 

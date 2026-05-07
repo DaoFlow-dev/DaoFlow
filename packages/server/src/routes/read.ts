@@ -33,6 +33,7 @@ import { limitInput } from "../schemas";
 import { backupReadRouter } from "./read-backups";
 import { developmentTaskReadRouter } from "./read-development-tasks";
 import { deploymentReadRouter } from "./read-deployments";
+import { serverOperationsReadRouter } from "./read-server-operations";
 import { serviceAccessActor } from "./service-scope";
 
 const productPrinciples = [
@@ -296,5 +297,6 @@ export const readRouter = t.mergeRouters(
   coreReadRouter,
   deploymentReadRouter,
   backupReadRouter,
-  developmentTaskReadRouter
+  developmentTaskReadRouter,
+  serverOperationsReadRouter
 );

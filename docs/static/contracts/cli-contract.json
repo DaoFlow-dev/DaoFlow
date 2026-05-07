@@ -2228,6 +2228,145 @@
       "supportsYes": true
     },
     {
+      "path": "server ops",
+      "summary": "Inspect and run audited server operations",
+      "lane": "read",
+      "requiredScopes": ["server:read"],
+      "mutating": false,
+      "hasAction": false,
+      "hasSubcommands": true,
+      "aliases": [],
+      "arguments": [],
+      "options": [],
+      "supportsJson": false,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
+      "path": "server ops cleanup",
+      "summary": "Preview or run safe Docker host cleanup",
+      "lane": "command",
+      "requiredScopes": ["server:write"],
+      "mutating": true,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--server <id>",
+          "description": "Server ID",
+          "required": true
+        },
+        {
+          "flags": "--include-volumes",
+          "description": "Include unused Docker volumes",
+          "required": false
+        },
+        {
+          "flags": "--dry-run",
+          "description": "Preview cleanup without pruning",
+          "required": false
+        },
+        {
+          "flags": "-y, --yes",
+          "description": "Skip confirmation prompt for cleanup execution",
+          "required": false
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": true,
+      "supportsYes": true
+    },
+    {
+      "path": "server ops history",
+      "summary": "List durable server operation history",
+      "lane": "read",
+      "requiredScopes": ["server:read"],
+      "mutating": false,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--server <id>",
+          "description": "Server ID",
+          "required": true
+        },
+        {
+          "flags": "--limit <n>",
+          "description": "Maximum operations",
+          "required": false
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
+      "path": "server ops patch",
+      "summary": "Queue a package patch plan without applying updates",
+      "lane": "command",
+      "requiredScopes": ["server:write"],
+      "mutating": true,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--server <id>",
+          "description": "Server ID",
+          "required": true
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
+      "path": "server ops resources",
+      "summary": "Collect host CPU, memory, disk, and Docker disk usage",
+      "lane": "read",
+      "requiredScopes": ["server:read"],
+      "mutating": true,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--server <id>",
+          "description": "Server ID",
+          "required": true
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
       "path": "server proxy",
       "summary": "Configure DaoFlow-managed Traefik routing for a server",
       "lane": "command",

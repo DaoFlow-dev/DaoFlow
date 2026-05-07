@@ -466,6 +466,98 @@ describe("CLI JSON contract", () => {
     });
   });
 
+  test("server ops cleanup requires confirmation before execution", async () => {
+    const program = new Command().name("daoflow");
+    program.addCommand(serverCommand());
+
+    const result = await captureCommandExecution(async () => {
+      await program.parseAsync([
+        "node",
+        "daoflow",
+        "server",
+        "ops",
+        "cleanup",
+        "--server",
+        "srv_123",
+        "--json"
+      ]);
+    });
+
+    expect(result.exitCode).toBe(1);
+    expect(result.errors).toEqual([]);
+    expect(JSON.parse(result.logs[0])).toEqual({
+      ok: false,
+      error: "Run cleanup on server srv_123. Pass --yes to confirm.",
+      code: "CONFIRMATION_REQUIRED"
+    });
+  });
+
+  test("server ops cleanup dry-run forwards preview input", async () => {
+    const program = new Command().name("daoflow");
+    program.addCommand(serverCommand());
+    const originalFetch = globalThis.fetch;
+
+    const result = await withTempHome(async () => {
+      process.env.DAOFLOW_URL = "https://daoflow.test";
+      process.env.DAOFLOW_TOKEN = "dfl_test_token";
+      globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
+        const url =
+          typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+        expect(url).toContain("/trpc/previewServerCleanup");
+        expect(init?.method).toBe("POST");
+        const body = typeof init?.body === "string" ? init.body : "";
+        expect(body).toContain("srv_123");
+        return new Response(
+          JSON.stringify({
+            result: {
+              data: {
+                status: "ok",
+                operation: {
+                  id: "op_cleanup_preview",
+                  summary: "Cleanup preview found 0 exited containers."
+                },
+                result: { exitedContainers: 0 }
+              }
+            }
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } }
+        );
+      }) as unknown as typeof fetch;
+
+      try {
+        return await captureCommandExecution(async () => {
+          await program.parseAsync([
+            "node",
+            "daoflow",
+            "server",
+            "ops",
+            "cleanup",
+            "--server",
+            "srv_123",
+            "--dry-run",
+            "--json"
+          ]);
+        });
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
+    });
+
+    expect(result.exitCode).toBeNull();
+    expect(result.errors).toEqual([]);
+    expect(JSON.parse(result.logs[0])).toEqual({
+      ok: true,
+      data: {
+        status: "ok",
+        operation: {
+          id: "op_cleanup_preview",
+          summary: "Cleanup preview found 0 exited containers."
+        },
+        result: { exitedContainers: 0 }
+      }
+    });
+  });
+
   test("services --project emits runtime-aware inventory in the standard success envelope", async () => {
     const originalFetch = globalThis.fetch;
 

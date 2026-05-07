@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 
 import "@testing-library/jest-dom/vitest";
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 import { ServerCheckCard } from "./ServersPage";
 
 describe("ServerCheckCard", () => {
@@ -71,5 +71,33 @@ describe("ServerCheckCard", () => {
     expect(
       screen.getByTestId("swarm-topology-node-srv_swarm_1-srv_swarm_1-worker-1")
     ).toHaveTextContent("swarm-worker-1 · worker · active · unknown");
+  });
+
+  it("exposes an operations action for server detail navigation", () => {
+    const onOpen = vi.fn();
+    render(
+      <ServerCheckCard
+        onOpen={onOpen}
+        check={{
+          serverId: "srv_ops_1",
+          serverName: "ops-host",
+          serverHost: "localhost",
+          targetKind: "docker-engine",
+          swarmTopology: null,
+          sshPort: 22,
+          readinessStatus: "ready",
+          sshReachable: true,
+          dockerReachable: true,
+          composeReachable: true,
+          checkedAt: "2026-03-21T00:00:00.000Z",
+          latencyMs: 0,
+          issues: [],
+          recommendedActions: []
+        }}
+      />
+    );
+
+    fireEvent.click(screen.getByTestId("server-open-srv_ops_1"));
+    expect(onOpen).toHaveBeenCalledWith("srv_ops_1");
   });
 });

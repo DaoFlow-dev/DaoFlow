@@ -343,6 +343,28 @@
       }
     },
     {
+      "name": "collectServerResources",
+      "summary": "collect Server Resources",
+      "path": "/trpc/collectServerResources",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator", "developer", "viewer", "agent"],
+      "requiredScopes": ["server:read"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "serverId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["serverId"],
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "completeExecutionJob",
       "summary": "complete Execution Job",
       "path": "/trpc/completeExecutionJob",
@@ -2681,6 +2703,28 @@
       }
     },
     {
+      "name": "planServerPatches",
+      "summary": "plan Server Patches",
+      "path": "/trpc/planServerPatches",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin"],
+      "requiredScopes": ["server:write"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "serverId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["serverId"],
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "platformOverview",
       "summary": "platform Overview",
       "path": "/trpc/platformOverview",
@@ -2690,6 +2734,31 @@
       "requiredRoles": [],
       "requiredScopes": [],
       "inputSchema": null
+    },
+    {
+      "name": "previewServerCleanup",
+      "summary": "preview Server Cleanup",
+      "path": "/trpc/previewServerCleanup",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin"],
+      "requiredScopes": ["server:write"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "serverId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "includeVolumes": {
+            "type": "boolean"
+          }
+        },
+        "required": ["serverId"],
+        "additionalProperties": false
+      }
     },
     {
       "name": "principalInventory",
@@ -3307,6 +3376,31 @@
       }
     },
     {
+      "name": "runServerCleanup",
+      "summary": "run Server Cleanup",
+      "path": "/trpc/runServerCleanup",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin"],
+      "requiredScopes": ["server:write"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "serverId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "includeVolumes": {
+            "type": "boolean"
+          }
+        },
+        "required": ["serverId"],
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "sandboxRunnerProfiles",
       "summary": "sandbox Runner Profiles",
       "path": "/trpc/sandboxRunnerProfiles",
@@ -3329,6 +3423,60 @@
             "maximum": 100
           }
         },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "serverOperationLogs",
+      "summary": "server Operation Logs",
+      "path": "/trpc/serverOperationLogs",
+      "method": "GET",
+      "lane": "read",
+      "auth": "authenticated",
+      "requiredRoles": [],
+      "requiredScopes": [],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "operationId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 500
+          }
+        },
+        "required": ["operationId"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "serverOperationsHub",
+      "summary": "server Operations Hub",
+      "path": "/trpc/serverOperationsHub",
+      "method": "GET",
+      "lane": "read",
+      "auth": "authenticated",
+      "requiredRoles": [],
+      "requiredScopes": [],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "serverId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          }
+        },
+        "required": ["serverId"],
         "additionalProperties": false
       }
     },

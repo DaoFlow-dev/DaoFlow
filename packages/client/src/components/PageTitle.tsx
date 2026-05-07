@@ -21,7 +21,9 @@ export function PageTitle() {
   useEffect(() => {
     const title = location.pathname.startsWith("/backups/runs/")
       ? "Backup Run Diagnostics — DaoFlow"
-      : (TITLES[location.pathname] ?? "DaoFlow");
+      : location.pathname.startsWith("/servers/")
+        ? "Server Operations — DaoFlow"
+        : (TITLES[location.pathname] ?? "DaoFlow");
     document.title = title;
   }, [location.pathname]);
 

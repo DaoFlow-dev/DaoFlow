@@ -111,6 +111,8 @@ const ALL_INCL_AGENT = ["owner", "admin", "operator", "developer", "agent"] as c
 const ALL_READERS = ["owner", "admin", "operator", "developer", "viewer", "agent"] as const;
 
 export const serverWriteProcedure = scopedProcedure(ADMIN_ONLY, ["server:write"]);
+export const serverReadProcedure = scopedProcedure(ALL_READERS, ["server:read"]);
+export const terminalOpenProcedure = scopedProcedure(["owner"], ["terminal:open"]);
 export const deployReadProcedure = scopedProcedure(ALL_READERS, ["deploy:read"]);
 export const backupReadProcedure = scopedProcedure(ALL_READERS, ["backup:read"]);
 export const volumesReadProcedure = scopedProcedure(ALL_READERS, ["volumes:read"]);

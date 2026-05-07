@@ -80,6 +80,44 @@ export interface ServerReadinessOutput {
   }>;
 }
 
+export interface ServerOperationRecord {
+  id: string;
+  serverId: string;
+  kind: string;
+  status: string;
+  dryRun: boolean;
+  requestedByUserId: string | null;
+  requestedByEmail: string | null;
+  requestedByRole: string | null;
+  permissionScope: string | null;
+  summary: string | null;
+  result: unknown;
+  error: string | null;
+  startedAt: string | null;
+  completedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ServerOperationsHubOutput {
+  server: {
+    id: string;
+    name: string;
+    host: string;
+    kind: string;
+    status: string;
+  };
+  latestResource: Record<string, unknown> | null;
+  operations: ServerOperationRecord[];
+}
+
+export interface ServerOperationMutationOutput {
+  status: string;
+  operation?: ServerOperationRecord;
+  result?: unknown;
+  message?: string;
+}
+
 export interface AuditTrailOutput {
   summary: {
     totalEntries: number;
@@ -152,6 +190,7 @@ export interface RouterOutputs {
   viewer: ViewerOutput;
   health: HealthOutput;
   serverReadiness: ServerReadinessOutput;
+  serverOperationsHub: ServerOperationsHubOutput;
   auditTrail: AuditTrailOutput;
   approvalQueue: ApprovalQueueOutput;
 }
@@ -1243,6 +1282,27 @@ export interface DaoFlowTRPC {
     },
     ServiceDomainStateOutput
   >;
+  serverOperationsHub: QueryProcedure<
+    ServerOperationsHubOutput,
+    { serverId: string; limit?: number }
+  >;
+  serverOperationLogs: QueryProcedure<
+    {
+      operation: ServerOperationRecord;
+      logs: Array<{ id: number; stream: string; message: string; createdAt: string }>;
+    },
+    { operationId: string; limit?: number }
+  >;
+  collectServerResources: MutationProcedure<{ serverId: string }, ServerOperationMutationOutput>;
+  previewServerCleanup: MutationProcedure<
+    { serverId: string; includeVolumes?: boolean },
+    ServerOperationMutationOutput
+  >;
+  runServerCleanup: MutationProcedure<
+    { serverId: string; includeVolumes?: boolean },
+    ServerOperationMutationOutput
+  >;
+  planServerPatches: MutationProcedure<{ serverId: string }, ServerOperationMutationOutput>;
   updateEnvironment: MutationProcedure<
     {
       environmentId: string;

@@ -64,6 +64,8 @@ addApiGroup(
     "executionQueue",
     "infrastructureInventory",
     "serverReadiness",
+    "serverOperationsHub",
+    "serverOperationLogs",
     "deploymentInsights",
     "deploymentRollbackPlans",
     "auditTrail",
@@ -210,6 +212,9 @@ addApiGroup(
     "registerServer",
     "deleteServer",
     "configureServerManagedTraefikProxy",
+    "previewServerCleanup",
+    "runServerCleanup",
+    "planServerPatches",
     "runOperationalMaintenance"
   ],
   {
@@ -218,6 +223,12 @@ addApiGroup(
     requiredScopes: ["server:write"]
   }
 );
+
+apiProcedureAccess.collectServerResources = {
+  auth: "authenticated",
+  requiredRoles: READ_ROLES,
+  requiredScopes: ["server:read"]
+};
 
 addApiGroup(
   apiProcedureAccess,
@@ -621,6 +632,11 @@ export const cliCommandMeta: Record<string, CliCommandMeta> = {
   status: { lane: "read", requiredScopes: ["server:read"], mutating: false },
   "server add": { lane: "command", requiredScopes: ["server:write"], mutating: true },
   "server proxy": { lane: "command", requiredScopes: ["server:write"], mutating: true },
+  "server ops": { lane: "read", requiredScopes: ["server:read"], mutating: false },
+  "server ops resources": { lane: "read", requiredScopes: ["server:read"], mutating: true },
+  "server ops cleanup": { lane: "command", requiredScopes: ["server:write"], mutating: true },
+  "server ops patch": { lane: "command", requiredScopes: ["server:write"], mutating: true },
+  "server ops history": { lane: "read", requiredScopes: ["server:read"], mutating: false },
   projects: { lane: "read", requiredScopes: ["deploy:read"], mutating: false },
   "projects list": { lane: "read", requiredScopes: ["deploy:read"], mutating: false },
   "projects show": { lane: "read", requiredScopes: ["deploy:read"], mutating: false },

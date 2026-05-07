@@ -4,6 +4,7 @@ import chalk from "chalk";
 import { runCommandAction } from "../command-action";
 import { getErrorMessage, normalizeCliInput, normalizeOptionalCliInput } from "../command-helpers";
 import { createClient, type RegisterServerOutput } from "../trpc-client";
+import { serverOperationsCommand } from "./server-operations-command";
 import { serverProxyCommand } from "./server-proxy-command";
 
 const SERVER_ADD_HELP_TEXT = [
@@ -101,6 +102,7 @@ function summarizeReadiness(server: RegisterServerOutput): ServerReadinessSummar
 
 export function serverCommand(): Command {
   const cmd = new Command("server").description("Register and inspect deployment targets");
+  cmd.addCommand(serverOperationsCommand());
   cmd.addCommand(serverProxyCommand());
 
   cmd

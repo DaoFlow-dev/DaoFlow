@@ -2,6 +2,7 @@ export * from "./users";
 export * from "./teams";
 export * from "./projects";
 export * from "./servers";
+export * from "./server-operations";
 export * from "./deployments";
 export * from "./storage";
 export * from "./destinations";

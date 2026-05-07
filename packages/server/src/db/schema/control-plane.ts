@@ -3,6 +3,7 @@ export * from "./git-providers";
 export * from "./webhook-deliveries";
 export * from "./development-tasks";
 export * from "./servers";
+export * from "./server-operations";
 export * from "./projects";
 export * from "./deployments";
 export * from "./destinations";

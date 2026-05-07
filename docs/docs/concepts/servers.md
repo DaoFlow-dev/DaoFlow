@@ -120,14 +120,64 @@ Current Swarm execution boundary:
 - readiness must be probeable through published ports
 - internal-network readiness probes remain unsupported for Swarm execution
 
+## Server Operations Hub
+
+Each server has an operations page at `/servers/:id`. The hub records every resource check,
+cleanup preview, cleanup run, patch plan, and host terminal session as a durable server operation
+with append-only logs.
+
+### Resource Inspection
+
+The resource check collects host CPU load, memory use, root disk use, Docker reachability, and
+Docker disk usage. It creates a `resource_check` operation and stores the latest snapshot for the
+server detail page.
+
+```bash
+daoflow server ops resources --server srv_prod --json
+```
+
+### Cleanup
+
+Cleanup is preview-first. Operators must create a recent `cleanup_preview` before DaoFlow accepts a
+`cleanup_run`. The run path only executes safe Docker prune commands by default:
+
+- stopped containers
+- dangling images
+- build cache
+
+Unused Docker volumes are excluded unless `--include-volumes` is supplied.
+
+```bash
+daoflow server ops cleanup --server srv_prod --dry-run --json
+daoflow server ops cleanup --server srv_prod --yes
+```
+
+### Patch Planning
+
+Patch planning is non-mutating. DaoFlow detects the host package manager where possible and records a
+`patch_plan` operation with available package updates. Applying patches remains outside this flow.
+
+```bash
+daoflow server ops patch --server srv_prod --json
+```
+
+### Host Terminal
+
+Host terminal access is separate from service container terminals. The web UI opens host shells via
+`/ws/host-terminal`, records `server.terminal.open` and `server.terminal.close`, and requires the
+exceptional `terminal:open` scope.
+
 ## Server Permissions
 
 Access to server operations requires specific scopes:
 
-| Action               | Required Scope |
-| -------------------- | -------------- |
-| List servers         | `server:read`  |
-| View server health   | `server:read`  |
-| Register server      | `server:write` |
-| Update server config | `server:write` |
-| Remove server        | `server:write` |
+| Action               | Required Scope  |
+| -------------------- | --------------- |
+| List servers         | `server:read`   |
+| View server health   | `server:read`   |
+| View operation logs  | `server:read`   |
+| Register server      | `server:write`  |
+| Update server config | `server:write`  |
+| Cleanup and patching | `server:write`  |
+| Open host terminal   | `terminal:open` |
+| Remove server        | `server:write`  |

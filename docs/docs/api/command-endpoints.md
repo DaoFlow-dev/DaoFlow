@@ -10,7 +10,8 @@ Command endpoints mutate infrastructure. The complete generated command surface,
 
 | Required Scope(s)  | Procedures                                                                                                                                                                                              |
 | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `server:write`     | `registerServer`, `deleteServer`                                                                                                                                                                        |
+| `server:read`      | `collectServerResources`                                                                                                                                                                                |
+| `server:write`     | `registerServer`, `deleteServer`, `previewServerCleanup`, `runServerCleanup`, `planServerPatches`                                                                                                       |
 | `deploy:start`     | `createProject`, `createEnvironment`, `createDeploymentRecord`, `queueComposeRelease`, `dispatchExecutionJob`, `completeExecutionJob`, `failExecutionJob`, `triggerDeploy`, `reconcileComposePreviews`  |
 | `deploy:cancel`    | `cancelDeployment`                                                                                                                                                                                      |
 | `deploy:rollback`  | `executeRollback`                                                                                                                                                                                       |
@@ -34,6 +35,7 @@ These commands are exported in the API contract but are not currently tied to a 
 The generated contract artifact includes machine-readable examples for:
 
 - `triggerDeploy`
+- `collectServerResources`
 - `upsertEnvironmentVariable`
 - `triggerBackupNow`
 - `queueBackupRestore`
