@@ -17,6 +17,7 @@ import {
 type ExecRunner = typeof execStreaming;
 type SandbankBoxLiteRunner = typeof runSandbankBoxLiteCommand;
 type DevelopmentTaskCodexSandbox = HostDockerCodexSandbox | SandbankBoxLiteCodexSandbox;
+type ExecStreamingResult = Awaited<ReturnType<ExecRunner>>;
 
 export interface DevelopmentTaskCodexExecutionResult {
   status: "ok" | "failed";
@@ -46,6 +47,65 @@ function writeLogLine(stream: NodeJS.WritableStream, line: LogLine) {
   );
 }
 
+function appendRecentLogLine(lines: LogLine[], line: LogLine) {
+  lines.push(line);
+  if (lines.length > 50) {
+    lines.shift();
+  }
+}
+
+function summarizeHostDockerFailure(lines: LogLine[]) {
+  const output = lines
+    .map((line) => line.message)
+    .join("\n")
+    .toLowerCase();
+
+  if (output.includes("no space left on device") || output.includes("not enough space")) {
+    return [
+      "Host Docker sandbox failed because the Docker host is out of disk space.",
+      "Free space or prune unused Docker images/build cache on the runner host, then retry."
+    ].join(" ");
+  }
+
+  if (
+    output.includes("cannot connect to the docker daemon") ||
+    output.includes("error during connect")
+  ) {
+    return "Host Docker sandbox could not reach the Docker daemon. Check Docker service health and runner DOCKER_HOST settings.";
+  }
+
+  if (
+    output.includes("pull access denied") ||
+    output.includes("manifest unknown") ||
+    output.includes("repository does not exist")
+  ) {
+    return "Host Docker sandbox could not pull the runner image. Check the runner image name, tag, and registry permissions.";
+  }
+
+  if (output.includes("exec format error")) {
+    return "Host Docker sandbox runner image architecture does not match the Docker host.";
+  }
+
+  return undefined;
+}
+
+function buildFailureMessage(input: {
+  result: ExecStreamingResult;
+  sandbox?: DevelopmentTaskCodexSandbox;
+  recentLogLines: LogLine[];
+}) {
+  if (input.result.signal) {
+    return `Codex terminated by signal ${input.result.signal}`;
+  }
+
+  const hostDockerMessage =
+    input.sandbox?.provider === "host_docker"
+      ? summarizeHostDockerFailure(input.recentLogLines)
+      : undefined;
+
+  return hostDockerMessage ?? `Codex exited with code ${input.result.exitCode}`;
+}
+
 function closeLogStream(stream: NodeJS.WritableStream) {
   return new Promise<void>((resolve, reject) => {
     stream.once("error", reject);
@@ -66,7 +126,9 @@ export async function executeDevelopmentTaskCodex(input: {
   const logStream = createWriteStream(logPath, { flags: "a", mode: 0o600 });
   await chmod(logPath, 0o600).catch(() => undefined);
 
+  const recentLogLines: LogLine[] = [];
   const onLog: OnLog = (line) => {
+    appendRecentLogLine(recentLogLines, line);
     writeLogLine(logStream, line);
     input.onLog(line);
   };
@@ -128,9 +190,11 @@ export async function executeDevelopmentTaskCodex(input: {
         status: "failed",
         exitCode: result.exitCode,
         logPath,
-        errorMessage: result.signal
-          ? `Codex terminated by signal ${result.signal}`
-          : `Codex exited with code ${result.exitCode}`
+        errorMessage: buildFailureMessage({
+          result,
+          sandbox: input.sandbox,
+          recentLogLines
+        })
       };
     }
 
