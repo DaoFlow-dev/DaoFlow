@@ -25,7 +25,7 @@ export interface InstallerRuntime {
   checkDocker(this: void): { available: boolean; compose: boolean; version?: string };
   exec(this: void, command: string, options?: Parameters<typeof execSync>[1]): string | Buffer;
   fetch(this: void, url: string): Promise<Response>;
-  fetchComposeYml(this: void): Promise<string>;
+  fetchComposeYml(this: void, version?: string): Promise<string>;
   prompt(this: void, question: string, defaultValue?: string): Promise<string>;
   promptSelect<T extends string>(
     this: void,
@@ -172,9 +172,10 @@ export function writeInstallFile(path: string, contents: string): void {
 
 export async function writeComposeFile(
   runtime: InstallerRuntime,
-  composePath: string
+  composePath: string,
+  version?: string
 ): Promise<void> {
-  const composeContent = await runtime.fetchComposeYml();
+  const composeContent = await runtime.fetchComposeYml(version);
   writeFileSync(composePath, composeContent);
 }
 

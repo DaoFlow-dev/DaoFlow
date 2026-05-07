@@ -18,9 +18,11 @@ const originalUpgradeRuntime = {
 describe("upgrade command", () => {
   let installDir: string;
   let execCommands: string[];
+  let requestedComposeVersions: Array<string | undefined>;
 
   beforeEach(() => {
     execCommands = [];
+    requestedComposeVersions = [];
     installDir = mkdtempSync(join(tmpdir(), "daoflow-cli-upgrade-"));
     writeFileSync(
       join(installDir, ".env"),
@@ -43,8 +45,12 @@ describe("upgrade command", () => {
       expect(url).toBe("http://127.0.0.1:8080/ready");
       return Promise.resolve(new Response(JSON.stringify({ ok: true }), { status: 200 }));
     };
-    upgradeRuntime.fetchComposeYml = () =>
-      Promise.resolve("services:\n  daoflow:\n    image: ghcr.io/daoflow-dev/daoflow:latest\n");
+    upgradeRuntime.fetchComposeYml = (version?: string) => {
+      requestedComposeVersions.push(version);
+      return Promise.resolve(
+        "services:\n  daoflow:\n    image: ghcr.io/daoflow-dev/daoflow:latest\n"
+      );
+    };
     upgradeRuntime.prompt = () => Promise.resolve("y");
     upgradeRuntime.sleep = () => Promise.resolve();
   });
@@ -84,6 +90,7 @@ describe("upgrade command", () => {
       healthy: true
     });
     expect(execCommands).toEqual(["docker compose pull", "docker compose up -d --remove-orphans"]);
+    expect(requestedComposeVersions).toEqual(["latest"]);
     expect(readFileSync(join(installDir, ".env"), "utf8")).toContain("DAOFLOW_VERSION=latest");
   });
 
@@ -147,6 +154,7 @@ describe("upgrade command", () => {
       error: "pull denied"
     });
     expect(execCommands).toEqual(["docker compose pull"]);
+    expect(requestedComposeVersions).toEqual(["0.5.4"]);
     expect(readFileSync(join(installDir, ".env"), "utf8")).toContain("DAOFLOW_VERSION=0.2.0");
   });
 

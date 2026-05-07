@@ -2,6 +2,33 @@ import { describe, expect, it, mock } from "bun:test";
 import { fetchComposeYml, generateEnvFile, parseEnvFile } from "./templates";
 
 describe("fetchComposeYml", () => {
+  it("fetches release-tagged compose templates for concrete semver versions", async () => {
+    const originalFetch = globalThis.fetch;
+    const urls: string[] = [];
+    globalThis.fetch = ((url: string | URL | Request) => {
+      urls.push(url instanceof Request ? url.url : url.toString());
+      return Promise.resolve(
+        new Response("services:\n  daoflow:\n    image: ghcr.io/daoflow-dev/daoflow:latest\n", {
+          status: 200
+        })
+      );
+    }) as unknown as typeof fetch;
+
+    try {
+      await fetchComposeYml("0.7.0");
+      await fetchComposeYml("v0.8.0-beta.1+build.5");
+      await fetchComposeYml("latest");
+
+      expect(urls).toEqual([
+        "https://raw.githubusercontent.com/DaoFlow-dev/DaoFlow/v0.7.0/docker-compose.yml",
+        "https://raw.githubusercontent.com/DaoFlow-dev/DaoFlow/v0.8.0-beta.1+build.5/docker-compose.yml",
+        "https://raw.githubusercontent.com/DaoFlow-dev/DaoFlow/main/docker-compose.yml"
+      ]);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   it("falls back to the embedded compose template when the network fetch fails", async () => {
     const originalFetch = globalThis.fetch;
     const fetchMock = mock(() => Promise.reject(new Error("network down")));

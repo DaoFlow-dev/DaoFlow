@@ -523,12 +523,14 @@ This file holds the detailed CLI contract, scope map, and agent-facing command r
   - print the origin guide telling the operator to route the tunnel hostname to `http://daoflow:3000`
 - When exposure setup returns a concrete HTTPS URL, `daoflow install` must rewrite `BETTER_AUTH_URL` to that URL and re-apply the compose stack so Better Auth uses the externally reachable origin
 - `daoflow install` must preserve existing secrets and settings when re-run in an existing install directory unless the operator explicitly overrides managed fields
+- `daoflow install` must write a compose file fetched from the matching CLI release tag when the CLI version is a concrete semver release, falling back to the embedded compose template when network retrieval fails
 
 ## Local Upgrade Contract
 
 - `daoflow upgrade` is a local-lane command and never requires API auth
 - `daoflow upgrade --json` success shape:
   - `{ "ok": true, "previousVersion": string, "newVersion": string, "directory": string, "healthy": boolean }`
+- `daoflow upgrade --version <semver>` must fetch the compose file from the matching release tag before pulling images; `latest` continues to use the mainline compose template
 - `daoflow projects env create --dry-run` must return a local preview and exit with code `3`
 
 ## Templates Contract

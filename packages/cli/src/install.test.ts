@@ -13,6 +13,7 @@ import {
 import { getDashboardExposureStatePath } from "./install-exposure-state";
 import { captureCommandExecution } from "./login-test-helpers";
 import { generateEnvFile, parseEnvFile } from "./templates";
+import { CLI_VERSION } from "./version";
 
 const originalInitialAdminEmail = process.env.DAOFLOW_INITIAL_ADMIN_EMAIL;
 const originalInitialAdminPassword = process.env.DAOFLOW_INITIAL_ADMIN_PASSWORD;
@@ -28,8 +29,10 @@ const originalInstallRuntime = {
 
 describe("install command", () => {
   let installDir: string;
+  let requestedComposeVersions: Array<string | undefined>;
 
   beforeEach(() => {
+    requestedComposeVersions = [];
     installDir = mkdtempSync(join(tmpdir(), "daoflow-cli-install-"));
     delete process.env.DAOFLOW_INITIAL_ADMIN_EMAIL;
     delete process.env.DAOFLOW_INITIAL_ADMIN_PASSWORD;
@@ -44,8 +47,12 @@ describe("install command", () => {
       expect(url).toBe("http://127.0.0.1:3000/ready");
       return Promise.resolve(new Response(JSON.stringify({ ok: true }), { status: 200 }));
     };
-    installRuntime.fetchComposeYml = () =>
-      Promise.resolve("services:\n  daoflow:\n    image: ghcr.io/daoflow-dev/daoflow:latest\n");
+    installRuntime.fetchComposeYml = (version?: string) => {
+      requestedComposeVersions.push(version);
+      return Promise.resolve(
+        "services:\n  daoflow:\n    image: ghcr.io/daoflow-dev/daoflow:latest\n"
+      );
+    };
     installRuntime.prompt = () => {
       throw new Error("prompt should not be used in non-interactive tests");
     };
@@ -127,6 +134,7 @@ describe("install command", () => {
     const envFile = parseEnvFile(readFileSync(join(installDir, ".env"), "utf8"));
     expect(envFile.DAOFLOW_INITIAL_ADMIN_EMAIL).toBe("owner@example.com");
     expect(envFile.DAOFLOW_INITIAL_ADMIN_PASSWORD).toBe("env-secret-123");
+    expect(requestedComposeVersions).toEqual([CLI_VERSION]);
   });
 
   test("returns a structured error when bootstrap email is missing", async () => {

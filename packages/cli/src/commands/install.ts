@@ -169,6 +169,7 @@ export function installCommand(): Command {
             await writeInstallComposeFile({
               runtime: installRuntime,
               composePath,
+              version: CLI_VERSION,
               exposureMode: config.exposureMode,
               cloudflareTunnelEnabled: config.cloudflareTunnelEnabled
             });

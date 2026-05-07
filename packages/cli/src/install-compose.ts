@@ -124,10 +124,11 @@ export function buildInstallComposeContent(input: {
 export async function writeInstallComposeFile(input: {
   runtime: InstallerRuntime;
   composePath: string;
+  version?: string;
   exposureMode: DashboardExposureMode;
   cloudflareTunnelEnabled?: boolean;
 }): Promise<void> {
-  const composeContent = await input.runtime.fetchComposeYml();
+  const composeContent = await input.runtime.fetchComposeYml(input.version);
   writeFileSync(
     input.composePath,
     buildInstallComposeContent({

@@ -4,25 +4,42 @@ import embeddedCompose from "../../../docker-compose.yml" with { type: "text" };
 const embeddedComposeTemplate = String(embeddedCompose);
 const SAFE_ENV_VALUE = /^[A-Za-z0-9_./:@+-]*$/;
 
-/**
- * GitHub raw URL for the production docker-compose.yml.
- * This is the single source of truth for the compose template.
- */
-const COMPOSE_RAW_URL =
-  "https://raw.githubusercontent.com/DaoFlow-dev/DaoFlow/main/docker-compose.yml";
+const COMPOSE_RAW_BASE_URL = "https://raw.githubusercontent.com/DaoFlow-dev/DaoFlow";
+const SEMVER_RELEASE =
+  /^v?(\d+\.\d+\.\d+(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?)$/;
+
+function composeRefForVersion(version?: string): string {
+  const target = version?.trim();
+  if (!target || target === "latest") {
+    return "main";
+  }
+
+  const releaseMatch = target.match(SEMVER_RELEASE);
+  if (releaseMatch) {
+    return `v${releaseMatch[1]}`;
+  }
+
+  return "main";
+}
+
+function composeRawUrl(version?: string): string {
+  return `${COMPOSE_RAW_BASE_URL}/${composeRefForVersion(version)}/docker-compose.yml`;
+}
 
 /**
  * Fetch the production docker-compose.yml.
  *
  * Strategy:
- *   1. Download latest from GitHub raw (ensures updates without CLI rebuild)
+ *   1. Download from GitHub raw for the requested release version
  *   2. Fall back to build-time embedded copy (works offline)
  *   3. If both fail, throw with clear error message
  */
-export async function fetchComposeYml(): Promise<string> {
+export async function fetchComposeYml(version?: string): Promise<string> {
+  const rawUrl = composeRawUrl(version);
+
   // Try downloading from GitHub first
   try {
-    const response = await fetch(COMPOSE_RAW_URL, {
+    const response = await fetch(rawUrl, {
       signal: AbortSignal.timeout(10_000) // 10s timeout
     });
     if (response.ok) {
@@ -42,7 +59,7 @@ export async function fetchComposeYml(): Promise<string> {
 
   throw new Error(
     "Could not fetch docker-compose.yml from GitHub and no embedded copy available.\n" +
-      `Try downloading manually: curl -fsSL ${COMPOSE_RAW_URL} -o docker-compose.yml`
+      `Try downloading manually: curl -fsSL ${rawUrl} -o docker-compose.yml`
   );
 }
 

@@ -67,13 +67,13 @@ export function upgradeCommand(): Command {
           const envOverrides = { DAOFLOW_VERSION: targetVersion };
 
           const composeSpinner = !ctx.isJson
-            ? ora("Fetching latest docker-compose.yml...").start()
+            ? ora("Fetching version-matched docker-compose.yml...").start()
             : null;
           try {
-            await writeComposeFile(upgradeRuntime, installState.composePath);
+            await writeComposeFile(upgradeRuntime, installState.composePath, targetVersion);
             composeSpinner?.succeed("docker-compose.yml updated");
           } catch (error) {
-            composeSpinner?.warn(`Could not fetch latest compose file: ${getErrorMessage(error)}`);
+            composeSpinner?.warn(`Could not fetch compose file: ${getErrorMessage(error)}`);
             if (!ctx.isJson) {
               console.error(chalk.dim("  Keeping existing docker-compose.yml"));
             }
