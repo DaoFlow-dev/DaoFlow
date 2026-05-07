@@ -15,6 +15,7 @@ import { cliAuthRouter } from "./routes/cli-auth";
 import { serviceObservabilityRouter } from "./routes/service-observability";
 import { legacyOauthRouter, LEGACY_OAUTH_TOKEN_PATH } from "./routes/legacy-oauth";
 import { healthRouter } from "./routes/health";
+import { handleGitHubAppSetup } from "./routes/github-app-setup";
 import { authorizeRequest } from "./routes/request-auth";
 import { ensureInitialOwnerFromEnv } from "./bootstrap-initial-owner";
 import { acceptPendingTeamInviteForEmail } from "./db/services/member-access";
@@ -217,6 +218,9 @@ export function createApp() {
 
   // ── Service observability (REST API) ──────────────────────
   app.route("/api/v1", serviceObservabilityRouter);
+
+  // ── GitHub App manifest setup callback ────────────────────
+  app.get("/api/github/setup", handleGitHubAppSetup);
 
   // ── Webhooks (GitHub/GitLab) ──────────────────────────────
   app.route("/api/webhooks", webhooksRouter);

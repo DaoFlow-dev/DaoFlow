@@ -3,6 +3,7 @@
 import "@testing-library/jest-dom/vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { MemoryRouter } from "react-router-dom";
 import GitProvidersTab from "./GitProvidersTab";
 
 const {
@@ -34,6 +35,10 @@ vi.mock("@/lib/trpc", () => ({
   }
 }));
 
+function renderWithRouter(ui: React.ReactElement, initialEntry = "/settings") {
+  return render(<MemoryRouter initialEntries={[initialEntry]}>{ui}</MemoryRouter>);
+}
+
 describe("GitProvidersTab", () => {
   beforeEach(() => {
     refetchMock.mockReset();
@@ -56,10 +61,11 @@ describe("GitProvidersTab", () => {
     cleanup();
   });
 
-  it("submits the GitHub provider payload with the required private key", () => {
-    render(<GitProvidersTab />);
+  it("submits the GitHub provider payload via the manual form", () => {
+    renderWithRouter(<GitProvidersTab />);
 
-    fireEvent.click(screen.getByTestId("git-provider-add-button"));
+    fireEvent.click(screen.getByTestId("git-provider-add-github"));
+    fireEvent.click(screen.getByTestId("github-manual-link"));
 
     fireEvent.change(screen.getByTestId("git-provider-name-input"), {
       target: { value: "My GitHub App" }
@@ -79,8 +85,6 @@ describe("GitProvidersTab", () => {
       type: "github",
       name: "My GitHub App",
       appId: "123456",
-      clientId: undefined,
-      clientSecret: undefined,
       privateKey: "-----BEGIN RSA PRIVATE KEY-----\nkey-material",
       webhookSecret: "github-webhook-secret",
       baseUrl: undefined
@@ -88,10 +92,9 @@ describe("GitProvidersTab", () => {
   });
 
   it("submits the GitLab provider payload with the required client secret", () => {
-    render(<GitProvidersTab />);
+    renderWithRouter(<GitProvidersTab />);
 
-    fireEvent.click(screen.getByTestId("git-provider-add-button"));
-    fireEvent.click(screen.getByTestId("git-provider-type-gitlab"));
+    fireEvent.click(screen.getByTestId("git-provider-add-gitlab"));
 
     fireEvent.change(screen.getByTestId("git-provider-name-input"), {
       target: { value: "My GitLab App" }
@@ -113,10 +116,8 @@ describe("GitProvidersTab", () => {
     expect(registerGitProviderMutateMock).toHaveBeenCalledWith({
       type: "gitlab",
       name: "My GitLab App",
-      appId: undefined,
       clientId: "gitlab-client-id",
       clientSecret: "gitlab-client-secret",
-      privateKey: undefined,
       webhookSecret: "gitlab-webhook-secret",
       baseUrl: "https://gitlab.example.com"
     });
@@ -138,14 +139,14 @@ describe("GitProvidersTab", () => {
       refetch: refetchMock
     });
 
-    render(<GitProvidersTab />);
+    renderWithRouter(<GitProvidersTab />);
 
     const installButton = screen.getByTestId("git-provider-install-provider_github");
     const installLink = installButton.closest("a");
 
     expect(installLink).toHaveAttribute(
       "href",
-      "https://github.com/apps/my-app-n-ame/installations/new?state=provider_github"
+      "https://github.com/apps/my-app-n-ame/installations/new?state=gh_setup:provider_github"
     );
   });
 
@@ -165,7 +166,7 @@ describe("GitProvidersTab", () => {
       refetch: refetchMock
     });
 
-    render(<GitProvidersTab />);
+    renderWithRouter(<GitProvidersTab />);
 
     expect(screen.queryByTestId("git-provider-install-provider_github_empty_slug")).toBeNull();
   });
@@ -186,7 +187,7 @@ describe("GitProvidersTab", () => {
       refetch: refetchMock
     });
 
-    render(<GitProvidersTab />);
+    renderWithRouter(<GitProvidersTab />);
 
     const connectButton = screen.getByTestId("git-provider-connect-provider_gitlab");
     const connectLink = connectButton.closest("a");
@@ -195,5 +196,15 @@ describe("GitProvidersTab", () => {
       "href",
       "https://gitlab.example.com/oauth/authorize?client_id=gitlab-client-id&redirect_uri=http%3A%2F%2Flocalhost%3A3000%2Fsettings%2Fgit%2Fcallback&response_type=code&state=provider_gitlab&scope=api"
     );
+  });
+
+  it("shows the one-click GitHub manifest dialog with organization toggle", () => {
+    renderWithRouter(<GitProvidersTab />);
+
+    fireEvent.click(screen.getByTestId("git-provider-add-github"));
+
+    expect(screen.getByTestId("github-create-app-button")).toBeInTheDocument();
+    expect(screen.getByTestId("github-org-toggle")).toBeInTheDocument();
+    expect(screen.getByTestId("github-manual-link")).toBeInTheDocument();
   });
 });

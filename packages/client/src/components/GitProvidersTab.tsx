@@ -1,37 +1,42 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter
-} from "@/components/ui/dialog";
-import { GitBranch, Plus, Trash2, ExternalLink } from "lucide-react";
+import { GitBranch, Plus, Trash2, ExternalLink, Github } from "lucide-react";
 import { getInventoryBadgeVariant } from "../lib/tone-utils";
-
-function normalizeGitHubAppNameSegment(name: string): string {
-  return name
-    .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-}
-
-function trimTrailingSlash(value: string): string {
-  return value.replace(/\/+$/, "");
-}
+import {
+  normalizeGitHubAppNameSegment,
+  trimTrailingSlash
+} from "./git-providers/git-provider-utils";
+import { GitHubProviderDialog } from "./git-providers/GitHubProviderDialog";
+import { GitLabProviderDialog } from "./git-providers/GitLabProviderDialog";
 
 export default function GitProvidersTab() {
-  const [showRegister, setShowRegister] = useState(false);
+  const [showGitHubDialog, setShowGitHubDialog] = useState(false);
+  const [showGitLabDialog, setShowGitLabDialog] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
   const providers = trpc.gitProviders.useQuery();
+
+  const gitSetup = searchParams.get("git_setup");
+  const gitError = searchParams.get("git_error");
+
+  useEffect(() => {
+    if (gitSetup || gitError) {
+      void providers.refetch();
+      const timeout = setTimeout(() => {
+        setSearchParams((prev) => {
+          prev.delete("git_setup");
+          prev.delete("git_error");
+          prev.delete("provider_id");
+          return prev;
+        });
+      }, 5000);
+      return () => clearTimeout(timeout);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gitSetup, gitError]);
 
   return (
     <div className="space-y-4">
@@ -42,14 +47,47 @@ export default function GitProvidersTab() {
             Connect GitHub or GitLab Apps for source code integration.
           </p>
         </div>
-        <Button
-          size="sm"
-          onClick={() => setShowRegister(true)}
-          data-testid="git-provider-add-button"
-        >
-          <Plus size={14} className="mr-1" /> Add Provider
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            size="sm"
+            onClick={() => setShowGitHubDialog(true)}
+            data-testid="git-provider-add-github"
+          >
+            <Github size={14} className="mr-1" /> GitHub
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setShowGitLabDialog(true)}
+            data-testid="git-provider-add-gitlab"
+          >
+            <Plus size={14} className="mr-1" /> GitLab
+          </Button>
+        </div>
       </div>
+
+      {(gitSetup || gitError) && (
+        <Card>
+          <CardContent className="py-3">
+            {gitSetup === "created" && (
+              <p className="text-sm text-green-600">
+                GitHub App created successfully. Install it on your account or organization to
+                complete setup.
+              </p>
+            )}
+            {gitSetup === "installed" && (
+              <p className="text-sm text-green-600">
+                GitHub App installed successfully. You can now link repositories to your projects.
+              </p>
+            )}
+            {gitError && (
+              <p className="text-sm text-destructive">
+                GitHub App setup failed: {gitError.replace(/_/g, " ")}. Please try again.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {providers.data?.length === 0 ? (
         <Card>
@@ -69,16 +107,19 @@ export default function GitProvidersTab() {
         </div>
       )}
 
-      <RegisterProviderDialog
-        open={showRegister}
-        onOpenChange={setShowRegister}
+      <GitHubProviderDialog
+        open={showGitHubDialog}
+        onOpenChange={setShowGitHubDialog}
+        onRegistered={() => void providers.refetch()}
+      />
+      <GitLabProviderDialog
+        open={showGitLabDialog}
+        onOpenChange={setShowGitLabDialog}
         onRegistered={() => void providers.refetch()}
       />
     </div>
   );
 }
-
-/* ── Provider Card ── */
 
 function ProviderCard({
   provider,
@@ -135,7 +176,7 @@ function ProviderCard({
         </p>
         {canRenderGitHubInstallLink ? (
           <a
-            href={`https://github.com/apps/${githubInstallPath}/installations/new?state=${provider.id}`}
+            href={`https://github.com/apps/${githubInstallPath}/installations/new?state=gh_setup:${provider.id}`}
             target="_blank"
             rel="noopener noreferrer"
           >
@@ -156,198 +197,5 @@ function ProviderCard({
         ) : null}
       </CardContent>
     </Card>
-  );
-}
-
-/* ── Register Dialog ── */
-
-function RegisterProviderDialog({
-  open,
-  onOpenChange,
-  onRegistered
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onRegistered: () => void;
-}) {
-  const [type, setType] = useState<"github" | "gitlab">("github");
-  const [name, setName] = useState("");
-  const [appId, setAppId] = useState("");
-  const [clientId, setClientId] = useState("");
-  const [clientSecret, setClientSecret] = useState("");
-  const [privateKey, setPrivateKey] = useState("");
-  const [webhookSecret, setWebhookSecret] = useState("");
-  const [baseUrl, setBaseUrl] = useState("");
-
-  const register = trpc.registerGitProvider.useMutation({
-    onSuccess: () => {
-      onRegistered();
-      onOpenChange(false);
-      setName("");
-      setAppId("");
-      setClientId("");
-      setClientSecret("");
-      setPrivateKey("");
-      setWebhookSecret("");
-      setBaseUrl("");
-    }
-  });
-
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!isFormValid) return;
-
-    register.mutate({
-      type,
-      name: name.trim(),
-      appId: type === "github" ? appId.trim() || undefined : undefined,
-      clientId: type === "gitlab" ? clientId.trim() || undefined : undefined,
-      clientSecret: type === "gitlab" ? clientSecret.trim() || undefined : undefined,
-      privateKey: type === "github" ? privateKey.trim() || undefined : undefined,
-      webhookSecret: webhookSecret.trim() || undefined,
-      baseUrl: type === "gitlab" ? baseUrl.trim() || undefined : undefined
-    });
-  }
-
-  const isFormValid =
-    Boolean(name.trim()) &&
-    (type === "github"
-      ? Boolean(appId.trim()) && Boolean(privateKey.trim())
-      : Boolean(clientId.trim()) && Boolean(clientSecret.trim()));
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Register Git Provider</DialogTitle>
-        </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <Label>Type</Label>
-            <div className="flex gap-2 mt-1">
-              {(["github", "gitlab"] as const).map((t) => (
-                <button
-                  key={t}
-                  type="button"
-                  onClick={() => setType(t)}
-                  data-testid={`git-provider-type-${t}`}
-                  className={`px-3 py-1.5 text-sm rounded-md border ${
-                    type === t
-                      ? "bg-primary text-primary-foreground border-primary"
-                      : "bg-background border-input hover:bg-muted"
-                  }`}
-                >
-                  {t === "github" ? "GitHub" : "GitLab"}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div>
-            <Label htmlFor="gp-name">Name</Label>
-            <Input
-              id="gp-name"
-              data-testid="git-provider-name-input"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="My GitHub App"
-              required
-            />
-          </div>
-          {type === "github" ? (
-            <>
-              <div>
-                <Label htmlFor="gp-appid">App ID</Label>
-                <Input
-                  id="gp-appid"
-                  data-testid="git-provider-app-id-input"
-                  value={appId}
-                  onChange={(e) => setAppId(e.target.value)}
-                  placeholder="123456"
-                  required
-                />
-              </div>
-              <div>
-                <Label htmlFor="gp-privatekey">Private Key</Label>
-                <Textarea
-                  id="gp-privatekey"
-                  data-testid="git-provider-private-key-input"
-                  value={privateKey}
-                  onChange={(e) => setPrivateKey(e.target.value)}
-                  placeholder="-----BEGIN RSA PRIVATE KEY-----"
-                  required
-                  rows={6}
-                />
-              </div>
-            </>
-          ) : (
-            <>
-              <div>
-                <Label htmlFor="gp-clientid">Client ID</Label>
-                <Input
-                  id="gp-clientid"
-                  data-testid="git-provider-client-id-input"
-                  value={clientId}
-                  onChange={(e) => setClientId(e.target.value)}
-                  placeholder="gitlab-client-id"
-                  required
-                />
-              </div>
-              <div>
-                <Label htmlFor="gp-clientsecret">Client Secret</Label>
-                <Input
-                  id="gp-clientsecret"
-                  data-testid="git-provider-client-secret-input"
-                  type="password"
-                  value={clientSecret}
-                  onChange={(e) => setClientSecret(e.target.value)}
-                  placeholder="gitlab-client-secret"
-                  required
-                />
-              </div>
-            </>
-          )}
-          <div>
-            <Label htmlFor="gp-webhook">Webhook Secret</Label>
-            <Input
-              id="gp-webhook"
-              data-testid="git-provider-webhook-secret-input"
-              value={webhookSecret}
-              onChange={(e) => setWebhookSecret(e.target.value)}
-              placeholder="whsec_..."
-            />
-          </div>
-          {type === "gitlab" && (
-            <div>
-              <Label htmlFor="gp-baseurl">Base URL (self-hosted)</Label>
-              <Input
-                id="gp-baseurl"
-                data-testid="git-provider-base-url-input"
-                value={baseUrl}
-                onChange={(e) => setBaseUrl(e.target.value)}
-                placeholder="https://gitlab.example.com"
-              />
-              <p className="text-xs text-muted-foreground mt-1">Leave empty for gitlab.com</p>
-            </div>
-          )}
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              data-testid="git-provider-cancel-button"
-            >
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              disabled={register.isPending || !isFormValid}
-              data-testid="git-provider-register-button"
-            >
-              {register.isPending ? "Registering…" : "Register"}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
   );
 }
