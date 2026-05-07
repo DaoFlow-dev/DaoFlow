@@ -94,6 +94,40 @@ describe("upgrade command", () => {
     expect(readFileSync(join(installDir, ".env"), "utf8")).toContain("DAOFLOW_VERSION=latest");
   });
 
+  test("preserves the Cloudflare Tunnel sidecar during upgrade", async () => {
+    writeFileSync(
+      join(installDir, ".env"),
+      [
+        "DAOFLOW_VERSION=0.2.0",
+        "DAOFLOW_PORT=8080",
+        "BETTER_AUTH_URL=https://deploy.example.com",
+        "DAOFLOW_DOMAIN=deploy.example.com",
+        "CLOUDFLARE_TUNNEL_TOKEN=cf-token-123"
+      ].join("\n")
+    );
+
+    const program = new Command().name("daoflow");
+    program.addCommand(upgradeCommand());
+
+    const result = await captureCommandExecution(async () => {
+      await program.parseAsync([
+        "node",
+        "daoflow",
+        "upgrade",
+        "--dir",
+        installDir,
+        "--yes",
+        "--json"
+      ]);
+    });
+
+    expect(result.exitCode).toBe(0);
+    const composeFile = readFileSync(join(installDir, "docker-compose.yml"), "utf8");
+    expect(composeFile).toContain("cloudflared:");
+    expect(composeFile).toContain("cloudflare/cloudflared:latest");
+    expect(composeFile).toContain("TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN}");
+  });
+
   test("keeps the existing compose file when compose retrieval fails", async () => {
     upgradeRuntime.fetchComposeYml = () => Promise.reject(new Error("network down"));
 

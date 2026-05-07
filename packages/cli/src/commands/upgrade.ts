@@ -3,6 +3,8 @@ import chalk from "chalk";
 import ora from "ora";
 import { runCommandAction } from "../command-action";
 import { getErrorMessage, getExecErrorMessage } from "../command-helpers";
+import { writeInstallComposeFile } from "../install-compose";
+import { readDashboardExposureState, type DashboardExposureMode } from "../install-exposure-state";
 import {
   installerRuntime,
   readExistingInstall,
@@ -10,7 +12,6 @@ import {
   runComposeCommand,
   updateInstalledVersion,
   waitForInstallHealth,
-  writeComposeFile,
   writeInstallFile
 } from "../installer-lifecycle";
 import { defaultInstallDir } from "../templates";
@@ -23,6 +24,22 @@ interface UpgradeOptions {
 }
 
 export const upgradeRuntime = installerRuntime;
+
+function resolveUpgradeComposeExposureMode(input: {
+  dir: string;
+  env: Record<string, string>;
+}): DashboardExposureMode {
+  const exposureState = readDashboardExposureState(input.dir);
+  if (exposureState?.mode) {
+    return exposureState.mode;
+  }
+
+  if (input.env.DAOFLOW_PROXY_NETWORK?.trim() || input.env.DAOFLOW_ACME_EMAIL?.trim()) {
+    return "traefik";
+  }
+
+  return "none";
+}
 
 export function upgradeCommand(): Command {
   return new Command("upgrade")
@@ -70,7 +87,16 @@ export function upgradeCommand(): Command {
             ? ora("Fetching version-matched docker-compose.yml...").start()
             : null;
           try {
-            await writeComposeFile(upgradeRuntime, installState.composePath, targetVersion);
+            await writeInstallComposeFile({
+              runtime: upgradeRuntime,
+              composePath: installState.composePath,
+              version: targetVersion,
+              exposureMode: resolveUpgradeComposeExposureMode({
+                dir: installState.dir,
+                env: installState.env
+              }),
+              cloudflareTunnelEnabled: Boolean(installState.env.CLOUDFLARE_TUNNEL_TOKEN?.trim())
+            });
             composeSpinner?.succeed("docker-compose.yml updated");
           } catch (error) {
             composeSpinner?.warn(`Could not fetch compose file: ${getErrorMessage(error)}`);

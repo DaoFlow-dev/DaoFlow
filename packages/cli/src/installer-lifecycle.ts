@@ -170,15 +170,6 @@ export function writeInstallFile(path: string, contents: string): void {
   writeFileSync(path, contents, { mode: 0o600 });
 }
 
-export async function writeComposeFile(
-  runtime: InstallerRuntime,
-  composePath: string,
-  version?: string
-): Promise<void> {
-  const composeContent = await runtime.fetchComposeYml(version);
-  writeFileSync(composePath, composeContent);
-}
-
 export function runComposeCommand(input: {
   runtime: InstallerRuntime;
   dir: string;
