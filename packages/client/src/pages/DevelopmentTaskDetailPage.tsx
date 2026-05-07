@@ -29,6 +29,7 @@ function formatDate(value: string | Date) {
 export default function DevelopmentTaskDetailPage() {
   const { id } = useParams();
   const [feedback, setFeedback] = useState<string | null>(null);
+  const viewer = trpc.viewer.useQuery();
   const task = trpc.developmentTaskDetails.useQuery({ taskId: id ?? "" }, { enabled: Boolean(id) });
   const cancelTask = trpc.cancelDevelopmentTask.useMutation();
   const retryTask = trpc.retryDevelopmentTask.useMutation();
@@ -88,8 +89,21 @@ export default function DevelopmentTaskDetailPage() {
 
   const { task: details, runs, events, comments } = task.data;
   const latestRun = runs[0];
-  const canCancel = CANCELABLE_STATUSES.has(details.status);
-  const canRetry = RETRYABLE_STATUSES.has(details.status);
+  const viewerLoading = viewer.isLoading;
+  const viewerCapabilities = viewer.data?.authz.capabilities ?? [];
+  const canCancelForStatus = CANCELABLE_STATUSES.has(details.status);
+  const canRetryForStatus = RETRYABLE_STATUSES.has(details.status);
+  const canCancel =
+    canCancelForStatus && !viewerLoading && viewerCapabilities.includes("deploy:cancel");
+  const canRetry =
+    canRetryForStatus && !viewerLoading && viewerCapabilities.includes("deploy:start");
+  const permissionMessage = viewerLoading
+    ? null
+    : canCancelForStatus && !canCancel
+      ? "Cancel requires deploy:cancel."
+      : canRetryForStatus && !canRetry
+        ? "Retry requires deploy:start."
+        : null;
 
   return (
     <main className="shell space-y-6" data-testid="development-task-detail-page">
@@ -115,6 +129,15 @@ export default function DevelopmentTaskDetailPage() {
             variant="outline"
             size="sm"
             disabled={!canCancel || actionPending}
+            title={
+              !canCancelForStatus
+                ? "This task cannot be canceled from its current status."
+                : viewerLoading
+                  ? "Checking permissions."
+                  : !canCancel
+                    ? "Cancel requires deploy:cancel."
+                    : undefined
+            }
             onClick={() => void handleCancel()}
           >
             <XCircle size={14} className="mr-2" />
@@ -124,11 +147,25 @@ export default function DevelopmentTaskDetailPage() {
             variant="outline"
             size="sm"
             disabled={!canRetry || actionPending}
+            title={
+              !canRetryForStatus
+                ? "This task cannot be retried from its current status."
+                : viewerLoading
+                  ? "Checking permissions."
+                  : !canRetry
+                    ? "Retry requires deploy:start."
+                    : undefined
+            }
             onClick={() => void handleRetry()}
           >
             <RotateCcw size={14} className="mr-2" />
             Retry
           </Button>
+          {permissionMessage ? (
+            <p className="basis-full text-right text-xs text-muted-foreground">
+              {permissionMessage}
+            </p>
+          ) : null}
         </div>
       </div>
 

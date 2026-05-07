@@ -9,11 +9,13 @@ import DevelopmentTaskDetailPage from "./DevelopmentTaskDetailPage";
 const {
   cancelDevelopmentTaskUseMutationMock,
   developmentTaskDetailsUseQueryMock,
-  retryDevelopmentTaskUseMutationMock
+  retryDevelopmentTaskUseMutationMock,
+  viewerUseQueryMock
 } = vi.hoisted(() => ({
   cancelDevelopmentTaskUseMutationMock: vi.fn(),
   developmentTaskDetailsUseQueryMock: vi.fn(),
-  retryDevelopmentTaskUseMutationMock: vi.fn()
+  retryDevelopmentTaskUseMutationMock: vi.fn(),
+  viewerUseQueryMock: vi.fn()
 }));
 
 vi.mock("@/lib/trpc", () => ({
@@ -23,6 +25,9 @@ vi.mock("@/lib/trpc", () => ({
     },
     developmentTaskDetails: {
       useQuery: developmentTaskDetailsUseQueryMock
+    },
+    viewer: {
+      useQuery: viewerUseQueryMock
     },
     retryDevelopmentTask: {
       useMutation: retryDevelopmentTaskUseMutationMock
@@ -46,6 +51,10 @@ describe("DevelopmentTaskDetailPage", () => {
     retryDevelopmentTaskUseMutationMock.mockReturnValue({
       isPending: false,
       mutateAsync: retryMutateAsync
+    });
+    viewerUseQueryMock.mockReturnValue({
+      data: { authz: { capabilities: ["deploy:start", "deploy:cancel"] } },
+      isLoading: false
     });
     developmentTaskDetailsUseQueryMock.mockReturnValue({
       isLoading: false,
@@ -114,14 +123,18 @@ describe("DevelopmentTaskDetailPage", () => {
     vi.clearAllMocks();
   });
 
-  it("renders task details, latest run, timeline, and tracked comments", () => {
-    render(
+  function renderPage() {
+    return render(
       <MemoryRouter initialEntries={["/development-tasks/dtask_1"]}>
         <Routes>
           <Route path="/development-tasks/:id" element={<DevelopmentTaskDetailPage />} />
         </Routes>
       </MemoryRouter>
     );
+  }
+
+  it("renders task details, latest run, timeline, and tracked comments", () => {
+    renderPage();
 
     expect(screen.getByText(/Major: Agent swarm dev platform/)).toBeInTheDocument();
     expect(screen.getByText("DaoFlow-dev/DaoFlow")).toBeInTheDocument();
@@ -143,13 +156,7 @@ describe("DevelopmentTaskDetailPage", () => {
   });
 
   it("cancels a running development task", async () => {
-    render(
-      <MemoryRouter initialEntries={["/development-tasks/dtask_1"]}>
-        <Routes>
-          <Route path="/development-tasks/:id" element={<DevelopmentTaskDetailPage />} />
-        </Routes>
-      </MemoryRouter>
-    );
+    renderPage();
 
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
 
@@ -158,6 +165,20 @@ describe("DevelopmentTaskDetailPage", () => {
     });
     expect(refetchMock).toHaveBeenCalledTimes(1);
     expect(await screen.findByText("Development task canceled.")).toBeInTheDocument();
+  });
+
+  it("disables cancel when the viewer lacks deploy cancel permission", () => {
+    viewerUseQueryMock.mockReturnValueOnce({
+      data: { authz: { capabilities: ["deploy:start"] } },
+      isLoading: false
+    });
+
+    renderPage();
+
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Retry" })).toBeDisabled();
+    expect(screen.getByText("Cancel requires deploy:cancel.")).toBeInTheDocument();
+    expect(cancelMutateAsync).not.toHaveBeenCalled();
   });
 
   it("retries a failed development task", async () => {
@@ -181,13 +202,7 @@ describe("DevelopmentTaskDetailPage", () => {
       }
     });
 
-    render(
-      <MemoryRouter initialEntries={["/development-tasks/dtask_1"]}>
-        <Routes>
-          <Route path="/development-tasks/:id" element={<DevelopmentTaskDetailPage />} />
-        </Routes>
-      </MemoryRouter>
-    );
+    renderPage();
 
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
 
@@ -196,6 +211,38 @@ describe("DevelopmentTaskDetailPage", () => {
     });
     expect(refetchMock).toHaveBeenCalledTimes(1);
     expect(await screen.findByText("Development task retry queued.")).toBeInTheDocument();
+  });
+
+  it("disables retry when the viewer lacks deploy start permission", () => {
+    viewerUseQueryMock.mockReturnValueOnce({
+      data: { authz: { capabilities: ["deploy:cancel"] } },
+      isLoading: false
+    });
+    developmentTaskDetailsUseQueryMock.mockReturnValueOnce({
+      isLoading: false,
+      refetch: refetchMock,
+      data: {
+        task: {
+          id: "dtask_1",
+          repoFullName: "DaoFlow-dev/DaoFlow",
+          issueNumber: 185,
+          issueTitle: "Major: Agent swarm dev platform",
+          issueUrl: "https://github.com/DaoFlow-dev/DaoFlow/issues/185",
+          issueAuthor: "MikeChongCan",
+          requestedByExternalUser: "octocat",
+          status: "failed"
+        },
+        runs: [],
+        events: [],
+        comments: []
+      }
+    });
+
+    renderPage();
+
+    expect(screen.getByRole("button", { name: "Retry" })).toBeDisabled();
+    expect(screen.getByText("Retry requires deploy:start.")).toBeInTheDocument();
+    expect(retryMutateAsync).not.toHaveBeenCalled();
   });
 
   it("shows run failure diagnostics and event details", () => {
@@ -238,13 +285,7 @@ describe("DevelopmentTaskDetailPage", () => {
       }
     });
 
-    render(
-      <MemoryRouter initialEntries={["/development-tasks/dtask_1"]}>
-        <Routes>
-          <Route path="/development-tasks/:id" element={<DevelopmentTaskDetailPage />} />
-        </Routes>
-      </MemoryRouter>
-    );
+    renderPage();
 
     expect(screen.getByText("Failure: validation_failed")).toBeInTheDocument();
     expect(screen.getAllByText("bun run typecheck failed.")).toHaveLength(2);
