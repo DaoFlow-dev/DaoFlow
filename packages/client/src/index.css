@@ -525,6 +525,7 @@ body:is(.dark *)::after {
 
 .sidebar__group-items[data-open="false"] {
   grid-template-rows: 0fr;
+  visibility: hidden;
 }
 
 .sidebar__group-items-inner {
