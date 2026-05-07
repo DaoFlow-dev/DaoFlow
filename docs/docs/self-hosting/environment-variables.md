@@ -22,10 +22,16 @@ Complete reference for the `.env` file consumed by the production `docker-compos
 
 | Variable           | Default     | Description                                                                                                                          |
 | ------------------ | ----------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `DAOFLOW_VERSION`  | `latest`    | DaoFlow image tag                                                                                                                    |
+| `DAOFLOW_VERSION`  | `0.8.6`     | DaoFlow image tag                                                                                                                    |
 | `DAOFLOW_BIND`     | `127.0.0.1` | Host interface bound to the control plane. Set explicitly, for example to `0.0.0.0`, only when direct public binding is intentional. |
 | `DAOFLOW_PORT`     | `3000`      | Host port bound to the control plane                                                                                                 |
 | `TEMPORAL_UI_PORT` | `8233`      | Host port for Temporal UI                                                                                                            |
+
+## HTTP Origin Controls
+
+| Variable      | Default | Description                                                                                               |
+| ------------- | ------- | --------------------------------------------------------------------------------------------------------- |
+| `CORS_ORIGIN` | unset   | Optional allowed browser origin for API requests when the app is accessed from a separate trusted origin. |
 
 ## Initial Owner Bootstrap
 

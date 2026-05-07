@@ -1,10 +1,10 @@
-import { betterAuth } from "better-auth";
+import { APIError, betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { twoFactor } from "better-auth/plugins";
 import { sql } from "drizzle-orm";
 import { db } from "./db/connection";
 import { users } from "./db/schema/users";
-import { bootstrapOwnerRole, defaultSignupRole } from "@daoflow/shared";
+import { bootstrapOwnerRole } from "@daoflow/shared";
 import { DEFAULT_CLIENT_PORT, DEFAULT_SERVER_PORT } from "@daoflow/shared";
 import { resolveEmailSender } from "./email-transport";
 import { findPendingTeamInviteByEmail } from "./db/services/member-access";
@@ -18,6 +18,7 @@ const authBaseURL = resolveAuthBaseURL();
 export const AUTH_SECRET = resolveAuthSecret();
 const isHTTPS = authBaseURL.startsWith("https://");
 const emailSender = resolveEmailSender();
+const configuredCorsOrigin = process.env.CORS_ORIGIN?.trim();
 
 function createAuthInstance() {
   return betterAuth({
@@ -34,7 +35,8 @@ function createAuthInstance() {
       `http://localhost:${DEFAULT_CLIENT_PORT}`,
       `http://127.0.0.1:${DEFAULT_CLIENT_PORT}`,
       `http://localhost:${DEFAULT_SERVER_PORT}`,
-      `http://127.0.0.1:${DEFAULT_SERVER_PORT}`
+      `http://127.0.0.1:${DEFAULT_SERVER_PORT}`,
+      ...(configuredCorsOrigin ? [configuredCorsOrigin] : [])
     ],
     database: drizzleAdapter(db, {
       provider: "pg",
@@ -83,10 +85,18 @@ function createAuthInstance() {
               !isFirstUser && typeof user.email === "string"
                 ? await findPendingTeamInviteByEmail(user.email)
                 : null;
+
+            if (!isFirstUser && !pendingInvite) {
+              throw APIError.from("FORBIDDEN", {
+                code: "INVITE_REQUIRED",
+                message: "A team invitation is required to create a DaoFlow account."
+              });
+            }
+
             return {
               data: {
                 ...user,
-                role: isFirstUser ? bootstrapOwnerRole : (pendingInvite?.role ?? defaultSignupRole),
+                role: isFirstUser ? bootstrapOwnerRole : pendingInvite?.role,
                 defaultTeamId: pendingInvite?.teamId
               }
             };

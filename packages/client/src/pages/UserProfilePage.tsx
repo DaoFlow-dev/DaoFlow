@@ -6,8 +6,9 @@ import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { User, Mail, Lock, Key, Clock, Save, Loader2 } from "lucide-react";
+import { User, Mail, Lock, Clock, Save, Loader2 } from "lucide-react";
 import { ActiveSessionsCard } from "@/components/profile/ActiveSessionsCard";
+import { ApiTokensCard } from "@/components/profile/ApiTokensCard";
 import { MfaStatusCard } from "@/components/profile/MfaStatusCard";
 
 export default function UserProfilePage() {
@@ -19,7 +20,6 @@ export default function UserProfilePage() {
   });
 
   const [displayName, setDisplayName] = useState(user?.name ?? "");
-  const [email, setEmail] = useState(user?.email ?? "");
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -27,7 +27,7 @@ export default function UserProfilePage() {
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [isRevokingOtherSessions, setIsRevokingOtherSessions] = useState(false);
 
-  const hasProfileChanges = displayName !== (user?.name ?? "") || email !== (user?.email ?? "");
+  const hasProfileChanges = displayName !== (user?.name ?? "");
   const hasPasswordFields = currentPassword && newPassword && confirmPassword;
   const passwordsMatch = newPassword === confirmPassword;
 
@@ -114,7 +114,7 @@ export default function UserProfilePage() {
             <User size={16} />
             Profile Information
           </CardTitle>
-          <CardDescription>Update your display name and email address.</CardDescription>
+          <CardDescription>Update your display name and review your sign-in email.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div>
@@ -128,17 +128,24 @@ export default function UserProfilePage() {
             />
           </div>
           <div>
-            <label className="text-sm font-medium mb-1.5 block flex items-center gap-1.5">
+            <label
+              htmlFor="profile-email"
+              className="text-sm font-medium mb-1.5 block flex items-center gap-1.5"
+            >
               <Mail size={14} />
               Email Address
             </label>
             <input
+              id="profile-email"
               type="email"
-              className="w-full rounded-md border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@example.com"
+              className="w-full rounded-md border bg-muted px-3 py-2 text-sm text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              value={user.email}
+              readOnly
+              aria-describedby="profile-email-note"
             />
+            <p id="profile-email-note" className="mt-1 text-xs text-muted-foreground">
+              Email changes require a verified account recovery flow.
+            </p>
           </div>
           {hasProfileChanges && (
             <div className="flex justify-end">
@@ -217,27 +224,11 @@ export default function UserProfilePage() {
         </CardContent>
       </Card>
 
-      {/* API Tokens */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <div>
-            <CardTitle className="text-base flex items-center gap-2">
-              <Key size={16} />
-              API Tokens
-            </CardTitle>
-            <CardDescription>Manage personal access tokens for the CLI and API.</CardDescription>
-          </div>
-          <Button size="sm" variant="outline">
-            <Key size={14} className="mr-1" />
-            Generate Token
-          </Button>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col items-center py-6 text-muted-foreground text-sm">
-            No tokens generated yet.
-          </div>
-        </CardContent>
-      </Card>
+      <ApiTokensCard
+        onOpenTokens={() => {
+          void navigate("/settings?tab=tokens");
+        }}
+      />
 
       <ActiveSessionsCard
         isRevokingOtherSessions={isRevokingOtherSessions}

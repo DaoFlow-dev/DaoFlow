@@ -76,4 +76,18 @@ describe("UserProfilePage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Manage MFA" }));
     expect(navigateMock).toHaveBeenCalledWith("/settings?tab=security");
   });
+
+  it("opens token settings from the profile token card", () => {
+    render(<UserProfilePage />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open Tokens" }));
+    expect(navigateMock).toHaveBeenCalledWith("/settings?tab=tokens");
+  });
+
+  it("does not present email as a saveable profile edit", () => {
+    render(<UserProfilePage />);
+
+    expect(screen.getByLabelText("Email Address")).toHaveAttribute("readonly");
+    expect(screen.queryByRole("button", { name: "Save Profile" })).not.toBeInTheDocument();
+  });
 });

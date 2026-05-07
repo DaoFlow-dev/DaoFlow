@@ -483,12 +483,51 @@ describe("createApp", () => {
     expect(invite?.status).toBe("accepted");
   });
 
+  it("rejects uninvited signups after the first owner exists", async () => {
+    await resetAppTestState({ seedControlPlane: true });
+
+    const uninvitedEmail = `uninvited+${Date.now()}@daoflow.local`;
+    const app = createApp();
+    const response = await app.request("/api/auth/sign-up/email", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Origin: "http://localhost:5173"
+      },
+      body: JSON.stringify({
+        email: uninvitedEmail,
+        name: "Uninvited User",
+        password: "secret1234"
+      })
+    });
+
+    expect(response.status).toBe(403);
+
+    const [createdUser] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.email, uninvitedEmail))
+      .limit(1);
+
+    expect(createdUser).toBeUndefined();
+  });
+
   it("supports CLI browser login handoff", async () => {
     await resetSeededTestDatabase();
     resetInitialOwnerBootstrapState();
 
     const app = createApp();
     const ownerEmail = `cli-owner+${Date.now()}@daoflow.local`;
+    await db.insert(teamInvites).values({
+      id: `inv_cli_${Date.now()}`.slice(0, 32),
+      teamId: "team_foundation",
+      email: ownerEmail,
+      role: "admin",
+      status: "pending",
+      inviterId: "user_foundation_owner",
+      createdAt: new Date(),
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+    });
     const signUpResponse = await app.request("/api/auth/sign-up/email", {
       method: "POST",
       headers: {
@@ -1327,6 +1366,35 @@ describe("createApp", () => {
         .find((cookie) => cookie.startsWith("better-auth.session_token=")) ??
       ownerSignUpResponse.headers.get("set-cookie")?.match(/better-auth\.session_token=[^;]+/)?.[0];
     const viewerEmail = `deploy-upload-viewer+${Date.now()}@daoflow.local`;
+    const [ownerUser] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.email, ownerEmail))
+      .limit(1);
+    expect(ownerUser).toBeDefined();
+    if (!ownerUser) {
+      throw new Error("Expected owner user fixture to exist.");
+    }
+
+    const uploadTeamId = `team_upload_${Date.now()}`.slice(0, 32);
+    await db.insert(teams).values({
+      id: uploadTeamId,
+      name: "Upload Isolation",
+      slug: uploadTeamId,
+      createdByUserId: ownerUser.id,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    });
+    await db.insert(teamInvites).values({
+      id: `inv_upload_${Date.now()}`.slice(0, 32),
+      teamId: uploadTeamId,
+      email: viewerEmail,
+      role: "admin",
+      status: "pending",
+      inviterId: ownerUser.id,
+      createdAt: new Date(),
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+    });
     await app.request("/api/auth/sign-up/email", {
       method: "POST",
       headers: {

@@ -21,6 +21,7 @@ services:
     environment:
       DATABASE_URL: postgresql://daoflow:${POSTGRES_PASSWORD}@postgres:5432/daoflow
       REDIS_URL: redis://redis:6379
+      CORS_ORIGIN: ${CORS_ORIGIN:-}
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
       BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3000}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY}
