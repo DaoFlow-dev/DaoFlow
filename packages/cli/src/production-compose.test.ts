@@ -26,6 +26,7 @@ describe("production docker-compose.yml", () => {
     expect(images).not.toContain("temporalio/auto-setup:latest");
     expect(images).not.toContain("ghcr.io/daoflow-dev/daoflow:${DAOFLOW_VERSION:-latest}");
     expect(daoflow.image).toBe("ghcr.io/daoflow-dev/daoflow:${DAOFLOW_VERSION:-0.7.0}");
+    expect(daoflow.ports).toEqual(["${DAOFLOW_BIND:-127.0.0.1}:${DAOFLOW_PORT:-3000}:3000"]);
     expect(daoflow.healthcheck).toBeDefined();
     expect(temporal.image).toBe("temporalio/auto-setup:1.29.6");
     expect(temporal.ports).toBeUndefined();

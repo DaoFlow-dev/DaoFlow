@@ -10,6 +10,7 @@ E2E_BETTER_AUTH_SECRET="${BETTER_AUTH_SECRET:-daoflow-e2e-cli-secret-with-enough
 E2E_ENCRYPTION_KEY="${ENCRYPTION_KEY:-daoflow-e2e-encryption-key-32chars00}"
 PLAYWRIGHT_BIN="${PLAYWRIGHT_BIN:-./node_modules/.bin/playwright}"
 
+bun ./scripts/ensure-e2e-database-url.ts "$CLI_DB_URL" "PLAYWRIGHT_CLI_DATABASE_URL"
 DATABASE_URL="$CLI_DB_URL" bun packages/server/src/db/reset.ts
 DATABASE_URL="$CLI_DB_URL" bun run db:migrate
 DATABASE_URL="$CLI_DB_URL" BETTER_AUTH_SECRET="$E2E_BETTER_AUTH_SECRET" ENCRYPTION_KEY="$E2E_ENCRYPTION_KEY" DAOFLOW_SEED_DEMO=1 bun packages/server/src/db/services/run-seed.ts

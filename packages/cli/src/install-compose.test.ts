@@ -35,7 +35,7 @@ volumes:
 
     expect(traefik.image).toBe("traefik:v3.6.7");
     expect(traefik.ports).toEqual(["80:80", "443:443"]);
-    expect(daoflow.ports).toEqual(["127.0.0.1:${DAOFLOW_PORT:-3000}:3000"]);
+    expect(daoflow.ports).toEqual(["${DAOFLOW_BIND:-127.0.0.1}:${DAOFLOW_PORT:-3000}:3000"]);
     expect(daoflow.networks).toEqual(["default", "daoflow-proxy"]);
     expect(daoflow.labels).toContain("traefik.http.routers.daoflow.rule=Host(`${DAOFLOW_DOMAIN}`)");
     expect(proxyNetwork.name).toBe("${DAOFLOW_PROXY_NETWORK:-daoflow-proxy}");
@@ -85,7 +85,7 @@ volumes:
     expect(asRecord(cloudflared.environment)).toEqual({
       TUNNEL_TOKEN: "${CLOUDFLARE_TUNNEL_TOKEN}"
     });
-    expect(daoflow.ports).toEqual(["127.0.0.1:${DAOFLOW_PORT:-3000}:3000"]);
+    expect(daoflow.ports).toEqual(["${DAOFLOW_BIND:-127.0.0.1}:${DAOFLOW_PORT:-3000}:3000"]);
   });
 
   test("keeps DaoFlow reachable from Cloudflare when Traefik and Cloudflare are both enabled", () => {

@@ -143,4 +143,38 @@ describe("development task validation", () => {
     );
     expect(call?.[5]).toMatchObject({ timeoutMs: 120_000 });
   });
+
+  it("cleans up retained validation sandboxes after successful commands", async () => {
+    const workspace = await validationWorkspace();
+    const execRunner = vi
+      .fn()
+      .mockResolvedValueOnce({ exitCode: 0, signal: null })
+      .mockResolvedValueOnce({ exitCode: 0, signal: null });
+
+    const result = await runDevelopmentTaskValidation({
+      workspace,
+      commands: ["bun run lint"],
+      sandbox: {
+        provider: "host_docker",
+        containerName: "daoflow-devtask-validation-retained",
+        image: "ghcr.io/daoflow/codex-runner:test",
+        cpuLimit: 1,
+        memoryLimitMb: 768,
+        timeoutMinutes: 2,
+        networkPolicy: "default-egress",
+        user: "1000:1000",
+        retainOnFailure: true
+      },
+      onLog: vi.fn(),
+      execRunner
+    });
+
+    expect(result.status).toBe("ok");
+    expect(execRunner.mock.calls[0]?.[1]).not.toContain("--rm");
+    expect(execRunner.mock.calls[1]?.[1]).toEqual([
+      "rm",
+      "-f",
+      "daoflow-devtask-validation-retained"
+    ]);
+  });
 });

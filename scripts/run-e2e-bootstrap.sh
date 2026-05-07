@@ -10,6 +10,7 @@ E2E_BETTER_AUTH_SECRET="${BETTER_AUTH_SECRET:-daoflow-e2e-secret-with-enough-ent
 E2E_ENCRYPTION_KEY="${ENCRYPTION_KEY:-daoflow-e2e-encryption-key-32chars00}"
 PLAYWRIGHT_BIN="${PLAYWRIGHT_BIN:-./node_modules/.bin/playwright}"
 
+bun ./scripts/ensure-e2e-database-url.ts "$BOOTSTRAP_DB_URL" "PLAYWRIGHT_BOOTSTRAP_DATABASE_URL"
 DATABASE_URL="$BOOTSTRAP_DB_URL" bun packages/server/src/db/reset.ts
 DATABASE_URL="$BOOTSTRAP_DB_URL" bun run db:migrate
 PLAYWRIGHT_BOOTSTRAP_DATABASE_URL="$BOOTSTRAP_DB_URL" BETTER_AUTH_SECRET="$E2E_BETTER_AUTH_SECRET" ENCRYPTION_KEY="$E2E_ENCRYPTION_KEY" PLAYWRIGHT_SKIP_DB_BOOTSTRAP=true "$PLAYWRIGHT_BIN" test --config playwright.bootstrap.config.ts "$@"

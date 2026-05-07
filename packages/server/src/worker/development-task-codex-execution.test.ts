@@ -230,6 +230,36 @@ describe("executeDevelopmentTaskCodex", () => {
     expect(execRunner.mock.calls[0]?.[1]).not.toContain("--rm");
   });
 
+  it("cleans up retained sandbox containers after successful Codex runs", async () => {
+    const { plan, workspace } = await executionFixture();
+    const execRunner = vi
+      .fn()
+      .mockResolvedValueOnce({ exitCode: 0, signal: null })
+      .mockResolvedValueOnce({ exitCode: 0, signal: null });
+
+    const result = await executeDevelopmentTaskCodex({
+      plan,
+      workspace,
+      sandbox: {
+        provider: "host_docker",
+        containerName: "daoflow-devtask-success-retained",
+        image: "ghcr.io/daoflow/codex-runner:test",
+        cpuLimit: 1,
+        memoryLimitMb: 512,
+        timeoutMinutes: 1,
+        networkPolicy: "default-egress",
+        user: "1000:1000",
+        retainOnFailure: true
+      },
+      onLog: vi.fn(),
+      execRunner
+    });
+
+    expect(result.status).toBe("ok");
+    expect(execRunner.mock.calls[0]?.[1]).not.toContain("--rm");
+    expect(execRunner.mock.calls[1]?.[1]).toEqual(["rm", "-f", "daoflow-devtask-success-retained"]);
+  });
+
   it("defaults host Docker sandboxes to a non-root process user", () => {
     const sandbox = buildHostDockerSandboxFromRun({
       runId: "run_user",

@@ -45,8 +45,8 @@ export async function signInWithEmailPassword(
   user: Pick<E2EAuthUser, "email" | "password">
 ) {
   await openSignInForm(page);
-  await page.getByLabel("Email").fill(user.email);
-  await page.getByLabel("Password").fill(user.password);
+  await page.getByTestId("login-signin-email").fill(user.email);
+  await page.getByTestId("login-signin-password").fill(user.password);
   await page.getByRole("button", { name: "Sign in" }).click();
   await expectSignedIn(page);
 }
@@ -71,9 +71,9 @@ export async function signUpWithEmailPassword(
   user: Pick<E2EAuthUser, "name" | "email" | "password">
 ) {
   await openSignUpForm(page);
-  await page.getByLabel("Name").fill(user.name);
-  await page.getByLabel("Email").fill(user.email);
-  await page.getByLabel("Password").fill(user.password);
+  await page.getByTestId("login-signup-name").fill(user.name);
+  await page.getByTestId("login-signup-email").fill(user.email);
+  await page.getByTestId("login-signup-password").fill(user.password);
   await page.getByRole("button", { name: "Create account" }).click();
   await expectSignedIn(page);
 }

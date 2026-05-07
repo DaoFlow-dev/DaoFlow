@@ -13,7 +13,7 @@ import {
 } from "./install-traefik";
 
 const DEFAULT_COMPOSE_NETWORK = "default";
-const LOCAL_DASHBOARD_BIND = "127.0.0.1:${DAOFLOW_PORT:-3000}:3000";
+const LOCAL_DASHBOARD_BIND = "${DAOFLOW_BIND:-127.0.0.1}:${DAOFLOW_PORT:-3000}:3000";
 const TRAEFIK_MANAGED_LABEL_PREFIX = "traefik.";
 
 type JsonRecord = Record<string, unknown>;

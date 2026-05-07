@@ -112,10 +112,11 @@ export async function runDevelopmentTaskValidation(input: {
             execution.options
           )
         : await execRunner(execution.command, execution.args, execution.cwd, onLog);
-      if (
-        input.sandbox &&
-        (result.signal || (input.sandbox.retainOnFailure && result.exitCode === 0))
-      ) {
+      const shouldCleanupSandbox =
+        input.sandbox?.retainOnFailure === true
+          ? result.exitCode === 0 && !result.signal
+          : Boolean(input.sandbox);
+      if (input.sandbox && shouldCleanupSandbox) {
         const cleanup = buildHostDockerCleanupExecution(input.sandbox.containerName);
         await execRunner(cleanup.command, cleanup.args, cleanup.cwd, onLog).catch(() => undefined);
       }

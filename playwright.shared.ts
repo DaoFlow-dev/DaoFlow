@@ -2,7 +2,8 @@ import { PLAYWRIGHT_BASE_URL, PLAYWRIGHT_HEALTHCHECK_URL } from "./e2e/runtime";
 
 const parsedBaseUrl = new URL(PLAYWRIGHT_BASE_URL);
 const protocolPort = parsedBaseUrl.protocol === "https:" ? "443" : "80";
-const PLAYWRIGHT_SERVER_BUILD_COMMAND = "bun run build";
+const PLAYWRIGHT_SERVER_BUILD_COMMAND =
+  process.env.PLAYWRIGHT_SKIP_SERVER_BUILD === "true" ? "" : "bun run build";
 // Keep Playwright off the dist entry because Bun intermittently crashed there in CI.
 const PLAYWRIGHT_SERVER_START_COMMAND = "bun run start:e2e";
 

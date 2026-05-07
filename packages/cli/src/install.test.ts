@@ -339,7 +339,7 @@ DEPLOY_TIMEOUT_MS=900000
 
     const composeFile = readFileSync(join(installDir, "docker-compose.yml"), "utf8");
     expect(composeFile).toContain("traefik:v3.6.7");
-    expect(composeFile).toContain("127.0.0.1:${DAOFLOW_PORT:-3000}:3000");
+    expect(composeFile).toContain("${DAOFLOW_BIND:-127.0.0.1}:${DAOFLOW_PORT:-3000}:3000");
     expect(composeFile).toContain("DAOFLOW_PROXY_NETWORK:-daoflow-proxy");
   });
 
@@ -390,7 +390,7 @@ DEPLOY_TIMEOUT_MS=900000
     const composeFile = readFileSync(join(installDir, "docker-compose.yml"), "utf8");
     expect(composeFile).toContain("cloudflare/cloudflared:latest");
     expect(composeFile).toContain("CLOUDFLARE_TUNNEL_TOKEN");
-    expect(composeFile).toContain("127.0.0.1:${DAOFLOW_PORT:-3000}:3000");
+    expect(composeFile).toContain("${DAOFLOW_BIND:-127.0.0.1}:${DAOFLOW_PORT:-3000}:3000");
   });
 
   test("returns a structured error when Cloudflare Tunnel is enabled without a token", async () => {

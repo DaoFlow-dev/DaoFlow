@@ -89,6 +89,7 @@ export function generateEnvFile(opts: {
   const managedKeys = new Set([
     "DAOFLOW_VERSION",
     "BETTER_AUTH_URL",
+    "DAOFLOW_BIND",
     "DAOFLOW_PORT",
     "DAOFLOW_DOMAIN",
     "DAOFLOW_ACME_EMAIL",
@@ -115,6 +116,7 @@ DAOFLOW_VERSION=${opts.version}
 
 # -- Public URL -------------------------------------------------------------
 BETTER_AUTH_URL=${scheme}://${opts.domain}${portSuffix}
+DAOFLOW_BIND=127.0.0.1
 DAOFLOW_PORT=${opts.port}
 ${opts.exposureMode === "traefik" || opts.cloudflareTunnelEnabled ? `DAOFLOW_DOMAIN=${opts.domain}\n` : ""}${opts.exposureMode === "traefik" ? `DAOFLOW_ACME_EMAIL=${opts.acmeEmail ?? opts.initialAdminEmail ?? ""}\nDAOFLOW_PROXY_NETWORK=daoflow-proxy\n` : ""}${opts.cloudflareTunnelEnabled ? `CLOUDFLARE_TUNNEL_TOKEN=${opts.cloudflareTunnelToken ?? ""}\n` : ""}
 
