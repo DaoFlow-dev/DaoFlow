@@ -1,11 +1,23 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
 
-const getKey = () =>
-  createHash("sha256")
-    .update(
-      process.env.ENCRYPTION_KEY ?? process.env.BETTER_AUTH_SECRET ?? "daoflow-local-control-plane"
-    )
-    .digest();
+export function resolveEncryptionKeyMaterial(env: NodeJS.ProcessEnv = process.env): string {
+  const encryptionKey = env.ENCRYPTION_KEY?.trim();
+  if (encryptionKey) {
+    return encryptionKey;
+  }
+
+  if (env.NODE_ENV === "production") {
+    throw new Error("ENCRYPTION_KEY must be set in production.");
+  }
+
+  return env.BETTER_AUTH_SECRET ?? "daoflow-local-control-plane";
+}
+
+export function validateEncryptionConfiguration(env: NodeJS.ProcessEnv = process.env): void {
+  resolveEncryptionKeyMaterial(env);
+}
+
+const getKey = () => createHash("sha256").update(resolveEncryptionKeyMaterial()).digest();
 
 export function encrypt(value: string): string {
   const iv = randomBytes(12);
