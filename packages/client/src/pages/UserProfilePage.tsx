@@ -4,7 +4,8 @@ import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { User, Mail, Lock, Shield, Key, Clock, Save, Loader2, Smartphone } from "lucide-react";
+import { User, Mail, Lock, Key, Clock, Save, Loader2, Smartphone } from "lucide-react";
+import { ActiveSessionsCard } from "@/components/profile/ActiveSessionsCard";
 
 export default function UserProfilePage() {
   const session = useSession();
@@ -17,6 +18,7 @@ export default function UserProfilePage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [isRevokingOtherSessions, setIsRevokingOtherSessions] = useState(false);
 
   const hasProfileChanges = displayName !== (user?.name ?? "") || email !== (user?.email ?? "");
   const hasPasswordFields = currentPassword && newPassword && confirmPassword;
@@ -25,7 +27,11 @@ export default function UserProfilePage() {
   async function handleSaveProfile() {
     setIsSaving(true);
     try {
-      await authClient.updateUser({ name: displayName });
+      const result = await authClient.updateUser({ name: displayName });
+      if (result.error) {
+        toast.error(result.error.message ?? "Failed to update profile");
+        return;
+      }
       toast.success("Profile updated");
     } catch {
       toast.error("Failed to update profile");
@@ -38,10 +44,16 @@ export default function UserProfilePage() {
     if (!passwordsMatch) return;
     setIsChangingPassword(true);
     try {
-      await authClient.changePassword({
+      const result = await authClient.changePassword({
         currentPassword,
         newPassword
       });
+      if (result.error) {
+        toast.error(
+          result.error.message ?? "Failed to change password — check your current password"
+        );
+        return;
+      }
       toast.success("Password updated");
       setCurrentPassword("");
       setNewPassword("");
@@ -50,6 +62,23 @@ export default function UserProfilePage() {
       toast.error("Failed to change password — check your current password");
     } finally {
       setIsChangingPassword(false);
+    }
+  }
+
+  async function handleRevokeOtherSessions() {
+    setIsRevokingOtherSessions(true);
+    try {
+      const result = await authClient.revokeOtherSessions();
+      if (result.error) {
+        toast.error(result.error.message ?? "Failed to revoke other sessions");
+        return;
+      }
+      await session.refetch();
+      toast.success("Other sessions revoked");
+    } catch {
+      toast.error("Failed to revoke other sessions");
+    } finally {
+      setIsRevokingOtherSessions(false);
     }
   }
 
@@ -181,27 +210,6 @@ export default function UserProfilePage() {
         </CardContent>
       </Card>
 
-      {/* Security */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <Shield size={16} />
-            Security
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between rounded-lg border p-3">
-            <div>
-              <p className="text-sm font-medium">Two-Factor Authentication</p>
-              <p className="text-xs text-muted-foreground">
-                Add an extra layer of security to your account.
-              </p>
-            </div>
-            <Badge variant="secondary">Not configured</Badge>
-          </div>
-        </CardContent>
-      </Card>
-
       {/* API Tokens */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
@@ -224,43 +232,10 @@ export default function UserProfilePage() {
         </CardContent>
       </Card>
 
-      {/* Active Sessions */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <Clock size={16} />
-            Active Sessions
-          </CardTitle>
-          <CardDescription>Manage your active login sessions.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-between rounded-lg border p-3">
-            <div>
-              <p className="text-sm font-medium">Current session</p>
-              <p className="text-xs text-muted-foreground">
-                {navigator.userAgent.includes("Chrome")
-                  ? "Chrome"
-                  : navigator.userAgent.includes("Firefox")
-                    ? "Firefox"
-                    : navigator.userAgent.includes("Safari")
-                      ? "Safari"
-                      : "Browser"}{" "}
-                · Last active now
-              </p>
-            </div>
-            <Badge variant="default">Active</Badge>
-          </div>
-          <div className="mt-4 flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => toast.info("Revoke other sessions coming soon")}
-            >
-              Revoke all other sessions
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+      <ActiveSessionsCard
+        isRevokingOtherSessions={isRevokingOtherSessions}
+        onRevokeOtherSessions={() => void handleRevokeOtherSessions()}
+      />
 
       {/* Two-Factor Authentication */}
       <Card>
