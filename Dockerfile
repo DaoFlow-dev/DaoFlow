@@ -97,6 +97,7 @@ CMD ["bun", "packages/server/dist/index.js"]
 # ── Stage 6: development task Codex runner ──────────────────────────────
 FROM node:22-bookworm-slim AS codex-runner
 
+ARG TARGETARCH
 ARG BUN_VERSION=1.3.13
 ARG CODEX_CLI_VERSION=latest
 
@@ -106,8 +107,19 @@ ENV HOME=/runner/home
 ENV CODEX_HOME=/runner/home/.codex
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    bash ca-certificates curl git openssh-client python3 python3-pip \
- && npm install -g "bun@${BUN_VERSION}" "@openai/codex@${CODEX_CLI_VERSION}" \
+    bash ca-certificates curl git openssh-client python3 python3-pip unzip \
+ && case "${TARGETARCH}" in \
+      amd64) bun_target="bun-linux-x64-baseline" ;; \
+      arm64) bun_target="bun-linux-aarch64" ;; \
+      *) echo "Unsupported runner architecture: ${TARGETARCH}" >&2; exit 1 ;; \
+    esac \
+ && curl -fsSL -o /tmp/bun.zip \
+      "https://github.com/oven-sh/bun/releases/download/bun-v${BUN_VERSION}/${bun_target}.zip" \
+ && unzip -q /tmp/bun.zip -d /tmp \
+ && mv "/tmp/${bun_target}/bun" /usr/local/bin/bun \
+ && chmod +x /usr/local/bin/bun \
+ && rm -rf /tmp/bun.zip "/tmp/${bun_target}" \
+ && npm install -g "@openai/codex@${CODEX_CLI_VERSION}" \
  && npm cache clean --force \
  && useradd -m -s /bin/bash -d /runner/home runner \
  && mkdir -p /runner/home/.codex /workspace \
