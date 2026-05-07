@@ -197,6 +197,9 @@ describe("development task worker", () => {
     const checkoutCall = checkoutMock.mock.calls[0]?.[0] as
       | { repoPath: string; artifactsPath: string }
       | undefined;
+    const validationCall = validationExecutionMock.mock.calls[0]?.[0] as
+      | { allowedCommands?: string[] }
+      | undefined;
 
     expect(claimed?.task.id).toBe(queued.task.id);
     expect(checkoutMock).toHaveBeenCalledOnce();
@@ -204,6 +207,13 @@ describe("development task worker", () => {
     expect(validationExecutionMock).toHaveBeenCalledOnce();
     expect(pullRequestOpeningMock).toHaveBeenCalledOnce();
     expect(previewQueuingMock).toHaveBeenCalledOnce();
+    expect(validationCall?.allowedCommands).toEqual([
+      "bun run format",
+      "bun run test:unit",
+      "bun run lint",
+      "bun run typecheck",
+      "bun run contracts:check"
+    ]);
     expect(checkoutCall?.repoPath).toContain(claimed?.run.id ?? "");
     expect(checkoutCall?.artifactsPath).toContain(claimed?.run.id ?? "");
     expect(fetchMock).toHaveBeenCalledTimes(4);

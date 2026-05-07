@@ -172,6 +172,13 @@ describe("development task service", () => {
         "archive.upload",
         "archive.download"
       ],
+      allowedCommands: [
+        "bun run format",
+        "bun run test:unit",
+        "bun run lint",
+        "bun run typecheck",
+        "bun run contracts:check"
+      ],
       validationCommands: [
         "bun run format",
         "bun run test:unit",

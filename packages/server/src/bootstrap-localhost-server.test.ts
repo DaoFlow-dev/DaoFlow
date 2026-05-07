@@ -70,6 +70,7 @@ describe("bootstrapLocalhostServer", () => {
     await db
       .update(sandboxRunnerProfiles)
       .set({
+        allowedCommands: [],
         metadata: {
           operatorNote: "preserve me"
         },
@@ -101,6 +102,7 @@ describe("bootstrapLocalhostServer", () => {
       operatorNote: "preserve me",
       hostServerDefault: true
     });
+    expect(runnerProfile.allowedCommands).toEqual(runnerProfile.validationCommands);
     expect(runnerProfile.codexConfigTemplate).toContain('base_url = "https://api.openai.com/v1"');
     expect(runnerProfile.codexConfigTemplate).not.toContain("${");
 

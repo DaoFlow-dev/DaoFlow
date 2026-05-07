@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { execStreaming, OnLog } from "./docker-exec-shared";
 import type { PreparedDevelopmentTaskCodexWorkspace } from "./development-task-codex-workspace";
 import {
+  readDevelopmentTaskAllowedCommands,
   readDevelopmentTaskValidationCommands,
   runDevelopmentTaskValidation
 } from "./development-task-validation";
@@ -38,6 +39,14 @@ describe("development task validation", () => {
     ).toEqual(["bun run test:unit", "bun run typecheck"]);
   });
 
+  it("reads configured allowed commands from run metadata", () => {
+    expect(
+      readDevelopmentTaskAllowedCommands({
+        allowedCommands: ["bun run lint", "", 7, "bun run typecheck"]
+      })
+    ).toEqual(["bun run lint", "bun run typecheck"]);
+  });
+
   it("runs validation commands in order and captures logs", async () => {
     const workspace = await validationWorkspace();
     const execRunner = vi.fn().mockImplementation((_command, _args, _cwd, onLog: OnLog) => {
@@ -48,6 +57,7 @@ describe("development task validation", () => {
     const result = await runDevelopmentTaskValidation({
       workspace,
       commands: ["bun run lint", "bun run typecheck"],
+      allowedCommands: ["bun run lint", "bun run typecheck"],
       onLog: vi.fn(),
       execRunner
     });
@@ -75,6 +85,46 @@ describe("development task validation", () => {
     expect((await stat(result.logPath)).mode & 0o777).toBe(0o600);
   });
 
+  it("blocks validation commands outside the runner allowlist", async () => {
+    const workspace = await validationWorkspace();
+    const execRunner = vi.fn();
+
+    const result = await runDevelopmentTaskValidation({
+      workspace,
+      commands: ["bun run lint", "bun run secrets:dump"],
+      allowedCommands: ["bun run lint", "bun run typecheck"],
+      onLog: vi.fn(),
+      execRunner
+    });
+
+    expect(result).toMatchObject({
+      status: "failed",
+      failedCommand: "bun run secrets:dump",
+      errorMessage: "Validation command is not allowed by the runner policy: bun run secrets:dump"
+    });
+    expect(execRunner).not.toHaveBeenCalled();
+  });
+
+  it("fails closed when validation commands exist but the allowlist is empty", async () => {
+    const workspace = await validationWorkspace();
+    const execRunner = vi.fn();
+
+    const result = await runDevelopmentTaskValidation({
+      workspace,
+      commands: ["bun run lint"],
+      allowedCommands: [],
+      onLog: vi.fn(),
+      execRunner
+    });
+
+    expect(result).toMatchObject({
+      status: "failed",
+      failedCommand: "bun run lint",
+      errorMessage: "Validation command is not allowed by the runner policy: bun run lint"
+    });
+    expect(execRunner).not.toHaveBeenCalled();
+  });
+
   it("stops when a validation command fails", async () => {
     const workspace = await validationWorkspace();
     const execRunner = vi
@@ -85,6 +135,7 @@ describe("development task validation", () => {
     const result = await runDevelopmentTaskValidation({
       workspace,
       commands: ["bun run lint", "bun run typecheck", "bun run contracts:check"],
+      allowedCommands: ["bun run lint", "bun run typecheck", "bun run contracts:check"],
       onLog: vi.fn(),
       execRunner
     });
@@ -104,6 +155,7 @@ describe("development task validation", () => {
     const result = await runDevelopmentTaskValidation({
       workspace,
       commands: ["bun run test:unit"],
+      allowedCommands: ["bun run test:unit"],
       sandbox: {
         provider: "host_docker",
         containerName: "daoflow-devtask-validation",
@@ -154,6 +206,7 @@ describe("development task validation", () => {
     const result = await runDevelopmentTaskValidation({
       workspace,
       commands: ["bun run lint"],
+      allowedCommands: ["bun run lint"],
       sandbox: {
         provider: "host_docker",
         containerName: "daoflow-devtask-validation-retained",

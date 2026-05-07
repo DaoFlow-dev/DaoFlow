@@ -3,6 +3,13 @@ export const DEFAULT_BOXLITE_RUNNER_PROFILE_ID = "runner_profile_boxlite_default
 export const DEFAULT_CODEX_HOME_PATH = "/runner/home/.codex";
 export const DEFAULT_CODEX_CONFIG_PATH = `${DEFAULT_CODEX_HOME_PATH}/config.toml`;
 export const DEFAULT_CODEX_AUTH_MODE = "custom_provider_env";
+export const DEFAULT_DEVELOPMENT_TASK_VALIDATION_COMMANDS = [
+  "bun run format",
+  "bun run test:unit",
+  "bun run lint",
+  "bun run typecheck",
+  "bun run contracts:check"
+];
 
 export const DEFAULT_CODEX_CONFIG_TEMPLATE = [
   'profile = "daoflow"',

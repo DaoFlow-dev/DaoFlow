@@ -125,6 +125,7 @@ async function configureDefaultRunnerProfiles(serverId: string) {
       status: "enabled",
       codexAuthMode: DEFAULT_CODEX_AUTH_MODE,
       codexConfigTemplate: DEFAULT_CODEX_CONFIG_TEMPLATE,
+      allowedCommands: sql`CASE WHEN jsonb_array_length(coalesce(${sandboxRunnerProfiles.allowedCommands}, '[]'::jsonb)) = 0 THEN coalesce(${sandboxRunnerProfiles.validationCommands}, '[]'::jsonb) ELSE ${sandboxRunnerProfiles.allowedCommands} END`,
       metadata: sql`${sandboxRunnerProfiles.metadata} || ${JSON.stringify(metadataPatch)}::jsonb`,
       updatedAt: new Date()
     })
@@ -137,6 +138,7 @@ async function configureDefaultRunnerProfiles(serverId: string) {
       serverId,
       codexAuthMode: DEFAULT_CODEX_AUTH_MODE,
       codexConfigTemplate: DEFAULT_CODEX_CONFIG_TEMPLATE,
+      allowedCommands: sql`CASE WHEN jsonb_array_length(coalesce(${sandboxRunnerProfiles.allowedCommands}, '[]'::jsonb)) = 0 THEN coalesce(${sandboxRunnerProfiles.validationCommands}, '[]'::jsonb) ELSE ${sandboxRunnerProfiles.allowedCommands} END`,
       metadata: sql`${sandboxRunnerProfiles.metadata} || ${JSON.stringify(boxLiteMetadataPatch)}::jsonb`,
       updatedAt: new Date()
     })

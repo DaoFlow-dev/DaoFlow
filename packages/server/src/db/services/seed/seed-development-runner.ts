@@ -3,6 +3,7 @@ import {
   DEFAULT_BOXLITE_RUNNER_PROFILE_ID,
   DEFAULT_CODEX_AUTH_MODE,
   DEFAULT_CODEX_CONFIG_TEMPLATE,
+  DEFAULT_DEVELOPMENT_TASK_VALIDATION_COMMANDS,
   DEFAULT_HOST_RUNNER_PROFILE_ID,
   defaultBoxLiteRunnerMetadata,
   defaultHostRunnerMetadata
@@ -26,14 +27,8 @@ export async function seedDevelopmentRunner(
       memoryLimitMb: 4096,
       diskLimitMb: 20480,
       networkPolicy: "default-egress",
-      allowedCommands: [],
-      validationCommands: [
-        "bun run format",
-        "bun run test:unit",
-        "bun run lint",
-        "bun run typecheck",
-        "bun run contracts:check"
-      ],
+      allowedCommands: DEFAULT_DEVELOPMENT_TASK_VALIDATION_COMMANDS,
+      validationCommands: DEFAULT_DEVELOPMENT_TASK_VALIDATION_COMMANDS,
       timeoutMinutes: 60,
       codexAuthMode: DEFAULT_CODEX_AUTH_MODE,
       codexConfigTemplate: DEFAULT_CODEX_CONFIG_TEMPLATE,
@@ -56,14 +51,8 @@ export async function seedDevelopmentRunner(
       memoryLimitMb: 4096,
       diskLimitMb: 20480,
       networkPolicy: "default-egress",
-      allowedCommands: [],
-      validationCommands: [
-        "bun run format",
-        "bun run test:unit",
-        "bun run lint",
-        "bun run typecheck",
-        "bun run contracts:check"
-      ],
+      allowedCommands: DEFAULT_DEVELOPMENT_TASK_VALIDATION_COMMANDS,
+      validationCommands: DEFAULT_DEVELOPMENT_TASK_VALIDATION_COMMANDS,
       timeoutMinutes: 60,
       codexAuthMode: DEFAULT_CODEX_AUTH_MODE,
       codexConfigTemplate: DEFAULT_CODEX_CONFIG_TEMPLATE,

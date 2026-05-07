@@ -59,9 +59,23 @@ export function readDevelopmentTaskValidationCommands(metadata: Record<string, u
   return readStringArray(metadata.validationCommands);
 }
 
+export function readDevelopmentTaskAllowedCommands(metadata: Record<string, unknown>) {
+  return readStringArray(metadata.allowedCommands);
+}
+
+function findDisallowedCommand(commands: string[], allowedCommands: string[]) {
+  if (allowedCommands.length === 0) {
+    return commands[0] ?? null;
+  }
+
+  const allowed = new Set(allowedCommands.map((command) => command.trim()));
+  return commands.find((command) => !allowed.has(command.trim())) ?? null;
+}
+
 export async function runDevelopmentTaskValidation(input: {
   workspace: PreparedDevelopmentTaskCodexWorkspace;
   commands: string[];
+  allowedCommands?: string[];
   onLog: OnLog;
   sandbox?: HostDockerCodexSandbox;
   execRunner?: ExecRunner;
@@ -75,6 +89,17 @@ export async function runDevelopmentTaskValidation(input: {
       commands: [],
       logPath,
       errorMessage: "No validation commands are configured for this runner."
+    };
+  }
+
+  const disallowedCommand = findDisallowedCommand(input.commands, input.allowedCommands ?? []);
+  if (disallowedCommand) {
+    return {
+      status: "failed",
+      commands: input.commands,
+      failedCommand: disallowedCommand,
+      logPath,
+      errorMessage: `Validation command is not allowed by the runner policy: ${disallowedCommand}`
     };
   }
 

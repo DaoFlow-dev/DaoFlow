@@ -13,6 +13,7 @@ import type { DevelopmentTaskCodexPlan } from "./development-task-codex-plan";
 import type { PreparedDevelopmentTaskCodexWorkspace } from "./development-task-codex-workspace";
 import { createDevelopmentTaskLogEventStream } from "./development-task-log-events";
 import {
+  readDevelopmentTaskAllowedCommands,
   readDevelopmentTaskValidationCommands,
   runDevelopmentTaskValidation,
   type DevelopmentTaskValidationResult
@@ -156,6 +157,7 @@ export async function runClaimedTaskCodex(input: {
   const validation = await validationExecution({
     workspace: input.workspace,
     commands: readDevelopmentTaskValidationCommands(input.metadata),
+    allowedCommands: readDevelopmentTaskAllowedCommands(input.metadata),
     sandbox,
     onLog: (line) => {
       console.log(`[development-task-validation:${line.stream}] ${line.message}`);
