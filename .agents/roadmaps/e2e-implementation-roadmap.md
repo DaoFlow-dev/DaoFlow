@@ -231,3 +231,4 @@ Detailed tasks are grouped by milestone. Each task should be independently testa
 175. Contributing guide documents dev setup, testing, and PR process
 176. CLI `--help` output documents required scopes for every command
 177. OpenAPI-compatible schema generated from tRPC for external documentation
+178. Production release workflow publishes a shadow Docker Hub image to `daoflow/daoflow` using the already-configured `DOCKER_HUB_TOKEN` GitHub Actions secret
