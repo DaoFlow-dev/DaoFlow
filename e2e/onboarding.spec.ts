@@ -28,7 +28,7 @@ test.describe("Onboarding", () => {
       .getByTestId("setup-project-description")
       .fill("Browser onboarding regression coverage");
     await page
-      .getByTestId("setup-project-repo")
+      .getByTestId("setup-project-repo-url")
       .fill("https://github.com/DaoFlow-dev/onboarding-e2e");
     await page.getByTestId("setup-project-submit").click();
 
