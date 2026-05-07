@@ -353,6 +353,82 @@
       "supportsYes": true
     },
     {
+      "path": "access-logs",
+      "summary": "Read durable request and access logs",
+      "lane": "read",
+      "requiredScopes": ["logs:read"],
+      "mutating": false,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--limit <n>",
+          "description": "Maximum entries to show",
+          "required": false
+        },
+        {
+          "flags": "--cursor <cursor>",
+          "description": "Pagination cursor from a previous response",
+          "required": false
+        },
+        {
+          "flags": "--since <window>",
+          "description": "Only include entries newer than a window like 15m, 1h, or 7d",
+          "required": false
+        },
+        {
+          "flags": "--status <status>",
+          "description": "Filter by failed-auth, denied, error, slow, webhook, or api-token",
+          "required": false
+        },
+        {
+          "flags": "--method <method>",
+          "description": "Filter by HTTP method",
+          "required": false
+        },
+        {
+          "flags": "--path <pattern>",
+          "description": "Filter by path pattern, supports * wildcard",
+          "required": false
+        },
+        {
+          "flags": "--actor-type <type>",
+          "description": "Filter by user, service, agent, or token",
+          "required": false
+        },
+        {
+          "flags": "--token <id>",
+          "description": "Filter by API token id",
+          "required": false
+        },
+        {
+          "flags": "--request-id <id>",
+          "description": "Filter by request id",
+          "required": false
+        },
+        {
+          "flags": "--search <term>",
+          "description": "Search request id, path, actor email, or token name",
+          "required": false
+        },
+        {
+          "flags": "--min-duration-ms <ms>",
+          "description": "Only include requests at least this slow",
+          "required": false
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
       "path": "approvals",
       "summary": "Review and decide queued approvals",
       "lane": "read",

@@ -2,6 +2,10 @@ import { initTRPC, TRPCError } from "@trpc/server";
 import { canAssumeAnyRole, hasAllScopes, type ApiTokenScope, type AppRole } from "@daoflow/shared";
 import { getSessionAuthContext, type Context } from "./context";
 import { ensureControlPlaneReady } from "./db/services/seed";
+import {
+  buildAccessLogAttribution,
+  rememberRequestAccessLogAttribution
+} from "./request-access-log-context";
 
 export const t = initTRPC.context<Context>().create({
   errorFormatter({ shape, error }) {
@@ -75,6 +79,17 @@ export const scopedProcedure = (
     const capabilities = ctx.auth.capabilities;
 
     if (!hasAllScopes(capabilities, requiredScopes)) {
+      if (ctx.requestHeaders) {
+        rememberRequestAccessLogAttribution(
+          ctx.requestHeaders,
+          buildAccessLogAttribution({
+            auth: ctx.auth,
+            requiredScopes,
+            grantedScopes: capabilities,
+            errorCategory: "SCOPE_DENIED"
+          })
+        );
+      }
       throw new TRPCError({
         code: "FORBIDDEN",
         message: `Missing required scope(s): ${requiredScopes.join(", ")}`,
@@ -118,6 +133,7 @@ export const deployReadProcedure = scopedProcedure(ALL_READERS, ["deploy:read"])
 export const backupReadProcedure = scopedProcedure(ALL_READERS, ["backup:read"]);
 export const volumesReadProcedure = scopedProcedure(ALL_READERS, ["volumes:read"]);
 export const envReadProcedure = scopedProcedure(ALL_READERS, ["env:read"]);
+export const logsReadProcedure = scopedProcedure(ALL_READERS, ["logs:read"]);
 export const deployStartProcedure = scopedProcedure(ALL_WRITE, ["deploy:start"]);
 export const deployRollbackProcedure = scopedProcedure(ALL_WRITE, ["deploy:rollback"]);
 export const deployCancelProcedure = scopedProcedure(ALL_WRITE, ["deploy:cancel"]);

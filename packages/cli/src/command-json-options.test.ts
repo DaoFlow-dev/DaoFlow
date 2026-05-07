@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type { Command } from "commander";
 import { approvalsCommand } from "./commands/approvals";
 import { auditCommand } from "./commands/audit";
+import { accessLogsCommand } from "./commands/access-logs";
 import { accessAssetsCommand } from "./commands/access-assets";
 import { deployCommand } from "./commands/deploy";
 import { diffCommand } from "./commands/diff";
@@ -58,6 +59,16 @@ describe("CLI JSON option coverage", () => {
     expect(help).toContain("Required scope:");
     expect(help).toContain("any valid token");
     expect(help).toContain("daoflow audit --since 1h --json");
+    expect(help).toContain("Example JSON shape:");
+  });
+
+  test("access-logs declares --json and documents scope", () => {
+    const command = accessLogsCommand();
+    const help = renderHelp(command);
+    expect(hasLongOption(command, "--json")).toBe(true);
+    expect(help).toContain("Required scope:");
+    expect(help).toContain("logs:read");
+    expect(help).toContain("daoflow access-logs --status failed-auth --json");
     expect(help).toContain("Example JSON shape:");
   });
 

@@ -6,6 +6,7 @@ import { generateApiTokenValue, hashApiToken } from "./api-token-utils";
 import { ensureControlPlaneReady, resetControlPlaneSeedState } from "./db/services/seed";
 import { createAgentPrincipal, generateAgentToken } from "./db/services/agents";
 import { db } from "./db/connection";
+import { requestAccessLogs } from "./db/schema/request-access-logs";
 import { deployments } from "./db/schema/deployments";
 import { gitInstallations, gitProviders } from "./db/schema/git-providers";
 import { projects } from "./db/schema/projects";
@@ -14,7 +15,7 @@ import { apiTokens, principals } from "./db/schema/tokens";
 import { users } from "./db/schema/users";
 import { encrypt } from "./db/crypto";
 import { encodeGitInstallationPermissions } from "./db/services/git-providers";
-import { resetTestDatabase } from "./test-db";
+import { resetSeededTestDatabase, resetTestDatabase } from "./test-db";
 import { createProjectEnvironmentServiceFixture } from "./testing/project-fixtures";
 import * as serviceObservabilityWorker from "./worker/service-observability";
 import {
@@ -328,6 +329,38 @@ describe("createApp", () => {
     expect(response.headers.get("x-content-type-options")).toBe("nosniff");
   });
 
+  it("persists durable access logs with request id and redacted path metadata", async () => {
+    await resetAppTestState({ seedControlPlane: true });
+
+    const app = createApp();
+    const response = await app.request("/health?token=secret-value", {
+      headers: {
+        "X-Request-Id": "req-test-access-log",
+        "X-Forwarded-For": "203.0.113.44",
+        "User-Agent": "access-log-test"
+      }
+    });
+
+    const [entry] = await db
+      .select()
+      .from(requestAccessLogs)
+      .where(eq(requestAccessLogs.requestId, "req-test-access-log"))
+      .limit(1);
+
+    expect(response.status).toBe(200);
+    expect(entry).toMatchObject({
+      requestId: "req-test-access-log",
+      method: "GET",
+      path: "/health",
+      category: "health",
+      statusCode: 200,
+      outcome: "success",
+      sourceIp: "203.0.113.44",
+      userAgent: "access-log-test"
+    });
+    expect(JSON.stringify(entry)).not.toContain("secret-value");
+  });
+
   it("mounts the tRPC HTTP endpoint", async () => {
     const app = createApp();
     const response = await app.request("/trpc/health");
@@ -423,8 +456,7 @@ describe("createApp", () => {
   });
 
   it("supports CLI browser login handoff", async () => {
-    await resetTestDatabase();
-    resetControlPlaneSeedState();
+    await resetSeededTestDatabase();
     resetInitialOwnerBootstrapState();
 
     const app = createApp();
@@ -877,6 +909,47 @@ describe("createApp", () => {
     expect(Array.isArray(body.images)).toBe(true);
   });
 
+  it("records token usage metadata and access-log attribution for bearer requests", async () => {
+    await resetTestDatabase();
+    resetControlPlaneSeedState();
+    await ensureControlPlaneReady();
+
+    const app = createApp();
+    const tokenValue = await createAgentBearerToken({ preset: "agent:read-only" });
+    const response = await app.request("/api/v1/images", {
+      headers: {
+        Authorization: `Bearer ${tokenValue}`,
+        "X-Request-Id": "req-token-access-log",
+        "X-Forwarded-For": "198.51.100.9",
+        "User-Agent": "daoflow-cli-test"
+      }
+    });
+
+    const [token] = await db
+      .select()
+      .from(apiTokens)
+      .where(eq(apiTokens.tokenPrefix, tokenValue.slice(0, 12)))
+      .limit(1);
+    const [entry] = await db
+      .select()
+      .from(requestAccessLogs)
+      .where(eq(requestAccessLogs.requestId, "req-token-access-log"))
+      .limit(1);
+
+    expect(response.status).toBe(200);
+    expect(token?.lastUsedAt).toBeInstanceOf(Date);
+    expect(token?.lastUsedIp).toBe("198.51.100.9");
+    expect(token?.lastUsedUserAgent).toBe("daoflow-cli-test");
+    expect(entry).toMatchObject({
+      authMethod: "api-token",
+      actorType: "agent",
+      tokenId: token?.id,
+      tokenPrefix: token?.tokenPrefix,
+      statusCode: 200,
+      outcome: "success"
+    });
+  });
+
   it("returns TOKEN_EXPIRED for expired bearer tokens on GET /api/v1/images", async () => {
     await resetTestDatabase();
     resetControlPlaneSeedState();
@@ -1003,6 +1076,18 @@ describe("createApp", () => {
     expect(response.status).toBe(403);
     expect(body.code).toBe("SCOPE_DENIED");
     expect(body.requiredScopes).toEqual(["deploy:start"]);
+
+    const [entry] = await db
+      .select()
+      .from(requestAccessLogs)
+      .where(eq(requestAccessLogs.outcome, "denied"))
+      .limit(1);
+
+    expect(entry).toMatchObject({
+      statusCode: 403,
+      errorCategory: "SCOPE_DENIED",
+      requiredScopes: "deploy:start"
+    });
   });
 
   it("rejects unauthenticated POST /api/v1/deploy/uploads/intake with 401", async () => {

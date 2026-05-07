@@ -101,6 +101,12 @@ addApiGroup(
   }
 );
 
+apiProcedureAccess.accessLogs = {
+  auth: "authenticated",
+  requiredRoles: READ_ROLES,
+  requiredScopes: ["logs:read"]
+};
+
 addApiGroup(apiProcedureAccess, ["managedDatabaseCatalog", "managedDatabases"], {
   auth: "authenticated",
   requiredRoles: READ_ROLES,
@@ -670,6 +676,7 @@ export const apiExamples: ApiExample[] = [
 export const cliCommandMeta: Record<string, CliCommandMeta> = {
   login: { lane: "session", requiredScopes: [], mutating: true },
   audit: { lane: "read", requiredScopes: [], mutating: false },
+  "access-logs": { lane: "read", requiredScopes: ["logs:read"], mutating: false },
   approvals: { lane: "read", requiredScopes: [], mutating: false },
   "approvals list": { lane: "read", requiredScopes: [], mutating: false },
   "approvals approve": { lane: "command", requiredScopes: ["approvals:decide"], mutating: true },

@@ -11,6 +11,7 @@ import { db } from "./db/connection";
 import { apiTokens, principals } from "./db/schema/tokens";
 import { users } from "./db/schema/users";
 import { hashApiToken, parseBearerApiToken } from "./api-token-utils";
+import { recordApiTokenFailure, recordApiTokenSuccess } from "./db/services/request-access-logs";
 
 export interface TokenBackedSessionPrincipal {
   id: string;
@@ -43,6 +44,11 @@ export type TokenAuthFailureCode =
 export interface TokenAuthFailure {
   code: TokenAuthFailureCode;
   error: string;
+  token?: {
+    id: string;
+    name: string;
+    prefix: string;
+  };
 }
 
 export type TokenAuthResolution =
@@ -93,8 +99,24 @@ function rejectToken(code: TokenAuthFailureCode, error: string): TokenAuthResolu
   };
 }
 
+function rejectKnownToken(
+  code: TokenAuthFailureCode,
+  error: string,
+  token: { id: string; name: string; prefix: string }
+): TokenAuthResolution {
+  return {
+    status: "rejected",
+    failure: {
+      code,
+      error,
+      token
+    }
+  };
+}
+
 export async function resolveBearerTokenAuthResult(
-  headerValue: string | null | undefined
+  headerValue: string | null | undefined,
+  usage?: { sourceIp?: string | null; userAgent?: string | null }
 ): Promise<TokenAuthResolution> {
   const rawToken = parseBearerApiToken(headerValue);
   if (!rawToken) {
@@ -134,8 +156,19 @@ export async function resolveBearerTokenAuthResult(
     return rejectToken("TOKEN_INVALID", "API token is invalid.");
   }
 
+  const knownToken = {
+    id: row.tokenId,
+    name: row.tokenName,
+    prefix: row.tokenPrefix
+  };
+
   if (row.tokenStatus !== "active" || row.tokenRevokedAt) {
-    return rejectToken("TOKEN_REVOKED", "API token has been revoked.");
+    await recordApiTokenFailure({
+      tokenId: row.tokenId,
+      code: "TOKEN_REVOKED",
+      sourceIp: usage?.sourceIp
+    });
+    return rejectKnownToken("TOKEN_REVOKED", "API token has been revoked.", knownToken);
   }
 
   if (
@@ -144,20 +177,40 @@ export async function resolveBearerTokenAuthResult(
     !row.principalName ||
     row.principalStatus !== "active"
   ) {
-    return rejectToken("TOKEN_INVALIDATED", "API token has been invalidated.");
+    await recordApiTokenFailure({
+      tokenId: row.tokenId,
+      code: "TOKEN_INVALIDATED",
+      sourceIp: usage?.sourceIp
+    });
+    return rejectKnownToken("TOKEN_INVALIDATED", "API token has been invalidated.", knownToken);
   }
 
   const now = Date.now();
   if (row.tokenExpiresAt && row.tokenExpiresAt.getTime() <= now) {
-    return rejectToken("TOKEN_EXPIRED", "API token has expired.");
+    await recordApiTokenFailure({
+      tokenId: row.tokenId,
+      code: "TOKEN_EXPIRED",
+      sourceIp: usage?.sourceIp
+    });
+    return rejectKnownToken("TOKEN_EXPIRED", "API token has expired.", knownToken);
   }
 
   if (row.tokensInvalidBefore && row.tokenCreatedAt.getTime() < row.tokensInvalidBefore.getTime()) {
-    return rejectToken("TOKEN_INVALIDATED", "API token has been invalidated.");
+    await recordApiTokenFailure({
+      tokenId: row.tokenId,
+      code: "TOKEN_INVALIDATED",
+      sourceIp: usage?.sourceIp
+    });
+    return rejectKnownToken("TOKEN_INVALIDATED", "API token has been invalidated.", knownToken);
   }
 
   if (row.userId && row.userStatus !== "active") {
-    return rejectToken("TOKEN_INVALIDATED", "API token has been invalidated.");
+    await recordApiTokenFailure({
+      tokenId: row.tokenId,
+      code: "TOKEN_INVALIDATED",
+      sourceIp: usage?.sourceIp
+    });
+    return rejectKnownToken("TOKEN_INVALIDATED", "API token has been invalidated.", knownToken);
   }
 
   const role = getPrincipalRole(row.principalType, row.userRole);
@@ -167,6 +220,12 @@ export async function resolveBearerTokenAuthResult(
   const principalEmail =
     row.userEmail ?? buildSyntheticPrincipalEmail(row.principalName, row.principalType);
   const principalName = row.userName ?? row.principalName;
+
+  await recordApiTokenSuccess({
+    tokenId: row.tokenId,
+    sourceIp: usage?.sourceIp,
+    userAgent: usage?.userAgent
+  });
 
   return {
     status: "ok",

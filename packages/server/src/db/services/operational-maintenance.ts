@@ -19,6 +19,11 @@ import {
   resolveDeploymentWatchdogTimeoutMs,
   runDeploymentWatchdogOnce
 } from "./deployment-watchdog";
+import {
+  countPrunableRequestAccessLogs,
+  pruneRequestAccessLogs,
+  resolveRequestAccessLogRetentionMs
+} from "./request-access-logs";
 import { triggerDeploy } from "./trigger-deploy";
 
 const DEFAULT_PREVIEW_CLEANUP_BATCH_LIMIT = 20;
@@ -139,12 +144,14 @@ function buildSummaryText(input: {
   stalePreviews: number;
   expiredCliAuthRequests: number;
   retainedArtifacts: number;
+  requestAccessLogs: number;
 }) {
   const parts = [
     `${input.stalledDeployments} stalled deployment${input.stalledDeployments === 1 ? "" : "s"}`,
     `${input.stalePreviews} stale preview${input.stalePreviews === 1 ? "" : "s"}`,
     `${input.expiredCliAuthRequests} expired CLI sign-in${input.expiredCliAuthRequests === 1 ? "" : "s"}`,
-    `${input.retainedArtifacts} retained artifact${input.retainedArtifacts === 1 ? "" : "s"}`
+    `${input.retainedArtifacts} retained artifact${input.retainedArtifacts === 1 ? "" : "s"}`,
+    `${input.requestAccessLogs} request log${input.requestAccessLogs === 1 ? "" : "s"}`
   ];
 
   return input.dryRun
@@ -173,6 +180,7 @@ export async function getOperationalMaintenanceReport(input?: { now?: Date }) {
       previewCleanupBatchLimit: resolveOperationalMaintenancePreviewBatchLimit(),
       deploymentWatchdogTimeoutMs: resolveDeploymentWatchdogTimeoutMs(),
       cliAuthRequestTtlMs: REQUEST_TTL_MS,
+      requestAccessLogRetentionMs: resolveRequestAccessLogRetentionMs(),
       retainedArtifactWindowMs: UPLOADED_ARTIFACT_RETENTION_MS,
       incompleteUploadWindowMs: INCOMPLETE_UPLOADED_ARTIFACT_RETENTION_MS
     },
@@ -198,6 +206,9 @@ export async function getOperationalMaintenanceReport(input?: { now?: Date }) {
           (candidate) => candidate.kind === "incomplete-upload"
         ).length,
         items: artifactCandidates.slice(0, 20)
+      },
+      requestAccessLogs: {
+        eligibleCount: await countPrunableRequestAccessLogs(now)
       }
     },
     latestRun
@@ -245,28 +256,38 @@ export async function runOperationalMaintenanceOnce(
       prunedCount: 0,
       prunedRetainedArtifacts: 0,
       prunedIncompleteUploads: 0
+    },
+    requestAccessLogs: {
+      eligibleCount: 0,
+      prunedCount: 0
     }
   };
 
-  result.expiredCliAuthRequests.eligibleCount = (
-    await db
+  const [expiredCliAuthRows, requestAccessLogCandidates] = await Promise.all([
+    db
       .select({ id: cliAuthRequests.id })
       .from(cliAuthRequests)
-      .where(lte(cliAuthRequests.expiresAt, now))
-  ).length;
+      .where(lte(cliAuthRequests.expiresAt, now)),
+    countPrunableRequestAccessLogs(now)
+  ]);
+  result.expiredCliAuthRequests.eligibleCount = expiredCliAuthRows.length;
+  result.requestAccessLogs.eligibleCount = requestAccessLogCandidates;
 
   if (!dryRun) {
-    const [watchdogRun, deletedCliAuthRequests, prunedArtifacts] = await Promise.all([
-      runDeploymentWatchdogOnce({ now }),
-      cleanupExpiredCliAuthRequests(now),
-      pruneUploadedArtifacts(now)
-    ]);
+    const [watchdogRun, deletedCliAuthRequests, prunedArtifacts, prunedRequestAccessLogs] =
+      await Promise.all([
+        runDeploymentWatchdogOnce({ now }),
+        cleanupExpiredCliAuthRequests(now),
+        pruneUploadedArtifacts(now),
+        pruneRequestAccessLogs(now)
+      ]);
 
     result.stalledDeployments.failedCount = watchdogRun.failedCount;
     result.expiredCliAuthRequests.deletedCount = deletedCliAuthRequests;
     result.retainedArtifacts.prunedCount = prunedArtifacts.prunedArtifacts;
     result.retainedArtifacts.prunedRetainedArtifacts = prunedArtifacts.prunedRetainedArtifacts;
     result.retainedArtifacts.prunedIncompleteUploads = prunedArtifacts.prunedIncompleteUploads;
+    result.requestAccessLogs.prunedCount = prunedRequestAccessLogs;
 
     for (const preview of previewCandidates.candidates) {
       const queued = await triggerDeploy({
@@ -310,14 +331,18 @@ export async function runOperationalMaintenanceOnce(
       : result.expiredCliAuthRequests.deletedCount,
     retainedArtifacts: dryRun
       ? result.retainedArtifacts.eligibleCount
-      : result.retainedArtifacts.prunedCount
+      : result.retainedArtifacts.prunedCount,
+    requestAccessLogs: dryRun
+      ? result.requestAccessLogs.eligibleCount
+      : result.requestAccessLogs.prunedCount
   });
 
   const changedCount =
     result.stalledDeployments.failedCount +
     result.stalePreviews.queuedCount +
     result.expiredCliAuthRequests.deletedCount +
-    result.retainedArtifacts.prunedCount;
+    result.retainedArtifacts.prunedCount +
+    result.requestAccessLogs.prunedCount;
   const shouldRecordAudit =
     dryRun || trigger === "manual" || changedCount > 0 || result.stalePreviews.failures.length > 0;
 

@@ -150,6 +150,58 @@ export interface AuditTrailOutput {
   }>;
 }
 
+export interface AccessLogsOutput {
+  limit: number;
+  cursor: string | null;
+  nextCursor: string | null;
+  filters: {
+    status: string | null;
+    method: string | null;
+    path: string | null;
+    actorType: string | null;
+    tokenId: string | null;
+    requestId: string | null;
+    since: string | null;
+    search: string | null;
+    minDurationMs: number | null;
+  };
+  summary: {
+    totalEntries: number;
+    failedAuth: number;
+    deniedScopes: number;
+    webhookRequests: number;
+    apiTokenRequests: number;
+    slowRequests: number;
+    errorResponses: number;
+  };
+  retentionDays: number;
+  entries: Array<{
+    id: string;
+    requestId: string;
+    method: string;
+    path: string;
+    category: string;
+    statusCode: number;
+    outcome: string;
+    durationMs: number;
+    authMethod: string | null;
+    actorType: string | null;
+    actorId: string | null;
+    actorEmail: string | null;
+    actorRole: string | null;
+    tokenId: string | null;
+    tokenName: string | null;
+    tokenPrefix: string | null;
+    requiredScopes: string[];
+    grantedScopes: string[];
+    sourceIp: string | null;
+    userAgent: string | null;
+    errorCategory: string | null;
+    metadata: Record<string, unknown> | null;
+    createdAt: string;
+  }>;
+}
+
 export interface ApprovalQueueRequestOutput {
   id: string;
   actionType: "compose-release" | "backup-restore";
@@ -200,6 +252,7 @@ export interface OperationalMaintenanceReportOutput {
       incompleteUploads: number;
       items: unknown[];
     };
+    requestAccessLogs: { eligibleCount: number };
   };
   latestRun: {
     action: string;
@@ -232,6 +285,7 @@ export interface OperationalMaintenanceRunOutput {
     prunedRetainedArtifacts: number;
     prunedIncompleteUploads: number;
   };
+  requestAccessLogs: { eligibleCount: number; prunedCount: number };
   summary: string;
 }
 
@@ -241,6 +295,7 @@ export interface RouterOutputs {
   serverReadiness: ServerReadinessOutput;
   serverOperationsHub: ServerOperationsHubOutput;
   auditTrail: AuditTrailOutput;
+  accessLogs: AccessLogsOutput;
   approvalQueue: ApprovalQueueOutput;
   operationalMaintenanceReport: OperationalMaintenanceReportOutput;
 }
@@ -1404,6 +1459,22 @@ export interface DaoFlowTRPC {
     RollbackExecutionOutput
   >;
   auditTrail: QueryProcedure<AuditTrailOutput, { limit?: number; since?: string }>;
+  accessLogs: QueryProcedure<
+    AccessLogsOutput,
+    {
+      limit?: number;
+      cursor?: string;
+      since?: string;
+      status?: "failed-auth" | "denied" | "error" | "slow" | "webhook" | "api-token";
+      method?: string;
+      path?: string;
+      actorType?: "user" | "service" | "agent" | "token";
+      tokenId?: string;
+      requestId?: string;
+      search?: string;
+      minDurationMs?: number;
+    }
+  >;
   approveApprovalRequest: MutationProcedure<{ requestId: string }, ApprovalQueueRequestOutput>;
   rejectApprovalRequest: MutationProcedure<{ requestId: string }, ApprovalQueueRequestOutput>;
   deploymentLogs: QueryProcedure<

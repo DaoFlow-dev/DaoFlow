@@ -70,7 +70,9 @@ export async function seedControlPlaneData() {
 
   await db.transaction(async (tx) => {
     await seedUsers(tx);
+  });
 
+  await db.transaction(async (tx) => {
     if (seedDemo) {
       await seedInfrastructure(tx);
       await seedDevelopmentRunner(tx, { defaultServerId: "srv_foundation_1" });

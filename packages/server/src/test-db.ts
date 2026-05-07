@@ -26,7 +26,7 @@ import { resetAuthState } from "./auth";
 
 const { Client } = pg;
 const TEST_DB_PREPARE_LOCK_ID = 8_705_231;
-const MIN_EXPECTED_PUBLIC_TABLES = 38;
+const MIN_EXPECTED_PUBLIC_TABLES = 39;
 
 let prepared = false;
 let preparePromise: Promise<string> | null = null;
@@ -46,7 +46,14 @@ async function applyMigrations(connectionString: string) {
   try {
     for (const file of migrationFiles) {
       const sql = await readFile(path.join(migrationDir, file), "utf8");
-      await client.query(sql);
+      const statements = sql
+        .split("--> statement-breakpoint")
+        .map((statement) => statement.trim())
+        .filter(Boolean);
+
+      for (const statement of statements) {
+        await client.query(statement);
+      }
     }
   } finally {
     await client.end();
@@ -98,6 +105,14 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
       managedSshKeys: string | null;
       certificateAssets: string | null;
       certificateAssetsIssuer: string | null;
+      approvalRequestsRequestedByRole: string | null;
+      approvalRequestsInputSummary: string | null;
+      requestAccessLogs: string | null;
+      apiTokensLastUsedIp: string | null;
+      apiTokensLastUsedUserAgent: string | null;
+      apiTokensLastFailureAt: string | null;
+      apiTokensLastFailureCode: string | null;
+      apiTokensLastFailureIp: string | null;
     }>(`
       SELECT
         (SELECT count(*)::int FROM pg_tables WHERE schemaname = 'public') AS "tableCount",
@@ -119,7 +134,15 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
         (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'log_drains' AND column_name = 'team_id') AS "logDrainsTeamId",
         to_regclass('public.managed_ssh_keys') AS "managedSshKeys",
         to_regclass('public.certificate_assets') AS "certificateAssets",
-        (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'certificate_assets' AND column_name = 'issuer') AS "certificateAssetsIssuer"
+        (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'certificate_assets' AND column_name = 'issuer') AS "certificateAssetsIssuer",
+        (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'approval_requests' AND column_name = 'requested_by_role') AS "approvalRequestsRequestedByRole",
+        (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'approval_requests' AND column_name = 'input_summary') AS "approvalRequestsInputSummary",
+        to_regclass('public.request_access_logs') AS "requestAccessLogs",
+        (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'api_tokens' AND column_name = 'last_used_ip') AS "apiTokensLastUsedIp",
+        (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'api_tokens' AND column_name = 'last_used_user_agent') AS "apiTokensLastUsedUserAgent",
+        (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'api_tokens' AND column_name = 'last_failure_at') AS "apiTokensLastFailureAt",
+        (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'api_tokens' AND column_name = 'last_failure_code') AS "apiTokensLastFailureCode",
+        (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'api_tokens' AND column_name = 'last_failure_ip') AS "apiTokensLastFailureIp"
     `);
     const row = result.rows[0];
     return Boolean(
@@ -143,7 +166,15 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
       row.logDrainsTeamId &&
       row.managedSshKeys &&
       row.certificateAssets &&
-      row.certificateAssetsIssuer
+      row.certificateAssetsIssuer &&
+      row.approvalRequestsRequestedByRole &&
+      row.approvalRequestsInputSummary &&
+      row.requestAccessLogs &&
+      row.apiTokensLastUsedIp &&
+      row.apiTokensLastUsedUserAgent &&
+      row.apiTokensLastFailureAt &&
+      row.apiTokensLastFailureCode &&
+      row.apiTokensLastFailureIp
     );
   } finally {
     await client.end();
@@ -198,6 +229,14 @@ async function readPoolSchemaState() {
     serversTeamId: string | null;
     logDrains: string | null;
     logDrainsTeamId: string | null;
+    approvalRequestsRequestedByRole: string | null;
+    approvalRequestsInputSummary: string | null;
+    requestAccessLogs: string | null;
+    apiTokensLastUsedIp: string | null;
+    apiTokensLastUsedUserAgent: string | null;
+    apiTokensLastFailureAt: string | null;
+    apiTokensLastFailureCode: string | null;
+    apiTokensLastFailureIp: string | null;
   }>(`
     SELECT
       current_database() AS "databaseName",
@@ -217,7 +256,15 @@ async function readPoolSchemaState() {
       ,to_regclass('public.server_operations') AS "serverOperations",
       (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'servers' AND column_name = 'team_id') AS "serversTeamId",
       to_regclass('public.log_drains') AS "logDrains",
-      (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'log_drains' AND column_name = 'team_id') AS "logDrainsTeamId"
+      (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'log_drains' AND column_name = 'team_id') AS "logDrainsTeamId",
+      (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'approval_requests' AND column_name = 'requested_by_role') AS "approvalRequestsRequestedByRole",
+      (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'approval_requests' AND column_name = 'input_summary') AS "approvalRequestsInputSummary",
+      to_regclass('public.request_access_logs') AS "requestAccessLogs",
+      (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'api_tokens' AND column_name = 'last_used_ip') AS "apiTokensLastUsedIp",
+      (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'api_tokens' AND column_name = 'last_used_user_agent') AS "apiTokensLastUsedUserAgent",
+      (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'api_tokens' AND column_name = 'last_failure_at') AS "apiTokensLastFailureAt",
+      (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'api_tokens' AND column_name = 'last_failure_code') AS "apiTokensLastFailureCode",
+      (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'api_tokens' AND column_name = 'last_failure_ip') AS "apiTokensLastFailureIp"
   `);
 
   return result.rows[0];
@@ -251,7 +298,15 @@ async function ensurePooledTestSchemaReady(connectionString: string) {
         state.serverOperations &&
         state.serversTeamId &&
         state.logDrains &&
-        state.logDrainsTeamId
+        state.logDrainsTeamId &&
+        state.approvalRequestsRequestedByRole &&
+        state.approvalRequestsInputSummary &&
+        state.requestAccessLogs &&
+        state.apiTokensLastUsedIp &&
+        state.apiTokensLastUsedUserAgent &&
+        state.apiTokensLastFailureAt &&
+        state.apiTokensLastFailureCode &&
+        state.apiTokensLastFailureIp
       ) {
         return;
       }

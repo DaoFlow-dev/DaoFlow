@@ -4,6 +4,74 @@
   "basePath": "/trpc",
   "procedures": [
     {
+      "name": "accessLogs",
+      "summary": "access Logs",
+      "path": "/trpc/accessLogs",
+      "method": "GET",
+      "lane": "read",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator", "developer", "viewer", "agent"],
+      "requiredScopes": ["logs:read"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "cursor": {
+            "type": "string",
+            "minLength": 1
+          },
+          "since": {
+            "type": "string",
+            "pattern": "^([1-9]\\d*)([mhdw])$"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["failed-auth", "denied", "error", "slow", "webhook", "api-token"]
+          },
+          "method": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 12
+          },
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "actorType": {
+            "type": "string",
+            "enum": ["user", "service", "agent", "token"]
+          },
+          "tokenId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32
+          },
+          "requestId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "search": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "minDurationMs": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 60000
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "addServiceDomain",
       "summary": "add Service Domain",
       "path": "/trpc/addServiceDomain",

@@ -10,6 +10,7 @@ import {
   Rocket,
   Server,
   Settings,
+  ScrollText,
   User
 } from "lucide-react";
 import type { PaletteItem } from "./types";
@@ -55,6 +56,13 @@ export const NAVIGATION_ITEMS: PaletteItem[] = [
     label: "Notifications",
     path: "/notifications",
     icon: Bell,
+    section: "Navigation"
+  },
+  {
+    id: "req",
+    label: "Requests",
+    path: "/requests",
+    icon: ScrollText,
     section: "Navigation"
   },
   {
@@ -117,6 +125,7 @@ const LABEL_MAP: Record<string, string> = {
   "/servers": "Servers",
   "/backups": "Backups",
   "/notifications": "Notifications",
+  "/requests": "Requests",
   "/settings": "Settings",
   "/profile": "Profile",
   "/deployments": "Deployments"
@@ -130,6 +139,7 @@ const ICON_MAP: Record<string, PaletteItem["icon"]> = {
   "/servers": Server,
   "/backups": DatabaseBackup,
   "/notifications": Bell,
+  "/requests": ScrollText,
   "/settings": Settings,
   "/profile": User,
   "/deployments": Rocket

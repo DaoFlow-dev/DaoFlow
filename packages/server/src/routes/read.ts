@@ -9,6 +9,7 @@ import { listEnvironmentVariableInventory } from "../db/services/envvars";
 import { listInfrastructureInventory, listServerReadiness } from "../db/services/servers";
 import { getOperationalMaintenanceReport } from "../db/services/operational-maintenance";
 import { listProjects, getProject, listEnvironments } from "../db/services/projects";
+import { listRequestAccessLogs } from "../db/services/request-access-logs";
 import { getServiceDomainState } from "../db/services/service-domains";
 import { listAgentPrincipals } from "../db/services/agents";
 import { listContainerRegistrySummaries } from "../db/services/container-registries";
@@ -28,7 +29,8 @@ import {
   protectedProcedure,
   deployReadProcedure,
   envReadProcedure,
-  serverWriteProcedure
+  serverWriteProcedure,
+  logsReadProcedure
 } from "../trpc";
 import { limitInput } from "../schemas";
 import { accessAssetsReadRouter } from "./read-access-assets";
@@ -142,6 +144,28 @@ const coreReadRouter = t.router({
     .query(async ({ input }) => {
       return listAuditTrail(input.limit ?? 12, input.since);
     }),
+  accessLogs: logsReadProcedure
+    .input(
+      z.object({
+        limit: z.number().int().min(1).max(100).optional(),
+        cursor: z.string().min(1).optional(),
+        since: z
+          .string()
+          .regex(auditSinceWindowPattern, { message: auditSinceWindowError })
+          .optional(),
+        status: z
+          .enum(["failed-auth", "denied", "error", "slow", "webhook", "api-token"])
+          .optional(),
+        method: z.string().min(1).max(12).optional(),
+        path: z.string().min(1).max(255).optional(),
+        actorType: z.enum(["user", "service", "agent", "token"]).optional(),
+        tokenId: z.string().min(1).max(32).optional(),
+        requestId: z.string().min(1).max(80).optional(),
+        search: z.string().min(1).max(120).optional(),
+        minDurationMs: z.number().int().min(1).max(60_000).optional()
+      })
+    )
+    .query(async ({ input }) => listRequestAccessLogs(input)),
   environmentVariables: envReadProcedure
     .input(
       z.object({

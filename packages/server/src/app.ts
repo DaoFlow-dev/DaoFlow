@@ -17,6 +17,8 @@ import { legacyOauthRouter, LEGACY_OAUTH_TOKEN_PATH } from "./routes/legacy-oaut
 import { authorizeRequest } from "./routes/request-auth";
 import { ensureInitialOwnerFromEnv } from "./bootstrap-initial-owner";
 import { acceptPendingTeamInviteForEmail } from "./db/services/member-access";
+import { recordRequestAccessLog } from "./db/services/request-access-logs";
+import { readRequestAccessLogAttribution } from "./request-access-log-context";
 
 type Env = {
   Variables: {
@@ -34,6 +36,41 @@ export function createApp() {
     c.set("requestId", requestId);
     c.header("x-request-id", requestId);
     await next();
+  });
+
+  app.use("*", async (c, next) => {
+    const startedAt = performance.now();
+    let thrownError: unknown = null;
+
+    try {
+      await next();
+    } catch (error) {
+      thrownError = error;
+      throw error;
+    } finally {
+      try {
+        await recordRequestAccessLog({
+          requestId: c.get("requestId"),
+          method: c.req.method,
+          url: c.req.url,
+          statusCode: thrownError ? 500 : c.res.status,
+          durationMs: performance.now() - startedAt,
+          sourceIp: getClientIp(c),
+          userAgent: c.req.header("user-agent") ?? null,
+          attribution: readRequestAccessLogAttribution(c.req.raw.headers),
+          errorCategory: thrownError ? "UNHANDLED_ERROR" : null
+        });
+      } catch (logError) {
+        console.warn(
+          JSON.stringify({
+            level: "warn",
+            message: "Failed to persist request access log",
+            requestId: c.get("requestId"),
+            error: logError instanceof Error ? logError.message : String(logError)
+          })
+        );
+      }
+    }
   });
 
   app.use("*", secureHeaders());

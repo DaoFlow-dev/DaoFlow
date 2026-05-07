@@ -52,6 +52,13 @@ These routes require both authentication and the listed scope set:
 | `managedTunnel`                | `server:read`     | One managed tunnel with observed routes                        |
 | `logDrains`                    | `server:read`     | Configured external log drains                                 |
 | `logDrainDeliveries`           | `server:read`     | Recent log drain delivery attempts                             |
+| `accessLogs`                   | `logs:read`       | Redacted request, auth, webhook, and API token usage logs      |
+
+### Access Logs
+
+`accessLogs` exposes durable request records for operators who need to inspect API usage without shell access to container logs. Results are redacted and do not include request bodies, response bodies, authorization headers, or raw token values.
+
+Supported filters include `status`, `method`, `path`, `actorType`, `tokenId`, `requestId`, `search`, `since`, `minDurationMs`, `limit`, and `cursor`. Status buckets include failed auth, denied scopes, API token usage, webhooks, slow requests, and server errors.
 
 ## Examples
 

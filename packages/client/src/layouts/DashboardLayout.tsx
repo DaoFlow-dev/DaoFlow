@@ -39,7 +39,8 @@ import {
   Radio,
   Sun,
   Moon,
-  ShieldCheck
+  ShieldCheck,
+  ScrollText
 } from "lucide-react";
 
 const homeNav = [
@@ -53,7 +54,8 @@ const homeNav = [
   { to: "/notifications", label: "Notifications", icon: Radio },
   { to: "/agents", label: "Agents", icon: Bot },
   { to: "/development-tasks", label: "Dev Tasks", icon: Workflow },
-  { to: "/approvals", label: "Approvals", icon: ShieldCheck }
+  { to: "/approvals", label: "Approvals", icon: ShieldCheck },
+  { to: "/requests", label: "Requests", icon: ScrollText }
 ] as const;
 
 const settingsNav = [

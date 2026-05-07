@@ -394,6 +394,25 @@ This file holds the detailed CLI contract, scope map, and agent-facing command r
   - redacted audit detail when present
 - Invalid `--since` input must fail locally with `INVALID_INPUT` before any API call
 
+## Access Logs Contract
+
+- `daoflow access-logs` reads durable request/access records through the `accessLogs` read procedure
+- Scope: `logs:read`
+- Optional input:
+  - `--limit <n>` to cap returned entries from `1` to `100`
+  - `--cursor <cursor>` to fetch the next page
+  - `--since <window>` to filter entries newer than a positive duration like `15m`, `1h`, `7d`, or `2w`
+  - `--status <failed-auth|denied|error|slow|webhook|api-token>` for operator triage shortcuts
+  - `--method <method>`, `--path <pattern>`, `--actor-type <user|service|agent|token>`, `--token <id>`, `--request-id <id>`, `--search <term>`, and `--min-duration-ms <ms>` for focused investigation
+  - `--json`
+- JSON success shape:
+  - `{ "ok": true, "data": { "limit": number, "cursor": string | null, "nextCursor": string | null, "filters": { "status": string | null, "method": string | null, "path": string | null, "actorType": string | null, "tokenId": string | null, "requestId": string | null, "since": string | null, "search": string | null, "minDurationMs": number | null }, "summary": { "totalEntries": number, "failedAuth": number, "deniedScopes": number, "webhookRequests": number, "apiTokenRequests": number, "slowRequests": number, "errorResponses": number }, "retentionDays": number, "entries": [{ "id": string, "requestId": string, "method": string, "path": string, "category": string, "statusCode": number, "outcome": string, "durationMs": number, "authMethod": string | null, "actorType": string | null, "actorId": string | null, "actorEmail": string | null, "actorRole": string | null, "tokenId": string | null, "tokenName": string | null, "tokenPrefix": string | null, "requiredScopes": string[], "grantedScopes": string[], "sourceIp": string | null, "userAgent": string | null, "errorCategory": string | null, "createdAt": string }] } }`
+- Safety rules:
+  - never store or print request bodies, response bodies, cookies, authorization headers, raw bearer tokens, or raw query strings
+  - token display is limited to id, name, and prefix
+  - `summary` counts must describe the full filtered result set, while `entries` remains capped by `--limit`
+- Invalid filter input must fail locally with `INVALID_INPUT` before any API call
+
 ## Approvals Contract
 
 - `daoflow approvals list` reads the authenticated approval queue through `approvalQueue`

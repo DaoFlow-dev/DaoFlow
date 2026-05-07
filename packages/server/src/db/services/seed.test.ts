@@ -103,7 +103,7 @@ describe("control-plane seed state", () => {
     await expect(seed.ensureControlPlaneReady()).rejects.toThrow("temporary failure");
     await expect(seed.ensureControlPlaneReady()).resolves.toBeUndefined();
 
-    expect(transactionMock).toHaveBeenCalledTimes(2);
+    expect(transactionMock).toHaveBeenCalledTimes(3);
     expect(seedUsersMock).toHaveBeenCalledTimes(2);
     expect(seedDevelopmentRunnerMock).toHaveBeenCalledTimes(1);
   });

@@ -28,6 +28,8 @@ Every write operation in DaoFlow generates an immutable audit record.
 
 Navigate to **Settings → Security** to see the audit trail table.
 
+Request/access logs are separate from audit records. Use the Requests dashboard when you need redacted HTTP request history, failed authentication attempts, denied scopes, webhook traffic, slow requests, or API token usage.
+
 ### Via API
 
 ```bash
@@ -59,6 +61,8 @@ The CLI returns the same audit summary and entry feed exposed through the `audit
 ## Retention
 
 Audit records are stored in PostgreSQL and retained indefinitely. Consider setting up periodic exports for long-term archival.
+
+Request/access logs use their own retention window and can be pruned by operational maintenance. Configure that window with `REQUEST_ACCESS_LOG_RETENTION_DAYS`.
 
 ## Security Rules
 

@@ -14,6 +14,11 @@ export const apiTokens = pgTable(
     scopes: text("scopes").notNull(), // comma-separated: read,logs:read,deploy:start
     status: varchar("status", { length: 20 }).default("active").notNull(),
     lastUsedAt: timestamp("last_used_at"),
+    lastUsedIp: varchar("last_used_ip", { length: 80 }),
+    lastUsedUserAgent: varchar("last_used_user_agent", { length: 255 }),
+    lastFailureAt: timestamp("last_failure_at"),
+    lastFailureCode: varchar("last_failure_code", { length: 80 }),
+    lastFailureIp: varchar("last_failure_ip", { length: 80 }),
     expiresAt: timestamp("expires_at"),
     createdByUserId: text("created_by_user_id").references(() => users.id, {
       onDelete: "set null"

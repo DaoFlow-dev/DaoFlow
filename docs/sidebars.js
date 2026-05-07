@@ -39,6 +39,7 @@ const sidebars = {
         "cli/status",
         "cli/rollback",
         "cli/logs",
+        "cli/access-logs",
         "cli/maintenance",
         "cli/terminal",
         "cli/env",

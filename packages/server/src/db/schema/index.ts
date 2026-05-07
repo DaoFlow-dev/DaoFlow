@@ -8,6 +8,7 @@ export * from "./deployments";
 export * from "./storage";
 export * from "./destinations";
 export * from "./audit";
+export * from "./request-access-logs";
 export * from "./tokens";
 export * from "./auth-schema";
 export * from "./tunnels";

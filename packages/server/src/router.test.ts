@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { db } from "./db/connection";
 import { deployments } from "./db/schema/deployments";
 import { approvalRequests, auditEntries } from "./db/schema/audit";
+import { requestAccessLogs } from "./db/schema/request-access-logs";
 import { previewEnvironments } from "./db/schema/preview-environments";
 import { backupPolicies, backupRestores, backupRuns, volumes } from "./db/schema/storage";
 import { notificationLogs } from "./db/schema/notifications";
@@ -996,6 +997,54 @@ describe("appRouter", () => {
       backupActions: 1,
       humanEntries: 3
     });
+  });
+
+  it("lists access logs with logs:read and denies tokens without that scope", async () => {
+    await db.insert(requestAccessLogs).values({
+      id: `rlog_router_${Date.now()}`.slice(0, 32),
+      requestId: "req-router-access",
+      method: "GET",
+      path: "/trpc/viewer",
+      category: "trpc",
+      statusCode: 403,
+      outcome: "denied",
+      durationMs: 12,
+      authMethod: "api-token",
+      actorType: "agent",
+      actorId: "principal_observer_agent_1",
+      actorEmail: "observer-agent@daoflow.local",
+      actorRole: "agent",
+      tokenId: "token_observer_readonly",
+      tokenName: "readonly-observer",
+      tokenPrefix: "df_read_4f39",
+      errorCategory: "SCOPE_DENIED",
+      requiredScopes: "deploy:start",
+      grantedScopes: "logs:read"
+    });
+
+    const allowedCaller = appRouter.createCaller({
+      requestId: "test-access-logs",
+      session: makeSession("viewer"),
+      auth: makeTokenAuthContext("agent", ["logs:read"], "agent")
+    });
+    const response = await allowedCaller.accessLogs({ status: "denied", limit: 10 });
+
+    expect(response.summary.deniedScopes).toBe(1);
+    expect(response.entries[0]).toMatchObject({
+      requestId: "req-router-access",
+      tokenPrefix: "df_read_4f39",
+      requiredScopes: ["deploy:start"]
+    });
+
+    const deniedCaller = appRouter.createCaller({
+      requestId: "test-access-logs-denied",
+      session: makeSession("viewer"),
+      auth: makeTokenAuthContext("agent", ["deploy:read"], "agent")
+    });
+
+    await expect(deniedCaller.accessLogs({ limit: 10 })).rejects.toMatchObject({
+      code: "FORBIDDEN"
+    } satisfies Partial<TRPCError>);
   });
 
   it("returns environment variable inventory and redacted values", async () => {
