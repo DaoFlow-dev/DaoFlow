@@ -81,7 +81,7 @@ export function buildHostDockerSandboxFromRun(input: {
   const image =
     typeof metadata.image === "string" && metadata.image.trim()
       ? metadata.image.trim()
-      : "ghcr.io/daoflow/codex-runner:latest";
+      : "ghcr.io/daoflow-dev/codex-runner:latest";
 
   return {
     provider: "host_docker",

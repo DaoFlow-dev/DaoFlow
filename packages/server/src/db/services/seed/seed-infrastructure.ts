@@ -48,8 +48,8 @@ export async function seedInfrastructure(tx: SeedTransaction) {
         name: "DaoFlow",
         slug: "daoflow",
         teamId: "team_foundation",
-        repoFullName: "daoflow/daoflow",
-        repoUrl: "https://github.com/daoflow/daoflow",
+        repoFullName: "DaoFlow-dev/DaoFlow",
+        repoUrl: "https://github.com/DaoFlow-dev/DaoFlow",
         sourceType: "compose",
         composePath: "/srv/daoflow/production/compose.yaml",
         config: {

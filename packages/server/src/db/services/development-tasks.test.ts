@@ -245,7 +245,7 @@ describe("development task service", () => {
       name: "Other Team Runner",
       provider: "host_docker",
       serverId: "srv_dev_task_other",
-      image: "ghcr.io/daoflow/codex-runner:latest",
+      image: "ghcr.io/daoflow-dev/codex-runner:latest",
       status: "enabled",
       metadata: {}
     });
@@ -296,7 +296,7 @@ describe("development task service", () => {
       name: "Host Docker MVP",
       provider: "host_docker",
       serverId: "srv_foundation_1",
-      image: "ghcr.io/daoflow/codex-runner:latest",
+      image: "ghcr.io/daoflow-dev/codex-runner:latest",
       validationCommands: ["bun run test:unit"],
       status: "disabled",
       metadata: {
@@ -350,7 +350,7 @@ describe("development task service", () => {
       name: "Other Profile Runner",
       provider: "host_docker",
       serverId: "srv_dev_task_profiles",
-      image: "ghcr.io/daoflow/codex-runner:latest",
+      image: "ghcr.io/daoflow-dev/codex-runner:latest",
       status: "enabled",
       metadata: {}
     });

@@ -143,7 +143,7 @@ describe("development task Sandbank BoxLite sandbox", () => {
         boxLiteApiUrl: "http://boxrun.internal:9090",
         boxLitePrefix: "daoflow",
         boxLiteApiTokenEnvKey: "TEAM_BOXLITE_TOKEN",
-        image: "ghcr.io/daoflow/codex-runner:test",
+        image: "ghcr.io/daoflow-dev/codex-runner:test",
         cpuLimit: 4,
         memoryLimitMb: 8192,
         diskSizeGb: 40,
@@ -155,7 +155,7 @@ describe("development task Sandbank BoxLite sandbox", () => {
     expect(sandbox).toMatchObject({
       provider: "sandbank_boxlite",
       sandboxName: "daoflow-boxlite-devtask-run_remote",
-      image: "ghcr.io/daoflow/codex-runner:test",
+      image: "ghcr.io/daoflow-dev/codex-runner:test",
       cpuLimit: 4,
       memoryLimitMb: 8192,
       diskSizeGb: 40,

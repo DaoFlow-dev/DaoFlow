@@ -115,7 +115,7 @@ describe("executeDevelopmentTaskCodex", () => {
       sandbox: {
         provider: "host_docker",
         containerName: "daoflow-devtask-run-exec",
-        image: "ghcr.io/daoflow/codex-runner:test",
+        image: "ghcr.io/daoflow-dev/codex-runner:test",
         cpuLimit: 2,
         memoryLimitMb: 1024,
         timeoutMinutes: 3,
@@ -158,7 +158,7 @@ describe("executeDevelopmentTaskCodex", () => {
         "1000:1000",
         "--network",
         "none",
-        "ghcr.io/daoflow/codex-runner:test",
+        "ghcr.io/daoflow-dev/codex-runner:test",
         "codex"
       ])
     );
@@ -184,7 +184,7 @@ describe("executeDevelopmentTaskCodex", () => {
       sandbox: {
         provider: "host_docker",
         containerName: "daoflow-devtask-timeout",
-        image: "ghcr.io/daoflow/codex-runner:test",
+        image: "ghcr.io/daoflow-dev/codex-runner:test",
         cpuLimit: 1,
         memoryLimitMb: 512,
         timeoutMinutes: 1,
@@ -213,7 +213,7 @@ describe("executeDevelopmentTaskCodex", () => {
       sandbox: {
         provider: "host_docker",
         containerName: "daoflow-devtask-retained",
-        image: "ghcr.io/daoflow/codex-runner:test",
+        image: "ghcr.io/daoflow-dev/codex-runner:test",
         cpuLimit: 1,
         memoryLimitMb: 512,
         timeoutMinutes: 1,
@@ -246,7 +246,7 @@ describe("executeDevelopmentTaskCodex", () => {
       sandbox: {
         provider: "host_docker",
         containerName: "daoflow-devtask-success-retained",
-        image: "ghcr.io/daoflow/codex-runner:test",
+        image: "ghcr.io/daoflow-dev/codex-runner:test",
         cpuLimit: 1,
         memoryLimitMb: 512,
         timeoutMinutes: 1,

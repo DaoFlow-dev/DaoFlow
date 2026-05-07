@@ -25,7 +25,7 @@ test.describe("Webhook auto-deploy", () => {
       data: JSON.stringify({
         ref: "refs/heads/main",
         after: "abc1234567890",
-        repository: { full_name: "daoflow/daoflow" },
+        repository: { full_name: "DaoFlow-dev/DaoFlow" },
         sender: { login: "test-user" }
       })
     });
@@ -85,7 +85,7 @@ test.describe("Webhook auto-deploy", () => {
       data: JSON.stringify({
         ref: "refs/heads/main",
         after: "abc1234567890",
-        project: { path_with_namespace: "daoflow/daoflow" },
+        project: { path_with_namespace: "DaoFlow-dev/DaoFlow" },
         user_name: "test-user"
       })
     });
@@ -118,13 +118,13 @@ test.describe("Webhook auto-deploy", () => {
   });
 
   test("GitHub webhook rejects invalid signature for matching project", async ({ request }) => {
-    // Use the seeded project repo name (daoflow/daoflow) — if autoDeploy is
+    // Use the seeded project repo name (DaoFlow-dev/DaoFlow) — if autoDeploy is
     // enabled, this would match. But the signature won't match any provider
     // secret, so it should return 401 or "no matching projects".
     const payload = JSON.stringify({
       ref: "refs/heads/main",
       after: "abc1234567890",
-      repository: { full_name: "daoflow/daoflow" },
+      repository: { full_name: "DaoFlow-dev/DaoFlow" },
       sender: { login: "test-user" }
     });
 

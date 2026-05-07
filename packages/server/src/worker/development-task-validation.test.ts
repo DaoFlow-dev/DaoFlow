@@ -162,7 +162,7 @@ describe("development task validation", () => {
       sandbox: {
         provider: "host_docker",
         containerName: "daoflow-devtask-validation",
-        image: "ghcr.io/daoflow/codex-runner:test",
+        image: "ghcr.io/daoflow-dev/codex-runner:test",
         cpuLimit: 1,
         memoryLimitMb: 768,
         timeoutMinutes: 2,
@@ -190,7 +190,7 @@ describe("development task validation", () => {
         "dev.daoflow.sandbox.provider=host_docker",
         "--user",
         "1000:1000",
-        "ghcr.io/daoflow/codex-runner:test",
+        "ghcr.io/daoflow-dev/codex-runner:test",
         "sh",
         "-lc",
         "bun run test:unit"
@@ -213,7 +213,7 @@ describe("development task validation", () => {
       sandbox: {
         provider: "host_docker",
         containerName: "daoflow-devtask-validation-retained",
-        image: "ghcr.io/daoflow/codex-runner:test",
+        image: "ghcr.io/daoflow-dev/codex-runner:test",
         cpuLimit: 1,
         memoryLimitMb: 768,
         timeoutMinutes: 2,

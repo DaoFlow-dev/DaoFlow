@@ -53,7 +53,7 @@ describe("DevelopmentTasksPage", () => {
           name: "Host Docker Default",
           provider: "host_docker",
           status: "enabled",
-          image: "ghcr.io/daoflow/codex-runner:latest",
+          image: "ghcr.io/daoflow-dev/codex-runner:latest",
           cpuLimit: 2,
           memoryLimitMb: 4096,
           diskLimitMb: 20480,

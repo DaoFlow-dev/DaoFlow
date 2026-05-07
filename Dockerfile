@@ -93,3 +93,28 @@ COPY packages/shared/package.json ./packages/shared/package.json
 
 EXPOSE 3000
 CMD ["bun", "packages/server/dist/index.js"]
+
+# ── Stage 6: development task Codex runner ──────────────────────────────
+FROM node:22-bookworm-slim AS codex-runner
+
+ARG BUN_VERSION=1.3.13
+ARG CODEX_CLI_VERSION=latest
+
+ENV NODE_ENV=development
+ENV DEBIAN_FRONTEND=noninteractive
+ENV HOME=/runner/home
+ENV CODEX_HOME=/runner/home/.codex
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    bash ca-certificates curl git openssh-client python3 python3-pip \
+ && npm install -g "bun@${BUN_VERSION}" "@openai/codex@${CODEX_CLI_VERSION}" \
+ && npm cache clean --force \
+ && useradd -m -s /bin/bash -d /runner/home runner \
+ && mkdir -p /runner/home/.codex /workspace \
+ && chown -R runner:runner /runner /workspace \
+ && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /workspace
+USER runner
+
+CMD ["codex", "--version"]

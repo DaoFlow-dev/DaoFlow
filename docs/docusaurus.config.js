@@ -62,7 +62,7 @@ const config = {
       ({
         docs: {
           sidebarPath: "./sidebars.js",
-          editUrl: "https://github.com/daoflow/daoflow/tree/main/docs/"
+          editUrl: "https://github.com/DaoFlow-dev/DaoFlow/tree/main/docs/"
         },
         blog: false,
         theme: {
