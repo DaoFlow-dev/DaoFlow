@@ -1,5 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import type { AppRole } from "@daoflow/shared";
+import type { ManagedDatabaseConfigInput } from "../../managed-database-config";
 import { db } from "../connection";
 import { environments, projects } from "../schema/projects";
 import { servers } from "../schema/servers";
@@ -20,6 +21,7 @@ export interface EnsureDirectDeploymentScopeInput extends ActorContext {
   projectName?: string;
   environmentName?: string;
   serviceName?: string;
+  managedDatabase?: ManagedDatabaseConfigInput | null;
 }
 
 function sanitizeName(value: string, fallback: string): string {
@@ -172,7 +174,8 @@ async function resolveStackService(
   environmentId: string,
   serverId: string,
   serviceName: string,
-  actor: ActorContext
+  actor: ActorContext,
+  managedDatabase?: ManagedDatabaseConfigInput | null
 ) {
   const slug = toSlug(serviceName);
   const [existing] = await db
@@ -188,6 +191,7 @@ async function resolveStackService(
       environmentId,
       sourceType: "compose",
       targetServerId: serverId,
+      managedDatabase,
       requestedByUserId: actor.requestedByUserId,
       requestedByEmail: actor.requestedByEmail,
       requestedByRole: actor.requestedByRole
@@ -204,6 +208,7 @@ async function resolveStackService(
     serviceId: existing.id,
     sourceType: "compose",
     targetServerId: serverId,
+    managedDatabase,
     requestedByUserId: actor.requestedByUserId,
     requestedByEmail: actor.requestedByEmail,
     requestedByRole: actor.requestedByRole
@@ -244,7 +249,8 @@ export async function ensureDirectDeploymentScope(input: EnsureDirectDeploymentS
     environment.id,
     resolvedServerId,
     serviceName,
-    actor
+    actor,
+    input.managedDatabase
   );
 
   return {

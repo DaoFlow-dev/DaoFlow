@@ -108,6 +108,18 @@ export default function ServiceDetailPage() {
     config?: {
       preview?: PreviewLifecycleConfig | null;
     } | null;
+    managedDatabase?: {
+      kind: string;
+      label: string;
+      databaseName: string | null;
+      username: string | null;
+      port: string;
+      internalPort: string;
+      serviceName: string;
+      volumeName: string;
+      connectionUriMasked: string;
+      internalConnectionUriMasked: string;
+    } | null;
     runtimeConfig: ServiceRuntimeConfig | null;
     runtimeConfigPreview: string | null;
     runtimeSummary?: {

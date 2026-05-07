@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { backupCommand } from "./commands/backup";
 import { deployCommand } from "./commands/deploy";
+import { databasesCommand } from "./commands/databases";
 import { envCommand } from "./commands/env";
 import { logDrainsCommand } from "./commands/log-drains";
 import { logsCommand } from "./commands/logs";
@@ -164,6 +165,96 @@ describe("CLI JSON contract", () => {
     expect(JSON.parse(result.logs[0])).toEqual({
       ok: false,
       error: "Set API_URL in environment env_123. Pass --yes to confirm.",
+      code: "CONFIRMATION_REQUIRED"
+    });
+  });
+
+  test("databases create dry-run masks supplied secrets", async () => {
+    const program = new Command().name("daoflow");
+    program.addCommand(databasesCommand());
+
+    const result = await captureCommandExecution(async () => {
+      await program.parseAsync([
+        "node",
+        "daoflow",
+        "databases",
+        "create",
+        "--kind",
+        "mysql",
+        "--project",
+        "proj_123",
+        "--environment",
+        "production",
+        "--server",
+        "srv_123",
+        "--password",
+        "app-secret",
+        "--root-password",
+        "root-secret",
+        "--dry-run",
+        "--json"
+      ]);
+    });
+
+    expect(result.exitCode).toBe(3);
+    expect(result.errors).toEqual([]);
+    const payload = JSON.parse(result.logs[0]) as {
+      ok: boolean;
+      data: { password: string; rootPassword: string };
+    };
+    expect(payload.ok).toBe(true);
+    expect(payload.data.password).toBe("[secret]");
+    expect(payload.data.rootPassword).toBe("[secret]");
+    expect(result.logs[0]).not.toContain("app-secret");
+    expect(result.logs[0]).not.toContain("root-secret");
+  });
+
+  test("databases stop dry-run emits lifecycle preview without mutating", async () => {
+    const program = new Command().name("daoflow");
+    program.addCommand(databasesCommand());
+
+    const result = await captureCommandExecution(async () => {
+      await program.parseAsync([
+        "node",
+        "daoflow",
+        "databases",
+        "stop",
+        "--service",
+        "svc_db",
+        "--dry-run",
+        "--json"
+      ]);
+    });
+
+    expect(result.exitCode).toBe(3);
+    expect(result.errors).toEqual([]);
+    expect(JSON.parse(result.logs[0])).toEqual({
+      ok: true,
+      data: { dryRun: true, serviceId: "svc_db", action: "stop" }
+    });
+  });
+
+  test("databases delete in JSON mode still requires --yes", async () => {
+    const program = new Command().name("daoflow");
+    program.addCommand(databasesCommand());
+
+    const result = await captureCommandExecution(async () => {
+      await program.parseAsync([
+        "node",
+        "daoflow",
+        "databases",
+        "delete",
+        "--service",
+        "svc_db",
+        "--json"
+      ]);
+    });
+
+    expect(result.exitCode).toBe(1);
+    expect(result.errors).toEqual([]);
+    expect(JSON.parse(result.logs[0])).toEqual({
+      ok: false,
+      error: "Delete managed database svc_db. Pass --yes to confirm.",
       code: "CONFIRMATION_REQUIRED"
     });
   });

@@ -31,6 +31,7 @@ import { logDrainsCommand } from "./commands/log-drains";
 import { accessAssetsCommand } from "./commands/access-assets";
 import { maintenanceCommand } from "./commands/maintenance";
 import { templatesCommand } from "./commands/templates";
+import { databasesCommand } from "./commands/databases";
 import { terminalCommand } from "./commands/terminal";
 import { tunnelsCommand } from "./commands/tunnels";
 import { registerConfigCommand } from "./commands/config";
@@ -164,6 +165,7 @@ export function createProgram(): Command {
   program.addCommand(maintenanceCommand());
   program.addCommand(terminalCommand());
   program.addCommand(templatesCommand());
+  program.addCommand(databasesCommand());
   program.addCommand(updateCommand());
   registerConfigCommand(program);
 

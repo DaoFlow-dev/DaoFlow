@@ -88,4 +88,41 @@ describe("GeneralTab", () => {
     expect(onOpenDeployments).toHaveBeenCalledTimes(1);
     expect(onOpenLogs).toHaveBeenCalledTimes(1);
   });
+
+  it("renders managed database metadata with masked connection strings", () => {
+    render(
+      <GeneralTab
+        service={{
+          ...service,
+          managedDatabase: {
+            kind: "postgres",
+            label: "PostgreSQL",
+            databaseName: "app",
+            username: "app",
+            port: "5432",
+            internalPort: "5432",
+            serviceName: "postgres",
+            volumeName: "app-postgres-data",
+            backupPolicyId: "pol_123",
+            backupType: "database",
+            backupEngine: "postgres",
+            connectionUriMasked: "postgresql://app:[secret]@localhost:5432/app",
+            internalConnectionUriMasked: "postgresql://app:[secret]@postgres:5432/app"
+          }
+        }}
+        onOpenDeploy={vi.fn()}
+        onOpenDeployments={vi.fn()}
+        onOpenLogs={vi.fn()}
+      />
+    );
+
+    expect(screen.getByTestId("managed-database-card-svc_api")).toBeVisible();
+    expect(screen.getByTestId("managed-database-public-uri-svc_api")).toHaveTextContent(
+      "postgresql://app:[secret]@localhost:5432/app"
+    );
+    expect(screen.getByTestId("managed-database-backup-svc_api")).toHaveTextContent(
+      "postgres dumps enabled"
+    );
+    expect(screen.queryByText("app-password")).not.toBeInTheDocument();
+  });
 });

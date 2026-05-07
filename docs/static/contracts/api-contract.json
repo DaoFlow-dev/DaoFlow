@@ -1307,6 +1307,70 @@
       }
     },
     {
+      "name": "createManagedDatabase",
+      "summary": "create Managed Database",
+      "path": "/trpc/createManagedDatabase",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator", "developer"],
+      "requiredScopes": ["service:update"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": ["postgres", "mysql", "mariadb", "mongo", "redis"]
+          },
+          "projectId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "environmentName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "serverId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "databaseName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "username": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "password": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "rootPassword": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "port": {
+            "type": "string",
+            "pattern": "^[0-9]{1,5}$"
+          }
+        },
+        "required": ["kind", "projectId", "serverId"],
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "createManagedSshKey",
       "summary": "create Managed Ssh Key",
       "path": "/trpc/createManagedSshKey",
@@ -2128,6 +2192,28 @@
           }
         },
         "required": ["drainId"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "deleteManagedDatabase",
+      "summary": "delete Managed Database",
+      "path": "/trpc/deleteManagedDatabase",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator", "developer"],
+      "requiredScopes": ["service:update"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "serviceId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["serviceId"],
         "additionalProperties": false
       }
     },
@@ -3040,6 +3126,39 @@
       "requiredRoles": ["owner", "admin", "operator", "developer", "viewer", "agent"],
       "requiredScopes": ["server:read"],
       "inputSchema": null
+    },
+    {
+      "name": "managedDatabaseCatalog",
+      "summary": "managed Database Catalog",
+      "path": "/trpc/managedDatabaseCatalog",
+      "method": "GET",
+      "lane": "read",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator", "developer", "viewer", "agent"],
+      "requiredScopes": ["deploy:read"],
+      "inputSchema": null
+    },
+    {
+      "name": "managedDatabases",
+      "summary": "managed Databases",
+      "path": "/trpc/managedDatabases",
+      "method": "GET",
+      "lane": "read",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator", "developer", "viewer", "agent"],
+      "requiredScopes": ["deploy:read"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          }
+        },
+        "additionalProperties": false
+      }
     },
     {
       "name": "managedSshKeys",
@@ -4114,6 +4233,32 @@
             "maximum": 100
           }
         },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "setManagedDatabaseState",
+      "summary": "set Managed Database State",
+      "path": "/trpc/setManagedDatabaseState",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator", "developer"],
+      "requiredScopes": ["service:update"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "serviceId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "action": {
+            "type": "string",
+            "enum": ["start", "restart", "stop"]
+          }
+        },
+        "required": ["serviceId", "action"],
         "additionalProperties": false
       }
     },

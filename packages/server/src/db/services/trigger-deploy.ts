@@ -52,6 +52,7 @@ export interface TriggerDeployInput {
   imageTag?: string;
   preview?: ComposePreviewRequestInput;
   previewProviderType?: string | null;
+  composeOperation?: "up" | "down";
   requestedByUserId?: string | null;
   requestedByEmail?: string | null;
   requestedByRole?: AppRole | null;
@@ -294,7 +295,7 @@ export async function triggerDeploy(input: TriggerDeployInput) {
         configSnapshot.composeOperation = previewRequest.action === "destroy" ? "down" : "up";
         configSnapshot.preview = previewMetadata;
       } else {
-        configSnapshot.composeOperation = "up";
+        configSnapshot.composeOperation = input.composeOperation ?? "up";
       }
 
       const envState = await prepareComposeDeploymentEnvState({
@@ -331,6 +332,7 @@ export async function triggerDeploy(input: TriggerDeployInput) {
         configSnapshot,
         extractReplayableConfigSnapshot(asRecord(replayedComposeDeployment.configSnapshot))
       );
+      configSnapshot.composeOperation = input.composeOperation ?? "up";
       envVarsEncrypted = replayedComposeDeployment.envVarsEncrypted;
     }
   }

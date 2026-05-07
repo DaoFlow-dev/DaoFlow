@@ -101,6 +101,12 @@ addApiGroup(
   }
 );
 
+addApiGroup(apiProcedureAccess, ["managedDatabaseCatalog", "managedDatabases"], {
+  auth: "authenticated",
+  requiredRoles: READ_ROLES,
+  requiredScopes: ["deploy:read"]
+});
+
 addApiGroup(
   apiProcedureAccess,
   ["developmentTasks", "developmentTaskDetails", "sandboxRunnerProfiles"],
@@ -360,7 +366,10 @@ addApiGroup(
     "removeServiceDomain",
     "setPrimaryServiceDomain",
     "updateServiceDomainRouting",
-    "updateServicePortMappings"
+    "updateServicePortMappings",
+    "createManagedDatabase",
+    "setManagedDatabaseState",
+    "deleteManagedDatabase"
   ],
   {
     auth: "authenticated",
@@ -669,6 +678,14 @@ export const cliCommandMeta: Record<string, CliCommandMeta> = {
   "services list": { lane: "read", requiredScopes: ["service:read"], mutating: false },
   "services previews": { lane: "read", requiredScopes: ["deploy:read"], mutating: false },
   "services create": { lane: "command", requiredScopes: ["service:update"], mutating: true },
+  databases: { lane: "read", requiredScopes: ["deploy:read"], mutating: false },
+  "databases list": { lane: "read", requiredScopes: ["deploy:read"], mutating: false },
+  "databases show": { lane: "read", requiredScopes: ["deploy:read"], mutating: false },
+  "databases create": { lane: "command", requiredScopes: ["service:update"], mutating: true },
+  "databases start": { lane: "command", requiredScopes: ["service:update"], mutating: true },
+  "databases restart": { lane: "command", requiredScopes: ["service:update"], mutating: true },
+  "databases stop": { lane: "command", requiredScopes: ["service:update"], mutating: true },
+  "databases delete": { lane: "command", requiredScopes: ["service:update"], mutating: true },
   "services domain": { lane: "command", requiredScopes: ["service:update"], mutating: true },
   "services domain routing": {
     lane: "command",

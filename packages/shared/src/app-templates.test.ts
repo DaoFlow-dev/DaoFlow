@@ -13,6 +13,9 @@ describe("app template catalog", () => {
     const slugs = templates.map((template) => template.slug);
 
     expect(slugs.includes("postgres")).toBe(true);
+    expect(slugs.includes("mysql")).toBe(true);
+    expect(slugs.includes("mariadb")).toBe(true);
+    expect(slugs.includes("mongo")).toBe(true);
     expect(slugs.includes("redis")).toBe(true);
     expect(slugs.includes("rabbitmq")).toBe(true);
     expect(slugs.includes("n8n")).toBe(true);
@@ -72,6 +75,35 @@ describe("app template catalog", () => {
     expect(rendered.fields.find((field) => field.key === "postgres_password")?.value).toBe(
       "secret-value"
     );
+  });
+
+  test("renders managed database starters without leaking missing required inputs", () => {
+    const mysql = renderAppTemplate({
+      slug: "mysql",
+      projectName: "Orders DB",
+      values: {
+        mysql_database: "orders",
+        mysql_user: "orders",
+        mysql_password: "app-secret",
+        mysql_root_password: "root-secret",
+        mysql_port: "3307"
+      }
+    });
+    const mongo = renderAppTemplate({
+      slug: "mongo",
+      projectName: "Docs DB",
+      values: {
+        mongo_database: "docs",
+        mongo_root_user: "root",
+        mongo_root_password: "mongo-secret",
+        mongo_port: "27018"
+      }
+    });
+
+    expect(mysql.compose).toContain("image: mysql:8.4");
+    expect(mysql.compose).toContain('"3307:3306"');
+    expect(mongo.compose).toContain("image: mongo:7");
+    expect(mongo.compose).toContain('"27018:27017"');
   });
 
   test("rejects missing required template inputs", () => {

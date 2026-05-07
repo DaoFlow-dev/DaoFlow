@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { getManagedDatabaseDefinition, type ManagedDatabaseKind } from "@daoflow/shared";
 import { trpc } from "../lib/trpc";
 import {
   Dialog,
@@ -11,8 +12,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ManagedDatabaseFields } from "./ManagedDatabaseFields";
+import { ServiceSourceFields, type ServiceSourceType } from "./ServiceSourceFields";
 
-type Environment = { id: string; name: string };
+type Environment = { id: string; name: string; targetServerId?: string | null };
 
 interface Props {
   open: boolean;
@@ -23,7 +26,7 @@ interface Props {
   onCreated: () => void;
 }
 
-const sourceTypes = ["compose", "dockerfile", "image"] as const;
+type CreationMode = "service" | "database";
 
 export default function AddServiceDialog({
   open,
@@ -42,14 +45,27 @@ export default function AddServiceDialog({
     [environments, initialEnvironmentId]
   );
   const [name, setName] = useState("");
-  const [sourceType, setSourceType] = useState<(typeof sourceTypes)[number]>("compose");
+  const [creationMode, setCreationMode] = useState<CreationMode>("service");
+  const [sourceType, setSourceType] = useState<ServiceSourceType>("compose");
   const [environmentId, setEnvironmentId] = useState(resolveInitialEnvironmentId);
   const [imageReference, setImageReference] = useState("");
   const [dockerfilePath, setDockerfilePath] = useState("");
   const [composeServiceName, setComposeServiceName] = useState("");
+  const [databaseKind, setDatabaseKind] = useState<ManagedDatabaseKind>("postgres");
+  const [databaseName, setDatabaseName] = useState("app");
+  const [databaseUsername, setDatabaseUsername] = useState("app");
+  const [databasePassword, setDatabasePassword] = useState("");
+  const [databasePort, setDatabasePort] = useState("5432");
   const wasOpenRef = useRef(open);
+  const selectedEnvironment = environments.find((environment) => environment.id === environmentId);
 
   const createService = trpc.createService.useMutation({
+    onSuccess: () => {
+      onCreated();
+      handleOpenChange(false);
+    }
+  });
+  const createManagedDatabase = trpc.createManagedDatabase.useMutation({
     onSuccess: () => {
       onCreated();
       handleOpenChange(false);
@@ -58,11 +74,27 @@ export default function AddServiceDialog({
 
   function resetForm() {
     setName("");
+    setCreationMode("service");
     setSourceType("compose");
     setEnvironmentId(resolveInitialEnvironmentId());
     setImageReference("");
     setDockerfilePath("");
     setComposeServiceName("");
+    setDatabaseKind("postgres");
+    setDatabaseName("app");
+    setDatabaseUsername("app");
+    setDatabasePassword("");
+    setDatabasePort("5432");
+  }
+
+  function handleDatabaseKindChange(kind: ManagedDatabaseKind) {
+    const definition = getManagedDatabaseDefinition(kind);
+    setDatabaseKind(kind);
+    setName(definition?.serviceName ?? kind);
+    setDatabaseName(definition?.defaultDatabaseName ?? "");
+    setDatabaseUsername(definition?.defaultUsername ?? "");
+    setDatabasePassword("");
+    setDatabasePort(definition?.defaultPort ?? "");
   }
 
   function handleOpenChange(nextOpen: boolean) {
@@ -90,6 +122,22 @@ export default function AddServiceDialog({
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!name.trim() || !environmentId) return;
+
+    if (creationMode === "database") {
+      if (!selectedEnvironment?.targetServerId) return;
+      createManagedDatabase.mutate({
+        kind: databaseKind,
+        projectId,
+        environmentName: selectedEnvironment.name,
+        serverId: selectedEnvironment.targetServerId,
+        name: name.trim(),
+        ...(databaseName.trim() ? { databaseName: databaseName.trim() } : {}),
+        ...(databaseUsername.trim() ? { username: databaseUsername.trim() } : {}),
+        ...(databasePassword.trim() ? { password: databasePassword.trim() } : {}),
+        ...(databasePort.trim() ? { port: databasePort.trim() } : {})
+      });
+      return;
+    }
 
     createService.mutate({
       name: name.trim(),
@@ -124,6 +172,33 @@ export default function AddServiceDialog({
           </div>
 
           <div>
+            <Label>Kind</Label>
+            <div className="flex gap-2 mt-1">
+              <Button
+                type="button"
+                variant={creationMode === "service" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setCreationMode("service")}
+                data-testid="add-service-mode-service"
+              >
+                Service
+              </Button>
+              <Button
+                type="button"
+                variant={creationMode === "database" ? "default" : "outline"}
+                size="sm"
+                onClick={() => {
+                  setCreationMode("database");
+                  handleDatabaseKindChange(databaseKind);
+                }}
+                data-testid="add-service-mode-database"
+              >
+                Database
+              </Button>
+            </div>
+          </div>
+
+          <div>
             <Label htmlFor="svc-env">Environment</Label>
             <select
               id="svc-env"
@@ -140,65 +215,59 @@ export default function AddServiceDialog({
             </select>
           </div>
 
-          <div>
-            <Label>Source Type</Label>
-            <div className="flex gap-2 mt-1">
-              {sourceTypes.map((st) => (
-                <Button
-                  key={st}
-                  type="button"
-                  variant={sourceType === st ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setSourceType(st)}
-                >
-                  {st}
-                </Button>
-              ))}
-            </div>
-          </div>
+          {creationMode === "database" && !selectedEnvironment?.targetServerId ? (
+            <p className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-700 dark:text-amber-300">
+              Select an environment with a target server before creating a managed database.
+            </p>
+          ) : null}
 
-          {sourceType === "image" && (
-            <div>
-              <Label htmlFor="svc-image">Image Reference</Label>
-              <Input
-                id="svc-image"
-                value={imageReference}
-                onChange={(e) => setImageReference(e.target.value)}
-                placeholder="e.g. nginx:latest"
-              />
-            </div>
-          )}
+          {creationMode === "service" ? (
+            <ServiceSourceFields
+              sourceType={sourceType}
+              imageReference={imageReference}
+              dockerfilePath={dockerfilePath}
+              composeServiceName={composeServiceName}
+              onSourceTypeChange={setSourceType}
+              onImageReferenceChange={setImageReference}
+              onDockerfilePathChange={setDockerfilePath}
+              onComposeServiceNameChange={setComposeServiceName}
+            />
+          ) : null}
 
-          {sourceType === "dockerfile" && (
-            <div>
-              <Label htmlFor="svc-dockerfile">Dockerfile Path</Label>
-              <Input
-                id="svc-dockerfile"
-                value={dockerfilePath}
-                onChange={(e) => setDockerfilePath(e.target.value)}
-                placeholder="e.g. ./Dockerfile"
-              />
-            </div>
-          )}
-
-          {sourceType === "compose" && (
-            <div>
-              <Label htmlFor="svc-compose">Compose Service Name</Label>
-              <Input
-                id="svc-compose"
-                value={composeServiceName}
-                onChange={(e) => setComposeServiceName(e.target.value)}
-                placeholder="e.g. web, db, redis"
-              />
-            </div>
-          )}
+          {creationMode === "database" ? (
+            <ManagedDatabaseFields
+              kind={databaseKind}
+              databaseName={databaseName}
+              username={databaseUsername}
+              password={databasePassword}
+              port={databasePort}
+              onKindChange={handleDatabaseKindChange}
+              onDatabaseNameChange={setDatabaseName}
+              onUsernameChange={setDatabaseUsername}
+              onPasswordChange={setDatabasePassword}
+              onPortChange={setDatabasePort}
+            />
+          ) : null}
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={createService.isPending || !name.trim()}>
-              {createService.isPending ? "Creating…" : "Create Service"}
+            <Button
+              type="submit"
+              disabled={
+                createService.isPending ||
+                createManagedDatabase.isPending ||
+                !name.trim() ||
+                (creationMode === "database" && !selectedEnvironment?.targetServerId)
+              }
+              data-testid="add-service-submit"
+            >
+              {createService.isPending || createManagedDatabase.isPending
+                ? "Creating…"
+                : creationMode === "database"
+                  ? "Create Database"
+                  : "Create Service"}
             </Button>
           </DialogFooter>
         </form>

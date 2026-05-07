@@ -8,11 +8,16 @@ import {
   type ComposePreviewConfigInput,
   writeComposePreviewConfigToConfig
 } from "../../compose-preview";
+import {
+  type ManagedDatabaseConfigInput,
+  writeManagedDatabaseConfigToConfig
+} from "../../managed-database-config";
 export interface ServiceConfigValidationInput {
   sourceType: "compose" | "dockerfile" | "image";
   healthcheckPath?: string | null;
   readinessProbe?: ComposeReadinessProbeInput | null;
   preview?: ComposePreviewConfigInput | null;
+  managedDatabase?: ManagedDatabaseConfigInput | null;
 }
 
 type ServiceConfig = Record<string, unknown>;
@@ -52,13 +57,17 @@ export function validateServiceConfigInput(input: ServiceConfigValidationInput) 
 export function buildInitialServiceConfig(input: {
   readinessProbe?: ComposeReadinessProbeInput | null;
   preview?: ComposePreviewConfigInput | null;
+  managedDatabase?: ManagedDatabaseConfigInput | null;
 }): ServiceConfig {
-  return writeComposePreviewConfigToConfig({
-    config: writeComposeReadinessProbeToConfig({
-      config: {},
-      readinessProbe: input.readinessProbe
+  return writeManagedDatabaseConfigToConfig({
+    config: writeComposePreviewConfigToConfig({
+      config: writeComposeReadinessProbeToConfig({
+        config: {},
+        readinessProbe: input.readinessProbe
+      }),
+      preview: input.preview
     }),
-    preview: input.preview
+    managedDatabase: input.managedDatabase
   });
 }
 
@@ -67,6 +76,7 @@ export function buildUpdatedServiceConfig(input: {
   nextSourceType: "compose" | "dockerfile" | "image";
   readinessProbe?: ComposeReadinessProbeInput | null;
   preview?: ComposePreviewConfigInput | null;
+  managedDatabase?: ManagedDatabaseConfigInput | null;
 }): ServiceConfig | undefined {
   let nextConfig = asConfigRecord(input.existingConfig);
   let changed = false;
@@ -87,6 +97,14 @@ export function buildUpdatedServiceConfig(input: {
     changed = true;
   }
 
+  if (input.managedDatabase !== undefined) {
+    nextConfig = writeManagedDatabaseConfigToConfig({
+      config: nextConfig,
+      managedDatabase: input.managedDatabase
+    });
+    changed = true;
+  }
+
   if (input.nextSourceType !== "compose" && readComposeReadinessProbeFromConfig(nextConfig)) {
     nextConfig = writeComposeReadinessProbeToConfig({
       config: nextConfig,
@@ -99,6 +117,14 @@ export function buildUpdatedServiceConfig(input: {
     nextConfig = writeComposePreviewConfigToConfig({
       config: nextConfig,
       preview: null
+    });
+    changed = true;
+  }
+
+  if (input.nextSourceType !== "compose") {
+    nextConfig = writeManagedDatabaseConfigToConfig({
+      config: nextConfig,
+      managedDatabase: null
     });
     changed = true;
   }

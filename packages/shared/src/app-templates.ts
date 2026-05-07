@@ -1,4 +1,6 @@
 import { applicationAppTemplates } from "./app-template-catalog-applications";
+import { databaseAppTemplates } from "./app-template-catalog-databases";
+import { documentDatabaseAppTemplates } from "./app-template-catalog-document-databases";
 import { infrastructureAppTemplates } from "./app-template-catalog-infrastructure";
 import type {
   AppTemplateDefinition,
@@ -20,6 +22,8 @@ export type {
 
 const APP_TEMPLATE_DEFINITIONS = [
   ...infrastructureAppTemplates,
+  ...databaseAppTemplates,
+  ...documentDatabaseAppTemplates,
   ...applicationAppTemplates
 ] as const satisfies readonly AppTemplateDefinition[];
 

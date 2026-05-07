@@ -1,5 +1,5 @@
 import type { AnyRouter } from "@trpc/server";
-import type { SwarmTopologySnapshot } from "@daoflow/shared";
+import type { ManagedDatabaseKind, SwarmTopologySnapshot } from "@daoflow/shared";
 import type { ComposeDeploymentPlanPreview } from "./compose-deployment-plan-output";
 import type { DeploymentPlanPreview } from "./deployment-plan-output";
 
@@ -823,6 +823,7 @@ export interface ServiceReadOutput {
   createdAt: string;
   updatedAt: string;
   config: unknown;
+  managedDatabase: ManagedDatabaseConfigOutput | null;
   domainConfig: unknown;
   runtimeConfig: unknown;
   runtimeConfigPreview: string | null;
@@ -864,6 +865,59 @@ export interface ServiceMutationOutput {
   domainConfig: unknown;
   runtimeConfig: unknown;
   runtimeConfigPreview: string | null;
+}
+
+export interface ManagedDatabaseConfigOutput {
+  kind: ManagedDatabaseKind;
+  label: string;
+  templateSlug: string;
+  databaseName: string | null;
+  username: string | null;
+  port: string;
+  internalPort: string;
+  serviceName: string;
+  volumeName: string;
+  volumeId?: string | null;
+  backupPolicyId?: string | null;
+  backupType?: "database" | "volume";
+  backupEngine?: string | null;
+  connectionUriMasked: string;
+  internalConnectionUriMasked: string;
+  managedBy?: string;
+  createdFrom?: string;
+}
+
+export interface ManagedDatabaseListItem {
+  serviceId: string;
+  serviceName: string;
+  projectId: string;
+  projectName: string;
+  environmentId: string;
+  status: string;
+  targetServerId: string | null;
+  createdAt: string;
+  updatedAt: string;
+  database: ManagedDatabaseConfigOutput;
+  volume: unknown;
+  backupPolicy: unknown;
+}
+
+export interface ManagedDatabaseStateMutationOutput {
+  action: "start" | "restart" | "stop";
+  deployment: {
+    id: string;
+    status: string;
+  };
+}
+
+export interface ManagedDatabaseMutationOutput {
+  service: ServiceMutationOutput;
+  deployment: {
+    id: string;
+    status: string;
+    targetServerId: string;
+  };
+  database: ManagedDatabaseConfigOutput;
 }
 
 export interface ProjectDetailsOutput extends ProjectListItem {
@@ -1198,6 +1252,19 @@ export interface DaoFlowTRPC {
     }
   >;
   composePreviews: QueryProcedure<ComposePreviewsOutput, { serviceId: string }>;
+  managedDatabases: QueryProcedure<ManagedDatabaseListItem[], { limit?: number }>;
+  managedDatabaseCatalog: QueryProcedure<
+    Array<{
+      kind: ManagedDatabaseKind;
+      label: string;
+      templateSlug: string;
+      defaultDatabaseName: string | null;
+      defaultUsername: string | null;
+      defaultPort: string;
+      internalPort: string;
+      serviceName: string;
+    }>
+  >;
   composeReleaseCatalog: QueryProcedure<ComposeReleaseCatalogOutput, { limit?: number }>;
   backupOverview: QueryProcedure<BackupOverviewOutput, { limit?: number }>;
   backupRunDetails: QueryProcedure<BackupRunDetailsOutput, { runId: string }>;
@@ -1426,6 +1493,26 @@ export interface DaoFlowTRPC {
     },
     ServiceMutationOutput
   >;
+  createManagedDatabase: MutationProcedure<
+    {
+      kind: ManagedDatabaseKind;
+      projectId: string;
+      environmentName?: string;
+      serverId: string;
+      name?: string;
+      databaseName?: string;
+      username?: string;
+      password?: string;
+      rootPassword?: string;
+      port?: string;
+    },
+    ManagedDatabaseMutationOutput
+  >;
+  setManagedDatabaseState: MutationProcedure<
+    { serviceId: string; action: "start" | "restart" | "stop" },
+    ManagedDatabaseStateMutationOutput
+  >;
+  deleteManagedDatabase: MutationProcedure<{ serviceId: string }, { deleted: boolean }>;
   updateServiceDomainRouting: MutationProcedure<
     {
       serviceId: string;

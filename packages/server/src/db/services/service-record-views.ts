@@ -10,6 +10,10 @@ import {
   readServiceDomainConfigFromConfig,
   writeServiceDomainConfigToConfig
 } from "../../service-domain-config";
+import {
+  readManagedDatabaseConfigFromConfig,
+  writeManagedDatabaseConfigToConfig
+} from "../../managed-database-config";
 import { db } from "../connection";
 import { deployments } from "../schema/deployments";
 import { environments, projects } from "../schema/projects";
@@ -46,10 +50,12 @@ export interface ServiceReadIndex {
 
 export function normalizeServiceRecord(service: typeof services.$inferSelect) {
   const config = writeServiceDomainConfigToConfig({
-    config: writeServiceRuntimeConfigToConfig({
-      config: writeComposePreviewConfigToConfig({
-        config: writeComposeReadinessProbeToConfig({
-          config: service.config
+    config: writeManagedDatabaseConfigToConfig({
+      config: writeServiceRuntimeConfigToConfig({
+        config: writeComposePreviewConfigToConfig({
+          config: writeComposeReadinessProbeToConfig({
+            config: service.config
+          })
         })
       })
     })
@@ -58,6 +64,7 @@ export function normalizeServiceRecord(service: typeof services.$inferSelect) {
   return {
     ...service,
     config,
+    managedDatabase: readManagedDatabaseConfigFromConfig(config),
     domainConfig: readServiceDomainConfigFromConfig(config),
     runtimeConfig: readServiceRuntimeConfigFromConfig(config),
     runtimeConfigPreview: renderServiceRuntimeOverrideComposePreview({

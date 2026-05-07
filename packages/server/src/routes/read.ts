@@ -16,6 +16,7 @@ import {
   listGitInstallationSummaries,
   listGitProviderSummaries
 } from "../db/services/git-providers";
+import { listManagedDatabaseCatalog, listManagedDatabases } from "../db/services/managed-databases";
 import {
   getServiceReadModelForTeam,
   listServicesByProjectForTeam,
@@ -187,6 +188,11 @@ const coreReadRouter = t.router({
       }
       return listEnvironments(input.projectId, teamId);
     }),
+  managedDatabaseCatalog: deployReadProcedure.query(() => listManagedDatabaseCatalog()),
+  managedDatabases: deployReadProcedure.input(limitInput(100)).query(async ({ ctx, input }) => {
+    const teamId = await requireViewerTeamId(ctx.session.user.id);
+    return listManagedDatabases({ teamId, limit: input.limit ?? 50 });
+  }),
   services: protectedProcedure
     .input(
       z.object({

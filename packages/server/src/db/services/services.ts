@@ -10,6 +10,7 @@ import {
   readComposeReadinessProbeFromConfig
 } from "../../compose-readiness";
 import { type ComposePreviewConfigInput } from "../../compose-preview";
+import type { ManagedDatabaseConfigInput } from "../../managed-database-config";
 import {
   buildInitialServiceConfig,
   buildUpdatedServiceConfig,
@@ -45,6 +46,7 @@ export interface CreateServiceInput {
   healthcheckPath?: string;
   readinessProbe?: ComposeReadinessProbeInput | null;
   preview?: ComposePreviewConfigInput | null;
+  managedDatabase?: ManagedDatabaseConfigInput | null;
   targetServerId?: string;
   requestedByUserId: string;
   requestedByEmail: string;
@@ -62,6 +64,7 @@ export interface UpdateServiceInput {
   healthcheckPath?: string;
   readinessProbe?: ComposeReadinessProbeInput | null;
   preview?: ComposePreviewConfigInput | null;
+  managedDatabase?: ManagedDatabaseConfigInput | null;
   replicaCount?: string;
   targetServerId?: string;
   requestedByUserId: string;
@@ -128,7 +131,8 @@ export async function createService(input: CreateServiceInput) {
       status: "inactive",
       config: buildInitialServiceConfig({
         readinessProbe: input.readinessProbe,
-        preview: input.preview
+        preview: input.preview,
+        managedDatabase: input.managedDatabase
       }),
       updatedAt: new Date()
     })
@@ -198,7 +202,8 @@ export async function updateService(input: UpdateServiceInput) {
     existingConfig: existing.config,
     nextSourceType,
     readinessProbe: input.readinessProbe,
-    preview: input.preview
+    preview: input.preview,
+    managedDatabase: input.managedDatabase
   });
 
   if (nextConfig !== undefined) {

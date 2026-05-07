@@ -504,6 +504,26 @@ This file holds the detailed CLI contract, scope map, and agent-facing command r
   - `{ "ok": true, "data": { "template": { "slug": string, "name": string }, "projectName": string, "inputs": [{ "key": string, "label": string, "kind": "string" | "secret" | "domain" | "port", "value": string, "isSecret": boolean }], "plan": { ...compose plan... } } }`
 - `templates apply` JSON success shape:
   - `{ "ok": true, "data": { "template": { "slug": string, "name": string }, "projectName": string, "serverId": string, "deploymentId": string, "inputs": [{ "key": string, "label": string, "kind": "string" | "secret" | "domain" | "port", "value": string, "isSecret": boolean }] } }`
+
+## Managed Databases Contract
+
+- `daoflow databases list` is a read-lane command backed by `managedDatabases` and requires `deploy:read`
+- `daoflow databases show --service <id>` is a read-lane command backed by `serviceDetails`, and only succeeds when the service carries managed database metadata
+- `daoflow databases create --kind <postgres|mysql|mariadb|mongo|redis> --project <id> --environment <name> --server <id> --yes` is a command-lane write that renders a curated Compose database stack, stores database metadata on the created service, registers the persistent volume, creates a backup policy, queues the normal Compose deployment path, and requires `service:update`
+- `daoflow databases start|restart --service <id> --yes` queues the normal Compose `up` path through `setManagedDatabaseState` and requires `service:update`
+- `daoflow databases stop --service <id> --yes` queues the Compose `down` path through `setManagedDatabaseState` and requires `service:update`
+- `daoflow databases delete --service <id> --yes` deletes the managed database service record through `deleteManagedDatabase` and requires `service:update`
+- Database passwords can be supplied by direct value, environment variable, or file; missing env variables fail fast, and dry-runs and success output must never print raw password material
+- `databases list` JSON success shape:
+  - `{ "ok": true, "data": { "databases": [{ "serviceId": string, "serviceName": string, "projectId": string, "projectName": string, "environmentId": string, "status": string, "targetServerId": string | null, "createdAt": string, "updatedAt": string, "database": { "kind": string, "label": string, "templateSlug": string, "databaseName": string | null, "username": string | null, "port": string, "internalPort": string, "serviceName": string, "volumeName": string, "volumeId": string | null, "backupPolicyId": string | null, "backupType": "database" | "volume", "backupEngine": string | null, "connectionUriMasked": string, "internalConnectionUriMasked": string } }] } }`
+- `databases show` JSON success shape:
+  - `{ "ok": true, "data": { "service": { ...service read output... }, "database": { ...managed database metadata with masked connection strings... } } }`
+- `databases create` JSON success shape:
+  - `{ "ok": true, "data": { "service": { ...service mutation output... }, "deployment": { "id": string, "status": string, "targetServerId": string }, "database": { ...managed database metadata with masked connection strings... }, "volume": { ...registered volume... }, "backupPolicy": { ...backup policy... } } }`
+- `databases start|restart|stop` JSON success shape:
+  - `{ "ok": true, "data": { "action": "start" | "restart" | "stop", "deployment": { "id": string, "status": string } } }`
+- `databases delete` JSON success shape:
+  - `{ "ok": true, "data": { "deleted": true } }`
 - `daoflow projects env create --yes` writes through `createEnvironment` and requires `deploy:start`
 - `daoflow projects env update --dry-run` must return a local preview and exit with code `3`
 - `daoflow projects env update --yes` writes through `updateEnvironment` and requires `service:update`

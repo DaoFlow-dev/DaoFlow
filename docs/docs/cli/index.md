@@ -76,6 +76,7 @@ Every command accepts these flags:
 | `services`                       | read         | `service:read`                                  | no       |
 | [`projects`](./projects)         | read/command | `deploy:read`, `deploy:start`, `service:update` | varies   |
 | [`templates`](./templates)       | varies       | none / `deploy:read` / `deploy:start`           | varies   |
+| [`databases`](./databases)       | read/command | `deploy:read` / `service:update`                | varies   |
 | [`deploy`](./deploy)             | command      | `deploy:start`                                  | yes      |
 | [`rollback`](./rollback)         | command      | `deploy:rollback`                               | yes      |
 | [`diff`](./diff)                 | planning     | `deploy:read`                                   | no       |

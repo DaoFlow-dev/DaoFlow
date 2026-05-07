@@ -1279,6 +1279,318 @@
       "supportsYes": false
     },
     {
+      "path": "databases",
+      "summary": "Manage first-class database services",
+      "lane": "read",
+      "requiredScopes": ["deploy:read"],
+      "mutating": false,
+      "hasAction": false,
+      "hasSubcommands": true,
+      "aliases": [],
+      "arguments": [],
+      "options": [],
+      "supportsJson": false,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
+      "path": "databases create",
+      "summary": "Create and deploy a managed database service",
+      "lane": "command",
+      "requiredScopes": ["service:update"],
+      "mutating": true,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--kind <kind>",
+          "description": "Database kind: postgres|mysql|mariadb|mongo|redis",
+          "required": true
+        },
+        {
+          "flags": "--project <id>",
+          "description": "Project ID",
+          "required": true
+        },
+        {
+          "flags": "--environment <name>",
+          "description": "Environment name",
+          "required": true
+        },
+        {
+          "flags": "--server <id>",
+          "description": "Target server ID",
+          "required": true
+        },
+        {
+          "flags": "--name <name>",
+          "description": "Service name",
+          "required": false
+        },
+        {
+          "flags": "--database <name>",
+          "description": "Database name",
+          "required": false
+        },
+        {
+          "flags": "--user <name>",
+          "description": "Database user",
+          "required": false
+        },
+        {
+          "flags": "--password <value>",
+          "description": "Database password",
+          "required": false
+        },
+        {
+          "flags": "--password-env <name>",
+          "description": "Read database password from an env var",
+          "required": false
+        },
+        {
+          "flags": "--password-file <path>",
+          "description": "Read database password from a file",
+          "required": false
+        },
+        {
+          "flags": "--root-password <value>",
+          "description": "Root password for engines that need one",
+          "required": false
+        },
+        {
+          "flags": "--root-password-env <name>",
+          "description": "Read root password from an env var",
+          "required": false
+        },
+        {
+          "flags": "--root-password-file <path>",
+          "description": "Read root password from a file",
+          "required": false
+        },
+        {
+          "flags": "--port <port>",
+          "description": "Published host port",
+          "required": false
+        },
+        {
+          "flags": "--dry-run",
+          "description": "Preview the request without mutating",
+          "required": false
+        },
+        {
+          "flags": "-y, --yes",
+          "description": "Skip confirmation prompt",
+          "required": false
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": true,
+      "supportsYes": true
+    },
+    {
+      "path": "databases delete",
+      "summary": "Delete a managed database service record",
+      "lane": "command",
+      "requiredScopes": ["service:update"],
+      "mutating": true,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--service <id>",
+          "description": "Managed database service ID",
+          "required": true
+        },
+        {
+          "flags": "--dry-run",
+          "description": "Preview the delete request without mutating",
+          "required": false
+        },
+        {
+          "flags": "-y, --yes",
+          "description": "Skip confirmation prompt",
+          "required": false
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": true,
+      "supportsYes": true
+    },
+    {
+      "path": "databases list",
+      "summary": "List managed database services",
+      "lane": "read",
+      "requiredScopes": ["deploy:read"],
+      "mutating": false,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--limit <n>",
+          "description": "Maximum records to return",
+          "required": false
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
+      "path": "databases restart",
+      "summary": "Restart a managed database service",
+      "lane": "command",
+      "requiredScopes": ["service:update"],
+      "mutating": true,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--service <id>",
+          "description": "Managed database service ID",
+          "required": true
+        },
+        {
+          "flags": "--dry-run",
+          "description": "Preview the restart request without mutating",
+          "required": false
+        },
+        {
+          "flags": "-y, --yes",
+          "description": "Skip confirmation prompt",
+          "required": false
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": true,
+      "supportsYes": true
+    },
+    {
+      "path": "databases show",
+      "summary": "Show managed database connection, volume, and backup metadata",
+      "lane": "read",
+      "requiredScopes": ["deploy:read"],
+      "mutating": false,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--service <id>",
+          "description": "Managed database service ID",
+          "required": true
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
+      "path": "databases start",
+      "summary": "Start a managed database service",
+      "lane": "command",
+      "requiredScopes": ["service:update"],
+      "mutating": true,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--service <id>",
+          "description": "Managed database service ID",
+          "required": true
+        },
+        {
+          "flags": "--dry-run",
+          "description": "Preview the start request without mutating",
+          "required": false
+        },
+        {
+          "flags": "-y, --yes",
+          "description": "Skip confirmation prompt",
+          "required": false
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": true,
+      "supportsYes": true
+    },
+    {
+      "path": "databases stop",
+      "summary": "Stop a managed database service",
+      "lane": "command",
+      "requiredScopes": ["service:update"],
+      "mutating": true,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--service <id>",
+          "description": "Managed database service ID",
+          "required": true
+        },
+        {
+          "flags": "--dry-run",
+          "description": "Preview the stop request without mutating",
+          "required": false
+        },
+        {
+          "flags": "-y, --yes",
+          "description": "Skip confirmation prompt",
+          "required": false
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": true,
+      "supportsYes": true
+    },
+    {
       "path": "deploy",
       "summary": "Deploy a service or compose project",
       "lane": "command",

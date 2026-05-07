@@ -2,6 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ServiceLinksCard } from "./ServiceLinksCard";
+import { ManagedDatabaseCard } from "./ManagedDatabaseCard";
 import type { ServiceEndpointSummary } from "./service-endpoint-types";
 import {
   Settings2,
@@ -51,6 +52,21 @@ interface GeneralTabProps {
       observedAt: string | null;
     };
     endpointSummary?: ServiceEndpointSummary | null;
+    managedDatabase?: {
+      kind: string;
+      label: string;
+      databaseName: string | null;
+      username: string | null;
+      port: string;
+      internalPort: string;
+      serviceName: string;
+      volumeName: string;
+      backupPolicyId?: string | null;
+      backupType?: "database" | "volume";
+      backupEngine?: string | null;
+      connectionUriMasked: string;
+      internalConnectionUriMasked: string;
+    } | null;
     rolloutStrategy?: {
       label: string;
       summary: string;
@@ -185,6 +201,10 @@ export default function GeneralTab({
       </div>
 
       {/* Configuration Card */}
+      {service.managedDatabase ? (
+        <ManagedDatabaseCard serviceId={service.id} database={service.managedDatabase} />
+      ) : null}
+
       <Card className="shadow-sm">
         <CardHeader>
           <CardTitle className="text-sm flex items-center gap-2">
