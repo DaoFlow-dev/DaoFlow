@@ -17,6 +17,7 @@ import { legacyOauthRouter, LEGACY_OAUTH_TOKEN_PATH } from "./routes/legacy-oaut
 import { authorizeRequest } from "./routes/request-auth";
 import { ensureInitialOwnerFromEnv } from "./bootstrap-initial-owner";
 import { acceptPendingTeamInviteForEmail } from "./db/services/member-access";
+import { requestAccessLogMiddleware } from "./request-access-middleware";
 
 type Env = {
   Variables: {
@@ -54,6 +55,7 @@ export function createApp() {
       console.log(message, ...rest);
     })
   );
+  app.use("*", requestAccessLogMiddleware);
 
   // ── Auth rate limiting (credential endpoints only) ──────
   const authRateLimitMap = new Map<string, { count: number; reset: number }>();

@@ -173,89 +173,87 @@ async function markDeploymentFailedByWatchdog(input: {
     }
   };
 
-  return db.transaction(async (tx) => {
-    const [updated] = await tx
-      .update(deployments)
-      .set({
-        status: DeploymentLifecycleStatus.Failed,
-        conclusion: DeploymentConclusion.Failed,
-        error,
-        configSnapshot,
-        concludedAt: input.now,
-        updatedAt: input.now
-      })
-      .where(
-        and(
-          eq(deployments.id, current.id),
-          inArray(deployments.status, [...ACTIVE_DEPLOYMENT_STATUSES])
-        )
+  const [updated] = await db
+    .update(deployments)
+    .set({
+      status: DeploymentLifecycleStatus.Failed,
+      conclusion: DeploymentConclusion.Failed,
+      error,
+      configSnapshot,
+      concludedAt: input.now,
+      updatedAt: input.now
+    })
+    .where(
+      and(
+        eq(deployments.id, current.id),
+        inArray(deployments.status, [...ACTIVE_DEPLOYMENT_STATUSES])
       )
-      .returning({ id: deployments.id });
+    )
+    .returning({ id: deployments.id });
 
-    if (!updated) {
-      return null;
-    }
+  if (!updated) {
+    return null;
+  }
 
-    await tx.insert(deploymentLogs).values({
-      deploymentId: current.id,
-      level: "error",
-      message: `${current.serviceName} stopped reporting progress while ${previousStatus}. DaoFlow marked the deployment failed after ${formatStaleDurationSummary(staleForMs)} without a heartbeat.`,
-      source: "system",
-      metadata: {
-        source: "deployment-watchdog",
-        previousStatus,
-        lastHeartbeatAt,
-        timeoutMs: input.timeoutMs
-      },
-      createdAt: input.now
-    });
-
-    await tx.insert(events).values({
-      kind: "deployment.watchdog.failed",
-      resourceType: "deployment",
-      resourceId: current.id,
-      summary: "Deployment failed after progress stalled.",
-      detail: `${current.serviceName} stopped reporting progress while ${previousStatus}. Last heartbeat: ${lastHeartbeatAt}.`,
-      severity: "error",
-      metadata: {
-        serviceName: current.serviceName,
-        actorLabel: "deployment-watchdog",
-        previousStatus,
-        timeoutMs: input.timeoutMs
-      },
-      createdAt: input.now
-    });
-
-    await tx.insert(auditEntries).values({
-      actorType: "system",
-      actorId: "deployment-watchdog",
-      actorEmail: "system@daoflow.local",
-      actorRole: "admin",
-      targetResource: `deployment/${current.id}`,
-      action: "deployment.watchdog.fail",
-      inputSummary: `Marked ${current.serviceName} failed after progress stalled.`,
-      permissionScope: "deploy:start",
-      outcome: "success",
-      metadata: {
-        resourceType: "deployment",
-        resourceId: current.id,
-        resourceLabel: current.serviceName,
-        detail: `${current.serviceName} stopped reporting progress while ${previousStatus}. Last heartbeat: ${lastHeartbeatAt}.`,
-        previousStatus,
-        timeoutMs: input.timeoutMs
-      }
-    });
-
-    return {
-      deploymentId: current.id,
-      serviceName: current.serviceName,
+  await db.insert(deploymentLogs).values({
+    deploymentId: current.id,
+    level: "error",
+    message: `${current.serviceName} stopped reporting progress while ${previousStatus}. DaoFlow marked the deployment failed after ${formatStaleDurationSummary(staleForMs)} without a heartbeat.`,
+    source: "system",
+    metadata: {
+      source: "deployment-watchdog",
       previousStatus,
       lastHeartbeatAt,
-      detectedAt,
-      staleForMs,
       timeoutMs: input.timeoutMs
-    };
+    },
+    createdAt: input.now
   });
+
+  await db.insert(events).values({
+    kind: "deployment.watchdog.failed",
+    resourceType: "deployment",
+    resourceId: current.id,
+    summary: "Deployment failed after progress stalled.",
+    detail: `${current.serviceName} stopped reporting progress while ${previousStatus}. Last heartbeat: ${lastHeartbeatAt}.`,
+    severity: "error",
+    metadata: {
+      serviceName: current.serviceName,
+      actorLabel: "deployment-watchdog",
+      previousStatus,
+      timeoutMs: input.timeoutMs
+    },
+    createdAt: input.now
+  });
+
+  await db.insert(auditEntries).values({
+    actorType: "system",
+    actorId: "deployment-watchdog",
+    actorEmail: "system@daoflow.local",
+    actorRole: "admin",
+    targetResource: `deployment/${current.id}`,
+    action: "deployment.watchdog.fail",
+    inputSummary: `Marked ${current.serviceName} failed after progress stalled.`,
+    permissionScope: "deploy:start",
+    outcome: "success",
+    metadata: {
+      resourceType: "deployment",
+      resourceId: current.id,
+      resourceLabel: current.serviceName,
+      detail: `${current.serviceName} stopped reporting progress while ${previousStatus}. Last heartbeat: ${lastHeartbeatAt}.`,
+      previousStatus,
+      timeoutMs: input.timeoutMs
+    }
+  });
+
+  return {
+    deploymentId: current.id,
+    serviceName: current.serviceName,
+    previousStatus,
+    lastHeartbeatAt,
+    detectedAt,
+    staleForMs,
+    timeoutMs: input.timeoutMs
+  };
 }
 
 export async function runDeploymentWatchdogOnce(input?: {

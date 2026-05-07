@@ -3,6 +3,7 @@ import { resolveBearerTokenAuthResult } from "../api-token-auth";
 import { auth, type AuthSession } from "../auth";
 import { getSessionAuthContext, type RequestAuthContext } from "../context";
 import { ensureControlPlaneReady } from "../db/services/seed";
+import { getClientIpFromHeaders } from "../db/services/request-access-logs";
 
 export interface AuthorizedRequestActor {
   session: NonNullable<AuthSession>;
@@ -40,7 +41,9 @@ export async function authorizeRequest(input: {
   const session = await auth.api.getSession({ headers: input.headers });
   const tokenAuthResult = session
     ? ({ status: "absent" } as const)
-    : await resolveBearerTokenAuthResult(input.headers.get("authorization"));
+    : await resolveBearerTokenAuthResult(input.headers.get("authorization"), {
+        sourceIp: getClientIpFromHeaders(input.headers)
+      });
   const tokenAuth = tokenAuthResult.status === "ok" ? tokenAuthResult.auth : null;
   const authContext = tokenAuth
     ? ({

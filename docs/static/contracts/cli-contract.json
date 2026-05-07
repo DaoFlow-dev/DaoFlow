@@ -3045,6 +3045,62 @@
       "supportsYes": true
     },
     {
+      "path": "requests",
+      "summary": "Read durable request and access logs",
+      "lane": "read",
+      "requiredScopes": ["logs:read"],
+      "mutating": false,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--limit <n>",
+          "description": "Maximum request records to show",
+          "required": false
+        },
+        {
+          "flags": "--since <window>",
+          "description": "Only include records newer than a window like 15m, 1h, or 7d",
+          "required": false
+        },
+        {
+          "flags": "--category <category>",
+          "description": "Filter by auth, api, trpc, webhook, health, or other",
+          "required": false
+        },
+        {
+          "flags": "--failed-auth",
+          "description": "Show failed authentication and authorization requests",
+          "required": false
+        },
+        {
+          "flags": "--api-token",
+          "description": "Show API token-backed requests",
+          "required": false
+        },
+        {
+          "flags": "--webhooks",
+          "description": "Show webhook endpoint requests",
+          "required": false
+        },
+        {
+          "flags": "--slow-ms <ms>",
+          "description": "Show requests slower than this duration",
+          "required": false
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
       "path": "rollback",
       "summary": "Rollback a service to a previous successful deployment",
       "lane": "command",

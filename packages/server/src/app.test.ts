@@ -9,6 +9,7 @@ import { db } from "./db/connection";
 import { deployments } from "./db/schema/deployments";
 import { gitInstallations, gitProviders } from "./db/schema/git-providers";
 import { projects } from "./db/schema/projects";
+import { requestAccessLogs } from "./db/schema/request-access-logs";
 import { teamInvites, teamMembers, teams } from "./db/schema/teams";
 import { apiTokens, principals } from "./db/schema/tokens";
 import { users } from "./db/schema/users";
@@ -868,13 +869,31 @@ describe("createApp", () => {
     const tokenValue = await createAgentBearerToken({ preset: "agent:read-only" });
     const response = await app.request("/api/v1/images", {
       headers: {
-        Authorization: `Bearer ${tokenValue}`
+        Authorization: `Bearer ${tokenValue}`,
+        "x-forwarded-for": "198.51.100.7"
       }
     });
     const body = (await response.json()) as { images: unknown[] };
 
     expect(response.status).toBe(200);
     expect(Array.isArray(body.images)).toBe(true);
+
+    const tokenHash = await hashApiToken(tokenValue);
+    const [tokenRow] = await db.select().from(apiTokens).where(eq(apiTokens.tokenHash, tokenHash));
+    expect(tokenRow?.lastUsedAt).toBeInstanceOf(Date);
+    expect(tokenRow?.lastUsedIp).toBe("198.51.100.7");
+
+    const [requestLog] = await db
+      .select()
+      .from(requestAccessLogs)
+      .where(eq(requestAccessLogs.path, "/api/v1/images"));
+    expect(requestLog).toMatchObject({
+      statusCode: 200,
+      outcome: "success",
+      authMethod: "api-token",
+      tokenId: tokenRow?.id,
+      sourceIp: "198.51.100.7"
+    });
   });
 
   it("returns TOKEN_EXPIRED for expired bearer tokens on GET /api/v1/images", async () => {

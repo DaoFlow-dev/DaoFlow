@@ -8,6 +8,7 @@ import {
 import { auth } from "./auth";
 import type { AuthSession } from "./auth";
 import { resolveBearerTokenAuthResult, type TokenAuthFailureCode } from "./api-token-auth";
+import { getClientIpFromHeaders } from "./db/services/request-access-logs";
 
 export interface RequestAuthContext {
   method: "session" | "api-token";
@@ -71,7 +72,9 @@ export async function createContext(c: HonoContext): Promise<Context> {
   });
   const tokenAuthResult = session
     ? ({ status: "absent" } as const)
-    : await resolveBearerTokenAuthResult(c.req.header("authorization"));
+    : await resolveBearerTokenAuthResult(c.req.header("authorization"), {
+        sourceIp: getClientIpFromHeaders(c.req.raw.headers)
+      });
   const tokenAuth = tokenAuthResult.status === "ok" ? tokenAuthResult.auth : null;
 
   return {

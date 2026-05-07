@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import {
   getEffectiveTokenCapabilities,
   normalizeAppRole,
@@ -50,6 +50,11 @@ export type TokenAuthResolution =
   | { status: "ok"; auth: TokenBackedSession }
   | { status: "rejected"; failure: TokenAuthFailure };
 
+export interface TokenAuthResolutionOptions {
+  sourceIp?: string | null;
+  recordUsage?: boolean;
+}
+
 function getPrincipalRole(principalType: string, userRole: unknown): AppRole {
   if (principalType === "agent") {
     return "agent";
@@ -72,14 +77,15 @@ function buildSyntheticPrincipalEmail(principalName: string, principalType: stri
 }
 
 export async function resolveBearerTokenAuth(
-  headerValue: string | null | undefined
+  headerValue: string | null | undefined,
+  options?: TokenAuthResolutionOptions
 ): Promise<TokenBackedSession | null> {
   const rawToken = parseBearerApiToken(headerValue);
   if (!rawToken) {
     return null;
   }
 
-  const result = await resolveBearerTokenAuthResult(headerValue);
+  const result = await resolveBearerTokenAuthResult(headerValue, options);
   return result.status === "ok" ? result.auth : null;
 }
 
@@ -94,7 +100,8 @@ function rejectToken(code: TokenAuthFailureCode, error: string): TokenAuthResolu
 }
 
 export async function resolveBearerTokenAuthResult(
-  headerValue: string | null | undefined
+  headerValue: string | null | undefined,
+  options: TokenAuthResolutionOptions = {}
 ): Promise<TokenAuthResolution> {
   const rawToken = parseBearerApiToken(headerValue);
   if (!rawToken) {
@@ -135,6 +142,7 @@ export async function resolveBearerTokenAuthResult(
   }
 
   if (row.tokenStatus !== "active" || row.tokenRevokedAt) {
+    await recordTokenFailure(row.tokenId, options);
     return rejectToken("TOKEN_REVOKED", "API token has been revoked.");
   }
 
@@ -144,19 +152,23 @@ export async function resolveBearerTokenAuthResult(
     !row.principalName ||
     row.principalStatus !== "active"
   ) {
+    await recordTokenFailure(row.tokenId, options);
     return rejectToken("TOKEN_INVALIDATED", "API token has been invalidated.");
   }
 
   const now = Date.now();
   if (row.tokenExpiresAt && row.tokenExpiresAt.getTime() <= now) {
+    await recordTokenFailure(row.tokenId, options);
     return rejectToken("TOKEN_EXPIRED", "API token has expired.");
   }
 
   if (row.tokensInvalidBefore && row.tokenCreatedAt.getTime() < row.tokensInvalidBefore.getTime()) {
+    await recordTokenFailure(row.tokenId, options);
     return rejectToken("TOKEN_INVALIDATED", "API token has been invalidated.");
   }
 
   if (row.userId && row.userStatus !== "active") {
+    await recordTokenFailure(row.tokenId, options);
     return rejectToken("TOKEN_INVALIDATED", "API token has been invalidated.");
   }
 
@@ -167,6 +179,8 @@ export async function resolveBearerTokenAuthResult(
   const principalEmail =
     row.userEmail ?? buildSyntheticPrincipalEmail(row.principalName, row.principalType);
   const principalName = row.userName ?? row.principalName;
+
+  await recordTokenUsage(row.tokenId, options);
 
   return {
     status: "ok",
@@ -211,4 +225,33 @@ export async function resolveBearerTokenAuthResult(
       }
     }
   };
+}
+
+async function recordTokenUsage(tokenId: string, options: TokenAuthResolutionOptions) {
+  if (options.recordUsage === false) {
+    return;
+  }
+
+  await db
+    .update(apiTokens)
+    .set({
+      lastUsedAt: new Date(),
+      lastUsedIp: options.sourceIp ?? null
+    })
+    .where(eq(apiTokens.id, tokenId));
+}
+
+async function recordTokenFailure(tokenId: string, options: TokenAuthResolutionOptions) {
+  if (options.recordUsage === false) {
+    return;
+  }
+
+  await db
+    .update(apiTokens)
+    .set({
+      lastFailureAt: new Date(),
+      lastFailureIp: options.sourceIp ?? null,
+      recentFailureCount: sql`${apiTokens.recentFailureCount} + 1`
+    })
+    .where(eq(apiTokens.id, tokenId));
 }

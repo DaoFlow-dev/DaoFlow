@@ -3,6 +3,7 @@ import { TRPCError } from "@trpc/server";
 import { auditSinceWindowError, auditSinceWindowPattern } from "@daoflow/shared";
 import { listApprovalQueue } from "../db/services/approvals";
 import { listAuditTrail } from "../db/services/audit";
+import { listRequestAccessLogs } from "../db/services/request-access-logs";
 import { listBackupMetrics, backupDiagnosis } from "../db/services/backups";
 import { listDestinations, getDestination } from "../db/services/destinations";
 import { listEnvironmentVariableInventory } from "../db/services/envvars";
@@ -28,6 +29,7 @@ import {
   protectedProcedure,
   deployReadProcedure,
   envReadProcedure,
+  logsReadProcedure,
   serverWriteProcedure
 } from "../trpc";
 import { limitInput } from "../schemas";
@@ -129,7 +131,7 @@ const coreReadRouter = t.router({
     const teamId = await requireViewerTeamId(ctx.session.user.id);
     return listServerReadiness(teamId, input.limit ?? 12);
   }),
-  auditTrail: protectedProcedure
+  auditTrail: logsReadProcedure
     .input(
       z.object({
         limit: z.number().int().min(1).max(50).optional(),
@@ -141,6 +143,34 @@ const coreReadRouter = t.router({
     )
     .query(async ({ input }) => {
       return listAuditTrail(input.limit ?? 12, input.since);
+    }),
+  requestAccessLogs: logsReadProcedure
+    .input(
+      z.object({
+        limit: z.number().int().min(1).max(100).optional(),
+        since: z
+          .string()
+          .regex(auditSinceWindowPattern, { message: auditSinceWindowError })
+          .optional(),
+        category: z.enum(["auth", "api", "trpc", "webhook", "health", "other"]).optional(),
+        outcome: z.enum(["success", "denied", "failed"]).optional(),
+        failedAuth: z.boolean().optional(),
+        apiTokenOnly: z.boolean().optional(),
+        webhooksOnly: z.boolean().optional(),
+        slowMs: z.number().int().min(1).max(120_000).optional()
+      })
+    )
+    .query(async ({ input }) => {
+      return listRequestAccessLogs({
+        limit: input.limit ?? 25,
+        since: input.since,
+        category: input.category,
+        outcome: input.outcome,
+        failedAuth: input.failedAuth,
+        apiTokenOnly: input.apiTokenOnly,
+        webhooksOnly: input.webhooksOnly,
+        slowMs: input.slowMs
+      });
     }),
   environmentVariables: envReadProcedure
     .input(

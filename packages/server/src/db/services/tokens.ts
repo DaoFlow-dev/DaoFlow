@@ -45,7 +45,11 @@ export async function listApiTokenInventory() {
       isReadOnly,
       createdAt: t.createdAt.toISOString(),
       expiresAt: t.expiresAt?.toISOString() ?? null,
-      lastUsedAt: t.lastUsedAt?.toISOString() ?? null
+      lastUsedAt: t.lastUsedAt?.toISOString() ?? null,
+      lastUsedIp: t.lastUsedIp ?? null,
+      lastFailureAt: t.lastFailureAt?.toISOString() ?? null,
+      lastFailureIp: t.lastFailureIp ?? null,
+      recentFailureCount: t.recentFailureCount
     };
   });
 

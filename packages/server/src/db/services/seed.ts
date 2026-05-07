@@ -68,18 +68,18 @@ function shouldSeedDemo(): boolean {
 export async function seedControlPlaneData() {
   const seedDemo = shouldSeedDemo();
 
-  await db.transaction(async (tx) => {
-    await seedUsers(tx);
+  await db.transaction((tx) => seedUsers(tx));
 
-    if (seedDemo) {
-      await seedInfrastructure(tx);
-      await seedDevelopmentRunner(tx, { defaultServerId: "srv_foundation_1" });
-      await seedDeployments(tx);
-      await seedObservability(tx);
-    } else {
-      await seedDevelopmentRunner(tx);
-    }
-  });
+  if (seedDemo) {
+    await db.transaction((tx) => seedInfrastructure(tx));
+    await db.transaction((tx) =>
+      seedDevelopmentRunner(tx, { defaultServerId: "srv_foundation_1" })
+    );
+    await db.transaction((tx) => seedDeployments(tx));
+    await db.transaction((tx) => seedObservability(tx));
+  } else {
+    await db.transaction((tx) => seedDevelopmentRunner(tx));
+  }
 
   await claimUnownedLocalhostServer();
 

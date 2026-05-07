@@ -1,4 +1,4 @@
-import { index, pgTable, text, timestamp, varchar } from "drizzle-orm/pg-core";
+import { index, integer, pgTable, text, timestamp, varchar } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { users } from "./users";
 
@@ -14,6 +14,10 @@ export const apiTokens = pgTable(
     scopes: text("scopes").notNull(), // comma-separated: read,logs:read,deploy:start
     status: varchar("status", { length: 20 }).default("active").notNull(),
     lastUsedAt: timestamp("last_used_at"),
+    lastUsedIp: varchar("last_used_ip", { length: 80 }),
+    lastFailureAt: timestamp("last_failure_at"),
+    lastFailureIp: varchar("last_failure_ip", { length: 80 }),
+    recentFailureCount: integer("recent_failure_count").default(0).notNull(),
     expiresAt: timestamp("expires_at"),
     createdByUserId: text("created_by_user_id").references(() => users.id, {
       onDelete: "set null"

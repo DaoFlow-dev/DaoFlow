@@ -120,6 +120,13 @@
       "when": 1778127052391,
       "tag": "0016_thin_jack_power",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1778129756952,
+      "tag": "0017_lyrical_bromley",
+      "breakpoints": true
     }
   ]
 }

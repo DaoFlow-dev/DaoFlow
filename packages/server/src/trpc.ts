@@ -115,6 +115,7 @@ export const serverOpsWriteProcedure = scopedProcedure(ALL_OPS, ["server:write"]
 export const serverReadProcedure = scopedProcedure(ALL_READERS, ["server:read"]);
 export const terminalOpenProcedure = scopedProcedure(["owner"], ["terminal:open"]);
 export const deployReadProcedure = scopedProcedure(ALL_READERS, ["deploy:read"]);
+export const logsReadProcedure = scopedProcedure(ALL_READERS, ["logs:read"]);
 export const backupReadProcedure = scopedProcedure(ALL_READERS, ["backup:read"]);
 export const volumesReadProcedure = scopedProcedure(ALL_READERS, ["volumes:read"]);
 export const envReadProcedure = scopedProcedure(ALL_READERS, ["env:read"]);

@@ -39,7 +39,8 @@ import {
   Radio,
   Sun,
   Moon,
-  ShieldCheck
+  ShieldCheck,
+  ScrollText
 } from "lucide-react";
 
 const homeNav = [
@@ -48,6 +49,7 @@ const homeNav = [
   { to: "/deploy", label: "Deploy", icon: Rocket },
   { to: "/servers", label: "Servers", icon: Server },
   { to: "/deployments", label: "Deployments", icon: Rocket },
+  { to: "/requests", label: "Requests", icon: ScrollText },
   { to: "/backups", label: "Backups", icon: DatabaseBackup },
   { to: "/destinations", label: "Destinations", icon: HardDrive },
   { to: "/notifications", label: "Notifications", icon: Radio },

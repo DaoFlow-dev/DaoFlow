@@ -26,7 +26,7 @@ import { resetAuthState } from "./auth";
 
 const { Client } = pg;
 const TEST_DB_PREPARE_LOCK_ID = 8_705_231;
-const MIN_EXPECTED_PUBLIC_TABLES = 38;
+const MIN_EXPECTED_PUBLIC_TABLES = 39;
 
 let prepared = false;
 let preparePromise: Promise<string> | null = null;
@@ -98,6 +98,9 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
       managedSshKeys: string | null;
       certificateAssets: string | null;
       certificateAssetsIssuer: string | null;
+      requestAccessLogs: string | null;
+      apiTokensLastUsedIp: string | null;
+      apiTokensRecentFailureCount: string | null;
     }>(`
       SELECT
         (SELECT count(*)::int FROM pg_tables WHERE schemaname = 'public') AS "tableCount",
@@ -119,7 +122,10 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
         (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'log_drains' AND column_name = 'team_id') AS "logDrainsTeamId",
         to_regclass('public.managed_ssh_keys') AS "managedSshKeys",
         to_regclass('public.certificate_assets') AS "certificateAssets",
-        (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'certificate_assets' AND column_name = 'issuer') AS "certificateAssetsIssuer"
+        (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'certificate_assets' AND column_name = 'issuer') AS "certificateAssetsIssuer",
+        to_regclass('public.request_access_logs') AS "requestAccessLogs"
+        ,(SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'api_tokens' AND column_name = 'last_used_ip') AS "apiTokensLastUsedIp"
+        ,(SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'api_tokens' AND column_name = 'recent_failure_count') AS "apiTokensRecentFailureCount"
     `);
     const row = result.rows[0];
     return Boolean(
@@ -143,7 +149,10 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
       row.logDrainsTeamId &&
       row.managedSshKeys &&
       row.certificateAssets &&
-      row.certificateAssetsIssuer
+      row.certificateAssetsIssuer &&
+      row.requestAccessLogs &&
+      row.apiTokensLastUsedIp &&
+      row.apiTokensRecentFailureCount
     );
   } finally {
     await client.end();
@@ -198,6 +207,9 @@ async function readPoolSchemaState() {
     serversTeamId: string | null;
     logDrains: string | null;
     logDrainsTeamId: string | null;
+    requestAccessLogs: string | null;
+    apiTokensLastUsedIp: string | null;
+    apiTokensRecentFailureCount: string | null;
   }>(`
     SELECT
       current_database() AS "databaseName",
@@ -217,7 +229,10 @@ async function readPoolSchemaState() {
       ,to_regclass('public.server_operations') AS "serverOperations",
       (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'servers' AND column_name = 'team_id') AS "serversTeamId",
       to_regclass('public.log_drains') AS "logDrains",
-      (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'log_drains' AND column_name = 'team_id') AS "logDrainsTeamId"
+      (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'log_drains' AND column_name = 'team_id') AS "logDrainsTeamId",
+      to_regclass('public.request_access_logs') AS "requestAccessLogs",
+      (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'api_tokens' AND column_name = 'last_used_ip') AS "apiTokensLastUsedIp",
+      (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'api_tokens' AND column_name = 'recent_failure_count') AS "apiTokensRecentFailureCount"
   `);
 
   return result.rows[0];
@@ -251,7 +266,10 @@ async function ensurePooledTestSchemaReady(connectionString: string) {
         state.serverOperations &&
         state.serversTeamId &&
         state.logDrains &&
-        state.logDrainsTeamId
+        state.logDrainsTeamId &&
+        state.requestAccessLogs &&
+        state.apiTokensLastUsedIp &&
+        state.apiTokensRecentFailureCount
       ) {
         return;
       }
@@ -273,6 +291,7 @@ export async function ensureTestDatabaseReady() {
   await reinitializeDatabaseConnection({ connectionString });
 
   if (prepared && (await isTestSchemaReady(connectionString))) {
+    await ensurePooledTestSchemaReady(connectionString);
     return connectionString;
   }
 

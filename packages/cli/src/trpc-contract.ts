@@ -150,6 +150,41 @@ export interface AuditTrailOutput {
   }>;
 }
 
+export interface RequestAccessLogsOutput {
+  summary: {
+    totalRequests: number;
+    failedRequests: number;
+    deniedRequests: number;
+    apiTokenRequests: number;
+    webhookRequests: number;
+    slowRequests: number;
+  };
+  entries: Array<{
+    id: string;
+    requestId: string;
+    method: string;
+    path: string;
+    category: string;
+    statusCode: number;
+    durationMs: number;
+    outcome: string;
+    errorCategory: string | null;
+    authMethod: string | null;
+    actorType: string | null;
+    actorId: string | null;
+    actorEmail: string | null;
+    actorRole: string | null;
+    tokenId: string | null;
+    tokenPrefix: string | null;
+    sourceIp: string | null;
+    userAgent: string | null;
+    metadata: Record<string, unknown>;
+    createdAt: string;
+    actorLabel: string;
+    tokenLabel: string | null;
+  }>;
+}
+
 export interface ApprovalQueueRequestOutput {
   id: string;
   actionType: "compose-release" | "backup-restore";
@@ -241,6 +276,7 @@ export interface RouterOutputs {
   serverReadiness: ServerReadinessOutput;
   serverOperationsHub: ServerOperationsHubOutput;
   auditTrail: AuditTrailOutput;
+  requestAccessLogs: RequestAccessLogsOutput;
   approvalQueue: ApprovalQueueOutput;
   operationalMaintenanceReport: OperationalMaintenanceReportOutput;
 }
@@ -1404,6 +1440,19 @@ export interface DaoFlowTRPC {
     RollbackExecutionOutput
   >;
   auditTrail: QueryProcedure<AuditTrailOutput, { limit?: number; since?: string }>;
+  requestAccessLogs: QueryProcedure<
+    RequestAccessLogsOutput,
+    {
+      limit?: number;
+      since?: string;
+      category?: "auth" | "api" | "trpc" | "webhook" | "health" | "other";
+      outcome?: "success" | "denied" | "failed";
+      failedAuth?: boolean;
+      apiTokenOnly?: boolean;
+      webhooksOnly?: boolean;
+      slowMs?: number;
+    }
+  >;
   approveApprovalRequest: MutationProcedure<{ requestId: string }, ApprovalQueueRequestOutput>;
   rejectApprovalRequest: MutationProcedure<{ requestId: string }, ApprovalQueueRequestOutput>;
   deploymentLogs: QueryProcedure<

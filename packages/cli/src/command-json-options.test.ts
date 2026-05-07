@@ -19,6 +19,7 @@ import { terminalCommand } from "./commands/terminal";
 import { tunnelsCommand } from "./commands/tunnels";
 import { volumesCommand } from "./commands/volumes";
 import { rollbackCommand } from "./commands/rollback";
+import { requestsCommand } from "./commands/requests";
 
 function hasLongOption(command: Command, longFlag: string): boolean {
   return command.options.some((option) => option.long === longFlag);
@@ -56,9 +57,17 @@ describe("CLI JSON option coverage", () => {
   test("audit help includes access, examples, and JSON shape", () => {
     const help = renderHelp(auditCommand());
     expect(help).toContain("Required scope:");
-    expect(help).toContain("any valid token");
+    expect(help).toContain("logs:read");
     expect(help).toContain("daoflow audit --since 1h --json");
     expect(help).toContain("Example JSON shape:");
+  });
+
+  test("requests declares --json and logs scope", () => {
+    const help = renderHelp(requestsCommand());
+    expect(hasLongOption(requestsCommand(), "--json")).toBe(true);
+    expect(help).toContain("Required scope:");
+    expect(help).toContain("logs:read");
+    expect(help).toContain("daoflow requests --failed-auth --json");
   });
 
   test("approvals subcommands declare --json", () => {

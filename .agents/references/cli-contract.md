@@ -65,7 +65,8 @@ This file holds the detailed CLI contract, scope map, and agent-facing command r
 | `login`              | session               | none                                            | yes      |
 | `whoami`             | read                  | any valid token                                 | no       |
 | `capabilities`       | read                  | any valid token                                 | no       |
-| `audit`              | read                  | any valid token                                 | no       |
+| `audit`              | read                  | `logs:read`                                     | no       |
+| `requests`           | read                  | `logs:read`                                     | no       |
 | `approvals`          | read/command          | any valid token, `approvals:decide`             | varies   |
 | `status`             | read                  | `server:read`                                   | no       |
 | `server add`         | command               | `server:write`                                  | yes      |
@@ -376,7 +377,7 @@ This file holds the detailed CLI contract, scope map, and agent-facing command r
 ## Audit Contract
 
 - `daoflow audit` reads immutable audit records through the `auditTrail` read procedure
-- Access: any valid session or API token
+- Access: session or API token with `logs:read`
 - Optional input:
   - `--limit <n>` to cap returned entries from `1` to `50`
   - `--since <window>` to filter entries newer than a positive duration like `15m`, `1h`, `7d`, or `2w`
@@ -393,6 +394,24 @@ This file holds the detailed CLI contract, scope map, and agent-facing command r
   - permission scope when present
   - redacted audit detail when present
 - Invalid `--since` input must fail locally with `INVALID_INPUT` before any API call
+
+## Requests Contract
+
+- `daoflow requests` reads durable request/access records through the `requestAccessLogs` read procedure
+- Access: session or API token with `logs:read`
+- Optional input:
+  - `--limit <n>` to cap returned entries from `1` to `100`
+  - `--since <window>` to filter entries newer than a positive duration like `15m`, `1h`, `7d`, or `2w`
+  - `--category <auth|api|trpc|webhook|health|other>` to filter by request category
+  - `--failed-auth` to show authentication and authorization failures
+  - `--api-token` to show token-backed requests
+  - `--webhooks` to show webhook endpoint requests
+  - `--slow-ms <ms>` to show requests at or above a duration threshold
+  - `--json`
+- JSON success shape:
+  - `{ "ok": true, "data": { "limit": number, "since": string | null, "summary": { "totalRequests": number, "failedRequests": number, "deniedRequests": number, "apiTokenRequests": number, "webhookRequests": number, "slowRequests": number }, "entries": [{ "id": string, "requestId": string, "method": string, "path": string, "category": string, "statusCode": number, "durationMs": number, "outcome": string, "errorCategory": string | null, "authMethod": string | null, "actorType": string | null, "actorId": string | null, "actorEmail": string | null, "actorRole": string | null, "tokenId": string | null, "tokenPrefix": string | null, "sourceIp": string | null, "userAgent": string | null, "metadata": object, "createdAt": string, "actorLabel": string, "tokenLabel": string | null }] } }`
+- Human output must show timestamp, outcome, method/path, request ID, status, duration, actor, token label, source IP, and error category when present.
+- Invalid `--limit`, `--since`, or `--slow-ms` input must fail locally with `INVALID_INPUT` before any API call.
 
 ## Approvals Contract
 

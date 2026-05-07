@@ -65,7 +65,7 @@ export function auditCommand(): Command {
       "after",
       `
 Required scope:
-  any valid token
+  logs:read
 
 Examples:
   daoflow audit --limit 20

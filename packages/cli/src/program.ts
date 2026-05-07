@@ -15,6 +15,7 @@ import { doctorCommand } from "./commands/doctor";
 import { whoamiCommand } from "./commands/whoami";
 import { capabilitiesCommand } from "./commands/capabilities";
 import { auditCommand } from "./commands/audit";
+import { requestsCommand } from "./commands/requests";
 import { approvalsCommand } from "./commands/approvals";
 import { installCommand } from "./commands/install";
 import { upgradeCommand } from "./commands/upgrade";
@@ -148,6 +149,7 @@ export function createProgram(): Command {
   program.addCommand(whoamiCommand());
   program.addCommand(capabilitiesCommand());
   program.addCommand(auditCommand());
+  program.addCommand(requestsCommand());
   program.addCommand(approvalsCommand());
   program.addCommand(installCommand());
   program.addCommand(upgradeCommand());

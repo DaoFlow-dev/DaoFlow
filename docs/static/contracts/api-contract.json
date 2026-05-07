@@ -142,8 +142,8 @@
       "method": "GET",
       "lane": "read",
       "auth": "authenticated",
-      "requiredRoles": [],
-      "requiredScopes": [],
+      "requiredRoles": ["owner", "admin", "operator", "developer", "viewer", "agent"],
+      "requiredScopes": ["logs:read"],
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
@@ -3741,6 +3741,54 @@
           }
         },
         "required": ["serviceId", "domainId"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "requestAccessLogs",
+      "summary": "request Access Logs",
+      "path": "/trpc/requestAccessLogs",
+      "method": "GET",
+      "lane": "read",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator", "developer", "viewer", "agent"],
+      "requiredScopes": ["logs:read"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "since": {
+            "type": "string",
+            "pattern": "^([1-9]\\d*)([mhdw])$"
+          },
+          "category": {
+            "type": "string",
+            "enum": ["auth", "api", "trpc", "webhook", "health", "other"]
+          },
+          "outcome": {
+            "type": "string",
+            "enum": ["success", "denied", "failed"]
+          },
+          "failedAuth": {
+            "type": "boolean"
+          },
+          "apiTokenOnly": {
+            "type": "boolean"
+          },
+          "webhooksOnly": {
+            "type": "boolean"
+          },
+          "slowMs": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 120000
+          }
+        },
         "additionalProperties": false
       }
     },

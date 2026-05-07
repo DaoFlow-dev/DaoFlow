@@ -68,7 +68,6 @@ addApiGroup(
     "serverOperationLogs",
     "deploymentInsights",
     "deploymentRollbackPlans",
-    "auditTrail",
     "environmentVariables",
     "deploymentLogs",
     "operationsTimeline",
@@ -105,6 +104,12 @@ addApiGroup(apiProcedureAccess, ["managedDatabaseCatalog", "managedDatabases"], 
   auth: "authenticated",
   requiredRoles: READ_ROLES,
   requiredScopes: ["deploy:read"]
+});
+
+addApiGroup(apiProcedureAccess, ["auditTrail", "requestAccessLogs"], {
+  auth: "authenticated",
+  requiredRoles: READ_ROLES,
+  requiredScopes: ["logs:read"]
 });
 
 addApiGroup(
@@ -670,6 +675,7 @@ export const apiExamples: ApiExample[] = [
 export const cliCommandMeta: Record<string, CliCommandMeta> = {
   login: { lane: "session", requiredScopes: [], mutating: true },
   audit: { lane: "read", requiredScopes: [], mutating: false },
+  requests: { lane: "read", requiredScopes: ["logs:read"], mutating: false },
   approvals: { lane: "read", requiredScopes: [], mutating: false },
   "approvals list": { lane: "read", requiredScopes: [], mutating: false },
   "approvals approve": { lane: "command", requiredScopes: ["approvals:decide"], mutating: true },

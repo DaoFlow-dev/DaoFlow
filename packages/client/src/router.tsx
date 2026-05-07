@@ -11,6 +11,7 @@ const ProjectDetailPage = lazy(() => import("./pages/ProjectDetailPage"));
 const ServersPage = lazy(() => import("./pages/ServersPage"));
 const ServerDetailPage = lazy(() => import("./pages/ServerDetailPage"));
 const DeploymentsPage = lazy(() => import("./pages/DeploymentsPage"));
+const RequestsPage = lazy(() => import("./pages/RequestsPage"));
 const DevelopmentTasksPage = lazy(() => import("./pages/DevelopmentTasksPage"));
 const DevelopmentTaskDetailPage = lazy(() => import("./pages/DevelopmentTaskDetailPage"));
 const BackupsPage = lazy(() => import("./pages/BackupsPage"));
@@ -62,6 +63,7 @@ export const router = createBrowserRouter([
       { path: "servers", element: routeElement(ServersPage) },
       { path: "servers/:id", element: routeElement(ServerDetailPage) },
       { path: "deployments", element: routeElement(DeploymentsPage) },
+      { path: "requests", element: routeElement(RequestsPage) },
       { path: "development-tasks", element: routeElement(DevelopmentTasksPage) },
       { path: "development-tasks/:id", element: routeElement(DevelopmentTaskDetailPage) },
       { path: "backups", element: routeElement(BackupsPage) },
