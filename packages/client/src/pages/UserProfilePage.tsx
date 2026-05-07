@@ -1,15 +1,22 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useSession, authClient } from "@/lib/auth-client";
+import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { User, Mail, Lock, Key, Clock, Save, Loader2, Smartphone } from "lucide-react";
+import { User, Mail, Lock, Key, Clock, Save, Loader2 } from "lucide-react";
 import { ActiveSessionsCard } from "@/components/profile/ActiveSessionsCard";
+import { MfaStatusCard } from "@/components/profile/MfaStatusCard";
 
 export default function UserProfilePage() {
   const session = useSession();
   const user = session.data?.user;
+  const navigate = useNavigate();
+  const accountSecurity = trpc.accountSecurityStatus.useQuery(undefined, {
+    enabled: Boolean(user)
+  });
 
   const [displayName, setDisplayName] = useState(user?.name ?? "");
   const [email, setEmail] = useState(user?.email ?? "");
@@ -237,29 +244,13 @@ export default function UserProfilePage() {
         onRevokeOtherSessions={() => void handleRevokeOtherSessions()}
       />
 
-      {/* Two-Factor Authentication */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <Smartphone size={16} />
-            Two-Factor Authentication
-          </CardTitle>
-          <CardDescription>Add an extra layer of security to your account.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-between">
-            <div className="space-y-1">
-              <p className="text-sm font-medium">Status: Not enabled</p>
-              <p className="text-xs text-muted-foreground">
-                Use an authenticator app to generate one-time codes.
-              </p>
-            </div>
-            <Button variant="outline" size="sm" onClick={() => toast.info("2FA setup coming soon")}>
-              Enable 2FA
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+      <MfaStatusCard
+        accountSecurity={accountSecurity.data ?? null}
+        isLoading={accountSecurity.isLoading}
+        onManageMfa={() => {
+          void navigate("/settings?tab=security");
+        }}
+      />
 
       {/* Account Info (read-only) */}
       <Card>
