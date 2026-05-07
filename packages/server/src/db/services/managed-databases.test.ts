@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { createManagedDatabase, listManagedDatabases } from "./managed-databases";
 import { db } from "../connection";
 import { backupPolicies, volumes } from "../schema/storage";
@@ -7,8 +7,13 @@ import {
   createProjectEnvironmentServiceFixture,
   foundationOwnerRequester
 } from "../../testing/project-fixtures";
+import { resetTestDatabaseWithControlPlane } from "../../test-db";
 
 describe("managed database services", () => {
+  beforeEach(async () => {
+    await resetTestDatabaseWithControlPlane();
+  });
+
   it("creates a compose-backed database service with masked connection details", async () => {
     const fixture = await createProjectEnvironmentServiceFixture({
       project: {
