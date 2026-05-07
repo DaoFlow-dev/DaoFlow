@@ -91,6 +91,8 @@
         "@1password/sdk": "0.4.0",
         "@daoflow/shared": "workspace:*",
         "@hono/trpc-server": "0.4.2",
+        "@sandbank.dev/boxlite": "0.6.1",
+        "@sandbank.dev/core": "0.3.6",
         "@temporalio/activity": "1.15.0",
         "@temporalio/client": "1.15.0",
         "@temporalio/common": "1.15.0",
@@ -557,6 +559,10 @@
     "@rollup/rollup-win32-x64-gnu": ["@rollup/rollup-win32-x64-gnu@4.59.0", "", { "os": "win32", "cpu": "x64" }, "sha512-laBkYlSS1n2L8fSo1thDNGrCTQMmxjYY5G0WFWjFFYZkKPjsMBsgJfGf4TLxXrF6RyhI60L8TMOjBMvXiTcxeA=="],
 
     "@rollup/rollup-win32-x64-msvc": ["@rollup/rollup-win32-x64-msvc@4.59.0", "", { "os": "win32", "cpu": "x64" }, "sha512-2HRCml6OztYXyJXAvdDXPKcawukWY2GpR5/nxKp4iBgiO3wcoEGkAaqctIbZcNB6KlUQBIqt8VYkNSj2397EfA=="],
+
+    "@sandbank.dev/boxlite": ["@sandbank.dev/boxlite@0.6.1", "", { "dependencies": { "@sandbank.dev/core": "^0.3.6" } }, "sha512-1KrN/8G5jP++R/iQ2EAfOQqveeSlzYEG/Q68jabUnyKgwuefaGtP9dhtT3BoEOuEVc/GFdtc6F6thVMku9Zlag=="],
+
+    "@sandbank.dev/core": ["@sandbank.dev/core@0.3.6", "", { "peerDependencies": { "@sandbank.dev/relay": "^0.2.1" }, "optionalPeers": ["@sandbank.dev/relay"] }, "sha512-2u6b7QZz8A7r2YFjyZxQ+8cm6AbQ1DPWvb92oGoYzHmO+kedm4a60cX/MO1KkDXib3xrxtWhSKPvmQWuietYXw=="],
 
     "@sec-ant/readable-stream": ["@sec-ant/readable-stream@0.4.1", "", {}, "sha512-831qok9r2t8AlxLko40y2ebgSDhenenCatLVeW/uBtnHPyhHOvG0C7TvfgecV+wHzIm5KUICgzmVpWS+IMEAeg=="],
 

@@ -29,6 +29,8 @@
     "@1password/sdk": "0.4.0",
     "@daoflow/shared": "workspace:*",
     "@hono/trpc-server": "0.4.2",
+    "@sandbank.dev/boxlite": "0.6.1",
+    "@sandbank.dev/core": "0.3.6",
     "@temporalio/activity": "1.15.0",
     "@temporalio/client": "1.15.0",
     "@temporalio/common": "1.15.0",

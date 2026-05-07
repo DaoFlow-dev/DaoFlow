@@ -8,8 +8,14 @@ import {
   buildHostDockerCommandExecution,
   type HostDockerCodexSandbox
 } from "./development-task-host-docker";
+import {
+  runSandbankBoxLiteCommands,
+  type SandbankBoxLiteCodexSandbox
+} from "./development-task-sandbank-boxlite";
 
 type ExecRunner = typeof execStreaming;
+type SandbankBoxLiteCommandsRunner = typeof runSandbankBoxLiteCommands;
+type DevelopmentTaskValidationSandbox = HostDockerCodexSandbox | SandbankBoxLiteCodexSandbox;
 
 export interface DevelopmentTaskValidationResult {
   status: "ok" | "failed" | "skipped";
@@ -65,11 +71,16 @@ export function readDevelopmentTaskAllowedCommands(metadata: Record<string, unkn
 
 function findDisallowedCommand(commands: string[], allowedCommands: string[]) {
   if (allowedCommands.length === 0) {
-    return commands[0] ?? null;
+    return commands.length > 0 ? { index: 0 } : null;
   }
 
   const allowed = new Set(allowedCommands.map((command) => command.trim()));
-  return commands.find((command) => !allowed.has(command.trim())) ?? null;
+  const index = commands.findIndex((command) => !allowed.has(command.trim()));
+  return index >= 0 ? { index } : null;
+}
+
+function validationCommandLabel(index: number) {
+  return `validation command ${index + 1}`;
 }
 
 export async function runDevelopmentTaskValidation(input: {
@@ -77,8 +88,9 @@ export async function runDevelopmentTaskValidation(input: {
   commands: string[];
   allowedCommands?: string[];
   onLog: OnLog;
-  sandbox?: HostDockerCodexSandbox;
+  sandbox?: DevelopmentTaskValidationSandbox;
   execRunner?: ExecRunner;
+  sandbankBoxLiteCommandsRunner?: SandbankBoxLiteCommandsRunner;
 }): Promise<DevelopmentTaskValidationResult> {
   await mkdir(input.workspace.logsPath, { recursive: true });
   const logPath = joinWorkspacePath(input.workspace.logsPath, "validation.jsonl");
@@ -94,12 +106,13 @@ export async function runDevelopmentTaskValidation(input: {
 
   const disallowedCommand = findDisallowedCommand(input.commands, input.allowedCommands ?? []);
   if (disallowedCommand) {
+    const failedCommand = validationCommandLabel(disallowedCommand.index);
     return {
       status: "failed",
       commands: input.commands,
-      failedCommand: disallowedCommand,
+      failedCommand,
       logPath,
-      errorMessage: `Validation command is not allowed by the runner policy: ${disallowedCommand}`
+      errorMessage: `Validation command is not allowed by the runner policy: ${failedCommand}`
     };
   }
 
@@ -108,25 +121,62 @@ export async function runDevelopmentTaskValidation(input: {
 
   try {
     const execRunner = input.execRunner ?? execStreaming;
-    for (const command of input.commands) {
+    if (input.sandbox?.provider === "sandbank_boxlite") {
+      const result = await (input.sandbankBoxLiteCommandsRunner ?? runSandbankBoxLiteCommands)({
+        workspace: input.workspace,
+        sandbox: input.sandbox,
+        commands: input.commands.map((command, index) => ({
+          command: "sh",
+          args: ["-lc", command],
+          label: validationCommandLabel(index),
+          onLog: (line) => {
+            writeLogLine(logStream, command, line);
+            input.onLog(line);
+          }
+        })),
+        onLog: input.onLog
+      });
+
+      if (result.exitCode !== 0) {
+        const failedCommand = result.failedCommand ?? validationCommandLabel(0);
+        return {
+          status: "failed",
+          commands: input.commands,
+          failedCommand,
+          exitCode: result.exitCode,
+          logPath,
+          errorMessage: `Validation command failed with exit code ${result.exitCode}: ${failedCommand}`
+        };
+      }
+
+      return {
+        status: "ok",
+        commands: input.commands,
+        logPath
+      };
+    }
+
+    for (const [index, command] of input.commands.entries()) {
+      const failedCommand = validationCommandLabel(index);
       const onLog: OnLog = (line) => {
         writeLogLine(logStream, command, line);
         input.onLog(line);
       };
-      const execution = input.sandbox
-        ? buildHostDockerCommandExecution({
-            workspace: input.workspace,
-            sandbox: input.sandbox,
-            command: "sh",
-            args: ["-lc", command]
-          })
-        : {
-            command: "sh",
-            args: ["-lc", command],
-            cwd: input.workspace.repoPath,
-            env: undefined,
-            options: undefined
-          };
+      const execution =
+        input.sandbox?.provider === "host_docker"
+          ? buildHostDockerCommandExecution({
+              workspace: input.workspace,
+              sandbox: input.sandbox,
+              command: "sh",
+              args: ["-lc", command]
+            })
+          : {
+              command: "sh",
+              args: ["-lc", command],
+              cwd: input.workspace.repoPath,
+              env: undefined,
+              options: undefined
+            };
       const result = execution.options
         ? await execRunner(
             execution.command,
@@ -138,10 +188,10 @@ export async function runDevelopmentTaskValidation(input: {
           )
         : await execRunner(execution.command, execution.args, execution.cwd, onLog);
       const shouldCleanupSandbox =
-        input.sandbox?.retainOnFailure === true
+        input.sandbox?.provider === "host_docker" && input.sandbox.retainOnFailure === true
           ? result.exitCode === 0 && !result.signal
-          : Boolean(input.sandbox);
-      if (input.sandbox && shouldCleanupSandbox) {
+          : input.sandbox?.provider === "host_docker";
+      if (input.sandbox?.provider === "host_docker" && shouldCleanupSandbox) {
         const cleanup = buildHostDockerCleanupExecution(input.sandbox.containerName);
         await execRunner(cleanup.command, cleanup.args, cleanup.cwd, onLog).catch(() => undefined);
       }
@@ -149,12 +199,12 @@ export async function runDevelopmentTaskValidation(input: {
         return {
           status: "failed",
           commands: input.commands,
-          failedCommand: command,
+          failedCommand,
           exitCode: result.exitCode,
           logPath,
           errorMessage: result.signal
-            ? `Validation command terminated by signal ${result.signal}: ${command}`
-            : `Validation command failed with exit code ${result.exitCode}: ${command}`
+            ? `Validation command terminated by signal ${result.signal}: ${failedCommand}`
+            : `Validation command failed with exit code ${result.exitCode}: ${failedCommand}`
         };
       }
     }

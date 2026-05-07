@@ -9,6 +9,9 @@ import type { execStreaming, OnLog } from "./docker-exec-shared";
 import { buildHostDockerSandboxFromRun } from "./development-task-host-docker";
 
 type ExecRunnerCall = Parameters<typeof execStreaming>;
+type SandbankBoxLiteRunnerInput = Parameters<
+  NonNullable<Parameters<typeof executeDevelopmentTaskCodex>[0]["sandbankBoxLiteRunner"]>
+>[0];
 
 async function executionFixture() {
   const root = path.join(tmpdir(), `daoflow-codex-exec-${Date.now()}`);
@@ -280,17 +283,45 @@ describe("executeDevelopmentTaskCodex", () => {
     expect(sandbox.retainOnFailure).toBe(true);
   });
 
-  it("builds a BoxLite-compatible sandbox profile on the host runner", () => {
-    const sandbox = buildHostDockerSandboxFromRun({
-      runId: "run_boxlite",
-      provider: "sandbank_boxlite",
-      metadata: { sandboxUser: "1001:1001" }
+  it("routes Sandbank BoxLite execution through the BoxLite runner", async () => {
+    const { plan, workspace } = await executionFixture();
+    const sandbankBoxLiteRunner = vi.fn((input: SandbankBoxLiteRunnerInput) => {
+      input.onLog({ stream: "stdout", message: "boxlite ok", timestamp: new Date(0) });
+      return Promise.resolve({ exitCode: 0, signal: null, failedCommand: undefined });
+    });
+    const execRunner = vi.fn();
+
+    const result = await executeDevelopmentTaskCodex({
+      plan,
+      workspace,
+      sandbox: {
+        provider: "sandbank_boxlite",
+        sandboxName: "daoflow-boxlite-devtask-run-exec",
+        image: "ubuntu:24.04",
+        cpuLimit: 2,
+        memoryLimitMb: 1024,
+        diskSizeGb: 20,
+        timeoutMinutes: 3,
+        retainOnFailure: false,
+        mode: "local",
+        apiTokenEnvKey: "BOXLITE_API_TOKEN",
+        clientIdEnvKey: "BOXLITE_CLIENT_ID",
+        clientSecretEnvKey: "BOXLITE_CLIENT_SECRET"
+      },
+      onLog: vi.fn(),
+      execRunner,
+      sandbankBoxLiteRunner
     });
 
-    expect(sandbox).toMatchObject({
-      provider: "sandbank_boxlite",
-      containerName: "daoflow-boxlite-devtask-run_boxlite",
-      user: "1001:1001"
-    });
+    expect(result.status).toBe("ok");
+    expect(execRunner).not.toHaveBeenCalled();
+    expect(sandbankBoxLiteRunner).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workspace,
+        command: "codex",
+        args: plan.args,
+        env: plan.env
+      })
+    );
   });
 });

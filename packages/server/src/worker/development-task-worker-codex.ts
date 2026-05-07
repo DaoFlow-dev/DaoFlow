@@ -23,6 +23,7 @@ import { queueDevelopmentTaskPreviewDeployments } from "./development-task-previ
 import { completeDevelopmentTaskHandoff } from "./development-task-worker-handoff";
 import type { DevelopmentTaskReviewTarget } from "./development-task-review-target";
 import { buildHostDockerSandboxFromRun } from "./development-task-host-docker";
+import { buildSandbankBoxLiteSandboxFromRun } from "./development-task-sandbank-boxlite";
 import { updateDevelopmentTaskFailedStatusComment } from "./development-task-worker-comments";
 
 let codexExecution = executeDevelopmentTaskCodex;
@@ -40,23 +41,30 @@ export async function runClaimedTaskCodex(input: {
   metadata: Record<string, unknown>;
 }) {
   const sandbox =
-    input.run.sandboxProvider === "host_docker" || input.run.sandboxProvider === "sandbank_boxlite"
+    input.run.sandboxProvider === "host_docker"
       ? buildHostDockerSandboxFromRun({
           runId: input.run.id,
-          provider: input.run.sandboxProvider,
+          provider: "host_docker",
           metadata: input.run.metadata
         })
-      : undefined;
+      : input.run.sandboxProvider === "sandbank_boxlite"
+        ? buildSandbankBoxLiteSandboxFromRun({
+            runId: input.run.id,
+            metadata: input.run.metadata
+          })
+        : undefined;
   const sandboxMetadata = sandbox
     ? {
         sandboxExecution: {
           provider: sandbox.provider,
-          containerName: sandbox.containerName,
+          sandboxName:
+            sandbox.provider === "host_docker" ? sandbox.containerName : sandbox.sandboxName,
           image: sandbox.image,
           cpuLimit: sandbox.cpuLimit,
           memoryLimitMb: sandbox.memoryLimitMb,
           timeoutMinutes: sandbox.timeoutMinutes,
-          networkPolicy: sandbox.networkPolicy,
+          networkPolicy: sandbox.provider === "host_docker" ? sandbox.networkPolicy : undefined,
+          mode: sandbox.provider === "sandbank_boxlite" ? sandbox.mode : undefined,
           retainOnFailure: sandbox.retainOnFailure
         }
       }
@@ -86,7 +94,7 @@ export async function runClaimedTaskCodex(input: {
   await updateDevelopmentTaskRun({
     runId: input.run.id,
     status: "coding",
-    sandboxId: sandbox?.containerName,
+    sandboxId: sandbox?.provider === "host_docker" ? sandbox.containerName : sandbox?.sandboxName,
     metadata: {
       ...executionMetadata,
       codexExecution: {

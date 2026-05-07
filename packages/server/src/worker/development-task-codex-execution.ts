@@ -9,8 +9,14 @@ import {
   buildHostDockerCodexExecution,
   type HostDockerCodexSandbox
 } from "./development-task-host-docker";
+import {
+  runSandbankBoxLiteCommand,
+  type SandbankBoxLiteCodexSandbox
+} from "./development-task-sandbank-boxlite";
 
 type ExecRunner = typeof execStreaming;
+type SandbankBoxLiteRunner = typeof runSandbankBoxLiteCommand;
+type DevelopmentTaskCodexSandbox = HostDockerCodexSandbox | SandbankBoxLiteCodexSandbox;
 
 export interface DevelopmentTaskCodexExecutionResult {
   status: "ok" | "failed";
@@ -51,8 +57,9 @@ export async function executeDevelopmentTaskCodex(input: {
   plan: DevelopmentTaskCodexPlan;
   workspace: PreparedDevelopmentTaskCodexWorkspace;
   onLog: OnLog;
-  sandbox?: HostDockerCodexSandbox;
+  sandbox?: DevelopmentTaskCodexSandbox;
   execRunner?: ExecRunner;
+  sandbankBoxLiteRunner?: SandbankBoxLiteRunner;
 }): Promise<DevelopmentTaskCodexExecutionResult> {
   await mkdir(input.workspace.logsPath, { recursive: true });
   const logPath = joinWorkspacePath(input.workspace.logsPath, "codex-exec.jsonl");
@@ -66,35 +73,52 @@ export async function executeDevelopmentTaskCodex(input: {
 
   try {
     const execRunner = input.execRunner ?? execStreaming;
-    const execution = input.sandbox
-      ? buildHostDockerCodexExecution({
-          plan: input.plan,
-          workspace: input.workspace,
-          sandbox: input.sandbox
-        })
-      : {
-          command: input.plan.command,
-          args: input.plan.args,
-          cwd: input.workspace.repoPath,
-          env: input.plan.env,
-          options: undefined
-        };
-    const result = execution.options
-      ? await execRunner(
-          execution.command,
-          execution.args,
-          execution.cwd,
-          onLog,
-          execution.env,
-          execution.options
-        )
-      : await execRunner(execution.command, execution.args, execution.cwd, onLog, execution.env);
+    const execution =
+      input.sandbox?.provider === "host_docker"
+        ? buildHostDockerCodexExecution({
+            plan: input.plan,
+            workspace: input.workspace,
+            sandbox: input.sandbox
+          })
+        : {
+            command: input.plan.command,
+            args: input.plan.args,
+            cwd: input.workspace.repoPath,
+            env: input.plan.env,
+            options: undefined
+          };
+    const result =
+      input.sandbox?.provider === "sandbank_boxlite"
+        ? await (input.sandbankBoxLiteRunner ?? runSandbankBoxLiteCommand)({
+            workspace: input.workspace,
+            sandbox: input.sandbox,
+            command: input.plan.command,
+            args: input.plan.args,
+            env: input.plan.env,
+            onLog
+          })
+        : execution.options
+          ? await execRunner(
+              execution.command,
+              execution.args,
+              execution.cwd,
+              onLog,
+              execution.env,
+              execution.options
+            )
+          : await execRunner(
+              execution.command,
+              execution.args,
+              execution.cwd,
+              onLog,
+              execution.env
+            );
 
     const shouldCleanupSandbox =
-      input.sandbox?.retainOnFailure === true
+      input.sandbox?.provider === "host_docker" && input.sandbox.retainOnFailure === true
         ? result.exitCode === 0 && !result.signal
-        : Boolean(input.sandbox);
-    if (input.sandbox && shouldCleanupSandbox) {
+        : input.sandbox?.provider === "host_docker";
+    if (input.sandbox?.provider === "host_docker" && shouldCleanupSandbox) {
       const cleanup = buildHostDockerCleanupExecution(input.sandbox.containerName);
       await execRunner(cleanup.command, cleanup.args, cleanup.cwd, onLog).catch(() => undefined);
     }

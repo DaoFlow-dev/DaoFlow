@@ -11,6 +11,9 @@ import {
 } from "./development-task-validation";
 
 type ExecRunnerCall = Parameters<typeof execStreaming>;
+type SandbankBoxLiteCommandsRunnerInput = Parameters<
+  NonNullable<Parameters<typeof runDevelopmentTaskValidation>[0]["sandbankBoxLiteCommandsRunner"]>
+>[0];
 
 async function validationWorkspace() {
   const root = path.join(tmpdir(), `daoflow-validation-${Date.now()}`);
@@ -99,8 +102,8 @@ describe("development task validation", () => {
 
     expect(result).toMatchObject({
       status: "failed",
-      failedCommand: "bun run secrets:dump",
-      errorMessage: "Validation command is not allowed by the runner policy: bun run secrets:dump"
+      failedCommand: "validation command 2",
+      errorMessage: "Validation command is not allowed by the runner policy: validation command 2"
     });
     expect(execRunner).not.toHaveBeenCalled();
   });
@@ -119,8 +122,8 @@ describe("development task validation", () => {
 
     expect(result).toMatchObject({
       status: "failed",
-      failedCommand: "bun run lint",
-      errorMessage: "Validation command is not allowed by the runner policy: bun run lint"
+      failedCommand: "validation command 1",
+      errorMessage: "Validation command is not allowed by the runner policy: validation command 1"
     });
     expect(execRunner).not.toHaveBeenCalled();
   });
@@ -142,7 +145,7 @@ describe("development task validation", () => {
 
     expect(result).toMatchObject({
       status: "failed",
-      failedCommand: "bun run typecheck",
+      failedCommand: "validation command 2",
       exitCode: 2
     });
     expect(execRunner).toHaveBeenCalledTimes(2);
@@ -229,5 +232,56 @@ describe("development task validation", () => {
       "-f",
       "daoflow-devtask-validation-retained"
     ]);
+  });
+
+  it("routes validation commands through Sandbank BoxLite when selected", async () => {
+    const workspace = await validationWorkspace();
+    const execRunner = vi.fn();
+    const sandbankBoxLiteCommandsRunner = vi.fn((input: SandbankBoxLiteCommandsRunnerInput) => {
+      input.commands[0]?.onLog?.({
+        stream: "stdout",
+        message: "boxlite validation ok",
+        timestamp: new Date(0)
+      });
+      return Promise.resolve({ exitCode: 0, signal: null, failedCommand: undefined });
+    });
+
+    const result = await runDevelopmentTaskValidation({
+      workspace,
+      commands: ["bun run lint"],
+      allowedCommands: ["bun run lint"],
+      sandbox: {
+        provider: "sandbank_boxlite",
+        sandboxName: "daoflow-boxlite-devtask-validation",
+        image: "ubuntu:24.04",
+        cpuLimit: 1,
+        memoryLimitMb: 768,
+        diskSizeGb: 20,
+        timeoutMinutes: 2,
+        retainOnFailure: false,
+        mode: "local",
+        apiTokenEnvKey: "BOXLITE_API_TOKEN",
+        clientIdEnvKey: "BOXLITE_CLIENT_ID",
+        clientSecretEnvKey: "BOXLITE_CLIENT_SECRET"
+      },
+      onLog: vi.fn(),
+      execRunner,
+      sandbankBoxLiteCommandsRunner
+    });
+
+    expect(result.status).toBe("ok");
+    expect(execRunner).not.toHaveBeenCalled();
+    expect(sandbankBoxLiteCommandsRunner).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workspace,
+        commands: [
+          expect.objectContaining({
+            command: "sh",
+            args: ["-lc", "bun run lint"],
+            label: "validation command 1"
+          })
+        ]
+      })
+    );
   });
 });
