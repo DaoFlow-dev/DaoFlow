@@ -4,6 +4,7 @@ import { services } from "../db/schema/services";
 import type { WebhookDeliveryProviderType } from "../db/services/webhook-deliveries";
 import { triggerDeploy } from "../db/services/trigger-deploy";
 import { matchWebhookWatchedPaths, readWebhookAutoDeployConfig } from "../webhook-auto-deploy";
+import { triggerBranchPreviewWebhookDeploys } from "./webhooks-branch-previews";
 import { writeWebhookProjectEvent } from "./webhooks-delivery";
 import type { WebhookDeployFailure, WebhookIgnoredTarget, WebhookTarget } from "./webhooks-types";
 
@@ -62,6 +63,7 @@ export async function processWebhookPushTargets(input: {
   branch: string;
   commitSha: string;
   changedPaths: string[];
+  deleted?: boolean;
   requestedByEmail: string;
   matchingTargets: WebhookTarget[];
   deliveryKey: string;
@@ -70,9 +72,26 @@ export async function processWebhookPushTargets(input: {
   const failedTargets: WebhookDeployFailure[] = [];
   const ignoredTargets: WebhookIgnoredTarget[] = [];
 
-  for (const { project } of input.matchingTargets) {
+  for (const { project, provider, installation } of input.matchingTargets) {
     const targetBranch = project.autoDeployBranch || project.defaultBranch || "main";
     if (input.branch !== targetBranch) {
+      const previewResult = await triggerBranchPreviewWebhookDeploys({
+        providerType: input.providerType,
+        repoFullName: input.repoFullName,
+        projectTarget: { project, provider, installation },
+        branch: input.branch,
+        action: input.deleted === true ? "destroy" : "deploy",
+        commitSha: input.commitSha,
+        requestedByEmail: input.requestedByEmail,
+        deliveryKey: input.deliveryKey
+      });
+
+      if (previewResult.handled) {
+        deployments.push(...previewResult.deployments);
+        failedTargets.push(...previewResult.failures);
+        continue;
+      }
+
       const ignoredTarget: WebhookIgnoredTarget = {
         projectId: project.id,
         projectName: project.name,

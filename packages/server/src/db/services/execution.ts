@@ -8,6 +8,7 @@ import type { AppRole } from "@daoflow/shared";
 import { asRecord, readString } from "./json-helpers";
 import { buildDeployNotification } from "../../worker/temporal/activities/notification-builders";
 import { dispatchNotification } from "../../worker/temporal/activities/notification-activities";
+import { syncPreviewEnvironmentDeploymentStatus } from "./preview-environments";
 
 export type ExecutionJobStatus = "pending" | "dispatched" | "completed" | "failed";
 
@@ -128,6 +129,15 @@ async function mutateDeploymentStatus(
       updatedAt: now
     })
     .where(eq(deployments.id, jobId));
+
+  const [updatedDeploymentForPreview] = await db
+    .select()
+    .from(deployments)
+    .where(eq(deployments.id, jobId))
+    .limit(1);
+  if (updatedDeploymentForPreview) {
+    await syncPreviewEnvironmentDeploymentStatus(updatedDeploymentForPreview);
+  }
 
   await db.insert(auditEntries).values({
     actorType: "user",

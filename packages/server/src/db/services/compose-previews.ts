@@ -12,6 +12,7 @@ import {
   readComposePreviewConfigFromConfig,
   readComposePreviewMetadata
 } from "../../compose-preview";
+import { loadDurableComposePreviewHistoryForService } from "./preview-environments";
 import { resolveServiceForUser } from "./scoped-services";
 
 type ComposePreviewHistoryService = {
@@ -38,10 +39,24 @@ export interface ComposePreviewHistoryRecord {
   lastRequestedAt: string;
   lastFinishedAt: string | null;
   isActive: boolean;
-  latestDeployment: typeof deployments.$inferSelect;
+  status?: string;
+  cleanupStatus?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  lastSeenAt?: string;
+  cleanupRequestedAt?: string | null;
+  cleanupCompletedAt?: string | null;
+  latestDeployment: typeof deployments.$inferSelect | null;
 }
 
 async function loadComposePreviewHistoryForService(service: ComposePreviewHistoryService) {
+  const durableHistory = await loadDurableComposePreviewHistoryForService(
+    service as typeof services.$inferSelect
+  );
+  if (durableHistory.previews.length > 0) {
+    return durableHistory;
+  }
+
   const rows = await db
     .select()
     .from(deployments)

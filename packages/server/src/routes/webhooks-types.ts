@@ -11,6 +11,7 @@ export interface GitHubPushEvent {
   action?: string;
   ref?: string;
   after?: string;
+  deleted?: boolean;
   number?: number;
   repository?: { full_name?: string };
   sender?: { login?: string };

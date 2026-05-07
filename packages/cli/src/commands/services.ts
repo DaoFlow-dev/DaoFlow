@@ -117,6 +117,57 @@ export function servicesCommand(): Command {
   services.addCommand(serviceDomainCommand());
 
   services
+    .command("previews")
+    .requiredOption("--service <id>", "Service ID")
+    .option("--json", "Output as JSON")
+    .description("List shadow preview environments for a service")
+    .action(async (opts: { service: string; json?: boolean }, command: Command) => {
+      const isJson = resolveCommandJsonOption(command, opts.json);
+      await withResolvedCommandRequestOptions(command, async () => {
+        try {
+          const serviceId = normalizeCliInput(opts.service, "Service ID");
+          const trpc = createClient();
+          const result = await trpc.composePreviews.query({ serviceId });
+
+          if (isJson) {
+            console.log(JSON.stringify({ ok: true, data: result }));
+            return;
+          }
+
+          console.log(chalk.bold(`\n  Preview environments for ${result.service.name}\n`));
+          if (result.previews.length === 0) {
+            console.log(chalk.dim("  No preview environments found.\n"));
+            return;
+          }
+
+          const header = `  ${"PREVIEW".padEnd(18)} ${"STATUS".padEnd(14)} ${"TARGET".padEnd(16)} ${"BRANCH".padEnd(26)} ${"STACK".padEnd(24)} DOMAIN`;
+          console.log(chalk.dim(header));
+          console.log(chalk.dim("  " + "─".repeat(120)));
+          for (const preview of result.previews) {
+            const status = preview.status ?? (preview.isActive ? "active" : "history");
+            const target =
+              preview.target === "pull-request"
+                ? `PR #${preview.pullRequestNumber ?? "?"}`
+                : "branch";
+            console.log(
+              `  ${preview.key.padEnd(18)} ${status.padEnd(14)} ${target.padEnd(16)} ${preview.branch.padEnd(26)} ${preview.stackName.padEnd(24)} ${preview.primaryDomain ?? "—"}`
+            );
+          }
+          console.log();
+        } catch (error) {
+          if (isJson) {
+            console.log(
+              JSON.stringify({ ok: false, error: getErrorMessage(error), code: "API_ERROR" })
+            );
+          } else {
+            console.error(chalk.red(`✗ ${getErrorMessage(error)}`));
+          }
+          process.exit(1);
+        }
+      });
+    });
+
+  services
     .command("list")
     .alias("ls")
     .option("--json", "Output as JSON")

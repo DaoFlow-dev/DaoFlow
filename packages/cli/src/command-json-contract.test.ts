@@ -823,6 +823,102 @@ describe("CLI JSON contract", () => {
     });
   });
 
+  test("services previews lists shadow environments in the standard success envelope", async () => {
+    const originalFetch = globalThis.fetch;
+
+    const result = await withTempHome(async () => {
+      process.env.DAOFLOW_URL = "https://daoflow.test";
+      process.env.DAOFLOW_TOKEN = "dfl_test_token";
+
+      globalThis.fetch = ((input: RequestInfo | URL) => {
+        const url =
+          typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+
+        expect(url).toContain("/trpc/composePreviews");
+        expect(url).toContain("svc_api");
+
+        return new Response(
+          JSON.stringify({
+            result: {
+              data: {
+                service: {
+                  id: "svc_api",
+                  name: "api",
+                  environmentId: "env_prod",
+                  projectId: "proj_123"
+                },
+                previews: [
+                  {
+                    id: "penv_1",
+                    key: "pr-42",
+                    target: "pull-request",
+                    branch: "feature/login",
+                    pullRequestNumber: 42,
+                    envBranch: "preview/pr-42",
+                    stackName: "foundation-pr-42",
+                    primaryDomain: "preview-42.example.test",
+                    status: "active",
+                    cleanupStatus: "not_requested",
+                    latestDeploymentId: "dep_123",
+                    latestAction: "deploy",
+                    latestStatus: "healthy",
+                    latestStatusLabel: "Succeeded",
+                    latestStatusTone: "healthy",
+                    lastRequestedAt: "2026-03-20T00:02:00.000Z",
+                    lastFinishedAt: "2026-03-20T00:05:00.000Z",
+                    isActive: true
+                  }
+                ]
+              }
+            }
+          }),
+          {
+            status: 200,
+            headers: { "content-type": "application/json" }
+          }
+        );
+      }) as unknown as typeof fetch;
+
+      try {
+        return await captureCommandExecution(async () => {
+          await runCli([
+            "node",
+            "daoflow",
+            "services",
+            "previews",
+            "--service",
+            "svc_api",
+            "--json"
+          ]);
+        });
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
+    });
+
+    expect(result.exitCode).toBeNull();
+    expect(result.errors).toEqual([]);
+    expect(JSON.parse(result.logs[0])).toEqual({
+      ok: true,
+      data: {
+        service: {
+          id: "svc_api",
+          name: "api",
+          environmentId: "env_prod",
+          projectId: "proj_123"
+        },
+        previews: [
+          expect.objectContaining({
+            id: "penv_1",
+            key: "pr-42",
+            status: "active",
+            cleanupStatus: "not_requested"
+          })
+        ]
+      }
+    });
+  });
+
   test("backup restore in JSON mode still requires --yes", async () => {
     const program = new Command().name("daoflow");
     program.addCommand(backupCommand());

@@ -70,33 +70,45 @@ function registerEnvListCommand(cmd: Command): void {
     .command("list")
     .description("List environment variables")
     .option("--env-id <id>", "Environment ID")
+    .option("--preview-env <id>", "Resolve variables against a preview environment ID")
     .option("--json", "Output as JSON")
-    .action(async (opts: { envId?: string; json?: boolean }, command: Command) => {
-      await runCommandAction({
-        command,
-        json: opts.json,
-        action: async (ctx) => {
-          const trpc = createClient();
-          const environmentId = normalizeOptionalCliInput(opts.envId, "Environment ID");
-          const data = await trpc.environmentVariables.query({ environmentId });
+    .action(
+      async (opts: { envId?: string; previewEnv?: string; json?: boolean }, command: Command) => {
+        await runCommandAction({
+          command,
+          json: opts.json,
+          action: async (ctx) => {
+            const trpc = createClient();
+            const environmentId = normalizeOptionalCliInput(opts.envId, "Environment ID");
+            const previewEnvironmentId = normalizeOptionalCliInput(
+              opts.previewEnv,
+              "Preview environment ID"
+            );
+            const data = await trpc.environmentVariables.query({
+              environmentId,
+              previewEnvironmentId
+            });
 
-          return ctx.success(data, {
-            human: () => {
-              console.log(
-                chalk.bold(`\n  Environment Variables (${data.summary.totalVariables})\n`)
-              );
-              for (const v of data.variables) {
-                const maskedSecret = v.isSecret && v.displayValue === "[secret]";
-                const value = maskedSecret ? chalk.red("***secret***") : chalk.dim(v.displayValue);
-                const cat = chalk.dim(`[${v.category}]`);
-                console.log(`  ${chalk.cyan(v.key)} = ${value}  ${cat}`);
+            return ctx.success(data, {
+              human: () => {
+                console.log(
+                  chalk.bold(`\n  Environment Variables (${data.summary.totalVariables})\n`)
+                );
+                for (const v of data.variables) {
+                  const maskedSecret = v.isSecret && v.displayValue === "[secret]";
+                  const value = maskedSecret
+                    ? chalk.red("***secret***")
+                    : chalk.dim(v.displayValue);
+                  const cat = chalk.dim(`[${v.category}]`);
+                  console.log(`  ${chalk.cyan(v.key)} = ${value}  ${cat}`);
+                }
+                console.log();
               }
-              console.log();
-            }
-          });
-        }
-      });
-    });
+            });
+          }
+        });
+      }
+    );
 }
 
 function registerEnvResolveCommand(cmd: Command): void {

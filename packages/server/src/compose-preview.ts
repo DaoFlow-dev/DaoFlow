@@ -213,6 +213,12 @@ export function previewModeAllowsRequest(
   return mode === "any" || mode === request.target;
 }
 
+export function deriveComposePreviewKey(request: ComposePreviewRequest): string {
+  return request.target === "pull-request"
+    ? `pr-${request.pullRequestNumber}`
+    : `branch-${slugify(request.branch) || "preview"}`;
+}
+
 export function deriveComposePreviewMetadata(input: {
   config: ComposePreviewConfig;
   request: ComposePreviewRequest;
@@ -221,10 +227,7 @@ export function deriveComposePreviewMetadata(input: {
   serviceName: string;
   baseStackName: string;
 }): ComposePreviewMetadata {
-  const key =
-    input.request.target === "pull-request"
-      ? `pr-${input.request.pullRequestNumber}`
-      : `branch-${slugify(input.request.branch) || "preview"}`;
+  const key = deriveComposePreviewKey(input.request);
   const envBranch =
     input.request.target === "pull-request"
       ? `preview/pr-${input.request.pullRequestNumber}`

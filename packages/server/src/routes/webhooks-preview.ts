@@ -154,6 +154,7 @@ export async function triggerPreviewWebhookDeploys(input: {
         serviceId: service.id,
         commitSha: input.commitSha || undefined,
         preview: input.preview,
+        previewProviderType: input.providerType,
         requestedByUserId: null,
         requestedByEmail: input.requestedByEmail,
         requestedByRole: "agent",

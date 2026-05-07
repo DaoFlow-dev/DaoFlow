@@ -44,12 +44,14 @@ import { readServiceRuntimeConfigFromConfig } from "../../service-runtime-config
 import { buildManagedTraefikRoutingPlan } from "../../managed-traefik";
 import { readServiceDomainConfigFromConfig } from "../../service-domain-config";
 import { resolveServiceForUser } from "./scoped-services";
+import { recordPreviewEnvironmentDeployment } from "./preview-environments";
 
 export interface TriggerDeployInput {
   serviceId: string;
   commitSha?: string;
   imageTag?: string;
   preview?: ComposePreviewRequestInput;
+  previewProviderType?: string | null;
   requestedByUserId?: string | null;
   requestedByEmail?: string | null;
   requestedByRole?: AppRole | null;
@@ -241,6 +243,7 @@ export async function triggerDeploy(input: TriggerDeployInput) {
     : {};
   let envVarsEncrypted: string | null = null;
   let replayedComposeDeployment: typeof deployments.$inferSelect | null = null;
+  let previewMetadata: ReturnType<typeof deriveComposePreviewMetadata> | null = null;
 
   if (svc.sourceType === "compose") {
     const previewRequest = input.preview ? normalizeComposePreviewRequest(input.preview) : null;
@@ -276,7 +279,6 @@ export async function triggerDeploy(input: TriggerDeployInput) {
         })
       );
 
-      let previewMetadata = null;
       if (previewRequest && previewConfig) {
         previewMetadata = deriveComposePreviewMetadata({
           config: previewConfig,
@@ -415,6 +417,23 @@ export async function triggerDeploy(input: TriggerDeployInput) {
 
   const deployment = await createDeploymentRecord(deployInput);
   if (!deployment) return { status: "create_failed" as const };
+  if (previewMetadata) {
+    const [rawDeployment] = await db
+      .select()
+      .from(deployments)
+      .where(eq(deployments.id, deployment.id))
+      .limit(1);
+    if (!rawDeployment) return { status: "create_failed" as const };
+    await recordPreviewEnvironmentDeployment({
+      service: svc,
+      teamId: project.teamId,
+      metadata: previewMetadata,
+      deployment: rawDeployment,
+      providerType:
+        input.previewProviderType ?? (input.trigger === "webhook" ? "webhook" : "manual"),
+      configInventory: configSnapshot.composeEnv
+    });
+  }
   await dispatchDeploymentExecution(deployment);
 
   return { status: "ok" as const, deployment };

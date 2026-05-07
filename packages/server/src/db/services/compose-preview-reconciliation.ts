@@ -10,6 +10,7 @@ import {
   loadComposePreviewHistoryForServiceId,
   type ComposePreviewHistoryRecord
 } from "./compose-previews";
+import { markPreviewEnvironmentsStale } from "./preview-environments";
 
 type DomainStatus = "matched" | "missing" | "inactive" | "orphaned" | "cleared" | "unmanaged";
 type ReconciliationStatus = "in-sync" | "drifted" | "stale" | "unmanaged";
@@ -223,6 +224,16 @@ export async function reconcileComposePreviewState(input: {
   const failures: { previewKey: string; message: string }[] = [];
 
   if (!dryRun) {
+    await markPreviewEnvironmentsStale({
+      serviceId: report.service.id,
+      previewKeys: gcCandidates.map((preview) => preview.key),
+      staleAtByKey: new Map(
+        gcCandidates
+          .filter((preview) => preview.staleAt)
+          .map((preview) => [preview.key, preview.staleAt as string])
+      )
+    });
+
     for (const preview of gcCandidates) {
       const result = await triggerDeploy({
         serviceId: report.service.id,

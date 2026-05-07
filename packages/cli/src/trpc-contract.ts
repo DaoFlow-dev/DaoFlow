@@ -715,6 +715,13 @@ export interface ComposePreviewsOutput {
     envBranch: string;
     stackName: string;
     primaryDomain: string | null;
+    status?: string;
+    cleanupStatus?: string;
+    createdAt?: string;
+    updatedAt?: string;
+    lastSeenAt?: string;
+    cleanupRequestedAt?: string | null;
+    cleanupCompletedAt?: string | null;
     latestDeploymentId: string;
     latestAction: "deploy" | "destroy";
     latestStatus: string;
@@ -1294,7 +1301,13 @@ export interface DaoFlowTRPC {
   queueBackupRestore: MutationProcedure<{ backupRunId: string }, QueueRestoreOutput>;
   environmentVariables: QueryProcedure<
     EnvironmentVariablesOutput,
-    { environmentId?: string; limit?: number }
+    {
+      environmentId?: string;
+      serviceId?: string;
+      branch?: string;
+      previewEnvironmentId?: string;
+      limit?: number;
+    }
   >;
   upsertEnvironmentVariable: MutationProcedure<
     {

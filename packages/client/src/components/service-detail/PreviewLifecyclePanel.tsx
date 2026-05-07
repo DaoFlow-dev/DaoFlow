@@ -31,6 +31,13 @@ type PreviewReconciliationRecord = {
   envBranch: string;
   stackName: string;
   primaryDomain: string | null;
+  status?: string;
+  cleanupStatus?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  lastSeenAt?: string;
+  cleanupRequestedAt?: string | null;
+  cleanupCompletedAt?: string | null;
   latestDeploymentId: string;
   latestAction: "deploy" | "destroy";
   latestStatus: string;
@@ -85,6 +92,21 @@ function previewModeLabel(mode: PreviewLifecycleConfig["mode"]) {
 }
 
 function previewStateLabel(preview: PreviewReconciliationRecord) {
+  if (preview.status === "cleaned_up") {
+    return "Cleaned up";
+  }
+  if (preview.status === "cleaning") {
+    return "Cleaning";
+  }
+  if (preview.status === "failed") {
+    return "Failed";
+  }
+  if (preview.status === "stale") {
+    return "Stale";
+  }
+  if (preview.status === "active") {
+    return "Live";
+  }
   if (preview.gcEligible) {
     return "Cleanup due";
   }
@@ -373,6 +395,7 @@ export default function PreviewLifecyclePanel({
                       {preview.lastFinishedAt
                         ? ` · last finished ${formatRelative(preview.lastFinishedAt)}`
                         : ""}
+                      {preview.createdAt ? ` · tracked ${formatRelative(preview.createdAt)}` : ""}
                     </p>
                   </div>
                   {canManagePreviews && preview.latestAction === "deploy" ? (
@@ -410,6 +433,16 @@ export default function PreviewLifecyclePanel({
                   <div className="rounded-lg bg-muted/40 p-3 text-sm">
                     <p className="font-medium">Cleanup</p>
                     <p className="mt-2 text-muted-foreground">{previewReason(preview)}</p>
+                    {preview.cleanupStatus ? (
+                      <p className="mt-2 text-muted-foreground">
+                        Cleanup state: {preview.cleanupStatus}
+                        {preview.cleanupCompletedAt
+                          ? ` · completed ${formatRelative(preview.cleanupCompletedAt)}`
+                          : preview.cleanupRequestedAt
+                            ? ` · requested ${formatRelative(preview.cleanupRequestedAt)}`
+                            : ""}
+                      </p>
+                    ) : null}
                     {preview.staleAt ? (
                       <p className="mt-2 text-muted-foreground">
                         Cleanup eligibility checkpoint: {new Date(preview.staleAt).toLocaleString()}

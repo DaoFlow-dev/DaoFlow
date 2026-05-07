@@ -6,6 +6,7 @@ import { encrypt } from "./db/crypto";
 import { events } from "./db/schema/audit";
 import { deployments } from "./db/schema/deployments";
 import { gitInstallations, gitProviders } from "./db/schema/git-providers";
+import { previewEnvironments } from "./db/schema/preview-environments";
 import { projects } from "./db/schema/projects";
 import { tunnelRoutes, tunnels } from "./db/schema/tunnels";
 import { createEnvironment, createProject } from "./db/services/projects";
@@ -667,6 +668,19 @@ describe("compose preview reconciliation", () => {
     expect(asRecord(cleanupRow?.configSnapshot)).toMatchObject({
       composeOperation: "down"
     });
+
+    const shadowRows = await db
+      .select()
+      .from(previewEnvironments)
+      .where(eq(previewEnvironments.serviceId, serviceResult.service.id));
+    expect(shadowRows).toEqual([
+      expect.objectContaining({
+        previewKey: "pr-51",
+        status: "cleaning",
+        cleanupStatus: "requested",
+        cleanupDeploymentId
+      })
+    ]);
 
     const reconciliationEvents = await db
       .select()

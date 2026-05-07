@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { db } from "./db/connection";
 import { deployments } from "./db/schema/deployments";
 import { approvalRequests, auditEntries } from "./db/schema/audit";
+import { previewEnvironments } from "./db/schema/preview-environments";
 import { backupPolicies, backupRestores, backupRuns, volumes } from "./db/schema/storage";
 import { notificationLogs } from "./db/schema/notifications";
 import { servers } from "./db/schema/servers";
@@ -1122,6 +1123,83 @@ describe("appRouter", () => {
       displayValue: "override",
       scope: "service",
       originSummary: "Service override"
+    });
+  });
+
+  it("resolves environment variables against a preview environment record", async () => {
+    const serviceResult = await createService({
+      name: `envvar-preview-service-${Date.now()}`,
+      environmentId: "env_daoflow_staging",
+      projectId: "proj_daoflow_control_plane",
+      sourceType: "compose",
+      targetServerId: "srv_foundation_1",
+      requestedByUserId: "user_foundation_owner",
+      requestedByEmail: "owner@daoflow.local",
+      requestedByRole: "owner"
+    });
+    if (serviceResult.status !== "ok") {
+      throw new Error("Failed to create preview environment variable fixture.");
+    }
+
+    const key = `PREVIEW_SCOPE_${Date.now().toString(36).toUpperCase()}`;
+    await upsertEnvironmentVariable({
+      environmentId: "env_daoflow_staging",
+      key,
+      value: "shared",
+      isSecret: false,
+      category: "runtime",
+      updatedByUserId: "user_foundation_owner",
+      updatedByEmail: "owner@daoflow.local",
+      updatedByRole: "owner"
+    });
+    await upsertEnvironmentVariable({
+      environmentId: "env_daoflow_staging",
+      serviceId: serviceResult.service.id,
+      scope: "service",
+      key,
+      value: "preview-override",
+      isSecret: false,
+      category: "runtime",
+      branchPattern: "preview/pr-*",
+      updatedByUserId: "user_foundation_owner",
+      updatedByEmail: "owner@daoflow.local",
+      updatedByRole: "owner"
+    });
+
+    const previewEnvironmentId = `penv_router_${Date.now()}`.slice(0, 32);
+    await db.insert(previewEnvironments).values({
+      id: previewEnvironmentId,
+      teamId: "team_foundation",
+      projectId: "proj_daoflow_control_plane",
+      environmentId: "env_daoflow_staging",
+      serviceId: serviceResult.service.id,
+      previewKey: "pr-77",
+      target: "pull-request",
+      branch: "feature/env-preview",
+      pullRequestNumber: 77,
+      envBranch: "preview/pr-77",
+      stackName: "daoflow-pr-77",
+      status: "active",
+      updatedAt: new Date()
+    });
+
+    const caller = appRouter.createCaller({
+      requestId: "test-preview-envvar-route",
+      session: makeSession("owner")
+    });
+    const response = await caller.environmentVariables({
+      previewEnvironmentId
+    });
+
+    expect(response.previewEnvironment).toMatchObject({
+      id: previewEnvironmentId,
+      previewKey: "pr-77",
+      envBranch: "preview/pr-77"
+    });
+    expect(response.resolvedVariables.find((variable) => variable.key === key)).toMatchObject({
+      displayValue: "preview-override",
+      scope: "service",
+      originSummary: "Service preview override"
     });
   });
 

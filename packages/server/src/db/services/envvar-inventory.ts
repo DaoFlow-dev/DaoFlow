@@ -1,6 +1,7 @@
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "../connection";
 import { decrypt } from "../crypto";
+import { previewEnvironments } from "../schema/preview-environments";
 import { environmentVariables, environments, projects } from "../schema/projects";
 import { serviceVariables, services } from "../schema/services";
 import { users } from "../schema/users";
@@ -150,20 +151,36 @@ export async function listEnvironmentVariableInventory(input: {
   environmentId?: string;
   serviceId?: string;
   branch?: string;
+  previewEnvironmentId?: string;
   limit?: number;
   canRevealSecrets?: boolean;
 }) {
   const limit = input.limit ?? 50;
+  const [previewEnvironment] = input.previewEnvironmentId
+    ? await db
+        .select()
+        .from(previewEnvironments)
+        .where(
+          and(
+            eq(previewEnvironments.id, input.previewEnvironmentId),
+            eq(previewEnvironments.teamId, input.teamId)
+          )
+        )
+        .limit(1)
+    : [];
+  const environmentId = previewEnvironment?.environmentId ?? input.environmentId;
+  const serviceId = previewEnvironment?.serviceId ?? input.serviceId;
+  const branch = previewEnvironment?.envBranch ?? input.branch;
   const [environmentRows, serviceRows] = await Promise.all([
     loadEnvironmentScopedVariables({
       teamId: input.teamId,
-      environmentId: input.environmentId,
+      environmentId,
       limit
     }),
     loadServiceScopedVariables({
       teamId: input.teamId,
-      environmentId: input.environmentId,
-      serviceId: input.serviceId,
+      environmentId,
+      serviceId,
       limit
     })
   ]);
@@ -171,10 +188,10 @@ export async function listEnvironmentVariableInventory(input: {
   const records = sortLayeredEnvironmentVariables([...environmentRows, ...serviceRows]);
   const canRevealSecrets = input.canRevealSecrets ?? false;
   const resolvedVariables =
-    input.environmentId && records.length > 0
+    environmentId && records.length > 0
       ? resolveEffectiveEnvironmentVariables({
           records,
-          branch: input.branch,
+          branch,
           canRevealSecrets
         })
       : [];
@@ -192,6 +209,15 @@ export async function listEnvironmentVariableInventory(input: {
     variables: records.map((record) =>
       toEnvironmentVariableInventoryRecord(record, canRevealSecrets)
     ),
-    resolvedVariables
+    resolvedVariables,
+    previewEnvironment: previewEnvironment
+      ? {
+          id: previewEnvironment.id,
+          previewKey: previewEnvironment.previewKey,
+          branch: previewEnvironment.branch,
+          envBranch: previewEnvironment.envBranch,
+          status: previewEnvironment.status
+        }
+      : null
   };
 }

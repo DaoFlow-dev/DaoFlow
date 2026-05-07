@@ -667,6 +667,7 @@ export const cliCommandMeta: Record<string, CliCommandMeta> = {
   "approvals reject": { lane: "command", requiredScopes: ["approvals:decide"], mutating: true },
   services: { lane: "read", requiredScopes: ["service:read"], mutating: false },
   "services list": { lane: "read", requiredScopes: ["service:read"], mutating: false },
+  "services previews": { lane: "read", requiredScopes: ["deploy:read"], mutating: false },
   "services create": { lane: "command", requiredScopes: ["service:update"], mutating: true },
   "services domain": { lane: "command", requiredScopes: ["service:update"], mutating: true },
   "services domain routing": {

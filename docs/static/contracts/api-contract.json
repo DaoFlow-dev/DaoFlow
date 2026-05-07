@@ -2662,6 +2662,10 @@
             "minLength": 1,
             "maxLength": 255
           },
+          "previewEnvironmentId": {
+            "type": "string",
+            "minLength": 1
+          },
           "limit": {
             "type": "integer",
             "minimum": 1,

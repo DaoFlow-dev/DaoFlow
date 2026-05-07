@@ -1479,6 +1479,11 @@
           "required": false
         },
         {
+          "flags": "--preview-env <id>",
+          "description": "Resolve variables against a preview environment ID",
+          "required": false
+        },
+        {
           "flags": "--json",
           "description": "Output as JSON",
           "required": false
@@ -3439,6 +3444,32 @@
         {
           "flags": "--project <id>",
           "description": "Filter by project ID",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
+      "path": "services previews",
+      "summary": "List shadow preview environments for a service",
+      "lane": "read",
+      "requiredScopes": ["deploy:read"],
+      "mutating": false,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--service <id>",
+          "description": "Service ID",
+          "required": true
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
           "required": false
         }
       ],

@@ -194,6 +194,7 @@ export async function handleGitHubWebhook(c: Context) {
       branch,
       commitSha,
       changedPaths,
+      deleted: payload.deleted === true,
       requestedByEmail,
       matchingTargets: verifiedTargets,
       deliveryKey: deliveryClaim.deliveryKey

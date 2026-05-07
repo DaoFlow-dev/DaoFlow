@@ -12,6 +12,7 @@ import { createService } from "./db/services/services";
 import { events } from "./db/schema/audit";
 import { deployments } from "./db/schema/deployments";
 import { gitInstallations, gitProviders } from "./db/schema/git-providers";
+import { previewEnvironments } from "./db/schema/preview-environments";
 import { projects } from "./db/schema/projects";
 import { webhookDeliveries } from "./db/schema/webhook-deliveries";
 import { resetTestDatabaseWithControlPlane } from "./test-db";
@@ -54,13 +55,15 @@ function mockGitHubSourceFetch(input: {
       return Promise.resolve(new Response(JSON.stringify({ id: 1 }), { status: 200 }));
     }
 
-    if (url.endsWith(`/repos/${input.repoFullName}/branches/${encodeURIComponent(branch)}`)) {
+    if (url.includes(`/repos/${input.repoFullName}/branches/`)) {
       return Promise.resolve(new Response(JSON.stringify({ name: branch }), { status: 200 }));
     }
 
     if (
       url.includes(
-        `/repos/${input.repoFullName}/contents/${encodedComposePath}?ref=${encodeURIComponent(branch)}`
+        `/repos/${input.repoFullName}/contents/${encodedComposePath}?ref=${
+          input.branch ? encodeURIComponent(branch) : ""
+        }`
       )
     ) {
       return Promise.resolve(new Response(JSON.stringify({ path: composePath }), { status: 200 }));
@@ -328,6 +331,21 @@ describe("preview lifecycle webhooks", () => {
       composeEnvBranch: "preview/pr-42"
     });
 
+    const shadowRows = await db
+      .select()
+      .from(previewEnvironments)
+      .where(eq(previewEnvironments.serviceId, fixture.serviceId));
+    expect(shadowRows).toEqual([
+      expect.objectContaining({
+        previewKey: "pr-42",
+        target: "pull-request",
+        branch: "feature/login",
+        status: "deploying",
+        cleanupStatus: "not_requested",
+        lastDeploymentId: deployment.id
+      })
+    ]);
+
     const deliveryRows = await db.select().from(webhookDeliveries);
     expect(deliveryRows).toEqual(
       expect.arrayContaining([
@@ -352,6 +370,57 @@ describe("preview lifecycle webhooks", () => {
         })
       ])
     );
+  });
+
+  it("queues GitHub branch preview deploys for non-auto-deploy branches", async () => {
+    const fixture = await createPreviewFixture({ providerType: "github", previewMode: "branch" });
+    const payload = JSON.stringify({
+      ref: "refs/heads/feature/shadow",
+      after: "1234567890abcdef1234567890abcdef12345678",
+      deleted: false,
+      repository: { full_name: fixture.repoFullName },
+      commits: [{ added: ["docker-compose.yml"], modified: [], removed: [] }],
+      sender: { login: "octocat" }
+    });
+    const signature =
+      "sha256=" + createHmac("sha256", fixture.webhookSecret).update(payload).digest("hex");
+
+    const response = await createApp().request("/api/webhooks/github", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-GitHub-Event": "push",
+        "X-GitHub-Delivery": "gh-branch-preview-1",
+        "X-Hub-Signature-256": signature
+      },
+      body: payload
+    });
+    const body = (await response.json()) as {
+      ok: boolean;
+      deployments: number;
+      ignoredTargets: number;
+      branch: string;
+    };
+
+    expect(response.status).toBe(200);
+    expect(body).toMatchObject({
+      ok: true,
+      deployments: 1,
+      ignoredTargets: 0,
+      branch: "feature/shadow"
+    });
+
+    const [shadow] = await db
+      .select()
+      .from(previewEnvironments)
+      .where(eq(previewEnvironments.serviceId, fixture.serviceId));
+    expect(shadow).toMatchObject({
+      previewKey: "branch-feature-shadow",
+      target: "branch",
+      branch: "feature/shadow",
+      envBranch: "preview/feature/shadow",
+      status: "deploying"
+    });
   });
 
   it("deduplicates repeated GitHub preview deliveries both by delivery id and by semantic preview state", async () => {

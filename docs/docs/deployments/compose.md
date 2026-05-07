@@ -125,12 +125,14 @@ For git-backed Compose deployments, DaoFlow also generates a redacted shell expo
 
 Preview-enabled compose services can also reconcile preview stacks directly from provider webhooks when the project has webhook auto-deploy enabled:
 
+- GitHub pushes to non-auto-deploy branches queue branch preview deploys for services that allow branch previews.
+- GitHub branch deletion pushes queue branch preview cleanup for the matching shadow environment.
 - GitHub pull request `opened`, `synchronize`, and `reopened` events queue preview deploys.
 - GitHub pull request `closed` events queue preview cleanup.
 - GitLab merge request `open`, `update`, and `reopen` events queue preview deploys.
 - GitLab merge request `merge` and `close` events queue preview cleanup.
 
-DaoFlow records the resulting preview deploy, destroy, dedupe, and ignore outcomes in deployment history plus the event timeline so operators can trace why a preview stack changed state.
+DaoFlow records each branch or pull-request preview as a durable shadow environment attached to the base service. The shadow environment stores the preview key, branch, PR number when present, env branch, stack name, primary domain, lifecycle status, cleanup state, and latest deployment pointer. Deployment history remains the audit log, but the UI, API, and CLI can list preview environments directly instead of reconstructing them from the latest deployment.
 
 ## Git Provider Setup
 
@@ -148,7 +150,9 @@ project from the setup wizard, the Projects page, or the CLI with:
 For GitHub App projects, install the app into the target account, select that installation during
 project creation, enable webhook auto-deploy when branch pushes should deploy automatically, and
 configure preview behavior on the Compose service after the project exists. GitHub pull request
-events then drive preview deploy and cleanup for preview-enabled services.
+events then drive preview deploy and cleanup for preview-enabled services. GitHub branch pushes that
+do not target the project's auto-deploy branch drive branch previews when the service preview mode is
+`branch` or `any`.
 
 For GitLab.com, register a GitLab provider with the GitLab OAuth app client ID, client secret, and
 webhook secret. The OAuth callback URL is:
@@ -178,8 +182,10 @@ On the service detail page, the Environment tab now shows preview lifecycle stat
 
 - Preview mode, managed domain template, and cleanup retention policy
 - Each tracked preview branch or pull request, including stack name and preview env branch
-- Whether the preview is still live, drifted, or already due for cleanup
+- Whether the preview is active, stale, failed, cleaning, or already cleaned up
 - Why DaoFlow is keeping the preview around and what event or action will remove it
 - Manual preview retirement plus dry-run or live cleanup execution when the operator has deploy permissions
+
+The CLI exposes the same records with `daoflow services previews --service <id> --json`. Environment variable inventory can also resolve directly against a shadow environment with `daoflow env list --preview-env <id> --json`, which applies branch-pattern variables to the preview env branch rather than relying on a caller-supplied branch string.
 
 That UI keeps preview-specific cleanup isolated from the base environment, so clearing a preview does not flatten or mutate the long-lived environment configuration.
