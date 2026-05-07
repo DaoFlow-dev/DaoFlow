@@ -15,7 +15,8 @@ const HELP = [
   "  daoflow server ops resources --server srv_123 --json",
   "  daoflow server ops cleanup --server srv_123 --dry-run --json",
   "  daoflow server ops cleanup --server srv_123 --yes",
-  "  daoflow server ops patch --server srv_123 --json"
+  "  daoflow server ops patch --server srv_123 --json",
+  "  daoflow server ops logs --operation op_123 --json"
 ].join("\n");
 
 export function serverOperationsCommand(): Command {
@@ -145,13 +146,46 @@ export function serverOperationsCommand(): Command {
       });
     });
 
+  ops
+    .command("logs")
+    .description("Show durable logs for a server operation")
+    .requiredOption("--operation <id>", "Server operation ID")
+    .option("--limit <n>", "Maximum log lines", "200")
+    .option("--json", "Output as JSON")
+    .action(
+      async (opts: { operation: string; limit: string; json?: boolean }, command: Command) => {
+        await runCommandAction({
+          command,
+          json: opts.json,
+          action: async (ctx) => {
+            const trpc = createClient();
+            const result = await trpc.serverOperationLogs.query({
+              operationId: normalizeCliInput(opts.operation, "Operation ID"),
+              limit: parseLimit(opts.limit, 500)
+            });
+            return ctx.success(result, {
+              human: () => {
+                console.log(chalk.bold(`\n  Logs for operation ${result.operation.id}\n`));
+                for (const line of result.logs) {
+                  const ts = chalk.dim(line.createdAt.slice(11, 23));
+                  const stream = line.stream === "error" ? chalk.red(line.stream) : line.stream;
+                  console.log(`  ${ts} ${stream} ${line.message}`);
+                }
+                console.log();
+              }
+            });
+          }
+        });
+      }
+    );
+
   return ops;
 }
 
-function parseLimit(value: string) {
+function parseLimit(value: string, max = 100) {
   const parsed = Number.parseInt(value, 10);
-  if (!Number.isInteger(parsed) || parsed < 1 || parsed > 100) {
-    throw new Error("Limit must be between 1 and 100.");
+  if (!Number.isInteger(parsed) || parsed < 1 || parsed > max) {
+    throw new Error(`Limit must be between 1 and ${max}.`);
   }
   return parsed;
 }

@@ -1664,6 +1664,11 @@
           "required": false
         },
         {
+          "flags": "--service-id <id>",
+          "description": "Service ID for live --follow container logs",
+          "required": false
+        },
+        {
           "flags": "--query <text>",
           "description": "Search within persisted log messages",
           "required": false
@@ -1692,6 +1697,73 @@
       "supportsJson": true,
       "supportsDryRun": false,
       "supportsYes": false
+    },
+    {
+      "path": "maintenance",
+      "summary": "Inspect and run audited operational maintenance",
+      "lane": "read",
+      "requiredScopes": ["server:write"],
+      "mutating": false,
+      "hasAction": false,
+      "hasSubcommands": true,
+      "aliases": [],
+      "arguments": [],
+      "options": [],
+      "supportsJson": false,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
+      "path": "maintenance report",
+      "summary": "Show current maintenance candidates",
+      "lane": "read",
+      "requiredScopes": ["server:write"],
+      "mutating": false,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
+      "path": "maintenance run",
+      "summary": "Run or dry-run operational maintenance cleanup",
+      "lane": "command",
+      "requiredScopes": ["server:write"],
+      "mutating": true,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--dry-run",
+          "description": "Preview cleanup without mutating",
+          "required": false
+        },
+        {
+          "flags": "-y, --yes",
+          "description": "Confirm live cleanup",
+          "required": false
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": true,
+      "supportsYes": true
     },
     {
       "path": "notifications",
@@ -2526,6 +2598,37 @@
       "supportsYes": false
     },
     {
+      "path": "server ops logs",
+      "summary": "Show durable logs for a server operation",
+      "lane": "read",
+      "requiredScopes": ["server:read"],
+      "mutating": false,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--operation <id>",
+          "description": "Server operation ID",
+          "required": true
+        },
+        {
+          "flags": "--limit <n>",
+          "description": "Maximum log lines",
+          "required": false
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
       "path": "server ops patch",
       "summary": "Queue a package patch plan without applying updates",
       "lane": "command",
@@ -2992,6 +3095,52 @@
         {
           "flags": "--json",
           "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
+      "path": "terminal",
+      "summary": "Open explicitly gated interactive terminal sessions",
+      "lane": "command",
+      "requiredScopes": ["terminal:open"],
+      "mutating": true,
+      "hasAction": false,
+      "hasSubcommands": true,
+      "aliases": [],
+      "arguments": [],
+      "options": [],
+      "supportsJson": false,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
+      "path": "terminal service",
+      "summary": "Open a shell in a running service container",
+      "lane": "command",
+      "requiredScopes": ["terminal:open"],
+      "mutating": true,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--service <id>",
+          "description": "Service ID",
+          "required": true
+        },
+        {
+          "flags": "--shell <shell>",
+          "description": "Shell",
+          "required": false
+        },
+        {
+          "flags": "--json",
+          "description": "Return structured preflight errors",
           "required": false
         }
       ],

@@ -9,10 +9,12 @@ import { envCommand } from "./commands/env";
 import { loginCommand } from "./commands/login";
 import { logDrainsCommand } from "./commands/log-drains";
 import { logsCommand } from "./commands/logs";
+import { maintenanceCommand } from "./commands/maintenance";
 import { notificationsCommand } from "./commands/notifications";
 import { planCommand } from "./commands/plan";
 import { serverCommand } from "./commands/server";
 import { backupCommand } from "./commands/backup";
+import { terminalCommand } from "./commands/terminal";
 import { tunnelsCommand } from "./commands/tunnels";
 import { volumesCommand } from "./commands/volumes";
 import { rollbackCommand } from "./commands/rollback";
@@ -107,6 +109,18 @@ describe("CLI JSON option coverage", () => {
 
   test("logs declares --json", () => {
     expect(hasLongOption(logsCommand(), "--json")).toBe(true);
+    expect(hasLongOption(logsCommand(), "--service-id")).toBe(true);
+  });
+
+  test("maintenance subcommands declare --json", () => {
+    const maintenance = maintenanceCommand();
+    expect(hasLongOption(getSubcommand(maintenance, "report"), "--json")).toBe(true);
+    expect(hasLongOption(getSubcommand(maintenance, "run"), "--json")).toBe(true);
+  });
+
+  test("terminal service declares --json", () => {
+    const terminal = terminalCommand();
+    expect(hasLongOption(getSubcommand(terminal, "service"), "--json")).toBe(true);
   });
 
   test("notifications list and logs declare --json", () => {
@@ -186,6 +200,7 @@ describe("CLI JSON option coverage", () => {
     expect(hasLongOption(getSubcommand(ops, "cleanup"), "--json")).toBe(true);
     expect(hasLongOption(getSubcommand(ops, "patch"), "--json")).toBe(true);
     expect(hasLongOption(getSubcommand(ops, "history"), "--json")).toBe(true);
+    expect(hasLongOption(getSubcommand(ops, "logs"), "--json")).toBe(true);
   });
 
   test("server add help includes scope, examples, and JSON shapes", () => {
@@ -203,6 +218,20 @@ describe("CLI JSON option coverage", () => {
     expect(help).toContain("server:read");
     expect(help).toContain("server:write");
     expect(help).toContain("daoflow server ops cleanup --server srv_123 --dry-run --json");
+  });
+
+  test("maintenance help includes scopes and examples", () => {
+    const help = renderHelp(maintenanceCommand());
+    expect(help).toContain("Required scopes:");
+    expect(help).toContain("server:write");
+    expect(help).toContain("daoflow maintenance run --dry-run --json");
+  });
+
+  test("terminal help includes terminal scope and examples", () => {
+    const help = renderHelp(terminalCommand());
+    expect(help).toContain("Required scope:");
+    expect(help).toContain("terminal:open");
+    expect(help).toContain("daoflow terminal service --service svc_123");
   });
 
   test("backup policy create declares --json", () => {

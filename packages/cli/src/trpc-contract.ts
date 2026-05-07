@@ -186,6 +186,54 @@ export interface ApprovalQueueOutput {
   requests: ApprovalQueueRequestOutput[];
 }
 
+export interface OperationalMaintenanceReportOutput {
+  generatedAt: string;
+  defaults: Record<string, number>;
+  current: {
+    stalledDeployments: { eligibleCount: number; items: unknown[] };
+    stalePreviews: { previewEnabledServices: number; eligibleCount: number; items: unknown[] };
+    expiredCliAuthRequests: { eligibleCount: number };
+    retainedArtifacts: {
+      eligibleCount: number;
+      retainedArtifacts: number;
+      incompleteUploads: number;
+      items: unknown[];
+    };
+  };
+  latestRun: {
+    action: string;
+    actorEmail: string | null;
+    actorId: string;
+    actorRole: string | null;
+    outcome: string;
+    summary: string;
+    createdAt: string;
+    metadata: unknown;
+  } | null;
+}
+
+export interface OperationalMaintenanceRunOutput {
+  generatedAt: string;
+  dryRun: boolean;
+  trigger: "manual" | "monitor";
+  stalledDeployments: { eligibleCount: number; failedCount: number };
+  stalePreviews: {
+    previewEnabledServices: number;
+    eligibleCount: number;
+    queuedCount: number;
+    queuedDeployments: Array<{ previewKey: string; deploymentId: string }>;
+    failures: Array<{ previewKey: string; message: string }>;
+  };
+  expiredCliAuthRequests: { eligibleCount: number; deletedCount: number };
+  retainedArtifacts: {
+    eligibleCount: number;
+    prunedCount: number;
+    prunedRetainedArtifacts: number;
+    prunedIncompleteUploads: number;
+  };
+  summary: string;
+}
+
 export interface RouterOutputs {
   viewer: ViewerOutput;
   health: HealthOutput;
@@ -193,6 +241,7 @@ export interface RouterOutputs {
   serverOperationsHub: ServerOperationsHubOutput;
   auditTrail: AuditTrailOutput;
   approvalQueue: ApprovalQueueOutput;
+  operationalMaintenanceReport: OperationalMaintenanceReportOutput;
 }
 
 export interface ComposeReleaseCatalogOutput {
@@ -1039,6 +1088,11 @@ export interface DaoFlowTRPC {
   health: QueryProcedure<HealthOutput>;
   approvalQueue: QueryProcedure<ApprovalQueueOutput, { limit?: number }>;
   serverReadiness: QueryProcedure<ServerReadinessOutput, { limit?: number }>;
+  operationalMaintenanceReport: QueryProcedure<OperationalMaintenanceReportOutput>;
+  runOperationalMaintenance: MutationProcedure<
+    { dryRun?: boolean },
+    OperationalMaintenanceRunOutput
+  >;
   registerServer: MutationProcedure<
     {
       name: string;

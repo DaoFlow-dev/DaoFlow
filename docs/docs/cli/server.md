@@ -94,3 +94,17 @@ daoflow server add \
   compose-backed service points at them.
 - Swarm execution currently requires published-port readiness probes; internal-network probes still
   fail planning and execution.
+
+## Server Operations
+
+```bash
+daoflow server ops resources --server srv_123 --json
+daoflow server ops cleanup --server srv_123 --dry-run --json
+daoflow server ops cleanup --server srv_123 --yes
+daoflow server ops patch --server srv_123 --json
+daoflow server ops history --server srv_123 --json
+daoflow server ops logs --operation op_123 --json
+```
+
+Resource, history, and operation-log reads use `server:read`. Cleanup and patch commands use
+`server:write`; live cleanup requires `--yes`.

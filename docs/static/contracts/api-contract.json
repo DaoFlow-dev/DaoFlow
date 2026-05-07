@@ -2879,8 +2879,8 @@
       "method": "GET",
       "lane": "read",
       "auth": "authenticated",
-      "requiredRoles": [],
-      "requiredScopes": [],
+      "requiredRoles": ["owner", "admin"],
+      "requiredScopes": ["server:write"],
       "inputSchema": null
     },
     {

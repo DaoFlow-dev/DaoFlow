@@ -14,15 +14,16 @@ daoflow logs [options]
 
 ## Options
 
-| Flag                | Description                    |
-| ------------------- | ------------------------------ |
-| `[service]`         | Filter recent logs by service  |
-| `--deployment <id>` | Logs for a specific deployment |
-| `--query <text>`    | Search within persisted logs   |
-| `--stream <stream>` | `all`, `stdout`, or `stderr`   |
-| `--follow`          | Reserved, not implemented yet  |
-| `--lines <n>`       | Show last N lines              |
-| `--json`            | Structured JSON output         |
+| Flag                | Description                                   |
+| ------------------- | --------------------------------------------- |
+| `[service]`         | Filter recent logs by service                 |
+| `--deployment <id>` | Logs for a specific deployment                |
+| `--service-id <id>` | Service ID for live `--follow` container logs |
+| `--query <text>`    | Search within persisted logs                  |
+| `--stream <stream>` | `all`, `stdout`, or `stderr`                  |
+| `--follow`          | Follow deployment or service logs             |
+| `--lines <n>`       | Show last N lines or live service tail        |
+| `--json`            | Structured JSON output                        |
 
 ## Required Scope
 
@@ -39,7 +40,15 @@ daoflow logs control-plane --query readiness --stream stderr --lines 25
 
 # JSON format for agent processing
 daoflow logs --deployment dep_abc123 --json
+
+# Follow persisted deployment logs
+daoflow logs --deployment dep_abc123 --follow
+
+# Follow live service container logs
+daoflow logs --service-id svc_api --follow --lines 200
 ```
+
+`--follow --json` emits one JSON envelope per log line.
 
 ## JSON Output
 

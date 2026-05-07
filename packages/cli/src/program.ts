@@ -28,7 +28,9 @@ import { serverCommand } from "./commands/server";
 import { volumesCommand } from "./commands/volumes";
 import { notificationsCommand } from "./commands/notifications";
 import { logDrainsCommand } from "./commands/log-drains";
+import { maintenanceCommand } from "./commands/maintenance";
 import { templatesCommand } from "./commands/templates";
+import { terminalCommand } from "./commands/terminal";
 import { tunnelsCommand } from "./commands/tunnels";
 import { registerConfigCommand } from "./commands/config";
 import { emitJsonError, getErrorMessage } from "./command-helpers";
@@ -157,6 +159,8 @@ export function createProgram(): Command {
   program.addCommand(notificationsCommand());
   program.addCommand(tunnelsCommand());
   program.addCommand(logDrainsCommand());
+  program.addCommand(maintenanceCommand());
+  program.addCommand(terminalCommand());
   program.addCommand(templatesCommand());
   program.addCommand(updateCommand());
   registerConfigCommand(program);

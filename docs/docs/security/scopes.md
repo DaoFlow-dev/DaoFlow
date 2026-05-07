@@ -69,7 +69,9 @@ Scopes follow the pattern `resource:action`:
 
 `terminal:open` stays intentionally separate from deployment, server, and log access. A user or
 token that can deploy, inspect services, read logs, or run server cleanup is still denied
-interactive service and host shell access unless `terminal:open` is explicitly granted.
+interactive service and host shell access unless `terminal:open` is explicitly granted. CLI
+terminal access follows the same rule and only opens interactive sessions, not one-shot command
+execution.
 
 ## Scope Enforcement
 

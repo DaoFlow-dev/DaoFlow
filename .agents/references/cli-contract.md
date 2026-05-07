@@ -73,6 +73,8 @@ This file holds the detailed CLI contract, scope map, and agent-facing command r
 | `server ops`         | read/command          | `server:read`, `server:write`                   | varies   |
 | `tunnels`            | read/command          | `server:read`, `server:write`                   | varies   |
 | `log-drains`         | read/command          | `server:read`, `server:write`                   | varies   |
+| `maintenance`        | read/command          | `server:write`                                  | varies   |
+| `terminal service`   | command               | `terminal:open`                                 | yes      |
 | `services`           | read/command          | `service:read`, `service:update`                | varies   |
 | `projects`           | read/command          | `deploy:read`, `deploy:start`, `service:update` | varies   |
 | `templates`          | read/planning/command | none, `deploy:read`, `deploy:start`             | varies   |
@@ -211,7 +213,28 @@ This file holds the detailed CLI contract, scope map, and agent-facing command r
 - `daoflow server ops cleanup --yes` writes a durable `cleanup_run` operation through `runServerCleanup` and requires a recent successful cleanup preview
 - `daoflow server ops patch` writes a durable non-mutating `patch_plan` operation through `planServerPatches` and requires `server:write`
 - `daoflow server ops history` reads `serverOperationsHub` and requires `server:read`
+- `daoflow server ops logs --operation <id>` reads `serverOperationLogs` and requires `server:read`
 - Host terminal access is web-only in this iteration and uses `/ws/host-terminal` with `terminal:open`
+
+## Maintenance Contract
+
+- `daoflow maintenance report` reads `operationalMaintenanceReport`
+- `daoflow maintenance run --dry-run` calls `runOperationalMaintenance` with `dryRun: true`
+- `daoflow maintenance run --yes` calls `runOperationalMaintenance` with `dryRun: false`
+- Scope: `server:write`
+- Live cleanup requires `--yes`; missing confirmation must return `CONFIRMATION_REQUIRED`
+- JSON success shapes:
+  - report: `{ "ok": true, "data": { "generatedAt": string, "defaults": object, "current": object, "latestRun": object | null } }`
+  - run: `{ "ok": true, "data": { "generatedAt": string, "dryRun": boolean, "trigger": "manual" | "monitor", "stalledDeployments": object, "stalePreviews": object, "expiredCliAuthRequests": object, "retainedArtifacts": object, "summary": string } }`
+
+## Terminal Contract
+
+- `daoflow terminal service --service <id>` opens `/ws/docker-terminal` for a running service container
+- Scope: `terminal:open`
+- Optional input: `--shell <bash|sh>`, default `bash`
+- The command must require an interactive TTY and must not accept a one-shot command string
+- `--json` is supported only for structured preflight errors; terminal byte streams are not JSON encoded
+- Permission failures must include `requiredScope: "terminal:open"` and granted scopes when available
 - JSON operation success shape:
   - `{ "ok": true, "data": { "status": "ok", "operation": { "id": string, "serverId": string, "kind": string, "status": string, "dryRun": boolean, "summary": string | null, "createdAt": string, "completedAt": string | null }, "result": unknown } }`
 
@@ -313,10 +336,13 @@ This file holds the detailed CLI contract, scope map, and agent-facing command r
 - Optional targeting input:
   - positional `[service]` to filter global recent logs by service name
   - `--deployment <id>` to scope results to one deployment
+  - `--service-id <id>` to follow live container logs for a service
   - `--query <text>` to search within persisted log messages
   - `--stream <all|stdout|stderr>` to filter by log stream
   - `--lines <n>` to cap returned lines
-- `--follow` is reserved for future live streaming and must return a structured `NOT_IMPLEMENTED` error today
+- `--follow --deployment <id>` streams persisted deployment logs over SSE
+- `--follow --service-id <id>` streams live container logs over WebSocket
+- `--follow --json` emits newline-delimited `{ "ok": true, "data": ... }` envelopes, one per log line
 - JSON success shape:
   - `{ "ok": true, "data": { "service": string | null, "deploymentId": string | null, "query": string | null, "stream": "all" | "stdout" | "stderr", "limit": number, "summary": { "totalLines": number, "stderrLines": number, "deploymentCount": number }, "lines": [{ "id": string | number, "deploymentId": string, "serviceName": string, "environmentName": string, "stream": "stdout" | "stderr", "lineNumber": string | number, "level": string, "message": string, "createdAt": string }] } }`
 
