@@ -9,9 +9,11 @@ test.describe("Approval workflows", () => {
       page,
       "requestApproval",
       {
-        actionType: "backup-restore",
-        backupRunId: "brun_foundation_volume_success",
-        reason: "Need operator approval before replaying backup artifact in e2e."
+        actionType: "compose-release",
+        composeServiceId: "compose_daoflow_prod_control_plane",
+        commitSha: "abcdef1",
+        imageTag: "ghcr.io/daoflow/control-plane:e2e-self-approval",
+        reason: "Need operator approval before promoting the compose release in e2e."
       }
     );
 
@@ -21,10 +23,10 @@ test.describe("Approval workflows", () => {
     await expect(page.getByRole("heading", { name: "Approvals" })).toBeVisible();
 
     const approvalCard = page.getByTestId(`approval-request-${request.id}`);
-    await expect(approvalCard).toContainText("backup-restore");
+    await expect(approvalCard).toContainText("compose-release");
     await expect(approvalCard).toContainText("pending");
     await expect(approvalCard).toContainText(
-      "Need operator approval before replaying backup artifact in e2e."
+      "Need operator approval before promoting the compose release in e2e."
     );
 
     await approvalCard.getByRole("button", { name: "Approve" }).click();
@@ -39,18 +41,22 @@ test.describe("Approval workflows", () => {
       page,
       "requestApproval",
       {
-        actionType: "backup-restore",
-        backupRunId: "brun_foundation_volume_success",
-        reason: "Need operator approval before replaying the first backup artifact in e2e."
+        actionType: "compose-release",
+        composeServiceId: "compose_daoflow_prod_control_plane",
+        commitSha: "abcdef2",
+        imageTag: "ghcr.io/daoflow/control-plane:e2e-approve",
+        reason: "Need operator approval before promoting the first compose release in e2e."
       }
     );
     const rejectedRequest = await trpcRequest<{ id: string; status: string }>(
       page,
       "requestApproval",
       {
-        actionType: "backup-restore",
-        backupRunId: "brun_foundation_volume_success",
-        reason: "Need operator approval before replaying the second backup artifact in e2e."
+        actionType: "compose-release",
+        composeServiceId: "compose_daoflow_prod_control_plane",
+        commitSha: "abcdef3",
+        imageTag: "ghcr.io/daoflow/control-plane:e2e-reject",
+        reason: "Need operator approval before promoting the second compose release in e2e."
       }
     );
 
@@ -71,13 +77,13 @@ test.describe("Approval workflows", () => {
     await expect(rejectedCard).toContainText("pending");
 
     await approvedCard.getByRole("button", { name: "Approve" }).click();
-    await expect(page.getByTestId("approval-feedback")).toContainText("Approved backup-restore");
+    await expect(page.getByTestId("approval-feedback")).toContainText("Approved compose-release");
     await expect(approvedCard).toContainText("approved");
     await expect(approvedCard).toContainText("Decision:");
     await expect(approvedCard.getByRole("button", { name: "Approve" })).toHaveCount(0);
 
     await rejectedCard.getByRole("button", { name: "Reject" }).click();
-    await expect(page.getByTestId("approval-feedback")).toContainText("Rejected backup-restore");
+    await expect(page.getByTestId("approval-feedback")).toContainText("Rejected compose-release");
     await expect(rejectedCard).toContainText("rejected");
     await expect(rejectedCard).toContainText("Decision:");
     await expect(rejectedCard.getByRole("button", { name: "Reject" })).toHaveCount(0);
