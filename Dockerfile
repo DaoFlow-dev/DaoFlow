@@ -99,7 +99,7 @@ FROM node:22-bookworm-slim AS codex-runner
 
 ARG TARGETARCH
 ARG BUN_VERSION=1.3.13
-ARG CODEX_CLI_VERSION=latest
+ARG CODEX_CLI_VERSION=0.129.0
 
 ENV NODE_ENV=development
 ENV DEBIAN_FRONTEND=noninteractive

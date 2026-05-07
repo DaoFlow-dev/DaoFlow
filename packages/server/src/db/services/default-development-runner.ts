@@ -1,5 +1,6 @@
 export const DEFAULT_HOST_RUNNER_PROFILE_ID = "runner_profile_host_default";
 export const DEFAULT_BOXLITE_RUNNER_PROFILE_ID = "runner_profile_boxlite_default";
+export const DEFAULT_CODEX_RUNNER_IMAGE = "ghcr.io/daoflow-dev/codex-runner:0.8.7";
 export const DEFAULT_CODEX_HOME_PATH = "/runner/home/.codex";
 export const DEFAULT_CODEX_CONFIG_PATH = `${DEFAULT_CODEX_HOME_PATH}/config.toml`;
 export const DEFAULT_CODEX_AUTH_MODE = "custom_provider_env";

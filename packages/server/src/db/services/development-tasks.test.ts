@@ -6,6 +6,7 @@ import { servers } from "../schema/servers";
 import { teams } from "../schema/teams";
 import { resetSeededTestDatabase } from "../../test-db";
 import { claimNextQueuedDevelopmentTask } from "./development-task-claims";
+import { DEFAULT_CODEX_RUNNER_IMAGE } from "./default-development-runner";
 import { createProject } from "./projects";
 import {
   createDevelopmentTaskRun,
@@ -159,6 +160,7 @@ describe("development task service", () => {
     expect(claim?.run.metadata).toMatchObject({
       runnerLabel: "development-task-worker",
       runnerProfileName: "Host Docker Default",
+      image: DEFAULT_CODEX_RUNNER_IMAGE,
       serverId: "srv_foundation_1",
       cpuLimit: 2,
       memoryLimitMb: 4096,
@@ -245,7 +247,7 @@ describe("development task service", () => {
       name: "Other Team Runner",
       provider: "host_docker",
       serverId: "srv_dev_task_other",
-      image: "ghcr.io/daoflow-dev/codex-runner:latest",
+      image: DEFAULT_CODEX_RUNNER_IMAGE,
       status: "enabled",
       metadata: {}
     });
@@ -296,7 +298,7 @@ describe("development task service", () => {
       name: "Host Docker MVP",
       provider: "host_docker",
       serverId: "srv_foundation_1",
-      image: "ghcr.io/daoflow-dev/codex-runner:latest",
+      image: DEFAULT_CODEX_RUNNER_IMAGE,
       validationCommands: ["bun run test:unit"],
       status: "disabled",
       metadata: {
@@ -350,7 +352,7 @@ describe("development task service", () => {
       name: "Other Profile Runner",
       provider: "host_docker",
       serverId: "srv_dev_task_profiles",
-      image: "ghcr.io/daoflow-dev/codex-runner:latest",
+      image: DEFAULT_CODEX_RUNNER_IMAGE,
       status: "enabled",
       metadata: {}
     });
@@ -375,6 +377,7 @@ describe("development task service", () => {
       provider: "sandbank_boxlite",
       serverId: "srv_foundation_1",
       status: "disabled",
+      image: DEFAULT_CODEX_RUNNER_IMAGE,
       codexAuthMode: "custom_provider_env"
     });
     expect(boxLiteProfile?.metadata).toMatchObject({
@@ -398,6 +401,7 @@ describe("development task service", () => {
       provider: "host_docker",
       serverId: "srv_foundation_1",
       status: "enabled",
+      image: DEFAULT_CODEX_RUNNER_IMAGE,
       codexAuthMode: "custom_provider_env"
     });
     expect(seededProfile?.metadata).toMatchObject({

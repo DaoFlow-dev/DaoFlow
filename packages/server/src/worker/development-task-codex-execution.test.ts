@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { executeDevelopmentTaskCodex } from "./development-task-codex-execution";
+import { DEFAULT_CODEX_RUNNER_IMAGE } from "../db/services/default-development-runner";
 import type { DevelopmentTaskCodexPlan } from "./development-task-codex-plan";
 import type { PreparedDevelopmentTaskCodexWorkspace } from "./development-task-codex-workspace";
 import type { execStreaming, OnLog } from "./docker-exec-shared";
@@ -271,6 +272,7 @@ describe("executeDevelopmentTaskCodex", () => {
     });
 
     expect(sandbox.user).toMatch(/^[1-9]\d*:[1-9]\d*$/);
+    expect(sandbox.image).toBe(DEFAULT_CODEX_RUNNER_IMAGE);
   });
 
   it("reads optional sandbox retention from runner metadata", () => {

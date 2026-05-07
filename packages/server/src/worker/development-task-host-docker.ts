@@ -1,4 +1,5 @@
 import path from "node:path";
+import { DEFAULT_CODEX_RUNNER_IMAGE } from "../db/services/default-development-runner";
 import { dockerCommand } from "./command-env";
 import { STAGING_DIR, type ExecStreamingOptions } from "./docker-exec-shared";
 import type { DevelopmentTaskCodexPlan } from "./development-task-codex-plan";
@@ -81,7 +82,7 @@ export function buildHostDockerSandboxFromRun(input: {
   const image =
     typeof metadata.image === "string" && metadata.image.trim()
       ? metadata.image.trim()
-      : "ghcr.io/daoflow-dev/codex-runner:latest";
+      : DEFAULT_CODEX_RUNNER_IMAGE;
 
   return {
     provider: "host_docker",
