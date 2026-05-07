@@ -6,6 +6,7 @@ import { services } from "../schema/services";
 import { resolveExecutionTarget, type ExecutionTarget } from "../../worker/execution-target";
 import { buildDockerContainerName } from "../../docker-identifiers";
 import { asRecord, readString } from "./json-helpers";
+import { getServiceForTeam, type ServiceAccessActor } from "./service-access";
 
 export type ResolvedServiceRuntime =
   | {
@@ -81,9 +82,28 @@ function deriveContainerName(
 }
 
 export async function resolveServiceRuntime(
-  serviceId: string
+  serviceId: string,
+  scope?: {
+    teamId: string;
+    actor?: ServiceAccessActor;
+    action?: string;
+    permissionScope?: string;
+  }
 ): Promise<ResolveServiceRuntimeResult> {
-  const [service] = await db.select().from(services).where(eq(services.id, serviceId)).limit(1);
+  const service = scope
+    ? await getServiceForTeam({
+        serviceId,
+        teamId: scope.teamId,
+        actor: scope.actor,
+        action: scope.action,
+        permissionScope: scope.permissionScope
+      })
+    : await db
+        .select()
+        .from(services)
+        .where(eq(services.id, serviceId))
+        .limit(1)
+        .then((rows) => rows[0] ?? null);
 
   if (!service) {
     return {

@@ -18,6 +18,10 @@ import {
   volumeDeleteInputSchema,
   volumeUpdateInputSchema
 } from "./command-backup-schemas";
+import { assertBackupPolicyScope, assertVolumeScope } from "./backup-scope";
+import { getServiceForTeam } from "../db/services/service-access";
+import { resolveTeamIdForUser } from "../db/services/teams";
+import { serviceAccessActor } from "./service-scope";
 
 function toStorageActor(actor: ReturnType<typeof getActorContext>) {
   return {
@@ -25,6 +29,36 @@ function toStorageActor(actor: ReturnType<typeof getActorContext>) {
     email: actor.requestedByEmail,
     role: actor.requestedByRole
   };
+}
+
+async function assertVolumeServiceScope(input: {
+  ctx: Parameters<typeof serviceAccessActor>[0];
+  serviceId?: string;
+  action: string;
+  permissionScope: string;
+}) {
+  if (!input.serviceId) {
+    return;
+  }
+
+  const teamId = await resolveTeamIdForUser(input.ctx.session.user.id);
+  if (!teamId) {
+    throw new TRPCError({
+      code: "PRECONDITION_FAILED",
+      message: "No organization is available for this user."
+    });
+  }
+
+  const service = await getServiceForTeam({
+    serviceId: input.serviceId,
+    teamId,
+    actor: serviceAccessActor(input.ctx),
+    action: input.action,
+    permissionScope: input.permissionScope
+  });
+  if (!service) {
+    throw new TRPCError({ code: "NOT_FOUND", message: "Service not found." });
+  }
 }
 
 function throwVolumeMutationError(result: { status: string; entity?: string; message?: string }) {
@@ -92,6 +126,12 @@ export const backupStorageCommandRouter = t.router({
   createVolume: volumesWriteProcedure
     .input(volumeCreateInputSchema)
     .mutation(async ({ ctx, input }) => {
+      await assertVolumeServiceScope({
+        ctx,
+        serviceId: input.serviceId,
+        action: "volume.create.denied",
+        permissionScope: "volumes:write"
+      });
       const result = await createVolume(input, toStorageActor(getActorContext(ctx)));
       throwVolumeMutationError(result);
       if (!("volume" in result) || !result.volume) {
@@ -105,6 +145,18 @@ export const backupStorageCommandRouter = t.router({
   updateVolume: volumesWriteProcedure
     .input(volumeUpdateInputSchema)
     .mutation(async ({ ctx, input }) => {
+      await assertVolumeScope({
+        ctx,
+        volumeId: input.volumeId,
+        action: "volume.update.denied",
+        permissionScope: "volumes:write"
+      });
+      await assertVolumeServiceScope({
+        ctx,
+        serviceId: input.serviceId,
+        action: "volume.update.denied",
+        permissionScope: "volumes:write"
+      });
       const result = await updateVolume(input, toStorageActor(getActorContext(ctx)));
       throwVolumeMutationError(result);
       if (!("volume" in result) || !result.volume) {
@@ -118,6 +170,12 @@ export const backupStorageCommandRouter = t.router({
   deleteVolume: volumesWriteProcedure
     .input(volumeDeleteInputSchema)
     .mutation(async ({ ctx, input }) => {
+      await assertVolumeScope({
+        ctx,
+        volumeId: input.volumeId,
+        action: "volume.delete.denied",
+        permissionScope: "volumes:write"
+      });
       const result = await deleteVolume(input.volumeId, toStorageActor(getActorContext(ctx)));
       throwVolumeMutationError(result);
       return { deleted: true, volumeId: input.volumeId };
@@ -125,6 +183,12 @@ export const backupStorageCommandRouter = t.router({
   createBackupPolicy: backupRunProcedure
     .input(backupPolicyCreateInputSchema)
     .mutation(async ({ ctx, input }) => {
+      await assertVolumeScope({
+        ctx,
+        volumeId: input.volumeId,
+        action: "backup.policy-create.denied",
+        permissionScope: "backup:run"
+      });
       const result = await createBackupPolicy(input, toStorageActor(getActorContext(ctx)));
       throwBackupPolicyMutationError(result);
       if (!("policy" in result) || !result.policy) {
@@ -138,6 +202,20 @@ export const backupStorageCommandRouter = t.router({
   updateBackupPolicy: backupRunProcedure
     .input(backupPolicyUpdateInputSchema)
     .mutation(async ({ ctx, input }) => {
+      await assertBackupPolicyScope({
+        ctx,
+        policyId: input.policyId,
+        action: "backup.policy-update.denied",
+        permissionScope: "backup:run"
+      });
+      if (input.volumeId) {
+        await assertVolumeScope({
+          ctx,
+          volumeId: input.volumeId,
+          action: "backup.policy-update.denied",
+          permissionScope: "backup:run"
+        });
+      }
       const result = await updateBackupPolicy(input, toStorageActor(getActorContext(ctx)));
       throwBackupPolicyMutationError(result);
       if (!("policy" in result) || !result.policy) {
@@ -151,6 +229,12 @@ export const backupStorageCommandRouter = t.router({
   deleteBackupPolicy: backupRunProcedure
     .input(backupPolicyIdInputSchema)
     .mutation(async ({ ctx, input }) => {
+      await assertBackupPolicyScope({
+        ctx,
+        policyId: input.policyId,
+        action: "backup.policy-delete.denied",
+        permissionScope: "backup:run"
+      });
       const result = await deleteBackupPolicy(input.policyId, toStorageActor(getActorContext(ctx)));
       throwBackupPolicyMutationError(result);
       return { deleted: true, policyId: input.policyId };
@@ -158,6 +242,12 @@ export const backupStorageCommandRouter = t.router({
   enableBackupSchedule: backupRunProcedure
     .input(backupScheduleEnableInputSchema)
     .mutation(async ({ ctx, input }) => {
+      await assertBackupPolicyScope({
+        ctx,
+        policyId: input.policyId,
+        action: "backup.schedule-enable.denied",
+        permissionScope: "backup:run"
+      });
       const actor = getActorContext(ctx);
       const result = await enableBackupSchedule(
         input.policyId,
@@ -177,6 +267,12 @@ export const backupStorageCommandRouter = t.router({
   disableBackupSchedule: backupRunProcedure
     .input(backupPolicyIdInputSchema)
     .mutation(async ({ ctx, input }) => {
+      await assertBackupPolicyScope({
+        ctx,
+        policyId: input.policyId,
+        action: "backup.schedule-disable.denied",
+        permissionScope: "backup:run"
+      });
       const actor = getActorContext(ctx);
       const result = await disableBackupSchedule(
         input.policyId,

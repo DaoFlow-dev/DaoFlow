@@ -7,6 +7,7 @@ import { ScopedDeploymentNotFoundError } from "../db/services/scoped-deployments
 import { buildDeploymentPlan } from "../db/services/deployment-plans";
 import { buildRollbackPlan } from "../db/services/rollback-plans";
 import { t, deployReadProcedure, backupReadProcedure } from "../trpc";
+import { assertBackupRunScope } from "./backup-scope";
 
 export const planningRouter = t.router({
   composeDeploymentPlan: deployReadProcedure
@@ -130,7 +131,13 @@ export const planningRouter = t.router({
         backupRunId: z.string().min(1)
       })
     )
-    .query(async ({ input }) => {
+    .query(async ({ ctx, input }) => {
+      await assertBackupRunScope({
+        ctx,
+        backupRunId: input.backupRunId,
+        action: "backup.restore-plan.denied",
+        permissionScope: "backup:read"
+      });
       const plan = await buildBackupRestorePlan(input.backupRunId);
 
       if (!plan) {

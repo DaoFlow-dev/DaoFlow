@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { db } from "./db/connection";
 import { deployments } from "./db/schema/deployments";
 import { approvalRequests, auditEntries } from "./db/schema/audit";
-import { backupPolicies, backupRestores, volumes } from "./db/schema/storage";
+import { backupPolicies, backupRestores, backupRuns, volumes } from "./db/schema/storage";
 import { notificationLogs } from "./db/schema/notifications";
 import { servers } from "./db/schema/servers";
 import { teamMembers, teams } from "./db/schema/teams";
@@ -171,6 +171,11 @@ async function createOtherTeamFixture() {
       name: environmentName,
       targetServerId: "srv_foundation_1"
     },
+    service: {
+      name: `other-team-svc-${suffix}`.slice(0, 80),
+      sourceType: "compose",
+      targetServerId: "srv_foundation_1"
+    },
     requester: {
       ...foundationOwnerRequester,
       requestedByUserId: userId,
@@ -183,7 +188,8 @@ async function createOtherTeamFixture() {
     teamId,
     userId,
     projectId: fixture.project.id,
-    environmentId: fixture.environment.id
+    environmentId: fixture.environment.id,
+    serviceId: fixture.service.id
   };
 }
 
@@ -2175,6 +2181,203 @@ describe("appRouter", () => {
         key: "TEAM_SCOPED_SECRET"
       })
     ).rejects.toMatchObject({ code: "NOT_FOUND" } satisfies Partial<TRPCError>);
+  });
+
+  it("rejects service reads and mutations outside the caller's team", async () => {
+    const fixture = await createOtherTeamFixture();
+    const caller = appRouter.createCaller({
+      requestId: "test-service-team-scope",
+      session: makeSession("owner")
+    });
+
+    const services = await caller.services({ environmentId: fixture.environmentId });
+    expect(services).toHaveLength(0);
+
+    await expect(caller.serviceDetails({ serviceId: fixture.serviceId })).rejects.toMatchObject({
+      code: "NOT_FOUND"
+    } satisfies Partial<TRPCError>);
+    await expect(caller.serviceDomainState({ serviceId: fixture.serviceId })).rejects.toMatchObject(
+      {
+        code: "NOT_FOUND"
+      } satisfies Partial<TRPCError>
+    );
+    await expect(
+      caller.updateService({
+        serviceId: fixture.serviceId,
+        name: "blocked-cross-team-update"
+      })
+    ).rejects.toMatchObject({ code: "NOT_FOUND" } satisfies Partial<TRPCError>);
+    await expect(caller.deleteService({ serviceId: fixture.serviceId })).rejects.toMatchObject({
+      code: "NOT_FOUND"
+    } satisfies Partial<TRPCError>);
+    await expect(
+      caller.createService({
+        projectId: fixture.projectId,
+        environmentId: fixture.environmentId,
+        name: "blocked-cross-team-create",
+        sourceType: "compose"
+      })
+    ).rejects.toMatchObject({ code: "NOT_FOUND" } satisfies Partial<TRPCError>);
+
+    const deniedEntries = await db
+      .select()
+      .from(auditEntries)
+      .where(eq(auditEntries.outcome, "denied"));
+    expect(deniedEntries.map((entry) => entry.action)).toEqual(
+      expect.arrayContaining([
+        "service.list.denied",
+        "service.details.denied",
+        "service.mutation.denied",
+        "service.admin-mutation.denied"
+      ])
+    );
+  });
+
+  it("rejects API-token service reads outside the caller's team", async () => {
+    const fixture = await createOtherTeamFixture();
+    const caller = appRouter.createCaller({
+      requestId: "test-service-team-scope-token",
+      session: makeSession("owner"),
+      auth: makeTokenAuthContext("owner", ["deploy:read"])
+    });
+
+    await expect(caller.serviceDetails({ serviceId: fixture.serviceId })).rejects.toMatchObject({
+      code: "NOT_FOUND"
+    } satisfies Partial<TRPCError>);
+
+    const deniedEntries = await db
+      .select()
+      .from(auditEntries)
+      .where(eq(auditEntries.outcome, "denied"));
+    expect(deniedEntries.at(-1)?.actorType).toBe("token");
+  });
+
+  it("rejects service deploy and rollback commands outside the caller's team", async () => {
+    const fixture = await createOtherTeamFixture();
+    const caller = appRouter.createCaller({
+      requestId: "test-service-command-team-scope",
+      session: makeSession("owner")
+    });
+
+    await expect(caller.triggerDeploy({ serviceId: fixture.serviceId })).rejects.toMatchObject({
+      code: "NOT_FOUND"
+    } satisfies Partial<TRPCError>);
+    await expect(
+      caller.executeRollback({
+        serviceId: fixture.serviceId,
+        targetDeploymentId: "dep_other_team"
+      })
+    ).rejects.toMatchObject({ code: "NOT_FOUND" } satisfies Partial<TRPCError>);
+
+    const deniedEntries = await db
+      .select()
+      .from(auditEntries)
+      .where(eq(auditEntries.outcome, "denied"));
+    expect(deniedEntries.map((entry) => entry.action)).toEqual(
+      expect.arrayContaining(["service.deploy.denied", "service.rollback.denied"])
+    );
+  });
+
+  it("rejects backup and restore access for another team's service resources", async () => {
+    const fixture = await createOtherTeamFixture();
+    const volumeId = `vol_other_${Date.now()}`.slice(0, 32);
+    const policyId = `bpol_other_${Date.now()}`.slice(0, 32);
+    const runId = `brun_other_${Date.now()}`.slice(0, 32);
+    const restoreId = `brest_other_${Date.now()}`.slice(0, 32);
+
+    await db.insert(volumes).values({
+      id: volumeId,
+      name: "other-team-volume",
+      serverId: "srv_foundation_1",
+      mountPath: "/srv/other-team",
+      status: "active",
+      metadata: {
+        projectId: fixture.projectId,
+        environmentId: fixture.environmentId,
+        serviceId: fixture.serviceId,
+        projectName: "other-team-project",
+        environmentName: "other-team-env",
+        serviceName: "other-team-service"
+      },
+      createdAt: new Date(),
+      updatedAt: new Date()
+    });
+    await db.insert(backupPolicies).values({
+      id: policyId,
+      name: "other-team-policy",
+      volumeId,
+      backupType: "volume",
+      retentionDays: 30,
+      status: "active",
+      createdAt: new Date(),
+      updatedAt: new Date()
+    });
+    await db.insert(backupRuns).values({
+      id: runId,
+      policyId,
+      status: "succeeded",
+      artifactPath: "s3://other-team/backup.tar.zst",
+      startedAt: new Date(),
+      completedAt: new Date(),
+      createdAt: new Date()
+    });
+    await db.insert(backupRestores).values({
+      id: restoreId,
+      backupRunId: runId,
+      status: "queued",
+      targetPath: "/restore/other-team",
+      createdAt: new Date()
+    });
+
+    const caller = appRouter.createCaller({
+      requestId: "test-service-backup-team-scope",
+      session: makeSession("owner")
+    });
+
+    const [overview, restoreQueue, volumeInventory] = await Promise.all([
+      caller.backupOverview({ limit: 50 }),
+      caller.backupRestoreQueue({ limit: 50 }),
+      caller.persistentVolumes({ limit: 24 })
+    ]);
+    expect(overview.policies.some((policy) => policy.id === policyId)).toBe(false);
+    expect(overview.runs.some((run) => run.id === runId)).toBe(false);
+    expect(restoreQueue.requests.some((request) => request.id === restoreId)).toBe(false);
+    expect(volumeInventory.volumes.some((volume) => volume.id === volumeId)).toBe(false);
+
+    await expect(caller.backupRunDetails({ runId })).rejects.toMatchObject({
+      code: "NOT_FOUND"
+    } satisfies Partial<TRPCError>);
+    await expect(caller.backupRestorePlan({ backupRunId: runId })).rejects.toMatchObject({
+      code: "NOT_FOUND"
+    } satisfies Partial<TRPCError>);
+    await expect(caller.triggerBackupNow({ policyId })).rejects.toMatchObject({
+      code: "NOT_FOUND"
+    } satisfies Partial<TRPCError>);
+    await expect(caller.queueBackupRestore({ backupRunId: runId })).rejects.toMatchObject({
+      code: "NOT_FOUND"
+    } satisfies Partial<TRPCError>);
+    await expect(
+      caller.createVolume({
+        name: "blocked-other-team-service-volume",
+        serverId: "srv_foundation_1",
+        mountPath: "/srv/blocked-other-team",
+        serviceId: fixture.serviceId
+      })
+    ).rejects.toMatchObject({ code: "NOT_FOUND" } satisfies Partial<TRPCError>);
+
+    const deniedEntries = await db
+      .select()
+      .from(auditEntries)
+      .where(eq(auditEntries.outcome, "denied"));
+    expect(deniedEntries.map((entry) => entry.action)).toEqual(
+      expect.arrayContaining([
+        "backup.details.denied",
+        "backup.restore-plan.denied",
+        "backup.run.denied",
+        "backup.restore.denied",
+        "volume.create.denied"
+      ])
+    );
   });
 
   // ─── RBAC enforcement tests ─────────────────────────────────

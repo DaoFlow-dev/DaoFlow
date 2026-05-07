@@ -43,6 +43,7 @@ import {
 import { readServiceRuntimeConfigFromConfig } from "../../service-runtime-config";
 import { buildManagedTraefikRoutingPlan } from "../../managed-traefik";
 import { readServiceDomainConfigFromConfig } from "../../service-domain-config";
+import { resolveServiceForUser } from "./scoped-services";
 
 export interface TriggerDeployInput {
   serviceId: string;
@@ -164,7 +165,14 @@ async function findLatestReplayableUploadedDeployment(input: {
 
 export async function triggerDeploy(input: TriggerDeployInput) {
   // Look up the service
-  const [svc] = await db.select().from(services).where(eq(services.id, input.serviceId)).limit(1);
+  const svc = input.requestedByUserId
+    ? await resolveServiceForUser(input.serviceId, input.requestedByUserId).catch(() => null)
+    : await db
+        .select()
+        .from(services)
+        .where(eq(services.id, input.serviceId))
+        .limit(1)
+        .then((rows) => rows[0] ?? null);
 
   if (!svc) return { status: "not_found" as const, entity: "service" };
 

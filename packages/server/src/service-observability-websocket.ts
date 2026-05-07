@@ -2,6 +2,7 @@ import type { Server, ServerWebSocket } from "bun";
 import { db } from "./db/connection";
 import { auditEntries } from "./db/schema/audit";
 import { resolveServiceRuntime, type ResolvedServiceRuntime } from "./db/services/service-runtime";
+import { resolveTeamIdForUser } from "./db/services/teams";
 import { authorizeRequest, type AuthorizedRequestActor } from "./routes/request-auth";
 import {
   startServiceLogStream,
@@ -71,9 +72,32 @@ async function recordTerminalAudit(input: {
 }
 
 async function resolveWebSocketRuntime(
-  serviceId: string
+  serviceId: string,
+  actor: AuthorizedRequestActor,
+  permissionScope: "logs:read" | "terminal:open"
 ): Promise<{ ok: true; runtime: ResolvedServiceRuntime } | { ok: false; response: Response }> {
-  const runtimeResult = await resolveServiceRuntime(serviceId);
+  const teamId = await resolveTeamIdForUser(actor.session.user.id);
+  if (!teamId) {
+    return {
+      ok: false,
+      response: jsonResponse(
+        { ok: false, error: "No organization is available for this user.", code: "NO_TEAM" },
+        412
+      )
+    };
+  }
+
+  const runtimeResult = await resolveServiceRuntime(serviceId, {
+    teamId,
+    actor: {
+      id: actor.session.user.id,
+      email: actor.session.user.email,
+      role: actor.role,
+      actorType: actor.auth.method === "api-token" ? "token" : "user"
+    },
+    action: permissionScope === "logs:read" ? "service.logs.denied" : "service.terminal.denied",
+    permissionScope
+  });
   if (runtimeResult.status !== "ok") {
     const status = runtimeResult.status === "not_found" ? 404 : 409;
     return {
@@ -115,7 +139,7 @@ export async function handleServiceObservabilityWebSocketUpgrade(
       return jsonResponse({ ok: false, error: "Missing serviceId", code: "INVALID_REQUEST" }, 400);
     }
 
-    const runtimeResult = await resolveWebSocketRuntime(serviceId);
+    const runtimeResult = await resolveWebSocketRuntime(serviceId, authResult.actor, "logs:read");
     if (!runtimeResult.ok) {
       return runtimeResult.response;
     }
@@ -150,7 +174,7 @@ export async function handleServiceObservabilityWebSocketUpgrade(
   }
 
   const shell = url.searchParams.get("shell") === "sh" ? "sh" : "bash";
-  const runtimeResult = await resolveWebSocketRuntime(serviceId);
+  const runtimeResult = await resolveWebSocketRuntime(serviceId, authResult.actor, "terminal:open");
   if (!runtimeResult.ok) {
     return runtimeResult.response;
   }

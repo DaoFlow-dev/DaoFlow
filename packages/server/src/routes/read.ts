@@ -10,13 +10,17 @@ import { listInfrastructureInventory, listServerReadiness } from "../db/services
 import { getOperationalMaintenanceReport } from "../db/services/operational-maintenance";
 import { listProjects, getProject, listEnvironments } from "../db/services/projects";
 import { getServiceDomainState } from "../db/services/service-domains";
-import { listServices, listServicesByProject, getService } from "../db/services/services";
 import { listAgentPrincipals } from "../db/services/agents";
 import { listContainerRegistrySummaries } from "../db/services/container-registries";
 import {
   listGitInstallationSummaries,
   listGitProviderSummaries
 } from "../db/services/git-providers";
+import {
+  getServiceReadModelForTeam,
+  listServicesByProjectForTeam,
+  listServicesForTeam
+} from "../db/services/service-access";
 import { resolveTeamIdForUser } from "../db/services/teams";
 import {
   t,
@@ -29,6 +33,7 @@ import { limitInput } from "../schemas";
 import { backupReadRouter } from "./read-backups";
 import { developmentTaskReadRouter } from "./read-development-tasks";
 import { deploymentReadRouter } from "./read-deployments";
+import { serviceAccessActor } from "./service-scope";
 
 const productPrinciples = [
   "Agent-first, human-supervised",
@@ -182,13 +187,26 @@ const coreReadRouter = t.router({
         limit: z.number().int().min(1).max(100).optional()
       })
     )
-    .query(async ({ input }) => {
-      return listServices(input.environmentId, input.limit ?? 50);
+    .query(async ({ ctx, input }) => {
+      const teamId = await requireViewerTeamId(ctx.session.user.id);
+      return listServicesForTeam({
+        teamId,
+        environmentId: input.environmentId,
+        limit: input.limit ?? 50,
+        actor: serviceAccessActor(ctx)
+      });
     }),
   serviceDetails: protectedProcedure
     .input(z.object({ serviceId: z.string().min(1) }))
-    .query(async ({ input }) => {
-      const service = await getService(input.serviceId);
+    .query(async ({ ctx, input }) => {
+      const teamId = await requireViewerTeamId(ctx.session.user.id);
+      const service = await getServiceReadModelForTeam({
+        serviceId: input.serviceId,
+        teamId,
+        actor: serviceAccessActor(ctx),
+        action: "service.details.denied",
+        permissionScope: "deploy:read"
+      });
       if (!service) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Service not found." });
       }
@@ -196,7 +214,18 @@ const coreReadRouter = t.router({
     }),
   serviceDomainState: protectedProcedure
     .input(z.object({ serviceId: z.string().min(1) }))
-    .query(async ({ input }) => {
+    .query(async ({ ctx, input }) => {
+      const teamId = await requireViewerTeamId(ctx.session.user.id);
+      const service = await getServiceReadModelForTeam({
+        serviceId: input.serviceId,
+        teamId,
+        actor: serviceAccessActor(ctx),
+        action: "service.domain-state.denied",
+        permissionScope: "deploy:read"
+      });
+      if (!service) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Service not found." });
+      }
       const state = await getServiceDomainState({
         serviceId: input.serviceId
       });
@@ -213,7 +242,12 @@ const coreReadRouter = t.router({
       if (!project) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Project not found." });
       }
-      return listServicesByProject(input.projectId);
+      const services = await listServicesByProjectForTeam({
+        projectId: input.projectId,
+        teamId,
+        actor: serviceAccessActor(ctx)
+      });
+      return services ?? [];
     }),
   agents: protectedProcedure.query(async () => {
     return listAgentPrincipals();

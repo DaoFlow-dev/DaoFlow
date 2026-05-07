@@ -9,7 +9,7 @@ import { updateServiceDomainRouting } from "../db/services/service-domain-routin
 import { updateServicePortMappings } from "../db/services/service-port-mappings";
 import { updateServiceRuntimeConfig } from "../db/services/service-runtime-config";
 import { createService, deleteService, updateService } from "../db/services/services";
-import { adminProcedure, getActorContext, serviceUpdateProcedure, t } from "../trpc";
+import { getActorContext, t } from "../trpc";
 import {
   composePreviewConfigSchema,
   composeReadinessProbeSchema,
@@ -19,9 +19,10 @@ import {
   serviceRuntimeRestartPolicySchema,
   serviceRuntimeVolumeSchema
 } from "./command-admin-service-schemas";
+import { teamScopedAdminServiceProcedure, teamScopedServiceUpdateProcedure } from "./service-scope";
 
 export const adminServiceRouter = t.router({
-  createService: serviceUpdateProcedure
+  createService: teamScopedServiceUpdateProcedure
     .input(
       z.object({
         name: z.string().min(1).max(80),
@@ -58,7 +59,7 @@ export const adminServiceRouter = t.router({
       return result.service;
     }),
 
-  updateService: serviceUpdateProcedure
+  updateService: teamScopedServiceUpdateProcedure
     .input(
       z.object({
         serviceId: z.string().min(1),
@@ -89,7 +90,7 @@ export const adminServiceRouter = t.router({
       return result.service;
     }),
 
-  updateServiceRuntimeConfig: serviceUpdateProcedure
+  updateServiceRuntimeConfig: teamScopedServiceUpdateProcedure
     .input(
       z.object({
         serviceId: z.string().min(1),
@@ -141,7 +142,7 @@ export const adminServiceRouter = t.router({
       return result.service;
     }),
 
-  addServiceDomain: serviceUpdateProcedure
+  addServiceDomain: teamScopedServiceUpdateProcedure
     .input(
       z.object({
         serviceId: z.string().min(1),
@@ -165,7 +166,7 @@ export const adminServiceRouter = t.router({
       return result.state;
     }),
 
-  removeServiceDomain: serviceUpdateProcedure
+  removeServiceDomain: teamScopedServiceUpdateProcedure
     .input(
       z.object({
         serviceId: z.string().min(1),
@@ -189,7 +190,7 @@ export const adminServiceRouter = t.router({
       return result.state;
     }),
 
-  setPrimaryServiceDomain: serviceUpdateProcedure
+  setPrimaryServiceDomain: teamScopedServiceUpdateProcedure
     .input(
       z.object({
         serviceId: z.string().min(1),
@@ -213,7 +214,7 @@ export const adminServiceRouter = t.router({
       return result.state;
     }),
 
-  updateServicePortMappings: serviceUpdateProcedure
+  updateServicePortMappings: teamScopedServiceUpdateProcedure
     .input(
       z.object({
         serviceId: z.string().min(1),
@@ -237,7 +238,7 @@ export const adminServiceRouter = t.router({
       return result.state;
     }),
 
-  updateServiceDomainRouting: serviceUpdateProcedure
+  updateServiceDomainRouting: teamScopedServiceUpdateProcedure
     .input(
       z.object({
         serviceId: z.string().min(1),
@@ -268,7 +269,7 @@ export const adminServiceRouter = t.router({
       return result.state;
     }),
 
-  deleteService: adminProcedure
+  deleteService: teamScopedAdminServiceProcedure
     .input(z.object({ serviceId: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => {
       const result = await deleteService({

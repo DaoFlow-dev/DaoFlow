@@ -1,11 +1,14 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
+import type { AppRole } from "@daoflow/shared";
 import { buildConfigDiff } from "../db/services/config-diffs";
 import { cancelDeployment } from "../db/services/deployments";
 import { triggerDeploy } from "../db/services/trigger-deploy";
 import { reconcileComposePreviewState } from "../db/services/compose-preview-reconciliation";
 import { executeRollback } from "../db/services/execute-rollback";
 import { ScopedDeploymentNotFoundError } from "../db/services/scoped-deployments";
+import { getServiceForTeam } from "../db/services/service-access";
+import { resolveTeamIdForUser } from "../db/services/teams";
 import {
   deployCancelProcedure,
   deployReadProcedure,
@@ -51,10 +54,51 @@ const deploymentDiffInputSchema = z.object({
   deploymentIdB: z.string().min(1)
 });
 
+async function requireScopedService(input: {
+  ctx: {
+    session: { user: { id: string; email: string } };
+    auth: { role: AppRole; method?: string };
+  };
+  serviceId: string;
+  action: string;
+  permissionScope: string;
+}) {
+  const teamId = await resolveTeamIdForUser(input.ctx.session.user.id);
+  if (!teamId) {
+    throw new TRPCError({
+      code: "PRECONDITION_FAILED",
+      message: "No organization is available for this user."
+    });
+  }
+
+  const service = await getServiceForTeam({
+    serviceId: input.serviceId,
+    teamId,
+    actor: {
+      id: input.ctx.session.user.id,
+      email: input.ctx.session.user.email,
+      role: input.ctx.auth.role,
+      actorType: input.ctx.auth.method === "api-token" ? "token" : "user"
+    },
+    action: input.action,
+    permissionScope: input.permissionScope
+  });
+
+  if (!service) {
+    throw new TRPCError({ code: "NOT_FOUND", message: "Service not found." });
+  }
+}
+
 export const deployLifecycleCommandRouter = t.router({
   triggerDeploy: deployStartProcedure
     .input(triggerDeployInputSchema)
     .mutation(async ({ ctx, input }) => {
+      await requireScopedService({
+        ctx,
+        serviceId: input.serviceId,
+        action: "service.deploy.denied",
+        permissionScope: "deploy:start"
+      });
       const result = await triggerDeploy({
         ...input,
         ...getActorContext(ctx)
@@ -65,6 +109,12 @@ export const deployLifecycleCommandRouter = t.router({
   reconcileComposePreviews: deployStartProcedure
     .input(reconcileComposePreviewsInputSchema)
     .mutation(async ({ ctx, input }) => {
+      await requireScopedService({
+        ctx,
+        serviceId: input.serviceId,
+        action: "service.preview-reconcile.denied",
+        permissionScope: "deploy:start"
+      });
       return reconcileComposePreviewState({
         serviceRef: input.serviceId,
         dryRun: input.dryRun,
@@ -75,6 +125,12 @@ export const deployLifecycleCommandRouter = t.router({
   executeRollback: deployRollbackProcedure
     .input(rollbackInputSchema)
     .mutation(async ({ ctx, input }) => {
+      await requireScopedService({
+        ctx,
+        serviceId: input.serviceId,
+        action: "service.rollback.denied",
+        permissionScope: "deploy:rollback"
+      });
       const result = await executeRollback({
         ...input,
         ...getActorContext(ctx)

@@ -9,7 +9,7 @@ import { db } from "./db/connection";
 import { deployments } from "./db/schema/deployments";
 import { gitInstallations, gitProviders } from "./db/schema/git-providers";
 import { projects } from "./db/schema/projects";
-import { teamInvites, teamMembers } from "./db/schema/teams";
+import { teamInvites, teamMembers, teams } from "./db/schema/teams";
 import { apiTokens, principals } from "./db/schema/tokens";
 import { users } from "./db/schema/users";
 import { encrypt } from "./db/crypto";
@@ -269,6 +269,7 @@ async function createServiceRuntimeFixture() {
   });
 
   return {
+    projectId: fixture.project.id,
     serviceId: fixture.service.id
   };
 }
@@ -1964,6 +1965,40 @@ describe("createApp", () => {
     expect(response.status).toBe(200);
     expect(body).toEqual(expectedStats);
     expect(readStatsSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("denies agent bearer tokens on GET /api/v1/container-stats for services outside the caller's team", async () => {
+    await resetAppTestState({ seedControlPlane: true });
+
+    const fixture = await createServiceRuntimeFixture();
+    await db.insert(teams).values({
+      id: "team_obs_other",
+      name: "Observability Other Team",
+      slug: "observability-other-team",
+      status: "active",
+      createdByUserId: "user_foundation_owner",
+      createdAt: new Date(),
+      updatedAt: new Date()
+    });
+    await db
+      .update(projects)
+      .set({ teamId: "team_obs_other" })
+      .where(eq(projects.id, fixture.projectId));
+
+    const app = createApp();
+    const tokenValue = await createAgentBearerToken({ preset: "agent:read-only" });
+    const readStatsSpy = vi.spyOn(serviceObservabilityWorker, "readServiceStats");
+
+    const response = await app.request(`/api/v1/container-stats/${fixture.serviceId}`, {
+      headers: {
+        Authorization: `Bearer ${tokenValue}`
+      }
+    });
+    const body = (await response.json()) as { code: string };
+
+    expect(response.status).toBe(404);
+    expect(body.code).toBe("NOT_FOUND");
+    expect(readStatsSpy).not.toHaveBeenCalled();
   });
 
   it("denies service principal bearer tokens on GET /api/v1/container-stats because the developer role ceiling excludes diagnostics:read", async () => {
