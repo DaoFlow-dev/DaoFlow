@@ -200,13 +200,16 @@ export async function createBackupRun(
  */
 export function executeBackupCopy(
   resolved: BackupPolicyResolved,
-  runId: string
+  runId: string,
+  sourcePath = resolved.mountPath
 ): Promise<BackupRunResult> {
   const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
   const remotePath = `${resolved.policyName}/${timestamp}`;
 
-  // Use rclone to copy the volume data to the destination
-  const copyResult = copyToRemote(resolved.destination, resolved.mountPath, remotePath);
+  // Use rclone to copy the backup source to the destination. For volume
+  // backups this is the mounted volume; for database backups this is the
+  // logical dump file produced earlier in the workflow.
+  const copyResult = copyToRemote(resolved.destination, sourcePath, remotePath);
   if (!copyResult.success) {
     throw new Error(`rclone copy failed: ${copyResult.error ?? copyResult.output}`);
   }

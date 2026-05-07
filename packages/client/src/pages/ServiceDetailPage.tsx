@@ -16,7 +16,8 @@ import {
   Globe,
   Wrench,
   Activity,
-  FileCode
+  FileCode,
+  ArchiveRestore
 } from "lucide-react";
 
 import ServiceHeader from "../components/service-detail/ServiceHeader";
@@ -36,6 +37,7 @@ import type { PreviewLifecycleConfig } from "@/components/service-detail/Preview
 const LogsTab = lazy(() => import("../components/service-detail/LogsTab"));
 const MonitoringTab = lazy(() => import("../components/service-detail/MonitoringTab"));
 const ComposeEditorTab = lazy(() => import("../components/service-detail/ComposeEditorTab"));
+const BackupsTab = lazy(() => import("../components/service-detail/BackupsTab"));
 
 function LazyTabSkeleton({ testId }: { testId: string }) {
   return (
@@ -222,6 +224,14 @@ export default function ServiceDetailPage() {
             <FileCode size={14} />
             Compose
           </TabsTrigger>
+          <TabsTrigger
+            value="backups"
+            className="gap-1.5 data-[state=active]:bg-muted"
+            data-testid="service-detail-backups-trigger"
+          >
+            <ArchiveRestore size={14} />
+            Backups
+          </TabsTrigger>
           <TabsTrigger value="advanced" className="gap-1.5 data-[state=active]:bg-muted">
             <Wrench size={14} />
             Advanced
@@ -293,6 +303,12 @@ export default function ServiceDetailPage() {
               composeServiceName={svc.composeServiceName}
               runtimeConfigPreview={svc.runtimeConfigPreview}
             />
+          </Suspense>
+        </TabsContent>
+
+        <TabsContent value="backups" className="mt-4">
+          <Suspense fallback={<LazyTabSkeleton testId="service-detail-backups-loading" />}>
+            <BackupsTab serviceId={svc.id} serviceName={svc.name} />
           </Suspense>
         </TabsContent>
 

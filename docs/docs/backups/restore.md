@@ -6,6 +6,10 @@ sidebar_position: 4
 
 Restoring from a backup creates a new operation record with full audit trail. Previewing a restore is a separate non-mutating planning call.
 
+The service detail **Backups** tab follows the same rule: a successful backup run must be previewed
+before the restore action appears in the service workflow. The preview resolves the artifact, target
+path, verification state, and prior restore count without creating a restore request.
+
 ## CLI Usage
 
 ```bash
@@ -21,10 +25,11 @@ daoflow backup restore --backup-run-id bkp_run_123 --dry-run --json
 1. **Preview** — use `--dry-run` to fetch the `backupRestorePlan` preview without creating a restore record
 2. **Validate** — verify the backup run exists, succeeded, and has an artifact path
 3. **Queue** — create a restore request record with full audit trail
-4. **Fetch** — resolve the backup artifact from the configured destination
-5. **Execute** — run the restore workflow and record status updates
-6. **Verify** — capture completion or failure in restore metadata
-7. **Record** — keep the restore request and source backup run immutable
+4. **Dispatch** — start the Temporal restore workflow for the queued restore request
+5. **Fetch** — resolve the backup artifact from the configured destination
+6. **Execute** — run the restore workflow and record status updates
+7. **Verify** — capture completion or failure in restore metadata
+8. **Record** — keep the restore request and source backup run immutable
 
 ## Approval Gates
 
@@ -51,6 +56,7 @@ daoflow backup restore --backup-run-id bkp_run_123 --yes
 
 - `--dry-run` uses the API planning lane and does not create a restore record
 - Restoring creates a new operation record (never modifies existing)
+- Restore execution requires Temporal mode so requests cannot sit in a fake queue
 - The original backup artifact is never modified
 - Restore status is recorded even when application-specific rehydration still requires operator follow-through
 - All restores appear in the audit trail

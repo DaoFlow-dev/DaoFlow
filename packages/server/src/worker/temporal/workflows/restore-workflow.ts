@@ -19,6 +19,7 @@ import type * as notificationActs from "../activities/notification-activities";
 const {
   resolveRestoreContext,
   downloadBackupArtifact,
+  executeRestore,
   markRestoreSucceeded,
   markRestoreFailed,
   markBackupVerified,
@@ -48,6 +49,8 @@ const { dispatchNotification, buildBackupNotification } = proxyActivities<typeof
 // ── Workflow Input ────────────────────────────────────────────
 
 export interface RestoreWorkflowInput {
+  /** Existing queued restore row to execute */
+  restoreId?: string;
   /** ID of the backup run to restore from (#24: point-in-time by run ID) */
   backupRunId: string;
   /** Target path override (optional) */
@@ -66,6 +69,7 @@ export async function restoreWorkflow(input: RestoreWorkflowInput): Promise<void
   // Phase 1: Resolve context
   const ctx = await resolveRestoreContext({
     backupRunId,
+    restoreId: input.restoreId,
     targetPath: input.targetPath,
     triggeredBy,
     testRestore
@@ -114,6 +118,12 @@ export async function restoreWorkflow(input: RestoreWorkflowInput): Promise<void
 
     if (!download.success) {
       throw new Error(`Download failed: ${download.error}`);
+    }
+
+    const restore = await executeRestore(ctx, download);
+
+    if (!restore.success) {
+      throw new Error(`Restore execution failed: ${restore.error}`);
     }
 
     // Phase 3: Mark success

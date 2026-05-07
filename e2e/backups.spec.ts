@@ -59,18 +59,36 @@ test.describe("Backup and restore workflows", () => {
     await expect(page.getByText("postgres-volume").first()).toBeVisible({ timeout: 10_000 });
   });
 
-  test("queue a restore drill from a successful backup run", async ({ page }) => {
+  test("restore drill requests require Temporal mode in the non-worker E2E lane", async ({
+    page
+  }) => {
     await signInAsOwner(page);
 
-    const restore = await trpcRequest<{ id: string; backupRunId: string; status: string }>(
-      page,
-      "triggerTestRestore",
-      {
-        backupRunId: "brun_foundation_volume_success"
-      }
-    );
+    const response = await page.evaluate(async (backupRunId) => {
+      const res = await fetch("/trpc/triggerTestRestore", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ backupRunId }),
+        credentials: "include"
+      });
 
-    expect(restore.backupRunId).toBe("brun_foundation_volume_success");
-    expect(restore.status).toBe("queued");
+      return {
+        ok: res.ok,
+        status: res.status,
+        body: await res.text()
+      };
+    }, "brun_foundation_volume_success");
+
+    expect(response.ok).toBe(false);
+    expect(response.status).toBe(500);
+    expect(response.body).toContain("Backup restore execution requires Temporal mode");
+
+    await expect(
+      trpcRequest<{ id: string; backupRunId: string; status: string }>(page, "triggerTestRestore", {
+        backupRunId: "brun_foundation_volume_success"
+      })
+    ).rejects.toThrow("Request to triggerTestRestore failed with status 500");
   });
 });

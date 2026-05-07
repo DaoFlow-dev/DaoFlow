@@ -10,17 +10,18 @@
 
 import { eq } from "drizzle-orm";
 import { db } from "../../../db/connection";
-import { backupRuns, backupRestores } from "../../../db/schema/storage";
-import { backupPolicies } from "../../../db/schema/storage";
+import { backupPolicies, backupRestores, backupRuns, volumes } from "../../../db/schema/storage";
 import { backupDestinations } from "../../../db/schema/destinations";
 import { events, auditEntries } from "../../../db/schema/audit";
 import { copyFromRemote, type DestinationConfig } from "../../rclone-executor";
 import type { BackupProvider } from "../../../db/schema/destinations";
 import { newId } from "../../../db/services/json-helpers";
+import { executeRestoreArtifact } from "./restore-execution";
 
 // ── Types ────────────────────────────────────────────────────
 
 export interface RestoreInput {
+  restoreId?: string;
   backupRunId: string;
   /** Target path to restore to (optional, defaults to original volume path) */
   targetPath?: string;
@@ -36,10 +37,16 @@ export interface RestoreResolved {
   artifactPath: string;
   destination: DestinationConfig;
   targetPath: string;
+  downloadPath: string;
   encryptionMode: string;
   backupType: string;
+  volumeName: string;
+  serviceName?: string;
   databaseEngine?: string;
   containerName?: string;
+  databaseName?: string;
+  databaseUser?: string;
+  databasePassword?: string;
 }
 
 export interface RestoreResult {
@@ -47,6 +54,15 @@ export interface RestoreResult {
   success: boolean;
   bytesRestored: number;
   error?: string;
+}
+
+function readMetadataString(metadata: unknown, key: string): string | undefined {
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
+    return undefined;
+  }
+
+  const value = (metadata as Record<string, unknown>)[key];
+  return typeof value === "string" && value.trim().length > 0 ? value : undefined;
 }
 
 // ── Activities ───────────────────────────────────────────────
@@ -76,6 +92,10 @@ export async function resolveRestoreContext(input: RestoreInput): Promise<Restor
 
   if (!policy || !policy.destinationId) return null;
 
+  const [volume] = await db.select().from(volumes).where(eq(volumes.id, policy.volumeId)).limit(1);
+
+  if (!volume) return null;
+
   // Fetch destination
   const [dest] = await db
     .select()
@@ -85,17 +105,38 @@ export async function resolveRestoreContext(input: RestoreInput): Promise<Restor
 
   if (!dest) return null;
 
-  // Create restore record
-  const restoreId = newId();
-  await db.insert(backupRestores).values({
-    id: restoreId,
-    backupRunId: run.id,
-    status: "running",
-    targetPath: input.targetPath ?? null,
-    triggeredByUserId: input.triggeredBy === "system" ? null : input.triggeredBy,
-    startedAt: new Date(),
-    createdAt: new Date()
-  });
+  const backupType = policy.backupType ?? "volume";
+  const volumeMetadata = volume.metadata;
+  const targetPath = input.testRestore
+    ? (input.targetPath ?? `/tmp/daoflow-restore/${run.id}`)
+    : (input.targetPath ?? volume.mountPath);
+  const downloadPath =
+    backupType === "database" || input.testRestore ? `/tmp/daoflow-restore/${run.id}` : targetPath;
+  const restoreId = input.restoreId ?? newId();
+  const now = new Date();
+
+  if (input.restoreId) {
+    await db
+      .update(backupRestores)
+      .set({
+        status: "running",
+        targetPath,
+        error: null,
+        startedAt: now,
+        completedAt: null
+      })
+      .where(eq(backupRestores.id, input.restoreId));
+  } else {
+    await db.insert(backupRestores).values({
+      id: restoreId,
+      backupRunId: run.id,
+      status: "running",
+      targetPath,
+      triggeredByUserId: input.triggeredBy === "system" ? null : input.triggeredBy,
+      startedAt: now,
+      createdAt: now
+    });
+  }
 
   return {
     restoreId,
@@ -117,13 +158,17 @@ export async function resolveRestoreContext(input: RestoreInput): Promise<Restor
       encryptionSalt: dest.encryptionSalt,
       filenameEncryption: dest.filenameEncryption
     },
-    targetPath: input.targetPath ?? "/tmp/daoflow-restore",
+    targetPath,
+    downloadPath,
     encryptionMode: dest.encryptionMode,
-    backupType: policy.backupType ?? "volume",
+    backupType,
+    volumeName: volume.name,
+    serviceName: readMetadataString(volumeMetadata, "serviceName"),
     databaseEngine: policy.databaseEngine ?? undefined,
-    // containerName is resolved at restore-execution time via `docker ps --filter`
-    // for database engine restores. For volume backups it is not needed.
-    containerName: undefined
+    containerName: readMetadataString(volumeMetadata, "containerName"),
+    databaseName: readMetadataString(volumeMetadata, "databaseName"),
+    databaseUser: readMetadataString(volumeMetadata, "databaseUser"),
+    databasePassword: readMetadataString(volumeMetadata, "databasePassword")
   };
 }
 
@@ -136,7 +181,7 @@ export async function resolveRestoreContext(input: RestoreInput): Promise<Restor
 export async function downloadBackupArtifact(
   ctx: RestoreResolved
 ): Promise<{ success: boolean; localPath: string; error?: string }> {
-  const localPath = `${ctx.targetPath}/${ctx.runId}`;
+  const localPath = ctx.downloadPath;
 
   // Synchronous rclone call wrapped for Temporal activity compatibility
   const result = await Promise.resolve(
@@ -152,6 +197,23 @@ export async function downloadBackupArtifact(
   }
 
   return { success: true, localPath };
+}
+
+/**
+ * Replay the downloaded backup into its real restore target.
+ */
+export async function executeRestore(
+  ctx: RestoreResolved,
+  download: { localPath: string }
+): Promise<RestoreResult> {
+  const result = await executeRestoreArtifact(ctx, download.localPath);
+
+  return {
+    restoreId: ctx.restoreId,
+    success: result.success,
+    bytesRestored: result.bytesRestored,
+    error: result.error
+  };
 }
 
 /**

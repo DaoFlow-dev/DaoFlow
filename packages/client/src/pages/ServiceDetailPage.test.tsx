@@ -20,7 +20,8 @@ const {
   activityTabMock,
   logsTabMock,
   monitoringTabMock,
-  composeEditorTabMock
+  composeEditorTabMock,
+  backupsTabMock
 } = vi.hoisted(() => ({
   serviceDetailsUseQueryMock: vi.fn(),
   viewerUseQueryMock: vi.fn(),
@@ -57,6 +58,9 @@ const {
   )),
   composeEditorTabMock: vi.fn(({ serviceName }: { serviceName: string }) => (
     <div data-testid="lazy-compose-tab">Compose {serviceName}</div>
+  )),
+  backupsTabMock: vi.fn(({ serviceName }: { serviceName: string }) => (
+    <div data-testid="lazy-backups-tab">Backups {serviceName}</div>
   ))
 }));
 
@@ -117,6 +121,10 @@ vi.mock("../components/service-detail/MonitoringTab", () => ({
 
 vi.mock("../components/service-detail/ComposeEditorTab", () => ({
   default: composeEditorTabMock
+}));
+
+vi.mock("../components/service-detail/BackupsTab", () => ({
+  default: backupsTabMock
 }));
 
 const baseServiceData = {
@@ -237,6 +245,7 @@ describe("ServiceDetailPage", () => {
     expect(logsTabMock).not.toHaveBeenCalled();
     expect(monitoringTabMock).not.toHaveBeenCalled();
     expect(composeEditorTabMock).not.toHaveBeenCalled();
+    expect(backupsTabMock).not.toHaveBeenCalled();
 
     fireEvent.mouseDown(screen.getByRole("tab", { name: /logs/i }));
     fireEvent.click(screen.getByRole("tab", { name: /logs/i }));
@@ -252,6 +261,17 @@ describe("ServiceDetailPage", () => {
     fireEvent.click(screen.getByRole("tab", { name: /compose/i }));
     expect(await screen.findByTestId("lazy-compose-tab")).toHaveTextContent("Compose api");
     expect(composeEditorTabMock).toHaveBeenCalledTimes(1);
+
+    fireEvent.mouseDown(screen.getByRole("tab", { name: /backups/i }));
+    fireEvent.click(screen.getByRole("tab", { name: /backups/i }));
+    expect(await screen.findByTestId("lazy-backups-tab")).toHaveTextContent("Backups api");
+    expect(backupsTabMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        serviceId: "svc_api",
+        serviceName: "api"
+      }),
+      undefined
+    );
   });
 
   it("opens deployment history from the recovery panel", async () => {

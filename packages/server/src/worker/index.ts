@@ -24,9 +24,11 @@ export {
   getDeploymentWorkflowStatus,
   buildBackupCronWorkflowId,
   buildOneOffBackupWorkflowId,
+  buildRestoreWorkflowId,
   startBackupCronWorkflow,
   cancelBackupCronWorkflow,
   startOneOffBackupWorkflow,
+  startRestoreWorkflow,
   getBackupCronStatus,
   closeTemporalClient
 } from "./temporal/client";

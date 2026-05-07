@@ -38,6 +38,11 @@ vi.mock("./activities/notification-activities", () => ({
   sendSuccessNotification: vi.fn()
 }));
 
+vi.mock("./activities/restore-activities", () => ({
+  resolveRestoreContext: vi.fn(),
+  executeRestore: vi.fn()
+}));
+
 describe("startTemporalWorker", () => {
   beforeEach(() => {
     vi.resetModules();
@@ -56,7 +61,7 @@ describe("startTemporalWorker", () => {
     });
   });
 
-  it("registers backup run log activities with the Temporal worker", async () => {
+  it("registers backup and restore activities with the Temporal worker", async () => {
     const { startTemporalWorker } = await import("./worker");
 
     await startTemporalWorker();
@@ -66,6 +71,8 @@ describe("startTemporalWorker", () => {
     expect(firstCall).toBeDefined();
     const [createArgs] = firstCall as [{ activities: Record<string, unknown> }];
     expect(createArgs.activities).toHaveProperty("appendBackupRunLog");
+    expect(createArgs.activities).toHaveProperty("resolveRestoreContext");
+    expect(createArgs.activities).toHaveProperty("executeRestore");
   });
 
   it("retries the Temporal connection before starting the worker", async () => {

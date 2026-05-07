@@ -12,7 +12,7 @@ jump directly into Temporal Web when a run needs deeper diagnosis.
 
 When Temporal mode is disabled, one-off backup requests fail fast instead of being silently queued
 without an execution engine behind them. Enable `DAOFLOW_ENABLE_TEMPORAL=true` before relying on
-manual `backup run` operations.
+manual `backup run` or restore operations.
 
 ## Overview
 
@@ -22,6 +22,14 @@ manual `backup run` operations.
 | [Runs](./runs)             | View backup execution history                    |
 | [Restore](./restore)       | Restore from a specific backup                   |
 | [S3 Storage](./s3-storage) | Configure remote backup storage                  |
+
+## Service Detail Workflow
+
+Each service detail page has a **Backups** tab for the volumes linked to that service. The tab shows
+volume coverage, size, destination, retention, recent backup status, and restore history next to the
+service itself. Operators can run a service volume backup from the policy list, inspect failed run
+logs, preview a successful run's restore target and preflight checks, then queue the restore from the
+preview panel.
 
 ## Backup Types
 

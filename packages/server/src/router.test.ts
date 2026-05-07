@@ -1709,6 +1709,131 @@ describe("appRouter", () => {
     }
   });
 
+  it("returns service-scoped backup workflow state for service detail pages", async () => {
+    const fixture = await createProjectEnvironmentServiceFixture({
+      project: {
+        name: `backup-workflow-${Date.now()}`,
+        description: "Service backup workflow fixture",
+        teamId: "team_foundation"
+      },
+      environment: {
+        name: "production",
+        targetServerId: "srv_foundation_1"
+      },
+      service: {
+        name: "api-backup-workflow",
+        sourceType: "compose",
+        targetServerId: "srv_foundation_1"
+      }
+    });
+    const suffix = Date.now().toString(36);
+    const volumeId = `vol_svc_${suffix}`.slice(0, 32);
+    const policyId = `bpol_svc_${suffix}`.slice(0, 32);
+    const runId = `brun_svc_${suffix}`.slice(0, 32);
+    const restoreId = `brest_svc_${suffix}`.slice(0, 32);
+
+    await db.insert(volumes).values({
+      id: volumeId,
+      name: "api-data",
+      serverId: "srv_foundation_1",
+      mountPath: "/srv/api-data",
+      status: "active",
+      sizeBytes: "4096",
+      metadata: {
+        projectId: fixture.project.id,
+        environmentId: fixture.environment.id,
+        serviceId: fixture.service.id,
+        projectName: fixture.project.name,
+        environmentName: fixture.environment.name,
+        serviceName: fixture.service.name,
+        backupPolicyId: policyId,
+        backupCoverage: "protected",
+        restoreReadiness: "verified",
+        lastRestoreTestAt: "2026-05-01T00:00:00.000Z"
+      },
+      createdAt: new Date(),
+      updatedAt: new Date()
+    });
+    await db.insert(backupPolicies).values({
+      id: policyId,
+      name: "api-data-daily",
+      volumeId,
+      backupType: "volume",
+      retentionDays: 14,
+      status: "active",
+      schedule: "0 2 * * *",
+      createdAt: new Date(),
+      updatedAt: new Date()
+    });
+    await db.insert(backupRuns).values({
+      id: runId,
+      policyId,
+      status: "succeeded",
+      artifactPath: "s3://daoflow/api-data/run.tar.zst",
+      sizeBytes: "4096",
+      startedAt: new Date(),
+      completedAt: new Date(),
+      createdAt: new Date()
+    });
+    await db.insert(backupRestores).values({
+      id: restoreId,
+      backupRunId: runId,
+      status: "succeeded",
+      targetPath: "/srv/api-data",
+      triggeredByUserId: "user_foundation_owner",
+      startedAt: new Date(),
+      completedAt: new Date(),
+      createdAt: new Date()
+    });
+
+    const caller = appRouter.createCaller({
+      requestId: "test-service-backup-workflow",
+      session: makeSession("viewer")
+    });
+
+    const workflow = await caller.serviceBackupWorkflow({
+      serviceId: fixture.service.id
+    });
+    const overview = await caller.backupOverview({
+      serviceId: fixture.service.id
+    });
+    const restoreQueue = await caller.backupRestoreQueue({
+      serviceId: fixture.service.id
+    });
+    const inventory = await caller.persistentVolumes({
+      serviceId: fixture.service.id
+    });
+
+    expect(workflow.summary.totalVolumes).toBe(1);
+    expect(workflow.summary.protectedVolumes).toBe(1);
+    expect(workflow.summary.restoreRequests).toBe(1);
+    expect(workflow.volumes[0]).toMatchObject({
+      id: volumeId,
+      volumeName: "api-data",
+      backupCoverage: "protected",
+      restoreReadiness: "verified",
+      storageProvider: null
+    });
+    expect(workflow.policies[0]).toMatchObject({
+      id: policyId,
+      scheduleLabel: "0 2 * * *",
+      retentionCount: 14
+    });
+    expect(workflow.runs[0]).toMatchObject({
+      id: runId,
+      status: "succeeded",
+      bytesWritten: 4096
+    });
+    expect(workflow.restores[0]).toMatchObject({
+      id: restoreId,
+      targetPath: "/srv/api-data",
+      requestedBy: "owner@daoflow.local"
+    });
+    expect(overview.policies.map((policy) => policy.id)).toContain(policyId);
+    expect(restoreQueue.requests.map((restore) => restore.id)).toContain(restoreId);
+    expect(inventory.volumes.map((volume) => volume.id)).toContain(volumeId);
+  });
+
   it("returns backup run details with persisted log state", async () => {
     const caller = appRouter.createCaller({
       requestId: "test-backup-run-details",
@@ -1798,9 +1923,38 @@ describe("appRouter", () => {
         grantedScopes: ["deploy:read"]
       }
     });
+
+    await expect(
+      caller.serviceBackupWorkflow({
+        serviceId: "svc_foundation_api"
+      })
+    ).rejects.toMatchObject({
+      code: "FORBIDDEN",
+      cause: {
+        code: "SCOPE_DENIED",
+        requiredScopes: ["backup:read"],
+        grantedScopes: ["deploy:read"]
+      }
+    });
   });
 
   it("allows backup read procedures when a token includes backup:read", async () => {
+    const fixture = await createProjectEnvironmentServiceFixture({
+      project: {
+        name: `backup-read-token-${Date.now()}`,
+        description: "Backup read token fixture",
+        teamId: "team_foundation"
+      },
+      environment: {
+        name: "production",
+        targetServerId: "srv_foundation_1"
+      },
+      service: {
+        name: "backup-read-token-service",
+        sourceType: "compose",
+        targetServerId: "srv_foundation_1"
+      }
+    });
     const caller = appRouter.createCaller({
       requestId: "test-backup-read-scope-allowed",
       session: makeSession("owner"),
@@ -1814,10 +1968,14 @@ describe("appRouter", () => {
     const plan = await caller.backupRestorePlan({
       backupRunId: "brun_foundation_volume_success"
     });
+    const workflow = await caller.serviceBackupWorkflow({
+      serviceId: fixture.service.id
+    });
 
     expect(overview.summary.totalPolicies).toBeGreaterThanOrEqual(0);
     expect(run.id).toBe("brun_foundation_db_failed");
     expect(plan.backupRun.id).toBe("brun_foundation_volume_success");
+    expect(workflow.service.id).toBe(fixture.service.id);
   });
 
   it("denies persistent volume inventory when a token omits volumes:read", async () => {

@@ -199,11 +199,15 @@ addApiGroup(
   }
 );
 
-addApiGroup(apiProcedureAccess, ["backupOverview", "backupRestoreQueue", "backupRunDetails"], {
-  auth: "authenticated",
-  requiredRoles: READ_ROLES,
-  requiredScopes: ["backup:read"]
-});
+addApiGroup(
+  apiProcedureAccess,
+  ["backupOverview", "backupRestoreQueue", "backupRunDetails", "serviceBackupWorkflow"],
+  {
+    auth: "authenticated",
+    requiredRoles: READ_ROLES,
+    requiredScopes: ["backup:read"]
+  }
+);
 
 apiProcedureAccess.persistentVolumes = {
   auth: "authenticated",

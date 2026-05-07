@@ -97,6 +97,10 @@ export function buildOneOffBackupWorkflowId(policyId: string, requestedRunId?: s
   return `backup-oneoff-${policyId}-${Date.now()}`;
 }
 
+export function buildRestoreWorkflowId(restoreId: string): string {
+  return `backup-restore-${restoreId}`;
+}
+
 /**
  * Start a backup cron workflow for a policy.
  * Uses Temporal's built-in cron scheduling with a stable workflow ID.
@@ -162,6 +166,42 @@ export async function startOneOffBackupWorkflow(
   });
 
   console.log(`[temporal-client] Started one-off backup: ${handle.workflowId}`);
+
+  return {
+    workflowId: handle.workflowId,
+    runId: handle.firstExecutionRunId
+  };
+}
+
+/**
+ * Start a restore workflow for an already queued restore row.
+ */
+export async function startRestoreWorkflow(input: {
+  restoreId: string;
+  backupRunId: string;
+  triggeredBy: string;
+  targetPath?: string | null;
+  testRestore?: boolean;
+}): Promise<{ workflowId: string; runId: string }> {
+  const tc = await getTemporalClient();
+  const workflowId = buildRestoreWorkflowId(input.restoreId);
+
+  const handle = await tc.workflow.start("restoreWorkflow", {
+    taskQueue: TEMPORAL_TASK_QUEUE,
+    workflowId,
+    args: [
+      {
+        restoreId: input.restoreId,
+        backupRunId: input.backupRunId,
+        triggeredBy: input.triggeredBy,
+        targetPath: input.targetPath ?? undefined,
+        testRestore: input.testRestore
+      }
+    ],
+    workflowExecutionTimeout: "1h"
+  });
+
+  console.log(`[temporal-client] Started restore workflow: ${handle.workflowId}`);
 
   return {
     workflowId: handle.workflowId,

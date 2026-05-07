@@ -59,7 +59,9 @@ const { appendBackupRunLog } = proxyActivities<typeof backupLogActs>({
 });
 
 // Database & container lifecycle activities
-const { executeDatabaseDump, stopContainer, startContainer } = proxyActivities<typeof dbActs>({
+const { executeDatabaseDump, stopContainer, startContainer, cleanupDumpFile } = proxyActivities<
+  typeof dbActs
+>({
   startToCloseTimeout: "30 minutes",
   retry: {
     maximumAttempts: 2,
@@ -248,8 +250,12 @@ export async function backupCronWorkflow(input: BackupCronWorkflowInput): Promis
         message: "Database dump completed. Uploading artifact to the configured destination."
       });
 
-      // Upload dump via rclone
-      result = await executeBackupCopy(resolved, runId);
+      try {
+        // Upload the logical dump via rclone.
+        result = await executeBackupCopy(resolved, runId, dumpResult.dumpPath);
+      } finally {
+        await cleanupDumpFile(dumpResult.dumpPath);
+      }
     } else {
       await writeRunLog({
         runId,
