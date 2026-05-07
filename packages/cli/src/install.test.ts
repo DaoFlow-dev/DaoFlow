@@ -245,6 +245,40 @@ DEPLOY_TIMEOUT_MS=900000
     });
   });
 
+  test("returns a structured error when readiness never succeeds", async () => {
+    process.env.DAOFLOW_INITIAL_ADMIN_EMAIL = "owner@example.com";
+    process.env.DAOFLOW_INITIAL_ADMIN_PASSWORD = "env-secret-123";
+    installRuntime.fetch = (url: string) => {
+      expect(url).toBe("http://127.0.0.1:3000/ready");
+      return Promise.resolve(new Response(JSON.stringify({ ok: false }), { status: 503 }));
+    };
+
+    const program = new Command().name("daoflow");
+    program.addCommand(installCommand());
+
+    const result = await captureCommandExecution(async () => {
+      await program.parseAsync([
+        "node",
+        "daoflow",
+        "install",
+        "--dir",
+        installDir,
+        "--yes",
+        "--json"
+      ]);
+    });
+
+    expect(result.exitCode).toBe(1);
+    expect(JSON.parse(result.logs[0])).toEqual({
+      ok: false,
+      error:
+        "DaoFlow did not become ready before the installer timeout. Run 'docker compose logs daoflow' in the install directory and retry.",
+      code: "INSTALL_READINESS_TIMEOUT",
+      directory: installDir,
+      port: 3000
+    });
+  });
+
   test("rewrites BETTER_AUTH_URL from tailscale exposure output", async () => {
     process.env.DAOFLOW_INITIAL_ADMIN_EMAIL = "owner@example.com";
     process.env.DAOFLOW_INITIAL_ADMIN_PASSWORD = "env-secret-123";
@@ -349,6 +383,63 @@ DEPLOY_TIMEOUT_MS=900000
     expect(composeFile).toContain("traefik:v3.6.7");
     expect(composeFile).toContain("${DAOFLOW_BIND:-127.0.0.1}:${DAOFLOW_PORT:-3000}:3000");
     expect(composeFile).toContain("DAOFLOW_PROXY_NETWORK:-daoflow-proxy");
+  });
+
+  test("returns a structured error when exposed auth URL restart never becomes ready", async () => {
+    process.env.DAOFLOW_INITIAL_ADMIN_EMAIL = "owner@example.com";
+    process.env.DAOFLOW_INITIAL_ADMIN_PASSWORD = "env-secret-123";
+
+    installRuntime.exec = (command: string) => {
+      if (command === "docker info") {
+        return "";
+      }
+      if (command.startsWith("command -v tailscale")) {
+        return "/usr/bin/tailscale\n";
+      }
+      if (command.startsWith("tailscale serve --bg 3000")) {
+        return "Available within your tailnet:\nhttps://daoflow-node.tail123.ts.net\n";
+      }
+      if (command.startsWith("docker compose")) {
+        return "";
+      }
+
+      throw new Error(`Unexpected command: ${command}`);
+    };
+
+    let readinessChecks = 0;
+    installRuntime.fetch = (url: string) => {
+      expect(url).toBe("http://127.0.0.1:3000/ready");
+      readinessChecks += 1;
+      const status = readinessChecks === 1 ? 200 : 503;
+      return Promise.resolve(new Response(JSON.stringify({ ok: status === 200 }), { status }));
+    };
+
+    const program = new Command().name("daoflow");
+    program.addCommand(installCommand());
+
+    const result = await captureCommandExecution(async () => {
+      await program.parseAsync([
+        "node",
+        "daoflow",
+        "install",
+        "--dir",
+        installDir,
+        "--expose",
+        "tailscale",
+        "--yes",
+        "--json"
+      ]);
+    });
+
+    expect(result.exitCode).toBe(1);
+    expect(JSON.parse(result.logs[0])).toEqual({
+      ok: false,
+      error:
+        "DaoFlow did not become ready after applying the exposed auth URL. Run 'docker compose logs daoflow' in the install directory and retry.",
+      code: "INSTALL_READINESS_TIMEOUT",
+      directory: installDir,
+      port: 3000
+    });
   });
 
   test("configures a Cloudflare Tunnel sidecar when requested", async () => {

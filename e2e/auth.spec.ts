@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import { e2eAdminUser } from "../packages/server/src/testing/e2e-auth-users";
 import {
   createPasswordResetToken,
+  createPendingTeamInvite,
   getCurrentSession,
   signInAsAdmin,
   signInWithEmailPassword,
@@ -56,6 +57,7 @@ test.describe("Authentication flows", () => {
     const oldPassword = "reset-old-pass-2026";
     const newPassword = "reset-new-pass-2026";
 
+    createPendingTeamInvite(email);
     await signUpWithEmailPassword(page, {
       name: "Reset Password User",
       email,

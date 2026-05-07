@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { getCurrentSession, signOut, signUpWithEmailPassword } from "./helpers";
 
-test("clean DB bootstrap assigns owner first and viewer second", async ({ page }) => {
+test("clean DB bootstrap assigns owner first and blocks uninvited users", async ({ page }) => {
   const ownerEmail = `bootstrap-owner+${Date.now()}@daoflow.local`;
   const viewerEmail = `bootstrap-viewer+${Date.now()}@daoflow.local`;
 
@@ -17,15 +17,15 @@ test("clean DB bootstrap assigns owner first and viewer second", async ({ page }
 
   await signOut(page);
 
-  await signUpWithEmailPassword(page, {
-    name: "Bootstrap Viewer",
-    email: viewerEmail,
-    password: "bootstrap-viewer-pass-2026"
-  });
+  await page.goto("/login");
+  await page.getByRole("tab", { name: "Sign up" }).click();
+  await page.getByTestId("login-signup-name").fill("Bootstrap Viewer");
+  await page.getByTestId("login-signup-email").fill(viewerEmail);
+  await page.getByTestId("login-signup-password").fill("bootstrap-viewer-pass-2026");
+  await page.getByRole("button", { name: "Create account" }).click();
 
-  const viewerSession = await getCurrentSession(page);
-  expect(viewerSession.user.email).toBe(viewerEmail);
-  expect(viewerSession.user.role).toBe("viewer");
-
-  await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
+  await expect(page.getByTestId("login-signup-feedback")).toContainText(
+    "A team invitation is required to create a DaoFlow account."
+  );
+  await expect(page).toHaveURL(/\/login(?:\?|$)/);
 });

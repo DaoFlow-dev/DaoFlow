@@ -124,7 +124,13 @@ run_install() {
   echo ""
   echo "Running daoflow install..."
   echo ""
-  daoflow install "$@" </dev/tty
+  if [ -t 0 ]; then
+    daoflow install "$@"
+  elif [ -r /dev/tty ]; then
+    daoflow install "$@" </dev/tty
+  else
+    daoflow install "$@"
+  fi
 }
 
 # -- Helpers --

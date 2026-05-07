@@ -78,6 +78,45 @@ export async function signUpWithEmailPassword(
   await expectSignedIn(page);
 }
 
+export function createPendingTeamInvite(email: string, role = "viewer") {
+  const inviteId = `inv_e2e_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`.slice(0, 32);
+  const sqlQuote = (value: string) => `'${value.replace(/'/g, "''")}'`;
+  const sql = `with inserted_invite as (
+  insert into team_invites (id, team_id, email, role, status, inviter_id, created_at, expires_at)
+select ${sqlQuote(inviteId)}, t.id, ${sqlQuote(email)}, ${sqlQuote(role)}, 'pending', t.created_by_user_id, now(), now() + interval '1 hour'
+from teams t
+where t.id = 'team_foundation' and t.created_by_user_id is not null
+returning id
+)
+select count(*) from inserted_invite;`;
+
+  const insertedCount = execFileSync(
+    "docker",
+    [
+      "compose",
+      "-f",
+      DAOFLOW_DEV_COMPOSE_FILE,
+      "exec",
+      "-T",
+      "postgres",
+      "psql",
+      "-U",
+      "daoflow",
+      "-d",
+      PLAYWRIGHT_DATABASE_NAME,
+      "-t",
+      "-A",
+      "-c",
+      sql
+    ],
+    { encoding: "utf8", stdio: "pipe" }
+  ).trim();
+
+  if (insertedCount !== "1") {
+    throw new Error(`Expected to create an E2E invite for ${email}.`);
+  }
+}
+
 export async function signOut(page: Page) {
   await page.locator(".sidebar__user-card").click();
   await page.getByRole("menuitem", { name: "Sign out" }).click();

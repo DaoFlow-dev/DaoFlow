@@ -218,7 +218,17 @@ export function installCommand(): Command {
           if (healthy) {
             healthSpinner?.succeed("DaoFlow is ready!");
           } else {
-            healthSpinner?.warn("Readiness check timed out — check 'docker compose logs daoflow'");
+            healthSpinner?.fail("Readiness check timed out");
+            ctx.fail(
+              "DaoFlow did not become ready before the installer timeout. Run 'docker compose logs daoflow' in the install directory and retry.",
+              {
+                code: "INSTALL_READINESS_TIMEOUT",
+                extra: {
+                  directory: config.dir,
+                  port: config.port
+                }
+              }
+            );
           }
 
           const exposureSpinner =
@@ -270,9 +280,26 @@ export function installCommand(): Command {
               healthy = await waitForInstallHealth({
                 runtime: installRuntime,
                 port: config.port,
-                attempts: healthy ? 10 : 20
+                attempts: 10
               });
+              if (!healthy) {
+                authUrlSpinner?.fail("DaoFlow did not become ready after applying BETTER_AUTH_URL");
+                ctx.fail(
+                  "DaoFlow did not become ready after applying the exposed auth URL. Run 'docker compose logs daoflow' in the install directory and retry.",
+                  {
+                    code: "INSTALL_READINESS_TIMEOUT",
+                    extra: {
+                      directory: config.dir,
+                      port: config.port
+                    }
+                  }
+                );
+              }
             } catch (error) {
+              if (error instanceof CommandActionError) {
+                throw error;
+              }
+
               authUrlSpinner?.fail("Failed to apply the exposed auth URL");
               exposure = {
                 ...exposure,
