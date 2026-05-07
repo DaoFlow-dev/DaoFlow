@@ -105,6 +105,7 @@ export default function SettingsPage() {
   const requestedTabIsAllowed = requestedTab !== "registries" || canManageRegistries;
   const activeTab: SettingsTab =
     requestedTabIsKnown && requestedTabIsAllowed ? requestedTab : "general";
+  const auditEntries = audit.data?.entries ?? [];
 
   return (
     <main className="shell space-y-6" data-testid="settings-page">
@@ -223,9 +224,7 @@ export default function SettingsPage() {
             {activeTab === "security" && (
               <SecuritySettingsTab
                 isLoading={audit.isLoading || accountSecurity.isLoading}
-                auditEntries={
-                  Array.isArray(audit.data) ? (audit.data as Record<string, unknown>[]) : []
-                }
+                auditEntries={auditEntries}
                 accountSecurity={accountSecurity.data ?? null}
                 policyPending={updateAccountSecurityPolicy.isPending}
                 onPolicyChange={(mfaRequirement) => {
