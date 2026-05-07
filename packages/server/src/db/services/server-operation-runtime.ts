@@ -29,6 +29,10 @@ export async function readServer(serverId: string) {
   return server ?? null;
 }
 
+function isServerVisibleToTeam(server: typeof servers.$inferSelect, teamId?: string) {
+  return !teamId || server.teamId === teamId;
+}
+
 export async function createOperation(input: {
   serverId: string;
   kind: ServerOperationKind;
@@ -153,6 +157,7 @@ async function recordOperationEvent(input: {
 
 export async function runServerOperation<T>(input: {
   serverId: string;
+  teamId?: string;
   kind: ServerOperationKind;
   dryRun: boolean;
   actor: ServerOperationActor;
@@ -163,7 +168,9 @@ export async function runServerOperation<T>(input: {
   execute: (server: typeof servers.$inferSelect) => Promise<T>;
 }) {
   const server = await readServer(input.serverId);
-  if (!server) return { status: "not_found" as const };
+  if (!server || !isServerVisibleToTeam(server, input.teamId)) {
+    return { status: "not_found" as const };
+  }
 
   const operation = await createOperation({
     serverId: server.id,

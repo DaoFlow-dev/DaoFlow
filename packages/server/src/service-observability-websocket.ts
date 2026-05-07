@@ -168,8 +168,16 @@ export async function handleServiceObservabilityWebSocketUpgrade(
     }
 
     const shell = url.searchParams.get("shell") === "sh" ? "sh" : "bash";
+    const teamId = await resolveTeamIdForUser(authResult.actor.session.user.id);
+    if (!teamId) {
+      return jsonResponse(
+        { ok: false, error: "No organization is available for this user.", code: "NO_TEAM" },
+        412
+      );
+    }
     const operationResult = await createHostTerminalOperation({
       serverId,
+      teamId,
       shell,
       actor: serverOperationActor(authResult.actor)
     });
@@ -179,7 +187,8 @@ export async function handleServiceObservabilityWebSocketUpgrade(
 
     const target = await resolveExecutionTarget(
       operationResult.server,
-      operationResult.operation.id
+      operationResult.operation.id,
+      teamId
     );
 
     const upgraded = server.upgrade(req, {

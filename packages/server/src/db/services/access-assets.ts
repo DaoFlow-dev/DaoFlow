@@ -152,7 +152,7 @@ export async function rotateManagedSshKey(input: {
       rotatedAt: new Date(),
       updatedAt: new Date()
     })
-    .where(eq(managedSshKeys.id, input.keyId))
+    .where(and(eq(managedSshKeys.id, input.keyId), eq(managedSshKeys.teamId, input.teamId)))
     .returning();
   const summary = `Rotated managed SSH key ${row.name}.`;
   await recordAccessAssetAudit({
@@ -183,8 +183,10 @@ export async function deleteManagedSshKey(input: {
   await db
     .update(servers)
     .set({ sshKeyId: null, updatedAt: new Date() })
-    .where(eq(servers.sshKeyId, input.keyId));
-  await db.delete(managedSshKeys).where(eq(managedSshKeys.id, input.keyId));
+    .where(and(eq(servers.sshKeyId, input.keyId), eq(servers.teamId, input.teamId)));
+  await db
+    .delete(managedSshKeys)
+    .where(and(eq(managedSshKeys.id, input.keyId), eq(managedSshKeys.teamId, input.teamId)));
   const summary = `Deleted managed SSH key ${current.name}.`;
   await recordAccessAssetAudit({
     actor: input.actor,
@@ -210,7 +212,11 @@ export async function attachManagedSshKeyToServer(input: {
       .from(managedSshKeys)
       .where(and(eq(managedSshKeys.id, input.keyId), eq(managedSshKeys.teamId, input.teamId)))
       .limit(1),
-    db.select().from(servers).where(eq(servers.id, input.serverId)).limit(1)
+    db
+      .select()
+      .from(servers)
+      .where(and(eq(servers.id, input.serverId), eq(servers.teamId, input.teamId)))
+      .limit(1)
   ]);
   if (!key[0] || !server[0]) return null;
 
@@ -222,7 +228,7 @@ export async function attachManagedSshKeyToServer(input: {
       sshUser: key[0].username ?? server[0].sshUser,
       updatedAt: new Date()
     })
-    .where(eq(servers.id, input.serverId))
+    .where(and(eq(servers.id, input.serverId), eq(servers.teamId, input.teamId)))
     .returning();
   await db
     .update(managedSshKeys)
@@ -242,16 +248,21 @@ export async function attachManagedSshKeyToServer(input: {
 }
 
 export async function detachManagedSshKeyFromServer(input: {
+  teamId: string;
   serverId: string;
   actor: AccessAssetActor;
 }) {
-  const [server] = await db.select().from(servers).where(eq(servers.id, input.serverId)).limit(1);
+  const [server] = await db
+    .select()
+    .from(servers)
+    .where(and(eq(servers.id, input.serverId), eq(servers.teamId, input.teamId)))
+    .limit(1);
   if (!server) return null;
 
   const [updated] = await db
     .update(servers)
     .set({ sshKeyId: null, updatedAt: new Date() })
-    .where(eq(servers.id, input.serverId))
+    .where(and(eq(servers.id, input.serverId), eq(servers.teamId, input.teamId)))
     .returning();
   const summary = server.sshKeyId
     ? `Detached managed SSH key ${server.sshKeyId} from server ${server.name}.`
@@ -268,8 +279,16 @@ export async function detachManagedSshKeyFromServer(input: {
   return { server: updated, detachedKeyId: server.sshKeyId };
 }
 
-export async function resolveManagedSshPrivateKey(keyId: string) {
-  const [key] = await db.select().from(managedSshKeys).where(eq(managedSshKeys.id, keyId)).limit(1);
+export async function resolveManagedSshPrivateKey(keyId: string, teamId?: string) {
+  const [key] = await db
+    .select()
+    .from(managedSshKeys)
+    .where(
+      teamId
+        ? and(eq(managedSshKeys.id, keyId), eq(managedSshKeys.teamId, teamId))
+        : eq(managedSshKeys.id, keyId)
+    )
+    .limit(1);
   if (!key) return null;
   return decrypt(key.privateKeyEncrypted);
 }

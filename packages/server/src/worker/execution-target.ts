@@ -34,7 +34,8 @@ function isLocalHost(host: string): boolean {
 
 export async function resolveExecutionTarget(
   server: typeof servers.$inferSelect,
-  deploymentId: string
+  deploymentId: string,
+  teamId?: string
 ): Promise<ExecutionTarget> {
   if (isLocalHost(server.host)) {
     return {
@@ -44,7 +45,7 @@ export async function resolveExecutionTarget(
   }
 
   const managedPrivateKey = server.sshKeyId
-    ? await resolveManagedSshPrivateKey(server.sshKeyId)
+    ? await resolveManagedSshPrivateKey(server.sshKeyId, teamId)
     : null;
 
   return {

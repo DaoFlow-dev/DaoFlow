@@ -62,8 +62,10 @@ export const adminAccessAssetsRouter = t.router({
   detachManagedSshKeyFromServer: serverWriteProcedure
     .input(z.object({ serverId: z.string().min(1).max(32) }))
     .mutation(async ({ ctx, input }) => {
+      const teamId = await requireActorTeamId(ctx.session.user.id);
       const result = await detachManagedSshKeyFromServer({
         ...input,
+        teamId,
         actor: getActorContext(ctx)
       });
       return result ?? notFound("Server not found.");

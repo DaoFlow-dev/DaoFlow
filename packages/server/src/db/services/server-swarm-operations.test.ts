@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { db } from "../connection";
 import { serverOperations } from "../schema/server-operations";
 import { servers } from "../schema/servers";
+import { teams } from "../schema/teams";
 import { users } from "../schema/users";
 import { resetTestDatabase } from "../../test-db";
 import {
@@ -16,6 +17,7 @@ const actor = {
   requestedByEmail: "owner@daoflow.local",
   requestedByRole: "owner" as const
 };
+const teamId = "team_foundation";
 
 describe("server swarm operations service", () => {
   beforeEach(async () => {
@@ -29,12 +31,19 @@ describe("server swarm operations service", () => {
       role: actor.requestedByRole,
       status: "active"
     });
+    await db.insert(teams).values({
+      id: teamId,
+      name: "Foundation",
+      slug: "foundation",
+      createdByUserId: actor.requestedByUserId
+    });
     await db.insert(servers).values({
       id: "srv_foundation_1",
       name: "foundation",
       host: "10.0.0.10",
       kind: "docker-engine",
       status: "ready",
+      teamId,
       registeredByUserId: actor.requestedByUserId
     });
   });
@@ -42,6 +51,7 @@ describe("server swarm operations service", () => {
   it("rejects swarm operations for non-swarm targets", async () => {
     const result = await planNodeAvailability({
       serverId: "srv_foundation_1",
+      teamId,
       node: "worker-a",
       availability: "drain",
       actor
@@ -61,12 +71,14 @@ describe("server swarm operations service", () => {
 
     const nodePlan = await planNodeAvailability({
       serverId: "srv_foundation_1",
+      teamId,
       node: "worker-a",
       availability: "drain",
       actor
     });
     const scalePlan = await planServiceScale({
       serverId: "srv_foundation_1",
+      teamId,
       service: "demo_web",
       replicas: 2,
       actor
@@ -128,6 +140,7 @@ describe("server swarm operations service", () => {
 
     const result = await planNodeAvailability({
       serverId: "srv_foundation_1",
+      teamId,
       node: "manager-a",
       availability: "drain",
       actor
@@ -168,6 +181,7 @@ describe("server swarm operations service", () => {
 
     const result = await updateNodeAvailability({
       serverId: "srv_foundation_1",
+      teamId,
       node: "manager-a",
       availability: "pause",
       actor

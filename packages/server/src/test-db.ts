@@ -84,6 +84,7 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
       projects: string | null;
       environments: string | null;
       services: string | null;
+      previewEnvironments: string | null;
       deployments: string | null;
       serviceVariables: string | null;
       gitProviders: string | null;
@@ -91,6 +92,7 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
       cliAuthRequests: string | null;
       developmentTasks: string | null;
       serverOperations: string | null;
+      serversTeamId: string | null;
       logDrains: string | null;
       logDrainsTeamId: string | null;
       managedSshKeys: string | null;
@@ -104,6 +106,7 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
         to_regclass('public.projects') AS "projects",
         to_regclass('public.environments') AS "environments",
         to_regclass('public.services') AS "services",
+        to_regclass('public.preview_environments') AS "previewEnvironments",
         to_regclass('public.deployments') AS "deployments",
         to_regclass('public.service_variables') AS "serviceVariables",
         to_regclass('public.git_providers') AS "gitProviders",
@@ -111,6 +114,7 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
         to_regclass('public.cli_auth_requests') AS "cliAuthRequests",
         to_regclass('public.development_tasks') AS "developmentTasks"
         ,to_regclass('public.server_operations') AS "serverOperations",
+        (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'servers' AND column_name = 'team_id') AS "serversTeamId",
         to_regclass('public.log_drains') AS "logDrains",
         (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'log_drains' AND column_name = 'team_id') AS "logDrainsTeamId",
         to_regclass('public.managed_ssh_keys') AS "managedSshKeys",
@@ -126,6 +130,7 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
       row.projects &&
       row.environments &&
       row.services &&
+      row.previewEnvironments &&
       row.deployments &&
       row.serviceVariables &&
       row.gitProviders &&
@@ -133,6 +138,7 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
       row.cliAuthRequests &&
       row.developmentTasks &&
       row.serverOperations &&
+      row.serversTeamId &&
       row.logDrains &&
       row.logDrainsTeamId &&
       row.managedSshKeys &&
@@ -181,6 +187,7 @@ async function readPoolSchemaState() {
     projects: string | null;
     environments: string | null;
     services: string | null;
+    previewEnvironments: string | null;
     deployments: string | null;
     serviceVariables: string | null;
     gitProviders: string | null;
@@ -188,6 +195,7 @@ async function readPoolSchemaState() {
     cliAuthRequests: string | null;
     developmentTasks: string | null;
     serverOperations: string | null;
+    serversTeamId: string | null;
     logDrains: string | null;
     logDrainsTeamId: string | null;
   }>(`
@@ -199,6 +207,7 @@ async function readPoolSchemaState() {
       to_regclass('public.projects') AS "projects",
       to_regclass('public.environments') AS "environments",
       to_regclass('public.services') AS "services",
+      to_regclass('public.preview_environments') AS "previewEnvironments",
       to_regclass('public.deployments') AS "deployments",
       to_regclass('public.service_variables') AS "serviceVariables",
       to_regclass('public.git_providers') AS "gitProviders",
@@ -206,6 +215,7 @@ async function readPoolSchemaState() {
       to_regclass('public.cli_auth_requests') AS "cliAuthRequests",
       to_regclass('public.development_tasks') AS "developmentTasks"
       ,to_regclass('public.server_operations') AS "serverOperations",
+      (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'servers' AND column_name = 'team_id') AS "serversTeamId",
       to_regclass('public.log_drains') AS "logDrains",
       (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'log_drains' AND column_name = 'team_id') AS "logDrainsTeamId"
   `);
@@ -231,6 +241,7 @@ async function ensurePooledTestSchemaReady(connectionString: string) {
         state.projects &&
         state.environments &&
         state.services &&
+        state.previewEnvironments &&
         state.deployments &&
         state.serviceVariables &&
         state.gitProviders &&
@@ -238,6 +249,7 @@ async function ensurePooledTestSchemaReady(connectionString: string) {
         state.cliAuthRequests &&
         state.developmentTasks &&
         state.serverOperations &&
+        state.serversTeamId &&
         state.logDrains &&
         state.logDrainsTeamId
       ) {

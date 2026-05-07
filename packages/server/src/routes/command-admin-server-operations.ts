@@ -14,6 +14,7 @@ import {
   updateServiceScale
 } from "../db/services/server-swarm-operations";
 import { getActorContext, serverReadProcedure, serverWriteProcedure, t } from "../trpc";
+import { requireActorTeamId } from "./command-admin-shared";
 
 function throwServerOperationError(result: { status: string; message?: string }) {
   if (result.status === "not_found") {
@@ -64,8 +65,10 @@ export const adminServerOperationsRouter = t.router({
   collectServerResources: serverReadProcedure
     .input(serverIdInput)
     .mutation(async ({ ctx, input }) => {
+      const teamId = await requireActorTeamId(ctx.session.user.id);
       const result = await collectServerResources({
         serverId: input.serverId,
+        teamId,
         actor: getActorContext(ctx)
       });
       throwServerOperationError(result);
@@ -75,8 +78,10 @@ export const adminServerOperationsRouter = t.router({
   previewServerCleanup: serverWriteProcedure
     .input(cleanupInput)
     .mutation(async ({ ctx, input }) => {
+      const teamId = await requireActorTeamId(ctx.session.user.id);
       const result = await previewServerCleanup({
         serverId: input.serverId,
+        teamId,
         includeVolumes: input.includeVolumes,
         actor: getActorContext(ctx)
       });
@@ -85,8 +90,10 @@ export const adminServerOperationsRouter = t.router({
     }),
 
   runServerCleanup: serverWriteProcedure.input(cleanupInput).mutation(async ({ ctx, input }) => {
+    const teamId = await requireActorTeamId(ctx.session.user.id);
     const result = await runServerCleanup({
       serverId: input.serverId,
+      teamId,
       includeVolumes: input.includeVolumes,
       actor: getActorContext(ctx)
     });
@@ -95,8 +102,10 @@ export const adminServerOperationsRouter = t.router({
   }),
 
   planServerPatches: serverWriteProcedure.input(serverIdInput).mutation(async ({ ctx, input }) => {
+    const teamId = await requireActorTeamId(ctx.session.user.id);
     const result = await planServerPatches({
       serverId: input.serverId,
+      teamId,
       actor: getActorContext(ctx)
     });
     throwServerOperationError(result);
@@ -106,8 +115,10 @@ export const adminServerOperationsRouter = t.router({
   refreshSwarmTopology: serverWriteProcedure
     .input(serverIdInput)
     .mutation(async ({ ctx, input }) => {
+      const teamId = await requireActorTeamId(ctx.session.user.id);
       const result = await refreshSwarmTopology({
         serverId: input.serverId,
+        teamId,
         actor: getActorContext(ctx)
       });
       throwServerOperationError(result);
@@ -118,9 +129,10 @@ export const adminServerOperationsRouter = t.router({
     .input(nodeAvailabilityInput)
     .mutation(async ({ ctx, input }) => {
       const actor = getActorContext(ctx);
+      const teamId = await requireActorTeamId(ctx.session.user.id);
       const result = input.dryRun
-        ? await planNodeAvailability({ ...input, actor })
-        : await updateNodeAvailability({ ...input, actor });
+        ? await planNodeAvailability({ ...input, teamId, actor })
+        : await updateNodeAvailability({ ...input, teamId, actor });
       throwServerOperationError(result);
       return result;
     }),
@@ -129,9 +141,10 @@ export const adminServerOperationsRouter = t.router({
     .input(serviceScaleInput)
     .mutation(async ({ ctx, input }) => {
       const actor = getActorContext(ctx);
+      const teamId = await requireActorTeamId(ctx.session.user.id);
       const result = input.dryRun
-        ? await planServiceScale({ ...input, actor })
-        : await updateServiceScale({ ...input, actor });
+        ? await planServiceScale({ ...input, teamId, actor })
+        : await updateServiceScale({ ...input, teamId, actor });
       throwServerOperationError(result);
       return result;
     })

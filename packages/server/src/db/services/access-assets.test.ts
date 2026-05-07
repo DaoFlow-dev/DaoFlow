@@ -25,6 +25,7 @@ const actor = {
   requestedByEmail: "owner@daoflow.local",
   requestedByRole: "owner" as const
 };
+const teamId = "team_foundation";
 
 describe("access asset services", () => {
   beforeEach(async () => {
@@ -33,14 +34,14 @@ describe("access asset services", () => {
 
   it("stores managed SSH keys encrypted and returns redacted summaries", async () => {
     const key = await createManagedSshKey({
-      teamId: "team_foundation",
+      teamId,
       name: "prod-deploy",
       username: "deploy",
       privateKey: "fixture-private-key",
       actor
     });
     await rotateManagedSshKey({
-      teamId: "team_foundation",
+      teamId,
       keyId: key.id,
       privateKey: "fixture-rotated-key",
       actor
@@ -50,7 +51,7 @@ describe("access asset services", () => {
     expect(row.privateKeyEncrypted).not.toContain("fixture");
     expect(decrypt(row.privateKeyEncrypted)).toBe("fixture-rotated-key");
 
-    const summaries = await listManagedSshKeys("team_foundation");
+    const summaries = await listManagedSshKeys(teamId);
     expect(summaries[0]).toMatchObject({
       id: key.id,
       name: "prod-deploy",
@@ -68,7 +69,7 @@ describe("access asset services", () => {
 
   it("attaches managed SSH keys to servers and clears legacy per-server key material", async () => {
     const key = await createManagedSshKey({
-      teamId: "team_foundation",
+      teamId,
       name: "edge-key",
       username: "deployer",
       privateKey: "fixture-private-key",
@@ -80,7 +81,7 @@ describe("access asset services", () => {
       .where(eq(servers.id, "srv_foundation_1"));
 
     const result = await attachManagedSshKeyToServer({
-      teamId: "team_foundation",
+      teamId,
       keyId: key.id,
       serverId: "srv_foundation_1",
       actor
@@ -93,6 +94,7 @@ describe("access asset services", () => {
     });
 
     const detached = await detachManagedSshKeyFromServer({
+      teamId,
       serverId: "srv_foundation_1",
       actor
     });
@@ -100,20 +102,20 @@ describe("access asset services", () => {
     expect(detached?.server.sshKeyId).toBeNull();
 
     await attachManagedSshKeyToServer({
-      teamId: "team_foundation",
+      teamId,
       keyId: key.id,
       serverId: "srv_foundation_1",
       actor
     });
 
-    await deleteManagedSshKey({ teamId: "team_foundation", keyId: key.id, actor });
+    await deleteManagedSshKey({ teamId, keyId: key.id, actor });
     const [server] = await db.select().from(servers).where(eq(servers.id, "srv_foundation_1"));
     expect(server.sshKeyId).toBeNull();
   });
 
   it("stores certificate assets encrypted and returns safe certificate metadata", async () => {
     const certificate = await createCertificateAsset({
-      teamId: "team_foundation",
+      teamId,
       name: "wildcard-example",
       certificatePem: "-----BEGIN CERTIFICATE-----\nfixture-cert\n-----END CERTIFICATE-----",
       privateKey: "fixture-cert-key",
@@ -127,7 +129,7 @@ describe("access asset services", () => {
     expect(row.certificatePemEncrypted).not.toContain("fixture-cert");
     expect(decrypt(row.privateKeyEncrypted!)).toBe("fixture-cert-key");
 
-    const summaries = await listCertificateAssets("team_foundation");
+    const summaries = await listCertificateAssets(teamId);
     expect(summaries[0]).toMatchObject({
       id: certificate.id,
       name: "wildcard-example",
@@ -137,11 +139,11 @@ describe("access asset services", () => {
     expect(JSON.stringify(summaries)).not.toContain("fixture-cert-key");
 
     await deleteCertificateAsset({
-      teamId: "team_foundation",
+      teamId,
       certificateId: certificate.id,
       actor
     });
-    const remaining = await listCertificateAssets("team_foundation");
+    const remaining = await listCertificateAssets(teamId);
     expect(remaining).toHaveLength(0);
   });
 });

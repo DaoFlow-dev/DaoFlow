@@ -80,6 +80,7 @@ export async function registerServer(input: RegisterServerInput) {
       name: input.name,
       host: input.host,
       region: input.region,
+      teamId: input.teamId ?? null,
       sshPort: input.sshPort,
       sshUser: input.sshUser?.trim() || null,
       sshKeyId: managedKey?.id ?? input.sshKeyId ?? null,
@@ -126,8 +127,13 @@ export async function registerServer(input: RegisterServerInput) {
   return { status: "ok" as const, server: verifiedServer ?? server };
 }
 
-export async function listServerReadiness(limit = 12) {
-  const rows = await db.select().from(servers).orderBy(desc(servers.createdAt)).limit(limit);
+export async function listServerReadiness(teamId: string, limit = 12) {
+  const rows = await db
+    .select()
+    .from(servers)
+    .where(eq(servers.teamId, teamId))
+    .orderBy(desc(servers.createdAt))
+    .limit(limit);
 
   const checks = rows.map((server) => {
     const metadata = asRecord(server.metadata);
@@ -212,13 +218,25 @@ export async function listServerReadiness(limit = 12) {
   };
 }
 
-export async function listInfrastructureInventory() {
-  const [serverRows, projectRows, envRows, serviceRows] = await Promise.all([
-    db.select().from(servers).orderBy(desc(servers.createdAt)),
-    db.select().from(projects).orderBy(desc(projects.createdAt)),
-    db.select().from(environments).orderBy(desc(environments.createdAt)),
-    db.select().from(services).orderBy(desc(services.createdAt))
+export async function listInfrastructureInventory(teamId: string) {
+  const [serverRows, projectRows, envJoinRows, serviceJoinRows] = await Promise.all([
+    db.select().from(servers).where(eq(servers.teamId, teamId)).orderBy(desc(servers.createdAt)),
+    db.select().from(projects).where(eq(projects.teamId, teamId)).orderBy(desc(projects.createdAt)),
+    db
+      .select()
+      .from(environments)
+      .innerJoin(projects, eq(environments.projectId, projects.id))
+      .where(eq(projects.teamId, teamId))
+      .orderBy(desc(environments.createdAt)),
+    db
+      .select()
+      .from(services)
+      .innerJoin(projects, eq(services.projectId, projects.id))
+      .where(eq(projects.teamId, teamId))
+      .orderBy(desc(services.createdAt))
   ]);
+  const envRows = envJoinRows.map((row) => row.environments);
+  const serviceRows = serviceJoinRows.map((row) => row.services);
 
   const environmentsByProject = new Map<string, typeof envRows>();
   const environmentCountByServer = new Map<string, number>();

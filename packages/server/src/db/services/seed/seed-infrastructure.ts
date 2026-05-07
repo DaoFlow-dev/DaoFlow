@@ -13,6 +13,7 @@ export async function seedInfrastructure(tx: SeedTransaction) {
       name: "foundation-vps-1",
       host: "203.0.113.24",
       region: "us-west-2",
+      teamId: "team_foundation",
       sshPort: 22,
       kind: "docker-engine",
       status: "ready",

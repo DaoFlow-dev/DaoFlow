@@ -56,7 +56,9 @@ export async function verifyServerReadiness(server: typeof servers.$inferSelect)
       "Attach a managed SSH key or add a per-server private key before deploying."
     );
   } else {
-    const privateKey = server.sshKeyId ? await resolveManagedSshPrivateKey(server.sshKeyId) : null;
+    const privateKey = server.sshKeyId
+      ? await resolveManagedSshPrivateKey(server.sshKeyId, server.teamId ?? undefined)
+      : null;
 
     if (!privateKey && !server.sshPrivateKeyEncrypted) {
       issues.push("The managed SSH key linked to this server is not available.");

@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import { db } from "../connection";
 import { deployments } from "../schema/deployments";
+import { projects } from "../schema/projects";
 import { servers } from "../schema/servers";
 import { asRecord, readString } from "./json-helpers";
 import { buildDockerContainerName } from "../../docker-identifiers";
@@ -100,6 +101,11 @@ function buildRuntimeCleanupTasks(
 export async function cleanupProjectRuntime(
   projectId: string
 ): Promise<CleanupProjectRuntimeResult> {
+  const [project] = await db
+    .select({ teamId: projects.teamId })
+    .from(projects)
+    .where(eq(projects.id, projectId))
+    .limit(1);
   const deploymentRows = await db
     .select()
     .from(deployments)
@@ -146,7 +152,11 @@ export async function cleanupProjectRuntime(
       };
     }
 
-    const target = await resolveExecutionTarget(server, `cleanup_${projectId}_${task.runtimeName}`);
+    const target = await resolveExecutionTarget(
+      server,
+      `cleanup_${projectId}_${task.runtimeName}`,
+      project?.teamId
+    );
 
     try {
       await withPreparedExecutionTarget(target, async (preparedTarget) => {

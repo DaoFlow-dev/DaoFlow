@@ -10,6 +10,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { managedSshKeys } from "./access-assets";
+import { teams } from "./teams";
 import { users } from "./users";
 
 export const servers = pgTable(
@@ -19,6 +20,9 @@ export const servers = pgTable(
     name: varchar("name", { length: 80 }).notNull(),
     host: varchar("host", { length: 120 }).notNull(),
     region: varchar("region", { length: 60 }),
+    teamId: varchar("team_id", { length: 32 }).references(() => teams.id, {
+      onDelete: "set null"
+    }),
     sshPort: integer("ssh_port").default(22).notNull(),
     sshUser: varchar("ssh_user", { length: 80 }),
     sshKeyId: varchar("ssh_key_id", { length: 32 }).references(() => managedSshKeys.id, {
@@ -40,12 +44,18 @@ export const servers = pgTable(
   (table) => [
     uniqueIndex("servers_name_idx").on(table.name),
     uniqueIndex("servers_host_idx").on(table.host),
+    index("servers_team_id_idx").on(table.teamId),
+    index("servers_ssh_key_id_idx").on(table.sshKeyId),
     index("servers_region_idx").on(table.region),
     index("servers_created_at_idx").on(table.createdAt)
   ]
 );
 
 export const serversRelations = relations(servers, ({ one }) => ({
+  team: one(teams, {
+    fields: [servers.teamId],
+    references: [teams.id]
+  }),
   registeredByUser: one(users, {
     fields: [servers.registeredByUserId],
     references: [users.id]

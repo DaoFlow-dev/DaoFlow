@@ -15,6 +15,7 @@ const actor = {
   requestedByEmail: "owner@daoflow.local",
   requestedByRole: "owner" as const
 };
+const teamId = "team_foundation";
 
 describe("server operations service", () => {
   beforeEach(async () => {
@@ -24,6 +25,7 @@ describe("server operations service", () => {
   it("requires a recent cleanup preview before running cleanup", async () => {
     const result = await runServerCleanup({
       serverId: "srv_foundation_1",
+      teamId,
       actor
     });
 
@@ -36,6 +38,7 @@ describe("server operations service", () => {
   it("records host terminal open and close as durable operations and audit rows", async () => {
     const opened = await createHostTerminalOperation({
       serverId: "srv_foundation_1",
+      teamId,
       shell: "sh",
       actor
     });

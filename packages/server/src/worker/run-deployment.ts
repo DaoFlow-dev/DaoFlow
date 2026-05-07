@@ -36,7 +36,7 @@ export async function runDeployment(
     throw new Error(`Target server ${deployment.targetServerId} not found`);
   }
 
-  const target = await resolveExecutionTarget(server, deployment.id);
+  const target = await resolveExecutionTarget(server, deployment.id, server.teamId ?? undefined);
   const timeoutPromise = new Promise<never>((_, reject) => {
     setTimeout(
       () => reject(new Error(`Deployment timed out after ${DEPLOY_TIMEOUT_MS / 1000}s`)),

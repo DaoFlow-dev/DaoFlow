@@ -120,11 +120,13 @@ const coreReadRouter = t.router({
   approvalQueue: protectedProcedure.input(limitInput(40)).query(async ({ input }) => {
     return listApprovalQueue(input.limit ?? 24);
   }),
-  infrastructureInventory: protectedProcedure.query(async () => {
-    return listInfrastructureInventory();
+  infrastructureInventory: protectedProcedure.query(async ({ ctx }) => {
+    const teamId = await requireViewerTeamId(ctx.session.user.id);
+    return listInfrastructureInventory(teamId);
   }),
-  serverReadiness: protectedProcedure.input(limitInput(24)).query(async ({ input }) => {
-    return listServerReadiness(input.limit ?? 12);
+  serverReadiness: protectedProcedure.input(limitInput(24)).query(async ({ ctx, input }) => {
+    const teamId = await requireViewerTeamId(ctx.session.user.id);
+    return listServerReadiness(teamId, input.limit ?? 12);
   }),
   auditTrail: protectedProcedure
     .input(

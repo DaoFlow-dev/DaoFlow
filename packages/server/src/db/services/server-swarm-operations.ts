@@ -20,9 +20,9 @@ type SwarmTopologyRefreshResult = {
   topology: NonNullable<Awaited<ReturnType<typeof writeServerSwarmTopology>>>;
 };
 
-async function ensureSwarmServer(serverId: string) {
+async function ensureSwarmServer(serverId: string, teamId: string) {
   const server = await readServer(serverId);
-  if (!server) return { status: "not_found" as const };
+  if (!server || server.teamId !== teamId) return { status: "not_found" as const };
   if (server.kind !== "docker-swarm-manager") {
     return { status: "unsupported" as const, message: "Server is not a Docker Swarm manager." };
   }
@@ -31,13 +31,14 @@ async function ensureSwarmServer(serverId: string) {
 
 async function ensureSafeNodeAvailability(input: {
   serverId: string;
+  teamId: string;
   node: string;
   availability: SwarmNodeAvailability;
 }) {
   if (input.availability === "active") return { status: "ok" as const };
 
   const server = await readServer(input.serverId);
-  if (!server) return { status: "not_found" as const };
+  if (!server || server.teamId !== input.teamId) return { status: "not_found" as const };
 
   const topology = readServerSwarmTopology(server);
   const node = topology?.nodes.find((candidate) => {
@@ -66,13 +67,15 @@ async function ensureSafeNodeAvailability(input: {
 
 export async function refreshSwarmTopology(input: {
   serverId: string;
+  teamId: string;
   actor: ServerOperationActor;
 }) {
-  const resolved = await ensureSwarmServer(input.serverId);
+  const resolved = await ensureSwarmServer(input.serverId, input.teamId);
   if (resolved.status !== "ok") return resolved;
 
   return runServerOperation({
     serverId: input.serverId,
+    teamId: input.teamId,
     kind: "swarm_topology_refresh",
     dryRun: false,
     actor: input.actor,
@@ -83,7 +86,7 @@ export async function refreshSwarmTopology(input: {
       `Refreshed Swarm topology with ${result.topology.summary.nodeCount} nodes.`,
     execute: async (server) => {
       const current = readServerSwarmTopology(server);
-      const target = await resolveExecutionTarget(server, `swarm_${Date.now()}`);
+      const target = await resolveExecutionTarget(server, `swarm_${Date.now()}`, input.teamId);
       const topology = await withPreparedExecutionTarget(target, (preparedTarget) =>
         discoverSwarmTopology(
           preparedTarget,
@@ -104,11 +107,12 @@ export async function refreshSwarmTopology(input: {
 
 export async function planNodeAvailability(input: {
   serverId: string;
+  teamId: string;
   node: string;
   availability: SwarmNodeAvailability;
   actor: ServerOperationActor;
 }) {
-  const resolved = await ensureSwarmServer(input.serverId);
+  const resolved = await ensureSwarmServer(input.serverId, input.teamId);
   if (resolved.status !== "ok") return resolved;
   const safety = await ensureSafeNodeAvailability(input);
   if (safety.status !== "ok") return safety;
@@ -128,17 +132,19 @@ export async function planNodeAvailability(input: {
 
 export async function updateNodeAvailability(input: {
   serverId: string;
+  teamId: string;
   node: string;
   availability: SwarmNodeAvailability;
   actor: ServerOperationActor;
 }) {
-  const resolved = await ensureSwarmServer(input.serverId);
+  const resolved = await ensureSwarmServer(input.serverId, input.teamId);
   if (resolved.status !== "ok") return resolved;
   const safety = await ensureSafeNodeAvailability(input);
   if (safety.status !== "ok") return safety;
 
   return runServerOperation({
     serverId: input.serverId,
+    teamId: input.teamId,
     kind: "swarm_node_availability_update",
     dryRun: false,
     actor: input.actor,
@@ -147,7 +153,7 @@ export async function updateNodeAvailability(input: {
     action: "server.swarm.node.update",
     successSummary: (result: SwarmCommandRun) => result.summary,
     execute: async (server) => {
-      const target = await resolveExecutionTarget(server, `swarm_${Date.now()}`);
+      const target = await resolveExecutionTarget(server, `swarm_${Date.now()}`, input.teamId);
       return withPreparedExecutionTarget(target, (preparedTarget) =>
         updateSwarmNodeAvailability(preparedTarget, input, () => undefined)
       );
@@ -157,15 +163,17 @@ export async function updateNodeAvailability(input: {
 
 export async function planServiceScale(input: {
   serverId: string;
+  teamId: string;
   service: string;
   replicas: number;
   actor: ServerOperationActor;
 }) {
-  const resolved = await ensureSwarmServer(input.serverId);
+  const resolved = await ensureSwarmServer(input.serverId, input.teamId);
   if (resolved.status !== "ok") return resolved;
 
   return runServerOperation({
     serverId: input.serverId,
+    teamId: input.teamId,
     kind: "swarm_service_scale_plan",
     dryRun: true,
     actor: input.actor,
@@ -179,15 +187,17 @@ export async function planServiceScale(input: {
 
 export async function updateServiceScale(input: {
   serverId: string;
+  teamId: string;
   service: string;
   replicas: number;
   actor: ServerOperationActor;
 }) {
-  const resolved = await ensureSwarmServer(input.serverId);
+  const resolved = await ensureSwarmServer(input.serverId, input.teamId);
   if (resolved.status !== "ok") return resolved;
 
   return runServerOperation({
     serverId: input.serverId,
+    teamId: input.teamId,
     kind: "swarm_service_scale_update",
     dryRun: false,
     actor: input.actor,
@@ -196,7 +206,7 @@ export async function updateServiceScale(input: {
     action: "server.swarm.service.scale",
     successSummary: (result: SwarmCommandRun) => result.summary,
     execute: async (server) => {
-      const target = await resolveExecutionTarget(server, `swarm_${Date.now()}`);
+      const target = await resolveExecutionTarget(server, `swarm_${Date.now()}`, input.teamId);
       return withPreparedExecutionTarget(target, (preparedTarget) =>
         updateSwarmServiceScale(preparedTarget, input, () => undefined)
       );

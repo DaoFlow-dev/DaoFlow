@@ -183,7 +183,8 @@ describe("runDeployment", () => {
         id: "srv_foundation_1",
         kind: "docker-swarm-manager"
       }),
-      deployment.id
+      deployment.id,
+      "team_foundation"
     );
     expect(executeComposeDeploymentMock).toHaveBeenCalledWith(
       deployment,

@@ -30,9 +30,9 @@ export { appendOperationLog } from "./server-operation-runtime";
 
 const CLEANUP_PREVIEW_WINDOW_MS = 30 * 60 * 1000;
 
-export async function getServerOperationsHub(serverId: string, limit = 20) {
+export async function getServerOperationsHub(serverId: string, teamId: string, limit = 20) {
   const server = await readServer(serverId);
-  if (!server) return null;
+  if (!server || server.teamId !== teamId) return null;
   const operations = await db
     .select()
     .from(serverOperations)
@@ -48,7 +48,7 @@ export async function getServerOperationsHub(serverId: string, limit = 20) {
   };
 }
 
-export async function getServerOperationLogs(operationId: string, limit = 200) {
+export async function getServerOperationLogs(operationId: string, teamId: string, limit = 200) {
   const operationRows = await db
     .select()
     .from(serverOperations)
@@ -56,6 +56,8 @@ export async function getServerOperationLogs(operationId: string, limit = 200) {
     .limit(1);
   const operation = operationRows[0];
   if (!operation) return null;
+  const server = await readServer(operation.serverId);
+  if (!server || server.teamId !== teamId) return null;
   const logs = await db
     .select()
     .from(serverOperationLogs)
@@ -73,10 +75,12 @@ export async function getServerOperationLogs(operationId: string, limit = 200) {
 
 export async function collectServerResources(input: {
   serverId: string;
+  teamId: string;
   actor: ServerOperationActor;
 }) {
   return runServerOperation({
     serverId: input.serverId,
+    teamId: input.teamId,
     kind: "resource_check",
     dryRun: false,
     actor: input.actor,
@@ -85,7 +89,7 @@ export async function collectServerResources(input: {
     action: "server.resources.check",
     successSummary: () => "Collected host CPU, memory, disk, and Docker disk usage.",
     execute: async (server) => {
-      const target = await resolveExecutionTarget(server, `serverop_${Date.now()}`);
+      const target = await resolveExecutionTarget(server, `serverop_${Date.now()}`, input.teamId);
       return withPreparedExecutionTarget(target, (preparedTarget) =>
         collectHostResourceSnapshot(preparedTarget)
       );
@@ -95,11 +99,13 @@ export async function collectServerResources(input: {
 
 export async function previewServerCleanup(input: {
   serverId: string;
+  teamId: string;
   includeVolumes?: boolean;
   actor: ServerOperationActor;
 }) {
   return runServerOperation({
     serverId: input.serverId,
+    teamId: input.teamId,
     kind: "cleanup_preview",
     dryRun: true,
     actor: input.actor,
@@ -109,7 +115,7 @@ export async function previewServerCleanup(input: {
     successSummary: (result: CleanupPreview) =>
       `Cleanup preview found ${result.exitedContainers} exited containers, ${result.danglingImages} dangling images, and ${result.buildCacheItems} build cache entries.`,
     execute: async (server) => {
-      const target = await resolveExecutionTarget(server, `serverop_${Date.now()}`);
+      const target = await resolveExecutionTarget(server, `serverop_${Date.now()}`, input.teamId);
       return withPreparedExecutionTarget(target, (preparedTarget) =>
         previewHostCleanup(preparedTarget, { includeVolumes: input.includeVolumes })
       );
@@ -119,6 +125,7 @@ export async function previewServerCleanup(input: {
 
 export async function runServerCleanup(input: {
   serverId: string;
+  teamId: string;
   includeVolumes?: boolean;
   actor: ServerOperationActor;
 }) {
@@ -146,6 +153,7 @@ export async function runServerCleanup(input: {
 
   return runServerOperation({
     serverId: input.serverId,
+    teamId: input.teamId,
     kind: "cleanup_run",
     dryRun: false,
     actor: input.actor,
@@ -155,7 +163,7 @@ export async function runServerCleanup(input: {
     successSummary: (result: CleanupRunResult) =>
       `Host cleanup completed with ${result.commandResults.filter((entry) => entry.exitCode === 0).length}/${result.commandResults.length} successful commands.`,
     execute: async (server) => {
-      const target = await resolveExecutionTarget(server, `serverop_${Date.now()}`);
+      const target = await resolveExecutionTarget(server, `serverop_${Date.now()}`, input.teamId);
       return withPreparedExecutionTarget(target, (preparedTarget) =>
         runHostCleanup(preparedTarget, { includeVolumes: input.includeVolumes })
       );
@@ -163,9 +171,14 @@ export async function runServerCleanup(input: {
   });
 }
 
-export async function planServerPatches(input: { serverId: string; actor: ServerOperationActor }) {
+export async function planServerPatches(input: {
+  serverId: string;
+  teamId: string;
+  actor: ServerOperationActor;
+}) {
   return runServerOperation({
     serverId: input.serverId,
+    teamId: input.teamId,
     kind: "patch_plan",
     dryRun: true,
     actor: input.actor,
@@ -174,7 +187,7 @@ export async function planServerPatches(input: { serverId: string; actor: Server
     action: "server.patch.plan",
     successSummary: (result: PatchPlan) => result.summary,
     execute: async (server) => {
-      const target = await resolveExecutionTarget(server, `serverop_${Date.now()}`);
+      const target = await resolveExecutionTarget(server, `serverop_${Date.now()}`, input.teamId);
       return withPreparedExecutionTarget(target, (preparedTarget) =>
         planHostPatches(preparedTarget)
       );
@@ -184,11 +197,12 @@ export async function planServerPatches(input: { serverId: string; actor: Server
 
 export async function createHostTerminalOperation(input: {
   serverId: string;
+  teamId: string;
   shell: "bash" | "sh";
   actor: ServerOperationActor;
 }) {
   const server = await readServer(input.serverId);
-  if (!server) return { status: "not_found" as const };
+  if (!server || server.teamId !== input.teamId) return { status: "not_found" as const };
 
   const operation = await createOperation({
     serverId: server.id,

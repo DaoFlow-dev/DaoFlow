@@ -119,7 +119,11 @@ export async function deleteCertificateAsset(input: {
     )
     .limit(1);
   if (!current) return null;
-  await db.delete(certificateAssets).where(eq(certificateAssets.id, input.certificateId));
+  await db
+    .delete(certificateAssets)
+    .where(
+      and(eq(certificateAssets.id, input.certificateId), eq(certificateAssets.teamId, input.teamId))
+    );
   const summary = `Deleted certificate asset ${current.name}.`;
   await recordAccessAssetAudit({
     actor: input.actor,
