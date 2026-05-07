@@ -31,7 +31,7 @@ import {
 } from "lucide-react";
 import { homeNavGroups, settingsNav } from "./sidebar-nav";
 
-const ID_SEGMENT_RE = /^[0-9a-f]{9,}$|^[0-9a-f-]{20,}$|.*[_-].*\d{2,}/i;
+const ID_SEGMENT_RE = /^[0-9a-f]{9,}$|^[0-9a-f-]{20,}$/i;
 
 function formatSegment(s: string): string {
   if (ID_SEGMENT_RE.test(s)) return s.slice(0, 8) + "…";
@@ -89,6 +89,15 @@ export function DashboardLayout() {
       window.removeEventListener("offline", handleOffline);
     };
   }, []);
+
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMobileOpen(false);
+    };
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [mobileOpen]);
 
   // Loading state
   if (session.isPending) {
