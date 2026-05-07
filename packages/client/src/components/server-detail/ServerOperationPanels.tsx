@@ -2,7 +2,7 @@ import { HardDrive, Wrench } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
-import type { ResourceResult, ServerOperation } from "@/pages/ServerDetailPage";
+import type { ResourceResult, ServerOperation } from "./server-operation-types";
 
 export function ResourcesPanel({
   serverId,

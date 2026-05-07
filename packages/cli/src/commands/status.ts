@@ -19,6 +19,14 @@ function formatSwarmTopology(
   return `${topology.clusterName} · ${topology.summary.managerCount} manager${topology.summary.managerCount === 1 ? "" : "s"} · ${topology.summary.workerCount} worker${topology.summary.workerCount === 1 ? "" : "s"} · ${topology.summary.nodeCount} nodes`;
 }
 
+function formatSwarmNode(
+  node: NonNullable<
+    RouterOutputs["serverReadiness"]["checks"][number]["swarmTopology"]
+  >["nodes"][number]
+): string {
+  return `${node.name} · ${node.role} · ${node.managerStatus} · ${node.availability} · ${node.reachability}`;
+}
+
 export function statusCommand(): Command {
   return new Command("status")
     .description("Show current deployment and server status")
@@ -96,6 +104,9 @@ export function statusCommand(): Command {
                 );
                 if (check.swarmTopology) {
                   console.log(chalk.dim(`    Swarm ${formatSwarmTopology(check.swarmTopology)}`));
+                  for (const node of check.swarmTopology.nodes) {
+                    console.log(chalk.dim(`      ${formatSwarmNode(node)}`));
+                  }
                 }
                 if (check.issues.length > 0) {
                   console.log(chalk.yellow(`    Issues: ${check.issues.join("; ")}`));

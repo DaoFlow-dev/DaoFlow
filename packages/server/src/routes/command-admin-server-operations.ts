@@ -6,6 +6,13 @@ import {
   previewServerCleanup,
   runServerCleanup
 } from "../db/services/server-operations";
+import {
+  planNodeAvailability,
+  planServiceScale,
+  refreshSwarmTopology,
+  updateNodeAvailability,
+  updateServiceScale
+} from "../db/services/server-swarm-operations";
 import { getActorContext, serverReadProcedure, serverWriteProcedure, t } from "../trpc";
 
 function throwServerOperationError(result: { status: string; message?: string }) {
@@ -24,11 +31,33 @@ function throwServerOperationError(result: { status: string; message?: string })
       message: result.message ?? "Server operation failed."
     });
   }
+  if (result.status === "unsupported") {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: result.message ?? "Unsupported server operation."
+    });
+  }
+  if (result.status === "unsafe") {
+    throw new TRPCError({
+      code: "PRECONDITION_FAILED",
+      message: result.message ?? "Unsafe server operation."
+    });
+  }
 }
 
 const serverIdInput = z.object({ serverId: z.string().min(1) });
 const cleanupInput = serverIdInput.extend({
   includeVolumes: z.boolean().optional()
+});
+const nodeAvailabilityInput = serverIdInput.extend({
+  node: z.string().min(1).max(120),
+  availability: z.enum(["active", "pause", "drain"]),
+  dryRun: z.boolean().optional()
+});
+const serviceScaleInput = serverIdInput.extend({
+  service: z.string().min(1).max(180),
+  replicas: z.number().int().min(0).max(100),
+  dryRun: z.boolean().optional()
 });
 
 export const adminServerOperationsRouter = t.router({
@@ -72,5 +101,38 @@ export const adminServerOperationsRouter = t.router({
     });
     throwServerOperationError(result);
     return result;
-  })
+  }),
+
+  refreshSwarmTopology: serverWriteProcedure
+    .input(serverIdInput)
+    .mutation(async ({ ctx, input }) => {
+      const result = await refreshSwarmTopology({
+        serverId: input.serverId,
+        actor: getActorContext(ctx)
+      });
+      throwServerOperationError(result);
+      return result;
+    }),
+
+  updateSwarmNodeAvailability: serverWriteProcedure
+    .input(nodeAvailabilityInput)
+    .mutation(async ({ ctx, input }) => {
+      const actor = getActorContext(ctx);
+      const result = input.dryRun
+        ? await planNodeAvailability({ ...input, actor })
+        : await updateNodeAvailability({ ...input, actor });
+      throwServerOperationError(result);
+      return result;
+    }),
+
+  updateSwarmServiceScale: serverWriteProcedure
+    .input(serviceScaleInput)
+    .mutation(async ({ ctx, input }) => {
+      const actor = getActorContext(ctx);
+      const result = input.dryRun
+        ? await planServiceScale({ ...input, actor })
+        : await updateServiceScale({ ...input, actor });
+      throwServerOperationError(result);
+      return result;
+    })
 });

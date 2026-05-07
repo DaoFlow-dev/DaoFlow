@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Activity, ArrowLeft, HardDrive, History, Shield, Terminal } from "lucide-react";
+import { Activity, ArrowLeft, HardDrive, History, Network, Shield, Terminal } from "lucide-react";
 import { trpc } from "../lib/trpc";
 import { useSession } from "../lib/auth-client";
 import { Badge } from "@/components/ui/badge";
@@ -15,28 +15,8 @@ import {
   PatchingPanel,
   ResourcesPanel
 } from "@/components/server-detail/ServerOperationPanels";
-
-export interface ServerOperation {
-  id: string;
-  kind: string;
-  status: string;
-  dryRun: boolean;
-  summary: string | null;
-  result: unknown;
-  createdAt: string;
-  completedAt: string | null;
-}
-
-export interface ResourceResult {
-  checkedAt?: string;
-  cpu?: { cores?: number | null; load1?: number | null; loadPercent?: number | null };
-  memory?: { totalMb?: number | null; availableMb?: number | null; usedPercent?: number | null };
-  disk?: { totalGb?: number | null; usedGb?: number | null; usedPercent?: number | null };
-  docker?: {
-    reachable?: boolean;
-    diskUsage?: Array<{ type: string; size: string; reclaimable: string }>;
-  };
-}
+import { SwarmPanel } from "@/components/server-detail/ServerSwarmPanel";
+import type { ServerOperationsHub } from "@/components/server-detail/server-operation-types";
 
 export default function ServerDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -60,17 +40,15 @@ export default function ServerDetailPage() {
   const previewCleanup = trpc.previewServerCleanup.useMutation();
   const runCleanup = trpc.runServerCleanup.useMutation();
   const planPatches = trpc.planServerPatches.useMutation();
+  const refreshSwarmTopology = trpc.refreshSwarmTopology.useMutation();
+  const updateSwarmNodeAvailability = trpc.updateSwarmNodeAvailability.useMutation();
+  const updateSwarmServiceScale = trpc.updateSwarmServiceScale.useMutation();
 
-  const data = hub.data as
-    | {
-        server: { id: string; name: string; host: string; kind: string; status: string };
-        latestResource: ResourceResult | null;
-        operations: ServerOperation[];
-      }
-    | undefined;
+  const data = hub.data as ServerOperationsHub | undefined;
   const caps = viewer.data?.authz.capabilities ?? [];
   const canWriteServer = caps.includes("server:write");
   const canOpenTerminal = caps.includes("terminal:open");
+  const isSwarmManager = data?.server.kind === "docker-swarm-manager";
   const operations = useMemo(() => data?.operations ?? [], [data?.operations]);
   const latestCleanupPreview = operations.find(
     (operation) => operation.kind === "cleanup_preview" && operation.status === "completed"
@@ -153,6 +131,12 @@ export default function ServerDetailPage() {
             <Shield size={14} />
             Patching
           </TabsTrigger>
+          {isSwarmManager ? (
+            <TabsTrigger value="swarm" className="gap-1.5">
+              <Network size={14} />
+              Swarm
+            </TabsTrigger>
+          ) : null}
           <TabsTrigger value="terminal" className="gap-1.5">
             <Terminal size={14} />
             Terminal
@@ -212,6 +196,50 @@ export default function ServerDetailPage() {
             }
           />
         </TabsContent>
+
+        {isSwarmManager ? (
+          <TabsContent value="swarm" className="mt-4">
+            <SwarmPanel
+              topology={data.server.swarmTopology}
+              canRun={canWriteServer}
+              isPending={
+                refreshSwarmTopology.isPending ||
+                updateSwarmNodeAvailability.isPending ||
+                updateSwarmServiceScale.isPending
+              }
+              onRefreshTopology={() =>
+                void runMutation(
+                  () => refreshSwarmTopology.mutateAsync({ serverId: data.server.id }),
+                  "Swarm topology refreshed."
+                )
+              }
+              onNodeAvailability={(input) =>
+                void runMutation(
+                  () =>
+                    updateSwarmNodeAvailability.mutateAsync({
+                      serverId: data.server.id,
+                      node: input.node,
+                      availability: input.availability,
+                      dryRun: input.dryRun
+                    }),
+                  input.dryRun ? "Swarm node plan recorded." : "Swarm node updated."
+                )
+              }
+              onServiceScale={(input) =>
+                void runMutation(
+                  () =>
+                    updateSwarmServiceScale.mutateAsync({
+                      serverId: data.server.id,
+                      service: input.service,
+                      replicas: input.replicas,
+                      dryRun: input.dryRun
+                    }),
+                  input.dryRun ? "Swarm scale plan recorded." : "Swarm service scaled."
+                )
+              }
+            />
+          </TabsContent>
+        ) : null}
 
         <TabsContent value="terminal" className="mt-4">
           {canOpenTerminal ? (

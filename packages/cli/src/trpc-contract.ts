@@ -106,6 +106,7 @@ export interface ServerOperationsHubOutput {
     host: string;
     kind: string;
     status: string;
+    swarmTopology: SwarmTopologySnapshot | null;
   };
   latestResource: Record<string, unknown> | null;
   operations: ServerOperationRecord[];
@@ -1409,6 +1410,25 @@ export interface DaoFlowTRPC {
     ServerOperationMutationOutput
   >;
   planServerPatches: MutationProcedure<{ serverId: string }, ServerOperationMutationOutput>;
+  refreshSwarmTopology: MutationProcedure<{ serverId: string }, ServerOperationMutationOutput>;
+  updateSwarmNodeAvailability: MutationProcedure<
+    {
+      serverId: string;
+      node: string;
+      availability: "active" | "pause" | "drain";
+      dryRun?: boolean;
+    },
+    ServerOperationMutationOutput
+  >;
+  updateSwarmServiceScale: MutationProcedure<
+    {
+      serverId: string;
+      service: string;
+      replicas: number;
+      dryRun?: boolean;
+    },
+    ServerOperationMutationOutput
+  >;
   updateEnvironment: MutationProcedure<
     {
       environmentId: string;

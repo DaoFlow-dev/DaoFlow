@@ -70,7 +70,7 @@ describe("ServerCheckCard", () => {
     expect(screen.getByTestId("swarm-topology-srv_swarm_1")).toHaveTextContent("1 worker");
     expect(
       screen.getByTestId("swarm-topology-node-srv_swarm_1-srv_swarm_1-worker-1")
-    ).toHaveTextContent("swarm-worker-1 · worker · active · unknown");
+    ).toHaveTextContent("swarm-worker-1 · worker · none · active · unknown");
   });
 
   it("exposes an operations action for server detail navigation", () => {

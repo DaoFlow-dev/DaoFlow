@@ -3,12 +3,14 @@ import chalk from "chalk";
 import { runCommandAction } from "../command-action";
 import { normalizeCliInput } from "../command-helpers";
 import { createClient } from "../trpc-client";
+import { serverSwarmOperationsCommand } from "./server-swarm-operations-command";
 
 const HELP = [
   "",
   "Required scopes:",
   "  resources/history/logs: server:read",
   "  cleanup/patch: server:write",
+  "  swarm: server:write",
   "  host terminal: terminal:open in the web UI",
   "",
   "Examples:",
@@ -16,6 +18,9 @@ const HELP = [
   "  daoflow server ops cleanup --server srv_123 --dry-run --json",
   "  daoflow server ops cleanup --server srv_123 --yes",
   "  daoflow server ops patch --server srv_123 --json",
+  "  daoflow server ops swarm refresh-topology --server srv_123 --json",
+  "  daoflow server ops swarm node availability --server srv_123 --node node-1 --availability drain --dry-run --json",
+  "  daoflow server ops swarm service scale --server srv_123 --service web --replicas 3 --dry-run --json",
   "  daoflow server ops logs --operation op_123 --json"
 ].join("\n");
 
@@ -178,6 +183,8 @@ export function serverOperationsCommand(): Command {
         });
       }
     );
+
+  ops.addCommand(serverSwarmOperationsCommand());
 
   return ops;
 }

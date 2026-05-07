@@ -2,6 +2,7 @@ import { and, gte } from "drizzle-orm";
 import { db } from "../connection";
 import { serverOperationLogs, serverOperations } from "../schema/server-operations";
 import { asRecord } from "./json-helpers";
+import { readServerSwarmTopology } from "./server-topology";
 import {
   createOperation,
   desc,
@@ -41,7 +42,7 @@ export async function getServerOperationsHub(serverId: string, limit = 20) {
   const latestResource = operations.find((operation) => operation.kind === "resource_check");
 
   return {
-    server,
+    server: { ...server, swarmTopology: readServerSwarmTopology(server) },
     latestResource: latestResource ? asRecord(latestResource.result) : null,
     operations: operations.map(serializeOperation)
   };

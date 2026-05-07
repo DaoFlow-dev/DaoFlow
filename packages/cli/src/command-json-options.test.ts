@@ -196,11 +196,17 @@ describe("CLI JSON option coverage", () => {
 
   test("server ops subcommands declare --json", () => {
     const ops = getSubcommand(serverCommand(), "ops");
+    const swarm = getSubcommand(ops, "swarm");
+    const swarmNode = getSubcommand(swarm, "node");
+    const swarmService = getSubcommand(swarm, "service");
     expect(hasLongOption(getSubcommand(ops, "resources"), "--json")).toBe(true);
     expect(hasLongOption(getSubcommand(ops, "cleanup"), "--json")).toBe(true);
     expect(hasLongOption(getSubcommand(ops, "patch"), "--json")).toBe(true);
     expect(hasLongOption(getSubcommand(ops, "history"), "--json")).toBe(true);
     expect(hasLongOption(getSubcommand(ops, "logs"), "--json")).toBe(true);
+    expect(hasLongOption(getSubcommand(swarm, "refresh-topology"), "--json")).toBe(true);
+    expect(hasLongOption(getSubcommand(swarmNode, "availability"), "--json")).toBe(true);
+    expect(hasLongOption(getSubcommand(swarmService, "scale"), "--json")).toBe(true);
   });
 
   test("server add help includes scope, examples, and JSON shapes", () => {
@@ -218,6 +224,7 @@ describe("CLI JSON option coverage", () => {
     expect(help).toContain("server:read");
     expect(help).toContain("server:write");
     expect(help).toContain("daoflow server ops cleanup --server srv_123 --dry-run --json");
+    expect(help).toContain("daoflow server ops swarm refresh-topology --server srv_123 --json");
   });
 
   test("maintenance help includes scopes and examples", () => {

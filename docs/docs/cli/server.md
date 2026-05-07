@@ -102,9 +102,14 @@ daoflow server ops resources --server srv_123 --json
 daoflow server ops cleanup --server srv_123 --dry-run --json
 daoflow server ops cleanup --server srv_123 --yes
 daoflow server ops patch --server srv_123 --json
+daoflow server ops swarm refresh-topology --server srv_123 --json
+daoflow server ops swarm node availability --server srv_123 --node worker-a --availability drain --dry-run --json
+daoflow server ops swarm service scale --server srv_123 --service stack_api --replicas 3 --dry-run --json
 daoflow server ops history --server srv_123 --json
 daoflow server ops logs --operation op_123 --json
 ```
 
 Resource, history, and operation-log reads use `server:read`. Cleanup and patch commands use
-`server:write`; live cleanup requires `--yes`.
+`server:write`; live cleanup requires `--yes`. Swarm topology refresh, node availability changes,
+and service scaling also use `server:write`; node and scale dry-runs create durable plan
+operations, while live changes require `--yes`.

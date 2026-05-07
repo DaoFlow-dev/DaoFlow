@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 
 import "@testing-library/jest-dom/vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import ServerDetailPage from "./ServerDetailPage";
 
 const {
@@ -12,7 +12,10 @@ const {
   logsUseQueryMock,
   planUseMutationMock,
   previewUseMutationMock,
+  refreshSwarmUseMutationMock,
   runUseMutationMock,
+  scaleSwarmUseMutationMock,
+  nodeSwarmUseMutationMock,
   useSessionMock,
   useUtilsMock,
   viewerUseQueryMock
@@ -22,7 +25,10 @@ const {
   logsUseQueryMock: vi.fn(),
   planUseMutationMock: vi.fn(),
   previewUseMutationMock: vi.fn(),
+  refreshSwarmUseMutationMock: vi.fn(),
   runUseMutationMock: vi.fn(),
+  scaleSwarmUseMutationMock: vi.fn(),
+  nodeSwarmUseMutationMock: vi.fn(),
   useSessionMock: vi.fn(),
   useUtilsMock: vi.fn(),
   viewerUseQueryMock: vi.fn()
@@ -41,7 +47,10 @@ vi.mock("../lib/trpc", () => ({
     collectServerResources: { useMutation: collectUseMutationMock },
     previewServerCleanup: { useMutation: previewUseMutationMock },
     runServerCleanup: { useMutation: runUseMutationMock },
-    planServerPatches: { useMutation: planUseMutationMock }
+    planServerPatches: { useMutation: planUseMutationMock },
+    refreshSwarmTopology: { useMutation: refreshSwarmUseMutationMock },
+    updateSwarmNodeAvailability: { useMutation: nodeSwarmUseMutationMock },
+    updateSwarmServiceScale: { useMutation: scaleSwarmUseMutationMock }
   }
 }));
 
@@ -49,6 +58,10 @@ describe("ServerDetailPage", () => {
   const hubRefetch = vi.fn();
   const collectMutateAsync = vi.fn();
   const previewMutateAsync = vi.fn();
+
+  afterEach(() => {
+    cleanup();
+  });
 
   beforeEach(() => {
     useSessionMock.mockReturnValue({ data: { user: { id: "user_1" } } });
@@ -67,7 +80,8 @@ describe("ServerDetailPage", () => {
           name: "edge-1",
           host: "203.0.113.42",
           kind: "docker-engine",
-          status: "ready"
+          status: "ready",
+          swarmTopology: null
         },
         latestResource: {
           cpu: { loadPercent: 12 },
@@ -96,6 +110,9 @@ describe("ServerDetailPage", () => {
     previewUseMutationMock.mockReturnValue({ isPending: false, mutateAsync: previewMutateAsync });
     runUseMutationMock.mockReturnValue({ isPending: false, mutateAsync: vi.fn() });
     planUseMutationMock.mockReturnValue({ isPending: false, mutateAsync: vi.fn() });
+    refreshSwarmUseMutationMock.mockReturnValue({ isPending: false, mutateAsync: vi.fn() });
+    nodeSwarmUseMutationMock.mockReturnValue({ isPending: false, mutateAsync: vi.fn() });
+    scaleSwarmUseMutationMock.mockReturnValue({ isPending: false, mutateAsync: vi.fn() });
   });
 
   it("renders server operations and runs resource checks", async () => {
@@ -114,5 +131,62 @@ describe("ServerDetailPage", () => {
     await waitFor(() => {
       expect(collectMutateAsync).toHaveBeenCalledWith({ serverId: "srv_1" });
     });
+  });
+
+  it("shows Swarm operations for Swarm managers", async () => {
+    hubUseQueryMock.mockReturnValue({
+      isLoading: false,
+      refetch: hubRefetch,
+      data: {
+        server: {
+          id: "srv_swarm",
+          name: "swarm-1",
+          host: "10.0.0.10",
+          kind: "docker-swarm-manager",
+          status: "ready",
+          swarmTopology: {
+            clusterId: "swarm-srv",
+            clusterName: "production-swarm",
+            source: "discovered",
+            defaultNamespace: null,
+            summary: {
+              nodeCount: 1,
+              managerCount: 1,
+              workerCount: 0,
+              activeNodeCount: 1,
+              reachableNodeCount: 1
+            },
+            nodes: [
+              {
+                id: "manager-a",
+                name: "manager-a",
+                host: null,
+                role: "manager",
+                availability: "active",
+                reachability: "reachable",
+                managerStatus: "leader"
+              }
+            ]
+          }
+        },
+        latestResource: null,
+        operations: []
+      }
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/servers/srv_swarm"]}>
+        <Routes>
+          <Route path="/servers/:id" element={<ServerDetailPage />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Swarm" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Swarm" }));
+    await waitFor(() => {
+      expect(screen.getByText("production-swarm · discovered · 1 nodes")).toBeVisible();
+    });
+    expect(screen.getByText("manager · leader · active · reachable")).toBeVisible();
   });
 });

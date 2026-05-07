@@ -3198,6 +3198,28 @@
       }
     },
     {
+      "name": "refreshSwarmTopology",
+      "summary": "refresh Swarm Topology",
+      "path": "/trpc/refreshSwarmTopology",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin"],
+      "requiredScopes": ["server:write"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "serverId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["serverId"],
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "registerContainerRegistry",
       "summary": "register Container Registry",
       "path": "/trpc/registerContainerRegistry",
@@ -5387,6 +5409,75 @@
           }
         },
         "required": ["serviceId"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "updateSwarmNodeAvailability",
+      "summary": "update Swarm Node Availability",
+      "path": "/trpc/updateSwarmNodeAvailability",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin"],
+      "requiredScopes": ["server:write"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "serverId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "node": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "availability": {
+            "type": "string",
+            "enum": ["active", "pause", "drain"]
+          },
+          "dryRun": {
+            "type": "boolean"
+          }
+        },
+        "required": ["serverId", "node", "availability"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "updateSwarmServiceScale",
+      "summary": "update Swarm Service Scale",
+      "path": "/trpc/updateSwarmServiceScale",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin"],
+      "requiredScopes": ["server:write"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "serverId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "service": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 180
+          },
+          "replicas": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "dryRun": {
+            "type": "boolean"
+          }
+        },
+        "required": ["serverId", "service", "replicas"],
         "additionalProperties": false
       }
     },

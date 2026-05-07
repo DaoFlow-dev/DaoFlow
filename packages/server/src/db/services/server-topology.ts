@@ -3,6 +3,9 @@ import {
   type SwarmTopology,
   type SwarmTopologySnapshot
 } from "@daoflow/shared";
+import { eq } from "drizzle-orm";
+import { db } from "../connection";
+import { servers } from "../schema/servers";
 import { asRecord } from "./json-helpers";
 
 const SWARM_TOPOLOGY_KEY = "swarmTopology";
@@ -89,4 +92,23 @@ export function readServerSwarmTopology(
     ...topology,
     summary: summarizeSwarmTopology(topology)
   };
+}
+
+export async function writeServerSwarmTopology(serverId: string, topology: SwarmTopology) {
+  const [server] = await db.select().from(servers).where(eq(servers.id, serverId)).limit(1);
+  if (!server) return null;
+
+  const parsed = swarmTopologySchema.parse(topology);
+  const metadata = {
+    ...asRecord(server.metadata),
+    [SWARM_TOPOLOGY_KEY]: parsed
+  };
+
+  const [updated] = await db
+    .update(servers)
+    .set({ metadata, updatedAt: new Date() })
+    .where(eq(servers.id, serverId))
+    .returning();
+
+  return readServerSwarmTopology(updated);
 }

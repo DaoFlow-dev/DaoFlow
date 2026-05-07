@@ -11,6 +11,11 @@ export type ServerOperationKind =
   | "cleanup_preview"
   | "cleanup_run"
   | "patch_plan"
+  | "swarm_topology_refresh"
+  | "swarm_node_availability_plan"
+  | "swarm_node_availability_update"
+  | "swarm_service_scale_plan"
+  | "swarm_service_scale_update"
   | "host_terminal";
 
 export interface ServerOperationActor {

@@ -111,11 +111,14 @@ When a target is a Swarm manager, `swarmTopology` exposes the persisted cluster 
 
 - cluster identity (`clusterId`, `clusterName`)
 - default namespace for future stack grouping
-- node membership with manager/worker roles
+- node membership with manager/worker roles, manager status, availability, and reachability
 - safe summary counts for managers, workers, active nodes, and reachable nodes
 
-Current Swarm execution boundary:
+Swarm management support:
 
+- topology refresh reads `docker node ls --format json` from the manager and persists the observed snapshot
+- node availability plans and updates use `docker node update --availability`
+- service scale plans and updates use `docker service scale`
 - compose-backed deploys and rollbacks use `docker stack`
 - readiness must be probeable through published ports
 - internal-network readiness probes remain unsupported for Swarm execution
@@ -161,6 +164,20 @@ Patch planning is non-mutating. DaoFlow detects the host package manager where p
 daoflow server ops patch --server srv_prod --json
 ```
 
+### Swarm Management
+
+Swarm operations are recorded through the same durable operations hub. Refresh topology records the
+observed manager and worker state. Node availability and service scale commands support `--dry-run`
+for a recorded plan and require `--yes` for live changes.
+
+```bash
+daoflow server ops swarm refresh-topology --server srv_prod --json
+daoflow server ops swarm node availability --server srv_prod --node worker-a --availability drain --dry-run --json
+daoflow server ops swarm node availability --server srv_prod --node worker-a --availability drain --yes
+daoflow server ops swarm service scale --server srv_prod --service stack_api --replicas 3 --dry-run --json
+daoflow server ops swarm service scale --server srv_prod --service stack_api --replicas 3 --yes
+```
+
 ### Host Terminal
 
 Host terminal access is separate from service container terminals. The web UI opens host shells via
@@ -195,6 +212,7 @@ Access to server operations requires specific scopes:
 | Register server      | `server:write`  |
 | Update server config | `server:write`  |
 | Cleanup and patching | `server:write`  |
+| Manage Swarm         | `server:write`  |
 | Manage tunnels       | `server:write`  |
 | Open host terminal   | `terminal:open` |
 | Remove server        | `server:write`  |

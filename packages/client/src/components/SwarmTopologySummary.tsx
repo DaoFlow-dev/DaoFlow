@@ -25,13 +25,15 @@ export function SwarmTopologySummary({ serverId, topology }: SwarmTopologySummar
         <div className="text-right text-sm text-muted-foreground">
           <p>{pluralize("manager", topology.summary.managerCount)}</p>
           <p>{pluralize("worker", topology.summary.workerCount)}</p>
+          <p>{pluralize("reachable", topology.summary.reachableNodeCount)}</p>
         </div>
       </div>
 
       <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
         {topology.nodes.map((node) => (
           <li key={node.id} data-testid={`swarm-topology-node-${serverId}-${node.id}`}>
-            {node.name} · {node.role} · {node.availability} · {node.reachability}
+            {node.name} · {node.role} · {node.managerStatus} · {node.availability} ·{" "}
+            {node.reachability}
           </li>
         ))}
       </ul>

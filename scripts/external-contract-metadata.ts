@@ -214,6 +214,9 @@ addApiGroup(
     "previewServerCleanup",
     "runServerCleanup",
     "planServerPatches",
+    "refreshSwarmTopology",
+    "updateSwarmNodeAvailability",
+    "updateSwarmServiceScale",
     "operationalMaintenanceReport",
     "runOperationalMaintenance"
   ],
@@ -671,6 +674,22 @@ export const cliCommandMeta: Record<string, CliCommandMeta> = {
   "server ops resources": { lane: "read", requiredScopes: ["server:read"], mutating: true },
   "server ops cleanup": { lane: "command", requiredScopes: ["server:write"], mutating: true },
   "server ops patch": { lane: "command", requiredScopes: ["server:write"], mutating: true },
+  "server ops swarm": { lane: "command", requiredScopes: ["server:write"], mutating: true },
+  "server ops swarm refresh-topology": {
+    lane: "command",
+    requiredScopes: ["server:write"],
+    mutating: true
+  },
+  "server ops swarm node availability": {
+    lane: "command",
+    requiredScopes: ["server:write"],
+    mutating: true
+  },
+  "server ops swarm service scale": {
+    lane: "command",
+    requiredScopes: ["server:write"],
+    mutating: true
+  },
   "server ops history": { lane: "read", requiredScopes: ["server:read"], mutating: false },
   "server ops logs": { lane: "read", requiredScopes: ["server:read"], mutating: false },
   tunnels: { lane: "read", requiredScopes: ["server:read"], mutating: false },

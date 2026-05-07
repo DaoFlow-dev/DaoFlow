@@ -2681,6 +2681,169 @@
       "supportsYes": false
     },
     {
+      "path": "server ops swarm",
+      "summary": "Manage Docker Swarm targets",
+      "lane": "command",
+      "requiredScopes": ["server:write"],
+      "mutating": true,
+      "hasAction": false,
+      "hasSubcommands": true,
+      "aliases": [],
+      "arguments": [],
+      "options": [],
+      "supportsJson": false,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
+      "path": "server ops swarm node",
+      "summary": "Manage Swarm nodes",
+      "lane": "local",
+      "requiredScopes": [],
+      "mutating": false,
+      "hasAction": false,
+      "hasSubcommands": true,
+      "aliases": [],
+      "arguments": [],
+      "options": [],
+      "supportsJson": false,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
+      "path": "server ops swarm node availability",
+      "summary": "Plan or apply Swarm node availability",
+      "lane": "command",
+      "requiredScopes": ["server:write"],
+      "mutating": true,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--server <id>",
+          "description": "Server ID",
+          "required": true
+        },
+        {
+          "flags": "--node <id>",
+          "description": "Node ID or hostname",
+          "required": true
+        },
+        {
+          "flags": "--availability <state>",
+          "description": "active, pause, or drain",
+          "required": true
+        },
+        {
+          "flags": "--dry-run",
+          "description": "Plan the node update without applying it",
+          "required": false
+        },
+        {
+          "flags": "-y, --yes",
+          "description": "Confirm the node update",
+          "required": false
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": true,
+      "supportsYes": true
+    },
+    {
+      "path": "server ops swarm refresh-topology",
+      "summary": "Refresh observed Swarm topology from the manager",
+      "lane": "command",
+      "requiredScopes": ["server:write"],
+      "mutating": true,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--server <id>",
+          "description": "Server ID",
+          "required": true
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
+      "path": "server ops swarm service",
+      "summary": "Manage Swarm services",
+      "lane": "local",
+      "requiredScopes": [],
+      "mutating": false,
+      "hasAction": false,
+      "hasSubcommands": true,
+      "aliases": [],
+      "arguments": [],
+      "options": [],
+      "supportsJson": false,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
+      "path": "server ops swarm service scale",
+      "summary": "Plan or apply Swarm service replica scaling",
+      "lane": "command",
+      "requiredScopes": ["server:write"],
+      "mutating": true,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--server <id>",
+          "description": "Server ID",
+          "required": true
+        },
+        {
+          "flags": "--service <name>",
+          "description": "Swarm service name",
+          "required": true
+        },
+        {
+          "flags": "--replicas <count>",
+          "description": "Replica count",
+          "required": true
+        },
+        {
+          "flags": "--dry-run",
+          "description": "Plan the scale update without applying it",
+          "required": false
+        },
+        {
+          "flags": "-y, --yes",
+          "description": "Confirm the scale update",
+          "required": false
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": true,
+      "supportsYes": true
+    },
+    {
       "path": "server proxy",
       "summary": "Configure DaoFlow-managed Traefik routing for a server",
       "lane": "command",
