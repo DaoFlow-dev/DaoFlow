@@ -39,7 +39,8 @@ export default defineConfig({
       HOME: process.env.HOME ?? "",
       DATABASE_URL: DB_URL,
       REDIS_URL: process.env.REDIS_URL ?? "redis://localhost:6379",
-      BETTER_AUTH_SECRET: process.env.BETTER_AUTH_SECRET ?? "daoflow-e2e-worker-secret-2026",
+      BETTER_AUTH_SECRET:
+        process.env.BETTER_AUTH_SECRET ?? "daoflow-e2e-worker-secret-with-enough-entropy-2026",
       BETTER_AUTH_URL: playwrightBaseUrl,
       ENCRYPTION_KEY: process.env.ENCRYPTION_KEY ?? "daoflow-e2e-encryption-key-32chars00",
       TEMPORAL_ADDRESS: process.env.TEMPORAL_ADDRESS ?? "localhost:7233",

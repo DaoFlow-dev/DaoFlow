@@ -249,7 +249,7 @@ jobs:
           DATABASE_URL: postgresql://daoflow:daoflow_dev@localhost:5432/daoflow_e2e_worker
           PLAYWRIGHT_WORKER_DATABASE_URL: postgresql://daoflow:daoflow_dev@localhost:5432/daoflow_e2e_worker
           REDIS_URL: redis://localhost:6379
-          BETTER_AUTH_SECRET: daoflow-ci-worker-secret-2026
+          BETTER_AUTH_SECRET: daoflow-ci-worker-secret-with-enough-entropy-2026
           BETTER_AUTH_URL: http://127.0.0.1:3000
           ENCRYPTION_KEY: daoflow-ci-encryption-key-32chars00
           TEMPORAL_ADDRESS: localhost:7233
