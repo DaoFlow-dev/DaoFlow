@@ -73,7 +73,7 @@ Start from the repository `.env.example` or let `daoflow install` generate it fo
 
 ```bash
 BETTER_AUTH_SECRET=generate-a-long-random-secret
-ENCRYPTION_KEY=exactly-32-characters-long-key00
+ENCRYPTION_KEY=generate-at-least-32-char-secret
 POSTGRES_PASSWORD=generate-a-secure-password
 TEMPORAL_POSTGRES_PASSWORD=generate-another-secure-password
 BETTER_AUTH_URL=https://deploy.example.com
@@ -86,7 +86,7 @@ Generate secure values:
 
 ```bash
 openssl rand -hex 32  # BETTER_AUTH_SECRET
-openssl rand -hex 16  # ENCRYPTION_KEY (32 hex chars)
+openssl rand -hex 32  # ENCRYPTION_KEY
 openssl rand -hex 16  # POSTGRES_PASSWORD / TEMPORAL_POSTGRES_PASSWORD
 ```
 

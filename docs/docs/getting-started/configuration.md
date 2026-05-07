@@ -10,12 +10,12 @@ DaoFlow is configured through environment variables and a CLI config file.
 
 ### Local Development
 
-| Variable             | Description                                                |
-| -------------------- | ---------------------------------------------------------- |
-| `DATABASE_URL`       | PostgreSQL connection string                               |
-| `BETTER_AUTH_URL`    | Public-facing URL of the DaoFlow instance                  |
-| `BETTER_AUTH_SECRET` | Optional locally, required in production                   |
-| `ENCRYPTION_KEY`     | Optional locally, recommended for realistic secret testing |
+| Variable             | Description                                            |
+| -------------------- | ------------------------------------------------------ |
+| `DATABASE_URL`       | PostgreSQL connection string                           |
+| `BETTER_AUTH_URL`    | Public-facing URL of the DaoFlow instance              |
+| `BETTER_AUTH_SECRET` | Optional locally, required in production               |
+| `ENCRYPTION_KEY`     | Optional locally, at least 32 characters in production |
 
 ### Production `.env`
 
@@ -23,19 +23,19 @@ The generated production `.env` file is intentionally smaller than the runtime e
 
 Most operators edit only these values:
 
-| Variable                     | Default               | Description                                      |
-| ---------------------------- | --------------------- | ------------------------------------------------ |
-| `DAOFLOW_VERSION`            | `latest`              | Image tag to run                                 |
-| `BETTER_AUTH_URL`            | —                     | Public origin used for sign-in and callbacks     |
-| `DAOFLOW_PORT`               | `3000`                | Host port bound to the DaoFlow container         |
-| `BETTER_AUTH_SECRET`         | —                     | Production session signing secret                |
-| `ENCRYPTION_KEY`             | —                     | Production secret-encryption key                 |
-| `POSTGRES_PASSWORD`          | —                     | Password for the DaoFlow application database    |
-| `TEMPORAL_POSTGRES_PASSWORD` | —                     | Password for Temporal's Postgres database        |
-| `DEPLOY_TIMEOUT_MS`          | `600000`              | Timeout for a single deployment execution        |
-| `DAOFLOW_ENABLE_TEMPORAL`    | `false`               | Enables durable Temporal-backed orchestration    |
-| `TEMPORAL_NAMESPACE`         | `daoflow`             | Temporal namespace when Temporal mode is enabled |
-| `TEMPORAL_TASK_QUEUE`        | `daoflow-deployments` | Temporal task queue name                         |
+| Variable                     | Default               | Description                                              |
+| ---------------------------- | --------------------- | -------------------------------------------------------- |
+| `DAOFLOW_VERSION`            | `latest`              | Image tag to run                                         |
+| `BETTER_AUTH_URL`            | —                     | Public origin used for sign-in and callbacks             |
+| `DAOFLOW_PORT`               | `3000`                | Host port bound to the DaoFlow container                 |
+| `BETTER_AUTH_SECRET`         | —                     | Production session signing secret                        |
+| `ENCRYPTION_KEY`             | —                     | Production secret-encryption key, at least 32 characters |
+| `POSTGRES_PASSWORD`          | —                     | Password for the DaoFlow application database            |
+| `TEMPORAL_POSTGRES_PASSWORD` | —                     | Password for Temporal's Postgres database                |
+| `DEPLOY_TIMEOUT_MS`          | `600000`              | Timeout for a single deployment execution                |
+| `DAOFLOW_ENABLE_TEMPORAL`    | `false`               | Enables durable Temporal-backed orchestration            |
+| `TEMPORAL_NAMESPACE`         | `daoflow`             | Temporal namespace when Temporal mode is enabled         |
+| `TEMPORAL_TASK_QUEUE`        | `daoflow-deployments` | Temporal task queue name                                 |
 
 ### Initial Owner Bootstrap
 

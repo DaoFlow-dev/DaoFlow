@@ -41,4 +41,4 @@ bun run test         # vitest with coverage
 | `REDIS_URL`          | Yes      | Redis connection string           |
 | `BETTER_AUTH_SECRET` | Yes      | Auth signing secret (≥32 chars)   |
 | `BETTER_AUTH_URL`    | Yes      | Public URL for Better Auth        |
-| `ENCRYPTION_KEY`     | Yes      | 32-char key for secret encryption |
+| `ENCRYPTION_KEY`     | Yes      | Secret encryption key (≥32 chars) |

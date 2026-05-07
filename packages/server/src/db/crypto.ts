@@ -1,8 +1,17 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
 
+const MIN_PRODUCTION_ENCRYPTION_KEY_LENGTH = 32;
+
 export function resolveEncryptionKeyMaterial(env: NodeJS.ProcessEnv = process.env): string {
   const encryptionKey = env.ENCRYPTION_KEY?.trim();
   if (encryptionKey) {
+    if (
+      env.NODE_ENV === "production" &&
+      encryptionKey.length < MIN_PRODUCTION_ENCRYPTION_KEY_LENGTH
+    ) {
+      throw new Error("ENCRYPTION_KEY must be at least 32 characters in production.");
+    }
+
     return encryptionKey;
   }
 
@@ -10,7 +19,7 @@ export function resolveEncryptionKeyMaterial(env: NodeJS.ProcessEnv = process.en
     throw new Error("ENCRYPTION_KEY must be set in production.");
   }
 
-  return env.BETTER_AUTH_SECRET ?? "daoflow-local-control-plane";
+  return "daoflow-local-encryption-key-please-change-2026";
 }
 
 export function validateEncryptionConfiguration(env: NodeJS.ProcessEnv = process.env): void {

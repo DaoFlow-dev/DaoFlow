@@ -142,6 +142,7 @@ Docker:
 docker build -t daoflow:local .
 docker run --rm -p 3000:3000 \
   -e BETTER_AUTH_SECRET=replace-with-a-long-random-secret \
+  -e ENCRYPTION_KEY=replace-with-a-32-character-secret \
   -e BETTER_AUTH_URL=http://localhost:3000 \
   daoflow:local
 ```

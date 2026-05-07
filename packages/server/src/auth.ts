@@ -8,21 +8,10 @@ import { bootstrapOwnerRole, defaultSignupRole } from "@daoflow/shared";
 import { DEFAULT_CLIENT_PORT, DEFAULT_SERVER_PORT } from "@daoflow/shared";
 import { resolveEmailSender } from "./email-transport";
 import { findPendingTeamInviteByEmail } from "./db/services/member-access";
+import { resolveAuthSecret } from "./auth-secret";
 
 function resolveAuthBaseURL() {
   return process.env.BETTER_AUTH_URL ?? `http://localhost:${DEFAULT_SERVER_PORT}`;
-}
-
-function resolveAuthSecret() {
-  if (process.env.BETTER_AUTH_SECRET) {
-    return process.env.BETTER_AUTH_SECRET;
-  }
-
-  if (process.env.NODE_ENV === "production") {
-    throw new Error("BETTER_AUTH_SECRET must be set in production.");
-  }
-
-  return "daoflow-local-dev-secret-please-change-2026";
 }
 
 const authBaseURL = resolveAuthBaseURL();

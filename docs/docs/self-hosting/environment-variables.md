@@ -8,13 +8,13 @@ Complete reference for the `.env` file consumed by the production `docker-compos
 
 ## Required In The Generated `.env`
 
-| Variable                     | Description                              | Example                      |
-| ---------------------------- | ---------------------------------------- | ---------------------------- |
-| `BETTER_AUTH_SECRET`         | Session signing secret (min 32 chars)    | `openssl rand -hex 32`       |
-| `BETTER_AUTH_URL`            | Public URL of DaoFlow instance           | `https://deploy.example.com` |
-| `ENCRYPTION_KEY`             | Secret encryption key (exactly 32 chars) | `openssl rand -hex 16`       |
-| `POSTGRES_PASSWORD`          | DaoFlow application database password    | `openssl rand -hex 16`       |
-| `TEMPORAL_POSTGRES_PASSWORD` | Temporal database password               | `openssl rand -hex 16`       |
+| Variable                     | Description                                | Example                      |
+| ---------------------------- | ------------------------------------------ | ---------------------------- |
+| `BETTER_AUTH_SECRET`         | Session signing secret (at least 32 chars) | `openssl rand -hex 32`       |
+| `BETTER_AUTH_URL`            | Public URL of DaoFlow instance             | `https://deploy.example.com` |
+| `ENCRYPTION_KEY`             | Secret encryption key (at least 32 chars)  | `openssl rand -hex 32`       |
+| `POSTGRES_PASSWORD`          | DaoFlow application database password      | `openssl rand -hex 16`       |
+| `TEMPORAL_POSTGRES_PASSWORD` | Temporal database password                 | `openssl rand -hex 16`       |
 
 `DATABASE_URL`, `REDIS_URL`, and most container-local defaults are constructed inside the compose stack and are not normally hand-authored in this `.env` file.
 

@@ -80,7 +80,7 @@ DAOFLOW_INITIAL_ADMIN_PASSWORD=GENERATED_OR_SUPPLIED_SECRET
 POSTGRES_PASSWORD=GENERATED_32_CHAR_HEX
 TEMPORAL_POSTGRES_PASSWORD=GENERATED_32_CHAR_HEX
 BETTER_AUTH_SECRET=GENERATED_64_CHAR_HEX
-ENCRYPTION_KEY=GENERATED_32_CHAR_HEX
+ENCRYPTION_KEY=GENERATED_64_CHAR_HEX
 DAOFLOW_ENABLE_TEMPORAL=true
 TEMPORAL_ADDRESS=temporal:7233
 ```
@@ -196,12 +196,12 @@ cp .env.example .env
 
 Key variables:
 
-| Variable             | Default                                                   | Description                                                         |
-| -------------------- | --------------------------------------------------------- | ------------------------------------------------------------------- |
-| `DATABASE_URL`       | `postgresql://daoflow:daoflow_dev@localhost:5432/daoflow` | Postgres connection                                                 |
-| `BETTER_AUTH_URL`    | `http://localhost:3000`                                   | Public auth URL                                                     |
-| `BETTER_AUTH_SECRET` | optional locally                                          | Session signing secret (required in production)                     |
-| `ENCRYPTION_KEY`     | optional locally                                          | Secret encryption key (recommended locally, required in production) |
+| Variable             | Default                                                   | Description                                                 |
+| -------------------- | --------------------------------------------------------- | ----------------------------------------------------------- |
+| `DATABASE_URL`       | `postgresql://daoflow:daoflow_dev@localhost:5432/daoflow` | Postgres connection                                         |
+| `BETTER_AUTH_URL`    | `http://localhost:3000`                                   | Public auth URL                                             |
+| `BETTER_AUTH_SECRET` | optional locally                                          | Session signing secret (required in production)             |
+| `ENCRYPTION_KEY`     | optional locally                                          | Secret encryption key, at least 32 characters in production |
 
 ### 4. Migrate and Run
 

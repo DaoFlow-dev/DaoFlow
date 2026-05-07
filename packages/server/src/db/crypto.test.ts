@@ -11,9 +11,18 @@ describe("crypto configuration", () => {
     ).toThrow("ENCRYPTION_KEY must be set in production.");
   });
 
+  test("requires a strong encryption key in production", () => {
+    expect(() =>
+      resolveEncryptionKeyMaterial({
+        NODE_ENV: "production",
+        ENCRYPTION_KEY: "short-key"
+      } as NodeJS.ProcessEnv)
+    ).toThrow("ENCRYPTION_KEY must be at least 32 characters in production.");
+  });
+
   test("allows local development fallback when no encryption key is configured", () => {
     expect(resolveEncryptionKeyMaterial({ NODE_ENV: "development" } as NodeJS.ProcessEnv)).toBe(
-      "daoflow-local-control-plane"
+      "daoflow-local-encryption-key-please-change-2026"
     );
   });
 
