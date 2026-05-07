@@ -87,19 +87,21 @@ export function ProjectDetailHeader({
           Add Service
         </Button>
         <AlertDialog open={showDeleteDialog} onOpenChange={onDeleteDialogChange}>
-          <AlertDialogTrigger asChild>
-            <Button
-              size="sm"
-              variant="destructive"
-              aria-label="Delete project"
-              onClick={onDeleteTrigger}
-              disabled={isDeletePending}
-              data-testid={`project-delete-trigger-${projectId}`}
-            >
-              <Trash2 size={14} className="mr-1" />
-              Delete
-            </Button>
-          </AlertDialogTrigger>
+          <AlertDialogTrigger
+            render={
+              <Button
+                size="sm"
+                variant="destructive"
+                aria-label="Delete project"
+                onClick={onDeleteTrigger}
+                disabled={isDeletePending}
+                data-testid={`project-delete-trigger-${projectId}`}
+              >
+                <Trash2 size={14} className="mr-1" />
+                Delete
+              </Button>
+            }
+          />
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>Delete project "{projectName}"?</AlertDialogTitle>

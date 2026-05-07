@@ -16,6 +16,16 @@ export type RepositoryCredentialDraftKind =
   | "https_basic"
   | "ssh_key";
 
+function isRepositoryCredentialDraftKind(value: unknown): value is RepositoryCredentialDraftKind {
+  return (
+    value === "unchanged" ||
+    value === "clear" ||
+    value === "https_token" ||
+    value === "https_basic" ||
+    value === "ssh_key"
+  );
+}
+
 interface ProjectGitCredentialFieldsProps {
   credentialKind: RepositoryCredentialDraftKind;
   credentialUsername: string;
@@ -49,7 +59,11 @@ export function ProjectGitCredentialFields({
         </Label>
         <Select
           value={credentialKind}
-          onValueChange={(value) => onCredentialKind(value as RepositoryCredentialDraftKind)}
+          onValueChange={(value) => {
+            if (isRepositoryCredentialDraftKind(value)) {
+              onCredentialKind(value);
+            }
+          }}
         >
           <SelectTrigger
             id="project-git-credential-kind"

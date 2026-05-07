@@ -67,7 +67,11 @@ export function BackupPolicyDialog({
             <Label htmlFor="backup-policy-volume">Volume</Label>
             <Select
               value={draft.volumeId}
-              onValueChange={(value) => setDraft((current) => ({ ...current, volumeId: value }))}
+              onValueChange={(value) => {
+                if (value !== null) {
+                  setDraft((current) => ({ ...current, volumeId: value }));
+                }
+              }}
             >
               <SelectTrigger id="backup-policy-volume" data-testid="backup-policy-volume-select">
                 {volumeLabelById.get(draft.volumeId) ?? "Select a volume"}
@@ -87,9 +91,11 @@ export function BackupPolicyDialog({
               <Label htmlFor="backup-policy-destination">Destination</Label>
               <Select
                 value={draft.destinationId}
-                onValueChange={(value) =>
-                  setDraft((current) => ({ ...current, destinationId: value }))
-                }
+                onValueChange={(value) => {
+                  if (value !== null) {
+                    setDraft((current) => ({ ...current, destinationId: value }));
+                  }
+                }}
               >
                 <SelectTrigger
                   id="backup-policy-destination"
@@ -113,12 +119,14 @@ export function BackupPolicyDialog({
               <Label htmlFor="backup-policy-type">Backup type</Label>
               <Select
                 value={draft.backupType}
-                onValueChange={(value) =>
-                  setDraft((current) => ({
-                    ...current,
-                    backupType: value as PolicyDraft["backupType"]
-                  }))
-                }
+                onValueChange={(value) => {
+                  if (value !== null) {
+                    setDraft((current) => ({
+                      ...current,
+                      backupType: value
+                    }));
+                  }
+                }}
               >
                 <SelectTrigger id="backup-policy-type" data-testid="backup-policy-type-select">
                   {draft.backupType}
@@ -159,9 +167,11 @@ export function BackupPolicyDialog({
               <Label htmlFor="backup-policy-status">Status</Label>
               <Select
                 value={draft.status}
-                onValueChange={(value) =>
-                  setDraft((current) => ({ ...current, status: value as PolicyDraft["status"] }))
-                }
+                onValueChange={(value) => {
+                  if (value !== null) {
+                    setDraft((current) => ({ ...current, status: value }));
+                  }
+                }}
               >
                 <SelectTrigger id="backup-policy-status" data-testid="backup-policy-status-select">
                   {draft.status}

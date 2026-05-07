@@ -35,7 +35,14 @@ export function DeploymentsFilters({
           className="pl-9"
         />
       </div>
-      <Select value={statusFilter} onValueChange={onStatusFilterChange}>
+      <Select
+        value={statusFilter}
+        onValueChange={(value) => {
+          if (value !== null) {
+            onStatusFilterChange(value);
+          }
+        }}
+      >
         <SelectTrigger className="w-[140px]">
           <SelectValue placeholder="Status" />
         </SelectTrigger>

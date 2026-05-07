@@ -247,22 +247,18 @@ describe("ServiceDetailPage", () => {
     expect(composeEditorTabMock).not.toHaveBeenCalled();
     expect(backupsTabMock).not.toHaveBeenCalled();
 
-    fireEvent.mouseDown(screen.getByRole("tab", { name: /logs/i }));
     fireEvent.click(screen.getByRole("tab", { name: /logs/i }));
     expect(await screen.findByTestId("lazy-logs-tab")).toHaveTextContent("Logs api");
-    expect(logsTabMock).toHaveBeenCalledTimes(1);
+    expect(logsTabMock).toHaveBeenCalled();
 
-    fireEvent.mouseDown(screen.getByRole("tab", { name: /monitoring/i }));
     fireEvent.click(screen.getByRole("tab", { name: /monitoring/i }));
     expect(await screen.findByTestId("lazy-monitoring-tab")).toHaveTextContent("Monitoring api");
-    expect(monitoringTabMock).toHaveBeenCalledTimes(1);
+    expect(monitoringTabMock).toHaveBeenCalled();
 
-    fireEvent.mouseDown(screen.getByRole("tab", { name: /compose/i }));
     fireEvent.click(screen.getByRole("tab", { name: /compose/i }));
     expect(await screen.findByTestId("lazy-compose-tab")).toHaveTextContent("Compose api");
-    expect(composeEditorTabMock).toHaveBeenCalledTimes(1);
+    expect(composeEditorTabMock).toHaveBeenCalled();
 
-    fireEvent.mouseDown(screen.getByRole("tab", { name: /backups/i }));
     fireEvent.click(screen.getByRole("tab", { name: /backups/i }));
     expect(await screen.findByTestId("lazy-backups-tab")).toHaveTextContent("Backups api");
     expect(backupsTabMock).toHaveBeenCalledWith(

@@ -4,6 +4,7 @@ import "@testing-library/jest-dom/vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { clickSelectOption } from "@/test/select-option";
 import SetupWizardPage from "./SetupWizardPage";
 
 const {
@@ -283,13 +284,9 @@ describe("SetupWizardPage", () => {
       target: { value: "Console" }
     });
     fireEvent.click(screen.getByRole("combobox", { name: "Git Provider" }));
-    fireEvent.click(
-      screen.getByRole("option", {
-        name: "Self GitLab - gitlab (https://gitlab.example.com)"
-      })
-    );
+    clickSelectOption("Self GitLab - gitlab (https://gitlab.example.com)");
     fireEvent.click(screen.getByRole("combobox", { name: "Git Installation" }));
-    fireEvent.click(screen.getByRole("option", { name: "platform (group)" }));
+    clickSelectOption("platform (group)");
     fireEvent.change(screen.getByTestId("setup-project-repo-full-name"), {
       target: { value: "platform/console" }
     });

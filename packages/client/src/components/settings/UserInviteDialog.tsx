@@ -27,6 +27,10 @@ const inviteRoleOptions = [
 export type InviteRole = "admin" | "operator" | "developer" | "viewer";
 export type InviteRequestStatus = "idle" | "pending" | "success" | "error";
 
+function isInviteRole(value: unknown): value is InviteRole {
+  return value === "admin" || value === "operator" || value === "developer" || value === "viewer";
+}
+
 interface UserInviteDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -95,7 +99,11 @@ export function UserInviteDialog({
             <Label htmlFor="users-invite-role">Role</Label>
             <Select
               value={inviteRole}
-              onValueChange={(value) => setInviteRole(value as InviteRole)}
+              onValueChange={(value) => {
+                if (isInviteRole(value)) {
+                  setInviteRole(value);
+                }
+              }}
             >
               <SelectTrigger id="users-invite-role" data-testid="users-invite-role-select">
                 <SelectValue placeholder="Select role" />

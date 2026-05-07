@@ -178,7 +178,14 @@ export default function LogsTab({ serviceId, serviceName }: LogsTabProps) {
                 </button>
               ))}
             </div>
-            <Select value={tailLines} onValueChange={setTailLines}>
+            <Select
+              value={tailLines}
+              onValueChange={(value) => {
+                if (value !== null) {
+                  setTailLines(value);
+                }
+              }}
+            >
               <SelectTrigger className="h-8 w-28 text-xs" data-testid={`logs-tail-${serviceId}`}>
                 <SelectValue />
               </SelectTrigger>

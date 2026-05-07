@@ -50,11 +50,13 @@ export function ProjectsPageCreateDialog({
 }: ProjectsPageCreateDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogTrigger asChild>
-        <Button data-testid="projects-new-project-trigger">
-          <Plus size={16} /> New Project
-        </Button>
-      </DialogTrigger>
+      <DialogTrigger
+        render={
+          <Button data-testid="projects-new-project-trigger">
+            <Plus size={16} /> New Project
+          </Button>
+        }
+      />
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Create Project</DialogTitle>

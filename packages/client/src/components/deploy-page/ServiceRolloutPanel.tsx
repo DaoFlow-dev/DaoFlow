@@ -149,6 +149,9 @@ export function ServiceRolloutPanel() {
             <Select
               value={selectedServiceId}
               onValueChange={(value) => {
+                if (value === null) {
+                  return;
+                }
                 setSelectedServiceId(value);
                 resetPreviewState();
               }}

@@ -15,6 +15,10 @@ import {
 
 export type MfaRequirement = "optional" | "privileged" | "all";
 
+function isMfaRequirement(value: unknown): value is MfaRequirement {
+  return value === "optional" || value === "privileged" || value === "all";
+}
+
 export interface AccountSecurityStatus {
   policy: {
     mfaRequirement: MfaRequirement;
@@ -145,7 +149,11 @@ export function MfaSettingsCard({
             <Label htmlFor="security-mfa-policy">Team MFA policy</Label>
             <Select
               value={accountSecurity?.policy.mfaRequirement ?? "optional"}
-              onValueChange={(value) => onPolicyChange(value as MfaRequirement)}
+              onValueChange={(value) => {
+                if (isMfaRequirement(value)) {
+                  onPolicyChange(value);
+                }
+              }}
             >
               <SelectTrigger id="security-mfa-policy" data-testid="security-mfa-policy">
                 <SelectValue placeholder="Choose policy" />

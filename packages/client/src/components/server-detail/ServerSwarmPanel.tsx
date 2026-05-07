@@ -101,7 +101,11 @@ export function SwarmPanel(props: {
             <Label htmlFor="swarm-node-availability">Availability</Label>
             <Select
               value={availability}
-              onValueChange={(value) => setAvailability(value as "active" | "pause" | "drain")}
+              onValueChange={(value) => {
+                if (value === "active" || value === "pause" || value === "drain") {
+                  setAvailability(value);
+                }
+              }}
             >
               <SelectTrigger id="swarm-node-availability" data-testid="server-swarm-availability">
                 <SelectValue placeholder="Availability" />

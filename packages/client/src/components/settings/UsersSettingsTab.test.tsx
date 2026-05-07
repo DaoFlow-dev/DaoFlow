@@ -3,6 +3,7 @@
 import "@testing-library/jest-dom/vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
+import { clickSelectOption } from "@/test/select-option";
 import { UsersSettingsTab } from "./UsersSettingsTab";
 
 describe("UsersSettingsTab", () => {
@@ -64,7 +65,7 @@ describe("UsersSettingsTab", () => {
       target: { value: "dev@daoflow.local" }
     });
     fireEvent.click(screen.getByTestId("users-invite-role-select"));
-    fireEvent.click(screen.getByRole("option", { name: /Developer/ }));
+    clickSelectOption(/Developer/);
     fireEvent.click(screen.getByTestId("users-invite-submit"));
 
     expect(submittedInvite).toEqual({

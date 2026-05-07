@@ -3,6 +3,7 @@
 import "@testing-library/jest-dom/vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { clickSelectOption } from "@/test/select-option";
 import { AddDestinationDialog } from "./AddDestinationDialog";
 
 describe("AddDestinationDialog", () => {
@@ -37,7 +38,7 @@ describe("AddDestinationDialog", () => {
 
   function selectProvider(name: string) {
     fireEvent.click(screen.getByTestId("destination-provider-select"));
-    fireEvent.click(screen.getByRole("option", { name: new RegExp(name) }));
+    clickSelectOption(new RegExp(name));
   }
 
   it("submits the existing S3 payload contract", () => {
@@ -45,7 +46,7 @@ describe("AddDestinationDialog", () => {
 
     fireEvent.change(screen.getByLabelText("Name"), { target: { value: "archive-s3" } });
     fireEvent.click(screen.getByTestId("destination-s3-provider-select"));
-    fireEvent.click(screen.getByRole("option", { name: /Cloudflare R2/ }));
+    clickSelectOption(/Cloudflare R2/);
     fireEvent.change(screen.getByLabelText("Access Key"), { target: { value: "access-key" } });
     fireEvent.change(screen.getByLabelText("Secret Key"), { target: { value: "secret-key" } });
     fireEvent.change(screen.getByLabelText("Bucket"), { target: { value: "dao-archive" } });

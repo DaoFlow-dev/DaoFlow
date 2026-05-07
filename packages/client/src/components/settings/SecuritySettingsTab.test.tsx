@@ -3,6 +3,7 @@
 import "@testing-library/jest-dom/vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { clickSelectOption } from "@/test/select-option";
 import { SecuritySettingsTab } from "./SecuritySettingsTab";
 
 const { enableMock, verifyTotpMock, disableMock, generateBackupCodesMock } = vi.hoisted(() => ({
@@ -54,7 +55,7 @@ describe("SecuritySettingsTab", () => {
 
     expect(screen.getByTestId("security-mfa-card")).toHaveTextContent("Not enabled");
     fireEvent.click(screen.getByTestId("security-mfa-policy"));
-    fireEvent.click(screen.getByRole("option", { name: /Required for privileged roles/ }));
+    clickSelectOption(/Required for privileged roles/);
 
     expect(policy).toBe("privileged");
   });

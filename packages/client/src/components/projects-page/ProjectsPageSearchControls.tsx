@@ -37,7 +37,14 @@ export function ProjectsPageSearchControls({
           className="pl-9 shadow-sm"
         />
       </div>
-      <Select value={sortBy} onValueChange={(value) => onSortChange(value as ProjectsSortBy)}>
+      <Select
+        value={sortBy}
+        onValueChange={(value) => {
+          if (value === "name" || value === "recent") {
+            onSortChange(value);
+          }
+        }}
+      >
         <SelectTrigger className="w-[140px]" data-testid="projects-sort-select">
           <ArrowUpDown size={14} className="mr-1.5" />
           <SelectValue />

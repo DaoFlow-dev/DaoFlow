@@ -40,6 +40,12 @@ const SETTINGS_TABS = [
   "secrets"
 ] as const;
 
+type SettingsTab = (typeof SETTINGS_TABS)[number];
+
+function isSettingsTab(value: unknown): value is SettingsTab {
+  return typeof value === "string" && SETTINGS_TABS.includes(value as SettingsTab);
+}
+
 export default function SettingsPage() {
   const utils = trpc.useUtils();
   const session = useSession();
@@ -95,10 +101,10 @@ export default function SettingsPage() {
     }
   });
   const requestedTab = searchParams.get("tab");
-  const requestedTabIsKnown =
-    requestedTab && SETTINGS_TABS.includes(requestedTab as (typeof SETTINGS_TABS)[number]);
+  const requestedTabIsKnown = isSettingsTab(requestedTab);
   const requestedTabIsAllowed = requestedTab !== "registries" || canManageRegistries;
-  const activeTab = requestedTabIsKnown && requestedTabIsAllowed ? requestedTab : "general";
+  const activeTab: SettingsTab =
+    requestedTabIsKnown && requestedTabIsAllowed ? requestedTab : "general";
 
   return (
     <main className="shell space-y-6" data-testid="settings-page">
@@ -120,6 +126,9 @@ export default function SettingsPage() {
         <Tabs
           value={activeTab}
           onValueChange={(value) => {
+            if (!isSettingsTab(value)) {
+              return;
+            }
             const next = new URLSearchParams(searchParams);
             if (value === "general") {
               next.delete("tab");

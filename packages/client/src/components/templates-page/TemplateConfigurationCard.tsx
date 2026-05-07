@@ -153,7 +153,14 @@ export function TemplateConfigurationCard({
           </div>
           <div className="space-y-2">
             <Label htmlFor="template-server-select">Target server</Label>
-            <Select value={selectedServerId} onValueChange={onServerChange}>
+            <Select
+              value={selectedServerId}
+              onValueChange={(value) => {
+                if (value !== null) {
+                  onServerChange(value);
+                }
+              }}
+            >
               <SelectTrigger
                 id="template-server-select"
                 disabled={serverLocked}

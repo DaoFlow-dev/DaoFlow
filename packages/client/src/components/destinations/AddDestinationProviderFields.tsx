@@ -39,7 +39,11 @@ export function AddDestinationProviderFields({
           <Label htmlFor="destination-s3-provider">S3 Provider</Label>
           <Select
             value={form.s3Provider}
-            onValueChange={(value) => onFieldChange("s3Provider", value)}
+            onValueChange={(value) => {
+              if (value !== null) {
+                onFieldChange("s3Provider", value);
+              }
+            }}
           >
             <SelectTrigger
               id="destination-s3-provider"

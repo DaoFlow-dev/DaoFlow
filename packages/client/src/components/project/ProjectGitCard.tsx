@@ -252,6 +252,7 @@ export function ProjectGitCard({
                   id="project-git-auto-deploy"
                   checked={draftAutoDeploy}
                   onCheckedChange={setDraftAutoDeploy}
+                  data-testid="project-git-auto-deploy"
                 />
                 <Label htmlFor="project-git-auto-deploy" className="text-xs">
                   Auto-deploy

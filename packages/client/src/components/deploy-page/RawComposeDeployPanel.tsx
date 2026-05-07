@@ -257,6 +257,9 @@ export function RawComposeDeployPanel() {
             <Select
               value={selectedServerId}
               onValueChange={(value) => {
+                if (value === null) {
+                  return;
+                }
                 setSelectedServerId(value);
                 resetPreviewState();
               }}

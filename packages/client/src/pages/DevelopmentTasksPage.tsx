@@ -37,6 +37,10 @@ const TASK_STATUSES = [
 
 type TaskStatusFilter = "all" | (typeof TASK_STATUSES)[number];
 
+function isTaskStatusFilter(value: unknown): value is TaskStatusFilter {
+  return value === "all" || TASK_STATUSES.includes(value as (typeof TASK_STATUSES)[number]);
+}
+
 function formatDate(value: string | Date) {
   return new Date(value).toLocaleString();
 }
@@ -63,7 +67,11 @@ export default function DevelopmentTasksPage() {
         <div className="flex flex-wrap items-center justify-end gap-2">
           <Select
             value={statusFilter}
-            onValueChange={(value) => setStatusFilter(value as TaskStatusFilter)}
+            onValueChange={(value) => {
+              if (isTaskStatusFilter(value)) {
+                setStatusFilter(value);
+              }
+            }}
           >
             <SelectTrigger className="w-[160px]" aria-label="Task status filter">
               <SelectValue placeholder="Task status" />

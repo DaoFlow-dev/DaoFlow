@@ -83,11 +83,13 @@ export function AddDestinationDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogTrigger asChild>
-        <Button data-testid="destination-add-button">
-          <Plus size={16} /> Add Destination
-        </Button>
-      </DialogTrigger>
+      <DialogTrigger
+        render={
+          <Button data-testid="destination-add-button">
+            <Plus size={16} /> Add Destination
+          </Button>
+        }
+      />
       <DialogContent className="sm:max-w-xl" data-testid="destination-dialog">
         <DialogHeader>
           <DialogTitle>Add Backup Destination</DialogTitle>
@@ -110,7 +112,14 @@ export function AddDestinationDialog({
 
           <div className="grid gap-1.5">
             <Label htmlFor="destination-provider">Provider</Label>
-            <Select value={form.provider} onValueChange={handleProviderChange}>
+            <Select
+              value={form.provider}
+              onValueChange={(value) => {
+                if (value) {
+                  handleProviderChange(value);
+                }
+              }}
+            >
               <SelectTrigger
                 id="destination-provider"
                 aria-label="Provider"

@@ -4,6 +4,7 @@ import "@testing-library/jest-dom/vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { clickSelectOption } from "@/test/select-option";
 import DevelopmentTasksPage from "./DevelopmentTasksPage";
 
 const { developmentTasksUseQueryMock, sandboxRunnerProfilesUseQueryMock } = vi.hoisted(() => ({
@@ -115,7 +116,7 @@ describe("DevelopmentTasksPage", () => {
     );
 
     fireEvent.click(screen.getByRole("combobox", { name: "Task status filter" }));
-    fireEvent.click(screen.getByRole("option", { name: "failed" }));
+    clickSelectOption("failed");
 
     expect(developmentTasksUseQueryMock).toHaveBeenLastCalledWith({
       limit: 50,

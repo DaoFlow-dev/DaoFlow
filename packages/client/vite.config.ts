@@ -38,7 +38,6 @@ function splitClientChunks(id: string) {
   }
 
   if (
-    normalizedId.includes("/node_modules/@radix-ui/") ||
     normalizedId.includes("/node_modules/@base-ui/") ||
     normalizedId.includes("/node_modules/sonner/") ||
     normalizedId.includes("/node_modules/class-variance-authority/") ||
@@ -54,7 +53,8 @@ function splitClientChunks(id: string) {
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   test: {
-    environment: "jsdom"
+    environment: "jsdom",
+    setupFiles: "./src/test/setup.ts"
   },
   resolve: {
     alias: {

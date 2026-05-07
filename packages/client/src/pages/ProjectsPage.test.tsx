@@ -4,6 +4,7 @@ import "@testing-library/jest-dom/vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { clickSelectOption } from "@/test/select-option";
 import ProjectsPage from "./ProjectsPage";
 
 const {
@@ -181,7 +182,7 @@ describe("ProjectsPage", () => {
       target: { value: "git@git.example.com:acme/private-console.git" }
     });
     fireEvent.click(screen.getByRole("combobox", { name: "Repository Credential" }));
-    fireEvent.click(screen.getByRole("option", { name: "SSH key" }));
+    clickSelectOption("SSH key");
     fireEvent.change(screen.getByTestId("projects-create-repo-credential-ssh-key"), {
       target: {
         value: "-----BEGIN OPENSSH PRIVATE KEY-----\nsecret\n-----END OPENSSH PRIVATE KEY-----"
@@ -231,9 +232,9 @@ describe("ProjectsPage", () => {
       target: { value: "Console" }
     });
     fireEvent.click(screen.getByRole("combobox", { name: "Git Provider" }));
-    fireEvent.click(screen.getByRole("option", { name: "DaoFlow GitHub App - github" }));
+    clickSelectOption("DaoFlow GitHub App - github");
     fireEvent.click(screen.getByRole("combobox", { name: "Git Installation" }));
-    fireEvent.click(screen.getByRole("option", { name: "DaoFlow-dev (organization)" }));
+    clickSelectOption("DaoFlow-dev (organization)");
     fireEvent.change(screen.getByTestId("projects-create-repo-full-name"), {
       target: { value: "DaoFlow-dev/console" }
     });

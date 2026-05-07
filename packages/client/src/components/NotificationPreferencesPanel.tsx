@@ -140,7 +140,14 @@ export function NotificationPreferencesPanel() {
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <p className="text-sm font-medium">Project</p>
-              <Select value={selectedProjectId} onValueChange={setSelectedProjectId}>
+              <Select
+                value={selectedProjectId}
+                onValueChange={(value) => {
+                  if (value !== null) {
+                    setSelectedProjectId(value);
+                  }
+                }}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Select a project" />
                 </SelectTrigger>

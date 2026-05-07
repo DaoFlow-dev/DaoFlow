@@ -154,7 +154,7 @@ export function DashboardLayout() {
             {collapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
           </button>
 
-          <TooltipProvider delayDuration={0}>
+          <TooltipProvider delay={0}>
             <nav className="sidebar__nav">
               <p className="sidebar__group-label">{!collapsed && "Home"}</p>
               {homeNav.map((item) => {
@@ -173,7 +173,7 @@ export function DashboardLayout() {
                 );
                 return collapsed ? (
                   <Tooltip key={item.to}>
-                    <TooltipTrigger asChild>{link}</TooltipTrigger>
+                    <TooltipTrigger render={link} />
                     <TooltipContent side="right">{item.label}</TooltipContent>
                   </Tooltip>
                 ) : (
@@ -199,7 +199,7 @@ export function DashboardLayout() {
                 );
                 return collapsed ? (
                   <Tooltip key={item.to}>
-                    <TooltipTrigger asChild>{link}</TooltipTrigger>
+                    <TooltipTrigger render={link} />
                     <TooltipContent side="right">{item.label}</TooltipContent>
                   </Tooltip>
                 ) : (
@@ -209,7 +209,7 @@ export function DashboardLayout() {
             </nav>
           </TooltipProvider>
 
-          <TooltipProvider delayDuration={0}>
+          <TooltipProvider delay={0}>
             <div className="sidebar__footer">
               {(() => {
                 const btn = (
@@ -232,7 +232,7 @@ export function DashboardLayout() {
                 );
                 return collapsed ? (
                   <Tooltip>
-                    <TooltipTrigger asChild>{btn}</TooltipTrigger>
+                    <TooltipTrigger render={btn} />
                     <TooltipContent side="right">Toggle theme</TooltipContent>
                   </Tooltip>
                 ) : (
@@ -240,24 +240,26 @@ export function DashboardLayout() {
                 );
               })()}
               <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button className="sidebar__user-card group">
-                    <Avatar className="h-8 w-8 ring-2 ring-transparent transition-all group-hover:ring-primary/20">
-                      <AvatarFallback className="bg-primary/10 text-xs font-semibold text-primary">
-                        {userInitial}
-                      </AvatarFallback>
-                    </Avatar>
-                    {!collapsed && (
-                      <>
-                        <div className="sidebar__user-info">
-                          <p className="sidebar__user-name">{session.data.user.name}</p>
-                          <p className="sidebar__user-email">{session.data.user.email}</p>
-                        </div>
-                        <ChevronsUpDown size={14} className="ml-auto opacity-50" />
-                      </>
-                    )}
-                  </button>
-                </DropdownMenuTrigger>
+                <DropdownMenuTrigger
+                  render={
+                    <button className="sidebar__user-card group">
+                      <Avatar className="h-8 w-8 ring-2 ring-transparent transition-all group-hover:ring-primary/20">
+                        <AvatarFallback className="bg-primary/10 text-xs font-semibold text-primary">
+                          {userInitial}
+                        </AvatarFallback>
+                      </Avatar>
+                      {!collapsed && (
+                        <>
+                          <div className="sidebar__user-info">
+                            <p className="sidebar__user-name">{session.data.user.name}</p>
+                            <p className="sidebar__user-email">{session.data.user.email}</p>
+                          </div>
+                          <ChevronsUpDown size={14} className="ml-auto opacity-50" />
+                        </>
+                      )}
+                    </button>
+                  }
+                />
                 <DropdownMenuContent side="top" className="w-56 backdrop-blur-xl" align="start">
                   <DropdownMenuLabel>
                     <p className="font-medium">{session.data.user.name}</p>

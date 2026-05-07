@@ -74,6 +74,9 @@ export function ProjectSourceFields({
           <Select
             value={value.gitProviderId}
             onValueChange={(nextValue) => {
+              if (nextValue === null) {
+                return;
+              }
               onChange("gitProviderId", nextValue);
               onChange("gitInstallationId", "none");
             }}
@@ -99,7 +102,11 @@ export function ProjectSourceFields({
           <Label htmlFor={`${testIdPrefix}-git-installation`}>Git Installation</Label>
           <Select
             value={value.gitInstallationId}
-            onValueChange={(nextValue) => onChange("gitInstallationId", nextValue)}
+            onValueChange={(nextValue) => {
+              if (nextValue !== null) {
+                onChange("gitInstallationId", nextValue);
+              }
+            }}
           >
             <SelectTrigger
               id={`${testIdPrefix}-git-installation`}

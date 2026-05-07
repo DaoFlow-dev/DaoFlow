@@ -67,7 +67,11 @@ export function VolumeRegistryDialog({
             <Label htmlFor="volume-server">Server</Label>
             <Select
               value={draft.serverId}
-              onValueChange={(value) => setDraft((current) => ({ ...current, serverId: value }))}
+              onValueChange={(value) => {
+                if (value !== null) {
+                  setDraft((current) => ({ ...current, serverId: value }));
+                }
+              }}
             >
               <SelectTrigger id="volume-server" data-testid="volume-server-select">
                 {serverLabelById.get(draft.serverId) ?? "Select a server"}
@@ -86,7 +90,11 @@ export function VolumeRegistryDialog({
             <Label htmlFor="volume-service">Service link</Label>
             <Select
               value={draft.serviceId}
-              onValueChange={(value) => setDraft((current) => ({ ...current, serviceId: value }))}
+              onValueChange={(value) => {
+                if (value !== null) {
+                  setDraft((current) => ({ ...current, serviceId: value }));
+                }
+              }}
             >
               <SelectTrigger id="volume-service" data-testid="volume-service-select">
                 {draft.serviceId === UNLINKED_SERVICE
@@ -143,12 +151,14 @@ export function VolumeRegistryDialog({
               <Label htmlFor="volume-status">Status</Label>
               <Select
                 value={draft.status}
-                onValueChange={(value) =>
-                  setDraft((current) => ({
-                    ...current,
-                    status: value as VolumeDraft["status"]
-                  }))
-                }
+                onValueChange={(value) => {
+                  if (value !== null) {
+                    setDraft((current) => ({
+                      ...current,
+                      status: value
+                    }));
+                  }
+                }}
               >
                 <SelectTrigger id="volume-status" data-testid="volume-status-select">
                   {draft.status}

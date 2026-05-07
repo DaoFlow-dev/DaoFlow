@@ -4,6 +4,7 @@ import "@testing-library/jest-dom/vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup } from "@testing-library/react";
+import { clickSelectOption } from "@/test/select-option";
 import { ProjectGitCard } from "./ProjectGitCard";
 
 describe("ProjectGitCard", () => {
@@ -32,7 +33,7 @@ describe("ProjectGitCard", () => {
     fireEvent.change(screen.getByLabelText("Auto-deploy branch"), {
       target: { value: "release" }
     });
-    fireEvent.click(screen.getByLabelText("Auto-deploy"));
+    fireEvent.click(screen.getByTestId("project-git-auto-deploy"));
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
     expect(onSaveSettings).toHaveBeenCalledWith({
@@ -76,7 +77,7 @@ describe("ProjectGitCard", () => {
     );
 
     fireEvent.click(screen.getByRole("combobox", { name: "Repository Credential" }));
-    fireEvent.click(screen.getByRole("option", { name: "HTTPS token" }));
+    clickSelectOption("HTTPS token");
     fireEvent.change(screen.getByTestId("project-git-credential-username"), {
       target: { value: "x-access-token" }
     });

@@ -21,7 +21,11 @@ export function ProjectEnvironmentFilter({
       <span className="text-sm text-muted-foreground">Environment:</span>
       <Tabs
         value={activeEnvironmentId ?? "all"}
-        onValueChange={(value) => onEnvironmentChange(value === "all" ? null : value)}
+        onValueChange={(value) => {
+          if (typeof value === "string") {
+            onEnvironmentChange(value === "all" ? null : value);
+          }
+        }}
       >
         <TabsList className="h-8">
           <TabsTrigger value="all" className="h-6 px-3 text-xs">

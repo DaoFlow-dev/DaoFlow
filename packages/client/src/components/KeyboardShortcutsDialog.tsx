@@ -37,11 +37,13 @@ export function KeyboardShortcutsDialog() {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="ghost" size="icon" title="Keyboard shortcuts (?)">
-          <Keyboard size={16} />
-        </Button>
-      </DialogTrigger>
+      <DialogTrigger
+        render={
+          <Button variant="ghost" size="icon" title="Keyboard shortcuts (?)">
+            <Keyboard size={16} />
+          </Button>
+        }
+      />
       <DialogContent className="max-w-sm">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">

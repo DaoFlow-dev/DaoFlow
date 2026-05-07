@@ -70,7 +70,14 @@ export function EnvironmentEditorDialog({
           </div>
           <div className="space-y-2">
             <Label htmlFor="environment-status">Status</Label>
-            <Select value={draft.status} onValueChange={(value) => onDraftChange("status", value)}>
+            <Select
+              value={draft.status}
+              onValueChange={(value) => {
+                if (value !== null) {
+                  onDraftChange("status", value);
+                }
+              }}
+            >
               <SelectTrigger id="environment-status" data-testid="project-environment-status">
                 <SelectValue />
               </SelectTrigger>
@@ -84,7 +91,11 @@ export function EnvironmentEditorDialog({
             <Label htmlFor="environment-server">Target Server</Label>
             <Select
               value={draft.targetServerId}
-              onValueChange={(value) => onDraftChange("targetServerId", value)}
+              onValueChange={(value) => {
+                if (value !== null) {
+                  onDraftChange("targetServerId", value);
+                }
+              }}
             >
               <SelectTrigger id="environment-server" data-testid="project-environment-server">
                 <SelectValue placeholder="Project default" />

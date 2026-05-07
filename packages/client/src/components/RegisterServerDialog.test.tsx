@@ -3,6 +3,7 @@
 import "@testing-library/jest-dom/vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import { clickSelectOption } from "@/test/select-option";
 import { RegisterServerDialog } from "./RegisterServerDialog";
 
 describe("RegisterServerDialog", () => {
@@ -21,7 +22,7 @@ describe("RegisterServerDialog", () => {
     fireEvent.change(screen.getByLabelText("Name"), { target: { value: "swarm-mgr-1" } });
     fireEvent.change(screen.getByLabelText("Host"), { target: { value: "10.0.0.25" } });
     fireEvent.click(screen.getByRole("combobox", { name: "Target kind" }));
-    fireEvent.click(screen.getByRole("option", { name: "docker-swarm-manager" }));
+    clickSelectOption("docker-swarm-manager");
     fireEvent.click(screen.getByTestId("register-server-submit"));
 
     expect(onSubmit).toHaveBeenCalledWith(
