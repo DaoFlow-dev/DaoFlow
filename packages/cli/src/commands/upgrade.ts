@@ -129,7 +129,18 @@ export function upgradeCommand(): Command {
           if (healthy) {
             healthSpinner?.succeed("DaoFlow is ready!");
           } else {
-            healthSpinner?.warn("Readiness check timed out — check 'docker compose logs daoflow'");
+            healthSpinner?.fail("Readiness check timed out");
+            ctx.fail("DaoFlow did not become ready after upgrade.", {
+              code: "READINESS_TIMEOUT",
+              extra: {
+                previousVersion: installState.version,
+                newVersion: targetVersion,
+                directory: installState.dir,
+                healthy: false
+              },
+              humanMessage:
+                "DaoFlow did not become ready after upgrade. Check 'docker compose logs daoflow'."
+            });
           }
 
           return ctx.complete({

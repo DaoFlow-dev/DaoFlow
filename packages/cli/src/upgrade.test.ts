@@ -149,4 +149,38 @@ describe("upgrade command", () => {
     expect(execCommands).toEqual(["docker compose pull"]);
     expect(readFileSync(join(installDir, ".env"), "utf8")).toContain("DAOFLOW_VERSION=0.2.0");
   });
+
+  test("fails when upgraded services do not become ready", async () => {
+    upgradeRuntime.fetch = () => Promise.resolve(new Response("not ready", { status: 503 }));
+
+    const program = new Command().name("daoflow");
+    program.addCommand(upgradeCommand());
+
+    const result = await captureCommandExecution(async () => {
+      await program.parseAsync([
+        "node",
+        "daoflow",
+        "upgrade",
+        "--dir",
+        installDir,
+        "--version",
+        "0.5.4",
+        "--yes",
+        "--json"
+      ]);
+    });
+
+    expect(result.exitCode).toBe(1);
+    expect(JSON.parse(result.logs[0])).toEqual({
+      ok: false,
+      code: "READINESS_TIMEOUT",
+      error: "DaoFlow did not become ready after upgrade.",
+      previousVersion: "0.2.0",
+      newVersion: "0.5.4",
+      directory: installDir,
+      healthy: false
+    });
+    expect(execCommands).toEqual(["docker compose pull", "docker compose up -d --remove-orphans"]);
+    expect(readFileSync(join(installDir, ".env"), "utf8")).toContain("DAOFLOW_VERSION=0.5.4");
+  });
 });
