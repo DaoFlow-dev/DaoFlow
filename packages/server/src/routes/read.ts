@@ -30,6 +30,7 @@ import {
   serverWriteProcedure
 } from "../trpc";
 import { limitInput } from "../schemas";
+import { accessAssetsReadRouter } from "./read-access-assets";
 import { backupReadRouter } from "./read-backups";
 import { developmentTaskReadRouter } from "./read-development-tasks";
 import { deploymentReadRouter } from "./read-deployments";
@@ -299,6 +300,7 @@ export const readRouter = t.mergeRouters(
   deploymentReadRouter,
   backupReadRouter,
   developmentTaskReadRouter,
+  accessAssetsReadRouter,
   managedOperationsReadRouter,
   serverOperationsReadRouter
 );

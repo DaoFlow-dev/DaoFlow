@@ -108,6 +108,34 @@
       }
     },
     {
+      "name": "attachManagedSshKeyToServer",
+      "summary": "attach Managed Ssh Key To Server",
+      "path": "/trpc/attachManagedSshKeyToServer",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin"],
+      "requiredScopes": ["server:write"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "keyId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32
+          },
+          "serverId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32
+          }
+        },
+        "required": ["keyId", "serverId"],
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "auditTrail",
       "summary": "audit Trail",
       "path": "/trpc/auditTrail",
@@ -341,6 +369,17 @@
         "required": ["taskId"],
         "additionalProperties": false
       }
+    },
+    {
+      "name": "certificateAssets",
+      "summary": "certificate Assets",
+      "path": "/trpc/certificateAssets",
+      "method": "GET",
+      "lane": "read",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator", "developer", "viewer", "agent"],
+      "requiredScopes": ["server:read"],
+      "inputSchema": null
     },
     {
       "name": "collectServerResources",
@@ -911,6 +950,56 @@
       }
     },
     {
+      "name": "createCertificateAsset",
+      "summary": "create Certificate Asset",
+      "path": "/trpc/createCertificateAsset",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin"],
+      "requiredScopes": ["server:write"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "certificatePem": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 50000
+          },
+          "privateKey": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 50000
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "caChain": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100000
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": ["name", "certificatePem"],
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "createChannel",
       "summary": "create Channel",
       "path": "/trpc/createChannel",
@@ -1214,6 +1303,46 @@
           }
         },
         "required": ["name", "destinationType", "endpointUrl"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "createManagedSshKey",
+      "summary": "create Managed Ssh Key",
+      "path": "/trpc/createManagedSshKey",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin"],
+      "requiredScopes": ["server:write"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "username": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 80
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "privateKey": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 50000
+          }
+        },
+        "required": ["name", "privateKey"],
         "additionalProperties": false
       }
     },
@@ -1825,6 +1954,29 @@
       }
     },
     {
+      "name": "deleteCertificateAsset",
+      "summary": "delete Certificate Asset",
+      "path": "/trpc/deleteCertificateAsset",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin"],
+      "requiredScopes": ["server:write"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "certificateId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32
+          }
+        },
+        "required": ["certificateId"],
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "deleteChannel",
       "summary": "delete Channel",
       "path": "/trpc/deleteChannel",
@@ -1976,6 +2128,29 @@
           }
         },
         "required": ["drainId"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "deleteManagedSshKey",
+      "summary": "delete Managed Ssh Key",
+      "path": "/trpc/deleteManagedSshKey",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin"],
+      "requiredScopes": ["server:write"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "keyId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32
+          }
+        },
+        "required": ["keyId"],
         "additionalProperties": false
       }
     },
@@ -2297,6 +2472,29 @@
             "maximum": 12
           }
         },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "detachManagedSshKeyFromServer",
+      "summary": "detach Managed Ssh Key From Server",
+      "path": "/trpc/detachManagedSshKeyFromServer",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin"],
+      "requiredScopes": ["server:write"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "serverId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32
+          }
+        },
+        "required": ["serverId"],
         "additionalProperties": false
       }
     },
@@ -2840,6 +3038,17 @@
       "inputSchema": null
     },
     {
+      "name": "managedSshKeys",
+      "summary": "managed Ssh Keys",
+      "path": "/trpc/managedSshKeys",
+      "method": "GET",
+      "lane": "read",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator", "developer", "viewer", "agent"],
+      "requiredScopes": ["server:read"],
+      "inputSchema": null
+    },
+    {
       "name": "managedTunnel",
       "summary": "managed Tunnel",
       "path": "/trpc/managedTunnel",
@@ -3349,6 +3558,11 @@
             "minLength": 1,
             "maxLength": 20000
           },
+          "sshKeyId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32
+          },
           "kind": {
             "type": "string",
             "enum": ["docker-engine", "docker-swarm-manager"]
@@ -3625,6 +3839,34 @@
           }
         },
         "required": ["serviceId"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "rotateManagedSshKey",
+      "summary": "rotate Managed Ssh Key",
+      "path": "/trpc/rotateManagedSshKey",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin"],
+      "requiredScopes": ["server:write"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "keyId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32
+          },
+          "privateKey": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 50000
+          }
+        },
+        "required": ["keyId", "privateKey"],
         "additionalProperties": false
       }
     },

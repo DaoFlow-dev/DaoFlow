@@ -9,6 +9,7 @@ import {
   varchar
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
+import { managedSshKeys } from "./access-assets";
 import { users } from "./users";
 
 export const servers = pgTable(
@@ -20,7 +21,9 @@ export const servers = pgTable(
     region: varchar("region", { length: 60 }),
     sshPort: integer("ssh_port").default(22).notNull(),
     sshUser: varchar("ssh_user", { length: 80 }),
-    sshKeyId: varchar("ssh_key_id", { length: 64 }),
+    sshKeyId: varchar("ssh_key_id", { length: 32 }).references(() => managedSshKeys.id, {
+      onDelete: "set null"
+    }),
     sshPrivateKeyEncrypted: text("ssh_private_key_encrypted"),
     kind: varchar("kind", { length: 30 }).default("docker-engine").notNull(),
     status: varchar("status", { length: 30 }).default("pending verification").notNull(),
@@ -46,5 +49,9 @@ export const serversRelations = relations(servers, ({ one }) => ({
   registeredByUser: one(users, {
     fields: [servers.registeredByUserId],
     references: [users.id]
+  }),
+  managedSshKey: one(managedSshKeys, {
+    fields: [servers.sshKeyId],
+    references: [managedSshKeys.id]
   })
 }));

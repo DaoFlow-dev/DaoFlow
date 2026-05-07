@@ -517,6 +517,7 @@ export interface RegisterServerOutput {
   region: string | null;
   sshPort: number;
   sshUser: string | null;
+  sshKeyId: string | null;
   kind: string;
   status: string;
   dockerVersion: string | null;
@@ -1084,6 +1085,37 @@ export interface LogDrainDeliveryOutput {
   completedAt: string | null;
 }
 
+export interface ManagedSshKeyOutput {
+  id: string;
+  teamId: string;
+  name: string;
+  username: string | null;
+  fingerprint: string;
+  keyType: string;
+  hasPrivateKey: boolean;
+  status: string;
+  lastUsedAt: string | null;
+  rotatedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CertificateAssetOutput {
+  id: string;
+  teamId: string;
+  name: string;
+  fingerprint: string;
+  subject: string | null;
+  issuer: string | null;
+  expiresAt: string | null;
+  domains: string[];
+  hasPrivateKey: boolean;
+  hasCaChain: boolean;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface DaoFlowTRPC {
   viewer: QueryProcedure<ViewerOutput>;
   health: QueryProcedure<HealthOutput>;
@@ -1102,6 +1134,7 @@ export interface DaoFlowTRPC {
       sshPort: number;
       sshUser?: string;
       sshPrivateKey?: string;
+      sshKeyId?: string | null;
       kind: "docker-engine" | "docker-swarm-manager";
     },
     RegisterServerOutput
@@ -1508,6 +1541,38 @@ export interface DaoFlowTRPC {
   deleteManagedTunnel: MutationProcedure<{ tunnelId: string }, { deleted: true; tunnelId: string }>;
   logDrains: QueryProcedure<LogDrainOutput[]>;
   logDrainDeliveries: QueryProcedure<LogDrainDeliveryOutput[], { limit?: number }>;
+  managedSshKeys: QueryProcedure<ManagedSshKeyOutput[]>;
+  certificateAssets: QueryProcedure<CertificateAssetOutput[]>;
+  createManagedSshKey: MutationProcedure<
+    { name: string; username?: string | null; privateKey: string },
+    ManagedSshKeyOutput
+  >;
+  rotateManagedSshKey: MutationProcedure<
+    { keyId: string; privateKey: string },
+    ManagedSshKeyOutput
+  >;
+  attachManagedSshKeyToServer: MutationProcedure<
+    { keyId: string; serverId: string },
+    { server: RegisterServerOutput; key: ManagedSshKeyOutput }
+  >;
+  detachManagedSshKeyFromServer: MutationProcedure<
+    { serverId: string },
+    { server: RegisterServerOutput; detachedKeyId: string | null }
+  >;
+  deleteManagedSshKey: MutationProcedure<{ keyId: string }, { deleted: true; keyId: string }>;
+  createCertificateAsset: MutationProcedure<
+    {
+      name: string;
+      certificatePem: string;
+      privateKey?: string | null;
+      caChain?: string | null;
+    },
+    CertificateAssetOutput
+  >;
+  deleteCertificateAsset: MutationProcedure<
+    { certificateId: string },
+    { deleted: true; certificateId: string }
+  >;
   createLogDrain: MutationProcedure<
     {
       name: string;

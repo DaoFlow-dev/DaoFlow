@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type { Command } from "commander";
 import { approvalsCommand } from "./commands/approvals";
 import { auditCommand } from "./commands/audit";
+import { accessAssetsCommand } from "./commands/access-assets";
 import { deployCommand } from "./commands/deploy";
 import { diffCommand } from "./commands/diff";
 import { doctorCommand } from "./commands/doctor";
@@ -159,6 +160,21 @@ describe("CLI JSON option coverage", () => {
     expect(hasLongOption(getSubcommand(drains, "deliveries"), "--json")).toBe(true);
     expect(hasLongOption(getSubcommand(drains, "retry"), "--json")).toBe(true);
     expect(hasLongOption(getSubcommand(drains, "delete"), "--json")).toBe(true);
+  });
+
+  test("access asset subcommands declare --json", () => {
+    const access = accessAssetsCommand();
+    const sshKey = getSubcommand(access, "ssh-key");
+    const certificate = getSubcommand(access, "certificate");
+    expect(hasLongOption(getSubcommand(sshKey, "list"), "--json")).toBe(true);
+    expect(hasLongOption(getSubcommand(sshKey, "create"), "--json")).toBe(true);
+    expect(hasLongOption(getSubcommand(sshKey, "rotate"), "--json")).toBe(true);
+    expect(hasLongOption(getSubcommand(sshKey, "attach"), "--json")).toBe(true);
+    expect(hasLongOption(getSubcommand(sshKey, "detach"), "--json")).toBe(true);
+    expect(hasLongOption(getSubcommand(sshKey, "delete"), "--json")).toBe(true);
+    expect(hasLongOption(getSubcommand(certificate, "list"), "--json")).toBe(true);
+    expect(hasLongOption(getSubcommand(certificate, "create"), "--json")).toBe(true);
+    expect(hasLongOption(getSubcommand(certificate, "delete"), "--json")).toBe(true);
   });
 
   test("plan declares --json", () => {

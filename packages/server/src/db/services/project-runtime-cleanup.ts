@@ -146,7 +146,7 @@ export async function cleanupProjectRuntime(
       };
     }
 
-    const target = resolveExecutionTarget(server, `cleanup_${projectId}_${task.runtimeName}`);
+    const target = await resolveExecutionTarget(server, `cleanup_${projectId}_${task.runtimeName}`);
 
     try {
       await withPreparedExecutionTarget(target, async (preparedTarget) => {

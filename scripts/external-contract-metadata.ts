@@ -235,7 +235,14 @@ apiProcedureAccess.collectServerResources = {
 
 addApiGroup(
   apiProcedureAccess,
-  ["managedTunnels", "managedTunnel", "logDrains", "logDrainDeliveries"],
+  [
+    "managedTunnels",
+    "managedTunnel",
+    "logDrains",
+    "logDrainDeliveries",
+    "managedSshKeys",
+    "certificateAssets"
+  ],
   {
     auth: "authenticated",
     requiredRoles: READ_ROLES,
@@ -259,6 +266,24 @@ addApiGroup(
   {
     auth: "authenticated",
     requiredRoles: OPS_ROLES,
+    requiredScopes: ["server:write"]
+  }
+);
+
+addApiGroup(
+  apiProcedureAccess,
+  [
+    "createManagedSshKey",
+    "rotateManagedSshKey",
+    "attachManagedSshKeyToServer",
+    "detachManagedSshKeyFromServer",
+    "deleteManagedSshKey",
+    "createCertificateAsset",
+    "deleteCertificateAsset"
+  ],
+  {
+    auth: "authenticated",
+    requiredRoles: ADMIN_ROLES,
     requiredScopes: ["server:write"]
   }
 );
@@ -706,6 +731,50 @@ export const cliCommandMeta: Record<string, CliCommandMeta> = {
   "log-drains test": { lane: "command", requiredScopes: ["server:write"], mutating: true },
   "log-drains retry": { lane: "command", requiredScopes: ["server:write"], mutating: true },
   "log-drains delete": { lane: "command", requiredScopes: ["server:write"], mutating: true },
+  "access-assets": { lane: "read", requiredScopes: ["server:read"], mutating: false },
+  "access-assets ssh-key": { lane: "read", requiredScopes: ["server:read"], mutating: false },
+  "access-assets ssh-key list": { lane: "read", requiredScopes: ["server:read"], mutating: false },
+  "access-assets ssh-key create": {
+    lane: "command",
+    requiredScopes: ["server:write"],
+    mutating: true
+  },
+  "access-assets ssh-key rotate": {
+    lane: "command",
+    requiredScopes: ["server:write"],
+    mutating: true
+  },
+  "access-assets ssh-key attach": {
+    lane: "command",
+    requiredScopes: ["server:write"],
+    mutating: true
+  },
+  "access-assets ssh-key detach": {
+    lane: "command",
+    requiredScopes: ["server:write"],
+    mutating: true
+  },
+  "access-assets ssh-key delete": {
+    lane: "command",
+    requiredScopes: ["server:write"],
+    mutating: true
+  },
+  "access-assets certificate": { lane: "read", requiredScopes: ["server:read"], mutating: false },
+  "access-assets certificate list": {
+    lane: "read",
+    requiredScopes: ["server:read"],
+    mutating: false
+  },
+  "access-assets certificate create": {
+    lane: "command",
+    requiredScopes: ["server:write"],
+    mutating: true
+  },
+  "access-assets certificate delete": {
+    lane: "command",
+    requiredScopes: ["server:write"],
+    mutating: true
+  },
   projects: { lane: "read", requiredScopes: ["deploy:read"], mutating: false },
   "projects list": { lane: "read", requiredScopes: ["deploy:read"], mutating: false },
   "projects show": { lane: "read", requiredScopes: ["deploy:read"], mutating: false },

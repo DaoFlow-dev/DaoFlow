@@ -177,13 +177,18 @@ export async function handleServiceObservabilityWebSocketUpgrade(
       return jsonResponse({ ok: false, error: "Server not found", code: "NOT_FOUND" }, 404);
     }
 
+    const target = await resolveExecutionTarget(
+      operationResult.server,
+      operationResult.operation.id
+    );
+
     const upgraded = server.upgrade(req, {
       data: {
         kind: "host-terminal",
         operationId: operationResult.operation.id,
         serverId,
         serverName: operationResult.server.name,
-        target: resolveExecutionTarget(operationResult.server, operationResult.operation.id),
+        target,
         shell,
         actor: authResult.actor
       } satisfies HostTerminalSocketData

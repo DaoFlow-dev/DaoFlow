@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import { resolveExecutionTarget } from "./execution-target";
 
 describe("resolveExecutionTarget", () => {
-  it("keeps localhost servers on the local executor", () => {
-    const target = resolveExecutionTarget(
+  it("keeps localhost servers on the local executor", async () => {
+    const target = await resolveExecutionTarget(
       {
         id: "srv_local",
         name: "local-dev",
@@ -29,8 +29,8 @@ describe("resolveExecutionTarget", () => {
     expect(target).toEqual({ mode: "local", serverKind: "docker-engine" });
   });
 
-  it("routes non-local servers through SSH with a deterministic remote workdir", () => {
-    const target = resolveExecutionTarget(
+  it("routes non-local servers through SSH with a deterministic remote workdir", async () => {
+    const target = await resolveExecutionTarget(
       {
         id: "srv_remote",
         name: "staging-vps",

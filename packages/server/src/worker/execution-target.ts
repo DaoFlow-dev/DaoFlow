@@ -1,5 +1,6 @@
 import type { servers } from "../db/schema/servers";
 import { decrypt } from "../db/crypto";
+import { resolveManagedSshPrivateKey } from "../db/services/access-assets";
 import { removeSSHKey, type SSHTarget, writeSSHKey } from "./ssh-executor";
 import { hostname } from "node:os";
 
@@ -31,16 +32,20 @@ function isLocalHost(host: string): boolean {
   );
 }
 
-export function resolveExecutionTarget(
+export async function resolveExecutionTarget(
   server: typeof servers.$inferSelect,
   deploymentId: string
-): ExecutionTarget {
+): Promise<ExecutionTarget> {
   if (isLocalHost(server.host)) {
     return {
       mode: "local",
       serverKind: server.kind
     };
   }
+
+  const managedPrivateKey = server.sshKeyId
+    ? await resolveManagedSshPrivateKey(server.sshKeyId)
+    : null;
 
   return {
     mode: "remote",
@@ -50,7 +55,9 @@ export function resolveExecutionTarget(
       host: server.host,
       port: server.sshPort,
       user: server.sshUser ?? undefined,
-      privateKey: server.sshPrivateKeyEncrypted ? decrypt(server.sshPrivateKeyEncrypted) : undefined
+      privateKey:
+        managedPrivateKey ??
+        (server.sshPrivateKeyEncrypted ? decrypt(server.sshPrivateKeyEncrypted) : undefined)
     },
     remoteWorkDir: `${REMOTE_STAGING_ROOT}/${deploymentId}`
   };

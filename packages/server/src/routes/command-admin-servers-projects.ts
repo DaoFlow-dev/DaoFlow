@@ -49,12 +49,21 @@ export const adminServerProjectRouter = t.router({
         sshPort: z.number().int().min(1).max(65535),
         sshUser: z.string().min(1).max(80).optional(),
         sshPrivateKey: z.string().min(1).max(20_000).optional(),
+        sshKeyId: z.string().min(1).max(32).optional(),
         kind: z.enum(["docker-engine", "docker-swarm-manager"])
       })
     )
     .mutation(async ({ ctx, input }) => {
+      if (input.sshPrivateKey && input.sshKeyId) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Use either sshPrivateKey or sshKeyId, not both."
+        });
+      }
+      const teamId = await requireActorTeamId(ctx.session.user.id);
       const result = await registerServer({
         ...input,
+        teamId,
         ...getActorContext(ctx)
       });
 
@@ -62,6 +71,12 @@ export const adminServerProjectRouter = t.router({
         throw new TRPCError({
           code: "CONFLICT",
           message: `A server with this ${result.conflictField} already exists.`
+        });
+      }
+      if (result.status === "invalid_ssh_key") {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Managed SSH key not found."
         });
       }
 

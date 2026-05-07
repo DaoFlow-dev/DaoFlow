@@ -40,6 +40,7 @@ interface ServerAddDryRunResult {
   sshPort: number;
   sshUser?: string;
   sshPrivateKey?: string;
+  sshKeyId?: string;
   sshPrivateKeyProvided: boolean;
   kind: "docker-engine" | "docker-swarm-manager";
 }
@@ -115,6 +116,7 @@ export function serverCommand(): Command {
     .option("--ssh-user <user>", "SSH username", "root")
     .option("--ssh-key <path>", "Path to the SSH private key file")
     .option("--ssh-private-key <pem>", "Inline SSH private key material")
+    .option("--ssh-key-id <id>", "Managed SSH key asset ID")
     .option("--kind <kind>", "Target kind (docker-engine or docker-swarm-manager)", "docker-engine")
     .option("--dry-run", "Preview the registration payload without mutating")
     .option("-y, --yes", "Skip confirmation prompt")
@@ -130,6 +132,7 @@ export function serverCommand(): Command {
           sshUser?: string;
           sshKey?: string;
           sshPrivateKey?: string;
+          sshKeyId?: string;
           kind: string;
           dryRun?: boolean;
           yes?: boolean;
@@ -151,6 +154,11 @@ export function serverCommand(): Command {
             } catch (error) {
               ctx.fail(getErrorMessage(error), { code: "INVALID_INPUT" });
             }
+            if (sshPrivateKey && opts.sshKeyId) {
+              ctx.fail("Use either a managed --ssh-key-id or inline key material, not both.", {
+                code: "INVALID_INPUT"
+              });
+            }
 
             const payload = {
               name: normalizeCliInput(opts.name, "Server name"),
@@ -164,6 +172,7 @@ export function serverCommand(): Command {
                 allowPathTraversal: true
               }),
               sshPrivateKey,
+              sshKeyId: normalizeOptionalCliInput(opts.sshKeyId, "SSH key ID"),
               kind: opts.kind as "docker-engine" | "docker-swarm-manager"
             };
 
@@ -184,7 +193,7 @@ export function serverCommand(): Command {
                     );
                     console.log(`  Kind:      ${payload.kind}`);
                     console.log(
-                      `  SSH key:   ${payload.sshPrivateKey ? "provided" : "not provided"}`
+                      `  SSH key:   ${payload.sshKeyId ?? (payload.sshPrivateKey ? "provided" : "not provided")}`
                     );
                     console.log();
                   }

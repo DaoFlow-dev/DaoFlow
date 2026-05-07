@@ -9,6 +9,7 @@ import {
   testSSHConnection,
   writeSSHKey
 } from "../../worker/ssh-executor";
+import { resolveManagedSshPrivateKey } from "./access-assets";
 
 function isLocalHost(host: string): boolean {
   const normalized = host.trim().toLowerCase();
@@ -49,48 +50,62 @@ export async function verifyServerReadiness(server: typeof servers.$inferSelect)
       issues.push("Docker Compose CLI is not available on the control-plane host.");
       recommendedActions.push("Install or enable `docker compose` on the control-plane host.");
     }
-  } else if (!server.sshPrivateKeyEncrypted) {
+  } else if (!server.sshPrivateKeyEncrypted && !server.sshKeyId) {
     issues.push("No SSH private key is stored for this server.");
-    recommendedActions.push("Add a per-server SSH user and private key before deploying.");
+    recommendedActions.push(
+      "Attach a managed SSH key or add a per-server private key before deploying."
+    );
   } else {
-    const keyPath = writeSSHKey(server.name, decrypt(server.sshPrivateKeyEncrypted));
+    const privateKey = server.sshKeyId ? await resolveManagedSshPrivateKey(server.sshKeyId) : null;
 
-    try {
-      const target = {
-        serverName: server.name,
-        host: server.host,
-        port: server.sshPort,
-        user: server.sshUser ?? undefined,
-        privateKeyPath: keyPath
-      };
+    if (!privateKey && !server.sshPrivateKeyEncrypted) {
+      issues.push("The managed SSH key linked to this server is not available.");
+      recommendedActions.push("Attach an active managed SSH key before deploying.");
+    } else {
+      const keyPath = writeSSHKey(
+        server.name,
+        privateKey ?? decrypt(server.sshPrivateKeyEncrypted!)
+      );
 
-      const ssh = await testSSHConnection(target, onLog);
-      sshReachable = ssh.reachable;
-      latencyMs = ssh.latencyMs;
+      try {
+        const target = {
+          serverName: server.name,
+          host: server.host,
+          port: server.sshPort,
+          user: server.sshUser ?? undefined,
+          privateKeyPath: keyPath
+        };
 
-      if (!ssh.reachable) {
-        issues.push(ssh.error ?? "SSH handshake failed.");
-        recommendedActions.push(
-          "Verify the host, port, SSH user, and private key for this server."
-        );
-      } else {
-        const versions = await detectDockerVersion(target, onLog);
-        dockerVersion = versions.docker ?? null;
-        composeVersion = versions.compose ?? null;
-        dockerReachable = Boolean(dockerVersion);
-        composeReachable = Boolean(composeVersion);
+        const ssh = await testSSHConnection(target, onLog);
+        sshReachable = ssh.reachable;
+        latencyMs = ssh.latencyMs;
 
-        if (!dockerReachable) {
-          issues.push("Docker Engine is reachable over SSH, but no server version was detected.");
-          recommendedActions.push("Install Docker Engine and confirm the SSH user can run Docker.");
+        if (!ssh.reachable) {
+          issues.push(ssh.error ?? "SSH handshake failed.");
+          recommendedActions.push(
+            "Verify the host, port, SSH user, and private key for this server."
+          );
+        } else {
+          const versions = await detectDockerVersion(target, onLog);
+          dockerVersion = versions.docker ?? null;
+          composeVersion = versions.compose ?? null;
+          dockerReachable = Boolean(dockerVersion);
+          composeReachable = Boolean(composeVersion);
+
+          if (!dockerReachable) {
+            issues.push("Docker Engine is reachable over SSH, but no server version was detected.");
+            recommendedActions.push(
+              "Install Docker Engine and confirm the SSH user can run Docker."
+            );
+          }
+          if (!composeReachable) {
+            issues.push("Docker Compose is not available for the configured SSH user.");
+            recommendedActions.push("Install the Docker Compose plugin on the target server.");
+          }
         }
-        if (!composeReachable) {
-          issues.push("Docker Compose is not available for the configured SSH user.");
-          recommendedActions.push("Install the Docker Compose plugin on the target server.");
-        }
+      } finally {
+        removeSSHKey(keyPath);
       }
-    } finally {
-      removeSSHKey(keyPath);
     }
   }
 

@@ -1,4 +1,5 @@
 export * from "./foundation";
+export * from "./access-assets";
 export * from "./git-providers";
 export * from "./webhook-deliveries";
 export * from "./development-tasks";

@@ -1,7 +1,8 @@
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { db } from "../connection";
 import { encrypt } from "../crypto";
 import { auditEntries } from "../schema/audit";
+import { managedSshKeys } from "../schema/access-assets";
 import { environments, projects } from "../schema/projects";
 import { servers } from "../schema/servers";
 import { services } from "../schema/services";
@@ -22,6 +23,7 @@ import {
 } from "./json-helpers";
 import { readServerSwarmTopology, withRegisteredServerTopologyMetadata } from "./server-topology";
 import { writeManagedTraefikProxyConfigToMetadata } from "../../managed-traefik";
+import { createManagedSshKey } from "./access-assets";
 
 export interface RegisterServerInput {
   name: string;
@@ -30,6 +32,8 @@ export interface RegisterServerInput {
   sshPort: number;
   sshUser?: string;
   sshPrivateKey?: string;
+  sshKeyId?: string | null;
+  teamId?: string;
   kind: string;
   requestedByUserId: string;
   requestedByEmail: string;
@@ -43,7 +47,32 @@ export async function registerServer(input: RegisterServerInput) {
   const byHost = await db.select().from(servers).where(eq(servers.host, input.host)).limit(1);
   if (byHost[0]) return { status: "conflict" as const, conflictField: "host" };
 
+  if (input.sshKeyId && input.teamId) {
+    const [key] = await db
+      .select()
+      .from(managedSshKeys)
+      .where(and(eq(managedSshKeys.id, input.sshKeyId), eq(managedSshKeys.teamId, input.teamId)))
+      .limit(1);
+    if (!key) {
+      return { status: "invalid_ssh_key" as const };
+    }
+  }
+
   const serverId = id();
+  const managedKey =
+    input.sshPrivateKey?.trim() && input.teamId
+      ? await createManagedSshKey({
+          teamId: input.teamId,
+          name: `${input.name} SSH key`,
+          username: input.sshUser?.trim() || null,
+          privateKey: input.sshPrivateKey,
+          actor: {
+            requestedByUserId: input.requestedByUserId,
+            requestedByEmail: input.requestedByEmail,
+            requestedByRole: input.requestedByRole
+          }
+        })
+      : null;
   const [server] = await db
     .insert(servers)
     .values({
@@ -53,9 +82,11 @@ export async function registerServer(input: RegisterServerInput) {
       region: input.region,
       sshPort: input.sshPort,
       sshUser: input.sshUser?.trim() || null,
-      sshPrivateKeyEncrypted: input.sshPrivateKey?.trim()
-        ? encrypt(input.sshPrivateKey.trim())
-        : null,
+      sshKeyId: managedKey?.id ?? input.sshKeyId ?? null,
+      sshPrivateKeyEncrypted:
+        !managedKey && !input.sshKeyId && input.sshPrivateKey?.trim()
+          ? encrypt(input.sshPrivateKey.trim())
+          : null,
       kind: input.kind,
       status: "pending verification",
       registeredByUserId: input.requestedByUserId,

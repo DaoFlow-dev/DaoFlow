@@ -27,6 +27,17 @@ daoflow server add \
   --yes
 ```
 
+Raw SSH private keys entered during server registration are moved into the managed SSH key
+inventory and the server stores only the inventory reference. Operators can also pre-create a
+managed key and reuse it across servers:
+
+```bash
+daoflow access-assets ssh-key create --name prod-deploy --private-key-file ~/.ssh/daoflow_ed25519 --yes
+daoflow server add --name edge-vps-1 --host 203.0.113.42 --ssh-key-id key_123 --yes
+daoflow access-assets ssh-key attach --key-id key_123 --server-id srv_123 --yes
+daoflow access-assets ssh-key detach --server-id srv_123 --yes
+```
+
 The CLI registration flow returns the same readiness status, issues, and recommended actions that
 the dashboard uses after registration.
 
@@ -199,6 +210,20 @@ daoflow tunnels sync --tunnel-id tun_123 --route app.example.com=web:3000 --yes
 Service-domain observation still works without managed tunnels. The tunnel inventory gives
 operators a safer place to record what the external provider is currently exposing.
 
+## Access Assets
+
+The Settings operations tab includes reusable access assets:
+
+- managed SSH keys with encrypted private key material, safe fingerprints, default SSH user
+  metadata, rotation timestamps, and attach/delete actions
+- custom certificate assets with encrypted certificate, private key, and CA chain material plus
+  safe subject, issuer, expiration, domain, and fingerprint metadata
+
+Read surfaces never return private keys, certificate bodies, or encrypted blobs. Write paths create
+audit entries for create, rotate, attach, and delete actions. Managed SSH key rotation does not
+expose the old key and future server connections resolve the latest encrypted key material through
+the asset reference.
+
 ## Server Permissions
 
 Access to server operations requires specific scopes:
@@ -209,10 +234,12 @@ Access to server operations requires specific scopes:
 | View server health   | `server:read`   |
 | View operation logs  | `server:read`   |
 | View managed tunnels | `server:read`   |
+| View access assets   | `server:read`   |
 | Register server      | `server:write`  |
 | Update server config | `server:write`  |
 | Cleanup and patching | `server:write`  |
 | Manage Swarm         | `server:write`  |
 | Manage tunnels       | `server:write`  |
+| Manage access assets | `server:write`  |
 | Open host terminal   | `terminal:open` |
 | Remove server        | `server:write`  |

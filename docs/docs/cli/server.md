@@ -27,6 +27,7 @@ daoflow server add [options]
 | `--ssh-user <user>`       | SSH user, defaults to `root`               |
 | `--ssh-key <path>`        | Path to an SSH private key file            |
 | `--ssh-private-key <pem>` | Inline SSH private key material            |
+| `--ssh-key-id <id>`       | Reuse a managed SSH key asset              |
 | `--kind <kind>`           | `docker-engine` or `docker-swarm-manager`  |
 | `--dry-run`               | Preview the payload and exit with code `3` |
 | `--yes`                   | Confirm the registration                   |
@@ -88,6 +89,8 @@ daoflow server add \
 ## Notes
 
 - Registration immediately runs the same readiness verification flow used by the dashboard.
+- Raw SSH private keys are stored as managed SSH key assets and linked back to the server. Use
+  `--ssh-key-id` to reuse an existing managed key instead of uploading private material again.
 - If SSH works but Docker or Compose does not, the command returns structured issues and recommended actions instead of a silent partial success.
 - Read-only principals still use [`daoflow status`](./status) and [`daoflow doctor`](./doctor) for inspection without mutation.
 - `docker-swarm-manager` targets participate in Swarm stack deploy and rollback flows once a
@@ -113,3 +116,20 @@ Resource, history, and operation-log reads use `server:read`. Cleanup and patch 
 `server:write`; live cleanup requires `--yes`. Swarm topology refresh, node availability changes,
 and service scaling also use `server:write`; node and scale dry-runs create durable plan
 operations, while live changes require `--yes`.
+
+## Access Assets
+
+Reusable SSH keys and custom certificates are managed through `daoflow access-assets`.
+
+```bash
+daoflow access-assets ssh-key list --json
+daoflow access-assets ssh-key create --name prod-deploy --private-key-file ~/.ssh/daoflow_ed25519 --yes
+daoflow access-assets ssh-key rotate --key-id key_123 --private-key-file ~/.ssh/daoflow_ed25519.new --yes
+daoflow access-assets ssh-key attach --key-id key_123 --server-id srv_123 --yes
+daoflow access-assets ssh-key detach --server-id srv_123 --yes
+daoflow access-assets certificate list --json
+daoflow access-assets certificate create --name wildcard-example --cert-file ./fullchain.pem --private-key-file ./privkey.pem --yes
+```
+
+List commands require `server:read`. Create, rotate, attach, and delete commands require
+`server:write` and never print private key, certificate, or encrypted secret material.

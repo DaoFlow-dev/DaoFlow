@@ -73,6 +73,7 @@ This file holds the detailed CLI contract, scope map, and agent-facing command r
 | `server ops`         | read/command          | `server:read`, `server:write`                   | varies   |
 | `tunnels`            | read/command          | `server:read`, `server:write`                   | varies   |
 | `log-drains`         | read/command          | `server:read`, `server:write`                   | varies   |
+| `access-assets`      | read/command          | `server:read`, `server:write`                   | varies   |
 | `maintenance`        | read/command          | `server:write`                                  | varies   |
 | `terminal service`   | command               | `terminal:open`                                 | yes      |
 | `services`           | read/command          | `service:read`, `service:update`                | varies   |
@@ -273,6 +274,27 @@ This file holds the detailed CLI contract, scope map, and agent-facing command r
   - `log-drains create`: `{ "ok": true, "data": { "drain": { "id": string, "name": string, "status": string } } }`
   - `log-drains test|retry`: `{ "ok": true, "data": { "delivery": { "id": string, "status": "delivered" | "failed", "httpStatus": string | null } } }`
   - `log-drains delete`: `{ "ok": true, "data": { "deleted": true, "drainId": string } }`
+
+## Access Assets Contract
+
+- `daoflow access-assets ssh-key list` reads managed SSH key metadata through `managedSshKeys`
+- `daoflow access-assets ssh-key create --yes` encrypts private key material, stores only safe metadata in responses, and requires `server:write`
+- `daoflow access-assets ssh-key rotate --yes` replaces encrypted private key material and requires `server:write`
+- `daoflow access-assets ssh-key attach --yes` links an existing key to a server and clears any per-server raw key material
+- `daoflow access-assets ssh-key detach --yes` removes the managed key link from a server without deleting the key asset
+- `daoflow access-assets ssh-key delete --yes` removes a key and clears server references
+- `daoflow access-assets certificate list` reads certificate metadata through `certificateAssets`
+- `daoflow access-assets certificate create --yes` stores encrypted certificate/private-key/CA-chain material and returns only safe metadata
+- `daoflow access-assets certificate delete --yes` deletes a certificate asset and requires `server:write`
+- JSON list success shapes:
+  - `{ "ok": true, "data": { "keys": [{ "id": string, "name": string, "teamId": string, "username": string | null, "fingerprint": string, "keyType": string, "hasPrivateKey": boolean, "status": string, "lastUsedAt": string | null, "rotatedAt": string | null, "createdAt": string, "updatedAt": string }] } }`
+  - `{ "ok": true, "data": { "certificates": [{ "id": string, "name": string, "teamId": string, "fingerprint": string, "subject": string | null, "issuer": string | null, "expiresAt": string | null, "domains": string[], "hasPrivateKey": boolean, "hasCaChain": boolean, "status": string, "createdAt": string, "updatedAt": string }] } }`
+- JSON mutation success shapes:
+  - `ssh-key create|rotate`: `{ "ok": true, "data": { "key": { "id": string, "name": string, "fingerprint": string, "hasPrivateKey": true } } }`
+  - `ssh-key attach`: `{ "ok": true, "data": { "server": { "id": string, "sshKeyId": string | null }, "key": { "id": string, "name": string } } }`
+  - `ssh-key delete`: `{ "ok": true, "data": { "deleted": true, "keyId": string } }`
+  - `certificate create`: `{ "ok": true, "data": { "certificate": { "id": string, "name": string, "fingerprint": string, "hasPrivateKey": boolean, "hasCaChain": boolean } } }`
+  - `certificate delete`: `{ "ok": true, "data": { "deleted": true, "certificateId": string } }`
 
 ## Plan Command Contract
 

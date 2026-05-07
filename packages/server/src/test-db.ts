@@ -26,7 +26,7 @@ import { resetAuthState } from "./auth";
 
 const { Client } = pg;
 const TEST_DB_PREPARE_LOCK_ID = 8_705_231;
-const MIN_EXPECTED_PUBLIC_TABLES = 36;
+const MIN_EXPECTED_PUBLIC_TABLES = 38;
 
 let prepared = false;
 let preparePromise: Promise<string> | null = null;
@@ -93,6 +93,9 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
       serverOperations: string | null;
       logDrains: string | null;
       logDrainsTeamId: string | null;
+      managedSshKeys: string | null;
+      certificateAssets: string | null;
+      certificateAssetsIssuer: string | null;
     }>(`
       SELECT
         (SELECT count(*)::int FROM pg_tables WHERE schemaname = 'public') AS "tableCount",
@@ -109,7 +112,10 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
         to_regclass('public.development_tasks') AS "developmentTasks"
         ,to_regclass('public.server_operations') AS "serverOperations",
         to_regclass('public.log_drains') AS "logDrains",
-        (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'log_drains' AND column_name = 'team_id') AS "logDrainsTeamId"
+        (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'log_drains' AND column_name = 'team_id') AS "logDrainsTeamId",
+        to_regclass('public.managed_ssh_keys') AS "managedSshKeys",
+        to_regclass('public.certificate_assets') AS "certificateAssets",
+        (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'certificate_assets' AND column_name = 'issuer') AS "certificateAssetsIssuer"
     `);
     const row = result.rows[0];
     return Boolean(
@@ -128,7 +134,10 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
       row.developmentTasks &&
       row.serverOperations &&
       row.logDrains &&
-      row.logDrainsTeamId
+      row.logDrainsTeamId &&
+      row.managedSshKeys &&
+      row.certificateAssets &&
+      row.certificateAssetsIssuer
     );
   } finally {
     await client.end();
@@ -303,15 +312,17 @@ export async function resetTestDatabaseWithControlPlane() {
 
   await resetTestDatabase();
 
-  for (let attempt = 0; attempt < 2; attempt += 1) {
-    resetControlPlaneSeedState();
-    await ensureControlPlaneReady();
-    if (await isControlPlaneSeedReady(connectionString)) {
-      return;
+  await withTestDatabaseLock(connectionString, async () => {
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      resetControlPlaneSeedState();
+      await ensureControlPlaneReady();
+      if (await isControlPlaneSeedReady(connectionString)) {
+        return;
+      }
     }
-  }
 
-  throw new Error("Control-plane seed did not become ready after resetting the test database.");
+    throw new Error("Control-plane seed did not become ready after resetting the test database.");
+  });
 }
 
 export async function resetSeededTestDatabase() {

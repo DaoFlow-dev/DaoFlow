@@ -4,6 +4,355 @@
   "binary": "daoflow",
   "commands": [
     {
+      "path": "access-assets",
+      "summary": "Manage SSH key and certificate assets",
+      "lane": "read",
+      "requiredScopes": ["server:read"],
+      "mutating": false,
+      "hasAction": false,
+      "hasSubcommands": true,
+      "aliases": [],
+      "arguments": [],
+      "options": [],
+      "supportsJson": false,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
+      "path": "access-assets certificate",
+      "summary": "Manage custom certificate assets",
+      "lane": "read",
+      "requiredScopes": ["server:read"],
+      "mutating": false,
+      "hasAction": false,
+      "hasSubcommands": true,
+      "aliases": [],
+      "arguments": [],
+      "options": [],
+      "supportsJson": false,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
+      "path": "access-assets certificate create",
+      "summary": "Create a custom certificate asset",
+      "lane": "command",
+      "requiredScopes": ["server:write"],
+      "mutating": true,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--name <name>",
+          "description": "Certificate display name",
+          "required": true
+        },
+        {
+          "flags": "--cert-file <path>",
+          "description": "Certificate PEM file",
+          "required": true
+        },
+        {
+          "flags": "--private-key-file <path>",
+          "description": "Private key PEM file",
+          "required": false
+        },
+        {
+          "flags": "--ca-chain-file <path>",
+          "description": "CA chain PEM file",
+          "required": false
+        },
+        {
+          "flags": "-y, --yes",
+          "description": "Skip confirmation prompt",
+          "required": false
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": true
+    },
+    {
+      "path": "access-assets certificate delete",
+      "summary": "Delete a custom certificate asset",
+      "lane": "command",
+      "requiredScopes": ["server:write"],
+      "mutating": true,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--certificate-id <id>",
+          "description": "Certificate asset ID",
+          "required": true
+        },
+        {
+          "flags": "-y, --yes",
+          "description": "Skip confirmation prompt",
+          "required": false
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": true
+    },
+    {
+      "path": "access-assets certificate list",
+      "summary": "List custom certificate assets",
+      "lane": "read",
+      "requiredScopes": ["server:read"],
+      "mutating": false,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
+      "path": "access-assets ssh-key",
+      "summary": "Manage reusable SSH keys",
+      "lane": "read",
+      "requiredScopes": ["server:read"],
+      "mutating": false,
+      "hasAction": false,
+      "hasSubcommands": true,
+      "aliases": [],
+      "arguments": [],
+      "options": [],
+      "supportsJson": false,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
+      "path": "access-assets ssh-key attach",
+      "summary": "Attach a managed SSH key to a server",
+      "lane": "command",
+      "requiredScopes": ["server:write"],
+      "mutating": true,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--key-id <id>",
+          "description": "Managed SSH key ID",
+          "required": true
+        },
+        {
+          "flags": "--server-id <id>",
+          "description": "Server ID",
+          "required": true
+        },
+        {
+          "flags": "-y, --yes",
+          "description": "Skip confirmation prompt",
+          "required": false
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": true
+    },
+    {
+      "path": "access-assets ssh-key create",
+      "summary": "Create a managed SSH key",
+      "lane": "command",
+      "requiredScopes": ["server:write"],
+      "mutating": true,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--name <name>",
+          "description": "Key display name",
+          "required": true
+        },
+        {
+          "flags": "--username <user>",
+          "description": "Default SSH user",
+          "required": false
+        },
+        {
+          "flags": "--private-key <pem>",
+          "description": "Inline private key",
+          "required": false
+        },
+        {
+          "flags": "--private-key-file <path>",
+          "description": "Private key file",
+          "required": false
+        },
+        {
+          "flags": "-y, --yes",
+          "description": "Skip confirmation prompt",
+          "required": false
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": true
+    },
+    {
+      "path": "access-assets ssh-key delete",
+      "summary": "Delete a managed SSH key",
+      "lane": "command",
+      "requiredScopes": ["server:write"],
+      "mutating": true,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--key-id <id>",
+          "description": "Managed SSH key ID",
+          "required": true
+        },
+        {
+          "flags": "-y, --yes",
+          "description": "Skip confirmation prompt",
+          "required": false
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": true
+    },
+    {
+      "path": "access-assets ssh-key detach",
+      "summary": "Detach a managed SSH key from a server",
+      "lane": "command",
+      "requiredScopes": ["server:write"],
+      "mutating": true,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--server-id <id>",
+          "description": "Server ID",
+          "required": true
+        },
+        {
+          "flags": "-y, --yes",
+          "description": "Skip confirmation prompt",
+          "required": false
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": true
+    },
+    {
+      "path": "access-assets ssh-key list",
+      "summary": "List managed SSH keys",
+      "lane": "read",
+      "requiredScopes": ["server:read"],
+      "mutating": false,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
+      "path": "access-assets ssh-key rotate",
+      "summary": "Rotate managed SSH key material",
+      "lane": "command",
+      "requiredScopes": ["server:write"],
+      "mutating": true,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--key-id <id>",
+          "description": "Managed SSH key ID",
+          "required": true
+        },
+        {
+          "flags": "--private-key <pem>",
+          "description": "Inline private key",
+          "required": false
+        },
+        {
+          "flags": "--private-key-file <path>",
+          "description": "Private key file",
+          "required": false
+        },
+        {
+          "flags": "-y, --yes",
+          "description": "Skip confirmation prompt",
+          "required": false
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": true
+    },
+    {
       "path": "approvals",
       "summary": "Review and decide queued approvals",
       "lane": "read",
@@ -2483,6 +2832,11 @@
         {
           "flags": "--ssh-private-key <pem>",
           "description": "Inline SSH private key material",
+          "required": false
+        },
+        {
+          "flags": "--ssh-key-id <id>",
+          "description": "Managed SSH key asset ID",
           "required": false
         },
         {

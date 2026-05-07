@@ -147,7 +147,7 @@ export async function resolveServiceRuntime(
     };
   }
 
-  const target = resolveExecutionTarget(server, `obs_${deployment.id}`);
+  const target = await resolveExecutionTarget(server, `obs_${deployment.id}`);
 
   if (service.sourceType === "compose") {
     const snapshot = asRecord(deployment.configSnapshot);

@@ -1,5 +1,6 @@
 export * from "./users";
 export * from "./teams";
+export * from "./access-assets";
 export * from "./projects";
 export * from "./servers";
 export * from "./server-operations";

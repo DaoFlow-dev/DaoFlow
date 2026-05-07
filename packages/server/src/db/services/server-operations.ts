@@ -85,7 +85,7 @@ export async function collectServerResources(input: {
     action: "server.resources.check",
     successSummary: () => "Collected host CPU, memory, disk, and Docker disk usage.",
     execute: async (server) => {
-      const target = resolveExecutionTarget(server, `serverop_${Date.now()}`);
+      const target = await resolveExecutionTarget(server, `serverop_${Date.now()}`);
       return withPreparedExecutionTarget(target, (preparedTarget) =>
         collectHostResourceSnapshot(preparedTarget)
       );
@@ -109,7 +109,7 @@ export async function previewServerCleanup(input: {
     successSummary: (result: CleanupPreview) =>
       `Cleanup preview found ${result.exitedContainers} exited containers, ${result.danglingImages} dangling images, and ${result.buildCacheItems} build cache entries.`,
     execute: async (server) => {
-      const target = resolveExecutionTarget(server, `serverop_${Date.now()}`);
+      const target = await resolveExecutionTarget(server, `serverop_${Date.now()}`);
       return withPreparedExecutionTarget(target, (preparedTarget) =>
         previewHostCleanup(preparedTarget, { includeVolumes: input.includeVolumes })
       );
@@ -155,7 +155,7 @@ export async function runServerCleanup(input: {
     successSummary: (result: CleanupRunResult) =>
       `Host cleanup completed with ${result.commandResults.filter((entry) => entry.exitCode === 0).length}/${result.commandResults.length} successful commands.`,
     execute: async (server) => {
-      const target = resolveExecutionTarget(server, `serverop_${Date.now()}`);
+      const target = await resolveExecutionTarget(server, `serverop_${Date.now()}`);
       return withPreparedExecutionTarget(target, (preparedTarget) =>
         runHostCleanup(preparedTarget, { includeVolumes: input.includeVolumes })
       );
@@ -174,7 +174,7 @@ export async function planServerPatches(input: { serverId: string; actor: Server
     action: "server.patch.plan",
     successSummary: (result: PatchPlan) => result.summary,
     execute: async (server) => {
-      const target = resolveExecutionTarget(server, `serverop_${Date.now()}`);
+      const target = await resolveExecutionTarget(server, `serverop_${Date.now()}`);
       return withPreparedExecutionTarget(target, (preparedTarget) =>
         planHostPatches(preparedTarget)
       );

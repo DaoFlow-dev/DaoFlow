@@ -83,7 +83,7 @@ export async function refreshSwarmTopology(input: {
       `Refreshed Swarm topology with ${result.topology.summary.nodeCount} nodes.`,
     execute: async (server) => {
       const current = readServerSwarmTopology(server);
-      const target = resolveExecutionTarget(server, `swarm_${Date.now()}`);
+      const target = await resolveExecutionTarget(server, `swarm_${Date.now()}`);
       const topology = await withPreparedExecutionTarget(target, (preparedTarget) =>
         discoverSwarmTopology(
           preparedTarget,
@@ -147,7 +147,7 @@ export async function updateNodeAvailability(input: {
     action: "server.swarm.node.update",
     successSummary: (result: SwarmCommandRun) => result.summary,
     execute: async (server) => {
-      const target = resolveExecutionTarget(server, `swarm_${Date.now()}`);
+      const target = await resolveExecutionTarget(server, `swarm_${Date.now()}`);
       return withPreparedExecutionTarget(target, (preparedTarget) =>
         updateSwarmNodeAvailability(preparedTarget, input, () => undefined)
       );
@@ -196,7 +196,7 @@ export async function updateServiceScale(input: {
     action: "server.swarm.service.scale",
     successSummary: (result: SwarmCommandRun) => result.summary,
     execute: async (server) => {
-      const target = resolveExecutionTarget(server, `swarm_${Date.now()}`);
+      const target = await resolveExecutionTarget(server, `swarm_${Date.now()}`);
       return withPreparedExecutionTarget(target, (preparedTarget) =>
         updateSwarmServiceScale(preparedTarget, input, () => undefined)
       );

@@ -70,6 +70,7 @@ Every command accepts these flags:
 | [`server add`](./server)         | command      | `server:write`                                  | yes      |
 | `tunnels`                        | read/command | `server:read` / `server:write`                  | varies   |
 | `log-drains`                     | read/command | `server:read` / `server:write`                  | varies   |
+| `access-assets`                  | read/command | `server:read` / `server:write`                  | varies   |
 | [`maintenance`](./maintenance)   | read/command | `server:write`                                  | varies   |
 | [`terminal`](./terminal)         | command      | `terminal:open`                                 | yes      |
 | `services`                       | read         | `service:read`                                  | no       |
