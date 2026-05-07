@@ -3876,6 +3876,283 @@
       "supportsYes": false
     },
     {
+      "path": "services schedules",
+      "summary": "Manage service schedules",
+      "lane": "read",
+      "requiredScopes": ["service:read"],
+      "mutating": false,
+      "hasAction": false,
+      "hasSubcommands": true,
+      "aliases": [],
+      "arguments": [],
+      "options": [],
+      "supportsJson": false,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
+      "path": "services schedules create",
+      "summary": "",
+      "lane": "command",
+      "requiredScopes": ["service:update"],
+      "mutating": true,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--service <id>",
+          "description": "Service ID",
+          "required": true
+        },
+        {
+          "flags": "--name <name>",
+          "description": "Schedule name",
+          "required": true
+        },
+        {
+          "flags": "--command <command>",
+          "description": "Command to hand off to the runner",
+          "required": true
+        },
+        {
+          "flags": "--cron <expression>",
+          "description": "Cron expression, for example \"*/15 * * * *\"",
+          "required": true
+        },
+        {
+          "flags": "--timezone <zone>",
+          "description": "IANA timezone",
+          "required": false
+        },
+        {
+          "flags": "--retention <count>",
+          "description": "Run history retention count",
+          "required": false
+        },
+        {
+          "flags": "--no-notify-on-failure",
+          "description": "Disable failed-run notifications",
+          "required": false
+        },
+        {
+          "flags": "--dry-run",
+          "description": "Preview without mutating",
+          "required": false
+        },
+        {
+          "flags": "-y, --yes",
+          "description": "Confirm creation",
+          "required": false
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": true,
+      "supportsYes": true
+    },
+    {
+      "path": "services schedules delete",
+      "summary": "",
+      "lane": "command",
+      "requiredScopes": ["service:update"],
+      "mutating": true,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--schedule <id>",
+          "description": "Schedule ID",
+          "required": true
+        },
+        {
+          "flags": "--dry-run",
+          "description": "Preview without mutating",
+          "required": false
+        },
+        {
+          "flags": "-y, --yes",
+          "description": "Confirm delete",
+          "required": false
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": true,
+      "supportsYes": true
+    },
+    {
+      "path": "services schedules list",
+      "summary": "",
+      "lane": "read",
+      "requiredScopes": ["service:read"],
+      "mutating": false,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--service <id>",
+          "description": "Service ID",
+          "required": true
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
+      "path": "services schedules pause",
+      "summary": "",
+      "lane": "command",
+      "requiredScopes": ["service:update"],
+      "mutating": true,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--schedule <id>",
+          "description": "Schedule ID",
+          "required": true
+        },
+        {
+          "flags": "--dry-run",
+          "description": "Preview without mutating",
+          "required": false
+        },
+        {
+          "flags": "-y, --yes",
+          "description": "Confirm pause",
+          "required": false
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": true,
+      "supportsYes": true
+    },
+    {
+      "path": "services schedules resume",
+      "summary": "",
+      "lane": "command",
+      "requiredScopes": ["service:update"],
+      "mutating": true,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--schedule <id>",
+          "description": "Schedule ID",
+          "required": true
+        },
+        {
+          "flags": "--dry-run",
+          "description": "Preview without mutating",
+          "required": false
+        },
+        {
+          "flags": "-y, --yes",
+          "description": "Confirm resume",
+          "required": false
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": true,
+      "supportsYes": true
+    },
+    {
+      "path": "services schedules run",
+      "summary": "",
+      "lane": "command",
+      "requiredScopes": ["service:update"],
+      "mutating": true,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--schedule <id>",
+          "description": "Schedule ID",
+          "required": true
+        },
+        {
+          "flags": "--dry-run",
+          "description": "Preview without mutating",
+          "required": false
+        },
+        {
+          "flags": "-y, --yes",
+          "description": "Confirm run",
+          "required": false
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": true,
+      "supportsYes": true
+    },
+    {
+      "path": "services schedules runs",
+      "summary": "",
+      "lane": "read",
+      "requiredScopes": ["service:read"],
+      "mutating": false,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--schedule <id>",
+          "description": "Schedule ID",
+          "required": true
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
       "path": "status",
       "summary": "Show current deployment and server status",
       "lane": "read",

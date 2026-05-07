@@ -1,5 +1,9 @@
+import { and, eq } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import type { AppRole } from "@daoflow/shared";
+import { db } from "../db/connection";
+import { projects } from "../db/schema/projects";
+import { serviceSchedules } from "../db/schema/service-schedules";
 import {
   environmentBelongsToTeam,
   getServiceForTeam,
@@ -60,6 +64,24 @@ async function assertServiceInputScope(input: {
     });
     if (!service) {
       throw new TRPCError({ code: "NOT_FOUND", message: "Service not found." });
+    }
+  }
+
+  const scheduleId = typeof record.scheduleId === "string" ? record.scheduleId : "";
+  if (scheduleId) {
+    const [schedule] = await db
+      .select({ serviceId: serviceSchedules.serviceId, projectId: serviceSchedules.projectId })
+      .from(serviceSchedules)
+      .innerJoin(projects, eq(projects.id, serviceSchedules.projectId))
+      .where(and(eq(serviceSchedules.id, scheduleId), eq(projects.teamId, teamId)))
+      .limit(1);
+    if (!schedule) {
+      await recordDeniedServiceAccess({
+        actor,
+        action: input.action,
+        permissionScope: input.permissionScope
+      });
+      throw new TRPCError({ code: "NOT_FOUND", message: "Service schedule not found." });
     }
   }
 

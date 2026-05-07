@@ -17,7 +17,8 @@ import {
   Wrench,
   Activity,
   FileCode,
-  ArchiveRestore
+  ArchiveRestore,
+  CalendarClock
 } from "lucide-react";
 
 import ServiceHeader from "../components/service-detail/ServiceHeader";
@@ -38,6 +39,7 @@ const LogsTab = lazy(() => import("../components/service-detail/LogsTab"));
 const MonitoringTab = lazy(() => import("../components/service-detail/MonitoringTab"));
 const ComposeEditorTab = lazy(() => import("../components/service-detail/ComposeEditorTab"));
 const BackupsTab = lazy(() => import("../components/service-detail/BackupsTab"));
+const SchedulesTab = lazy(() => import("../components/service-detail/SchedulesTab"));
 
 function LazyTabSkeleton({ testId }: { testId: string }) {
   return (
@@ -232,6 +234,14 @@ export default function ServiceDetailPage() {
             <ArchiveRestore size={14} />
             Backups
           </TabsTrigger>
+          <TabsTrigger
+            value="schedules"
+            className="gap-1.5 data-[state=active]:bg-muted"
+            data-testid="service-detail-schedules-trigger"
+          >
+            <CalendarClock size={14} />
+            Schedules
+          </TabsTrigger>
           <TabsTrigger value="advanced" className="gap-1.5 data-[state=active]:bg-muted">
             <Wrench size={14} />
             Advanced
@@ -309,6 +319,12 @@ export default function ServiceDetailPage() {
         <TabsContent value="backups" className="mt-4">
           <Suspense fallback={<LazyTabSkeleton testId="service-detail-backups-loading" />}>
             <BackupsTab serviceId={svc.id} serviceName={svc.name} />
+          </Suspense>
+        </TabsContent>
+
+        <TabsContent value="schedules" className="mt-4">
+          <Suspense fallback={<LazyTabSkeleton testId="service-detail-schedules-loading" />}>
+            <SchedulesTab serviceId={svc.id} serviceName={svc.name} />
           </Suspense>
         </TabsContent>
 

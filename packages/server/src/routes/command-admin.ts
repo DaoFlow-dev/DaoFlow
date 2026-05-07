@@ -7,6 +7,7 @@ import { adminRegistryRouter } from "./command-admin-registries";
 import { adminServerOperationsRouter } from "./command-admin-server-operations";
 import { adminServerProjectRouter } from "./command-admin-servers-projects";
 import { adminServiceRouter } from "./command-admin-services";
+import { adminServiceSchedulesRouter } from "./command-admin-service-schedules";
 
 export const adminRouter = t.mergeRouters(
   adminAccessAssetsRouter,
@@ -15,6 +16,7 @@ export const adminRouter = t.mergeRouters(
   adminManagedOperationsRouter,
   adminManagedDatabaseRouter,
   adminServiceRouter,
+  adminServiceSchedulesRouter,
   adminRegistryRouter,
   adminAgentApprovalRouter
 );

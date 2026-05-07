@@ -26,6 +26,9 @@ export const NOTIFICATION_EVENT_TYPES = [
   "deploy.failed",
   "deploy.rollback",
 
+  // Service schedule events
+  "schedule.failed",
+
   // Approval events
   "approval.request",
   "approval.approve",

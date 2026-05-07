@@ -26,7 +26,7 @@ import { resetAuthState } from "./auth";
 
 const { Client } = pg;
 const TEST_DB_PREPARE_LOCK_ID = 8_705_231;
-const MIN_EXPECTED_PUBLIC_TABLES = 41;
+const MIN_EXPECTED_PUBLIC_TABLES = 43;
 
 let prepared = false;
 let preparePromise: Promise<string> | null = null;
@@ -91,6 +91,8 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
       projects: string | null;
       environments: string | null;
       services: string | null;
+      serviceSchedules: string | null;
+      serviceScheduleRuns: string | null;
       previewEnvironments: string | null;
       deployments: string | null;
       serviceVariables: string | null;
@@ -125,6 +127,8 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
         to_regclass('public.projects') AS "projects",
         to_regclass('public.environments') AS "environments",
         to_regclass('public.services') AS "services",
+        to_regclass('public.service_schedules') AS "serviceSchedules",
+        to_regclass('public.service_schedule_runs') AS "serviceScheduleRuns",
         to_regclass('public.preview_environments') AS "previewEnvironments",
         to_regclass('public.deployments') AS "deployments",
         to_regclass('public.service_variables') AS "serviceVariables",
@@ -161,6 +165,8 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
       row.projects &&
       row.environments &&
       row.services &&
+      row.serviceSchedules &&
+      row.serviceScheduleRuns &&
       row.previewEnvironments &&
       row.deployments &&
       row.serviceVariables &&
@@ -230,6 +236,8 @@ async function readPoolSchemaState() {
     projects: string | null;
     environments: string | null;
     services: string | null;
+    serviceSchedules: string | null;
+    serviceScheduleRuns: string | null;
     previewEnvironments: string | null;
     deployments: string | null;
     serviceVariables: string | null;
@@ -262,6 +270,8 @@ async function readPoolSchemaState() {
       to_regclass('public.projects') AS "projects",
       to_regclass('public.environments') AS "environments",
       to_regclass('public.services') AS "services",
+      to_regclass('public.service_schedules') AS "serviceSchedules",
+      to_regclass('public.service_schedule_runs') AS "serviceScheduleRuns",
       to_regclass('public.preview_environments') AS "previewEnvironments",
       to_regclass('public.deployments') AS "deployments",
       to_regclass('public.service_variables') AS "serviceVariables",
@@ -308,6 +318,8 @@ async function ensurePooledTestSchemaReady(connectionString: string) {
         state.projects &&
         state.environments &&
         state.services &&
+        state.serviceSchedules &&
+        state.serviceScheduleRuns &&
         state.previewEnvironments &&
         state.deployments &&
         state.serviceVariables &&

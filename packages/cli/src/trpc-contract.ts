@@ -922,6 +922,50 @@ export interface ServiceMutationOutput {
   runtimeConfigPreview: string | null;
 }
 
+export interface ServiceScheduleOutput {
+  id: string;
+  projectId: string;
+  environmentId: string;
+  serviceId: string;
+  name: string;
+  command: string;
+  cronExpression: string;
+  timezone: string;
+  status: string;
+  enabled: boolean;
+  retentionCount: number;
+  notifyOnFailure: boolean;
+  lastRunAt: string | null;
+  nextRunAt: string | null;
+  createdByUserId: string | null;
+  updatedByUserId: string | null;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+  serviceName?: string;
+  projectName?: string;
+  environmentName?: string;
+}
+
+export interface ServiceScheduleRunOutput {
+  id: string;
+  scheduleId: string;
+  serviceId: string;
+  triggerKind: string;
+  status: string;
+  command: string;
+  logs: string;
+  result: Record<string, unknown>;
+  error: string | null;
+  requestedByUserId: string | null;
+  requestedByEmail: string | null;
+  requestedByRole: string | null;
+  startedAt: string | null;
+  finishedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface ManagedDatabaseConfigOutput {
   kind: ManagedDatabaseKind;
   label: string;
@@ -1307,6 +1351,11 @@ export interface DaoFlowTRPC {
     }
   >;
   composePreviews: QueryProcedure<ComposePreviewsOutput, { serviceId: string }>;
+  serviceSchedules: QueryProcedure<ServiceScheduleOutput[], { serviceId?: string; limit?: number }>;
+  serviceScheduleRuns: QueryProcedure<
+    { schedule: ServiceScheduleOutput; runs: ServiceScheduleRunOutput[] },
+    { scheduleId: string; limit?: number }
+  >;
   managedDatabases: QueryProcedure<ManagedDatabaseListItem[], { limit?: number }>;
   managedDatabaseCatalog: QueryProcedure<
     Array<{
@@ -1584,6 +1633,27 @@ export interface DaoFlowTRPC {
     ManagedDatabaseStateMutationOutput
   >;
   deleteManagedDatabase: MutationProcedure<{ serviceId: string }, { deleted: boolean }>;
+  createServiceSchedule: MutationProcedure<
+    {
+      serviceId: string;
+      name: string;
+      command: string;
+      cronExpression: string;
+      timezone?: string;
+      retentionCount?: number;
+      notifyOnFailure?: boolean;
+    },
+    ServiceScheduleOutput
+  >;
+  setServiceScheduleState: MutationProcedure<
+    { scheduleId: string; state: "pause" | "resume" },
+    ServiceScheduleOutput
+  >;
+  deleteServiceSchedule: MutationProcedure<
+    { scheduleId: string },
+    { status: "ok"; scheduleId: string }
+  >;
+  runServiceScheduleNow: MutationProcedure<{ scheduleId: string }, ServiceScheduleRunOutput>;
   updateServiceDomainRouting: MutationProcedure<
     {
       serviceId: string;

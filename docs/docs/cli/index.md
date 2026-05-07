@@ -74,7 +74,7 @@ Every command accepts these flags:
 | `access-assets`                  | read/command | `server:read` / `server:write`                  | varies   |
 | [`maintenance`](./maintenance)   | read/command | `server:write`                                  | varies   |
 | [`terminal`](./terminal)         | command      | `terminal:open`                                 | yes      |
-| `services`                       | read         | `service:read`                                  | no       |
+| `services`                       | read/command | `service:read` / `service:update`               | varies   |
 | [`projects`](./projects)         | read/command | `deploy:read`, `deploy:start`, `service:update` | varies   |
 | [`templates`](./templates)       | varies       | none / `deploy:read` / `deploy:start`           | varies   |
 | [`databases`](./databases)       | read/command | `deploy:read` / `service:update`                | varies   |
@@ -89,7 +89,7 @@ Every command accepts these flags:
 | `backup run`                     | command      | `backup:run`                                    | yes      |
 | `backup restore`                 | command      | `backup:restore`                                | yes      |
 
-The generated contract includes additional command families not expanded into individual docs pages here, including backup destination management, backup schedule management, token management, config helpers, install/upgrade flows, and update commands.
+The generated contract includes additional command families not expanded into individual docs pages here, including service schedules, backup destination management, backup schedule management, token management, config helpers, install/upgrade flows, and update commands.
 
 `templates` is the new curated catalog worth calling out separately: it renders shared starter stacks into the same direct Compose planning and execution flows DaoFlow already uses elsewhere.
 

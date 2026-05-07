@@ -114,6 +114,12 @@ addApiGroup(apiProcedureAccess, ["managedDatabaseCatalog", "managedDatabases"], 
   requiredScopes: ["deploy:read"]
 });
 
+addApiGroup(apiProcedureAccess, ["serviceSchedules", "serviceScheduleRuns"], {
+  auth: "authenticated",
+  requiredRoles: READ_ROLES,
+  requiredScopes: ["service:read"]
+});
+
 addApiGroup(
   apiProcedureAccess,
   ["developmentTasks", "developmentTaskDetails", "sandboxRunnerProfiles"],
@@ -380,7 +386,11 @@ addApiGroup(
     "updateServicePortMappings",
     "createManagedDatabase",
     "setManagedDatabaseState",
-    "deleteManagedDatabase"
+    "deleteManagedDatabase",
+    "createServiceSchedule",
+    "setServiceScheduleState",
+    "deleteServiceSchedule",
+    "runServiceScheduleNow"
   ],
   {
     auth: "authenticated",
@@ -694,6 +704,34 @@ export const cliCommandMeta: Record<string, CliCommandMeta> = {
   "services list": { lane: "read", requiredScopes: ["service:read"], mutating: false },
   "services previews": { lane: "read", requiredScopes: ["deploy:read"], mutating: false },
   "services create": { lane: "command", requiredScopes: ["service:update"], mutating: true },
+  "services schedules": { lane: "read", requiredScopes: ["service:read"], mutating: false },
+  "services schedules list": { lane: "read", requiredScopes: ["service:read"], mutating: false },
+  "services schedules runs": { lane: "read", requiredScopes: ["service:read"], mutating: false },
+  "services schedules create": {
+    lane: "command",
+    requiredScopes: ["service:update"],
+    mutating: true
+  },
+  "services schedules pause": {
+    lane: "command",
+    requiredScopes: ["service:update"],
+    mutating: true
+  },
+  "services schedules resume": {
+    lane: "command",
+    requiredScopes: ["service:update"],
+    mutating: true
+  },
+  "services schedules run": {
+    lane: "command",
+    requiredScopes: ["service:update"],
+    mutating: true
+  },
+  "services schedules delete": {
+    lane: "command",
+    requiredScopes: ["service:update"],
+    mutating: true
+  },
   databases: { lane: "read", requiredScopes: ["deploy:read"], mutating: false },
   "databases list": { lane: "read", requiredScopes: ["deploy:read"], mutating: false },
   "databases show": { lane: "read", requiredScopes: ["deploy:read"], mutating: false },

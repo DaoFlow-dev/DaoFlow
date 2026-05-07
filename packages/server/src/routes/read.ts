@@ -40,6 +40,7 @@ import { developmentTaskReadRouter } from "./read-development-tasks";
 import { deploymentReadRouter } from "./read-deployments";
 import { managedOperationsReadRouter } from "./read-managed-operations";
 import { serverOperationsReadRouter } from "./read-server-operations";
+import { serviceSchedulesReadRouter } from "./read-service-schedules";
 import { serviceAccessActor } from "./service-scope";
 
 const productPrinciples = [
@@ -343,5 +344,6 @@ export const readRouter = t.mergeRouters(
   developmentTaskReadRouter,
   accessAssetsReadRouter,
   managedOperationsReadRouter,
-  serverOperationsReadRouter
+  serverOperationsReadRouter,
+  serviceSchedulesReadRouter
 );

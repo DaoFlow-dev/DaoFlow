@@ -18,6 +18,17 @@ export {
   startOperationalMaintenanceMonitor,
   stopOperationalMaintenanceMonitor
 } from "./operational-maintenance-monitor";
+export {
+  startServiceScheduleMonitor,
+  stopServiceScheduleMonitor
+} from "./service-schedule-monitor";
+export {
+  completeServiceScheduleRun,
+  executeServiceScheduleRun,
+  pollServiceScheduleRuns,
+  resetServiceScheduleCommandRunnerForTests,
+  setServiceScheduleCommandRunnerForTests
+} from "./service-schedule-runner";
 export { startTemporalWorker, stopTemporalWorker } from "./temporal/worker";
 export {
   startDeploymentWorkflow,

@@ -14,6 +14,7 @@ export * from "./tokens";
 export * from "./auth-schema";
 export * from "./tunnels";
 export * from "./services";
+export * from "./service-schedules";
 export * from "./preview-environments";
 export * from "./git-providers";
 export * from "./webhook-deliveries";

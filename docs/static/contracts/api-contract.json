@@ -2009,6 +2009,56 @@
       }
     },
     {
+      "name": "createServiceSchedule",
+      "summary": "create Service Schedule",
+      "path": "/trpc/createServiceSchedule",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator", "developer"],
+      "requiredScopes": ["service:update"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "serviceId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "command": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4000
+          },
+          "cronExpression": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "timezone": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "retentionCount": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "notifyOnFailure": {
+            "type": "boolean"
+          }
+        },
+        "required": ["serviceId", "name", "command", "cronExpression"],
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "createVolume",
       "summary": "create Volume",
       "path": "/trpc/createVolume",
@@ -2434,6 +2484,28 @@
           }
         },
         "required": ["serviceId"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "deleteServiceSchedule",
+      "summary": "delete Service Schedule",
+      "path": "/trpc/deleteServiceSchedule",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator", "developer"],
+      "requiredScopes": ["service:update"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "scheduleId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["scheduleId"],
         "additionalProperties": false
       }
     },
@@ -4156,6 +4228,28 @@
       }
     },
     {
+      "name": "runServiceScheduleNow",
+      "summary": "run Service Schedule Now",
+      "path": "/trpc/runServiceScheduleNow",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator", "developer"],
+      "requiredScopes": ["service:update"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "scheduleId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["scheduleId"],
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "sandboxRunnerProfiles",
       "summary": "sandbox Runner Profiles",
       "path": "/trpc/sandboxRunnerProfiles",
@@ -4355,6 +4449,59 @@
       }
     },
     {
+      "name": "serviceScheduleRuns",
+      "summary": "service Schedule Runs",
+      "path": "/trpc/serviceScheduleRuns",
+      "method": "GET",
+      "lane": "read",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator", "developer", "viewer", "agent"],
+      "requiredScopes": ["service:read"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "scheduleId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          }
+        },
+        "required": ["scheduleId"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "serviceSchedules",
+      "summary": "service Schedules",
+      "path": "/trpc/serviceSchedules",
+      "method": "GET",
+      "lane": "read",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator", "developer", "viewer", "agent"],
+      "requiredScopes": ["service:read"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "serviceId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "setManagedDatabaseState",
       "summary": "set Managed Database State",
       "path": "/trpc/setManagedDatabaseState",
@@ -4434,6 +4581,32 @@
           }
         },
         "required": ["projectId", "eventType", "channelType", "enabled"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "setServiceScheduleState",
+      "summary": "set Service Schedule State",
+      "path": "/trpc/setServiceScheduleState",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator", "developer"],
+      "requiredScopes": ["service:update"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "scheduleId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "state": {
+            "type": "string",
+            "enum": ["pause", "resume"]
+          }
+        },
+        "required": ["scheduleId", "state"],
         "additionalProperties": false
       }
     },

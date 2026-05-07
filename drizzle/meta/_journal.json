@@ -134,6 +134,13 @@
       "when": 1778137006983,
       "tag": "0018_round_dagger",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1778145910960,
+      "tag": "0019_chilly_stranger",
+      "breakpoints": true
     }
   ]
 }

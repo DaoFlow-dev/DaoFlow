@@ -209,6 +209,28 @@ This file holds the detailed CLI contract, scope map, and agent-facing command r
   - `--json`
 - JSON success shape:
   - `{ "ok": true, "data": { "serviceId": string, "domain": { "id": string, "hostname": string, "routingMode": "observed" | "managed-traefik", "targetPort": number | null } | null } }`
+- `daoflow services schedules list --service <id>` reads service-scoped schedules through `serviceSchedules`
+- `daoflow services schedules runs --schedule <id>` reads run history and logs through `serviceScheduleRuns`
+- `daoflow services schedules create --dry-run` returns a local preview and exits with code `3`
+- `daoflow services schedules create --yes` writes through `createServiceSchedule` and requires `service:update`
+- `daoflow services schedules pause|resume|run|delete --dry-run` returns a local preview and exits with code `3`
+- `daoflow services schedules pause|resume|run|delete --yes` writes through the matching service schedule mutation and requires `service:update`
+- Required create input:
+  - `--service <id>`
+  - `--name <name>`
+  - `--command <command>`
+  - `--cron <expression>`
+- Optional create input:
+  - `--timezone <zone>`, default `UTC`
+  - `--retention <count>`, default server policy
+  - `--no-notify-on-failure`
+  - `--dry-run`
+  - `--yes`
+  - `--json`
+- JSON schedule shape:
+  - `{ "id": string, "serviceId": string, "projectId": string, "environmentId": string, "name": string, "command": string, "cronExpression": string, "timezone": string, "status": string, "enabled": boolean, "nextRunAt": string | null, "lastRunAt": string | null }`
+- JSON run shape:
+  - `{ "id": string, "scheduleId": string, "serviceId": string, "triggerKind": string, "status": string, "command": string, "logs": string, "error": string | null, "createdAt": string, "finishedAt": string | null }`
 
 ## Server Operations Contract
 

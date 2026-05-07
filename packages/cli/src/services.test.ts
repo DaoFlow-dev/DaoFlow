@@ -118,6 +118,67 @@ describe("services command", () => {
     });
   });
 
+  test("services schedules create dry-run emits the standard success envelope", async () => {
+    const result = await captureCommandExecution(async () => {
+      await runCli([
+        "node",
+        "daoflow",
+        "services",
+        "schedules",
+        "create",
+        "--service",
+        "svc_123",
+        "--name",
+        "health",
+        "--command",
+        "bun run healthcheck",
+        "--cron",
+        "*/15 * * * *",
+        "--dry-run",
+        "--json"
+      ]);
+    });
+
+    expect(result.exitCode).toBe(3);
+    expect(result.errors).toEqual([]);
+    expect(JSON.parse(result.logs[0])).toEqual({
+      ok: true,
+      data: {
+        dryRun: true,
+        action: "service.schedule.create",
+        serviceId: "svc_123",
+        name: "health",
+        command: "bun run healthcheck",
+        cronExpression: "*/15 * * * *",
+        timezone: "UTC",
+        notifyOnFailure: true
+      }
+    });
+  });
+
+  test("services schedules run in JSON mode still requires --yes", async () => {
+    const result = await captureCommandExecution(async () => {
+      await runCli([
+        "node",
+        "daoflow",
+        "services",
+        "schedules",
+        "run",
+        "--schedule",
+        "sch_123",
+        "--json"
+      ]);
+    });
+
+    expect(result.exitCode).toBe(1);
+    expect(result.errors).toEqual([]);
+    expect(JSON.parse(result.logs[0])).toEqual({
+      ok: false,
+      error: "run schedule sch_123. Pass --yes to confirm.",
+      code: "CONFIRMATION_REQUIRED"
+    });
+  });
+
   test("services create returns service ids and next-step hints in JSON mode", async () => {
     globalThis.fetch = ((input: RequestInfo | URL) => {
       const url =

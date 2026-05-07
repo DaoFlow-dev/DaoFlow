@@ -15,6 +15,7 @@ const AccessLogsPage = lazy(() => import("./pages/AccessLogsPage"));
 const DevelopmentTasksPage = lazy(() => import("./pages/DevelopmentTasksPage"));
 const DevelopmentTaskDetailPage = lazy(() => import("./pages/DevelopmentTaskDetailPage"));
 const BackupsPage = lazy(() => import("./pages/BackupsPage"));
+const SchedulesPage = lazy(() => import("./pages/SchedulesPage"));
 const BackupRunPage = lazy(() => import("./pages/BackupRunPage"));
 const DestinationsPage = lazy(() => import("./pages/DestinationsPage"));
 const DestinationBrowserPage = lazy(() => import("./pages/DestinationBrowserPage"));
@@ -67,6 +68,7 @@ export const router = createBrowserRouter([
       { path: "development-tasks", element: routeElement(DevelopmentTasksPage) },
       { path: "development-tasks/:id", element: routeElement(DevelopmentTaskDetailPage) },
       { path: "backups", element: routeElement(BackupsPage) },
+      { path: "schedules", element: routeElement(SchedulesPage) },
       { path: "backups/runs/:runId", element: routeElement(BackupRunPage) },
       { path: "destinations", element: routeElement(DestinationsPage) },
       { path: "destinations/:id/browse", element: routeElement(DestinationBrowserPage) },

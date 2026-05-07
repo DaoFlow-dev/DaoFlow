@@ -1,6 +1,7 @@
 import {
   Archive,
   Bell,
+  CalendarClock,
   Clock,
   DatabaseBackup,
   FolderKanban,
@@ -49,6 +50,13 @@ export const NAVIGATION_ITEMS: PaletteItem[] = [
     label: "Backups",
     path: "/backups",
     icon: DatabaseBackup,
+    section: "Navigation"
+  },
+  {
+    id: "sched",
+    label: "Schedules",
+    path: "/schedules",
+    icon: CalendarClock,
     section: "Navigation"
   },
   {
@@ -124,6 +132,7 @@ const LABEL_MAP: Record<string, string> = {
   "/templates": "Templates",
   "/servers": "Servers",
   "/backups": "Backups",
+  "/schedules": "Schedules",
   "/notifications": "Notifications",
   "/requests": "Requests",
   "/settings": "Settings",
@@ -138,6 +147,7 @@ const ICON_MAP: Record<string, PaletteItem["icon"]> = {
   "/templates": LayoutTemplate,
   "/servers": Server,
   "/backups": DatabaseBackup,
+  "/schedules": CalendarClock,
   "/notifications": Bell,
   "/requests": ScrollText,
   "/settings": Settings,
