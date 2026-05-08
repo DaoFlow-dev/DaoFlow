@@ -1,11 +1,5 @@
-import type { Command } from "commander";
 import chalk from "chalk";
-import type { CommandActionContext } from "./command-action";
-import {
-  INITIAL_ADMIN_EMAIL_ENV,
-  INITIAL_ADMIN_PASSWORD_ENV,
-  resolveInitialAdminCredentials
-} from "./install-credentials";
+import { resolveInitialAdminCredentials } from "./install-credentials";
 import {
   CLOUDFLARE_TUNNEL_TOKEN_ENV,
   getCloudflareTunnelConfigurationError,
@@ -23,84 +17,32 @@ import {
   isTraefikExposureMode,
   resolveTraefikAcmeEmail
 } from "./install-traefik";
-import type { ExistingInstallState, InstallerRuntime, SelectChoice } from "./installer-lifecycle";
+import type { ExistingInstallState, SelectChoice } from "./installer-lifecycle";
 import { parsePort, readExistingInstall } from "./installer-lifecycle";
+import {
+  buildInstallOptionSources,
+  printInstallSummary,
+  requireInstallValue,
+  resolveInstallScheme
+} from "./install-config-helpers";
+import { collectNonInteractiveInstallConfiguration } from "./install-config-noninteractive";
+import type {
+  CollectInstallConfigurationInput,
+  DatabasePasswordMode,
+  InstallConfigurationResult
+} from "./install-config-types";
 
-export interface InstallOptions {
-  dir: string;
-  domain?: string;
-  port: string;
-  acmeEmail?: string;
-  email?: string;
-  password?: string;
-  expose?: string;
-  cloudflareTunnel?: boolean;
-  cloudflareTunnelToken?: string;
-  yes?: boolean;
-  json?: boolean;
-}
+export type {
+  InstallConfiguration,
+  InstallConfigurationResult,
+  InstallOptions
+} from "./install-config-types";
 
-type DatabasePasswordMode = "auto-generated" | "manual" | "preserved";
-
-export interface InstallConfiguration {
-  dir: string;
-  domain: string;
-  port: number;
-  scheme: "http" | "https";
-  email: string;
-  password: string;
-  acmeEmail?: string;
-  postgresPassword?: string;
-  temporalPostgresPassword?: string;
-  existingInstall: ExistingInstallState | null;
-  databasePasswordMode: DatabasePasswordMode;
-  exposureMode: DashboardExposureMode;
-  cloudflareTunnelEnabled: boolean;
-  cloudflareTunnelToken?: string;
-  exposureRequestedExplicitly: boolean;
-}
-
-export type InstallConfigurationResult =
-  | ({ cancelled: true } & Partial<InstallConfiguration>)
-  | ({ cancelled: false } & InstallConfiguration);
-
-function resolveInstallScheme(
-  domain: string,
-  existingInstall: ExistingInstallState | null
-): "http" | "https" {
-  if (existingInstall?.scheme) {
-    return existingInstall.scheme;
-  }
-
-  return domain === "localhost" ? "http" : "https";
-}
-
-function requireInstallValue<T>(
-  value: T | null | undefined,
-  onMissing: () => never
-): Exclude<T, null | undefined> {
-  if (value === null || value === undefined) {
-    return onMissing();
-  }
-
-  return value as Exclude<T, null | undefined>;
-}
-
-export async function collectInstallConfiguration(input: {
-  options: InstallOptions;
-  command: Command;
-  ctx: CommandActionContext;
-  runtime: Pick<InstallerRuntime, "prompt" | "promptSelect">;
-}): Promise<InstallConfigurationResult> {
+export async function collectInstallConfiguration(
+  input: CollectInstallConfigurationInput
+): Promise<InstallConfigurationResult> {
   const isNonInteractive = input.options.yes ?? false;
-  const hasExplicitDomain = input.command.getOptionValueSource("domain") === "cli";
-  const hasExplicitPort = input.command.getOptionValueSource("port") === "cli";
-  const hasExplicitExpose = input.command.getOptionValueSource("expose") === "cli";
-  const hasExplicitAcmeEmail = input.command.getOptionValueSource("acmeEmail") === "cli";
-  const hasExplicitCloudflareTunnel =
-    input.command.getOptionValueSource("cloudflareTunnel") === "cli";
-  const hasExplicitCloudflareTunnelToken =
-    input.command.getOptionValueSource("cloudflareTunnelToken") === "cli";
+  const sources = buildInstallOptionSources(input.command);
 
   let dir = input.options.dir;
   let domain = input.options.domain ?? "localhost";
@@ -147,21 +89,20 @@ export async function collectInstallConfiguration(input: {
     console.error("\n🚀 DaoFlow Installer\n");
     console.error("This will create a production DaoFlow instance on this server.\n");
 
-    // --- Step 1: Install directory ---
     dir = await input.runtime.prompt("Install directory", dir);
     existingInstall = readExistingInstall(dir);
     const existingExposure = readDashboardExposureState(dir);
 
     if (existingInstall) {
-      domain = hasExplicitDomain ? domain : (existingInstall.domain ?? domain);
-      port = hasExplicitPort ? port : (existingInstall.port ?? port);
+      domain = sources.hasExplicitDomain ? domain : (existingInstall.domain ?? domain);
+      port = sources.hasExplicitPort ? port : (existingInstall.port ?? port);
       email = email ?? (existingInstall.env.DAOFLOW_INITIAL_ADMIN_EMAIL?.trim() || undefined);
       password =
         password ?? (existingInstall.env.DAOFLOW_INITIAL_ADMIN_PASSWORD?.trim() || undefined);
       acmeEmail = acmeEmail ?? (existingInstall.env.DAOFLOW_ACME_EMAIL?.trim() || undefined);
       databasePasswordMode = "preserved";
       cloudflareTunnelEnabled =
-        hasExplicitCloudflareTunnel || hasExplicitCloudflareTunnelToken
+        sources.hasExplicitCloudflareTunnel || sources.hasExplicitCloudflareTunnelToken
           ? cloudflareTunnelEnabled || Boolean(cloudflareTunnelToken)
           : Boolean(existingInstall.env[CLOUDFLARE_TUNNEL_TOKEN_ENV]?.trim());
       cloudflareTunnelToken =
@@ -170,9 +111,10 @@ export async function collectInstallConfiguration(input: {
         undefined;
     }
 
-    exposureMode = hasExplicitExpose ? exposureMode : (existingExposure?.mode ?? exposureMode);
+    exposureMode = sources.hasExplicitExpose
+      ? exposureMode
+      : (existingExposure?.mode ?? exposureMode);
 
-    // --- Step 2: Dashboard exposure (numbered selector) ---
     const exposureChoices: SelectChoice<DashboardExposureMode>[] = DASHBOARD_EXPOSURE_MODES.map(
       (mode) => ({ label: describeDashboardExposureMode(mode), value: mode })
     );
@@ -182,7 +124,6 @@ export async function collectInstallConfiguration(input: {
       exposureMode
     );
 
-    // --- Step 3: Cloudflare Tunnel sidecar ---
     const cloudflareTunnelAnswer = await input.runtime.prompt(
       "Enable Cloudflare Tunnel sidecar? (y/N)",
       cloudflareTunnelEnabled ? "y" : "n"
@@ -197,7 +138,6 @@ export async function collectInstallConfiguration(input: {
       cloudflareTunnelToken = undefined;
     }
 
-    // --- Step 4: Domain name (conditional, with re-prompt loop) ---
     const requiresPublicDomain =
       isTraefikExposureMode(exposureMode) || exposureMode === "tailscale-funnel";
     const wantsDomain = requiresPublicDomain || cloudflareTunnelEnabled;
@@ -223,7 +163,6 @@ export async function collectInstallConfiguration(input: {
       domain = await input.runtime.prompt("Domain name", domain || "localhost");
     }
 
-    // --- Step 5: Local dashboard port ---
     const portStr = await input.runtime.prompt("Local dashboard port", String(port));
     port = parsePort(portStr);
     if (port === null) {
@@ -232,7 +171,6 @@ export async function collectInstallConfiguration(input: {
       });
     }
 
-    // --- Step 6: Admin credentials ---
     email = await input.runtime.prompt("Admin email", email);
     if (password) {
       console.error("Admin password already provided via flag or environment.");
@@ -248,26 +186,24 @@ export async function collectInstallConfiguration(input: {
       input.ctx.fail("Admin password must be at least 8 characters.");
     }
 
-    // --- Step 7: Let's Encrypt email (traefik only) ---
-    if (exposureMode === "traefik" && !hasExplicitAcmeEmail) {
+    if (exposureMode === "traefik" && !sources.hasExplicitAcmeEmail) {
       acmeEmail = await input.runtime.prompt("Let's Encrypt email", acmeEmail ?? email);
     }
 
     acmeEmail = resolveTraefikAcmeEmail({
       exposureMode,
-      acmeEmail: hasExplicitAcmeEmail ? input.options.acmeEmail : acmeEmail,
+      acmeEmail: sources.hasExplicitAcmeEmail ? input.options.acmeEmail : acmeEmail,
       adminEmail: email,
       existingEnv: existingInstall?.env
     });
     cloudflareTunnelToken = resolveCloudflareTunnelToken({
       enabled: cloudflareTunnelEnabled,
-      token: hasExplicitCloudflareTunnelToken
+      token: sources.hasExplicitCloudflareTunnelToken
         ? input.options.cloudflareTunnelToken
         : cloudflareTunnelToken,
       existingEnv: existingInstall?.env
     });
 
-    // --- Step 8: Database passwords ---
     if (existingInstall) {
       console.error(`\nExisting DaoFlow installation found (v${existingInstall.version}).`);
       console.error(
@@ -291,7 +227,6 @@ export async function collectInstallConfiguration(input: {
       }
     }
 
-    // --- Validate exposure configuration ---
     const traefikError = getTraefikConfigurationError({
       exposureMode,
       domain,
@@ -316,27 +251,16 @@ export async function collectInstallConfiguration(input: {
 
     const scheme = resolveInstallScheme(domain, existingInstall);
 
-    console.error();
-    console.error("Configuration:");
-    console.error(`  Directory:     ${dir}`);
-    console.error(`  Domain:        ${domain}`);
-    console.error(`  Port:          ${String(port)}`);
-    console.error(`  Admin:         ${email}`);
-    console.error(`  DB Passwords:  ${databasePasswordMode}`);
-    console.error(`  Exposure:      ${describeDashboardExposureMode(exposureMode)}`);
-    console.error(`  CF Tunnel:     ${cloudflareTunnelEnabled ? "enabled" : "disabled"}`);
-    if (acmeEmail) {
-      console.error(`  ACME Email:    ${acmeEmail}`);
-    }
-    if (cloudflareTunnelEnabled) {
-      console.error(`  CF Token:      ${CLOUDFLARE_TUNNEL_TOKEN_ENV}`);
-    }
-    if (exposureMode !== "none" || cloudflareTunnelEnabled) {
-      console.error(
-        "  Note: BETTER_AUTH_URL will be updated to the exposed HTTPS URL if setup succeeds."
-      );
-    }
-    console.error();
+    printInstallSummary({
+      dir,
+      domain,
+      port,
+      email,
+      databasePasswordMode,
+      exposureMode,
+      cloudflareTunnelEnabled,
+      acmeEmail
+    });
 
     const confirm = await input.runtime.prompt("Proceed? (y/N)", "y");
     if (confirm.toLowerCase() !== "y") {
@@ -361,122 +285,15 @@ export async function collectInstallConfiguration(input: {
       exposureMode,
       cloudflareTunnelEnabled,
       cloudflareTunnelToken,
-      exposureRequestedExplicitly: hasExplicitExpose
+      exposureRequestedExplicitly: sources.hasExplicitExpose
     };
   }
 
-  existingInstall = readExistingInstall(dir);
-  const existingExposure = readDashboardExposureState(dir);
-
-  if (existingInstall) {
-    domain = hasExplicitDomain ? domain : (existingInstall.domain ?? domain);
-    port = hasExplicitPort ? port : (existingInstall.port ?? port);
-    email = email ?? (existingInstall.env.DAOFLOW_INITIAL_ADMIN_EMAIL?.trim() || undefined);
-    password =
-      password ?? (existingInstall.env.DAOFLOW_INITIAL_ADMIN_PASSWORD?.trim() || undefined);
-    acmeEmail = acmeEmail ?? (existingInstall.env.DAOFLOW_ACME_EMAIL?.trim() || undefined);
-    exposureMode = hasExplicitExpose ? exposureMode : (existingExposure?.mode ?? exposureMode);
-    cloudflareTunnelEnabled =
-      hasExplicitCloudflareTunnel || hasExplicitCloudflareTunnelToken
-        ? cloudflareTunnelEnabled || Boolean(cloudflareTunnelToken)
-        : Boolean(existingInstall.env[CLOUDFLARE_TUNNEL_TOKEN_ENV]?.trim());
-    cloudflareTunnelToken =
-      cloudflareTunnelToken ??
-      existingInstall.env[CLOUDFLARE_TUNNEL_TOKEN_ENV]?.trim() ??
-      undefined;
-
-    if (!input.ctx.isJson) {
-      console.error(
-        `Existing DaoFlow installation found (v${existingInstall.version}); preserving current secrets and settings unless explicitly overridden.`
-      );
-    }
-  }
-
-  if (!email) {
-    input.ctx.fail(`Admin email is required (--email or ${INITIAL_ADMIN_EMAIL_ENV})`, {
-      code: "MISSING_EMAIL"
-    });
-  }
-  if (!password) {
-    input.ctx.fail(`Admin password is required (--password or ${INITIAL_ADMIN_PASSWORD_ENV})`, {
-      code: "MISSING_PASSWORD"
-    });
-  }
-
-  const ensuredPassword = requireInstallValue(password, () =>
-    input.ctx.fail(`Admin password is required (--password or ${INITIAL_ADMIN_PASSWORD_ENV})`, {
-      code: "MISSING_PASSWORD"
-    })
-  );
-  if (ensuredPassword.length < 8) {
-    input.ctx.fail("Admin password must be at least 8 characters", {
-      code: "PASSWORD_TOO_SHORT"
-    });
-  }
-
-  acmeEmail = resolveTraefikAcmeEmail({
-    exposureMode,
-    acmeEmail,
-    adminEmail: email,
-    existingEnv: existingInstall?.env
+  return collectNonInteractiveInstallConfiguration({
+    options: input.options,
+    ctx: input.ctx,
+    sources,
+    parsedPort: port,
+    exposureMode
   });
-  cloudflareTunnelEnabled = cloudflareTunnelEnabled || Boolean(cloudflareTunnelToken?.trim());
-  cloudflareTunnelToken = resolveCloudflareTunnelToken({
-    enabled: cloudflareTunnelEnabled,
-    token: cloudflareTunnelToken,
-    existingEnv: existingInstall?.env
-  });
-
-  const traefikError = getTraefikConfigurationError({
-    exposureMode,
-    domain,
-    port: requireInstallValue(port, () =>
-      input.ctx.fail(`Invalid port "${input.options.port}". Use an integer between 1 and 65535.`, {
-        code: "INVALID_PORT"
-      })
-    ),
-    acmeEmail
-  });
-  if (traefikError) {
-    input.ctx.fail(traefikError, {
-      code: "INVALID_EXPOSURE_CONFIGURATION"
-    });
-  }
-
-  const cloudflareError = getCloudflareTunnelConfigurationError({
-    enabled: cloudflareTunnelEnabled,
-    token: cloudflareTunnelToken
-  });
-  if (cloudflareError) {
-    input.ctx.fail(cloudflareError, {
-      code: "INVALID_CLOUDFLARE_TUNNEL_CONFIGURATION"
-    });
-  }
-
-  return {
-    cancelled: false,
-    dir,
-    domain,
-    port: requireInstallValue(port, () =>
-      input.ctx.fail(`Invalid port "${input.options.port}". Use an integer between 1 and 65535.`, {
-        code: "INVALID_PORT"
-      })
-    ),
-    scheme: resolveInstallScheme(domain, existingInstall),
-    email: requireInstallValue(email, () =>
-      input.ctx.fail("Admin email is required for installation.", {
-        code: "MISSING_EMAIL"
-      })
-    ),
-    password: ensuredPassword,
-    acmeEmail,
-    postgresPassword: existingInstall?.env.POSTGRES_PASSWORD,
-    temporalPostgresPassword: existingInstall?.env.TEMPORAL_POSTGRES_PASSWORD,
-    existingInstall,
-    databasePasswordMode,
-    exposureMode,
-    cloudflareTunnelEnabled,
-    cloudflareTunnelToken,
-    exposureRequestedExplicitly: hasExplicitExpose
-  };
 }
