@@ -32,7 +32,8 @@ else
     e2e/home.spec.ts \
     e2e/migration.spec.ts \
     e2e/onboarding.spec.ts \
-    e2e/openclaw-e2e.spec.ts \
+    e2e/openclaw-e2e.spec.ts && \
+  PLAYWRIGHT_DATABASE_URL="$DB_URL" BETTER_AUTH_SECRET="$E2E_BETTER_AUTH_SECRET" ENCRYPTION_KEY="$E2E_ENCRYPTION_KEY" PLAYWRIGHT_SKIP_DB_BOOTSTRAP=true PLAYWRIGHT_SKIP_SERVER_BUILD=true "$PLAYWRIGHT_BIN" test \
     e2e/rbac.spec.ts \
     e2e/servers.spec.ts && \
   PLAYWRIGHT_DATABASE_URL="$DB_URL" BETTER_AUTH_SECRET="$E2E_BETTER_AUTH_SECRET" ENCRYPTION_KEY="$E2E_ENCRYPTION_KEY" PLAYWRIGHT_SKIP_DB_BOOTSTRAP=true PLAYWRIGHT_SKIP_SERVER_BUILD=true "$PLAYWRIGHT_BIN" test \
