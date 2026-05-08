@@ -1,4 +1,5 @@
 import { EmptyState } from "@/components/EmptyState";
+import { QueryErrorRetry } from "@/components/QueryErrorRetry";
 import { ProjectsPageCreateDialog } from "@/components/projects-page/ProjectsPageCreateDialog";
 import { ProjectsPageProjectCard } from "@/components/projects-page/ProjectsPageProjectCard";
 import { ProjectsPageSearchControls } from "@/components/projects-page/ProjectsPageSearchControls";
@@ -8,6 +9,10 @@ import { FolderKanban, Plus } from "lucide-react";
 import { useProjectsPage } from "./projects-page/useProjectsPage";
 
 export const ProjectCard = ProjectsPageProjectCard;
+
+function queryErrorMessage(error: unknown, fallback: string) {
+  return error instanceof Error && error.message ? error.message : fallback;
+}
 
 export default function ProjectsPage() {
   const page = useProjectsPage();
@@ -49,6 +54,14 @@ export default function ProjectsPage() {
           {[1, 2, 3].map((i) => (
             <Skeleton key={i} className="h-28 w-full rounded-lg" />
           ))}
+        </div>
+      ) : page.projectsQuery.isError ? (
+        <div data-testid="projects-load-error">
+          <QueryErrorRetry
+            message={queryErrorMessage(page.projectsQuery.error, "Unable to load projects.")}
+            onRetry={() => void page.projectsQuery.refetch()}
+            isRetrying={page.projectsQuery.isFetching}
+          />
         </div>
       ) : !page.hasProjects ? (
         <EmptyState

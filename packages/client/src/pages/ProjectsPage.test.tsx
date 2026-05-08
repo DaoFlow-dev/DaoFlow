@@ -87,6 +87,9 @@ describe("ProjectsPage", () => {
 
     projectsUseQueryMock.mockReturnValue({
       data: [],
+      error: null,
+      isError: false,
+      isFetching: false,
       isLoading: false,
       refetch: refetchMock
     });
@@ -115,6 +118,27 @@ describe("ProjectsPage", () => {
     ).toBeVisible();
     expect(screen.getByTestId("projects-empty-create-project")).toBeVisible();
     expect(screen.queryByTestId("projects-search-input")).not.toBeInTheDocument();
+  });
+
+  it("shows a retryable load error instead of the first-run empty state", () => {
+    projectsUseQueryMock.mockReturnValue({
+      data: undefined,
+      error: new Error("projects index unavailable"),
+      isError: true,
+      isFetching: false,
+      isLoading: false,
+      refetch: refetchMock
+    });
+
+    renderProjectsPage();
+
+    const errorPanel = screen.getByTestId("projects-load-error");
+    expect(errorPanel).toHaveTextContent("projects index unavailable");
+    expect(screen.queryByTestId("projects-empty-state")).not.toBeInTheDocument();
+
+    fireEvent.click(within(errorPanel).getByRole("button", { name: "Retry" }));
+
+    expect(refetchMock).toHaveBeenCalledTimes(1);
   });
 
   it("opens the create-project dialog from the empty-state CTA", async () => {
@@ -274,6 +298,9 @@ describe("ProjectsPage", () => {
           defaultBranch: "main"
         }
       ],
+      error: null,
+      isError: false,
+      isFetching: false,
       isLoading: false,
       refetch: refetchMock
     });
