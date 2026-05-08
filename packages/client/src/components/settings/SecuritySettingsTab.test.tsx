@@ -45,6 +45,7 @@ describe("SecuritySettingsTab", () => {
             recoveryCodesConfigured: false
           }
         }}
+        canManagePolicy={true}
         policyPending={false}
         onPolicyChange={(value) => {
           policy = value;
@@ -77,6 +78,7 @@ describe("SecuritySettingsTab", () => {
             recoveryCodesConfigured: false
           }
         }}
+        canManagePolicy={true}
         policyPending={false}
         onPolicyChange={() => undefined}
         onSecurityRefresh={() => undefined}
@@ -90,5 +92,34 @@ describe("SecuritySettingsTab", () => {
 
     expect(await screen.findByTestId("security-backup-codes")).toHaveTextContent("code-one");
     expect(enableMock).toHaveBeenCalledWith({ password: "secret-password", issuer: "DaoFlow" });
+  });
+
+  it("keeps the team MFA policy read-only without member management access", () => {
+    render(
+      <SecuritySettingsTab
+        isLoading={false}
+        auditEntries={[]}
+        accountSecurity={{
+          policy: { mfaRequirement: "all" },
+          user: {
+            twoFactorEnabled: true,
+            mfaRequired: true,
+            mfaSatisfied: true,
+            recoveryCodesConfigured: true
+          }
+        }}
+        canManagePolicy={false}
+        policyPending={false}
+        onPolicyChange={() => {
+          throw new Error("policy change should not be called");
+        }}
+        onSecurityRefresh={() => undefined}
+      />
+    );
+
+    expect(screen.getByTestId("security-mfa-policy")).toHaveAttribute("data-disabled");
+    expect(screen.getByTestId("security-mfa-policy-note")).toHaveTextContent(
+      "members:manage access"
+    );
   });
 });

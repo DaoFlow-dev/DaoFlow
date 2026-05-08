@@ -74,7 +74,7 @@ describe("UsersSettingsTab", () => {
     });
   });
 
-  it("keeps the users tab read-only for non-admin viewers", () => {
+  it("shows an access notice for non-admin viewers", () => {
     render(
       <UsersSettingsTab
         isAdmin={false}
@@ -97,8 +97,8 @@ describe("UsersSettingsTab", () => {
     );
 
     expect(screen.queryByTestId("users-invite-trigger")).toBeNull();
-    expect(screen.getByText(/Invite teammates, review current access/)).toBeVisible();
-    expect(screen.getByText("Ops Agent")).toBeVisible();
+    expect(screen.getByTestId("users-admin-required")).toHaveTextContent("members:manage access");
+    expect(screen.queryByText("Ops Agent")).toBeNull();
   });
 
   it("keeps the invite dialog open and shows the error when sending fails", () => {

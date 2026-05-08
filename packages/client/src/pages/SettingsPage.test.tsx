@@ -94,7 +94,14 @@ describe("SettingsPage", () => {
           email: "owner@example.com"
         },
         authz: {
-          role: "owner"
+          role: "owner",
+          capabilities: [
+            "members:manage",
+            "tokens:manage",
+            "server:write",
+            "volumes:write",
+            "events:read"
+          ]
         },
         session: {
           expiresAt: "2026-05-08T00:00:00.000Z"
@@ -167,5 +174,39 @@ describe("SettingsPage", () => {
         ]
       })
     );
+  });
+
+  it("hides admin-only tabs for non-admin viewers and falls back to general settings", () => {
+    viewerUseQueryMock.mockReturnValueOnce({
+      data: {
+        principal: {
+          email: "viewer@example.com"
+        },
+        authz: {
+          role: "viewer",
+          capabilities: ["server:read", "deploy:read", "events:read"]
+        },
+        session: {
+          expiresAt: "2026-05-08T00:00:00.000Z"
+        }
+      }
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/settings?tab=tokens"]}>
+        <SettingsPage />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText("General Settings")).toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: /Users/ })).toBeNull();
+    expect(screen.queryByRole("tab", { name: /Tokens/ })).toBeNull();
+    expect(screen.queryByRole("tab", { name: /Operations/ })).toBeNull();
+    expect(screen.queryByRole("tab", { name: /Registries/ })).toBeNull();
+    expect(screen.queryByRole("tab", { name: /Git Providers/ })).toBeNull();
+    expect(screen.queryByRole("tab", { name: /Secret Providers/ })).toBeNull();
+    expect(screen.queryByText("No API tokens created yet.")).toBeNull();
+    expect(agentTokenInventoryUseQueryMock).toHaveBeenCalledWith(undefined, { enabled: false });
+    expect(principalInventoryUseQueryMock).toHaveBeenCalledWith(undefined, { enabled: false });
   });
 });

@@ -33,6 +33,7 @@ export interface AccountSecurityStatus {
 
 interface MfaSettingsCardProps {
   accountSecurity: AccountSecurityStatus | null;
+  canManagePolicy: boolean;
   policyPending: boolean;
   onPolicyChange: (mfaRequirement: MfaRequirement) => void;
   onSecurityRefresh: () => void;
@@ -40,6 +41,7 @@ interface MfaSettingsCardProps {
 
 export function MfaSettingsCard({
   accountSecurity,
+  canManagePolicy,
   policyPending,
   onPolicyChange,
   onSecurityRefresh
@@ -149,6 +151,7 @@ export function MfaSettingsCard({
             <Label htmlFor="security-mfa-policy">Team MFA policy</Label>
             <Select
               value={accountSecurity?.policy.mfaRequirement ?? "optional"}
+              disabled={!canManagePolicy || policyPending}
               onValueChange={(value) => {
                 if (isMfaRequirement(value)) {
                   onPolicyChange(value);
@@ -164,6 +167,11 @@ export function MfaSettingsCard({
                 <SelectItem value="all">Required for all human users</SelectItem>
               </SelectContent>
             </Select>
+            {!canManagePolicy ? (
+              <p className="text-xs text-muted-foreground" data-testid="security-mfa-policy-note">
+                Team policy changes require members:manage access.
+              </p>
+            ) : null}
           </div>
           <Button
             type="button"

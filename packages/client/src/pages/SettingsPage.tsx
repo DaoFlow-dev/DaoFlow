@@ -1,6 +1,6 @@
 import { useSession } from "../lib/auth-client";
 import { trpc } from "../lib/trpc";
-import { normalizeAppRole, canAssumeAnyRole, roleCapabilities } from "@daoflow/shared";
+import { normalizeAppRole, canAssumeAnyRole } from "@daoflow/shared";
 import { useSearchParams } from "react-router-dom";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -57,23 +57,23 @@ export default function SettingsPage() {
   });
   const currentRole = viewer.data ? normalizeAppRole(viewer.data.authz.role) : "viewer";
   const isAdmin = canAssumeAnyRole(currentRole, ["owner", "admin"]);
-  const adminDataEnabled = Boolean(session.data) && isAdmin;
+  const caps = viewer.data?.authz.capabilities ?? [];
+  const canManageMembers = isAdmin && caps.includes("members:manage");
+  const canManageTokens = isAdmin && caps.includes("tokens:manage");
+  const canManageAdminServerSettings = isAdmin && caps.includes("server:write");
+  const canManageIntegrations = isAdmin;
   const tokens = trpc.agentTokenInventory.useQuery(undefined, {
-    enabled: adminDataEnabled
+    enabled: Boolean(session.data) && canManageTokens
   });
   const principals = trpc.principalInventory.useQuery(undefined, {
-    enabled: adminDataEnabled
+    enabled: Boolean(session.data) && canManageMembers
   });
   const audit = trpc.auditTrail.useQuery({ limit: 20 }, { enabled: Boolean(session.data) });
   const accountSecurity = trpc.accountSecurityStatus.useQuery(undefined, {
     enabled: Boolean(session.data)
   });
-  const caps = viewer.data ? roleCapabilities[currentRole] : [];
-  const canManageRegistries = caps.includes("server:write");
-  const canManageMaintenance = caps.includes("server:write");
-  const canManageOperations = caps.includes("server:write");
   const maintenanceReport = trpc.operationalMaintenanceReport.useQuery(undefined, {
-    enabled: Boolean(session.data) && canManageMaintenance
+    enabled: Boolean(session.data) && canManageAdminServerSettings
   });
   const runOperationalMaintenance = trpc.runOperationalMaintenance.useMutation({
     onSuccess: async (result) => {
@@ -101,10 +101,18 @@ export default function SettingsPage() {
     }
   });
   const requestedTab = searchParams.get("tab");
-  const requestedTabIsKnown = isSettingsTab(requestedTab);
-  const requestedTabIsAllowed = requestedTab !== "registries" || canManageRegistries;
+  const availableTabs = new Set<SettingsTab>([
+    "general",
+    "security",
+    "notifications",
+    "volumes",
+    ...(canManageMembers ? (["users"] as const) : []),
+    ...(canManageTokens ? (["tokens"] as const) : []),
+    ...(canManageAdminServerSettings ? (["operations", "registries"] as const) : []),
+    ...(canManageIntegrations ? (["git", "secrets"] as const) : [])
+  ]);
   const activeTab: SettingsTab =
-    requestedTabIsKnown && requestedTabIsAllowed ? requestedTab : "general";
+    isSettingsTab(requestedTab) && availableTabs.has(requestedTab) ? requestedTab : "general";
   const auditEntries = audit.data?.entries ?? [];
 
   return (
@@ -144,12 +152,16 @@ export default function SettingsPage() {
             <TabsTrigger value="general" className="gap-1.5">
               <Settings size={14} /> General
             </TabsTrigger>
-            <TabsTrigger value="users" className="gap-1.5">
-              <Users size={14} /> Users
-            </TabsTrigger>
-            <TabsTrigger value="tokens" className="gap-1.5">
-              <KeyRound size={14} /> Tokens
-            </TabsTrigger>
+            {canManageMembers ? (
+              <TabsTrigger value="users" className="gap-1.5">
+                <Users size={14} /> Users
+              </TabsTrigger>
+            ) : null}
+            {canManageTokens ? (
+              <TabsTrigger value="tokens" className="gap-1.5">
+                <KeyRound size={14} /> Tokens
+              </TabsTrigger>
+            ) : null}
             <TabsTrigger value="security" className="gap-1.5">
               <Shield size={14} /> Security
             </TabsTrigger>
@@ -159,20 +171,26 @@ export default function SettingsPage() {
             <TabsTrigger value="volumes" className="gap-1.5">
               <HardDrive size={14} /> Volumes
             </TabsTrigger>
-            <TabsTrigger value="operations" className="gap-1.5">
-              <Network size={14} /> Operations
-            </TabsTrigger>
-            {canManageRegistries ? (
+            {canManageAdminServerSettings ? (
+              <TabsTrigger value="operations" className="gap-1.5">
+                <Network size={14} /> Operations
+              </TabsTrigger>
+            ) : null}
+            {canManageAdminServerSettings ? (
               <TabsTrigger value="registries" className="gap-1.5">
                 <Boxes size={14} /> Registries
               </TabsTrigger>
             ) : null}
-            <TabsTrigger value="git" className="gap-1.5">
-              <GitBranch size={14} /> Git Providers
-            </TabsTrigger>
-            <TabsTrigger value="secrets" className="gap-1.5">
-              <Lock size={14} /> Secret Providers
-            </TabsTrigger>
+            {canManageIntegrations ? (
+              <>
+                <TabsTrigger value="git" className="gap-1.5">
+                  <GitBranch size={14} /> Git Providers
+                </TabsTrigger>
+                <TabsTrigger value="secrets" className="gap-1.5">
+                  <Lock size={14} /> Secret Providers
+                </TabsTrigger>
+              </>
+            ) : null}
           </TabsList>
           <div className="mt-6 min-h-[400px]" role="tabpanel" aria-live="polite">
             {activeTab === "general" && (
@@ -183,7 +201,7 @@ export default function SettingsPage() {
                 caps={caps}
                 maintenanceReport={maintenanceReport.data ?? null}
                 maintenanceLoading={maintenanceReport.isLoading}
-                canManageMaintenance={canManageMaintenance}
+                canManageMaintenance={canManageAdminServerSettings}
                 maintenanceActionPending={runOperationalMaintenance.isPending}
                 maintenanceFeedback={maintenanceFeedback}
                 onRefreshMaintenance={() => {
@@ -201,7 +219,7 @@ export default function SettingsPage() {
             {activeTab === "users" && (
               <UsersSettingsTab
                 isAdmin={isAdmin}
-                isLoading={adminDataEnabled ? principals.isLoading : false}
+                isLoading={canManageMembers ? principals.isLoading : false}
                 principals={principals.data?.principals ?? []}
                 invites={principals.data?.invites ?? []}
                 inviteStatus={inviteUser.status}
@@ -226,6 +244,7 @@ export default function SettingsPage() {
                 isLoading={audit.isLoading || accountSecurity.isLoading}
                 auditEntries={auditEntries}
                 accountSecurity={accountSecurity.data ?? null}
+                canManagePolicy={canManageMembers}
                 policyPending={updateAccountSecurityPolicy.isPending}
                 onPolicyChange={(mfaRequirement) => {
                   updateAccountSecurityPolicy.mutate({ mfaRequirement });
@@ -250,13 +269,13 @@ export default function SettingsPage() {
 
             {activeTab === "operations" && (
               <div className="mt-4">
-                <ManagedOperationsPanel canManage={canManageOperations} />
+                <ManagedOperationsPanel canManage={canManageAdminServerSettings} />
               </div>
             )}
 
             {activeTab === "registries" && (
               <div className="mt-4">
-                <ContainerRegistriesPanel canManage={canManageRegistries} />
+                <ContainerRegistriesPanel canManage={canManageAdminServerSettings} />
               </div>
             )}
 

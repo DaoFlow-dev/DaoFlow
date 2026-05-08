@@ -19,6 +19,7 @@ interface SecuritySettingsTabProps {
   isLoading: boolean;
   auditEntries: Record<string, unknown>[];
   accountSecurity: AccountSecurityStatus | null;
+  canManagePolicy: boolean;
   policyPending: boolean;
   onPolicyChange: (mfaRequirement: MfaRequirement) => void;
   onSecurityRefresh: () => void;
@@ -33,6 +34,7 @@ export function SecuritySettingsTab({
   isLoading,
   auditEntries,
   accountSecurity,
+  canManagePolicy,
   policyPending,
   onPolicyChange,
   onSecurityRefresh
@@ -41,6 +43,7 @@ export function SecuritySettingsTab({
     <div className="mt-4 space-y-4">
       <MfaSettingsCard
         accountSecurity={accountSecurity}
+        canManagePolicy={canManagePolicy}
         policyPending={policyPending}
         onPolicyChange={onPolicyChange}
         onSecurityRefresh={onSecurityRefresh}

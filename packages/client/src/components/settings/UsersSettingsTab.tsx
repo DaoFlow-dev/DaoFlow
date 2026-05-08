@@ -84,13 +84,22 @@ export function UsersSettingsTab({
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
+          {!isAdmin ? (
+            <p
+              className="rounded-lg border bg-muted/30 p-4 text-sm text-muted-foreground"
+              data-testid="users-admin-required"
+            >
+              User and principal inventory requires members:manage access.
+            </p>
+          ) : null}
+
           {feedback ? (
             <p className="text-sm text-muted-foreground" data-testid="users-feedback">
               {feedback}
             </p>
           ) : null}
 
-          {isLoading ? (
+          {!isAdmin ? null : isLoading ? (
             <div className="space-y-2">
               <Skeleton className="h-8 w-full" />
               <Skeleton className="h-8 w-full" />
