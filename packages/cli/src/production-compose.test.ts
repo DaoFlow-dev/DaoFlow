@@ -27,8 +27,23 @@ describe("production docker-compose.yml", () => {
     expect(images).not.toContain("ghcr.io/daoflow-dev/daoflow:${DAOFLOW_VERSION:-latest}");
     expect(daoflow.image).toBe("ghcr.io/daoflow-dev/daoflow:${DAOFLOW_VERSION:-0.8.7}");
     expect(daoflow.ports).toEqual(["${DAOFLOW_BIND:-127.0.0.1}:${DAOFLOW_PORT:-3000}:3000"]);
+    expect(asRecord(daoflow.environment).DATABASE_URL).toContain(
+      "${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}"
+    );
+    expect(asRecord(daoflow.environment).BETTER_AUTH_SECRET).toBe(
+      "${BETTER_AUTH_SECRET:?Set BETTER_AUTH_SECRET in .env}"
+    );
+    expect(asRecord(daoflow.environment).ENCRYPTION_KEY).toBe(
+      "${ENCRYPTION_KEY:?Set ENCRYPTION_KEY in .env}"
+    );
     expect(asRecord(daoflow.environment).CORS_ORIGIN).toBe("${CORS_ORIGIN:-}");
     expect(daoflow.healthcheck).toBeDefined();
+    expect(asRecord(asRecord(services.postgres).environment).POSTGRES_PASSWORD).toBe(
+      "${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}"
+    );
+    expect(asRecord(asRecord(services["temporal-postgresql"]).environment).POSTGRES_PASSWORD).toBe(
+      "${TEMPORAL_POSTGRES_PASSWORD:?Set TEMPORAL_POSTGRES_PASSWORD in .env}"
+    );
     expect(temporal.image).toBe("temporalio/auto-setup:1.29.6");
     expect(temporal.ports).toBeUndefined();
     expect(temporal.expose).toEqual(["7233"]);

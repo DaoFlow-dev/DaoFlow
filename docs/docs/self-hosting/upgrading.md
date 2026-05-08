@@ -45,7 +45,7 @@ daoflow --cli-version
 Always back up your database before major upgrades:
 
 ```bash
-docker compose exec db pg_dump -U daoflow daoflow > backup-$(date +%Y%m%d).sql
+docker compose exec postgres pg_dump -U daoflow daoflow > backup-$(date +%Y%m%d).sql
 ```
 
 ## Rollback
@@ -57,8 +57,8 @@ If an upgrade fails:
 docker compose down
 
 # Restore the database backup
-docker compose up -d db
-docker compose exec -T db psql -U daoflow daoflow < backup-20260315.sql
+docker compose up -d postgres
+docker compose exec -T postgres psql -U daoflow daoflow < backup-20260315.sql
 
 # Start the previous version
 docker compose up -d

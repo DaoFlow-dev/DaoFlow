@@ -19,12 +19,12 @@ services:
       - daoflow-staging:/app/staging
       - daoflow-ssh:/app/.ssh
     environment:
-      DATABASE_URL: postgresql://daoflow:${POSTGRES_PASSWORD}@postgres:5432/daoflow
+      DATABASE_URL: postgresql://daoflow:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/daoflow
       REDIS_URL: redis://redis:6379
       CORS_ORIGIN: ${CORS_ORIGIN:-}
-      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?Set BETTER_AUTH_SECRET in .env}
       BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3000}
-      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?Set ENCRYPTION_KEY in .env}
       DAOFLOW_INITIAL_ADMIN_EMAIL: ${DAOFLOW_INITIAL_ADMIN_EMAIL:-}
       DAOFLOW_INITIAL_ADMIN_PASSWORD: ${DAOFLOW_INITIAL_ADMIN_PASSWORD:-}
       NODE_ENV: production
@@ -59,7 +59,7 @@ services:
     environment:
       POSTGRES_DB: daoflow
       POSTGRES_USER: daoflow
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -86,7 +86,7 @@ services:
     environment:
       POSTGRES_DB: temporal
       POSTGRES_USER: temporal
-      POSTGRES_PASSWORD: ${TEMPORAL_POSTGRES_PASSWORD}
+      POSTGRES_PASSWORD: ${TEMPORAL_POSTGRES_PASSWORD:?Set TEMPORAL_POSTGRES_PASSWORD in .env}
     volumes:
       - temporal-pgdata:/var/lib/postgresql/data
     healthcheck:
