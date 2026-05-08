@@ -1,18 +1,22 @@
 // @vitest-environment jsdom
 
 import "@testing-library/jest-dom/vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import DeploymentsPage from "./DeploymentsPage";
 
-const { cancelDeploymentUseMutationMock, recentDeploymentsUseQueryMock, navigateMock } = vi.hoisted(
-  () => ({
-    cancelDeploymentUseMutationMock: vi.fn(),
-    recentDeploymentsUseQueryMock: vi.fn(),
-    navigateMock: vi.fn()
-  })
-);
+const {
+  cancelDeploymentUseMutationMock,
+  recentDeploymentsUseQueryMock,
+  retryDeploymentsMock,
+  navigateMock
+} = vi.hoisted(() => ({
+  cancelDeploymentUseMutationMock: vi.fn(),
+  recentDeploymentsUseQueryMock: vi.fn(),
+  retryDeploymentsMock: vi.fn(),
+  navigateMock: vi.fn()
+}));
 
 vi.mock("react-router-dom", async () => {
   const actual = await vi.importActual<typeof import("react-router-dom")>("react-router-dom");
@@ -63,6 +67,7 @@ describe("DeploymentsPage", () => {
 
   beforeEach(() => {
     navigateMock.mockReset();
+    retryDeploymentsMock.mockReset();
     recentDeploymentsUseQueryMock.mockReturnValue({
       data: [
         {
@@ -115,8 +120,11 @@ describe("DeploymentsPage", () => {
           steps: []
         }
       ],
+      error: null,
+      isError: false,
+      isFetching: false,
       isLoading: false,
-      refetch: vi.fn()
+      refetch: retryDeploymentsMock
     });
     cancelDeploymentUseMutationMock.mockReturnValue({
       mutate: vi.fn()
@@ -148,8 +156,11 @@ describe("DeploymentsPage", () => {
   it("routes the no-deployments empty state into the deploy center", () => {
     recentDeploymentsUseQueryMock.mockReturnValue({
       data: [],
+      error: null,
+      isError: false,
+      isFetching: false,
       isLoading: false,
-      refetch: vi.fn()
+      refetch: retryDeploymentsMock
     });
 
     renderDeploymentsPage();
@@ -176,5 +187,26 @@ describe("DeploymentsPage", () => {
     expect(
       screen.getByTestId("deployment-recovery-evidence-dep_2-deployment-watchdog-timeout")
     ).toHaveTextContent("watchdog:Progress heartbeat timed out");
+  });
+
+  it("shows a retryable load error instead of the empty state when history fails", () => {
+    recentDeploymentsUseQueryMock.mockReturnValue({
+      data: undefined,
+      error: new Error("deployment history unavailable"),
+      isError: true,
+      isFetching: false,
+      isLoading: false,
+      refetch: retryDeploymentsMock
+    });
+
+    renderDeploymentsPage();
+
+    const errorPanel = screen.getByTestId("deployments-history-error");
+    expect(errorPanel).toHaveTextContent("deployment history unavailable");
+    expect(screen.queryByText("No deployments yet")).not.toBeInTheDocument();
+
+    fireEvent.click(within(errorPanel).getByRole("button", { name: "Retry" }));
+
+    expect(retryDeploymentsMock).toHaveBeenCalledTimes(1);
   });
 });

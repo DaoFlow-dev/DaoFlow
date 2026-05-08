@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import "@testing-library/jest-dom/vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import LogsTab from "./LogsTab";
 import MonitoringTab from "./MonitoringTab";
@@ -156,14 +156,16 @@ describe("service detail observability tabs", () => {
     expect(socket?.url).toContain("serviceId=svc_logs");
     expect(socket?.url).toContain("tail=200");
 
-    socket?.emitOpen();
-    socket?.emitMessage(
-      JSON.stringify({
-        timestamp: "2026-03-20T03:00:00.000Z",
-        message: "boot complete",
-        stream: "stdout"
-      })
-    );
+    act(() => {
+      socket?.emitOpen();
+      socket?.emitMessage(
+        JSON.stringify({
+          timestamp: "2026-03-20T03:00:00.000Z",
+          message: "boot complete",
+          stream: "stdout"
+        })
+      );
+    });
 
     expect(await screen.findByText("boot complete")).toBeInTheDocument();
     expect(screen.getByTestId("logs-status-svc_logs")).toHaveTextContent("Live");
@@ -177,8 +179,12 @@ describe("service detail observability tabs", () => {
     expect(MockWebSocket.instances[0]?.url).toContain("serviceId=svc_term");
     expect(MockWebSocket.instances[0]?.url).toContain("shell=bash");
 
-    MockWebSocket.instances[0]?.emitOpen();
-    expect(await screen.findByTestId("terminal-status-svc_term")).toHaveTextContent("Connected");
+    act(() => {
+      MockWebSocket.instances[0]?.emitOpen();
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId("terminal-status-svc_term")).toHaveTextContent("Connected");
+    });
 
     const input = screen.getByLabelText("Terminal input");
     expect(input).not.toBeNull();

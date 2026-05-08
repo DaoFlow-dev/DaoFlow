@@ -8,6 +8,10 @@ import { DeploymentsFilters } from "./deployments-page/DeploymentsFilters";
 import type { DeploymentRowData } from "./deployments-page/types";
 import { matchesDeploymentFilters } from "./deployments-page/utils";
 
+function queryErrorMessage(error: unknown, fallback: string) {
+  return error instanceof Error && error.message ? error.message : fallback;
+}
+
 export default function DeploymentsPage() {
   const navigate = useNavigate();
   const session = useSession();
@@ -75,12 +79,19 @@ export default function DeploymentsPage() {
 
       <DeploymentHistoryCard
         isLoading={recentDeployments.isLoading}
+        errorMessage={
+          recentDeployments.isError
+            ? queryErrorMessage(recentDeployments.error, "Unable to load deployment history.")
+            : null
+        }
+        isRetrying={recentDeployments.isFetching}
         deployments={deployments}
         filteredDeployments={filteredDeployments}
         expandedId={expandedId}
         cancelingDeploymentId={cancelingDeploymentId}
         onClearFilters={handleClearFilters}
         onOpenDeployCenter={() => void navigate("/deploy")}
+        onRetry={() => void recentDeployments.refetch()}
         onToggleExpand={handleToggleExpand}
         onOpenRollback={handleOpenRollback}
         onCancelDeployment={handleCancelDeployment}

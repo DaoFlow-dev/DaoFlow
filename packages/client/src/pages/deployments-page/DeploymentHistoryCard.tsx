@@ -3,17 +3,21 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { QueryErrorRetry } from "@/components/QueryErrorRetry";
 import { DeploymentRow } from "./DeploymentRow";
 import type { DeploymentRowData } from "./types";
 
 interface DeploymentHistoryCardProps {
   isLoading: boolean;
+  errorMessage?: string | null;
+  isRetrying?: boolean;
   deployments: DeploymentRowData[];
   filteredDeployments: DeploymentRowData[];
   expandedId: string | null;
   cancelingDeploymentId: string | null;
   onClearFilters: () => void;
   onOpenDeployCenter: () => void;
+  onRetry: () => void;
   onToggleExpand: (deploymentId: string) => void;
   onOpenRollback: (serviceId: string) => void;
   onCancelDeployment: (deploymentId: string) => void;
@@ -27,6 +31,9 @@ export function DeploymentHistoryCard({
   cancelingDeploymentId,
   onClearFilters,
   onOpenDeployCenter,
+  onRetry,
+  errorMessage,
+  isRetrying,
   onToggleExpand,
   onOpenRollback,
   onCancelDeployment
@@ -36,8 +43,11 @@ export function DeploymentHistoryCard({
       <CardHeader>
         <CardTitle className="text-base font-semibold">Deployment History</CardTitle>
         <CardDescription>
-          {filteredDeployments.length} of {deployments.length} deployment
-          {deployments.length !== 1 ? "s" : ""}
+          {errorMessage
+            ? "Unable to load deployment history"
+            : `${filteredDeployments.length} of ${deployments.length} deployment${
+                deployments.length !== 1 ? "s" : ""
+              }`}
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -46,6 +56,10 @@ export function DeploymentHistoryCard({
             <Skeleton className="h-8 w-full" />
             <Skeleton className="h-8 w-full" />
             <Skeleton className="h-8 w-full" />
+          </div>
+        ) : errorMessage ? (
+          <div data-testid="deployments-history-error">
+            <QueryErrorRetry message={errorMessage} onRetry={onRetry} isRetrying={isRetrying} />
           </div>
         ) : deployments.length === 0 ? (
           <div className="flex flex-col items-center gap-4 py-16 text-center">
