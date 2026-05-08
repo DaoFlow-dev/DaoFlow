@@ -1,9 +1,5 @@
 export { executeBackupCopy } from "./backup-copy-activity";
-export {
-  applyRetentionPolicy,
-  checkStorageQuota,
-  verifyBackupIntegrity
-} from "./backup-retention-activities";
+export { checkStorageQuota, verifyBackupIntegrity } from "./backup-retention-activities";
 export {
   auditBackupAction,
   checkBackupLock,
