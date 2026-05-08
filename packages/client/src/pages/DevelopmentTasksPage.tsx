@@ -85,7 +85,14 @@ export default function DevelopmentTasksPage() {
               ))}
             </SelectContent>
           </Select>
-          <Button variant="outline" size="sm" onClick={() => void tasks.refetch()}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              void tasks.refetch();
+              void runnerProfiles.refetch();
+            }}
+          >
             <RefreshCw size={14} className="mr-2" />
             Refresh
           </Button>

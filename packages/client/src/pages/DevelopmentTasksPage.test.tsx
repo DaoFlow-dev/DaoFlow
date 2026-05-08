@@ -25,9 +25,11 @@ vi.mock("@/lib/trpc", () => ({
 
 describe("DevelopmentTasksPage", () => {
   const refetchMock = vi.fn();
+  const runnerRefetchMock = vi.fn();
 
   beforeEach(() => {
     refetchMock.mockReset();
+    runnerRefetchMock.mockReset();
     developmentTasksUseQueryMock.mockReturnValue({
       data: [
         {
@@ -70,7 +72,8 @@ describe("DevelopmentTasksPage", () => {
         }
       ],
       isError: false,
-      isLoading: false
+      isLoading: false,
+      refetch: runnerRefetchMock
     });
   });
 
@@ -144,7 +147,7 @@ describe("DevelopmentTasksPage", () => {
     expect(screen.getByLabelText("Terminal unavailable")).toBeDisabled();
   });
 
-  it("refreshes the development task queue", () => {
+  it("refreshes the development task queue and sandbox runner profiles", () => {
     render(
       <MemoryRouter>
         <DevelopmentTasksPage />
@@ -154,6 +157,7 @@ describe("DevelopmentTasksPage", () => {
     fireEvent.click(screen.getByRole("button", { name: /Refresh/ }));
 
     expect(refetchMock).toHaveBeenCalledTimes(1);
+    expect(runnerRefetchMock).toHaveBeenCalledTimes(1);
   });
 
   it("filters tasks by status", () => {
