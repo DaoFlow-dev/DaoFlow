@@ -6,7 +6,11 @@ import { servers } from "../schema/servers";
 import { teams } from "../schema/teams";
 import { resetSeededTestDatabase } from "../../test-db";
 import { claimNextQueuedDevelopmentTask } from "./development-task-claims";
-import { DEFAULT_CODEX_RUNNER_IMAGE } from "./default-development-runner";
+import {
+  DEFAULT_BOXLITE_RUNNER_PROFILE_ID,
+  DEFAULT_CODEX_RUNNER_IMAGE,
+  DEFAULT_HOST_RUNNER_PROFILE_ID
+} from "./default-development-runner";
 import { createProject } from "./projects";
 import {
   createDevelopmentTaskRun,
@@ -366,6 +370,37 @@ describe("development task service", () => {
     expect(profiles.map((profile) => profile.id)).not.toContain("runner_profile_other_profiles");
   });
 
+  it("keeps unbound default runner profiles visible without leaking arbitrary unbound profiles", async () => {
+    await db
+      .update(sandboxRunnerProfiles)
+      .set({ serverId: null, status: "disabled" })
+      .where(eq(sandboxRunnerProfiles.id, DEFAULT_HOST_RUNNER_PROFILE_ID));
+    await db.insert(sandboxRunnerProfiles).values({
+      id: "runner_profile_unbound_custom",
+      name: "Unbound Custom Runner",
+      provider: "host_docker",
+      serverId: null,
+      image: DEFAULT_CODEX_RUNNER_IMAGE,
+      status: "enabled",
+      metadata: {}
+    });
+
+    const profiles = await listSandboxRunnerProfiles({
+      teamId: "team_foundation",
+      limit: 20
+    });
+    const hostDefault = profiles.find((profile) => profile.id === DEFAULT_HOST_RUNNER_PROFILE_ID);
+
+    expect(hostDefault).toMatchObject({
+      id: DEFAULT_HOST_RUNNER_PROFILE_ID,
+      serverId: null,
+      server: null,
+      status: "disabled"
+    });
+    expect(profiles.map((profile) => profile.id)).toContain(DEFAULT_BOXLITE_RUNNER_PROFILE_ID);
+    expect(profiles.map((profile) => profile.id)).not.toContain("runner_profile_unbound_custom");
+  });
+
   it("lists the BoxLite-compatible sandbox runner profile", async () => {
     const profiles = await listSandboxRunnerProfiles({ limit: 10 });
     const boxLiteProfile = profiles.find(
@@ -376,6 +411,11 @@ describe("development task service", () => {
       id: "runner_profile_boxlite_default",
       provider: "sandbank_boxlite",
       serverId: "srv_foundation_1",
+      server: {
+        id: "srv_foundation_1",
+        name: "foundation-vps-1",
+        status: "ready"
+      },
       status: "disabled",
       image: DEFAULT_CODEX_RUNNER_IMAGE,
       codexAuthMode: "custom_provider_env"

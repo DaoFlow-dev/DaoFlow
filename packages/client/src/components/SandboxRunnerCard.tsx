@@ -17,6 +17,12 @@ type SandboxRunnerProfile = {
   id: string;
   name: string;
   provider: string | null;
+  serverId?: string | null;
+  server?: {
+    id: string | null;
+    name: string | null;
+    status: string | null;
+  } | null;
   status: string;
   image: string | null;
   cpuLimit: number | null;
@@ -57,11 +63,35 @@ function readStringList(value: unknown) {
     : [];
 }
 
+function runnerSetupNotes(profile: SandboxRunnerProfile, commands: string[]) {
+  const notes: string[] = [];
+
+  if (profile.status !== "enabled") {
+    notes.push("Disabled until an administrator enables this runner profile.");
+  }
+  if (!profile.serverId || !profile.server) {
+    notes.push("No target server is bound. Register or verify a Docker host to activate it.");
+  }
+  if (!profile.image) {
+    notes.push("Runner image is not configured.");
+  }
+  if (commands.length === 0) {
+    notes.push("Validation commands are not configured.");
+  }
+
+  return notes;
+}
+
 export function SandboxRunnerCard({ profile }: { profile: SandboxRunnerProfile }) {
   const commands = readStringList(profile.validationCommands);
   const allowedCommands = readStringList(profile.allowedCommands);
   const capabilities = readStringList(profile.capabilities);
   const capabilitySet = new Set(capabilities);
+  const isUsable = profile.status === "enabled" && Boolean(profile.serverId && profile.server);
+  const setupNotes = runnerSetupNotes(profile, commands);
+  const serverLabel = profile.server
+    ? `${profile.server.name ?? "Unnamed server"} (${profile.server.status ?? "unknown"})`
+    : "not bound";
 
   return (
     <div className="min-w-0 rounded-md border p-3" data-testid={`sandbox-runner-${profile.id}`}>
@@ -88,7 +118,7 @@ export function SandboxRunnerCard({ profile }: { profile: SandboxRunnerProfile }
       <div className="mt-3 flex flex-wrap gap-1.5" aria-label={`${profile.name} runner actions`}>
         {RUNNER_ACTIONS.map((action) => {
           const Icon = action.icon;
-          const available = capabilitySet.has(action.capability);
+          const available = isUsable && capabilitySet.has(action.capability);
           return (
             <Button
               key={action.capability}
@@ -105,6 +135,17 @@ export function SandboxRunnerCard({ profile }: { profile: SandboxRunnerProfile }
           );
         })}
       </div>
+      {setupNotes.length > 0 ? (
+        <div
+          className="mt-3 space-y-1 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900"
+          data-testid={`sandbox-runner-setup-notes-${profile.id}`}
+        >
+          {setupNotes.map((note) => (
+            <p key={note}>{note}</p>
+          ))}
+        </div>
+      ) : null}
+      <p className="mt-2 break-words text-xs text-muted-foreground">Target: {serverLabel}</p>
       <p className="mt-2 break-all text-xs text-muted-foreground">
         Image: <span className="font-mono">{profile.image}</span>
       </p>

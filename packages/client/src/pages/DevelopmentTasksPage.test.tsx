@@ -52,6 +52,12 @@ describe("DevelopmentTasksPage", () => {
           id: "runner_profile_host_default",
           name: "Host Docker Default",
           provider: "host_docker",
+          serverId: "srv_foundation_1",
+          server: {
+            id: "srv_foundation_1",
+            name: "Foundation Host",
+            status: "ready"
+          },
           status: "enabled",
           image: "ghcr.io/daoflow-dev/codex-runner:0.8.7",
           cpuLimit: 2,
@@ -91,9 +97,51 @@ describe("DevelopmentTasksPage", () => {
     expect(screen.getAllByText(/bun run typecheck/)).toHaveLength(2);
     expect(screen.getByText(/git status/)).toBeInTheDocument();
     expect(screen.getByText(/exec\.stream/)).toBeInTheDocument();
+    expect(screen.getByText(/Foundation Host/)).toBeInTheDocument();
     expect(screen.getByLabelText("Run available")).toBeEnabled();
     expect(screen.getByLabelText("Stream available")).toBeEnabled();
     expect(screen.getByLabelText("Snapshot unavailable")).toBeDisabled();
+  });
+
+  it("explains disabled or unbound sandbox runners", () => {
+    sandboxRunnerProfilesUseQueryMock.mockReturnValueOnce({
+      data: [
+        {
+          id: "runner_profile_boxlite_default",
+          name: "Sandbank BoxLite Default",
+          provider: "sandbank_boxlite",
+          serverId: null,
+          server: null,
+          status: "disabled",
+          image: "ghcr.io/daoflow-dev/codex-runner:0.8.7",
+          cpuLimit: 2,
+          memoryLimitMb: 4096,
+          diskLimitMb: 20480,
+          codexAuthMode: "custom_provider_env",
+          allowedCommands: ["bun run test:unit"],
+          capabilities: ["exec", "terminal"],
+          validationCommands: ["bun run test:unit"]
+        }
+      ],
+      isError: false,
+      isLoading: false
+    });
+
+    render(
+      <MemoryRouter>
+        <DevelopmentTasksPage />
+      </MemoryRouter>
+    );
+
+    expect(
+      screen.getByTestId("sandbox-runner-setup-notes-runner_profile_boxlite_default")
+    ).toHaveTextContent("Disabled until an administrator enables this runner profile.");
+    expect(
+      screen.getByTestId("sandbox-runner-setup-notes-runner_profile_boxlite_default")
+    ).toHaveTextContent("No target server is bound.");
+    expect(screen.getByText("Target: not bound")).toBeInTheDocument();
+    expect(screen.getByLabelText("Run unavailable")).toBeDisabled();
+    expect(screen.getByLabelText("Terminal unavailable")).toBeDisabled();
   });
 
   it("refreshes the development task queue", () => {

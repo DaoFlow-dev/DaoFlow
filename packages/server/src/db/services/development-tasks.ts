@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { db } from "../connection";
 import { auditEntries } from "../schema/audit";
 import {
@@ -7,14 +7,13 @@ import {
   developmentTaskComments,
   developmentTaskEvents,
   developmentTaskRuns,
-  developmentTasks,
-  sandboxRunnerProfiles
+  developmentTasks
 } from "../schema/development-tasks";
 import { projects } from "../schema/projects";
-import { servers } from "../schema/servers";
 import type { AppRole } from "@daoflow/shared";
-import { resolveSandboxRunnerCapabilities } from "./development-task-runner-capabilities";
 import { asRecord, newId } from "./json-helpers";
+
+export { listSandboxRunnerProfiles } from "./development-task-runner-profiles";
 
 export type DevelopmentTaskStatus = (typeof DEVELOPMENT_TASK_STATUSES)[number];
 export type DevelopmentTaskRunStatus = (typeof DEVELOPMENT_TASK_RUN_STATUSES)[number];
@@ -437,33 +436,4 @@ export async function getDevelopmentTaskDetails(taskId: string, teamId?: string)
     events: events.map((event) => ({ ...event, metadata: asRecord(event.metadata) })),
     comments: comments.map((comment) => ({ ...comment, metadata: asRecord(comment.metadata) }))
   };
-}
-
-export async function listSandboxRunnerProfiles(input?: {
-  status?: string;
-  teamId?: string;
-  limit?: number;
-}) {
-  const statuses = input?.status ? [input.status] : ["enabled", "disabled"];
-  const query = db
-    .select({ profile: sandboxRunnerProfiles })
-    .from(sandboxRunnerProfiles)
-    .innerJoin(servers, eq(servers.id, sandboxRunnerProfiles.serverId));
-  const filters = [
-    inArray(sandboxRunnerProfiles.status, statuses),
-    input?.teamId ? eq(servers.teamId, input.teamId) : undefined
-  ].filter((filter): filter is Exclude<typeof filter, undefined> => Boolean(filter));
-  const rows = await query
-    .where(and(...filters))
-    .orderBy(desc(sandboxRunnerProfiles.createdAt))
-    .limit(input?.limit ?? 24);
-
-  return rows.map(({ profile }) => {
-    const metadata = asRecord(profile.metadata);
-    return {
-      ...profile,
-      metadata,
-      capabilities: resolveSandboxRunnerCapabilities({ provider: profile.provider, metadata })
-    };
-  });
 }
