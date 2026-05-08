@@ -5,7 +5,7 @@
  * Extracted from notification-activities.ts for AGENTS.md hygiene.
  */
 
-import type { NotificationPayload } from "./notification-activities";
+import type { NotificationPayload } from "./notification-sender-types";
 
 /**
  * Build a notification payload for backup events.
