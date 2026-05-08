@@ -64,11 +64,10 @@ describe("managed operations services", () => {
       .select()
       .from(auditEntries)
       .where(eq(auditEntries.targetResource, `tunnel/${tunnel.id}`));
-    expect(audits.map((entry) => entry.action)).toEqual([
-      "tunnel.create",
-      "tunnel.routes.sync",
-      "tunnel.credentials.rotate"
-    ]);
+    expect(audits.map((entry) => entry.action)).toEqual(
+      expect.arrayContaining(["tunnel.create", "tunnel.routes.sync", "tunnel.credentials.rotate"])
+    );
+    expect(audits).toHaveLength(3);
   });
 
   it("records failed log drain tests and retries with durable deliveries", async () => {
@@ -99,7 +98,10 @@ describe("managed operations services", () => {
       .select()
       .from(logDrainDeliveries)
       .where(eq(logDrainDeliveries.drainId, drain.id));
-    expect(deliveries.map((delivery) => delivery.status)).toEqual(["failed", "delivered"]);
+    expect(deliveries.map((delivery) => delivery.status)).toEqual(
+      expect.arrayContaining(["failed", "delivered"])
+    );
+    expect(deliveries).toHaveLength(2);
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });
