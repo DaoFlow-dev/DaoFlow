@@ -5,14 +5,11 @@ import { ProjectsPageProjectCard } from "@/components/projects-page/ProjectsPage
 import { ProjectsPageSearchControls } from "@/components/projects-page/ProjectsPageSearchControls";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { queryErrorMessage } from "@/lib/query-error-message";
 import { FolderKanban, Plus } from "lucide-react";
 import { useProjectsPage } from "./projects-page/useProjectsPage";
 
 export const ProjectCard = ProjectsPageProjectCard;
-
-function queryErrorMessage(error: unknown, fallback: string) {
-  return error instanceof Error && error.message ? error.message : fallback;
-}
 
 export default function ProjectsPage() {
   const page = useProjectsPage();

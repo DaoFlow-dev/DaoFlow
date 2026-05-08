@@ -7,10 +7,7 @@ import { DeploymentHistoryCard } from "./deployments-page/DeploymentHistoryCard"
 import { DeploymentsFilters } from "./deployments-page/DeploymentsFilters";
 import type { DeploymentRowData } from "./deployments-page/types";
 import { matchesDeploymentFilters } from "./deployments-page/utils";
-
-function queryErrorMessage(error: unknown, fallback: string) {
-  return error instanceof Error && error.message ? error.message : fallback;
-}
+import { queryErrorMessage } from "@/lib/query-error-message";
 
 export default function DeploymentsPage() {
   const navigate = useNavigate();

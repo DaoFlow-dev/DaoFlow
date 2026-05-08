@@ -16,10 +16,7 @@ import {
   SummaryCard,
   type ServerCheck
 } from "@/components/servers/ServerCheckCard";
-
-function queryErrorMessage(error: unknown, fallback: string) {
-  return error instanceof Error && error.message ? error.message : fallback;
-}
+import { queryErrorMessage } from "@/lib/query-error-message";
 
 export default function ServersPage() {
   const session = useSession();

@@ -15,12 +15,9 @@ import {
 } from "@/components/dashboard/DashboardQueryAlerts";
 import { DashboardRecentActivity } from "@/components/dashboard/DashboardRecentActivity";
 import { DashboardStatsGrid, type DashboardStat } from "@/components/dashboard/DashboardStatsGrid";
+import { queryErrorMessage } from "@/lib/query-error-message";
 import { getServerReadinessTone } from "@/lib/tone-utils";
 import { Activity, FolderKanban, Plus, Rocket, Server } from "lucide-react";
-
-function queryErrorMessage(error: unknown, fallback: string) {
-  return error instanceof Error && error.message ? error.message : fallback;
-}
 
 export default function DashboardPage() {
   const navigate = useNavigate();

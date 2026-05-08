@@ -2,6 +2,7 @@ import { useState } from "react";
 import { BackupRunDetailsSheet } from "@/components/backups/BackupRunDetailsSheet";
 import { BackupEmptyState } from "@/components/backups/BackupEmptyState";
 import { BackupPolicyManager } from "@/components/backups/BackupPolicyManager";
+import { QueryErrorRetry } from "@/components/QueryErrorRetry";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -20,6 +21,7 @@ import { isTRPCClientError } from "@trpc/client";
 import { Link } from "react-router-dom";
 import { useBackupRunDetails } from "@/features/backups/useBackupRunDetails";
 import { useSession } from "@/lib/auth-client";
+import { queryErrorMessage } from "@/lib/query-error-message";
 import { trpc } from "@/lib/trpc";
 import { getBackupOperationBadgeVariant, formatBytes } from "@/lib/tone-utils";
 
@@ -31,6 +33,7 @@ export default function BackupsPage() {
   const shouldLoadDestinations =
     Boolean(session.data) &&
     !backupOverview.isLoading &&
+    !backupOverview.isError &&
     policies.length === 0 &&
     runs.length === 0;
   const backupDestinations = trpc.backupDestinations.useQuery(
@@ -86,6 +89,25 @@ export default function BackupsPage() {
         <div className="space-y-4">
           <Skeleton className="h-32 w-full" />
           <Skeleton className="h-32 w-full" />
+        </div>
+      ) : backupOverview.isError ? (
+        <div data-testid="backup-overview-load-error">
+          <QueryErrorRetry
+            message={queryErrorMessage(backupOverview.error, "Unable to load backup overview.")}
+            onRetry={() => void backupOverview.refetch()}
+            isRetrying={backupOverview.isFetching}
+          />
+        </div>
+      ) : shouldLoadDestinations && backupDestinations.isError ? (
+        <div data-testid="backup-destinations-load-error">
+          <QueryErrorRetry
+            message={queryErrorMessage(
+              backupDestinations.error,
+              "Unable to load backup destinations."
+            )}
+            onRetry={() => void backupDestinations.refetch()}
+            isRetrying={backupDestinations.isFetching}
+          />
         </div>
       ) : policies.length === 0 && runs.length === 0 ? (
         <BackupEmptyState hasDestinations={hasDestinations} />

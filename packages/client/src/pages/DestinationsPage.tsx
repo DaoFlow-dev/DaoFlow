@@ -5,6 +5,8 @@ import { HardDrive } from "lucide-react";
 import { useState } from "react";
 import { AddDestinationDialog, type DestinationFormData } from "@/components/AddDestinationDialog";
 import { DestinationsTable } from "@/components/DestinationsTable";
+import { QueryErrorRetry } from "@/components/QueryErrorRetry";
+import { queryErrorMessage } from "@/lib/query-error-message";
 
 export default function DestinationsPage() {
   const session = useSession();
@@ -37,7 +39,7 @@ export default function DestinationsPage() {
   const list = destinations.data ?? [];
 
   return (
-    <main className="shell space-y-6">
+    <main className="shell space-y-6" data-testid="destinations-page">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="font-display text-2xl font-bold tracking-tight">Backup Destinations</h1>
@@ -57,6 +59,14 @@ export default function DestinationsPage() {
       {destinations.isLoading ? (
         <div className="space-y-4">
           <Skeleton className="h-32 w-full" />
+        </div>
+      ) : destinations.isError ? (
+        <div data-testid="destinations-load-error">
+          <QueryErrorRetry
+            message={queryErrorMessage(destinations.error, "Unable to load backup destinations.")}
+            onRetry={() => void destinations.refetch()}
+            isRetrying={destinations.isFetching}
+          />
         </div>
       ) : list.length === 0 ? (
         <div className="flex flex-col items-center gap-4 py-16 text-center">
