@@ -144,9 +144,12 @@ describe("DevelopmentTaskDetailPage", () => {
     expect(
       screen.getByText("/runner/work/drun_1/artifacts/changed-files.json")
     ).toBeInTheDocument();
-    expect(screen.getByText(/Codex log: .*codex-exec\.jsonl/)).toBeInTheDocument();
-    expect(screen.getByText(/Validation log: .*validation\.jsonl/)).toBeInTheDocument();
-    expect(screen.getByText(/Review handoff log: .*pull-request\.jsonl/)).toBeInTheDocument();
+    expect(screen.getByText("Codex log")).toBeInTheDocument();
+    expect(screen.getByText("/runner/work/drun_1/logs/codex-exec.jsonl")).toBeInTheDocument();
+    expect(screen.getByText("Validation log")).toBeInTheDocument();
+    expect(screen.getByText("/runner/work/drun_1/logs/validation.jsonl")).toBeInTheDocument();
+    expect(screen.getByText("Review handoff log")).toBeInTheDocument();
+    expect(screen.getByText("/runner/work/drun_1/logs/pull-request.jsonl")).toBeInTheDocument();
     expect(screen.getByText("run.claimed")).toBeInTheDocument();
     expect(screen.getByText("440001")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Back/ })).toHaveAttribute(

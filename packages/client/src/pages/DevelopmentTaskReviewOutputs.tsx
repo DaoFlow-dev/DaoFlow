@@ -1,5 +1,16 @@
+import { useState, type ReactNode } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ExternalLink, FileText, GitPullRequest, MonitorUp, Terminal } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  Check,
+  Copy,
+  CircleAlert,
+  ExternalLink,
+  FileText,
+  GitPullRequest,
+  MonitorUp,
+  Terminal
+} from "lucide-react";
 
 interface ReviewRun {
   pullRequestUrl?: string | null;
@@ -42,14 +53,44 @@ function extractLogPaths(metadata: unknown) {
       label,
       path: typeof value === "string" ? value : null
     }))
-    .filter((entry) => entry.path);
+    .filter((entry): entry is { label: string; path: string } => Boolean(entry.path));
 }
 
 export function DevelopmentTaskReviewOutputs({ latestRun }: { latestRun?: ReviewRun }) {
+  const [copyState, setCopyState] = useState<{
+    path: string;
+    status: "copied" | "failed";
+  } | null>(null);
   const artifacts = extractReviewArtifacts(latestRun?.metadata);
+  const diffStatPath = artifacts.diffStatPath;
+  const changedFilesPath = artifacts.changedFilesPath;
   const logs = extractLogPaths(latestRun?.metadata);
-  const hasArtifacts = Boolean(artifacts.diffStatPath || artifacts.changedFilesPath);
+  const hasArtifacts = Boolean(diffStatPath || changedFilesPath);
   const hasLogs = logs.length > 0;
+
+  function copyPath(path: string) {
+    const clipboard = navigator.clipboard;
+
+    if (!clipboard) {
+      setCopyState({ path, status: "failed" });
+      window.setTimeout(
+        () => setCopyState((current) => (current?.path === path ? null : current)),
+        1500
+      );
+      return;
+    }
+
+    void clipboard
+      .writeText(path)
+      .then(() => setCopyState({ path, status: "copied" }))
+      .catch(() => setCopyState({ path, status: "failed" }))
+      .finally(() => {
+        window.setTimeout(
+          () => setCopyState((current) => (current?.path === path ? null : current)),
+          1500
+        );
+      });
+  }
 
   return (
     <Card>
@@ -86,23 +127,33 @@ export function DevelopmentTaskReviewOutputs({ latestRun }: { latestRun?: Review
 
         {hasArtifacts || hasLogs ? (
           <div className="space-y-2 border-t pt-3">
-            {artifacts.diffStatPath ? (
-              <p className="break-all font-mono text-xs text-muted-foreground">
-                <FileText size={13} className="mr-1 inline" />
-                {artifacts.diffStatPath}
-              </p>
+            {diffStatPath ? (
+              <ReviewPathRow
+                icon={<FileText size={13} />}
+                label="Diff stat"
+                path={diffStatPath}
+                copyStatus={copyState?.path === diffStatPath ? copyState.status : null}
+                onCopy={() => copyPath(diffStatPath)}
+              />
             ) : null}
-            {artifacts.changedFilesPath ? (
-              <p className="break-all font-mono text-xs text-muted-foreground">
-                <ExternalLink size={13} className="mr-1 inline" />
-                {artifacts.changedFilesPath}
-              </p>
+            {changedFilesPath ? (
+              <ReviewPathRow
+                icon={<ExternalLink size={13} />}
+                label="Changed files"
+                path={changedFilesPath}
+                copyStatus={copyState?.path === changedFilesPath ? copyState.status : null}
+                onCopy={() => copyPath(changedFilesPath)}
+              />
             ) : null}
             {logs.map((log) => (
-              <p key={log.label} className="break-all font-mono text-xs text-muted-foreground">
-                <Terminal size={13} className="mr-1 inline" />
-                {log.label}: {log.path}
-              </p>
+              <ReviewPathRow
+                key={log.label}
+                icon={<Terminal size={13} />}
+                label={log.label}
+                path={log.path}
+                copyStatus={copyState?.path === log.path ? copyState.status : null}
+                onCopy={() => copyPath(log.path)}
+              />
             ))}
           </div>
         ) : (
@@ -110,5 +161,45 @@ export function DevelopmentTaskReviewOutputs({ latestRun }: { latestRun?: Review
         )}
       </CardContent>
     </Card>
+  );
+}
+
+function ReviewPathRow({
+  icon,
+  label,
+  path,
+  copyStatus,
+  onCopy
+}: {
+  icon: ReactNode;
+  label: string;
+  path: string;
+  copyStatus: "copied" | "failed" | null;
+  onCopy: () => void;
+}) {
+  const failed = copyStatus === "failed";
+  const copied = copyStatus === "copied";
+
+  return (
+    <div className="flex items-start justify-between gap-2 rounded-md border bg-muted/30 p-2">
+      <div className="min-w-0 text-xs text-muted-foreground">
+        <p className="mb-1 flex items-center gap-1 font-medium text-foreground">
+          {icon}
+          {label}
+        </p>
+        <p className="break-all font-mono">{path}</p>
+      </div>
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        className="h-7 shrink-0 gap-1 px-2 text-xs"
+        onClick={onCopy}
+        data-testid={`development-task-copy-${label.toLowerCase().replaceAll(" ", "-")}`}
+      >
+        {copied ? <Check size={13} /> : failed ? <CircleAlert size={13} /> : <Copy size={13} />}
+        {copied ? "Copied" : failed ? "Retry" : "Copy"}
+      </Button>
+    </div>
   );
 }
