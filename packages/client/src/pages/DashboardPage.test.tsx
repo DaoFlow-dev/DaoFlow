@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import "@testing-library/jest-dom/vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import DashboardPage from "./DashboardPage";
@@ -10,11 +10,17 @@ const {
   infrastructureInventoryUseQueryMock,
   recentDeploymentsUseQueryMock,
   serverReadinessUseQueryMock,
+  retryInfrastructureMock,
+  retryRecentDeploymentsMock,
+  retryServerReadinessMock,
   navigateMock
 } = vi.hoisted(() => ({
   infrastructureInventoryUseQueryMock: vi.fn(),
   recentDeploymentsUseQueryMock: vi.fn(),
   serverReadinessUseQueryMock: vi.fn(),
+  retryInfrastructureMock: vi.fn(),
+  retryRecentDeploymentsMock: vi.fn(),
+  retryServerReadinessMock: vi.fn(),
   navigateMock: vi.fn()
 }));
 
@@ -62,14 +68,23 @@ describe("DashboardPage", () => {
 
   beforeEach(() => {
     navigateMock.mockReset();
+    retryInfrastructureMock.mockReset();
+    retryRecentDeploymentsMock.mockReset();
+    retryServerReadinessMock.mockReset();
     serverReadinessUseQueryMock.mockReturnValue({
-      data: {
-        checks: []
-      }
+      data: { checks: [] },
+      error: null,
+      isError: false,
+      isFetching: false,
+      refetch: retryServerReadinessMock
     });
     recentDeploymentsUseQueryMock.mockReturnValue({
       data: [],
-      isLoading: false
+      error: null,
+      isError: false,
+      isFetching: false,
+      isLoading: false,
+      refetch: retryRecentDeploymentsMock
     });
     infrastructureInventoryUseQueryMock.mockReturnValue({
       data: {
@@ -78,7 +93,11 @@ describe("DashboardPage", () => {
         summary: {
           totalServices: 3
         }
-      }
+      },
+      error: null,
+      isError: false,
+      isFetching: false,
+      refetch: retryInfrastructureMock
     });
   });
 
@@ -97,6 +116,10 @@ describe("DashboardPage", () => {
     expect(screen.getByTestId("dashboard-stat-deployments")).toBeInTheDocument();
     expect(screen.getByTestId("dashboard-stat-services")).toBeInTheDocument();
     expect(screen.queryByTestId("dashboard-operational-attention")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("dashboard-query-errors")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("dashboard-stat-servers"));
+    expect(navigateMock).toHaveBeenCalledWith("/servers");
   });
 
   it("surfaces operational attention with direct recovery actions", () => {
@@ -111,7 +134,11 @@ describe("DashboardPage", () => {
             dockerReachable: false
           }
         ]
-      }
+      },
+      error: null,
+      isError: false,
+      isFetching: false,
+      refetch: retryServerReadinessMock
     });
     recentDeploymentsUseQueryMock.mockReturnValue({
       data: [
@@ -123,7 +150,11 @@ describe("DashboardPage", () => {
           statusTone: "failed"
         }
       ],
-      isLoading: false
+      error: null,
+      isError: false,
+      isFetching: false,
+      isLoading: false,
+      refetch: retryRecentDeploymentsMock
     });
 
     renderDashboardPage();
@@ -139,5 +170,52 @@ describe("DashboardPage", () => {
 
     fireEvent.click(screen.getByTestId("dashboard-review-servers"));
     expect(navigateMock).toHaveBeenCalledWith("/servers");
+  });
+
+  it("surfaces query failures with retry actions instead of empty states", () => {
+    infrastructureInventoryUseQueryMock.mockReturnValue({
+      data: undefined,
+      error: new Error("inventory gateway timed out"),
+      isError: true,
+      isFetching: false,
+      refetch: retryInfrastructureMock
+    });
+    serverReadinessUseQueryMock.mockReturnValue({
+      data: undefined,
+      error: new Error("readiness check failed"),
+      isError: true,
+      isFetching: false,
+      refetch: retryServerReadinessMock
+    });
+    recentDeploymentsUseQueryMock.mockReturnValue({
+      data: undefined,
+      error: new Error("deployment feed failed"),
+      isError: true,
+      isFetching: false,
+      isLoading: false,
+      refetch: retryRecentDeploymentsMock
+    });
+
+    renderDashboardPage();
+
+    expect(screen.getByTestId("dashboard-query-error-infrastructure")).toHaveTextContent(
+      "inventory gateway timed out"
+    );
+    expect(screen.getByTestId("dashboard-query-error-server-readiness")).toHaveTextContent(
+      "readiness check failed"
+    );
+    expect(screen.getByTestId("dashboard-recent-activity-error")).toHaveTextContent(
+      "deployment feed failed"
+    );
+
+    fireEvent.click(screen.getByTestId("dashboard-query-retry-infrastructure"));
+    fireEvent.click(screen.getByTestId("dashboard-query-retry-server-readiness"));
+    fireEvent.click(
+      within(screen.getByTestId("dashboard-recent-activity-error")).getByText("Retry")
+    );
+
+    expect(retryInfrastructureMock).toHaveBeenCalledTimes(1);
+    expect(retryServerReadinessMock).toHaveBeenCalledTimes(1);
+    expect(retryRecentDeploymentsMock).toHaveBeenCalledTimes(1);
   });
 });
