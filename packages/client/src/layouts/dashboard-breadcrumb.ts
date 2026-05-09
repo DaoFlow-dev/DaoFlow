@@ -1,4 +1,5 @@
-const ID_SEGMENT_RE = /^[0-9a-f]{9,}$|^[0-9a-f-]{20,}$/i;
+const ID_SEGMENT_RE =
+  /^[0-9a-f]{9,}$|^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function formatSegment(s: string): string {
   if (ID_SEGMENT_RE.test(s)) return s.slice(0, 8) + "…";

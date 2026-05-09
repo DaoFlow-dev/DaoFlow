@@ -90,7 +90,11 @@ export function SidebarFooter({
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
-              onClick={() => void authClient.signOut()}
+              onClick={() => {
+                authClient.signOut().catch((err: unknown) => {
+                  console.error("Sign-out failed", err);
+                });
+              }}
               className="text-destructive"
             >
               <LogOut size={14} />
