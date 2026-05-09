@@ -1,90 +1,48 @@
 import { useEffect, useState } from "react";
 import { NavLink, Navigate, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { ErrorBoundary } from "../components/ErrorBoundary";
-import { useTheme } from "../components/theme-context";
-import { useSession, authClient } from "../lib/auth-client";
+import { useSession } from "../lib/auth-client";
 import { Separator } from "@/components/ui/separator";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { KeyboardShortcutsDialog } from "@/components/KeyboardShortcutsDialog";
 import { CommandPalette } from "@/components/CommandPalette";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger
-} from "@/components/ui/dropdown-menu";
-import {
-  LayoutDashboard,
-  FolderKanban,
-  Server,
-  Rocket,
-  DatabaseBackup,
-  CalendarClock,
-  Settings,
-  ChevronLeft,
-  ChevronRight,
-  LogOut,
-  User,
-  Shield,
-  KeyRound,
-  Bell,
-  HardDrive,
-  ChevronsUpDown,
-  Hexagon,
-  Bot,
-  Workflow,
-  Radio,
-  Sun,
-  Moon,
-  ShieldCheck,
-  ScrollText
-} from "lucide-react";
-
-const homeNav = [
-  { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true },
-  { to: "/projects", label: "Projects", icon: FolderKanban },
-  { to: "/deploy", label: "Deploy", icon: Rocket },
-  { to: "/servers", label: "Servers", icon: Server },
-  { to: "/deployments", label: "Deployments", icon: Rocket },
-  { to: "/backups", label: "Backups", icon: DatabaseBackup },
-  { to: "/schedules", label: "Schedules", icon: CalendarClock },
-  { to: "/destinations", label: "Destinations", icon: HardDrive },
-  { to: "/notifications", label: "Notifications", icon: Radio },
-  { to: "/agents", label: "Agents", icon: Bot },
-  { to: "/development-tasks", label: "Dev Tasks", icon: Workflow },
-  { to: "/approvals", label: "Approvals", icon: ShieldCheck },
-  { to: "/requests", label: "Requests", icon: ScrollText }
-] as const;
-
-const settingsNav = [
-  { to: "/settings", label: "General", icon: Settings, tab: null },
-  { to: "/settings?tab=users", label: "Users", icon: User, tab: "users" },
-  { to: "/settings?tab=tokens", label: "Tokens", icon: KeyRound, tab: "tokens" },
-  { to: "/settings?tab=security", label: "Security", icon: Shield, tab: "security" },
-  { to: "/settings?tab=notifications", label: "Notifications", icon: Bell, tab: "notifications" }
-] as const;
-
-function breadcrumbFromPath(pathname: string): string[] {
-  if (pathname === "/") return ["Dashboard"];
-  return pathname
-    .split("/")
-    .filter(Boolean)
-    .map((s) => s.charAt(0).toUpperCase() + s.slice(1));
-}
+import { ChevronLeft, ChevronRight, ChevronDown, Hexagon, Menu } from "lucide-react";
+import { homeNavGroups, settingsNav } from "./sidebar-nav";
+import { breadcrumbFromPath } from "./dashboard-breadcrumb";
+import { SidebarFooter } from "./SidebarFooter";
 
 export function DashboardLayout() {
   const session = useSession();
   const location = useLocation();
   const navigate = useNavigate();
   const [collapsed, setCollapsed] = useState(false);
-  const themeCtx = useTheme();
+  const [mobileOpen, setMobileOpen] = useState(false);
   const crumbs = breadcrumbFromPath(location.pathname);
 
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() => {
+    try {
+      const stored = localStorage.getItem("df-sidebar-groups");
+      if (stored) return JSON.parse(stored) as Record<string, boolean>;
+    } catch {
+      /* ignore */
+    }
+    return Object.fromEntries(homeNavGroups.map((g) => [g.key, true]));
+  });
+
+  const toggleGroup = (key: string) => {
+    setOpenGroups((prev) => {
+      const next = { ...prev, [key]: !prev[key] };
+      localStorage.setItem("df-sidebar-groups", JSON.stringify(next));
+      return next;
+    });
+  };
+
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
+
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [location.pathname, location.search]);
 
   useEffect(() => {
     const handleOnline = () => setIsOffline(false);
@@ -96,6 +54,15 @@ export function DashboardLayout() {
       window.removeEventListener("offline", handleOffline);
     };
   }, []);
+
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMobileOpen(false);
+    };
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [mobileOpen]);
 
   // Loading state
   if (session.isPending) {
@@ -111,8 +78,6 @@ export function DashboardLayout() {
     const returnTo = `${location.pathname}${location.search}${location.hash}`;
     return <Navigate to={`/login?returnTo=${encodeURIComponent(returnTo)}`} replace />;
   }
-
-  const userInitial = session.data.user.name?.charAt(0).toUpperCase() ?? "U";
 
   function isSettingsItemActive(tab: string | null) {
     if (location.pathname !== "/settings") {
@@ -137,8 +102,13 @@ export function DashboardLayout() {
         Skip to content
       </a>
       <div className="layout" data-collapsed={collapsed ? "true" : "false"}>
+        <div
+          className="mobile-backdrop"
+          data-open={mobileOpen ? "true" : "false"}
+          onClick={() => setMobileOpen(false)}
+        />
         {/* ── Sidebar ── */}
-        <aside className="sidebar">
+        <aside className="sidebar" data-mobile-open={mobileOpen ? "true" : "false"}>
           <div className="sidebar__brand">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
               <Hexagon size={18} strokeWidth={1.5} className="text-primary" />
@@ -156,28 +126,52 @@ export function DashboardLayout() {
 
           <TooltipProvider delay={0}>
             <nav className="sidebar__nav">
-              <p className="sidebar__group-label">{!collapsed && "Home"}</p>
-              {homeNav.map((item) => {
-                const link = (
-                  <NavLink
-                    key={item.to}
-                    to={item.to}
-                    end={"end" in item ? item.end : false}
-                    className={({ isActive }) =>
-                      `sidebar__link${isActive ? " sidebar__link--active" : ""}`
-                    }
-                  >
-                    <item.icon size={18} className="sidebar__link-icon" />
-                    {!collapsed && <span>{item.label}</span>}
-                  </NavLink>
-                );
-                return collapsed ? (
-                  <Tooltip key={item.to}>
-                    <TooltipTrigger render={link} />
-                    <TooltipContent side="right">{item.label}</TooltipContent>
-                  </Tooltip>
-                ) : (
-                  link
+              {homeNavGroups.map((group) => {
+                const isOpen = openGroups[group.key] !== false;
+                return (
+                  <div key={group.key}>
+                    {!collapsed && (
+                      <button
+                        className="sidebar__group-toggle"
+                        aria-expanded={isOpen}
+                        data-open={isOpen ? "true" : "false"}
+                        onClick={() => toggleGroup(group.key)}
+                      >
+                        {group.label}
+                        <ChevronDown size={12} />
+                      </button>
+                    )}
+                    <div
+                      className="sidebar__group-items"
+                      data-open={collapsed || isOpen ? "true" : "false"}
+                    >
+                      <div className="sidebar__group-items-inner">
+                        {group.items.map((item) => {
+                          const link = (
+                            <NavLink
+                              key={item.to}
+                              to={item.to}
+                              end={item.end ?? false}
+                              className={({ isActive }) =>
+                                `sidebar__link${isActive ? " sidebar__link--active" : ""}`
+                              }
+                            >
+                              <item.icon size={18} className="sidebar__link-icon" />
+                              {!collapsed && <span>{item.label}</span>}
+                            </NavLink>
+                          );
+                          return collapsed ? (
+                            <Tooltip key={item.to}>
+                              <TooltipTrigger render={link} />
+                              <TooltipContent side="right">{item.label}</TooltipContent>
+                            </Tooltip>
+                          ) : (
+                            link
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
                 );
               })}
 
@@ -209,104 +203,37 @@ export function DashboardLayout() {
             </nav>
           </TooltipProvider>
 
-          <TooltipProvider delay={0}>
-            <div className="sidebar__footer">
-              {(() => {
-                const btn = (
-                  <button
-                    className="sidebar__link"
-                    onClick={() => {
-                      const { resolved, setTheme } = themeCtx;
-                      setTheme(resolved === "dark" ? "light" : "dark");
-                    }}
-                  >
-                    {themeCtx.resolved === "dark" ? (
-                      <Sun size={18} className="sidebar__link-icon" />
-                    ) : (
-                      <Moon size={18} className="sidebar__link-icon" />
-                    )}
-                    {!collapsed && (
-                      <span>{themeCtx.resolved === "dark" ? "Light mode" : "Dark mode"}</span>
-                    )}
-                  </button>
-                );
-                return collapsed ? (
-                  <Tooltip>
-                    <TooltipTrigger render={btn} />
-                    <TooltipContent side="right">Toggle theme</TooltipContent>
-                  </Tooltip>
-                ) : (
-                  btn
-                );
-              })()}
-              <DropdownMenu>
-                <DropdownMenuTrigger
-                  render={
-                    <button className="sidebar__user-card group">
-                      <Avatar className="h-8 w-8 ring-2 ring-transparent transition-all group-hover:ring-primary/20">
-                        <AvatarFallback className="bg-primary/10 text-xs font-semibold text-primary">
-                          {userInitial}
-                        </AvatarFallback>
-                      </Avatar>
-                      {!collapsed && (
-                        <>
-                          <div className="sidebar__user-info">
-                            <p className="sidebar__user-name">{session.data.user.name}</p>
-                            <p className="sidebar__user-email">{session.data.user.email}</p>
-                          </div>
-                          <ChevronsUpDown size={14} className="ml-auto opacity-50" />
-                        </>
-                      )}
-                    </button>
-                  }
-                />
-                <DropdownMenuContent side="top" className="w-56 backdrop-blur-xl" align="start">
-                  <DropdownMenuLabel>
-                    <p className="font-medium">{session.data.user.name}</p>
-                    <p className="text-xs text-muted-foreground">{session.data.user.email}</p>
-                  </DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => void navigate("/profile")}>
-                    <User size={14} />
-                    Profile Settings
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    onClick={() => void authClient.signOut()}
-                    className="text-destructive"
-                  >
-                    <LogOut size={14} />
-                    Sign out
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          </TooltipProvider>
+          <SidebarFooter
+            collapsed={collapsed}
+            userName={session.data.user.name ?? ""}
+            userEmail={session.data.user.email}
+          />
         </aside>
 
         {/* ── Main content ── */}
         <section className="layout__content">
           <header className="topbar" role="banner">
+            <button
+              className="mobile-menu-btn"
+              onClick={() => setMobileOpen((v) => !v)}
+              aria-label="Toggle menu"
+            >
+              <Menu size={20} />
+            </button>
             <nav className="topbar__breadcrumb" aria-label="Breadcrumb">
               {crumbs.map((crumb, i) => {
-                const path =
-                  "/" +
-                  crumbs
-                    .slice(0, i + 1)
-                    .map((c) => c.toLowerCase())
-                    .join("/");
                 const isLast = i === crumbs.length - 1;
                 return (
-                  <span key={crumb}>
+                  <span key={crumb.path}>
                     {i > 0 && <span className="topbar__breadcrumb-sep">/</span>}
                     {isLast ? (
-                      <span className="topbar__breadcrumb-current">{crumb}</span>
+                      <span className="topbar__breadcrumb-current">{crumb.label}</span>
                     ) : (
                       <button
                         className="topbar__breadcrumb-item hover:underline"
-                        onClick={() => void navigate(path === "/dashboard" ? "/" : path)}
+                        onClick={() => void navigate(crumb.path)}
                       >
-                        {crumb}
+                        {crumb.label}
                       </button>
                     )}
                   </span>

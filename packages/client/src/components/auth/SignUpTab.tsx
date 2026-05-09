@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { AuthFieldError } from "@/components/auth/AuthFieldError";
-import { AlertCircle, Eye, EyeOff } from "lucide-react";
+import { AlertCircle, Eye, EyeOff, Loader2 } from "lucide-react";
 
 function getPasswordStrength(password: string): { score: number; label: string; color: string } {
   let score = 0;
@@ -73,13 +73,15 @@ export function SignUpTab({ onAuthenticated }: { onAuthenticated: () => Promise<
 
   return (
     <>
-      <SetupStepIndicator
-        steps={[
-          { label: "Create Account", completed: false, active: true },
-          { label: "Configure Server", completed: false, active: false },
-          { label: "Deploy", completed: false, active: false }
-        ]}
-      />
+      {!feedback && (
+        <SetupStepIndicator
+          steps={[
+            { label: "Create Account", completed: false, active: true },
+            { label: "Configure Server", completed: false, active: false },
+            { label: "Deploy", completed: false, active: false }
+          ]}
+        />
+      )}
       <form className="mt-4 flex flex-col gap-4" noValidate onSubmit={(e) => void handleSubmit(e)}>
         <div className="space-y-2">
           <Label htmlFor="signup-name">Name</Label>
@@ -184,7 +186,14 @@ export function SignUpTab({ onAuthenticated }: { onAuthenticated: () => Promise<
           disabled={loading}
           data-testid="login-signup-submit"
         >
-          {loading ? "Creating account…" : "Create account"}
+          {loading ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Creating account…
+            </>
+          ) : (
+            "Create account"
+          )}
         </Button>
       </form>
     </>

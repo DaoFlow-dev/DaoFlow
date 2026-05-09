@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { AuthFieldError } from "@/components/auth/AuthFieldError";
-import { AlertCircle, Eye, EyeOff, ShieldCheck } from "lucide-react";
+import { AlertCircle, Eye, EyeOff, Loader2, ShieldCheck } from "lucide-react";
 
 type AuthClientResult<TData> = {
   data?: TData | null;
@@ -167,7 +167,14 @@ export function SignInTab({ onAuthenticated }: { onAuthenticated: () => Promise<
           disabled={loading}
           data-testid="login-mfa-submit"
         >
-          {loading ? "Verifying…" : "Verify"}
+          {loading ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Verifying…
+            </>
+          ) : (
+            "Verify"
+          )}
         </Button>
       </form>
     );
@@ -242,7 +249,14 @@ export function SignInTab({ onAuthenticated }: { onAuthenticated: () => Promise<
         disabled={loading}
         data-testid="login-signin-submit"
       >
-        {loading ? "Signing in…" : "Sign in"}
+        {loading ? (
+          <>
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            Signing in…
+          </>
+        ) : (
+          "Sign in"
+        )}
       </Button>
       <p className="text-center text-sm">
         <a

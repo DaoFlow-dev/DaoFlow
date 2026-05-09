@@ -477,6 +477,81 @@ body:is(.dark *)::after {
   margin: 0;
 }
 
+/* ========= Sidebar nav groups ========= */
+.sidebar__group-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  appearance: none;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  margin: 0.75rem 0 0.25rem;
+  padding: 0 0.45rem;
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--sidebar-accent-foreground);
+  white-space: nowrap;
+  overflow: hidden;
+  min-height: 1.1rem;
+  transition: color 0.15s;
+}
+
+.sidebar__group-toggle:hover {
+  color: var(--sidebar-foreground);
+}
+
+.sidebar__group-toggle svg {
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
+}
+
+.sidebar__group-toggle[data-open="true"] svg {
+  transform: rotate(0deg);
+}
+
+.sidebar__group-toggle[data-open="false"] svg {
+  transform: rotate(-90deg);
+}
+
+.sidebar__group-items {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows 0.2s ease;
+}
+
+.sidebar__group-items[data-open="false"] {
+  grid-template-rows: 0fr;
+  visibility: hidden;
+}
+
+.sidebar__group-items-inner {
+  overflow: hidden;
+}
+
+/* ========= Mobile sidebar ========= */
+.mobile-menu-btn {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  appearance: none;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--foreground);
+  cursor: pointer;
+  padding: 0.35rem;
+  margin-right: 0.5rem;
+  flex-shrink: 0;
+}
+
+.mobile-backdrop {
+  display: none;
+}
+
 /* ========= Responsive ========= */
 @media (max-width: 900px) {
   .layout {
@@ -489,6 +564,27 @@ body:is(.dark *)::after {
     left: calc(-1 * var(--layout-sidebar-mobile-width));
     width: var(--layout-sidebar-mobile-width);
     z-index: 200;
+  }
+
+  .sidebar[data-mobile-open="true"] {
+    left: 0;
+  }
+
+  .mobile-menu-btn {
+    display: flex;
+  }
+
+  .mobile-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 199;
+    background: rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(2px);
+  }
+
+  .mobile-backdrop[data-open="true"] {
+    display: block;
   }
 
   .shell {
