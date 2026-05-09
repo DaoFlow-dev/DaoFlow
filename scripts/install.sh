@@ -124,6 +124,16 @@ run_install() {
   echo ""
   echo "Running daoflow install..."
   echo ""
+
+  # When --yes is passed, no interactive prompts are needed — skip TTY redirect.
+  # This avoids "cannot open /dev/tty" failures when piped over non-interactive SSH.
+  for arg in "$@"; do
+    if [ "$arg" = "--yes" ]; then
+      daoflow install "$@"
+      return
+    fi
+  done
+
   if [ -t 0 ]; then
     daoflow install "$@"
   elif [ -r /dev/tty ]; then

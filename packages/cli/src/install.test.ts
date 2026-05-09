@@ -269,14 +269,14 @@ DEPLOY_TIMEOUT_MS=900000
     });
 
     expect(result.exitCode).toBe(1);
-    expect(JSON.parse(result.logs[0])).toEqual({
+    const parsed = JSON.parse(result.logs[0]) as { ok: boolean; error: string; code: string };
+    expect(parsed).toMatchObject({
       ok: false,
-      error:
-        "DaoFlow did not become ready before the installer timeout. Run 'docker compose logs daoflow' in the install directory and retry.",
       code: "INSTALL_READINESS_TIMEOUT",
       directory: installDir,
       port: 3000
     });
+    expect(parsed.error).toContain("DaoFlow did not become ready before the installer timeout.");
   });
 
   test("rewrites BETTER_AUTH_URL from tailscale exposure output", async () => {

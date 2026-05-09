@@ -194,6 +194,19 @@ export function installCommand(): Command {
             pullSpinner?.warn("Image pull failed — will attempt to start anyway");
           }
 
+          if (!config.existingInstall) {
+            try {
+              runComposeCommand({
+                runtime: installRuntime,
+                dir: config.dir,
+                args: "down -v",
+                envPath
+              });
+            } catch {
+              // No existing project to tear down — expected on first install
+            }
+          }
+
           const startSpinner = !ctx.isJson ? ora("Starting DaoFlow services...").start() : null;
           try {
             runComposeCommand({
@@ -219,16 +232,38 @@ export function installCommand(): Command {
             healthSpinner?.succeed("DaoFlow is ready!");
           } else {
             healthSpinner?.fail("Readiness check timed out");
-            ctx.fail(
-              "DaoFlow did not become ready before the installer timeout. Run 'docker compose logs daoflow' in the install directory and retry.",
-              {
-                code: "INSTALL_READINESS_TIMEOUT",
-                extra: {
-                  directory: config.dir,
-                  port: config.port
-                }
+
+            let containerStatus = "";
+            try {
+              containerStatus = String(
+                runComposeCommand({
+                  runtime: installRuntime,
+                  dir: config.dir,
+                  args: 'ps daoflow --format "{{.Status}}"'
+                })
+              ).trim();
+            } catch {
+              // best-effort
+            }
+
+            const lines = [
+              "DaoFlow did not become ready before the installer timeout.",
+              `Run 'docker compose logs daoflow' in ${config.dir} to diagnose.`
+            ];
+            if (containerStatus.toLowerCase().includes("restarting")) {
+              lines.push(
+                "The container is crash-looping — check the logs above for database auth errors or missing AVX CPU support."
+              );
+            }
+
+            ctx.fail(lines.join(" "), {
+              code: "INSTALL_READINESS_TIMEOUT",
+              extra: {
+                directory: config.dir,
+                port: config.port,
+                containerStatus: containerStatus || undefined
               }
-            );
+            });
           }
 
           const exposureSpinner =
