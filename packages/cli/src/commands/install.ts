@@ -212,7 +212,8 @@ export function installCommand(): Command {
             runComposeCommand({
               runtime: installRuntime,
               dir: config.dir,
-              args: "up -d"
+              args: "up -d",
+              envPath
             });
             startSpinner?.succeed("DaoFlow services started");
           } catch (error) {
@@ -239,7 +240,8 @@ export function installCommand(): Command {
                 runComposeCommand({
                   runtime: installRuntime,
                   dir: config.dir,
-                  args: 'ps daoflow --format "{{.Status}}"'
+                  args: 'ps daoflow --format "{{.Status}}"',
+                  envPath
                 })
               ).trim();
             } catch {
@@ -309,7 +311,8 @@ export function installCommand(): Command {
               runComposeCommand({
                 runtime: installRuntime,
                 dir: config.dir,
-                args: "up -d"
+                args: "up -d",
+                envPath
               });
               authUrlSpinner?.succeed("BETTER_AUTH_URL updated to the exposed HTTPS URL");
               healthy = await waitForInstallHealth({
