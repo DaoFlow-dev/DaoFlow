@@ -6,6 +6,7 @@ import { resolveServiceRuntime } from "../db/services/service-runtime";
 import { getLatestServerMetrics, listServerMetricsHistory } from "../db/services/server-metrics";
 import { resolveTeamIdForUser } from "../db/services/teams";
 import { collectServerMetrics } from "../worker/server-metrics-collector";
+import { detectPortConflicts } from "../worker/port-conflict-detection";
 import { resolveExecutionTarget } from "../worker/execution-target";
 import { readServiceStats } from "../worker/service-observability";
 import { authorizeRequest } from "./request-auth";
@@ -113,4 +114,37 @@ serviceObservabilityRouter.get("/server-metrics/:serverId", async (c) => {
     );
   }
   return c.json(latest);
+});
+
+serviceObservabilityRouter.post("/port-check/:serverId", async (c) => {
+  const authResult = await authorizeRequest({
+    headers: c.req.raw.headers,
+    requiredScopes: ["diagnostics:read"]
+  });
+  if (!authResult.ok) {
+    return c.json(authResult.body, authResult.status);
+  }
+
+  const serverId = c.req.param("serverId");
+  const [server] = await db.select().from(servers).where(eq(servers.id, serverId)).limit(1);
+  if (!server) {
+    return c.json({ ok: false, error: "Server not found", code: "NOT_FOUND" }, 404);
+  }
+
+  const body = await c.req.json<{ ports?: Array<{ port: number; protocol?: string }> }>();
+  const ports = (body.ports ?? [])
+    .filter((p) => typeof p.port === "number" && p.port >= 1 && p.port <= 65535)
+    .map((p) => ({
+      port: p.port,
+      protocol: p.protocol === "udp" ? ("udp" as const) : ("tcp" as const)
+    }));
+
+  if (ports.length === 0) {
+    return c.json({ conflicts: [], checked: [] });
+  }
+
+  const teamId = await resolveTeamIdForUser(authResult.actor.session.user.id);
+  const target = await resolveExecutionTarget(server, "port-check", teamId ?? undefined);
+  const report = await detectPortConflicts(target, ports);
+  return c.json(report);
 });
