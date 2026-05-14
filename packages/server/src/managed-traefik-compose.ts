@@ -94,6 +94,17 @@ export function applyManagedTraefikRoutingToComposeDoc(
             labels[`${prefix}.redirectscheme.scheme`] = "https";
             labels[`${prefix}.redirectscheme.permanent`] = "true";
             break;
+          case "redirect-regex":
+            if (typeof mw.config.regex === "string") {
+              labels[`${prefix}.redirectregex.regex`] = mw.config.regex;
+            }
+            if (typeof mw.config.replacement === "string") {
+              labels[`${prefix}.redirectregex.replacement`] = mw.config.replacement;
+            }
+            if (mw.config.permanent === true) {
+              labels[`${prefix}.redirectregex.permanent`] = "true";
+            }
+            break;
           case "basic-auth":
             if (typeof mw.config.users === "string") {
               labels[`${prefix}.basicauth.users`] = mw.config.users;

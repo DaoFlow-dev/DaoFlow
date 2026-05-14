@@ -14,6 +14,7 @@ export interface ManagedTraefikProxyConfig {
 export interface ManagedTraefikMiddleware {
   type:
     | "redirect-https"
+    | "redirect-regex"
     | "basic-auth"
     | "strip-prefix"
     | "headers"

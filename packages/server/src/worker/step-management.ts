@@ -184,6 +184,7 @@ export interface ConfigSnapshot extends Record<string, unknown> {
   volumes?: string[];
   env?: Record<string, string>;
   network?: string;
+  buildpackBuilder?: string;
   deploymentSource?: string;
   repositoryPreparation?: RepositoryPreparationConfig;
   uploadedComposeFileName?: string;

@@ -6,6 +6,7 @@ import { resolveExecutionTarget, withPreparedExecutionTarget } from "./execution
 import { createLogStreamer } from "./log-streamer";
 import { transitionDeployment, emitEvent, readConfig, type DeploymentRow } from "./step-management";
 import {
+  executeBuildpackDeployment,
   executeComposeDeployment,
   executeDockerfileDeployment,
   executeImageDeployment,
@@ -87,6 +88,15 @@ export async function runDeployment(
       if (deployment.sourceType === "nixpacks") {
         await Promise.race([
           executeNixpacksDeployment(deployment, config, containerName, onLog, preparedTarget),
+          timeoutPromise
+        ]);
+        await throwIfDeploymentCancellationRequested(deployment.id);
+        return;
+      }
+
+      if (deployment.sourceType === "buildpack") {
+        await Promise.race([
+          executeBuildpackDeployment(deployment, config, containerName, onLog, preparedTarget),
           timeoutPromise
         ]);
         await throwIfDeploymentCancellationRequested(deployment.id);

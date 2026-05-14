@@ -386,3 +386,100 @@ async function waitForHealthy(
   );
   throw new Error(`Health check timeout for ${containerName}`);
 }
+
+export async function executeBuildpackDeployment(
+  deployment: DeploymentRow,
+  config: ConfigSnapshot,
+  containerName: string,
+  onLog: OnLog,
+  target: ExecutionTarget
+): Promise<void> {
+  const tag = `daoflow/${deployment.serviceName}:${deployment.commitSha ?? "latest"}`;
+  const builder = config.buildpackBuilder ?? "heroku/builder:24";
+
+  await throwIfDeploymentCancellationRequested(deployment.id);
+
+  const cloneStepId = await createStep(deployment.id, "Clone repository", 1);
+  await markStepRunning(cloneStepId);
+
+  const checkout = await resolveCheckoutSpec(config);
+  if (!checkout) {
+    await markStepFailed(cloneStepId, "No repository URL provided for buildpack deployment");
+    throw new Error("Buildpack deployment requires a repository URL");
+  }
+
+  const cloneResult = await gitClone(checkout.repoUrl, checkout.branch, deployment.id, onLog, {
+    displayLabel: checkout.displayLabel,
+    gitConfig: checkout.gitConfig,
+    sshPrivateKey: checkout.sshPrivateKey,
+    repositoryPreparation: checkout.repositoryPreparation,
+    commitSha: deployment.commitSha ?? undefined
+  });
+  if (cloneResult.exitCode !== 0) {
+    await markStepFailed(cloneStepId, `git clone exited with code ${cloneResult.exitCode}`);
+    throw new Error(`git clone failed with exit code ${cloneResult.exitCode}`);
+  }
+  await markStepComplete(cloneStepId, `Repository cloned to ${cloneResult.workDir}`);
+  await throwIfDeploymentCancellationRequested(deployment.id);
+
+  const buildStepId = await createStep(deployment.id, "Buildpack build", 2);
+  await markStepRunning(buildStepId);
+  await transitionDeployment(deployment.id, "deploy");
+
+  const packArgs: string[] = ["build", tag, "--builder", builder, "--path", cloneResult.workDir];
+  const envVars = config.env ?? {};
+  for (const [key, value] of Object.entries(envVars)) {
+    packArgs.push("--env", `${key}=${value}`);
+  }
+
+  const buildResult = await execStreaming("pack", packArgs, STAGING_DIR, onLog);
+  if (buildResult.exitCode !== 0) {
+    await markStepFailed(buildStepId, `pack build exited with code ${buildResult.exitCode}`);
+    throw new Error(`pack build failed with exit code ${buildResult.exitCode}`);
+  }
+  await markStepComplete(buildStepId, `Image ${tag} built with ${builder}`);
+  await throwIfDeploymentCancellationRequested(deployment.id);
+
+  const runStepId = await createStep(deployment.id, "Start container", 3);
+  await markStepRunning(runStepId);
+
+  const runResult =
+    target.mode === "remote"
+      ? await remoteDockerRun(
+          target.ssh,
+          tag,
+          containerName,
+          {
+            ports: config.ports ?? [],
+            volumes: config.volumes ?? [],
+            env: envVars,
+            network: config.network
+          },
+          onLog
+        )
+      : await dockerRun(
+          tag,
+          containerName,
+          {
+            ports: config.ports ?? [],
+            volumes: config.volumes ?? [],
+            env: envVars,
+            network: config.network
+          },
+          onLog
+        );
+  if (runResult.exitCode !== 0) {
+    await markStepFailed(runStepId, `docker run exited with code ${runResult.exitCode}`);
+    throw new Error(`docker run failed with exit code ${runResult.exitCode}`);
+  }
+
+  await db
+    .update(deployments)
+    .set({ containerId: containerName })
+    .where(eq(deployments.id, deployment.id));
+
+  await markStepComplete(runStepId, `Container ${containerName} started`);
+  await throwIfDeploymentCancellationRequested(deployment.id);
+
+  await waitForHealthy(deployment, containerName, onLog, target);
+}
