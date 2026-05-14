@@ -21,7 +21,7 @@ function shellQuote(arg: string): string {
 const METRICS_SCRIPT = [
   // CPU: 1-second sample via /proc/stat
   `cpu1=$(cat /proc/stat | head -1); sleep 1; cpu2=$(cat /proc/stat | head -1);`,
-  `echo "CPU:$(echo "$cpu1" "$cpu2" | awk '{`,
+  `echo "CPU:$(printf '%s\\n%s\\n' "$cpu1" "$cpu2" | awk '{`,
   `  if(NR==1){u1=$2+$4;t1=$2+$3+$4+$5+$6+$7+$8}`,
   `  else{u2=$2+$4;t2=$2+$3+$4+$5+$6+$7+$8;`,
   `  if(t2-t1>0)printf "%.1f",(u2-u1)/(t2-t1)*100; else print "0"}`,
