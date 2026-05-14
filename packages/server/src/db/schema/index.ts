@@ -24,3 +24,4 @@ export * from "./log-drains";
 export * from "./secret-providers";
 export * from "./cli-auth";
 export * from "./registries";
+export * from "./server-metrics";

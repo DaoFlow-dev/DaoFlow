@@ -3855,6 +3855,37 @@
       "supportsYes": true
     },
     {
+      "path": "server-metrics",
+      "summary": "Show host-level server metrics (CPU, memory, disk, network)",
+      "lane": "read",
+      "requiredScopes": ["diagnostics:read"],
+      "mutating": false,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--server <id>",
+          "description": "Server ID",
+          "required": true
+        },
+        {
+          "flags": "--live",
+          "description": "Collect fresh metrics (slower, ~2s)",
+          "required": false
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
       "path": "services",
       "summary": "Manage services and view runtime status",
       "lane": "read",

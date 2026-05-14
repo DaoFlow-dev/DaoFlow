@@ -88,6 +88,8 @@ addApiGroup(
     "backupDestination",
     "backupMetrics",
     "backupDiagnosis",
+    "serverMetrics",
+    "serverMetricsOverview",
     "listSecretProviders",
     "validateSecretRef",
     "listPushSubscriptions",
@@ -931,7 +933,8 @@ export const cliCommandMeta: Record<string, CliCommandMeta> = {
   events: { lane: "read", requiredScopes: ["events:read"], mutating: false },
   diagnose: { lane: "read", requiredScopes: ["deploy:read"], mutating: false },
   drift: { lane: "read", requiredScopes: ["deploy:read"], mutating: false },
-  stats: { lane: "read", requiredScopes: ["diagnostics:read"], mutating: false }
+  stats: { lane: "read", requiredScopes: ["diagnostics:read"], mutating: false },
+  "server-metrics": { lane: "read", requiredScopes: ["diagnostics:read"], mutating: false }
 };
 
 export const cliExamples = [

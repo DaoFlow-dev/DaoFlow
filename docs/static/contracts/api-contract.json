@@ -4310,6 +4310,48 @@
       }
     },
     {
+      "name": "serverMetrics",
+      "summary": "server Metrics",
+      "path": "/trpc/serverMetrics",
+      "method": "GET",
+      "lane": "read",
+      "auth": "authenticated",
+      "requiredRoles": [],
+      "requiredScopes": [],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "serverId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 500
+          },
+          "since": {
+            "type": "string",
+            "pattern": "^([1-9]\\d*)([mhdw])$"
+          }
+        },
+        "required": ["serverId"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "serverMetricsOverview",
+      "summary": "server Metrics Overview",
+      "path": "/trpc/serverMetricsOverview",
+      "method": "GET",
+      "lane": "read",
+      "auth": "authenticated",
+      "requiredRoles": [],
+      "requiredScopes": [],
+      "inputSchema": null
+    },
+    {
       "name": "serverOperationLogs",
       "summary": "server Operation Logs",
       "path": "/trpc/serverOperationLogs",

@@ -40,6 +40,7 @@ import { eventsCommand } from "./commands/events";
 import { diagnoseCommand } from "./commands/diagnose";
 import { driftCommand } from "./commands/drift";
 import { statsCommand } from "./commands/stats";
+import { serverMetricsCommand } from "./commands/server-metrics";
 import { emitJsonError, getErrorMessage } from "./command-helpers";
 
 function wantsJson(argv: readonly string[]): boolean {
@@ -177,6 +178,7 @@ export function createProgram(): Command {
   program.addCommand(diagnoseCommand());
   program.addCommand(driftCommand());
   program.addCommand(statsCommand());
+  program.addCommand(serverMetricsCommand());
   registerConfigCommand(program);
 
   const originalParseAsync = program.parseAsync.bind(program);

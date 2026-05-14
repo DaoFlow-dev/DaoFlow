@@ -141,6 +141,13 @@
       "when": 1778145910960,
       "tag": "0019_chilly_stranger",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1778768249786,
+      "tag": "0020_lying_skreet",
+      "breakpoints": true
     }
   ]
 }
