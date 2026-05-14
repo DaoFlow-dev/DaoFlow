@@ -71,7 +71,7 @@ export function applyManagedTraefikRoutingToComposeDoc(
     }
 
     attachNetwork(service, route.networkName);
-    mergeLabels(service, {
+    const labels: Record<string, string> = {
       "traefik.enable": "true",
       "traefik.docker.network": route.networkName,
       [`traefik.http.routers.${route.routerName}.rule`]: `Host(\`${route.hostname}\`)`,
@@ -81,6 +81,65 @@ export function applyManagedTraefikRoutingToComposeDoc(
       [`traefik.http.services.${route.traefikServiceName}.loadbalancer.server.port`]: String(
         route.targetPort
       )
-    });
+    };
+
+    if (route.middlewares && route.middlewares.length > 0) {
+      const middlewareNames: string[] = [];
+      for (const mw of route.middlewares) {
+        const mwName = `${route.routerName}-${mw.name}`;
+        middlewareNames.push(mwName);
+        const prefix = `traefik.http.middlewares.${mwName}`;
+        switch (mw.type) {
+          case "redirect-https":
+            labels[`${prefix}.redirectscheme.scheme`] = "https";
+            labels[`${prefix}.redirectscheme.permanent`] = "true";
+            break;
+          case "basic-auth":
+            if (typeof mw.config.users === "string") {
+              labels[`${prefix}.basicauth.users`] = mw.config.users;
+            }
+            break;
+          case "strip-prefix":
+            if (Array.isArray(mw.config.prefixes)) {
+              labels[`${prefix}.stripprefix.prefixes`] = (mw.config.prefixes as string[]).join(",");
+            }
+            break;
+          case "headers":
+            if (mw.config.customRequestHeaders) {
+              for (const [k, v] of Object.entries(
+                mw.config.customRequestHeaders as Record<string, string>
+              )) {
+                labels[`${prefix}.headers.customrequestheaders.${k}`] = v;
+              }
+            }
+            if (mw.config.customResponseHeaders) {
+              for (const [k, v] of Object.entries(
+                mw.config.customResponseHeaders as Record<string, string>
+              )) {
+                labels[`${prefix}.headers.customresponseheaders.${k}`] = v;
+              }
+            }
+            break;
+          case "rate-limit":
+            if (typeof mw.config.average === "number") {
+              labels[`${prefix}.ratelimit.average`] = String(mw.config.average);
+            }
+            if (typeof mw.config.burst === "number") {
+              labels[`${prefix}.ratelimit.burst`] = String(mw.config.burst);
+            }
+            break;
+          case "ip-whitelist":
+            if (Array.isArray(mw.config.sourceRange)) {
+              labels[`${prefix}.ipwhitelist.sourcerange`] = (
+                mw.config.sourceRange as string[]
+              ).join(",");
+            }
+            break;
+        }
+      }
+      labels[`traefik.http.routers.${route.routerName}.middlewares`] = middlewareNames.join(",");
+    }
+
+    mergeLabels(service, labels);
   }
 }

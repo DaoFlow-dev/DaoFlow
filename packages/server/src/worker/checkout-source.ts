@@ -191,6 +191,56 @@ async function resolveGitLabCheckoutSpec(config: ConfigSnapshot): Promise<Checko
   };
 }
 
+async function resolveGenericOAuthCheckoutSpec(
+  config: ConfigSnapshot,
+  providerType: string
+): Promise<CheckoutSpec> {
+  const providerId = config.gitProviderId;
+  const installationId = config.gitInstallationId;
+  const repoFullName = config.repoFullName;
+  if (!providerId || !installationId || !repoFullName) {
+    throw new Error(
+      `${providerType} source is missing provider, installation, or repository metadata.`
+    );
+  }
+
+  const [provider, installation] = await Promise.all([
+    db.select().from(gitProviders).where(eq(gitProviders.id, providerId)).limit(1),
+    getGitInstallation(installationId)
+  ]);
+
+  if (!provider[0]) throw new Error(`Git provider ${providerId} not found.`);
+  if (!installation || installation.providerId !== providerId) {
+    throw new Error(`Git installation ${installationId} not found for provider ${providerId}.`);
+  }
+
+  const accessToken = readGitInstallationAccessToken(installation);
+  if (!accessToken) {
+    throw new Error(
+      `${providerType} installation ${installationId} does not have a usable access token.`
+    );
+  }
+
+  const baseUrl = provider[0].baseUrl?.replace(/\/$/, "");
+  const repoUrl =
+    providerType === "bitbucket"
+      ? `https://bitbucket.org/${repoFullName}.git`
+      : baseUrl
+        ? `${baseUrl}/${repoFullName}.git`
+        : `https://${providerType}.com/${repoFullName}.git`;
+
+  const repositoryPreparation = readRepositoryPreparationConfig(config.repositoryPreparation);
+
+  return {
+    repoUrl,
+    branch: config.branch ?? "main",
+    displayLabel: repoFullName,
+    gitConfig: [authorizationHeader(`Authorization: Bearer ${accessToken}`)],
+    repositoryPreparation,
+    requiresLocalMaterialization: true
+  };
+}
+
 export async function resolveCheckoutSpec(config: ConfigSnapshot): Promise<CheckoutSpec | null> {
   const repositoryPreparation = readRepositoryPreparationConfig(config.repositoryPreparation);
 
@@ -211,6 +261,10 @@ export async function resolveCheckoutSpec(config: ConfigSnapshot): Promise<Check
 
     if (provider.type === "gitlab") {
       return resolveGitLabCheckoutSpec(config);
+    }
+
+    if (provider.type === "bitbucket" || provider.type === "gitea") {
+      return resolveGenericOAuthCheckoutSpec(config, provider.type);
     }
 
     throw new Error(`Unsupported git provider type: ${provider.type}`);

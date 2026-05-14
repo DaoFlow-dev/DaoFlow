@@ -11,6 +11,18 @@ export interface ManagedTraefikProxyConfig {
   dnsTarget: string | null;
 }
 
+export interface ManagedTraefikMiddleware {
+  type:
+    | "redirect-https"
+    | "basic-auth"
+    | "strip-prefix"
+    | "headers"
+    | "rate-limit"
+    | "ip-whitelist";
+  name: string;
+  config: Record<string, unknown>;
+}
+
 export interface ManagedTraefikRouteIntent {
   domainId: string;
   hostname: string;
@@ -21,6 +33,7 @@ export interface ManagedTraefikRouteIntent {
   networkName: string;
   entrypoint: string;
   certificateResolver: string;
+  middlewares: ManagedTraefikMiddleware[];
 }
 
 export interface ManagedTraefikRoutingPlan {
@@ -155,7 +168,8 @@ export function buildManagedTraefikRoutingPlan(input: {
       traefikServiceName: `daoflow-${slug}-svc`.slice(0, 63),
       networkName: proxy.networkName,
       entrypoint: proxy.entrypoint,
-      certificateResolver: proxy.certificateResolver
+      certificateResolver: proxy.certificateResolver,
+      middlewares: []
     });
   }
 
@@ -205,7 +219,10 @@ export function readManagedTraefikRoutingPlan(value: unknown): ManagedTraefikRou
             networkName: readNonEmptyString(routeRecord.networkName) ?? proxy.networkName,
             entrypoint: readNonEmptyString(routeRecord.entrypoint) ?? proxy.entrypoint,
             certificateResolver:
-              readNonEmptyString(routeRecord.certificateResolver) ?? proxy.certificateResolver
+              readNonEmptyString(routeRecord.certificateResolver) ?? proxy.certificateResolver,
+            middlewares: Array.isArray(routeRecord.middlewares)
+              ? (routeRecord.middlewares as ManagedTraefikMiddleware[])
+              : []
           } satisfies ManagedTraefikRouteIntent;
         })
         .filter((route): route is ManagedTraefikRouteIntent => route !== null)

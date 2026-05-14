@@ -120,7 +120,8 @@ describe("compose input materialization", () => {
             traefikServiceName: "daoflow-api-app-example-com-svc",
             networkName: "daoflow-proxy",
             entrypoint: "websecure",
-            certificateResolver: "letsencrypt"
+            certificateResolver: "letsencrypt",
+            middlewares: []
           }
         ],
         unresolvedDomains: []

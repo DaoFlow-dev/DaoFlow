@@ -9,7 +9,7 @@ export const gitProviders = pgTable(
   "git_providers",
   {
     id: varchar("id", { length: 32 }).primaryKey(),
-    type: varchar("type", { length: 20 }).default("github").notNull(), // github | gitlab
+    type: varchar("type", { length: 20 }).default("github").notNull(), // github | gitlab | bitbucket | gitea
     name: varchar("name", { length: 100 }).notNull(), // human-readable label
     appId: varchar("app_id", { length: 40 }), // GitHub App ID
     clientId: varchar("client_id", { length: 80 }),

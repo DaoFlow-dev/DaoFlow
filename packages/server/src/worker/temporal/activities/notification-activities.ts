@@ -25,6 +25,15 @@ import {
   sendWebPushNotifications,
   type SendResult
 } from "./notification-senders";
+import {
+  sendTelegramNotification,
+  sendTeamsWebhook,
+  sendGotifyNotification,
+  sendNtfyNotification,
+  sendMattermostWebhook,
+  sendPushoverNotification,
+  sendLarkWebhook
+} from "./notification-extended-senders";
 import type { NotificationPayload } from "./notification-sender-types";
 
 // Re-export builders so Temporal proxyActivities can find them
@@ -206,12 +215,45 @@ async function deliverNotification(
       case "email":
         result = await sendEmailNotification(channel, payload);
         break;
+      case "telegram": {
+        const meta = (channel.metadata ?? {}) as Record<string, string>;
+        result = await sendTelegramNotification(meta.botToken ?? "", meta.chatId ?? "", payload);
+        break;
+      }
+      case "teams":
+        result = await sendTeamsWebhook(channel.webhookUrl!, payload);
+        break;
+      case "gotify": {
+        const meta = (channel.metadata ?? {}) as Record<string, string>;
+        result = await sendGotifyNotification(
+          meta.serverUrl ?? channel.webhookUrl ?? "",
+          meta.appToken ?? "",
+          payload
+        );
+        break;
+      }
+      case "ntfy": {
+        const meta = (channel.metadata ?? {}) as Record<string, string>;
+        result = await sendNtfyNotification(
+          meta.serverUrl ?? "https://ntfy.sh",
+          meta.topic ?? "",
+          payload
+        );
+        break;
+      }
+      case "mattermost":
+        result = await sendMattermostWebhook(channel.webhookUrl!, payload);
+        break;
+      case "pushover": {
+        const meta = (channel.metadata ?? {}) as Record<string, string>;
+        result = await sendPushoverNotification(meta.userKey ?? "", meta.apiToken ?? "", payload);
+        break;
+      }
+      case "lark":
+        result = await sendLarkWebhook(channel.webhookUrl!, payload);
+        break;
       default:
-        result = {
-          ok: false,
-          httpStatus: 0,
-          error: `Unknown channel type: ${channel.channelType}`
-        };
+        result = await sendGenericWebhook(channel.webhookUrl ?? "", payload);
     }
   }
 

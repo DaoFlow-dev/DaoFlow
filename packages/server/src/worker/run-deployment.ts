@@ -8,7 +8,8 @@ import { transitionDeployment, emitEvent, readConfig, type DeploymentRow } from 
 import {
   executeComposeDeployment,
   executeDockerfileDeployment,
-  executeImageDeployment
+  executeImageDeployment,
+  executeNixpacksDeployment
 } from "./deploy-strategies";
 import { throwIfDeploymentCancellationRequested } from "../db/services/deployment-execution-control";
 import { DeploymentCancellationError } from "../deployment-cancellation";
@@ -77,6 +78,15 @@ export async function runDeployment(
       if (deployment.sourceType === "image") {
         await Promise.race([
           executeImageDeployment(deployment, config, containerName, onLog, preparedTarget),
+          timeoutPromise
+        ]);
+        await throwIfDeploymentCancellationRequested(deployment.id);
+        return;
+      }
+
+      if (deployment.sourceType === "nixpacks") {
+        await Promise.race([
+          executeNixpacksDeployment(deployment, config, containerName, onLog, preparedTarget),
           timeoutPromise
         ]);
         await throwIfDeploymentCancellationRequested(deployment.id);
