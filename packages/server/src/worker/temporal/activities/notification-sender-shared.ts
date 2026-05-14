@@ -18,3 +18,36 @@ export const DISCORD_COLORS: Record<string, number> = {
   warning: 0xff9800,
   error: 0xf44336
 };
+
+const BLOCKED_HOSTS = new Set([
+  "localhost",
+  "127.0.0.1",
+  "::1",
+  "0.0.0.0",
+  "metadata.google.internal",
+  "169.254.169.254"
+]);
+
+export function validateWebhookUrl(url: string): { ok: true } | { ok: false; reason: string } {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return { ok: false, reason: "Invalid URL" };
+  }
+
+  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+    return { ok: false, reason: `Unsupported protocol: ${parsed.protocol}` };
+  }
+
+  const hostname = parsed.hostname.toLowerCase();
+  if (BLOCKED_HOSTS.has(hostname)) {
+    return { ok: false, reason: `Blocked host: ${hostname}` };
+  }
+
+  if (/^(10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.)/.test(hostname)) {
+    return { ok: false, reason: "RFC 1918 private IP addresses are not allowed" };
+  }
+
+  return { ok: true };
+}

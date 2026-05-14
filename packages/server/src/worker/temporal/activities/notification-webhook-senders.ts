@@ -1,10 +1,24 @@
-import { DISCORD_COLORS, SEVERITY_COLORS, SEVERITY_EMOJI } from "./notification-sender-shared";
+import {
+  DISCORD_COLORS,
+  SEVERITY_COLORS,
+  SEVERITY_EMOJI,
+  validateWebhookUrl
+} from "./notification-sender-shared";
 import type { NotificationPayload, SendResult } from "./notification-sender-types";
+
+function guardUrl(url: string): SendResult | null {
+  const check = validateWebhookUrl(url);
+  return check.ok
+    ? null
+    : { ok: false, httpStatus: 0, error: `Webhook URL blocked: ${check.reason}` };
+}
 
 export async function sendSlackWebhook(
   webhookUrl: string,
   payload: NotificationPayload
 ): Promise<SendResult> {
+  const blocked = guardUrl(webhookUrl);
+  if (blocked) return blocked;
   const color = SEVERITY_COLORS[payload.severity] ?? SEVERITY_COLORS.info;
   const emoji = SEVERITY_EMOJI[payload.severity] ?? "";
 
@@ -73,6 +87,8 @@ export async function sendDiscordWebhook(
   webhookUrl: string,
   payload: NotificationPayload
 ): Promise<SendResult> {
+  const blocked = guardUrl(webhookUrl);
+  if (blocked) return blocked;
   const color = DISCORD_COLORS[payload.severity] ?? DISCORD_COLORS.info;
   const emoji = SEVERITY_EMOJI[payload.severity] ?? "";
 
@@ -124,6 +140,8 @@ export async function sendGenericWebhook(
   webhookUrl: string,
   payload: NotificationPayload
 ): Promise<SendResult> {
+  const blocked = guardUrl(webhookUrl);
+  if (blocked) return blocked;
   try {
     const res = await fetch(webhookUrl, {
       method: "POST",

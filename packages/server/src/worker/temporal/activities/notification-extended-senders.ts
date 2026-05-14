@@ -1,4 +1,4 @@
-import { SEVERITY_EMOJI } from "./notification-sender-shared";
+import { SEVERITY_EMOJI, validateWebhookUrl } from "./notification-sender-shared";
 import type { NotificationPayload, SendResult } from "./notification-sender-types";
 
 function formatPlainText(payload: NotificationPayload): string {
@@ -17,6 +17,10 @@ async function postJson(
   body: unknown,
   headers?: Record<string, string>
 ): Promise<SendResult> {
+  const urlCheck = validateWebhookUrl(url);
+  if (!urlCheck.ok) {
+    return { ok: false, httpStatus: 0, error: `Webhook URL blocked: ${urlCheck.reason}` };
+  }
   try {
     const res = await fetch(url, {
       method: "POST",

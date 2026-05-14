@@ -24,6 +24,7 @@ import {
 import { readServerSwarmTopology, withRegisteredServerTopologyMetadata } from "./server-topology";
 import { writeManagedTraefikProxyConfigToMetadata } from "../../managed-traefik";
 import { createManagedSshKey } from "./access-assets";
+import { getLatestServerMetrics } from "./server-metrics";
 
 export interface RegisterServerInput {
   name: string;
@@ -195,16 +196,45 @@ export async function listServerReadiness(teamId: string, limit = 12) {
     };
   });
 
-  const measuredLatencies = checks
+  const metricsMap = new Map<string, { cpu: number; mem: number; disk: number }>();
+  try {
+    await Promise.all(
+      checks.map(async (check) => {
+        const latest = await getLatestServerMetrics(String(check.serverId));
+        if (latest) {
+          metricsMap.set(String(check.serverId), {
+            cpu: latest.cpuPercent,
+            mem: latest.memoryUsedPercent,
+            disk: latest.diskUsedPercent
+          });
+        }
+      })
+    );
+  } catch {
+    // server_metrics table may not exist yet (pre-migration)
+  }
+
+  const enrichedChecks = checks.map((check) => {
+    const metrics = metricsMap.get(String(check.serverId));
+    return {
+      ...check,
+      cpuPercent: metrics?.cpu ?? null,
+      memPercent: metrics?.mem ?? null,
+      diskPercent: metrics?.disk ?? null
+    };
+  });
+
+  const measuredLatencies = enrichedChecks
     .map((check) => check.latencyMs)
     .filter((latency): latency is number => typeof latency === "number");
 
   return {
     summary: {
-      totalServers: checks.length,
-      readyServers: checks.filter((check) => check.readinessStatus === "ready").length,
-      attentionServers: checks.filter((check) => check.readinessStatus === "attention").length,
-      blockedServers: checks.filter((check) => check.serverStatus === "offline").length,
+      totalServers: enrichedChecks.length,
+      readyServers: enrichedChecks.filter((check) => check.readinessStatus === "ready").length,
+      attentionServers: enrichedChecks.filter((check) => check.readinessStatus === "attention")
+        .length,
+      blockedServers: enrichedChecks.filter((check) => check.serverStatus === "offline").length,
       pollIntervalMs: resolveServerReadinessPollIntervalMs(),
       averageLatencyMs:
         measuredLatencies.length > 0
@@ -214,7 +244,7 @@ export async function listServerReadiness(teamId: string, limit = 12) {
             )
           : null
     },
-    checks
+    checks: enrichedChecks
   };
 }
 
