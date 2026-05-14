@@ -46,6 +46,7 @@ export async function resolveBackupPolicy(policyId: string): Promise<BackupPolic
     mountPath: volume.mountPath,
     serverId: server.id,
     serverName: server.name,
+    serverHost: server.host,
     retentionDays: policy.retentionDays,
     backupType: policy.backupType ?? "volume",
     databaseEngine: policy.databaseEngine ?? undefined,

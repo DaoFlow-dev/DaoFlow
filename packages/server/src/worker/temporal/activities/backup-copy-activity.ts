@@ -1,35 +1,94 @@
+import { spawnSync } from "node:child_process";
+import { existsSync, mkdirSync, rmSync } from "node:fs";
+import { join } from "node:path";
 import { copyToRemote, listRemote } from "../../rclone-executor";
 import type { BackupPolicyResolved, BackupRunResult } from "./backup-activity-types";
+
+function isLocalHost(host: string): boolean {
+  const h = host.trim().toLowerCase();
+  return h === "localhost" || h === "127.0.0.1" || h === "::1";
+}
+
+function stageDockerVolume(volumeName: string, stagingDir: string): string {
+  mkdirSync(stagingDir, { recursive: true });
+  const stagingPath = join(stagingDir, "volume-data");
+  mkdirSync(stagingPath, { recursive: true });
+
+  const result = spawnSync(
+    "docker",
+    [
+      "run",
+      "--rm",
+      "-v",
+      `${volumeName}:/source:ro`,
+      "-v",
+      `${stagingPath}:/dest`,
+      "alpine",
+      "sh",
+      "-c",
+      "cp -a /source/. /dest/"
+    ],
+    { timeout: 300_000 }
+  );
+
+  if (result.status !== 0) {
+    const stderr = result.stderr?.toString() ?? "";
+    throw new Error(
+      `Failed to stage Docker volume "${volumeName}": ${stderr || `exit code ${result.status}`}`
+    );
+  }
+
+  return stagingPath;
+}
 
 export function executeBackupCopy(
   resolved: BackupPolicyResolved,
   runId: string,
-  sourcePath = resolved.mountPath
+  sourcePath?: string
 ): Promise<BackupRunResult> {
   const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
   const remotePath = `${resolved.policyName}/${timestamp}`;
 
-  const copyResult = copyToRemote(resolved.destination, sourcePath, remotePath);
-  if (!copyResult.success) {
-    throw new Error(`rclone copy failed: ${copyResult.error ?? copyResult.output}`);
+  let effectiveSource = sourcePath ?? resolved.mountPath;
+  let stagedDir: string | null = null;
+
+  if (!sourcePath && isLocalHost(resolved.serverHost) && !existsSync(resolved.mountPath)) {
+    const stagingBase = join("/tmp", `daoflow-backup-${runId}`);
+    stagedDir = stagingBase;
+    effectiveSource = stageDockerVolume(resolved.volumeName, stagingBase);
   }
 
-  let sizeBytes = 0;
   try {
-    const listing = listRemote(resolved.destination, remotePath);
-    for (const line of listing.output.split("\n")) {
-      const match = /^\s*(\d+)\s/.exec(line.trim());
-      if (match) {
-        sizeBytes += parseInt(match[1], 10);
+    const copyResult = copyToRemote(resolved.destination, effectiveSource, remotePath);
+    if (!copyResult.success) {
+      throw new Error(`rclone copy failed: ${copyResult.error ?? copyResult.output}`);
+    }
+
+    let sizeBytes = 0;
+    try {
+      const listing = listRemote(resolved.destination, remotePath);
+      for (const line of listing.output.split("\n")) {
+        const match = /^\s*(\d+)\s/.exec(line.trim());
+        if (match) {
+          sizeBytes += parseInt(match[1], 10);
+        }
+      }
+    } catch {
+      console.warn(`[backup] Could not estimate backup size for run ${runId}`);
+    }
+
+    return Promise.resolve({
+      runId,
+      artifactPath: remotePath,
+      sizeBytes
+    });
+  } finally {
+    if (stagedDir) {
+      try {
+        rmSync(stagedDir, { recursive: true, force: true });
+      } catch {
+        console.warn(`[backup] Could not clean up staging dir ${stagedDir}`);
       }
     }
-  } catch {
-    console.warn(`[backup] Could not estimate backup size for run ${runId}`);
   }
-
-  return Promise.resolve({
-    runId,
-    artifactPath: remotePath,
-    sizeBytes
-  });
 }

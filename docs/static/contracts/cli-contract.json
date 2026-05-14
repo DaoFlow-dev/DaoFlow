@@ -1334,6 +1334,101 @@
       "supportsYes": false
     },
     {
+      "path": "config context",
+      "summary": "Manage CLI authentication contexts",
+      "lane": "local",
+      "requiredScopes": [],
+      "mutating": false,
+      "hasAction": false,
+      "hasSubcommands": true,
+      "aliases": [],
+      "arguments": [],
+      "options": [],
+      "supportsJson": false,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
+      "path": "config context delete",
+      "summary": "Remove a saved authentication context",
+      "lane": "local",
+      "requiredScopes": [],
+      "mutating": true,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [
+        {
+          "name": "name",
+          "required": true,
+          "variadic": false
+        }
+      ],
+      "options": [
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        },
+        {
+          "flags": "-y, --yes",
+          "description": "Skip confirmation",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": true
+    },
+    {
+      "path": "config context list",
+      "summary": "List saved authentication contexts",
+      "lane": "local",
+      "requiredScopes": [],
+      "mutating": false,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": ["ls"],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
+      "path": "config context use",
+      "summary": "Switch the active authentication context",
+      "lane": "local",
+      "requiredScopes": [],
+      "mutating": true,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [
+        {
+          "name": "name",
+          "required": true,
+          "variadic": false
+        }
+      ],
+      "options": [
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
       "path": "config generate-vapid",
       "summary": "Generate VAPID key pair for Web Push notifications",
       "lane": "local",
@@ -1748,6 +1843,32 @@
       "supportsYes": true
     },
     {
+      "path": "diagnose",
+      "summary": "Produce an agent-ready failure summary for a deployment",
+      "lane": "read",
+      "requiredScopes": ["deploy:read"],
+      "mutating": false,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--deployment <id>",
+          "description": "Deployment ID to diagnose",
+          "required": false
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
       "path": "diff",
       "summary": "Compare two deployments or config states",
       "lane": "planning",
@@ -1789,6 +1910,32 @@
       "aliases": [],
       "arguments": [],
       "options": [
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
+      "path": "drift",
+      "summary": "Show config drift between desired and actual service state",
+      "lane": "read",
+      "requiredScopes": ["deploy:read"],
+      "mutating": false,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--limit <n>",
+          "description": "Maximum services to check",
+          "required": false
+        },
         {
           "flags": "--json",
           "description": "Output as JSON",
@@ -2049,6 +2196,47 @@
       "supportsJson": true,
       "supportsDryRun": false,
       "supportsYes": true
+    },
+    {
+      "path": "events",
+      "summary": "Query the normalized event timeline",
+      "lane": "read",
+      "requiredScopes": ["events:read"],
+      "mutating": false,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--limit <n>",
+          "description": "Maximum events to return",
+          "required": false
+        },
+        {
+          "flags": "--since <window>",
+          "description": "Time window filter (e.g. 15m, 1h, 7d)",
+          "required": false
+        },
+        {
+          "flags": "--kind <pattern>",
+          "description": "Filter by event kind (e.g. deployment.*, backup.failed)",
+          "required": false
+        },
+        {
+          "flags": "--severity <level>",
+          "description": "Filter by severity: info, warning, error, critical",
+          "required": false
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": false
     },
     {
       "path": "install",
@@ -2423,6 +2611,11 @@
         {
           "flags": "--query <text>",
           "description": "Search within persisted log messages",
+          "required": false
+        },
+        {
+          "flags": "--grep <text>",
+          "description": "Alias for --query: filter log lines by keyword",
           "required": false
         },
         {
@@ -4140,6 +4333,32 @@
         {
           "flags": "--schedule <id>",
           "description": "Schedule ID",
+          "required": true
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
+      "path": "stats",
+      "summary": "Show container resource usage (CPU, memory, network)",
+      "lane": "read",
+      "requiredScopes": ["diagnostics:read"],
+      "mutating": false,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--service <id>",
+          "description": "Service ID",
           "required": true
         },
         {

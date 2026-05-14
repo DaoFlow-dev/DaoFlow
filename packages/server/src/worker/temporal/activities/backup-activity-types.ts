@@ -8,6 +8,7 @@ export interface BackupPolicyResolved {
   mountPath: string;
   serverId: string;
   serverName: string;
+  serverHost: string;
   retentionDays: number;
   backupType: string;
   databaseEngine?: string;

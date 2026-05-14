@@ -1,4 +1,4 @@
-import { basename, dirname, join } from "node:path";
+import { dirname, join } from "node:path";
 import {
   createTarArchive,
   ensureStagingDir,
@@ -186,7 +186,7 @@ export async function prepareComposeWorkspace(
       contextArchiveName: config.uploadedContextArchiveName
     });
   }
-  const composeFile = basename(resolveUploadedComposeFile(config));
+  const composeFile = resolveUploadedComposeFile(config);
   const contextArchive = resolveUploadedArchive(config);
 
   if (contextArchive) {

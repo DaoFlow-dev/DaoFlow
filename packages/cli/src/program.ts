@@ -36,6 +36,10 @@ import { databasesCommand } from "./commands/databases";
 import { terminalCommand } from "./commands/terminal";
 import { tunnelsCommand } from "./commands/tunnels";
 import { registerConfigCommand } from "./commands/config";
+import { eventsCommand } from "./commands/events";
+import { diagnoseCommand } from "./commands/diagnose";
+import { driftCommand } from "./commands/drift";
+import { statsCommand } from "./commands/stats";
 import { emitJsonError, getErrorMessage } from "./command-helpers";
 
 function wantsJson(argv: readonly string[]): boolean {
@@ -169,6 +173,10 @@ export function createProgram(): Command {
   program.addCommand(templatesCommand());
   program.addCommand(databasesCommand());
   program.addCommand(updateCommand());
+  program.addCommand(eventsCommand());
+  program.addCommand(diagnoseCommand());
+  program.addCommand(driftCommand());
+  program.addCommand(statsCommand());
   registerConfigCommand(program);
 
   const originalParseAsync = program.parseAsync.bind(program);

@@ -69,6 +69,7 @@ addApiGroup(
     "deploymentInsights",
     "deploymentRollbackPlans",
     "auditTrail",
+    "eventTimeline",
     "accountSecurityStatus",
     "environmentVariables",
     "deploymentLogs",
@@ -923,7 +924,14 @@ export const cliCommandMeta: Record<string, CliCommandMeta> = {
   "volumes register": { lane: "command", requiredScopes: ["volumes:write"], mutating: true },
   "volumes update": { lane: "command", requiredScopes: ["volumes:write"], mutating: true },
   "volumes delete": { lane: "command", requiredScopes: ["volumes:write"], mutating: true },
-  "config generate-vapid": { lane: "local", requiredScopes: [], mutating: false }
+  "config generate-vapid": { lane: "local", requiredScopes: [], mutating: false },
+  "config context list": { lane: "local", requiredScopes: [], mutating: false },
+  "config context use": { lane: "local", requiredScopes: [], mutating: true },
+  "config context delete": { lane: "local", requiredScopes: [], mutating: true },
+  events: { lane: "read", requiredScopes: ["events:read"], mutating: false },
+  diagnose: { lane: "read", requiredScopes: ["deploy:read"], mutating: false },
+  drift: { lane: "read", requiredScopes: ["deploy:read"], mutating: false },
+  stats: { lane: "read", requiredScopes: ["diagnostics:read"], mutating: false }
 };
 
 export const cliExamples = [

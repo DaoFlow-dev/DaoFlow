@@ -2921,6 +2921,40 @@
       }
     },
     {
+      "name": "eventTimeline",
+      "summary": "event Timeline",
+      "path": "/trpc/eventTimeline",
+      "method": "GET",
+      "lane": "read",
+      "auth": "authenticated",
+      "requiredRoles": [],
+      "requiredScopes": [],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 200
+          },
+          "since": {
+            "type": "string",
+            "pattern": "^([1-9]\\d*)([mhdw])$"
+          },
+          "kind": {
+            "type": "string",
+            "maxLength": 60
+          },
+          "severity": {
+            "type": "string",
+            "enum": ["info", "warning", "error", "critical"]
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "exchangeGitLabCode",
       "summary": "exchange Git Lab Code",
       "path": "/trpc/exchangeGitLabCode",

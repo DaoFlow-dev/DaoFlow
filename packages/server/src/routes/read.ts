@@ -3,6 +3,7 @@ import { TRPCError } from "@trpc/server";
 import { auditSinceWindowError, auditSinceWindowPattern } from "@daoflow/shared";
 import { listApprovalQueue } from "../db/services/approvals";
 import { listAuditTrail } from "../db/services/audit";
+import { listEventTimeline } from "../db/services/events";
 import { listBackupMetrics, backupDiagnosis } from "../db/services/backups";
 import { listDestinations, getDestination } from "../db/services/destinations";
 import { listEnvironmentVariableInventory } from "../db/services/envvars";
@@ -151,6 +152,21 @@ const coreReadRouter = t.router({
     )
     .query(async ({ input }) => {
       return listAuditTrail(input.limit ?? 12, input.since);
+    }),
+  eventTimeline: protectedProcedure
+    .input(
+      z.object({
+        limit: z.number().int().min(1).max(200).optional(),
+        since: z
+          .string()
+          .regex(auditSinceWindowPattern, { message: auditSinceWindowError })
+          .optional(),
+        kind: z.string().max(60).optional(),
+        severity: z.enum(["info", "warning", "error", "critical"]).optional()
+      })
+    )
+    .query(async ({ input }) => {
+      return listEventTimeline(input.limit ?? 50, input.since, input.kind, input.severity);
     }),
   accessLogs: logsReadProcedure
     .input(

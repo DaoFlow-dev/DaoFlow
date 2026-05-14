@@ -117,6 +117,7 @@ export function logsCommand(): Command {
     .option("--deployment <id>", "Deployment ID")
     .option("--service-id <id>", "Service ID for live --follow container logs")
     .option("--query <text>", "Search within persisted log messages")
+    .option("--grep <text>", "Alias for --query: filter log lines by keyword")
     .option("--follow", "Follow log output", false)
     .option("--lines <n>", "Number of lines to show", "50")
     .addOption(
@@ -132,6 +133,7 @@ export function logsCommand(): Command {
           deployment?: string;
           serviceId?: string;
           query?: string;
+          grep?: string;
           follow?: boolean;
           lines?: string;
           stream?: "all" | "stdout" | "stderr";
@@ -140,6 +142,7 @@ export function logsCommand(): Command {
         command: Command
       ) => {
         const isJson = resolveCommandJsonOption(command, opts.json);
+        const query = opts.query ?? opts.grep;
         await withResolvedCommandRequestOptions(command, async () => {
           if (opts.follow) {
             try {
@@ -148,7 +151,7 @@ export function logsCommand(): Command {
                 await followDeploymentLogs({
                   deploymentId: normalizeCliInput(opts.deployment, "Deployment ID"),
                   json: isJson,
-                  query: opts.query,
+                  query,
                   stream: opts.stream
                 });
                 return;
@@ -158,7 +161,7 @@ export function logsCommand(): Command {
                 await followServiceLogs({
                   serviceId: normalizeCliInput(opts.serviceId, "Service ID"),
                   json: isJson,
-                  query: opts.query,
+                  query,
                   stream: opts.stream,
                   tail: lines
                 });
@@ -196,7 +199,7 @@ export function logsCommand(): Command {
             const data = await trpc.deploymentLogs.query({
               deploymentId: opts.deployment,
               service,
-              query: opts.query,
+              query,
               stream: opts.stream,
               limit: lines
             });
@@ -208,7 +211,7 @@ export function logsCommand(): Command {
                   data: {
                     service: service ?? null,
                     deploymentId: opts.deployment ?? null,
-                    query: opts.query ?? null,
+                    query: query ?? null,
                     stream: opts.stream ?? "all",
                     limit: lines,
                     summary: data.summary,

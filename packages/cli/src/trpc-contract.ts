@@ -1835,4 +1835,35 @@ export interface DaoFlowTRPC {
     { originalDeliveryId: string; drainName: string; delivery: LogDrainDeliveryOutput }
   >;
   configDiff: QueryProcedure<ConfigDiffOutput, { deploymentIdA: string; deploymentIdB: string }>;
+  eventTimeline: QueryProcedure<
+    {
+      summary: { totalEvents: number; returnedEvents: number };
+      events: {
+        id: string;
+        kind: string;
+        resourceType: string;
+        resourceId: string;
+        summary: string;
+        detail: string | null;
+        severity: string;
+        metadata: unknown;
+        createdAt: string;
+      }[];
+    },
+    { limit?: number; since?: string; kind?: string; severity?: string }
+  >;
+  deploymentDetails: QueryProcedure<Record<string, unknown>, { deploymentId: string }>;
+  composeDriftReport: QueryProcedure<
+    {
+      summary: { totalServices: number; alignedServices: number; driftedServices: number };
+      services: {
+        serviceName: string;
+        status: string;
+        statusLabel: string;
+        summary?: string;
+        diffs?: { field: string; expected: string | null; actual: string | null }[];
+      }[];
+    },
+    { limit?: number }
+  >;
 }

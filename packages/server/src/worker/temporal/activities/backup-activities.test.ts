@@ -15,6 +15,7 @@ function backupPolicyFixture(): BackupPolicyResolved {
     mountPath: "/var/lib/postgresql/data",
     serverId: "srv_test",
     serverName: "test-server",
+    serverHost: "10.0.0.1",
     retentionDays: 7,
     backupType: "database",
     databaseEngine: "postgres",
