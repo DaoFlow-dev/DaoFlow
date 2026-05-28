@@ -85,10 +85,6 @@ describe("TemplatesPage", () => {
       isLoading: false,
       error: null
     });
-    // Pin the clock so template freshness ("Current") is deterministic and not
-    // subject to calendar drift past the review-cadence threshold.
-    vi.useFakeTimers({ toFake: ["Date"] });
-    vi.setSystemTime(new Date("2026-04-01T00:00:00.000Z"));
     fetchMock = vi.fn();
     window.fetch = fetchMock as unknown as typeof fetch;
   });
