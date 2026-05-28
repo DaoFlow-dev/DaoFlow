@@ -6,6 +6,7 @@ COPY packages/shared/package.json packages/shared/package.json
 COPY packages/server/package.json packages/server/package.json
 COPY packages/client/package.json packages/client/package.json
 COPY packages/cli/package.json packages/cli/package.json
+COPY packages/mcp/package.json packages/mcp/package.json
 RUN bun install --frozen-lockfile
 
 # ── Stage 2: build server + client ───────────────────────────────────────
@@ -16,6 +17,7 @@ COPY --from=deps /app/packages/shared/node_modules ./packages/shared/node_module
 COPY --from=deps /app/packages/server/node_modules ./packages/server/node_modules
 COPY --from=deps /app/packages/client/node_modules ./packages/client/node_modules
 COPY --from=deps /app/packages/cli/node_modules ./packages/cli/node_modules
+COPY --from=deps /app/packages/mcp/node_modules ./packages/mcp/node_modules
 COPY . .
 RUN bun run build
 
@@ -27,6 +29,7 @@ COPY packages/shared/package.json packages/shared/package.json
 COPY packages/server/package.json packages/server/package.json
 COPY packages/client/package.json packages/client/package.json
 COPY packages/cli/package.json packages/cli/package.json
+COPY packages/mcp/package.json packages/mcp/package.json
 RUN bun install --frozen-lockfile --production \
  && find node_modules -type d \( \
       -name "docs" -o -name "test" -o -name "tests" -o -name "__tests__" \
