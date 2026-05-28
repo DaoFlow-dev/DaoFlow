@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, setSystemTime, test } from "bun:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -53,6 +53,9 @@ describe("templates command", () => {
     process.env.HOME = homeDir;
     process.env.DAOFLOW_URL = "https://daoflow.test";
     process.env.DAOFLOW_TOKEN = "dfl_test_token";
+    // Pin the clock so template freshness ("current") is deterministic and not
+    // subject to calendar drift past the review-cadence threshold.
+    setSystemTime(new Date("2026-04-01T00:00:00.000Z"));
   });
 
   afterEach(() => {
@@ -75,6 +78,7 @@ describe("templates command", () => {
     }
 
     globalThis.fetch = originalFetch;
+    setSystemTime();
     rmSync(homeDir, { recursive: true, force: true });
   });
 
