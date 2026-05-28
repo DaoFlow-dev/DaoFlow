@@ -130,6 +130,17 @@ describe("deployment watchdog", () => {
 
     const eventRows = await db.select().from(events).where(eq(events.resourceId, deploymentId));
     expect(eventRows.some((row) => row.kind === "deployment.watchdog.failed")).toBe(true);
+
+    // Charter §10: the diagnosis insight must link back to the exact persisted
+    // log line and event rows, not opaque static identifiers.
+    const insight = asRecord(asRecord(deployment?.configSnapshot).insight);
+    const evidence = (insight.evidence as Array<Record<string, unknown>>) ?? [];
+    const watchdogEvidence = evidence.find((entry) => entry.kind === "watchdog");
+    expect(watchdogEvidence).toBeDefined();
+    const watchdogEvent = eventRows.find((row) => row.kind === "deployment.watchdog.failed");
+    expect(watchdogEvidence?.eventId).toBe(watchdogEvent?.id);
+    expect(typeof watchdogEvidence?.logId).toBe("number");
+    expect(logRows.some((row) => row.id === watchdogEvidence?.logId)).toBe(true);
   });
 
   it("ignores fresh active deployments and already terminal deployments", async () => {

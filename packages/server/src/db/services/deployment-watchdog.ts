@@ -96,6 +96,7 @@ function buildWatchdogInsight(input: {
   lastHeartbeatAt: string;
   timeoutMs: number;
   staleForMs: number;
+  evidenceRefs?: { eventId?: number | null; logId?: number | null };
 }) {
   const safeActions = Array.from(
     new Set([
@@ -115,6 +116,10 @@ function buildWatchdogInsight(input: {
       {
         kind: "watchdog",
         id: "deployment-watchdog-timeout",
+        // Link the diagnosis back to the exact persisted rows (charter §10:
+        // "any AI-generated diagnosis must link back to exact log lines or event IDs").
+        eventId: input.evidenceRefs?.eventId ?? null,
+        logId: input.evidenceRefs?.logId ?? null,
         title: "Progress heartbeat timed out",
         detail: `The last recorded deployment heartbeat was ${input.lastHeartbeatAt}.`
       }
@@ -142,14 +147,6 @@ async function markDeploymentFailedByWatchdog(input: {
   const previousStatus = current.status;
   const existingSnapshot = asRecord(current.configSnapshot);
   const previousInsight = asRecord(existingSnapshot.insight);
-  const insight = buildWatchdogInsight({
-    previousInsight,
-    serviceName: current.serviceName,
-    previousStatus,
-    lastHeartbeatAt,
-    timeoutMs: input.timeoutMs,
-    staleForMs
-  });
 
   const error = {
     code: "DEPLOYMENT_WATCHDOG_TIMEOUT",
@@ -161,26 +158,15 @@ async function markDeploymentFailedByWatchdog(input: {
     timeoutMs: input.timeoutMs
   };
 
-  const configSnapshot = {
-    ...existingSnapshot,
-    insight,
-    watchdog: {
-      detectedAt,
-      previousStatus,
-      lastHeartbeatAt,
-      staleForMs,
-      timeoutMs: input.timeoutMs
-    }
-  };
-
   return db.transaction(async (tx) => {
+    // Transition the deployment first (guarded) so evidence rows are never
+    // written for a deployment another process already concluded.
     const [updated] = await tx
       .update(deployments)
       .set({
         status: DeploymentLifecycleStatus.Failed,
         conclusion: DeploymentConclusion.Failed,
         error,
-        configSnapshot,
         concludedAt: input.now,
         updatedAt: input.now
       })
@@ -196,35 +182,76 @@ async function markDeploymentFailedByWatchdog(input: {
       return null;
     }
 
-    await tx.insert(deploymentLogs).values({
-      deploymentId: current.id,
-      level: "error",
-      message: `${current.serviceName} stopped reporting progress while ${previousStatus}. DaoFlow marked the deployment failed after ${formatStaleDurationSummary(staleForMs)} without a heartbeat.`,
-      source: "system",
-      metadata: {
-        source: "deployment-watchdog",
-        previousStatus,
-        lastHeartbeatAt,
-        timeoutMs: input.timeoutMs
-      },
-      createdAt: input.now
+    const [logRow] = await tx
+      .insert(deploymentLogs)
+      .values({
+        deploymentId: current.id,
+        level: "error",
+        message: `${current.serviceName} stopped reporting progress while ${previousStatus}. DaoFlow marked the deployment failed after ${formatStaleDurationSummary(staleForMs)} without a heartbeat.`,
+        source: "system",
+        metadata: {
+          source: "deployment-watchdog",
+          previousStatus,
+          lastHeartbeatAt,
+          timeoutMs: input.timeoutMs
+        },
+        createdAt: input.now
+      })
+      .returning({ id: deploymentLogs.id });
+
+    const [eventRow] = await tx
+      .insert(events)
+      .values({
+        kind: "deployment.watchdog.failed",
+        resourceType: "deployment",
+        resourceId: current.id,
+        summary: "Deployment failed after progress stalled.",
+        detail: `${current.serviceName} stopped reporting progress while ${previousStatus}. Last heartbeat: ${lastHeartbeatAt}.`,
+        severity: "error",
+        metadata: {
+          serviceName: current.serviceName,
+          actorLabel: "deployment-watchdog",
+          previousStatus,
+          timeoutMs: input.timeoutMs
+        },
+        createdAt: input.now
+      })
+      .returning({ id: events.id });
+
+    // Build the diagnosis insight only after the evidence rows exist, so it can
+    // cite their exact primary-key IDs (charter §10).
+    const insight = buildWatchdogInsight({
+      previousInsight,
+      serviceName: current.serviceName,
+      previousStatus,
+      lastHeartbeatAt,
+      timeoutMs: input.timeoutMs,
+      staleForMs,
+      evidenceRefs: {
+        eventId: eventRow?.id ?? null,
+        logId: logRow?.id ?? null
+      }
     });
 
-    await tx.insert(events).values({
-      kind: "deployment.watchdog.failed",
-      resourceType: "deployment",
-      resourceId: current.id,
-      summary: "Deployment failed after progress stalled.",
-      detail: `${current.serviceName} stopped reporting progress while ${previousStatus}. Last heartbeat: ${lastHeartbeatAt}.`,
-      severity: "error",
-      metadata: {
-        serviceName: current.serviceName,
-        actorLabel: "deployment-watchdog",
-        previousStatus,
-        timeoutMs: input.timeoutMs
-      },
-      createdAt: input.now
-    });
+    await tx
+      .update(deployments)
+      .set({
+        configSnapshot: {
+          ...existingSnapshot,
+          insight,
+          watchdog: {
+            detectedAt,
+            previousStatus,
+            lastHeartbeatAt,
+            staleForMs,
+            timeoutMs: input.timeoutMs,
+            eventId: eventRow?.id ?? null,
+            logId: logRow?.id ?? null
+          }
+        },
+        updatedAt: input.now
+      })
+      .where(eq(deployments.id, current.id));
 
     await tx.insert(auditEntries).values({
       actorType: "system",
@@ -242,7 +269,9 @@ async function markDeploymentFailedByWatchdog(input: {
         resourceLabel: current.serviceName,
         detail: `${current.serviceName} stopped reporting progress while ${previousStatus}. Last heartbeat: ${lastHeartbeatAt}.`,
         previousStatus,
-        timeoutMs: input.timeoutMs
+        timeoutMs: input.timeoutMs,
+        eventId: eventRow?.id ?? null,
+        logId: logRow?.id ?? null
       }
     });
 

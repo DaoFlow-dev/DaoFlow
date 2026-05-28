@@ -19,14 +19,20 @@ DaoFlow does **not** yet ship cluster-aware execution semantics:
 
 ## Release Slices
 
+> Note: earlier drafts cited GitHub issues `#108` and `#110` for these slices.
+> Those issues do not exist in this repository. Do not begin a slice until its
+> tracking issue is actually filed and linked here. Per charter §3, Swarm work
+> must not begin until the standalone Docker/Compose path is proven solid in
+> production — see the 1.0 exit criteria in `e2e-implementation-roadmap.md`.
+
 1. Swarm execution and rollback semantics
-   - GitHub issue: `#108`
+   - Tracking issue: not yet filed.
    - branch deployment planning by target kind
    - add `docker stack deploy` / rollback execution with auditable step models
    - preserve standalone Docker behavior without regression
 
 2. Operator and agent affordances
-   - GitHub issue: `#110`
+   - Tracking issue: not yet filed.
    - expose Swarm-specific deploy and rollback previews in CLI and UI
    - gate mutations behind explicit scopes and approval language
    - document coexistence and failure recovery
