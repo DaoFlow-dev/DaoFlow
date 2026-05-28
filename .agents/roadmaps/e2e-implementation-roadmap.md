@@ -232,3 +232,54 @@ Detailed tasks are grouped by milestone. Each task should be independently testa
 176. CLI `--help` output documents required scopes for every command
 177. OpenAPI-compatible schema generated from tRPC for external documentation
 178. Production release workflow publishes a shadow Docker Hub image to `daoflow/daoflow` using the already-configured `DOCKER_HUB_TOKEN` GitHub Actions secret
+
+## 1.0 Exit Criteria
+
+Every milestone above is implemented in code. "Implemented" is not "trustworthy."
+Per charter §20, the bar for 1.0 is: _a small team can trust DaoFlow to run
+production workloads on their own servers._ The 15-milestone checklist does not
+prove that. 1.0 ships only when all of the following are true:
+
+1. **Real-infra lifecycle proven.** The full loop — deploy a real Compose stack
+   over SSH to a real remote host, fail it, roll back to a prior deployment
+   record, back a volume up to S3-compatible storage, and restore it with verified
+   data integrity — runs green in an opt-in harness (`DAOFLOW_REAL_INFRA=1`). See
+   [e2e-coverage-and-real-infra.md](../references/e2e-coverage-and-real-infra.md).
+   Today the main E2E suite mocks the execution plane (`DISABLE_WORKER=true`) and
+   the only real run is localhost happy-path.
+2. **Agent loop proven.** An LLM driving DaoFlow purely through the CLI/API can
+   deploy, diagnose a real failure (with diagnosis citing real log/event IDs), and
+   propose a rollback — and provably cannot perform any mutation outside its
+   granted scopes. This is the product thesis; nothing else validates it.
+3. **Audit completeness.** Every command-lane mutation provably emits an
+   `audit_entry`, enforced by a test, not by reviewer vigilance.
+4. **No feature masquerades as working when it is stale or stubbed.** Specifically,
+   `daoflow drift` must either compute live drift or clearly mark its output as a
+   cached snapshot (see Known Gaps).
+5. **Quickstart verified by a stranger.** Someone who did not build DaoFlow goes
+   from clone to a deployed, backed-up production service in under 30 minutes
+   following only the README.
+
+Until #1 and #2 are green, prefer hardening the standalone Docker/Compose path
+over any scope expansion (Swarm, autonomous code-writing agents).
+
+## Known Gaps
+
+These are implemented-but-shallow or stubbed surfaces. Documented here so they are
+not mistaken for finished work.
+
+- **`daoflow drift` is not live (STUB).** `listComposeDriftReport`
+  (`packages/server/src/db/services/compose.ts`) only reads pre-computed reports
+  from `environment.config.composeDriftReports`. Nothing populates that array from
+  the running server, so drift output is empty or stale and currently presents as
+  authoritative. Fix: a `computeComposeDriftReport(environment, server)` that SSHes
+  to the target, runs `docker compose ps` / `docker inspect`, and diffs desired vs
+  actual (image refs, replica counts, container state). Interim safety: surface a
+  `dataSource: "cached-snapshot"` / `live: false` flag so consumers and agents are
+  not misled.
+- **Remote-SSH deploy, rollback, and backup/restore are unverified against real
+  infrastructure.** See the coverage reference above.
+- **Audit logging is ad-hoc, not enforced.** There is no central middleware and no
+  test asserting coverage. `createManagedDatabase` was missing a top-level audit
+  entry (now fixed). Add a coverage-enforcing test over the command router so new
+  mutations cannot ship unaudited.

@@ -24,6 +24,7 @@ import { updateService } from "./services";
 import { createBackupPolicy } from "./storage-management-policies";
 import { createVolume } from "./storage-management-volumes";
 import { db } from "../connection";
+import { auditEntries } from "../schema/audit";
 import { projects } from "../schema/projects";
 import { services } from "../schema/services";
 import type { AppRole } from "@daoflow/shared";
@@ -237,6 +238,30 @@ export async function createManagedDatabase(input: CreateManagedDatabaseInput) {
   });
   if (!deployment) throw new Error("Failed to create deployment record.");
   await dispatchDeploymentExecution(deployment);
+
+  // Audit the managed-database provisioning itself. The sub-resources (service,
+  // volume, backup policy, deployment) each emit their own audit entries, but the
+  // top-level mutation must record the actor and intent for the whole operation
+  // (charter §14: every write path is auditable).
+  await db.insert(auditEntries).values({
+    actorType: "user",
+    actorId: input.requestedByUserId,
+    actorEmail: input.requestedByEmail,
+    actorRole: input.requestedByRole,
+    targetResource: `service/${scope.service.id}`,
+    action: "managed_database.create",
+    inputSummary: `Provisioned ${definition.label} managed database "${serviceName}"`,
+    permissionScope: "service:update",
+    outcome: "success",
+    metadata: {
+      resourceType: "managed-database",
+      resourceId: scope.service.id,
+      resourceLabel: serviceName,
+      kind: input.kind,
+      serverId: input.serverId,
+      deploymentId: deployment.id
+    }
+  });
 
   return {
     status: "ok" as const,
