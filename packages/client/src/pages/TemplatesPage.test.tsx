@@ -46,6 +46,14 @@ describe("TemplatesPage", () => {
   }
 
   beforeEach(() => {
+    // Freeze the clock so template freshness ("Current" / "Review soon" /
+    // "Needs review") is deterministic. The catalog computes freshness from each
+    // template's reviewedAt date relative to `new Date()`, so without a fixed now
+    // this test silently flips once the real wall-clock crosses the review-soon
+    // threshold (~0.75 of the review cadence). Only Date is faked to avoid
+    // interfering with React Testing Library's own timers.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-03-25T00:00:00.000Z"));
     navigateMock.mockReset();
     infrastructureInventoryUseQueryMock.mockReturnValue({
       data: {
@@ -84,6 +92,7 @@ describe("TemplatesPage", () => {
   afterEach(() => {
     cleanup();
     window.fetch = originalFetch;
+    vi.useRealTimers();
   });
 
   it("renders the template catalog and the active template details", () => {
