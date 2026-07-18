@@ -4,6 +4,7 @@ import { db } from "./db/connection";
 import { approvalRequests } from "./db/schema/audit";
 import { gitInstallations, gitProviders } from "./db/schema/git-providers";
 import { projects } from "./db/schema/projects";
+import { teams } from "./db/schema/teams";
 import { createProject } from "./db/services/projects";
 import { shouldIncrementPreviewTrustRevision } from "./db/services/project-write-service";
 import {
@@ -103,7 +104,7 @@ describe("preview trust", () => {
     ).toBe(true);
   });
 
-  it("requires an approved, unexpired binding for the same provider, repository, SHA, and policy revision", async () => {
+  it("requires an approved, unexpired binding for the same team, provider, repository, SHA, and policy revision", async () => {
     const projectResult = await createProject({
       name: "Preview trust binding",
       teamId: "team_foundation",
@@ -182,6 +183,7 @@ describe("preview trust", () => {
 
     await db.insert(approvalRequests).values({
       id: "apr_preview_trust",
+      teamId: "team_foundation",
       actionType: "preview-deployment",
       targetResource: "service/svc_preview_trust",
       status: "approved",
@@ -212,6 +214,40 @@ describe("preview trust", () => {
         }
       })
     ).resolves.toMatchObject({ allowed: true });
+
+    await db.insert(teams).values({
+      id: "team_preview_trust_b",
+      name: "Preview Trust Team B",
+      slug: "preview-trust-team-b",
+      status: "active",
+      createdByUserId: "user_foundation_owner",
+      createdAt: new Date(),
+      updatedAt: new Date()
+    });
+    await db
+      .update(approvalRequests)
+      .set({ teamId: "team_preview_trust_b" })
+      .where(eq(approvalRequests.id, "apr_preview_trust"));
+    await expect(
+      validatePreviewDeploymentAuthorization({
+        authorization: { kind: "approval", approvalRequestId: "apr_preview_trust" },
+        project,
+        serviceId: "svc_preview_trust",
+        providerType: "github",
+        commitSha,
+        preview: {
+          target: "pull-request",
+          pullRequestNumber: 17,
+          branch: "feature/preview",
+          action: "deploy"
+        }
+      })
+    ).resolves.toMatchObject({ allowed: false });
+    await db
+      .update(approvalRequests)
+      .set({ teamId: "team_foundation" })
+      .where(eq(approvalRequests.id, "apr_preview_trust"));
+
     await expect(
       validatePreviewDeploymentAuthorization({
         authorization: { kind: "approval", approvalRequestId: "apr_preview_trust" },

@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import type { ComposePreviewRequest } from "./compose-preview";
 import { db } from "./db/connection";
 import { approvalRequests } from "./db/schema/audit";
@@ -337,7 +337,12 @@ export async function validatePreviewDeploymentAuthorization(input: {
   const [request] = await db
     .select()
     .from(approvalRequests)
-    .where(eq(approvalRequests.id, input.authorization.approvalRequestId))
+    .where(
+      and(
+        eq(approvalRequests.id, input.authorization.approvalRequestId),
+        eq(approvalRequests.teamId, input.project.teamId)
+      )
+    )
     .limit(1);
   if (!request || request.status !== "approved") {
     return {

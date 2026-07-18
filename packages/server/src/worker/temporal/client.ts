@@ -14,6 +14,7 @@ import {
 } from "@temporalio/common";
 import type { DeploymentWorkflowInput } from "../deployment-workflow-input";
 import { TEMPORAL_ADDRESS, TEMPORAL_NAMESPACE, TEMPORAL_TASK_QUEUE } from "./temporal-config";
+import type { RestoreApproval } from "./restore-workflow-input";
 
 let client: Client | null = null;
 
@@ -197,6 +198,7 @@ export async function startRestoreWorkflow(input: {
   mode?: "restore" | "verification";
   /** Backward-compatible input for callers deployed before explicit restore modes. */
   testRestore?: boolean;
+  approval?: RestoreApproval;
 }): Promise<{ workflowId: string; runId: string }> {
   const tc = await getTemporalClient();
   const workflowId = buildRestoreWorkflowId(input.restoreId);
@@ -211,7 +213,8 @@ export async function startRestoreWorkflow(input: {
         triggeredBy: input.triggeredBy,
         targetPath: input.targetPath ?? undefined,
         mode: input.mode,
-        testRestore: input.testRestore
+        testRestore: input.testRestore,
+        approval: input.approval
       }
     ],
     workflowExecutionTimeout: "1h"

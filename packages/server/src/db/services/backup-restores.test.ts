@@ -1,0 +1,115 @@
+import { randomUUID } from "node:crypto";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const { isTemporalEnabledMock, startRestoreWorkflowMock } = vi.hoisted(() => ({
+  isTemporalEnabledMock: vi.fn(),
+  startRestoreWorkflowMock: vi.fn()
+}));
+
+vi.mock("../../worker", async () => {
+  const actual = await vi.importActual<typeof import("../../worker")>("../../worker");
+  return {
+    ...actual,
+    startRestoreWorkflow: startRestoreWorkflowMock
+  };
+});
+
+vi.mock("../../worker/temporal/temporal-config", async () => {
+  const actual = await vi.importActual<typeof import("../../worker/temporal/temporal-config")>(
+    "../../worker/temporal/temporal-config"
+  );
+  return {
+    ...actual,
+    isTemporalEnabled: isTemporalEnabledMock
+  };
+});
+
+import { db } from "../connection";
+import { approvalRequests } from "../schema/audit";
+import { backupPolicies, backupRuns, volumes } from "../schema/storage";
+import { resetTestDatabaseWithControlPlane } from "../../test-db";
+import { queueBackupRestore } from "./backup-restores";
+
+function suffix() {
+  return randomUUID().replace(/-/g, "").slice(0, 8);
+}
+
+describe("queueBackupRestore approval binding", () => {
+  beforeEach(async () => {
+    await resetTestDatabaseWithControlPlane();
+    isTemporalEnabledMock.mockReset();
+    isTemporalEnabledMock.mockReturnValue(true);
+    startRestoreWorkflowMock.mockReset();
+    startRestoreWorkflowMock.mockResolvedValue({
+      workflowId: "backup-restore-test",
+      runId: "temporal-restore-test"
+    });
+  });
+
+  it("passes the approved request and expected team into the durable workflow input", async () => {
+    const id = suffix();
+    const volumeId = `vol_rst_${id}`;
+    const policyId = `bpol_rst_${id}`;
+    const backupRunId = `brun_rst_${id}`;
+    const approvalRequestId = `apr_rst_${id}`;
+    const now = new Date();
+
+    await db.insert(volumes).values({
+      id: volumeId,
+      name: `restore-volume-${id}`,
+      serverId: "srv_foundation_1",
+      mountPath: "/srv/restore-test",
+      metadata: {},
+      createdAt: now,
+      updatedAt: now
+    });
+    await db.insert(backupPolicies).values({
+      id: policyId,
+      name: `restore-policy-${id}`,
+      volumeId,
+      schedule: "0 * * * *",
+      retentionDays: 7,
+      status: "active",
+      createdAt: now,
+      updatedAt: now
+    });
+    await db.insert(backupRuns).values({
+      id: backupRunId,
+      policyId,
+      status: "succeeded",
+      artifactPath: `restore-policy-${id}/backup.tar`,
+      createdAt: now
+    });
+    await db.insert(approvalRequests).values({
+      id: approvalRequestId,
+      teamId: "team_foundation",
+      actionType: "backup-restore",
+      targetResource: `backup-run/${backupRunId}`,
+      status: "approved",
+      requestedByUserId: "user_foundation_owner",
+      requestedByEmail: "owner@daoflow.local",
+      requestedByRole: "owner",
+      resolvedByUserId: "user_foundation_owner",
+      resolvedByEmail: "owner@daoflow.local",
+      createdAt: now,
+      resolvedAt: now
+    });
+
+    await expect(
+      queueBackupRestore(backupRunId, "user_foundation_owner", "owner@daoflow.local", "owner", {
+        teamId: "team_foundation",
+        approvalRequestId
+      })
+    ).resolves.toMatchObject({ status: "queued" });
+
+    expect(startRestoreWorkflowMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        backupRunId,
+        approval: {
+          approvalRequestId,
+          expectedTeamId: "team_foundation"
+        }
+      })
+    );
+  });
+});

@@ -545,6 +545,7 @@ describe("deploy source revalidation", () => {
     const approvalRequestId = `apr_${Date.now()}_preview`.slice(0, 32);
     await db.insert(approvalRequests).values({
       id: approvalRequestId,
+      teamId: project.teamId,
       actionType: "preview-deployment",
       targetResource: `service/${fixture.serviceId}`,
       status: "approved",

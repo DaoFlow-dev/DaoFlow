@@ -269,6 +269,7 @@ export async function seedObservability(tx: SeedTransaction) {
     .insert(approvalRequests)
     .values({
       id: "approval_restore_prod_guard",
+      teamId: "team_foundation",
       actionType: "backup-restore",
       targetResource: "backup-run/brun_foundation_volume_success",
       reason: "Need operator confirmation before replaying a production volume snapshot.",

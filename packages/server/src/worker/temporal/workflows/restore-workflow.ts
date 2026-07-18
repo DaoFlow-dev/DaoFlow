@@ -15,6 +15,7 @@
 import { patched, proxyActivities } from "@temporalio/workflow";
 import type * as restoreActs from "../activities/restore-activities";
 import type * as notificationActs from "../activities/notification-activities";
+import type { RestoreWorkflowInput } from "../restore-workflow-input";
 
 const {
   resolveRestoreContext,
@@ -47,26 +48,12 @@ const { dispatchNotification, buildBackupNotification } = proxyActivities<typeof
   }
 });
 
-// ── Workflow Input ────────────────────────────────────────────
-
-export interface RestoreWorkflowInput {
-  /** Existing queued restore row to execute */
-  restoreId?: string;
-  /** ID of the backup run to restore from (#24: point-in-time by run ID) */
-  backupRunId: string;
-  /** Target path override (optional) */
-  targetPath?: string;
-  /** Who triggered the restore */
-  triggeredBy: string;
-  /** If true, restore to temp and verify, then cleanup (#21: test restore) */
-  testRestore?: boolean;
-  mode?: "restore" | "verification";
-}
+export type { RestoreWorkflowInput } from "../restore-workflow-input";
 
 // ── Workflow ─────────────────────────────────────────────────
 
 export async function restoreWorkflow(input: RestoreWorkflowInput): Promise<void> {
-  const { backupRunId, triggeredBy } = input;
+  const { backupRunId, triggeredBy, approval } = input;
   const usesExplicitRestoreMode = patched("restore-workflow-explicit-mode-v1");
   const mode = input.mode ?? (input.testRestore ? "verification" : "restore");
 
@@ -77,14 +64,16 @@ export async function restoreWorkflow(input: RestoreWorkflowInput): Promise<void
         restoreId: input.restoreId,
         targetPath: input.targetPath,
         triggeredBy,
-        mode
+        mode,
+        approval
       })
     : await resolveRestoreContext({
         backupRunId,
         restoreId: input.restoreId,
         targetPath: input.targetPath,
         triggeredBy,
-        testRestore: input.testRestore
+        testRestore: input.testRestore,
+        approval
       });
 
   if (!ctx) {

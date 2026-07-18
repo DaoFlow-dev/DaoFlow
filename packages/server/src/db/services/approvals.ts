@@ -4,7 +4,7 @@ import { queueBackupRestore } from "./backups";
 import { listComposeReleaseCatalog } from "./compose";
 import { approvalRequests, auditEntries, events } from "../schema/audit";
 import { services } from "../schema/services";
-import { projects } from "../schema/projects";
+import { environments, projects } from "../schema/projects";
 import { backupPolicies, backupRuns, volumes } from "../schema/storage";
 import type { AppRole } from "@daoflow/shared";
 import { newId as id, asRecord, readString, readStringArray } from "./json-helpers";
@@ -69,8 +69,16 @@ async function resolveApprovalPresentation(input: CreateApprovalRequestInput) {
     const catalog = await listComposeReleaseCatalog(100, input.teamId);
     const service = catalog.services.find((candidate) => candidate.id === input.composeServiceId);
     if (!service) return null;
+    const [target] = await db
+      .select({ teamId: projects.teamId })
+      .from(environments)
+      .innerJoin(projects, eq(projects.id, environments.projectId))
+      .where(and(eq(environments.id, service.environmentId), eq(projects.teamId, input.teamId)))
+      .limit(1);
+    if (!target) return null;
 
     return {
+      teamId: target.teamId,
       targetResource: `compose-service/${input.composeServiceId}`,
       resourceLabel: `${service.serviceName}@${service.environmentName}`,
       riskLevel: "elevated",
@@ -85,7 +93,7 @@ async function resolveApprovalPresentation(input: CreateApprovalRequestInput) {
 
   if (input.actionType === "preview-deployment") {
     const [row] = await db
-      .select({ service: services })
+      .select({ service: services, teamId: projects.teamId })
       .from(services)
       .innerJoin(projects, eq(projects.id, services.projectId))
       .where(and(eq(services.id, input.serviceId), eq(projects.teamId, input.teamId)))
@@ -101,6 +109,7 @@ async function resolveApprovalPresentation(input: CreateApprovalRequestInput) {
     }
 
     return {
+      teamId: row.teamId,
       targetResource: `service/${service.id}`,
       resourceLabel: `${service.name} · PR #${preview.pullRequestNumber} @${input.previewTrust.commitSha.slice(0, 12)}`,
       riskLevel: "critical",
@@ -128,7 +137,9 @@ async function resolveApprovalPresentation(input: CreateApprovalRequestInput) {
     .limit(1);
   if (!policy) return null;
   const [volume] = await db.select().from(volumes).where(eq(volumes.id, policy.volumeId)).limit(1);
-  if (!volume || (await resolveVolumeTeamId(volume)) !== input.teamId) return null;
+  if (!volume) return null;
+  const teamId = await resolveVolumeTeamId(volume);
+  if (!teamId || teamId !== input.teamId) return null;
 
   const serviceName =
     policy.id === "bpol_foundation_volume_daily" ? "postgres-volume" : policy.name;
@@ -137,6 +148,7 @@ async function resolveApprovalPresentation(input: CreateApprovalRequestInput) {
   const destination = "foundation-vps-1:/var/lib/postgresql/data";
 
   return {
+    teamId,
     targetResource: `backup-run/${input.backupRunId}`,
     resourceLabel: `${serviceName}@${environmentName}`,
     riskLevel: "critical",
@@ -184,6 +196,7 @@ export async function createApprovalRequest(input: CreateApprovalRequestInput) {
       : null;
   const insert = db.insert(approvalRequests).values({
     id: requestId,
+    teamId: presentation.teamId,
     actionType: input.actionType,
     bindingKey,
     targetResource: presentation.targetResource,
@@ -220,6 +233,7 @@ export async function createApprovalRequest(input: CreateApprovalRequestInput) {
     permissionScope: "deploy:start",
     outcome: "success",
     metadata: {
+      teamId: presentation.teamId,
       resourceType: "approval-request",
       resourceId: requestId,
       resourceLabel: presentation.resourceLabel,
@@ -271,7 +285,13 @@ export async function createOrReusePreviewApprovalRequest(
   const candidates = await db
     .select()
     .from(approvalRequests)
-    .where(and(eq(approvalRequests.bindingKey, bindingKey), eq(approvalRequests.status, "pending")))
+    .where(
+      and(
+        eq(approvalRequests.teamId, input.teamId),
+        eq(approvalRequests.bindingKey, bindingKey),
+        eq(approvalRequests.status, "pending")
+      )
+    )
     .orderBy(desc(approvalRequests.createdAt))
     .limit(24);
 
@@ -293,7 +313,13 @@ export async function createOrReusePreviewApprovalRequest(
         await db
           .update(approvalRequests)
           .set({ status: "expired", resolvedAt: new Date() })
-          .where(eq(approvalRequests.id, candidate.id));
+          .where(
+            and(
+              eq(approvalRequests.id, candidate.id),
+              eq(approvalRequests.teamId, input.teamId),
+              eq(approvalRequests.status, "pending")
+            )
+          );
       }
       continue;
     }
@@ -309,7 +335,11 @@ export async function createOrReusePreviewApprovalRequest(
       .select()
       .from(approvalRequests)
       .where(
-        and(eq(approvalRequests.bindingKey, bindingKey), eq(approvalRequests.status, "pending"))
+        and(
+          eq(approvalRequests.teamId, input.teamId),
+          eq(approvalRequests.bindingKey, bindingKey),
+          eq(approvalRequests.status, "pending")
+        )
       )
       .limit(1);
     return concurrent
@@ -320,10 +350,11 @@ export async function createOrReusePreviewApprovalRequest(
   return { status: "created" as const, request };
 }
 
-export async function listApprovalQueue(limit = 24) {
+export async function listApprovalQueue(teamId: string, limit = 24) {
   const requests = await db
     .select()
     .from(approvalRequests)
+    .where(eq(approvalRequests.teamId, teamId))
     .orderBy(desc(approvalRequests.createdAt))
     .limit(limit);
 
@@ -344,6 +375,7 @@ export async function listApprovalQueue(limit = 24) {
 
 export async function approveApprovalRequest(
   requestId: string,
+  teamId: string,
   userId: string,
   email: string,
   role: AppRole
@@ -351,7 +383,7 @@ export async function approveApprovalRequest(
   const [request] = await db
     .select()
     .from(approvalRequests)
-    .where(eq(approvalRequests.id, requestId))
+    .where(and(eq(approvalRequests.id, requestId), eq(approvalRequests.teamId, teamId)))
     .limit(1);
   if (!request) return { status: "not-found" as const };
   if (request.status !== "pending") {
@@ -361,10 +393,27 @@ export async function approveApprovalRequest(
   const expiresAt = readPreviewApprovalExpiry(summary) ?? readString(summary, "expiresAt", "");
   const expiresAtMs = new Date(expiresAt).getTime();
   if (!Number.isFinite(expiresAtMs) || expiresAtMs <= Date.now()) {
-    await db
+    const [expiredRequest] = await db
       .update(approvalRequests)
       .set({ status: "expired", resolvedAt: new Date() })
-      .where(eq(approvalRequests.id, requestId));
+      .where(
+        and(
+          eq(approvalRequests.id, requestId),
+          eq(approvalRequests.teamId, teamId),
+          eq(approvalRequests.status, "pending")
+        )
+      )
+      .returning({ id: approvalRequests.id });
+    if (!expiredRequest) {
+      const [current] = await db
+        .select({ status: approvalRequests.status })
+        .from(approvalRequests)
+        .where(and(eq(approvalRequests.id, requestId), eq(approvalRequests.teamId, teamId)))
+        .limit(1);
+      return current
+        ? { status: "invalid-state" as const, currentStatus: current.status }
+        : { status: "not-found" as const };
+    }
     await db.insert(auditEntries).values({
       actorType: "user",
       actorId: userId,
@@ -376,6 +425,7 @@ export async function approveApprovalRequest(
       permissionScope: "policy:override",
       outcome: "failure",
       metadata: {
+        teamId,
         resourceType: "approval-request",
         resourceId: requestId,
         expiresAt
@@ -395,6 +445,7 @@ export async function approveApprovalRequest(
       permissionScope: "policy:override",
       outcome: "failure",
       metadata: {
+        teamId,
         resourceType: "approval-request",
         resourceId: requestId,
         resourceLabel: readString(summary, "resourceLabel", request.targetResource),
@@ -413,13 +464,19 @@ export async function approveApprovalRequest(
       resolvedByEmail: email,
       resolvedAt: new Date()
     })
-    .where(and(eq(approvalRequests.id, requestId), eq(approvalRequests.status, "pending")))
+    .where(
+      and(
+        eq(approvalRequests.id, requestId),
+        eq(approvalRequests.teamId, teamId),
+        eq(approvalRequests.status, "pending")
+      )
+    )
     .returning();
   if (!approvedRequest) {
     const [current] = await db
       .select({ status: approvalRequests.status })
       .from(approvalRequests)
-      .where(eq(approvalRequests.id, requestId))
+      .where(and(eq(approvalRequests.id, requestId), eq(approvalRequests.teamId, teamId)))
       .limit(1);
     return current
       ? { status: "invalid-state" as const, currentStatus: current.status }
@@ -437,6 +494,7 @@ export async function approveApprovalRequest(
     permissionScope: "policy:override",
     outcome: "success",
     metadata: {
+      teamId,
       resourceType: "approval-request",
       resourceId: requestId,
       resourceLabel: readString(summary, "resourceLabel", request.targetResource),
@@ -463,7 +521,10 @@ export async function approveApprovalRequest(
   if (request.actionType === "backup-restore") {
     const backupRunId = request.targetResource.split("/")[1];
     if (backupRunId) {
-      await queueBackupRestore(backupRunId, userId, email, role);
+      await queueBackupRestore(backupRunId, userId, email, role, {
+        teamId,
+        approvalRequestId: requestId
+      });
     }
   }
 
@@ -510,6 +571,7 @@ export async function approveApprovalRequest(
       permissionScope: "deploy:start",
       outcome: queued ? "success" : "failure",
       metadata: {
+        teamId,
         approvalRequestId: requestId,
         providerType: binding?.providerType ?? null,
         sourceRepository: binding?.sourceRepository ?? null,
@@ -530,6 +592,7 @@ export async function approveApprovalRequest(
         : "No preview environment or secret material was prepared for this failed approval dispatch.",
       severity: queued ? "info" : "warning",
       metadata: {
+        teamId,
         approvalRequestId: requestId,
         providerType: binding?.providerType ?? null,
         sourceRepository: binding?.sourceRepository ?? null,
@@ -546,12 +609,13 @@ export async function approveApprovalRequest(
   const [updated] = await db
     .select()
     .from(approvalRequests)
-    .where(eq(approvalRequests.id, requestId));
+    .where(and(eq(approvalRequests.id, requestId), eq(approvalRequests.teamId, teamId)));
   return { status: "ok" as const, request: enrichApproval(updated) };
 }
 
 export async function rejectApprovalRequest(
   requestId: string,
+  teamId: string,
   userId: string,
   email: string,
   role: AppRole
@@ -559,7 +623,7 @@ export async function rejectApprovalRequest(
   const [request] = await db
     .select()
     .from(approvalRequests)
-    .where(eq(approvalRequests.id, requestId))
+    .where(and(eq(approvalRequests.id, requestId), eq(approvalRequests.teamId, teamId)))
     .limit(1);
   if (!request) return { status: "not-found" as const };
   if (request.status !== "pending") {
@@ -574,13 +638,19 @@ export async function rejectApprovalRequest(
       resolvedByEmail: email,
       resolvedAt: new Date()
     })
-    .where(and(eq(approvalRequests.id, requestId), eq(approvalRequests.status, "pending")))
+    .where(
+      and(
+        eq(approvalRequests.id, requestId),
+        eq(approvalRequests.teamId, teamId),
+        eq(approvalRequests.status, "pending")
+      )
+    )
     .returning();
   if (!rejectedRequest) {
     const [current] = await db
       .select({ status: approvalRequests.status })
       .from(approvalRequests)
-      .where(eq(approvalRequests.id, requestId))
+      .where(and(eq(approvalRequests.id, requestId), eq(approvalRequests.teamId, teamId)))
       .limit(1);
     return current
       ? { status: "invalid-state" as const, currentStatus: current.status }
@@ -599,6 +669,7 @@ export async function rejectApprovalRequest(
     permissionScope: "policy:override",
     outcome: "success",
     metadata: {
+      teamId,
       resourceType: "approval-request",
       resourceId: requestId,
       resourceLabel: readString(summary, "resourceLabel", request.targetResource),
@@ -625,6 +696,6 @@ export async function rejectApprovalRequest(
   const [updated] = await db
     .select()
     .from(approvalRequests)
-    .where(eq(approvalRequests.id, requestId));
+    .where(and(eq(approvalRequests.id, requestId), eq(approvalRequests.teamId, teamId)));
   return { status: "ok" as const, request: enrichApproval(updated) };
 }

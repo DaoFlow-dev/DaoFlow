@@ -1,12 +1,14 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import type { AppRole } from "@daoflow/shared";
 import { db } from "../connection";
-import { auditEntries } from "../schema/audit";
+import { approvalRequests, auditEntries } from "../schema/audit";
 import { backupRestores, backupRuns } from "../schema/storage";
 import { startRestoreWorkflow } from "../../worker";
 import { isTemporalEnabled } from "../../worker/temporal/temporal-config";
+import type { RestoreApproval } from "../../worker/temporal/restore-workflow-input";
 import { getBackupRunDetails } from "./backup-run-details";
 import { getPolicyView, loadBackupRelations } from "./backup-view-helpers";
+import { resolveVolumeTeamId } from "./backup-resource-team";
 import { newId as id } from "./json-helpers";
 
 const POSTGRES_VERSION_PATTERN = /^(?<major>[1-9]\d*)(?:\.\d+(?:\.\d+)?)?$/;
@@ -51,6 +53,33 @@ function assertBackupVerificationEligible(
       "Backup verification requires the immutable verifier image to use the same PostgreSQL major version as the backup. Create a new backup with matching verification metadata before requesting verification."
     );
   }
+}
+
+type QueueBackupRestoreOptions = {
+  testRestore?: boolean;
+  teamId?: string;
+  approvalRequestId?: string;
+};
+
+async function resolveRestoreApproval(
+  backupRunId: string,
+  expectedTeamId: string,
+  approvalRequestId: string
+): Promise<RestoreApproval | null> {
+  const approvalFilters = [
+    eq(approvalRequests.teamId, expectedTeamId),
+    eq(approvalRequests.actionType, "backup-restore"),
+    eq(approvalRequests.targetResource, `backup-run/${backupRunId}`),
+    eq(approvalRequests.status, "approved")
+  ];
+
+  const [approval] = await db
+    .select({ id: approvalRequests.id })
+    .from(approvalRequests)
+    .where(and(eq(approvalRequests.id, approvalRequestId), ...approvalFilters))
+    .limit(1);
+
+  return approval ? { approvalRequestId: approval.id, expectedTeamId } : null;
 }
 
 export async function buildBackupRestorePlan(backupRunId: string) {
@@ -137,7 +166,7 @@ export async function queueBackupRestore(
   userId: string,
   email: string,
   role: AppRole,
-  opts?: { testRestore?: boolean }
+  opts?: QueueBackupRestoreOptions
 ) {
   const verification = opts?.testRestore === true;
 
@@ -158,6 +187,15 @@ export async function queueBackupRestore(
   }
   const volume = relations.volumesById.get(policy.volumeId);
   if (!volume) return null;
+  const volumeTeamId = await resolveVolumeTeamId(volume);
+  if (!volumeTeamId) return null;
+  if (opts?.teamId && volumeTeamId !== opts.teamId) return null;
+  const approval =
+    opts?.teamId && opts.approvalRequestId
+      ? ((await resolveRestoreApproval(backupRunId, opts.teamId, opts.approvalRequestId)) ??
+        undefined)
+      : undefined;
+  if (opts?.teamId && !approval) return null;
   if (!isTemporalEnabled()) {
     throw new Error(
       "Backup restore execution requires Temporal mode. Set DAOFLOW_ENABLE_TEMPORAL=true and ensure TEMPORAL_ADDRESS is configured."
@@ -194,6 +232,7 @@ export async function queueBackupRestore(
     permissionScope: "backup:restore",
     outcome: "success",
     metadata: {
+      teamId: volumeTeamId,
       resourceType: "backup-restore",
       resourceId: restoreId,
       resourceLabel: `${view.serviceName}@${view.environmentName}`,
@@ -207,7 +246,9 @@ export async function queueBackupRestore(
       backupRunId,
       triggeredBy: userId,
       targetPath: mode === "restore" ? volume.mountPath : null,
-      mode
+      mode,
+      testRestore: opts?.testRestore,
+      approval
     });
 
     return {

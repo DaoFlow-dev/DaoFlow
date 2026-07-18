@@ -10,6 +10,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { relations, sql } from "drizzle-orm";
 import { users } from "./users";
+import { teams } from "./teams";
 
 export const auditEntries = pgTable(
   "audit_entries",
@@ -61,6 +62,11 @@ export const approvalRequests = pgTable(
   "approval_requests",
   {
     id: varchar("id", { length: 32 }).primaryKey(),
+    teamId: varchar("team_id", { length: 32 })
+      .notNull()
+      .references(() => teams.id, {
+        onDelete: "cascade"
+      }),
     actionType: varchar("action_type", { length: 40 }).notNull(), // compose-release | backup-restore | deployment
     bindingKey: varchar("binding_key", { length: 64 }),
     targetResource: varchar("target_resource", { length: 200 }).notNull(),
@@ -80,16 +86,21 @@ export const approvalRequests = pgTable(
     resolvedAt: timestamp("resolved_at")
   },
   (table) => [
+    index("approval_requests_team_id_idx").on(table.teamId),
     index("approval_requests_status_idx").on(table.status),
     index("approval_requests_action_type_idx").on(table.actionType),
     uniqueIndex("approval_requests_pending_binding_idx")
-      .on(table.bindingKey)
+      .on(table.teamId, table.bindingKey)
       .where(sql`${table.bindingKey} is not null and ${table.status} = 'pending'`),
     index("approval_requests_created_at_idx").on(table.createdAt)
   ]
 );
 
 export const approvalRequestsRelations = relations(approvalRequests, ({ one }) => ({
+  team: one(teams, {
+    fields: [approvalRequests.teamId],
+    references: [teams.id]
+  }),
   requestedByUser: one(users, {
     fields: [approvalRequests.requestedByUserId],
     references: [users.id]

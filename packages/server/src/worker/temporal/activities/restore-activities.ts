@@ -8,7 +8,7 @@
  * - Test restore for integrity verification
  */
 
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { rmSync } from "node:fs";
 import { db } from "../../../db/connection";
 import {
@@ -19,12 +19,17 @@ import {
   type BackupRestoreMode,
   type BackupVerificationResult
 } from "../../../db/schema/storage";
+import { approvalRequests } from "../../../db/schema/audit";
 import { copyFromRemote } from "../../rclone-executor";
 import { newId } from "../../../db/services/json-helpers";
-import { resolveTeamScopedDestinationForVolume } from "../../../db/services/backup-resource-team";
+import {
+  resolveTeamScopedDestinationForVolume,
+  resolveVolumeTeamId
+} from "../../../db/services/backup-resource-team";
 import { decryptDestinationForVolumeOperation } from "./destination-operation";
 import { executePostgresRestoreVerification } from "./postgres-restore-verification-activity";
 import { executeRestoreArtifact, type RestoreExecutionContext } from "./restore-execution";
+import type { RestoreApproval, RestoreWorkflowInput } from "../restore-workflow-input";
 
 export {
   auditRestoreAction,
@@ -36,17 +41,7 @@ export {
 
 // ── Types ────────────────────────────────────────────────────
 
-export interface RestoreInput {
-  restoreId?: string;
-  backupRunId: string;
-  /** Target path to restore to (optional, defaults to original volume path) */
-  targetPath?: string;
-  /** Who triggered the restore */
-  triggeredBy: string;
-  /** If true, restore to a temp path and verify, then cleanup */
-  testRestore?: boolean;
-  mode?: BackupRestoreMode;
-}
+export type RestoreInput = RestoreWorkflowInput;
 
 export interface RestoreResolved {
   restoreId: string;
@@ -71,6 +66,7 @@ export interface RestoreResolved {
   artifactFormat?: string;
   databaseEngineVersion?: string;
   databaseImageReference?: string;
+  approval?: RestoreApproval;
 }
 
 export interface RestoreResult {
@@ -194,8 +190,61 @@ export async function resolveRestoreContext(input: RestoreInput): Promise<Restor
     checksum: run.checksum ?? undefined,
     artifactFormat: run.artifactFormat ?? undefined,
     databaseEngineVersion: run.databaseEngineVersion ?? undefined,
-    databaseImageReference: run.databaseImageReference ?? undefined
+    databaseImageReference: run.databaseImageReference ?? undefined,
+    approval: input.approval
   };
+}
+
+async function revalidateRestoreApproval(
+  backupRunId: string,
+  approval: RestoreApproval | undefined
+): Promise<void> {
+  if (!approval) return;
+
+  const { approvalRequestId, expectedTeamId } = approval;
+  if (!approvalRequestId || !expectedTeamId) {
+    throw new Error("Restore approval binding is incomplete.");
+  }
+
+  const [approvedRequest] = await db
+    .select({ id: approvalRequests.id })
+    .from(approvalRequests)
+    .where(
+      and(
+        eq(approvalRequests.id, approvalRequestId),
+        eq(approvalRequests.teamId, expectedTeamId),
+        eq(approvalRequests.actionType, "backup-restore"),
+        eq(approvalRequests.targetResource, `backup-run/${backupRunId}`),
+        eq(approvalRequests.status, "approved")
+      )
+    )
+    .limit(1);
+  if (!approvedRequest) {
+    throw new Error("Restore approval is no longer valid for this target.");
+  }
+
+  const [run] = await db
+    .select({ policyId: backupRuns.policyId })
+    .from(backupRuns)
+    .where(eq(backupRuns.id, backupRunId))
+    .limit(1);
+  if (!run) {
+    throw new Error("Restore target is no longer available for approval revalidation.");
+  }
+
+  const [policy] = await db
+    .select({ volumeId: backupPolicies.volumeId })
+    .from(backupPolicies)
+    .where(eq(backupPolicies.id, run.policyId))
+    .limit(1);
+  if (!policy) {
+    throw new Error("Restore target is no longer available for approval revalidation.");
+  }
+
+  const [volume] = await db.select().from(volumes).where(eq(volumes.id, policy.volumeId)).limit(1);
+  if (!volume || (await resolveVolumeTeamId(volume)) !== expectedTeamId) {
+    throw new Error("Restore approval team no longer matches the restore target.");
+  }
 }
 
 /**
@@ -207,6 +256,8 @@ export async function resolveRestoreContext(input: RestoreInput): Promise<Restor
 export async function downloadBackupArtifact(
   ctx: RestoreResolved
 ): Promise<{ success: boolean; localPath: string; error?: string }> {
+  await revalidateRestoreApproval(ctx.runId, ctx.approval);
+
   const localPath = ctx.downloadPath;
   const destination = await decryptDestinationForVolumeOperation({
     volumeId: ctx.volumeId,

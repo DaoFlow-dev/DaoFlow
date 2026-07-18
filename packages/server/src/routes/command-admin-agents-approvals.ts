@@ -15,7 +15,7 @@ import {
   throwOnOperationError,
   tokensManageProcedure
 } from "../trpc";
-import { requireActorTeamId } from "./team-scope";
+import { requireActorTeamId, requireApprovalDecisionTeamId } from "./team-scope";
 
 export const adminAgentApprovalRouter = t.router({
   createAgent: adminProcedure
@@ -120,8 +120,10 @@ export const adminAgentApprovalRouter = t.router({
     )
     .mutation(async ({ ctx, input }) => {
       const actor = getActorContext(ctx);
+      const teamId = await requireApprovalDecisionTeamId(actor.requestedByUserId);
       const result = await approveApprovalRequest(
         input.requestId,
+        teamId,
         actor.requestedByUserId,
         actor.requestedByEmail,
         actor.requestedByRole
@@ -139,8 +141,10 @@ export const adminAgentApprovalRouter = t.router({
     )
     .mutation(async ({ ctx, input }) => {
       const actor = getActorContext(ctx);
+      const teamId = await requireApprovalDecisionTeamId(actor.requestedByUserId);
       const result = await rejectApprovalRequest(
         input.requestId,
+        teamId,
         actor.requestedByUserId,
         actor.requestedByEmail,
         actor.requestedByRole

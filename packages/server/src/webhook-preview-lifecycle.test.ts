@@ -355,9 +355,16 @@ describe("preview lifecycle webhooks", () => {
       throw new Error("Expected a pending preview approval request.");
     }
     const approvalResults = await Promise.all([
-      approveApprovalRequest(approval.id, "user_foundation_owner", "owner@daoflow.local", "owner"),
       approveApprovalRequest(
         approval.id,
+        "team_foundation",
+        "user_foundation_owner",
+        "owner@daoflow.local",
+        "owner"
+      ),
+      approveApprovalRequest(
+        approval.id,
+        "team_foundation",
         "user_foundation_operator",
         "operator@daoflow.local",
         "operator"
@@ -873,7 +880,13 @@ describe("preview lifecycle webhooks", () => {
       throw new Error("Expected a pending GitLab preview approval request.");
     }
     await expect(
-      approveApprovalRequest(approval.id, "user_foundation_owner", "owner@daoflow.local", "owner")
+      approveApprovalRequest(
+        approval.id,
+        "team_foundation",
+        "user_foundation_owner",
+        "owner@daoflow.local",
+        "owner"
+      )
     ).resolves.toMatchObject({ status: "ok" });
 
     const mergePayload = JSON.stringify({

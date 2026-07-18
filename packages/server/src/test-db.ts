@@ -124,6 +124,7 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
       certificateAssetsIssuer: string | null;
       approvalRequestsRequestedByRole: string | null;
       approvalRequestsInputSummary: string | null;
+      approvalRequestsTeamId: string | null;
       requestAccessLogs: string | null;
       accountSecurityPolicies: string | null;
       twoFactor: string | null;
@@ -184,6 +185,7 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
         (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'certificate_assets' AND column_name = 'issuer') AS "certificateAssetsIssuer",
         (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'approval_requests' AND column_name = 'requested_by_role') AS "approvalRequestsRequestedByRole",
         (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'approval_requests' AND column_name = 'input_summary') AS "approvalRequestsInputSummary",
+        (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'approval_requests' AND column_name = 'team_id' AND is_nullable = 'NO') AS "approvalRequestsTeamId",
         to_regclass('public.request_access_logs') AS "requestAccessLogs",
         to_regclass('public.account_security_policies') AS "accountSecurityPolicies",
         to_regclass('public.two_factor') AS "twoFactor",
@@ -246,6 +248,7 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
       row.certificateAssetsIssuer &&
       row.approvalRequestsRequestedByRole &&
       row.approvalRequestsInputSummary &&
+      row.approvalRequestsTeamId &&
       row.requestAccessLogs &&
       row.accountSecurityPolicies &&
       row.twoFactor &&
@@ -339,6 +342,7 @@ async function readPoolSchemaState() {
     sshHostIdentities: string | null;
     approvalRequestsRequestedByRole: string | null;
     approvalRequestsInputSummary: string | null;
+    approvalRequestsTeamId: string | null;
     requestAccessLogs: string | null;
     accountSecurityPolicies: string | null;
     twoFactor: string | null;
@@ -398,6 +402,7 @@ async function readPoolSchemaState() {
       to_regclass('public.ssh_host_identities') AS "sshHostIdentities",
       (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'approval_requests' AND column_name = 'requested_by_role') AS "approvalRequestsRequestedByRole",
       (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'approval_requests' AND column_name = 'input_summary') AS "approvalRequestsInputSummary",
+      (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'approval_requests' AND column_name = 'team_id' AND is_nullable = 'NO') AS "approvalRequestsTeamId",
       to_regclass('public.request_access_logs') AS "requestAccessLogs",
       to_regclass('public.account_security_policies') AS "accountSecurityPolicies",
       to_regclass('public.two_factor') AS "twoFactor",
@@ -471,6 +476,7 @@ async function ensurePooledTestSchemaReady(connectionString: string) {
         state.sshHostIdentities &&
         state.approvalRequestsRequestedByRole &&
         state.approvalRequestsInputSummary &&
+        state.approvalRequestsTeamId &&
         state.requestAccessLogs &&
         state.accountSecurityPolicies &&
         state.twoFactor &&

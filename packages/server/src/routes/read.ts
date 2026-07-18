@@ -136,8 +136,9 @@ const coreReadRouter = t.router({
 
       return items.filter((item) => item.lane === input.lane);
     }),
-  approvalQueue: protectedProcedure.input(limitInput(40)).query(async ({ input }) => {
-    return listApprovalQueue(input.limit ?? 24);
+  approvalQueue: protectedProcedure.input(limitInput(40)).query(async ({ ctx, input }) => {
+    const teamId = await requireViewerTeamId(ctx.session.user.id);
+    return listApprovalQueue(teamId, input.limit ?? 24);
   }),
   infrastructureInventory: protectedProcedure.query(async ({ ctx }) => {
     const teamId = await requireViewerTeamId(ctx.session.user.id);
