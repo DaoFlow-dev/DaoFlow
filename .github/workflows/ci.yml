@@ -144,9 +144,45 @@ jobs:
         run: ./${{ matrix.output }} --version
 
   e2e:
-    name: E2E Tests (Docker Compose)
+    name: E2E Tests (${{ matrix.name }})
     runs-on: ubuntu-latest
     needs: lint-typecheck
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: core
+            script: test:e2e:main
+            specs: >-
+              e2e/approvals.spec.ts
+              e2e/auth.spec.ts
+              e2e/backup-destinations.spec.ts
+              e2e/backup-e2e.spec.ts
+              e2e/backups.spec.ts
+              e2e/cli-smoke.spec.ts
+              e2e/compose.spec.ts
+              e2e/deployments.spec.ts
+              e2e/env-vars.spec.ts
+              e2e/home.spec.ts
+              e2e/migration.spec.ts
+              e2e/onboarding.spec.ts
+              e2e/openclaw-e2e.spec.ts
+          - name: access-and-servers
+            script: test:e2e:main
+            specs: >-
+              e2e/rbac.spec.ts
+              e2e/servers.spec.ts
+          - name: operations
+            script: test:e2e:main
+            specs: >-
+              e2e/service-observability.spec.ts
+              e2e/webhooks.spec.ts
+          - name: bootstrap
+            script: test:e2e:bootstrap
+            specs: ""
+          - name: cli
+            script: test:e2e:cli
+            specs: ""
 
     steps:
       - name: Checkout
@@ -177,8 +213,15 @@ jobs:
       - name: Run E2E tests
         run: |
           set -euxo pipefail
-          bun run test:e2e 2>&1 | tee e2e-ci.log
+          if [[ -n "$E2E_SPECS" ]]; then
+            read -ra specs <<< "$E2E_SPECS"
+            bun run "$E2E_SCRIPT" -- "${specs[@]}" 2>&1 | tee e2e-ci.log
+          else
+            bun run "$E2E_SCRIPT" 2>&1 | tee e2e-ci.log
+          fi
         env:
+          E2E_SCRIPT: ${{ matrix.script }}
+          E2E_SPECS: ${{ matrix.specs }}
           DATABASE_URL: postgresql://daoflow:daoflow_dev@localhost:5432/daoflow_e2e
           PLAYWRIGHT_DATABASE_URL: postgresql://daoflow:daoflow_dev@localhost:5432/daoflow_e2e
           PLAYWRIGHT_BOOTSTRAP_DATABASE_URL: postgresql://daoflow:daoflow_dev@localhost:5432/daoflow_e2e_bootstrap
@@ -199,7 +242,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v6
         with:
-          name: playwright-report
+          name: playwright-report-${{ matrix.name }}
           path: playwright-report
           if-no-files-found: ignore
 
@@ -207,7 +250,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v6
         with:
-          name: e2e-ci-log
+          name: e2e-ci-log-${{ matrix.name }}
           path: e2e-ci.log
           if-no-files-found: ignore
 
