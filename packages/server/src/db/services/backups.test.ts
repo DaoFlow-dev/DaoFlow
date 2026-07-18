@@ -2,19 +2,25 @@ import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { startOneOffBackupWorkflowMock, getBackupCronStatusMock, isTemporalEnabledMock } =
-  vi.hoisted(() => ({
-    startOneOffBackupWorkflowMock: vi.fn(),
-    getBackupCronStatusMock: vi.fn(),
-    isTemporalEnabledMock: vi.fn()
-  }));
+const {
+  startOneOffBackupWorkflowMock,
+  startRestoreWorkflowMock,
+  getBackupCronStatusMock,
+  isTemporalEnabledMock
+} = vi.hoisted(() => ({
+  startOneOffBackupWorkflowMock: vi.fn(),
+  startRestoreWorkflowMock: vi.fn(),
+  getBackupCronStatusMock: vi.fn(),
+  isTemporalEnabledMock: vi.fn()
+}));
 
 vi.mock("../../worker", async () => {
   const actual = await vi.importActual<typeof import("../../worker")>("../../worker");
   return {
     ...actual,
     getBackupCronStatus: getBackupCronStatusMock,
-    startOneOffBackupWorkflow: startOneOffBackupWorkflowMock
+    startOneOffBackupWorkflow: startOneOffBackupWorkflowMock,
+    startRestoreWorkflow: startRestoreWorkflowMock
   };
 });
 
@@ -29,11 +35,13 @@ vi.mock("../../worker/temporal/temporal-config", async () => {
 });
 
 import { db } from "../connection";
-import { backupPolicies, backupRuns, volumes } from "../schema/storage";
+import { auditEntries } from "../schema/audit";
+import { backupPolicies, backupRestores, backupRuns, volumes } from "../schema/storage";
 import { servers } from "../schema/servers";
 import { users } from "../schema/users";
 import { resetTestDatabase } from "../../test-db";
-import { listBackupOverview, triggerBackupRun } from "./backups";
+import { BackupVerificationEligibilityError } from "./backup-restores";
+import { listBackupOverview, queueBackupRestore, triggerBackupRun } from "./backups";
 
 function createFixtureSuffix() {
   return randomUUID().replace(/-/g, "").slice(0, 8);
@@ -102,17 +110,44 @@ async function createBackupPolicyFixture() {
   return { userId, policyId };
 }
 
+async function createBackupRunFixture(
+  policyId: string,
+  overrides: Partial<typeof backupRuns.$inferInsert> = {}
+) {
+  const runId = `brunbk${createFixtureSuffix()}`;
+  await db.insert(backupRuns).values({
+    id: runId,
+    policyId,
+    status: "succeeded",
+    artifactPath: "s3://backup-fixture/postgres.dump",
+    checksum: "b".repeat(64),
+    artifactFormat: "postgres-custom",
+    databaseEngineVersion: "17.4",
+    databaseImageReference: `postgres:17-alpine@sha256:${"a".repeat(64)}`,
+    startedAt: new Date("2026-03-21T06:00:00.000Z"),
+    completedAt: new Date("2026-03-21T06:05:00.000Z"),
+    createdAt: new Date("2026-03-21T06:00:00.000Z"),
+    ...overrides
+  });
+  return runId;
+}
+
 describe("triggerBackupRun", () => {
   beforeEach(async () => {
     await resetTestDatabase();
     getBackupCronStatusMock.mockReset();
     startOneOffBackupWorkflowMock.mockReset();
+    startRestoreWorkflowMock.mockReset();
     isTemporalEnabledMock.mockReset();
     isTemporalEnabledMock.mockReturnValue(true);
     getBackupCronStatusMock.mockResolvedValue(null);
     startOneOffBackupWorkflowMock.mockResolvedValue({
       workflowId: "backup-run-test",
       runId: "temporal-run-test"
+    });
+    startRestoreWorkflowMock.mockResolvedValue({
+      workflowId: "restore-workflow-test",
+      runId: "restore-run-test"
     });
   });
 
@@ -158,5 +193,105 @@ describe("triggerBackupRun", () => {
     expect(policy?.temporalWorkflowId).toBe(`backup-cron-${fixture.policyId}`);
     expect(policy?.temporalWorkflowStatus).toBe("RUNNING");
     expect(getBackupCronStatusMock).toHaveBeenCalledWith(fixture.policyId);
+  });
+
+  it("queues verification only for trusted PostgreSQL metadata and audits the mode", async () => {
+    const fixture = await createBackupPolicyFixture();
+    const runId = await createBackupRunFixture(fixture.policyId);
+
+    const restore = await queueBackupRestore(
+      runId,
+      fixture.userId,
+      `${fixture.userId}@daoflow.local`,
+      "owner",
+      { testRestore: true }
+    );
+
+    expect(restore).toMatchObject({
+      backupRunId: runId,
+      mode: "verification",
+      targetPath: null,
+      status: "queued"
+    });
+    expect(startOneOffBackupWorkflowMock).not.toHaveBeenCalled();
+    expect(startRestoreWorkflowMock).toHaveBeenCalledWith({
+      restoreId: restore?.id,
+      backupRunId: runId,
+      triggeredBy: fixture.userId,
+      targetPath: null,
+      mode: "verification"
+    });
+
+    const [audit] = await db
+      .select()
+      .from(auditEntries)
+      .where(eq(auditEntries.targetResource, `backup-restore/${restore?.id}`));
+    expect(audit?.action).toBe("backup.verify.queue");
+    expect(audit?.inputSummary).toContain("Queued verification");
+    expect((audit?.metadata as Record<string, unknown> | null)?.detail).toContain(
+      "Queued verification"
+    );
+  });
+
+  it.each([
+    ["the artifact format", { artifactFormat: "postgres-sql" }],
+    ["the checksum", { checksum: null }],
+    ["the source version", { databaseEngineVersion: null }],
+    ["the immutable verifier image", { databaseImageReference: null }]
+  ])(
+    "rejects verification before queueing when %s is missing or invalid",
+    async (_label, overrides) => {
+      const fixture = await createBackupPolicyFixture();
+      const runId = await createBackupRunFixture(fixture.policyId, overrides);
+
+      const restoresBefore = await db
+        .select({ id: backupRestores.id })
+        .from(backupRestores)
+        .where(eq(backupRestores.backupRunId, runId));
+
+      const verification = queueBackupRestore(
+        runId,
+        fixture.userId,
+        `${fixture.userId}@daoflow.local`,
+        "owner",
+        {
+          testRestore: true
+        }
+      );
+      await expect(verification).rejects.toBeInstanceOf(BackupVerificationEligibilityError);
+      await expect(verification).rejects.toThrow("Create a new");
+
+      const restoresAfter = await db
+        .select({ id: backupRestores.id })
+        .from(backupRestores)
+        .where(eq(backupRestores.backupRunId, runId));
+      expect(restoresAfter).toEqual(restoresBefore);
+      expect(startRestoreWorkflowMock).not.toHaveBeenCalled();
+    }
+  );
+
+  it("keeps ordinary restore queue audit wording separate from verification", async () => {
+    const fixture = await createBackupPolicyFixture();
+    const runId = await createBackupRunFixture(fixture.policyId, {
+      artifactFormat: null,
+      databaseEngineVersion: null,
+      databaseImageReference: null,
+      checksum: null
+    });
+
+    const restore = await queueBackupRestore(
+      runId,
+      fixture.userId,
+      `${fixture.userId}@daoflow.local`,
+      "owner"
+    );
+
+    const [audit] = await db
+      .select()
+      .from(auditEntries)
+      .where(eq(auditEntries.targetResource, `backup-restore/${restore?.id}`));
+    expect(audit?.action).toBe("backup.restore.queue");
+    expect(audit?.inputSummary).toContain("Queued restore");
+    expect((audit?.metadata as Record<string, unknown> | null)?.detail).toContain("Queued restore");
   });
 });

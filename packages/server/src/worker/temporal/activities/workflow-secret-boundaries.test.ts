@@ -6,7 +6,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   select: vi.fn(),
   update: vi.fn(),
-  resolveTeamScopedDestinationForVolume: vi.fn()
+  resolveTeamScopedDestinationForVolume: vi.fn(),
+  decryptDestinationForVolumeOperation: vi.fn(),
+  executePostgresRestoreVerification: vi.fn()
 }));
 
 vi.mock("../../../db/connection", () => ({
@@ -20,9 +22,21 @@ vi.mock("../../../db/services/backup-resource-team", () => ({
   resolveTeamScopedDestinationForVolume: mocks.resolveTeamScopedDestinationForVolume
 }));
 
+vi.mock("./destination-operation", () => ({
+  decryptDestinationForVolumeOperation: mocks.decryptDestinationForVolumeOperation
+}));
+
+vi.mock("./postgres-restore-verification-activity", () => ({
+  executePostgresRestoreVerification: mocks.executePostgresRestoreVerification
+}));
+
 import { resolveBackupPolicy } from "./backup-policy-resolution";
 import { redactActivitySecretValue } from "./activity-secret-redaction";
-import { cleanupRestoreDownload, resolveRestoreContext } from "./restore-activities";
+import {
+  cleanupRestoreDownload,
+  executeRestore,
+  resolveRestoreContext
+} from "./restore-activities";
 
 function mockSelectRows(rows: unknown[]): void {
   mocks.select.mockReturnValueOnce({
@@ -47,6 +61,8 @@ afterEach(() => {
   mocks.select.mockReset();
   mocks.update.mockReset();
   mocks.resolveTeamScopedDestinationForVolume.mockReset();
+  mocks.decryptDestinationForVolumeOperation.mockReset();
+  mocks.executePostgresRestoreVerification.mockReset();
 });
 
 describe("Temporal backup secret boundaries", () => {
@@ -182,6 +198,111 @@ describe("Temporal backup secret boundaries", () => {
     expect(JSON.stringify(workflowPayload)).not.toContain(databasePassword);
     expect(workflowPayload?.downloadPath).toBe("/tmp/daoflow-restore/brest_test/download");
     expect(workflowPayload?.downloadPath).not.toBe(workflowPayload?.targetPath);
+  });
+
+  it("keeps live database identifiers and credentials out of verification workflow history", async () => {
+    const livePassword = "live-database-password-never-in-verification-history";
+    mockSelectRows([
+      {
+        id: "brun_verify",
+        policyId: "bpol_verify",
+        artifactPath: "nightly/postgres.dump",
+        status: "succeeded",
+        checksum: "a".repeat(64),
+        artifactFormat: "postgres-custom",
+        databaseEngineVersion: "17.4",
+        databaseImageReference: `sha256:${"b".repeat(64)}`
+      }
+    ]);
+    mockSelectRows([
+      {
+        id: "bpol_verify",
+        volumeId: "vol_verify",
+        destinationId: "dest_verify",
+        backupType: "database",
+        databaseEngine: "postgres"
+      }
+    ]);
+    mockSelectRows([
+      {
+        id: "vol_verify",
+        name: "postgres-data",
+        mountPath: "/var/lib/postgresql/data",
+        metadata: {
+          containerName: "live-postgres",
+          databaseName: "production",
+          databaseUser: "production_user",
+          databasePassword: livePassword
+        }
+      }
+    ]);
+    mockRestoreUpdate();
+    mocks.resolveTeamScopedDestinationForVolume.mockResolvedValue({
+      teamId: "team_test",
+      destination: {
+        id: "dest_verify",
+        encryptionMode: "none"
+      }
+    });
+
+    const workflowPayload = await resolveRestoreContext({
+      restoreId: "brest_verify",
+      backupRunId: "brun_verify",
+      triggeredBy: "user_test",
+      mode: "verification"
+    });
+
+    expect(workflowPayload).toMatchObject({
+      mode: "verification",
+      checksum: "a".repeat(64),
+      artifactFormat: "postgres-custom",
+      databaseEngineVersion: "17.4",
+      databaseImageReference: `sha256:${"b".repeat(64)}`
+    });
+    expect(workflowPayload?.targetPath).toBeUndefined();
+    expect(workflowPayload?.containerName).toBeUndefined();
+    expect(workflowPayload?.databaseName).toBeUndefined();
+    expect(workflowPayload?.databaseUser).toBeUndefined();
+    expect(JSON.stringify(workflowPayload)).not.toContain("live-postgres");
+    expect(JSON.stringify(workflowPayload)).not.toContain("production_user");
+    expect(JSON.stringify(workflowPayload)).not.toContain(livePassword);
+  });
+
+  it("executes PostgreSQL verification without loading the live database password", async () => {
+    const ctx = {
+      restoreId: "brest_verify",
+      runId: "brun_verify",
+      artifactPath: "nightly/postgres.dump",
+      destinationId: "dest_verify",
+      volumeId: "vol_verify",
+      mode: "verification" as const,
+      downloadPath: "/tmp/daoflow-restore/brest_verify/download",
+      encryptionMode: "none",
+      backupType: "database",
+      volumeName: "postgres-data",
+      databaseEngine: "postgres",
+      checksum: "a".repeat(64),
+      artifactFormat: "postgres-custom",
+      databaseEngineVersion: "17.4",
+      databaseImageReference: `postgres:17-alpine@sha256:${"b".repeat(64)}`
+    };
+    const destination = { id: "dest_verify", provider: "local" };
+    mocks.decryptDestinationForVolumeOperation.mockResolvedValue(destination);
+    mocks.executePostgresRestoreVerification.mockResolvedValue({
+      restoreId: ctx.restoreId,
+      success: true,
+      bytesRestored: 42
+    });
+
+    const result = await executeRestore(ctx, { localPath: ctx.downloadPath });
+
+    expect(result.success).toBe(true);
+    expect(mocks.executePostgresRestoreVerification).toHaveBeenCalledWith(
+      ctx,
+      destination,
+      ctx.downloadPath
+    );
+    expect(mocks.select).not.toHaveBeenCalled();
   });
 
   it("removes staged restore downloads without deleting the restore target", async () => {

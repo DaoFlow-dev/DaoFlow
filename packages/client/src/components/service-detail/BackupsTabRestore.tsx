@@ -114,6 +114,7 @@ export function BackupRestoreHistory({ restores }: { restores: ServiceBackupRest
           <TableHeader>
             <TableRow>
               <TableHead>Status</TableHead>
+              <TableHead>Mode</TableHead>
               <TableHead>Target</TableHead>
               <TableHead>Requested by</TableHead>
               <TableHead>Requested</TableHead>
@@ -127,7 +128,12 @@ export function BackupRestoreHistory({ restores }: { restores: ServiceBackupRest
                     {restore.status}
                   </Badge>
                 </TableCell>
-                <TableCell className="font-mono text-xs">{restore.targetPath}</TableCell>
+                <TableCell>{restore.mode}</TableCell>
+                <TableCell className="font-mono text-xs">
+                  {restore.mode === "verification"
+                    ? "Isolated temporary database"
+                    : (restore.targetPath ?? "n/a")}
+                </TableCell>
                 <TableCell>{restore.requestedBy}</TableCell>
                 <TableCell>{formatDate(restore.requestedAt)}</TableCell>
               </TableRow>

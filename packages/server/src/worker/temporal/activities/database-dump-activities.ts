@@ -6,6 +6,7 @@ import { eq } from "drizzle-orm";
 import { db } from "../../../db/connection";
 import { volumes } from "../../../db/schema/storage";
 import { dockerCommand, withCommandPath } from "../../command-env";
+import { processRunner } from "../../process-runner";
 import { redactActivitySecretValue } from "./activity-secret-redaction";
 import type { DatabaseDumpInput, DatabaseDumpResult } from "./database-activity-types";
 import { computeChecksumStream } from "./database-file-activities";
@@ -25,11 +26,13 @@ export async function executeDatabaseDump(input: DatabaseDumpInput): Promise<Dat
   const startTime = Date.now();
   const dumpDir = ensureDumpDir();
   const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-  const extension = input.engine === "mongo" ? "archive" : "sql";
+  const extension =
+    input.engine === "postgres" ? "dump" : input.engine === "mongo" ? "archive" : "sql";
   const dumpFile = join(dumpDir, `${input.containerName}-${timestamp}.${extension}`);
   let databasePassword: string | undefined;
 
   try {
+    const sourceMetadata = inspectDatabaseSource(input);
     databasePassword = await readDatabasePassword(input.volumeId);
     const { dockerArgs, envArgs } = buildDockerExecArgs({
       ...input,
@@ -71,7 +74,8 @@ export async function executeDatabaseDump(input: DatabaseDumpInput): Promise<Dat
       dumpPath: dumpFile,
       sizeBytes: stats.size,
       checksum,
-      durationMs: Date.now() - startTime
+      durationMs: Date.now() - startTime,
+      ...sourceMetadata
     };
   } catch (err) {
     try {
@@ -91,6 +95,70 @@ export async function executeDatabaseDump(input: DatabaseDumpInput): Promise<Dat
       )
     };
   }
+}
+
+function inspectDatabaseSource(input: DatabaseDumpInput): {
+  artifactFormat: string;
+  databaseEngineVersion?: string;
+  databaseImageReference?: string;
+} {
+  if (input.engine !== "postgres") {
+    return {
+      artifactFormat: input.engine === "mongo" ? "mongo-gzip-archive" : `${input.engine}-sql`
+    };
+  }
+
+  const metadata: {
+    artifactFormat: string;
+    databaseEngineVersion?: string;
+    databaseImageReference?: string;
+  } = { artifactFormat: "postgres-custom" };
+
+  try {
+    const env = withCommandPath(process.env);
+    const versionOutput = processRunner.execFileSync(
+      dockerCommand,
+      ["exec", input.containerName, "pg_dump", "--version"],
+      { encoding: "utf-8", timeout: 10_000, env }
+    );
+    const versionMatch = /PostgreSQL\)\s+([0-9]+(?:\.[0-9]+)*)/i.exec(versionOutput);
+    if (!versionMatch) return metadata;
+
+    metadata.databaseEngineVersion = versionMatch[1];
+    const imageDetails = processRunner
+      .execFileSync(
+        dockerCommand,
+        ["inspect", "--format", "{{.Config.Image}}|{{.Image}}", input.containerName],
+        { encoding: "utf-8", timeout: 10_000, env }
+      )
+      .trim();
+    const [configuredImage = "", imageId = ""] = imageDetails.split("|");
+    const imageName = configuredImage.split("@")[0];
+    const sourceMajor = versionMatch[1].split(".")[0];
+    const officialImage =
+      /^(?:(?:docker\.io\/)?library\/)?postgres:(?<major>[1-9]\d*)(?:\.[0-9]+)*(?:-[a-z0-9][a-z0-9._-]*)?$/i.exec(
+        imageName
+      );
+    const repositoryDigest = processRunner
+      .execFileSync(
+        dockerCommand,
+        ["image", "inspect", "--format", "{{index .RepoDigests 0}}", imageId],
+        { encoding: "utf-8", timeout: 10_000, env }
+      )
+      .trim()
+      .split("@")[1];
+    if (
+      officialImage?.groups?.major === sourceMajor &&
+      /^sha256:[a-f0-9]{64}$/i.test(imageId) &&
+      /^sha256:[a-f0-9]{64}$/i.test(repositoryDigest ?? "")
+    ) {
+      metadata.databaseImageReference = `${imageName}@${repositoryDigest}`;
+    }
+  } catch {
+    // Backup creation must not depend on verification metadata availability.
+  }
+
+  return metadata;
 }
 
 function buildDockerExecArgs(input: DatabaseDumpExecutionInput): {
@@ -196,3 +264,8 @@ async function readDatabasePassword(volumeId: string): Promise<string | undefine
   const password = (metadata as Record<string, unknown>).databasePassword;
   return typeof password === "string" && password.length > 0 ? password : undefined;
 }
+
+export const databaseDumpTestHooks = {
+  buildDockerExecArgs,
+  inspectDatabaseSource
+};

@@ -181,6 +181,8 @@ export async function startRestoreWorkflow(input: {
   backupRunId: string;
   triggeredBy: string;
   targetPath?: string | null;
+  mode?: "restore" | "verification";
+  /** Backward-compatible input for callers deployed before explicit restore modes. */
   testRestore?: boolean;
 }): Promise<{ workflowId: string; runId: string }> {
   const tc = await getTemporalClient();
@@ -195,6 +197,7 @@ export async function startRestoreWorkflow(input: {
         backupRunId: input.backupRunId,
         triggeredBy: input.triggeredBy,
         targetPath: input.targetPath ?? undefined,
+        mode: input.mode,
         testRestore: input.testRestore
       }
     ],

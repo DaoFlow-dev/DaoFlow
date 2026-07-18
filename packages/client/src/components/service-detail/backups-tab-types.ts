@@ -31,8 +31,9 @@ export interface ServiceBackupRun {
 
 export interface ServiceBackupRestore {
   id: string;
+  mode: "restore" | "verification";
   status: string;
-  targetPath: string;
+  targetPath: string | null;
   requestedBy: string;
   requestedAt: string;
 }

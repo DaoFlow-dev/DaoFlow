@@ -87,6 +87,7 @@ const workflowData = {
   restores: [
     {
       id: "restore_1",
+      mode: "restore" as const,
       status: "succeeded",
       targetPath: "/var/lib/api",
       requestedBy: "owner@example.com",

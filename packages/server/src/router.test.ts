@@ -1990,6 +1990,29 @@ describe("appRouter", () => {
     expect(restoresAfter).toHaveLength(restoresBefore.length);
   });
 
+  it("rejects ineligible test-restore verification before inserting a request", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-backup-verification-eligibility",
+      session: makeSession("owner")
+    });
+    const restoresBefore = await db
+      .select({ id: backupRestores.id })
+      .from(backupRestores)
+      .where(eq(backupRestores.backupRunId, "brun_foundation_volume_success"));
+
+    const verification = caller.triggerTestRestore({
+      backupRunId: "brun_foundation_volume_success"
+    });
+    await expect(verification).rejects.toHaveProperty("code", "BAD_REQUEST");
+    await expect(verification).rejects.toThrow("PostgreSQL database backups in custom format");
+
+    const restoresAfter = await db
+      .select({ id: backupRestores.id })
+      .from(backupRestores)
+      .where(eq(backupRestores.backupRunId, "brun_foundation_volume_success"));
+    expect(restoresAfter).toEqual(restoresBefore);
+  });
+
   it("denies backup read procedures when a token omits backup:read", async () => {
     const caller = appRouter.createCaller({
       requestId: "test-backup-read-scope-denied",

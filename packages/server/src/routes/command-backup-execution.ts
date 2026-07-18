@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { queueBackupRestore, triggerBackupRun } from "../db/services/backups";
+import { BackupVerificationEligibilityError } from "../db/services/backup-restores";
 import { backupRestoreProcedure, backupRunProcedure, getActorContext, t } from "../trpc";
 import { assertBackupPolicyScope, assertBackupRunScope } from "./backup-scope";
 
@@ -75,13 +76,21 @@ export const backupExecutionCommandRouter = t.router({
         permissionScope: "backup:restore"
       });
       const actor = getActorContext(ctx);
-      const restore = await queueBackupRestore(
-        input.backupRunId,
-        actor.requestedByUserId,
-        actor.requestedByEmail,
-        actor.requestedByRole,
-        { testRestore: true }
-      );
+      let restore;
+      try {
+        restore = await queueBackupRestore(
+          input.backupRunId,
+          actor.requestedByUserId,
+          actor.requestedByEmail,
+          actor.requestedByRole,
+          { testRestore: true }
+        );
+      } catch (error) {
+        if (error instanceof BackupVerificationEligibilityError) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: error.message });
+        }
+        throw error;
+      }
 
       if (!restore) {
         throw new TRPCError({

@@ -156,7 +156,12 @@ export async function backupCronWorkflow(input: BackupCronWorkflowInput): Promis
     await verifyBackupResult(policyId, resolved, result, writeRunLog);
 
     // Phase 5: Mark success
-    await markBackupRunSucceeded(result.runId, result.artifactPath, result.sizeBytes);
+    await markBackupRunSucceeded(result.runId, result.artifactPath, result.sizeBytes, {
+      checksum: result.checksum,
+      artifactFormat: result.artifactFormat,
+      databaseEngineVersion: result.databaseEngineVersion,
+      databaseImageReference: result.databaseImageReference
+    });
     await writeRunLog({
       runId,
       level: "info",

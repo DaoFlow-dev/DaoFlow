@@ -23,6 +23,9 @@ export interface DatabaseDumpResult {
   sizeBytes: number;
   checksum: string;
   durationMs: number;
+  artifactFormat?: string;
+  databaseEngineVersion?: string;
+  databaseImageReference?: string;
   error?: string;
 }
 

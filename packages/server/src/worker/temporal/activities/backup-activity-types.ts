@@ -30,6 +30,10 @@ export interface BackupRunResult {
   runId: string;
   artifactPath: string;
   sizeBytes: number;
+  checksum?: string;
+  artifactFormat?: string;
+  databaseEngineVersion?: string;
+  databaseImageReference?: string;
 }
 
 export interface IntegrityCheckResult {

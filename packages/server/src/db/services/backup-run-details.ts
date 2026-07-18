@@ -88,6 +88,9 @@ export async function getBackupRunDetails(runId: string) {
   const requestedBy = readRequestedByEmail(run.triggeredByUserId, usersById);
   const logEntries = Array.isArray(run.logEntries) ? run.logEntries : null;
   const workflowId = readBackupRunWorkflowId(run, policy);
+  const latestVerification = restores
+    .filter((restore) => restore.mode === "verification")
+    .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime())[0];
 
   return {
     id: run.id,
@@ -114,11 +117,24 @@ export async function getBackupRunDetails(runId: string) {
     artifactPath: run.artifactPath,
     bytesWritten: run.sizeBytes ? Number(run.sizeBytes) : null,
     checksum: run.checksum,
+    artifactFormat: run.artifactFormat,
+    databaseEngineVersion: run.databaseEngineVersion,
+    artifactCheckedAt: run.artifactCheckedAt?.toISOString() ?? null,
     verifiedAt: run.verifiedAt?.toISOString() ?? null,
     startedAt: run.startedAt?.toISOString() ?? run.createdAt.toISOString(),
     finishedAt: run.completedAt?.toISOString() ?? null,
     error: run.error,
     restoreCount: restores.length,
+    latestVerification: latestVerification
+      ? {
+          id: latestVerification.id,
+          status: latestVerification.status,
+          requestedAt: latestVerification.createdAt.toISOString(),
+          completedAt: latestVerification.completedAt?.toISOString() ?? null,
+          result: latestVerification.verificationResult,
+          error: latestVerification.error
+        }
+      : null,
     logsState: getBackupRunLogsState(logEntries, run.status),
     logEntries: logEntries ?? []
   };

@@ -52,6 +52,7 @@ export default defineConfig({
         /cli-bootstrap\.spec\.ts/,
         /cli-deploy\.spec\.ts/,
         /docs\.spec\.ts/,
+        /postgres-restore-verification\.spec\.ts/,
         /workflow-e2e\.spec\.ts/
       ]
     }

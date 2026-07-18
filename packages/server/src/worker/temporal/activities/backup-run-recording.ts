@@ -3,6 +3,7 @@ import { db } from "../../../db/connection";
 import { auditEntries, events } from "../../../db/schema/audit";
 import { backupRuns } from "../../../db/schema/storage";
 import { newId } from "../../../db/services/json-helpers";
+import type { BackupRunResult } from "./backup-activity-types";
 
 export async function createBackupRun(
   policyId: string,
@@ -28,6 +29,14 @@ export async function createBackupRun(
           triggeredByUserId: triggeredBy === "scheduler" ? null : triggeredBy,
           logEntries: [],
           error: null,
+          artifactPath: null,
+          sizeBytes: null,
+          checksum: null,
+          artifactFormat: null,
+          databaseEngineVersion: null,
+          databaseImageReference: null,
+          artifactCheckedAt: null,
+          verifiedAt: null,
           startedAt: now,
           completedAt: null
         })
@@ -53,7 +62,11 @@ export async function createBackupRun(
 export async function markBackupRunSucceeded(
   runId: string,
   artifactPath: string,
-  sizeBytes: number
+  sizeBytes: number,
+  metadata?: Pick<
+    BackupRunResult,
+    "checksum" | "artifactFormat" | "databaseEngineVersion" | "databaseImageReference"
+  >
 ): Promise<void> {
   await db
     .update(backupRuns)
@@ -61,6 +74,10 @@ export async function markBackupRunSucceeded(
       status: "succeeded",
       artifactPath,
       sizeBytes: String(sizeBytes),
+      checksum: metadata?.checksum ?? null,
+      artifactFormat: metadata?.artifactFormat ?? null,
+      databaseEngineVersion: metadata?.databaseEngineVersion ?? null,
+      databaseImageReference: metadata?.databaseImageReference ?? null,
       completedAt: new Date()
     })
     .where(eq(backupRuns.id, runId));

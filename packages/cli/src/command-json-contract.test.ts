@@ -1036,6 +1036,80 @@ describe("CLI JSON contract", () => {
     });
   });
 
+  test("backup verify exposes queued status and a practical evidence details path", async () => {
+    const program = new Command().name("daoflow");
+    program.addCommand(backupCommand());
+
+    const originalFetch = globalThis.fetch;
+    const result = await withTempHome(async () => {
+      process.env.DAOFLOW_URL = "https://daoflow.test";
+      process.env.DAOFLOW_TOKEN = "dfl_test_token";
+      globalThis.fetch = ((input: RequestInfo | URL) => {
+        const url =
+          typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+        expect(url).toContain("/trpc/triggerTestRestore");
+
+        return new Response(
+          JSON.stringify({
+            result: {
+              data: {
+                id: "restore_verify_123",
+                backupRunId: "bkr_123",
+                mode: "verification",
+                workflowId: "restore-workflow-123",
+                status: "queued",
+                targetPath: null,
+                verificationResult: null,
+                triggeredByUserId: "usr_ops",
+                startedAt: "2026-03-21T06:00:00.000Z",
+                createdAt: "2026-03-21T06:00:00.000Z",
+                completedAt: null
+              }
+            }
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } }
+        );
+      }) as unknown as typeof fetch;
+
+      try {
+        return await captureCommandExecution(async () => {
+          await program.parseAsync([
+            "node",
+            "daoflow",
+            "backup",
+            "verify",
+            "--backup-run-id",
+            "bkr_123",
+            "--yes",
+            "--json"
+          ]);
+        });
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
+    });
+
+    expect(result.exitCode).toBeNull();
+    expect(result.errors).toEqual([]);
+    expect(JSON.parse(result.logs[0])).toEqual({
+      ok: true,
+      data: {
+        id: "restore_verify_123",
+        backupRunId: "bkr_123",
+        mode: "verification",
+        workflowId: "restore-workflow-123",
+        status: "queued",
+        targetPath: null,
+        verificationResult: null,
+        triggeredByUserId: "usr_ops",
+        startedAt: "2026-03-21T06:00:00.000Z",
+        createdAt: "2026-03-21T06:00:00.000Z",
+        completedAt: null,
+        detailsCommand: "daoflow backup download --backup-run-id bkr_123 --json"
+      }
+    });
+  });
+
   test("backup restore dry-run in JSON mode uses the planning lane and exits 3", async () => {
     const program = new Command().name("daoflow");
     program.addCommand(backupCommand());

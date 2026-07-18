@@ -48,17 +48,22 @@ function executeVolumeRestore(
       return { success: false, bytesRestored: 0, error: `Downloaded path ${localPath} is missing` };
     }
 
-    mkdirSync(ctx.targetPath, { recursive: true });
+    const targetPath = ctx.targetPath;
+    if (!targetPath) {
+      return { success: false, bytesRestored: 0, error: "Volume restore target is missing." };
+    }
+
+    mkdirSync(targetPath, { recursive: true });
     const archive = findRestoreArchive(localPath);
 
     if (archive) {
-      const extracted = extractArchiveToDirectory(ctx, archive, ctx.targetPath);
+      const extracted = extractArchiveToDirectory(ctx, archive, targetPath);
       if (!extracted.success) {
         return extracted;
       }
     }
 
-    const bytesRestored = byteSizeOfPath(ctx.targetPath);
+    const bytesRestored = byteSizeOfPath(targetPath);
     return { success: true, bytesRestored };
   } catch (err) {
     return {
@@ -117,7 +122,7 @@ function extractArchiveToDirectory(
   return { success: true, bytesRestored: byteSizeOfPath(outputPath) };
 }
 
-function prepareDatabaseRestorePath(
+export function prepareDatabaseRestorePath(
   ctx: RestoreExecutionContext,
   localPath: string
 ): { success: true; path: string } | { success: false; error: string } {

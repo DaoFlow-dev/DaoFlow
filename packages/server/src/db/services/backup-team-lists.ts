@@ -201,6 +201,7 @@ export async function listBackupRestoreQueueForTeam(teamId: string, limit = 12) 
 
       return {
         id: restore.id,
+        mode: restore.mode,
         policyId: policy?.id ?? "",
         projectName: view?.projectName ?? "",
         environmentName: view?.environmentName ?? "",
@@ -210,6 +211,7 @@ export async function listBackupRestoreQueueForTeam(teamId: string, limit = 12) 
         destinationServerName: server?.name ?? volume?.serverId ?? "",
         sourceArtifactPath: run?.artifactPath ?? null,
         restorePath: restore.targetPath,
+        verificationResult: restore.verificationResult,
         validationSummary: restore.error ?? "",
         status: restore.status,
         statusTone: getBackupOperationStatusTone(restore.status),

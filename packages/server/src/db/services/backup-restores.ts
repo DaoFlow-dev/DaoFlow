@@ -9,6 +9,50 @@ import { getBackupRunDetails } from "./backup-run-details";
 import { getPolicyView, loadBackupRelations } from "./backup-view-helpers";
 import { newId as id } from "./json-helpers";
 
+const POSTGRES_VERSION_PATTERN = /^(?<major>[1-9]\d*)(?:\.\d+(?:\.\d+)?)?$/;
+const POSTGRES_VERIFIER_IMAGE_PATTERN =
+  /^(?:(?:docker\.io\/)?library\/)?postgres:(?<version>(?<major>[1-9]\d*)(?:\.\d+(?:\.\d+)?)?(?:-[a-z0-9][a-z0-9._-]*)?)@sha256:[a-f0-9]{64}$/i;
+
+export class BackupVerificationEligibilityError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "BackupVerificationEligibilityError";
+  }
+}
+
+function assertBackupVerificationEligible(
+  run: typeof backupRuns.$inferSelect,
+  policy: { backupType: string; databaseEngine: string | null }
+): void {
+  if (
+    policy.backupType !== "database" ||
+    policy.databaseEngine !== "postgres" ||
+    run.artifactFormat !== "postgres-custom"
+  ) {
+    throw new BackupVerificationEligibilityError(
+      "Backup verification only supports PostgreSQL database backups in custom format. Create a new PostgreSQL custom-format backup before requesting verification."
+    );
+  }
+
+  const checksum = run.checksum?.trim() ?? "";
+  const sourceVersion = run.databaseEngineVersion?.trim() ?? "";
+  const verifierImage = run.databaseImageReference?.trim() ?? "";
+  const sourceMatch = POSTGRES_VERSION_PATTERN.exec(sourceVersion);
+  const verifierMatch = POSTGRES_VERIFIER_IMAGE_PATTERN.exec(verifierImage);
+
+  if (!/^[a-f0-9]{64}$/i.test(checksum) || !sourceMatch || !verifierMatch) {
+    throw new BackupVerificationEligibilityError(
+      "Backup verification requires a SHA-256 checksum, a source PostgreSQL version, and an immutable official PostgreSQL verifier image reference. Create a new backup with verification metadata before requesting verification."
+    );
+  }
+
+  if (sourceMatch.groups?.major !== verifierMatch.groups?.major) {
+    throw new BackupVerificationEligibilityError(
+      "Backup verification requires the immutable verifier image to use the same PostgreSQL major version as the backup. Create a new backup with matching verification metadata before requesting verification."
+    );
+  }
+}
+
 export async function buildBackupRestorePlan(backupRunId: string) {
   const run = await getBackupRunDetails(backupRunId);
 
@@ -95,7 +139,9 @@ export async function queueBackupRestore(
   role: AppRole,
   opts?: { testRestore?: boolean }
 ) {
-  if (!isTemporalEnabled()) {
+  const verification = opts?.testRestore === true;
+
+  if (!verification && !isTemporalEnabled()) {
     throw new Error(
       "Backup restore execution requires Temporal mode. Set DAOFLOW_ENABLE_TEMPORAL=true and ensure TEMPORAL_ADDRESS is configured."
     );
@@ -107,20 +153,30 @@ export async function queueBackupRestore(
   const relations = await loadBackupRelations();
   const policy = relations.policiesById.get(run.policyId);
   if (!policy) return null;
+  if (verification) {
+    assertBackupVerificationEligible(run, policy);
+  }
   const volume = relations.volumesById.get(policy.volumeId);
   if (!volume) return null;
+  if (!isTemporalEnabled()) {
+    throw new Error(
+      "Backup restore execution requires Temporal mode. Set DAOFLOW_ENABLE_TEMPORAL=true and ensure TEMPORAL_ADDRESS is configured."
+    );
+  }
   const server = relations.serversById.get(volume.serverId);
   const view = getPolicyView(policy, volume);
   const restoreId = id();
   const now = new Date();
+  const mode = opts?.testRestore ? ("verification" as const) : ("restore" as const);
 
   const [restore] = await db
     .insert(backupRestores)
     .values({
       id: restoreId,
       backupRunId,
+      mode,
       status: "queued",
-      targetPath: volume.mountPath,
+      targetPath: mode === "restore" ? volume.mountPath : null,
       triggeredByUserId: userId,
       startedAt: now,
       createdAt: now
@@ -133,15 +189,15 @@ export async function queueBackupRestore(
     actorEmail: email,
     actorRole: role,
     targetResource: `backup-restore/${restoreId}`,
-    action: "backup.restore.queue",
-    inputSummary: `Queued restore for ${view.serviceName}@${view.environmentName}.`,
+    action: mode === "verification" ? "backup.verify.queue" : "backup.restore.queue",
+    inputSummary: `Queued ${mode === "verification" ? "verification" : "restore"} for ${view.serviceName}@${view.environmentName}.`,
     permissionScope: "backup:restore",
     outcome: "success",
     metadata: {
       resourceType: "backup-restore",
       resourceId: restoreId,
       resourceLabel: `${view.serviceName}@${view.environmentName}`,
-      detail: `Queued restore for ${view.serviceName}@${view.environmentName} on ${server?.name ?? volume.serverId}.`
+      detail: `Queued ${mode === "verification" ? "verification" : "restore"} for ${view.serviceName}@${view.environmentName} on ${server?.name ?? volume.serverId}.`
     }
   });
 
@@ -150,8 +206,8 @@ export async function queueBackupRestore(
       restoreId,
       backupRunId,
       triggeredBy: userId,
-      targetPath: volume.mountPath,
-      testRestore: opts?.testRestore
+      targetPath: mode === "restore" ? volume.mountPath : null,
+      mode
     });
 
     return {

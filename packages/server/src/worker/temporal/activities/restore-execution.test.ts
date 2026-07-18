@@ -26,6 +26,7 @@ function restoreContext(overrides: Partial<RestoreExecutionContext> = {}): Resto
       provider: "local",
       localPath: "/tmp/daoflow-backups"
     },
+    mode: "restore",
     targetPath: "/tmp/daoflow-restore-target",
     downloadPath: "/tmp/daoflow-restore-download",
     encryptionMode: "none",
@@ -77,9 +78,11 @@ describe("restore execution", () => {
       "app_user",
       "-d",
       "app",
+      "--exit-on-error",
       "--clean",
       "--if-exists",
-      "--no-owner"
+      "--no-owner",
+      "--no-privileges"
     ]);
   });
 

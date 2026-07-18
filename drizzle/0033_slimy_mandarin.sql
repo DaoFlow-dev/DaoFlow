@@ -1,0 +1,2 @@
+ALTER TABLE "backup_restores" ADD CONSTRAINT "backup_restores_mode_check" CHECK ("backup_restores"."mode" IN ('restore', 'verification'));--> statement-breakpoint
+ALTER TABLE "backup_restores" ADD CONSTRAINT "backup_restores_verification_result_mode_check" CHECK ("backup_restores"."verification_result" IS NULL OR "backup_restores"."mode" = 'verification');

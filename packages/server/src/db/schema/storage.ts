@@ -1,5 +1,14 @@
-import { index, integer, jsonb, pgTable, text, timestamp, varchar } from "drizzle-orm/pg-core";
-import { relations } from "drizzle-orm";
+import {
+  check,
+  index,
+  integer,
+  jsonb,
+  pgTable,
+  text,
+  timestamp,
+  varchar
+} from "drizzle-orm/pg-core";
+import { relations, sql } from "drizzle-orm";
 import { servers } from "./servers";
 import { users } from "./users";
 import { backupDestinations } from "./destinations";
@@ -9,6 +18,46 @@ export interface BackupRunLogEntry {
   level: "info" | "warn" | "error";
   phase: string;
   message: string;
+}
+
+export type BackupRestoreMode = "restore" | "verification";
+
+export interface BackupVerificationCheckResult {
+  status: "passed" | "failed" | "skipped";
+  detail: string;
+}
+
+export interface BackupVerificationResult {
+  version: 1;
+  success: boolean;
+  checksum: string;
+  sourceEngineVersion: string;
+  verifierEngineVersion: string;
+  durationMs: number;
+  checks: {
+    input: BackupVerificationCheckResult;
+    verifierImage: BackupVerificationCheckResult;
+    archive: BackupVerificationCheckResult;
+    checksum: BackupVerificationCheckResult;
+    container: BackupVerificationCheckResult;
+    readiness: BackupVerificationCheckResult;
+    restore: BackupVerificationCheckResult;
+    catalog: BackupVerificationCheckResult;
+  };
+  objectCounts: {
+    schemas: number;
+    tables: number;
+    indexes: number;
+    functions: number;
+  };
+  cleanup: {
+    attempted: boolean;
+    containerRemoved: boolean;
+    workspaceRemoved: boolean;
+    error?: string;
+  };
+  completedAt: string;
+  error?: string;
 }
 
 export const volumes = pgTable(
@@ -78,7 +127,12 @@ export const backupRuns = pgTable(
     sizeBytes: text("size_bytes"),
     // SHA-256 checksum of the backup artifact for integrity verification
     checksum: varchar("checksum", { length: 128 }),
-    // When this backup was last verified via test-restore
+    artifactFormat: varchar("artifact_format", { length: 40 }),
+    databaseEngineVersion: varchar("database_engine_version", { length: 64 }),
+    databaseImageReference: text("database_image_reference"),
+    // Remote-presence checks are weaker than a full restore verification.
+    artifactCheckedAt: timestamp("artifact_checked_at"),
+    // Set only after a successful isolated test restore.
     verifiedAt: timestamp("verified_at"),
     triggeredByUserId: text("triggered_by_user_id").references(() => users.id, {
       onDelete: "set null"
@@ -103,8 +157,10 @@ export const backupRestores = pgTable(
     backupRunId: varchar("backup_run_id", { length: 32 })
       .notNull()
       .references(() => backupRuns.id),
+    mode: varchar("mode", { length: 20 }).default("restore").notNull(),
     status: varchar("status", { length: 20 }).default("queued").notNull(),
     targetPath: text("target_path"),
+    verificationResult: jsonb("verification_result").$type<BackupVerificationResult | null>(),
     triggeredByUserId: text("triggered_by_user_id").references(() => users.id, {
       onDelete: "set null"
     }),
@@ -115,7 +171,12 @@ export const backupRestores = pgTable(
   },
   (table) => [
     index("backup_restores_backup_run_id_idx").on(table.backupRunId),
-    index("backup_restores_created_at_idx").on(table.createdAt)
+    index("backup_restores_created_at_idx").on(table.createdAt),
+    check("backup_restores_mode_check", sql`${table.mode} IN ('restore', 'verification')`),
+    check(
+      "backup_restores_verification_result_mode_check",
+      sql`${table.verificationResult} IS NULL OR ${table.mode} = 'verification'`
+    )
   ]
 );
 

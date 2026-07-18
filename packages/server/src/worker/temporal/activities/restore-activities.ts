@@ -11,13 +11,28 @@
 import { eq } from "drizzle-orm";
 import { rmSync } from "node:fs";
 import { db } from "../../../db/connection";
-import { backupPolicies, backupRestores, backupRuns, volumes } from "../../../db/schema/storage";
-import { events, auditEntries } from "../../../db/schema/audit";
+import {
+  backupPolicies,
+  backupRestores,
+  backupRuns,
+  volumes,
+  type BackupRestoreMode,
+  type BackupVerificationResult
+} from "../../../db/schema/storage";
 import { copyFromRemote } from "../../rclone-executor";
 import { newId } from "../../../db/services/json-helpers";
 import { resolveTeamScopedDestinationForVolume } from "../../../db/services/backup-resource-team";
 import { decryptDestinationForVolumeOperation } from "./destination-operation";
+import { executePostgresRestoreVerification } from "./postgres-restore-verification-activity";
 import { executeRestoreArtifact, type RestoreExecutionContext } from "./restore-execution";
+
+export {
+  auditRestoreAction,
+  emitRestoreEvent,
+  markBackupVerified,
+  markRestoreFailed,
+  markRestoreSucceeded
+} from "./restore-recording-activities";
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -30,6 +45,7 @@ export interface RestoreInput {
   triggeredBy: string;
   /** If true, restore to a temp path and verify, then cleanup */
   testRestore?: boolean;
+  mode?: BackupRestoreMode;
 }
 
 export interface RestoreResolved {
@@ -39,7 +55,9 @@ export interface RestoreResolved {
   /** Non-secret reference; credentials are loaded only by restore activities. */
   destinationId: string;
   volumeId: string;
-  targetPath: string;
+  /** Optional because pre-upgrade workflow histories did not serialize a mode. */
+  mode?: BackupRestoreMode;
+  targetPath?: string;
   downloadPath: string;
   encryptionMode: string;
   backupType: string;
@@ -49,12 +67,17 @@ export interface RestoreResolved {
   containerName?: string;
   databaseName?: string;
   databaseUser?: string;
+  checksum?: string;
+  artifactFormat?: string;
+  databaseEngineVersion?: string;
+  databaseImageReference?: string;
 }
 
 export interface RestoreResult {
   restoreId: string;
   success: boolean;
   bytesRestored: number;
+  verificationResult?: BackupVerificationResult;
   error?: string;
 }
 
@@ -108,23 +131,28 @@ export async function resolveRestoreContext(input: RestoreInput): Promise<Restor
   const backupType = policy.backupType ?? "volume";
   const volumeMetadata = volume.metadata;
   const restoreId = input.restoreId ?? newId();
-  const targetPath = input.testRestore
-    ? (input.targetPath ?? `/tmp/daoflow-restore/${run.id}`)
-    : (input.targetPath ?? volume.mountPath);
+  const mode = input.mode ?? (input.testRestore ? "verification" : "restore");
+  const targetPath =
+    mode === "verification"
+      ? backupType === "database"
+        ? undefined
+        : (input.targetPath ?? `/tmp/daoflow-restore/${run.id}`)
+      : (input.targetPath ?? volume.mountPath);
   const archiveEncrypted =
     destination.encryptionMode === "archive-7z" || destination.encryptionMode === "archive-zip";
   const downloadPath =
-    backupType === "database" || input.testRestore || archiveEncrypted
+    backupType === "database" || mode === "verification" || archiveEncrypted
       ? `/tmp/daoflow-restore/${restoreId}/download`
-      : targetPath;
+      : (targetPath ?? `/tmp/daoflow-restore/${restoreId}/download`);
   const now = new Date();
 
   if (input.restoreId) {
     await db
       .update(backupRestores)
       .set({
+        mode,
         status: "running",
-        targetPath,
+        targetPath: targetPath ?? null,
         error: null,
         startedAt: now,
         completedAt: null
@@ -134,8 +162,9 @@ export async function resolveRestoreContext(input: RestoreInput): Promise<Restor
     await db.insert(backupRestores).values({
       id: restoreId,
       backupRunId: run.id,
+      mode,
       status: "running",
-      targetPath,
+      targetPath: targetPath ?? null,
       triggeredByUserId: input.triggeredBy === "system" ? null : input.triggeredBy,
       startedAt: now,
       createdAt: now
@@ -148,6 +177,7 @@ export async function resolveRestoreContext(input: RestoreInput): Promise<Restor
     artifactPath: run.artifactPath,
     destinationId: destination.id,
     volumeId: volume.id,
+    mode,
     targetPath,
     downloadPath,
     encryptionMode: destination.encryptionMode,
@@ -155,9 +185,16 @@ export async function resolveRestoreContext(input: RestoreInput): Promise<Restor
     volumeName: volume.name,
     serviceName: readMetadataString(volumeMetadata, "serviceName"),
     databaseEngine: policy.databaseEngine ?? undefined,
-    containerName: readMetadataString(volumeMetadata, "containerName"),
-    databaseName: readMetadataString(volumeMetadata, "databaseName"),
-    databaseUser: readMetadataString(volumeMetadata, "databaseUser")
+    containerName:
+      mode === "restore" ? readMetadataString(volumeMetadata, "containerName") : undefined,
+    databaseName:
+      mode === "restore" ? readMetadataString(volumeMetadata, "databaseName") : undefined,
+    databaseUser:
+      mode === "restore" ? readMetadataString(volumeMetadata, "databaseUser") : undefined,
+    checksum: run.checksum ?? undefined,
+    artifactFormat: run.artifactFormat ?? undefined,
+    databaseEngineVersion: run.databaseEngineVersion ?? undefined,
+    databaseImageReference: run.databaseImageReference ?? undefined
   };
 }
 
@@ -197,13 +234,20 @@ export async function executeRestore(
   ctx: RestoreResolved,
   download: { localPath: string }
 ): Promise<RestoreResult> {
+  const destination = await decryptDestinationForVolumeOperation({
+    volumeId: ctx.volumeId,
+    destinationId: ctx.destinationId
+  });
+  const verificationContext = resolvePostgresRestoreVerificationContext(ctx);
+  if (verificationContext) {
+    return executePostgresRestoreVerification(verificationContext, destination, download.localPath);
+  }
+
   const executionContext: RestoreExecutionContext = {
     ...ctx,
-    destination: await decryptDestinationForVolumeOperation({
-      volumeId: ctx.volumeId,
-      destinationId: ctx.destinationId
-    }),
-    databasePassword: await readDatabasePassword(ctx.volumeId)
+    destination,
+    databasePassword:
+      ctx.backupType === "database" ? await readDatabasePassword(ctx.volumeId) : undefined
   };
   const result = await executeRestoreArtifact(executionContext, download.localPath);
 
@@ -213,6 +257,21 @@ export async function executeRestore(
     bytesRestored: result.bytesRestored,
     error: result.error
   };
+}
+
+function resolvePostgresRestoreVerificationContext<
+  T extends Pick<RestoreResolved, "backupType" | "mode" | "targetPath">
+>(ctx: T): (T & { mode: "verification" }) | null {
+  if (ctx.backupType !== "database") return null;
+  if (ctx.mode === "verification") return ctx as T & { mode: "verification" };
+  if (ctx.mode === undefined && isLegacyTestRestoreTarget(ctx.targetPath)) {
+    return { ...ctx, mode: "verification" };
+  }
+  return null;
+}
+
+function isLegacyTestRestoreTarget(targetPath: string | undefined): boolean {
+  return typeof targetPath === "string" && targetPath.startsWith("/tmp/daoflow-restore/");
 }
 
 export function cleanupRestoreDownload(
@@ -237,87 +296,4 @@ async function readDatabasePassword(volumeId: string): Promise<string | undefine
   return readMetadataString(volume.metadata, "databasePassword");
 }
 
-/**
- * Mark a restore as succeeded.
- */
-export async function markRestoreSucceeded(restoreId: string): Promise<void> {
-  await db
-    .update(backupRestores)
-    .set({
-      status: "succeeded",
-      completedAt: new Date()
-    })
-    .where(eq(backupRestores.id, restoreId));
-}
-
-/**
- * Mark a restore as failed.
- */
-export async function markRestoreFailed(restoreId: string, error: string): Promise<void> {
-  await db
-    .update(backupRestores)
-    .set({
-      status: "failed",
-      error,
-      completedAt: new Date()
-    })
-    .where(eq(backupRestores.id, restoreId));
-}
-
-/**
- * Update the backup run's verifiedAt timestamp after a successful test restore.
- * Task #22: Records the test-restore verification timestamp.
- */
-export async function markBackupVerified(runId: string): Promise<void> {
-  await db.update(backupRuns).set({ verifiedAt: new Date() }).where(eq(backupRuns.id, runId));
-}
-
-/**
- * Emit a restore event to the operations timeline.
- */
-export async function emitRestoreEvent(
-  restoreId: string,
-  kind: string,
-  summary: string,
-  detail: string,
-  severity: "info" | "error" = "info"
-): Promise<void> {
-  await db.insert(events).values({
-    kind,
-    resourceType: "backup-restore",
-    resourceId: restoreId,
-    summary,
-    detail,
-    severity,
-    metadata: { actorLabel: "temporal-restore-worker" },
-    createdAt: new Date()
-  });
-}
-
-/**
- * Audit a restore action.
- */
-export async function auditRestoreAction(
-  restoreId: string,
-  action: string,
-  detail: string,
-  outcome: "success" | "failure" = "success"
-): Promise<void> {
-  await db.insert(auditEntries).values({
-    actorType: "system",
-    actorId: "temporal-restore-worker",
-    actorEmail: "system@daoflow.local",
-    actorRole: "admin",
-    targetResource: `backup-restore/${restoreId}`,
-    action,
-    inputSummary: detail,
-    permissionScope: "backup:restore",
-    outcome,
-    metadata: {
-      resourceType: "backup-restore",
-      resourceId: restoreId,
-      resourceLabel: restoreId,
-      detail
-    }
-  });
-}
+export const restoreActivityTestHooks = { resolvePostgresRestoreVerificationContext };

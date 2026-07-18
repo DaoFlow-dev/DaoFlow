@@ -15,7 +15,12 @@ import { runCommandAction } from "../command-action";
 import { getErrorMessage, normalizeCliInput } from "../command-helpers";
 import type { BackupRestorePlanOutput, QueueRestoreOutput } from "../trpc-contract";
 import { createClient } from "../trpc-client";
-import { buildBackupDownloadInfo, renderBackupDownloadInfo } from "./backup-download";
+import {
+  buildBackupDownloadInfo,
+  buildBackupVerificationInfo,
+  renderBackupDownloadInfo,
+  renderBackupVerificationInfo
+} from "./backup-download";
 import { registerBackupDestinationCommands } from "./backup-destination-commands";
 import { registerBackupPolicySubcommands } from "./backup-policy";
 import { registerBackupScheduleCommands } from "./backup-schedule-commands";
@@ -247,15 +252,17 @@ export function backupCommand(): Command {
               const result = await trpc.triggerTestRestore.mutate({
                 backupRunId
               });
+              const detailsCommand = `daoflow backup download --backup-run-id ${backupRunId} --json`;
+              const output = { ...result, detailsCommand };
 
-              return ctx.success(result, {
+              return ctx.success(output, {
                 quiet: () => result.id,
                 human: () => {
                   console.log(chalk.green(`✅ Test restore queued: ${result.id}`));
-                  console.log(
-                    chalk.dim("  The backup will be downloaded and verified. Check status with:")
-                  );
-                  console.log(chalk.dim("  daoflow backup list --json | jq '.runs[]'"));
+                  console.log(`  Verification status: ${result.status}`);
+                  console.log(`  Verification evidence: pending`);
+                  console.log(chalk.dim("  Check status and evidence with:"));
+                  console.log(chalk.dim(`  ${detailsCommand}`));
                 }
               });
             } catch (error) {
@@ -282,10 +289,13 @@ export function backupCommand(): Command {
             runId: normalizeCliInput(opts.backupRunId, "Backup run ID")
           });
           const info = buildBackupDownloadInfo(run);
+          const verification = buildBackupVerificationInfo(run);
+          const output = { ...info, verification };
 
-          return ctx.success(info, {
+          return ctx.success(output, {
             human: () => {
               renderBackupDownloadInfo(info);
+              renderBackupVerificationInfo(verification);
             }
           });
         }

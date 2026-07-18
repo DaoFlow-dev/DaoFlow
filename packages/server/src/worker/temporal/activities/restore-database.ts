@@ -82,9 +82,11 @@ function buildRestoreCommand(
           ctx.databaseUser ?? "postgres",
           "-d",
           ctx.databaseName ?? "postgres",
+          "--exit-on-error",
           "--clean",
           "--if-exists",
-          "--no-owner"
+          "--no-owner",
+          "--no-privileges"
         ]
       };
     }

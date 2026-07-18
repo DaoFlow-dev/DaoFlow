@@ -12,7 +12,7 @@
  * 6. Dispatch notifications
  */
 
-import { proxyActivities } from "@temporalio/workflow";
+import { patched, proxyActivities } from "@temporalio/workflow";
 import type * as restoreActs from "../activities/restore-activities";
 import type * as notificationActs from "../activities/notification-activities";
 
@@ -60,21 +60,32 @@ export interface RestoreWorkflowInput {
   triggeredBy: string;
   /** If true, restore to temp and verify, then cleanup (#21: test restore) */
   testRestore?: boolean;
+  mode?: "restore" | "verification";
 }
 
 // ── Workflow ─────────────────────────────────────────────────
 
 export async function restoreWorkflow(input: RestoreWorkflowInput): Promise<void> {
-  const { backupRunId, triggeredBy, testRestore } = input;
+  const { backupRunId, triggeredBy } = input;
+  const usesExplicitRestoreMode = patched("restore-workflow-explicit-mode-v1");
+  const mode = input.mode ?? (input.testRestore ? "verification" : "restore");
 
   // Phase 1: Resolve context
-  const ctx = await resolveRestoreContext({
-    backupRunId,
-    restoreId: input.restoreId,
-    targetPath: input.targetPath,
-    triggeredBy,
-    testRestore
-  });
+  const ctx = usesExplicitRestoreMode
+    ? await resolveRestoreContext({
+        backupRunId,
+        restoreId: input.restoreId,
+        targetPath: input.targetPath,
+        triggeredBy,
+        mode
+      })
+    : await resolveRestoreContext({
+        backupRunId,
+        restoreId: input.restoreId,
+        targetPath: input.targetPath,
+        triggeredBy,
+        testRestore: input.testRestore
+      });
 
   if (!ctx) {
     await emitRestoreEvent(
@@ -87,20 +98,41 @@ export async function restoreWorkflow(input: RestoreWorkflowInput): Promise<void
     return;
   }
 
+  let verificationResult: Awaited<ReturnType<typeof executeRestore>>["verificationResult"];
+
   try {
     // Emit started event
-    await emitRestoreEvent(
-      ctx.restoreId,
-      "restore.started",
-      "Restore started",
-      `Restoring backup ${backupRunId} to ${ctx.targetPath}`
-    );
+    if (usesExplicitRestoreMode) {
+      await emitRestoreEvent(
+        ctx.restoreId,
+        "restore.started",
+        mode === "verification" ? "Backup verification started" : "Restore started",
+        mode === "verification"
+          ? `Verifying backup ${backupRunId} in an isolated target`
+          : `Restoring backup ${backupRunId} to ${ctx.targetPath}`
+      );
 
-    await auditRestoreAction(
-      ctx.restoreId,
-      "restore.execute",
-      `Starting restore from backup run ${backupRunId}`
-    );
+      await auditRestoreAction(
+        ctx.restoreId,
+        mode === "verification" ? "backup.verify.execute" : "restore.execute",
+        mode === "verification"
+          ? `Starting isolated verification for backup run ${backupRunId}`
+          : `Starting restore from backup run ${backupRunId}`
+      );
+    } else {
+      await emitRestoreEvent(
+        ctx.restoreId,
+        "restore.started",
+        "Restore started",
+        `Restoring backup ${backupRunId} to ${ctx.targetPath}`
+      );
+
+      await auditRestoreAction(
+        ctx.restoreId,
+        "restore.execute",
+        `Starting restore from backup run ${backupRunId}`
+      );
+    }
 
     // Dispatch "started" notification
     try {
@@ -122,16 +154,26 @@ export async function restoreWorkflow(input: RestoreWorkflowInput): Promise<void
     }
 
     const restore = await executeRestore(ctx, download);
+    if (usesExplicitRestoreMode) {
+      verificationResult = restore.verificationResult;
+    }
 
     if (!restore.success) {
       throw new Error(`Restore execution failed: ${restore.error}`);
     }
 
     // Phase 3: Mark success
-    await markRestoreSucceeded(ctx.restoreId);
+    if (usesExplicitRestoreMode) {
+      await markRestoreSucceeded(ctx.restoreId, verificationResult);
+    } else {
+      await markRestoreSucceeded(ctx.restoreId);
+    }
 
     // Phase 4: If test restore, mark backup as verified (#21 + #22)
-    if (testRestore) {
+    if (
+      (usesExplicitRestoreMode && mode === "verification") ||
+      (!usesExplicitRestoreMode && input.testRestore)
+    ) {
       await markBackupVerified(ctx.runId);
       await emitRestoreEvent(
         ctx.restoreId,
@@ -142,12 +184,31 @@ export async function restoreWorkflow(input: RestoreWorkflowInput): Promise<void
     }
 
     // Phase 5: Emit success event
-    await emitRestoreEvent(
-      ctx.restoreId,
-      "restore.succeeded",
-      "Restore completed",
-      `Successfully restored backup ${backupRunId} to ${ctx.targetPath}`
-    );
+    if (usesExplicitRestoreMode) {
+      await emitRestoreEvent(
+        ctx.restoreId,
+        mode === "verification" ? "restore.verification.succeeded" : "restore.succeeded",
+        mode === "verification" ? "Backup verification completed" : "Restore completed",
+        mode === "verification"
+          ? `Backup ${backupRunId} restored successfully in an isolated database`
+          : `Successfully restored backup ${backupRunId} to ${ctx.targetPath}`
+      );
+
+      await auditRestoreAction(
+        ctx.restoreId,
+        mode === "verification" ? "backup.verify.succeeded" : "restore.succeeded",
+        mode === "verification" && verificationResult
+          ? `Verified backup ${backupRunId} with checksum ${verificationResult.checksum} using PostgreSQL ${verificationResult.verifierEngineVersion}.`
+          : `Completed restore from backup run ${backupRunId}.`
+      );
+    } else {
+      await emitRestoreEvent(
+        ctx.restoreId,
+        "restore.succeeded",
+        "Restore completed",
+        `Successfully restored backup ${backupRunId} to ${ctx.targetPath}`
+      );
+    }
 
     // Phase 6: Dispatch "succeeded" notification
     try {
@@ -163,11 +224,24 @@ export async function restoreWorkflow(input: RestoreWorkflowInput): Promise<void
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : "Unknown restore error";
 
-    await markRestoreFailed(ctx.restoreId, errorMsg);
+    if (usesExplicitRestoreMode) {
+      await markRestoreFailed(ctx.restoreId, errorMsg, verificationResult);
+    } else {
+      await markRestoreFailed(ctx.restoreId, errorMsg);
+    }
 
     await emitRestoreEvent(ctx.restoreId, "restore.failed", "Restore failed", errorMsg, "error");
 
-    await auditRestoreAction(ctx.restoreId, "restore.failed", errorMsg, "failure");
+    if (usesExplicitRestoreMode) {
+      await auditRestoreAction(
+        ctx.restoreId,
+        mode === "verification" ? "backup.verify.failed" : "restore.failed",
+        errorMsg,
+        "failure"
+      );
+    } else {
+      await auditRestoreAction(ctx.restoreId, "restore.failed", errorMsg, "failure");
+    }
 
     // Dispatch "failed" notification
     try {

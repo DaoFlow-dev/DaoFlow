@@ -78,6 +78,7 @@ export const backupReadRouter = t.router({
           },
           requests: workflow.restores.map((restore) => ({
             id: restore.id,
+            mode: restore.mode,
             policyId: restore.policyId,
             projectName: workflow.service.projectName,
             environmentName: workflow.service.environmentName,
@@ -87,6 +88,7 @@ export const backupReadRouter = t.router({
             destinationServerName: restore.destinationServerName,
             sourceArtifactPath: restore.sourceArtifactPath,
             restorePath: restore.targetPath,
+            verificationResult: restore.verificationResult,
             validationSummary: restore.error ?? "",
             status: restore.status,
             statusTone: restore.statusTone,

@@ -64,7 +64,7 @@ export async function verifyBackupIntegrity(
       .update(backupRuns)
       .set({
         sizeBytes: String(check.totalBytes),
-        verifiedAt: new Date()
+        artifactCheckedAt: new Date()
       })
       .where(eq(backupRuns.id, runId));
   }

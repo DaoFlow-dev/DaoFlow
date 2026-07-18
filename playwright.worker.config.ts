@@ -23,7 +23,11 @@ const playwrightReadinessUrl = new URL("/ready", playwrightBaseUrl).toString();
 
 export default defineConfig({
   testDir: "./e2e",
-  testMatch: ["workflow-e2e.spec.ts", "cli-deploy.spec.ts"],
+  testMatch: [
+    "workflow-e2e.spec.ts",
+    "cli-deploy.spec.ts",
+    "postgres-restore-verification.spec.ts"
+  ],
   timeout: 120_000, // workflows take longer than UI tests
   fullyParallel: false,
   workers: 1,

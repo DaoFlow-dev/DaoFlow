@@ -222,11 +222,13 @@ export async function listServiceBackupWorkflowForTeam(input: {
       return {
         id: restore.id,
         backupRunId: restore.backupRunId,
+        mode: restore.mode,
         policyId: policy?.id ?? "",
         volumeName: volume?.name ?? "",
         destinationServerName: server?.name ?? volume?.serverId ?? "",
         sourceArtifactPath: run?.artifactPath ?? null,
         targetPath: restore.targetPath,
+        verificationResult: restore.verificationResult,
         requestedBy: readRequestedByEmail(restore.triggeredByUserId, usersById),
         status: restore.status,
         statusTone: getBackupOperationStatusTone(restore.status),

@@ -81,11 +81,26 @@ describe("backup download command", () => {
                 artifactPath: "s3://backups/foundation/postgres-2026-02-01.dump.zst",
                 bytesWritten: 5242880,
                 checksum: "abc123",
+                artifactFormat: "postgres-custom",
+                databaseEngineVersion: "16.4",
+                artifactCheckedAt: null,
                 verifiedAt: "2026-02-01T02:15:00.000Z",
                 startedAt: "2026-02-01T02:00:00.000Z",
                 finishedAt: "2026-02-01T02:05:00.000Z",
                 error: null,
                 restoreCount: 1,
+                latestVerification: {
+                  id: "restore_verify_123",
+                  status: "succeeded",
+                  requestedAt: "2026-02-01T02:10:00.000Z",
+                  completedAt: "2026-02-01T02:15:00.000Z",
+                  result: {
+                    success: true,
+                    checksum: "abc123",
+                    checks: { checksum: { status: "passed", detail: "SHA-256 checksum matches." } }
+                  },
+                  error: null
+                },
                 logsState: "available",
                 logEntries: []
               }
@@ -119,7 +134,19 @@ describe("backup download command", () => {
         status: "succeeded",
         artifact: "s3://backups/foundation/postgres-2026-02-01.dump.zst",
         size: 5242880,
-        message: "Use rclone to download from the artifact path"
+        message: "Use rclone to download from the artifact path",
+        verification: {
+          id: "restore_verify_123",
+          status: "succeeded",
+          requestedAt: "2026-02-01T02:10:00.000Z",
+          completedAt: "2026-02-01T02:15:00.000Z",
+          evidence: {
+            success: true,
+            checksum: "abc123",
+            checks: { checksum: { status: "passed", detail: "SHA-256 checksum matches." } }
+          },
+          error: null
+        }
       }
     });
   });

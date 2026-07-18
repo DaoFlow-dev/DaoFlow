@@ -440,8 +440,11 @@ export interface BackupDestinationOutput {
 export interface QueueRestoreOutput {
   id: string;
   backupRunId: string;
+  mode: "restore" | "verification";
+  workflowId: string;
   status: string;
-  targetPath: string;
+  targetPath: string | null;
+  verificationResult: Record<string, unknown> | null;
   triggeredByUserId: string | null;
   startedAt: Date | null;
   createdAt: Date;
@@ -551,11 +554,22 @@ export interface BackupRunDetailsOutput {
   artifactPath: string | null;
   bytesWritten: number | null;
   checksum: string | null;
+  artifactFormat: string | null;
+  databaseEngineVersion: string | null;
+  artifactCheckedAt: string | null;
   verifiedAt: string | null;
   startedAt: string;
   finishedAt: string | null;
   error: string | null;
   restoreCount: number;
+  latestVerification: {
+    id: string;
+    status: string;
+    requestedAt: string;
+    completedAt: string | null;
+    result: Record<string, unknown> | null;
+    error: string | null;
+  } | null;
   logsState: "unavailable" | "empty" | "streaming" | "available";
   logEntries: Array<{
     timestamp: string;

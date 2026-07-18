@@ -78,7 +78,14 @@ export async function executeBackupPayload(
     });
 
     try {
-      return await executeBackupCopy(resolved, runId, dumpResult.dumpPath);
+      const copyResult = await executeBackupCopy(resolved, runId, dumpResult.dumpPath);
+      return {
+        ...copyResult,
+        checksum: dumpResult.checksum,
+        artifactFormat: dumpResult.artifactFormat,
+        databaseEngineVersion: dumpResult.databaseEngineVersion,
+        databaseImageReference: dumpResult.databaseImageReference
+      };
     } finally {
       await cleanupDumpFile(dumpResult.dumpPath);
     }

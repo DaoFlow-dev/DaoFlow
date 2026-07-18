@@ -136,4 +136,50 @@ describe("BackupRunDetailsSheet", () => {
     expect(screen.getByTestId("backup-run-details-live")).toHaveTextContent("Live polling");
     expect(screen.getByTestId("backup-run-log-state")).toHaveTextContent("still active");
   });
+
+  it("shows durable isolated restore verification evidence", () => {
+    render(
+      <BackupRunDetailsSheet
+        open
+        onOpenChange={() => undefined}
+        isLoading={false}
+        errorMessage={null}
+        run={makeRun({
+          status: "succeeded",
+          error: null,
+          artifactFormat: "postgres-custom",
+          databaseEngineVersion: "15.17",
+          artifactCheckedAt: "2026-03-20T02:05:00.000Z",
+          verifiedAt: "2026-03-20T02:06:00.000Z",
+          latestVerification: {
+            id: "restore_verify_1",
+            status: "succeeded",
+            requestedAt: "2026-03-20T02:05:00.000Z",
+            completedAt: "2026-03-20T02:06:00.000Z",
+            error: null,
+            result: {
+              success: true,
+              checksum: "a".repeat(64),
+              sourceEngineVersion: "15.17",
+              verifierEngineVersion: "15-alpine",
+              durationMs: 4200,
+              checks: {
+                archive: { status: "passed", detail: "Archive inspected." },
+                restore: { status: "passed", detail: "Restore completed." }
+              },
+              objectCounts: { schemas: 1, tables: 2, indexes: 3, functions: 4 },
+              cleanup: { containerRemoved: true, workspaceRemoved: true }
+            }
+          }
+        })}
+      />
+    );
+
+    expect(screen.getByTestId("backup-run-verification")).toHaveTextContent(
+      "Isolated restore verification"
+    );
+    expect(screen.getByTestId("backup-run-verification")).toHaveTextContent("15-alpine");
+    expect(screen.getByTestId("backup-run-verification")).toHaveTextContent("2 tables");
+    expect(screen.getByTestId("backup-run-verification")).toHaveTextContent("container removed");
+  });
 });

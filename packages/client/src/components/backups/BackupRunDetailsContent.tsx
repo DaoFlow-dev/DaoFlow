@@ -1,44 +1,10 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { formatBytes } from "@/lib/tone-utils";
+import { BackupVerificationCard } from "./BackupVerificationCard";
+import type { BackupRunDetailsView } from "./backup-run-details-types";
 
-export interface BackupRunDetailsView {
-  id: string;
-  policyId: string;
-  policyName: string;
-  projectName: string;
-  environmentName: string;
-  serviceName: string;
-  targetType: string;
-  destinationName: string;
-  destinationProvider: string | null;
-  destinationServerName: string;
-  mountPath: string | null;
-  backupType: string;
-  databaseEngine: string | null;
-  scheduleLabel: string | null;
-  retentionCount: number | null;
-  status: string;
-  triggerKind: string;
-  executionEngine?: "temporal" | "legacy";
-  temporalWorkflowId?: string | null;
-  requestedBy: string;
-  artifactPath: string | null;
-  bytesWritten: number | null;
-  checksum: string | null;
-  verifiedAt: string | null;
-  startedAt: string;
-  finishedAt: string | null;
-  error: string | null;
-  restoreCount: number;
-  logsState: "unavailable" | "empty" | "streaming" | "available";
-  logEntries: Array<{
-    timestamp: string;
-    level: "info" | "warn" | "error";
-    phase: string;
-    message: string;
-  }>;
-}
+export type { BackupRunDetailsView } from "./backup-run-details-types";
 
 interface BackupRunDetailsContentProps {
   isLoading: boolean;
@@ -202,9 +168,27 @@ export function BackupRunDetailsContent({
                 </div>
                 <div>
                   <p className="text-xs uppercase tracking-wider text-muted-foreground">
-                    Verified at
+                    Artifact checked
+                  </p>
+                  <p>{formatBackupRunDateTime(run.artifactCheckedAt ?? null)}</p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-wider text-muted-foreground">
+                    Restore verified
                   </p>
                   <p>{formatBackupRunDateTime(run.verifiedAt)}</p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-wider text-muted-foreground">
+                    Artifact format
+                  </p>
+                  <p>{run.artifactFormat || "—"}</p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-wider text-muted-foreground">
+                    Database version
+                  </p>
+                  <p>{run.databaseEngineVersion || "—"}</p>
                 </div>
                 <div>
                   <p className="text-xs uppercase tracking-wider text-muted-foreground">Schedule</p>
@@ -225,6 +209,8 @@ export function BackupRunDetailsContent({
               </div>
             </CardContent>
           </Card>
+
+          <BackupVerificationCard verification={run.latestVerification ?? null} />
 
           <Card data-testid={`backup-run-logs-${run.id}`}>
             <CardHeader>
