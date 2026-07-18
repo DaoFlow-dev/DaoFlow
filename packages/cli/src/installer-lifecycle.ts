@@ -3,6 +3,11 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import { join } from "path";
 import { createInterface } from "readline";
 import { fetchComposeYml, parseEnvFile } from "./templates";
+import {
+  getInstallWorkflowProfileEnv,
+  inferInstallWorkflowProfile,
+  type InstallWorkflowProfile
+} from "./install-workflow-profile";
 
 export interface ExistingInstallState {
   dir: string;
@@ -14,6 +19,7 @@ export interface ExistingInstallState {
   domain?: string;
   port?: number;
   scheme?: "http" | "https";
+  workflowProfile: InstallWorkflowProfile;
 }
 
 export interface SelectChoice<T extends string = string> {
@@ -156,7 +162,8 @@ export function readExistingInstall(dir: string): ExistingInstallState | null {
     version: env.DAOFLOW_VERSION || "unknown",
     domain,
     port,
-    scheme
+    scheme,
+    workflowProfile: inferInstallWorkflowProfile(env)
   };
 }
 
@@ -171,7 +178,7 @@ export function writeInstallFile(path: string, contents: string): void {
 }
 
 export function runComposeCommand(input: {
-  runtime: InstallerRuntime;
+  runtime: Pick<InstallerRuntime, "exec">;
   dir: string;
   args: string;
   envPath?: string;
@@ -195,11 +202,25 @@ export function runComposeCommand(input: {
 }
 
 export function updateInstalledVersion(envContent: string, targetVersion: string): string {
-  if (envContent.includes("DAOFLOW_VERSION=")) {
-    return envContent.replace(/DAOFLOW_VERSION=.*/, `DAOFLOW_VERSION=${targetVersion}`);
+  const workflowProfile = inferInstallWorkflowProfile(parseEnvFile(envContent));
+  const managedValues = {
+    DAOFLOW_VERSION: targetVersion,
+    ...getInstallWorkflowProfileEnv(workflowProfile)
+  };
+
+  return Object.entries(managedValues).reduce(
+    (content, [key, value]) => updateEnvValue(content, key, value),
+    envContent
+  );
+}
+
+function updateEnvValue(envContent: string, key: string, value: string): string {
+  const pattern = new RegExp(`^${key}=.*$`, "m");
+  if (pattern.test(envContent)) {
+    return envContent.replace(pattern, `${key}=${value}`);
   }
 
-  return `DAOFLOW_VERSION=${targetVersion}\n${envContent}`;
+  return `${key}=${value}\n${envContent}`;
 }
 
 export function updateInstalledPublicUrl(envContent: string, publicUrl: string): string {
@@ -226,31 +247,6 @@ export function buildInstallUrl(input: {
 }): string {
   const defaultPort = input.scheme === "https" ? 443 : 80;
   return `${input.scheme}://${input.domain}${input.port === defaultPort ? "" : `:${input.port}`}`;
-}
-
-export async function waitForInstallHealth(input: {
-  runtime: InstallerRuntime;
-  port: number;
-  attempts?: number;
-  intervalMs?: number;
-}): Promise<boolean> {
-  const attempts = input.attempts ?? 30;
-  const intervalMs = input.intervalMs ?? 2000;
-
-  for (let i = 0; i < attempts; i++) {
-    try {
-      const response = await input.runtime.fetch(`http://127.0.0.1:${input.port}/ready`);
-      if (response.ok) {
-        return true;
-      }
-    } catch {
-      // Not ready yet
-    }
-
-    await input.runtime.sleep(intervalMs);
-  }
-
-  return false;
 }
 
 export function discoverInstallations(

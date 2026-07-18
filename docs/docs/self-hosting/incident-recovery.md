@@ -30,7 +30,7 @@ If the web UI is reachable, also capture:
 
 Check:
 
-1. `.env` contains non-empty `BETTER_AUTH_SECRET`, `ENCRYPTION_KEY`, `POSTGRES_PASSWORD`, and `TEMPORAL_POSTGRES_PASSWORD`
+1. `.env` contains non-empty `BETTER_AUTH_SECRET`, `ENCRYPTION_KEY`, and `POSTGRES_PASSWORD`; `TEMPORAL_POSTGRES_PASSWORD` is also required when `DAOFLOW_WORKFLOW_PROFILE=temporal`
 2. `BETTER_AUTH_URL` matches the public origin operators are actually using
 3. `/var/run/docker.sock` is mounted into the `daoflow` container
 4. `postgres` is healthy before `daoflow` starts

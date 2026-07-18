@@ -11,6 +11,19 @@ sidebar_position: 6
 
 The intended product is a deployment platform: connect GitHub or GitLab, configure an application in the Web UI, deploy it to a Docker server, understand what happened, and recover with clear evidence when something fails. The CLI is intended to expose the same deployment engine for humans, CI, and constrained automation.
 
+## Self-Hosting Profiles
+
+The default self-hosted installation is the lean profile: `daoflow`, PostgreSQL, and Redis. The
+optional Temporal profile adds `temporal-postgresql` and `temporal` for durable workflow
+orchestration; its UI remains a separate opt-in profile.
+
+DaoFlow does not publish a universal CPU or memory minimum. The
+[Self-Hosting Requirements](/docs/self-hosting/requirements) separate conservative production
+starting points from constrained QA targets. Exact measurements are published only with a
+reproducible evidence record naming the tested commit and image tag. Operators should rehearse the
+expected build, deployment, backup, log-retention, and application workload on their own target
+infrastructure before relying on it for production.
+
 ## Why DaoFlow?
 
 Self-hosting should not require operators to assemble unrelated scripts for source control, builds, releases, logs, backups, and recovery. Existing platforms prove that a useful control plane can make these workflows approachable. DaoFlow builds on that lesson while making production safety and evidence part of the deployment model.
@@ -76,6 +89,11 @@ Security is an architectural priority. The following controls are targets, not a
 {/* /readiness-claim */}
 
 The target architecture is self-hosted and Compose-first, with operator-visible backup and recovery evidence. Current evidence and limitations are published in the [production readiness report](https://github.com/DaoFlow-dev/DaoFlow/blob/main/PRODUCTION_READINESS.md).
+
+The self-hosted Compose path mounts the Docker socket so DaoFlow can manage local Docker workloads;
+that is a high-trust boundary and belongs only on a host dedicated to trusted workloads. Database
+and other named-volume data is retained unless the operator explicitly chooses data removal, so
+backups and retention decisions remain the operator's responsibility.
 
 ### Transparency Through Open Source
 

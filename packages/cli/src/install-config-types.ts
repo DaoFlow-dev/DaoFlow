@@ -2,6 +2,7 @@ import type { Command } from "commander";
 import type { CommandActionContext } from "./command-action";
 import type { DashboardExposureMode } from "./install-exposure-state";
 import type { ExistingInstallState, InstallerRuntime } from "./installer-lifecycle";
+import type { InstallWorkflowProfile } from "./install-workflow-profile";
 
 export interface InstallOptions {
   dir: string;
@@ -10,6 +11,7 @@ export interface InstallOptions {
   acmeEmail?: string;
   email?: string;
   password?: string;
+  workflowProfile?: string;
   expose?: string;
   cloudflareTunnel?: boolean;
   cloudflareTunnelToken?: string;
@@ -29,6 +31,7 @@ export interface InstallConfiguration {
   acmeEmail?: string;
   postgresPassword?: string;
   temporalPostgresPassword?: string;
+  workflowProfile: InstallWorkflowProfile;
   existingInstall: ExistingInstallState | null;
   databasePasswordMode: DatabasePasswordMode;
   exposureMode: DashboardExposureMode;
@@ -44,6 +47,7 @@ export type InstallConfigurationResult =
 export interface InstallOptionSources {
   hasExplicitDomain: boolean;
   hasExplicitPort: boolean;
+  hasExplicitWorkflowProfile: boolean;
   hasExplicitExpose: boolean;
   hasExplicitAcmeEmail: boolean;
   hasExplicitCloudflareTunnel: boolean;

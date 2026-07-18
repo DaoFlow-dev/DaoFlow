@@ -8,13 +8,15 @@ The repository root `docker-compose.yml` is the production reference stack. Use 
 
 ## What The Reference Stack Includes
 
-The current production file starts:
+The current production file defines a lean base stack and two opt-in Compose profiles:
 
-- `daoflow` — web UI, API, and worker entrypoint
-- `postgres` — DaoFlow application database (`pgvector/pgvector:pg17`)
-- `redis` — streaming and transient coordination
-- `temporal-postgresql`, `temporal` — durable workflow substrate
-- `temporal-ui` — optional Temporal dashboard, disabled unless you opt into its Compose profile
+- Lean base: `daoflow`, `postgres`, and `redis`
+- `temporal` profile: `temporal-postgresql` and `temporal`, the durable workflow substrate
+- `temporal-ui` profile: `temporal-ui`, an optional dashboard, plus its required Temporal services
+
+`daoflow install` uses the lean profile by default. The explicit
+`--workflow-profile temporal` option activates the `temporal` profile as well. Temporal UI is
+always separate and is not started by either workflow profile.
 
 The `daoflow` service also mounts:
 
@@ -51,9 +53,15 @@ services:
 
   temporal-postgresql:
     image: postgres:15-alpine
+    profiles:
+      - temporal
+      - temporal-ui
 
   temporal:
     image: temporalio/auto-setup:1.29.6
+    profiles:
+      - temporal
+      - temporal-ui
     expose:
       - "7233"
     environment:
@@ -75,13 +83,27 @@ Start from the repository `.env.example` or let `daoflow install` generate it fo
 BETTER_AUTH_SECRET=generate-a-long-random-secret
 ENCRYPTION_KEY=generate-at-least-32-char-secret
 POSTGRES_PASSWORD=generate-a-secure-password
-TEMPORAL_POSTGRES_PASSWORD=generate-another-secure-password
+# TEMPORAL_POSTGRES_PASSWORD=generate-another-secure-password  # temporal profile only
 BETTER_AUTH_URL=https://deploy.example.com
 DAOFLOW_VERSION=0.9.1
 DAOFLOW_BIND=127.0.0.1
 DAOFLOW_PORT=3000
-# DAOFLOW_ENABLE_TEMPORAL=false
+DAOFLOW_WORKFLOW_PROFILE=lean
+COMPOSE_PROFILES=
+DAOFLOW_ENABLE_TEMPORAL=false
 ```
+
+For an explicit Temporal install, use the following profile settings and provide the Temporal
+database password:
+
+```bash
+DAOFLOW_WORKFLOW_PROFILE=temporal
+COMPOSE_PROFILES=temporal
+DAOFLOW_ENABLE_TEMPORAL=true
+TEMPORAL_POSTGRES_PASSWORD=generate-another-secure-password
+```
+
+Lean can omit `TEMPORAL_POSTGRES_PASSWORD`; the temporal profile requires a non-empty value.
 
 Generate secure values:
 
@@ -118,17 +140,30 @@ the QA host's target platform when the build machine has a different CPU archite
 Set `DAOFLOW_VERSION` in `.env` to the generated `qa-<revision>` tag and fill every required secret.
 For a fresh database, also set both `DAOFLOW_INITIAL_ADMIN_EMAIL` and
 `DAOFLOW_INITIAL_ADMIN_PASSWORD`; the server only bootstraps an owner when both values are present.
-Pull only the dependency images so Compose does not try to fetch the local-only DaoFlow tag:
+Pull only the dependency images so Compose does not try to fetch the local-only DaoFlow tag. The
+lean QA path needs only PostgreSQL and Redis:
 
 ```bash
-docker compose pull postgres redis temporal-postgresql temporal
+docker compose pull postgres redis
 docker compose up -d --wait --wait-timeout 300
+```
+
+For a Temporal QA run, also enable its profile before pulling and starting those services:
+
+```bash
+docker compose --profile temporal pull temporal-postgresql temporal
+docker compose --profile temporal up -d temporal
+docker compose --profile temporal exec -T temporal \
+  temporal operator cluster health --address temporal:7233
+docker compose up -d --wait --wait-timeout 300 daoflow
 ```
 
 Record both the full Git revision (`git rev-parse HEAD`) and image tag with the QA result so the
 tested source can be reproduced exactly.
 
 ## Startup
+
+For the lean profile (`COMPOSE_PROFILES=`), start the base stack:
 
 ```bash
 docker compose pull
@@ -137,7 +172,22 @@ docker compose ps
 docker compose logs -f daoflow
 ```
 
-The default stack does not expose Temporal UI. If you need it for operations, start it locally:
+The default lean stack starts only `daoflow`, `postgres`, and `redis`. For a manual Temporal
+startup, start Temporal first, verify that the cluster is healthy, and only then start DaoFlow:
+
+```bash
+docker compose --profile temporal up -d temporal
+docker compose --profile temporal exec -T temporal \
+  temporal operator cluster health --address temporal:7233
+docker compose up -d --wait --wait-timeout 300 daoflow
+```
+
+With `COMPOSE_PROFILES=temporal` in `.env`, keep the same service-specific sequence. Do not run
+`docker compose --profile temporal up -d` without a service target because it can start `daoflow`
+before the Temporal health check has passed.
+
+The default stack does not expose Temporal UI. If the temporal workflow profile is enabled and you
+need the dashboard for operations, start its separate profile locally:
 
 ```bash
 docker compose --profile temporal-ui up -d temporal-ui
@@ -162,23 +212,32 @@ The reference stack mounts `/var/run/docker.sock` into the `daoflow` container. 
 
 For stricter separation, prefer registering remote servers and using SSH-backed Compose execution instead of mounting the local host socket into the control plane. Keep the socket mount only where local Docker execution is an intentional operational choice.
 
-## Worker Mode Guidance
+## Workflow Profile Changes
 
-For a first staging rollout, keep `DAOFLOW_ENABLE_TEMPORAL=false` until:
+For a first staging rollout, keep the lean profile until:
 
 - the core control-plane stack is healthy
 - you have validated deploy, rollback, and backup flows
-- the Temporal services are healthy and reachable
 
-When you are ready to test durable orchestration, set:
+When you are ready to test durable orchestration, use the installer with an explicit temporal
+profile. It persists all three matching settings:
 
 ```bash
+daoflow install --workflow-profile temporal --yes
+```
+
+```bash
+DAOFLOW_WORKFLOW_PROFILE=temporal
+COMPOSE_PROFILES=temporal
 DAOFLOW_ENABLE_TEMPORAL=true
 ```
 
 The reference stack registers `${TEMPORAL_NAMESPACE:-daoflow}` during Temporal auto-setup so the app and worker can start workflows without manual namespace bootstrapping.
 
-then restart the `daoflow` service with `docker compose up -d daoflow`.
+To return to lean, rerun the installer with `--workflow-profile lean`. The installer explains the
+transition plan before mutation, stops and removes `temporal` and `temporal-postgresql`, and keeps
+the `temporal-pgdata` named volume. Do not use `docker compose down -v`, because it removes named
+volumes and defeats that data-preservation guarantee.
 
 ## Upgrades And Backups
 

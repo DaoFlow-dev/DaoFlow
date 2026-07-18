@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { Command } from "commander";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { upgradeCommand, upgradeRuntime } from "./commands/upgrade";
@@ -92,6 +92,10 @@ describe("upgrade command", () => {
     expect(execCommands).toEqual(["docker compose pull", "docker compose up -d --remove-orphans"]);
     expect(requestedComposeVersions).toEqual(["latest"]);
     expect(readFileSync(join(installDir, ".env"), "utf8")).toContain("DAOFLOW_VERSION=latest");
+    expect(readFileSync(join(installDir, "docker-compose.yml"), "utf8")).toContain(
+      "ghcr.io/daoflow-dev/daoflow:latest"
+    );
+    expect(readdirSync(installDir).some((entry) => entry.includes(".upgrade-"))).toBe(false);
   });
 
   test("preserves the Cloudflare Tunnel sidecar during upgrade", async () => {
@@ -156,6 +160,7 @@ describe("upgrade command", () => {
   });
 
   test("fails without changing the pinned version when the target image pull fails", async () => {
+    const existingCompose = readFileSync(join(installDir, "docker-compose.yml"), "utf8");
     upgradeRuntime.exec = (command: string) => {
       execCommands.push(command);
       if (command === "docker compose pull") {
@@ -190,6 +195,46 @@ describe("upgrade command", () => {
     expect(execCommands).toEqual(["docker compose pull"]);
     expect(requestedComposeVersions).toEqual(["0.5.4"]);
     expect(readFileSync(join(installDir, ".env"), "utf8")).toContain("DAOFLOW_VERSION=0.2.0");
+    expect(readFileSync(join(installDir, "docker-compose.yml"), "utf8")).toBe(existingCompose);
+    expect(readdirSync(installDir).some((entry) => entry.includes(".upgrade-"))).toBe(false);
+  });
+
+  test("keeps the existing files when service restart fails", async () => {
+    const existingEnv = readFileSync(join(installDir, ".env"), "utf8");
+    const existingCompose = readFileSync(join(installDir, "docker-compose.yml"), "utf8");
+    upgradeRuntime.exec = (command: string) => {
+      execCommands.push(command);
+      if (command === "docker compose up -d --remove-orphans") {
+        throw new Error("restart failed");
+      }
+      return "";
+    };
+
+    const program = new Command().name("daoflow");
+    program.addCommand(upgradeCommand());
+    const result = await captureCommandExecution(async () => {
+      await program.parseAsync([
+        "node",
+        "daoflow",
+        "upgrade",
+        "--dir",
+        installDir,
+        "--version",
+        "0.5.4",
+        "--yes",
+        "--json"
+      ]);
+    });
+
+    expect(result.exitCode).toBe(1);
+    expect(JSON.parse(result.logs[0])).toEqual({
+      ok: false,
+      code: "RESTART_FAILED",
+      error: "restart failed"
+    });
+    expect(readFileSync(join(installDir, ".env"), "utf8")).toBe(existingEnv);
+    expect(readFileSync(join(installDir, "docker-compose.yml"), "utf8")).toBe(existingCompose);
+    expect(readdirSync(installDir).some((entry) => entry.includes(".upgrade-"))).toBe(false);
   });
 
   test("fails when upgraded services do not become ready", async () => {
@@ -223,6 +268,8 @@ describe("upgrade command", () => {
       healthy: false
     });
     expect(execCommands).toEqual(["docker compose pull", "docker compose up -d --remove-orphans"]);
-    expect(readFileSync(join(installDir, ".env"), "utf8")).toContain("DAOFLOW_VERSION=0.5.4");
+    expect(readFileSync(join(installDir, ".env"), "utf8")).toContain("DAOFLOW_VERSION=0.2.0");
+    expect(readFileSync(join(installDir, "docker-compose.yml"), "utf8")).toContain("image: old");
+    expect(readdirSync(installDir).some((entry) => entry.includes(".upgrade-"))).toBe(false);
   });
 });

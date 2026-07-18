@@ -23,6 +23,9 @@ curl -fsSL https://raw.githubusercontent.com/DaoFlow-dev/DaoFlow/main/scripts/in
   --yes
 ```
 
+The installer defaults to the lean workflow profile. To include the durable Temporal services,
+pass `--workflow-profile temporal` explicitly.
+
 See [Installation](/docs/getting-started/installation) for full details.
 
 Or deploy manually with Docker Compose (see [Docker Compose Setup](./docker-compose)).
@@ -46,9 +49,17 @@ The repository production stack is a normal Docker Compose project built from:
 1. `daoflow` — web UI, API, and worker entrypoint
 2. `postgres` — DaoFlow application database
 3. `redis` — streaming and transient coordination
-4. `temporal-postgresql`, `temporal`, `temporal-ui` — optional durable workflow substrate
+4. `temporal-postgresql`, `temporal` — optional services in the `temporal` Compose profile
+5. `temporal-ui` — optional dashboard in its separate `temporal-ui` Compose profile
 
-Temporal services are present in the default compose file, but DaoFlow only switches from the legacy worker to Temporal-backed execution when `DAOFLOW_ENABLE_TEMPORAL=true`.
+The default lean install starts only the first three services. The explicit temporal profile adds
+the Temporal services and persists `DAOFLOW_WORKFLOW_PROFILE=temporal`, `COMPOSE_PROFILES=temporal`,
+and `DAOFLOW_ENABLE_TEMPORAL=true`. Lean persists `DAOFLOW_WORKFLOW_PROFILE=lean`, has no active
+Compose profiles, and sets `DAOFLOW_ENABLE_TEMPORAL=false`.
+
+When an existing install is rerun without a profile option, the installer preserves or infers its
+current choice. A temporal-to-lean switch explains its plan before mutation, removes the Temporal
+containers, and preserves the `temporal-pgdata` named volume. Temporal UI remains separately opt-in.
 
 ## Recommended Operator Path
 

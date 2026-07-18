@@ -518,8 +518,16 @@ This file holds the detailed CLI contract, scope map, and agent-facing command r
 ## Local Install Contract
 
 - `daoflow install` is a local-lane bootstrap command and never requires API auth
+- `daoflow install --workflow-profile <lean|temporal>` selects the local workflow profile; `lean` is the default
+- The lean profile starts only `daoflow`, `postgres`, and `redis`. It persists `DAOFLOW_WORKFLOW_PROFILE=lean`, `COMPOSE_PROFILES=` with no active profile, and `DAOFLOW_ENABLE_TEMPORAL=false`
+- The temporal profile is explicit. It starts the Temporal services and persists `DAOFLOW_WORKFLOW_PROFILE=temporal`, `COMPOSE_PROFILES=temporal`, and `DAOFLOW_ENABLE_TEMPORAL=true`
+- Lean installs may omit `TEMPORAL_POSTGRES_PASSWORD`; the temporal profile requires a non-empty value for the Temporal database
+- Re-running the installer preserves an existing install's current workflow choice when no profile is supplied. It uses the persisted workflow profile when present and infers the choice from existing Temporal settings for older installs
+- Every detected workflow profile change emits a pre-mutation plan. Human output lists the source and target profiles, services to add and remove, and named volumes that remain untouched. With `--json`, the plan is a structured stderr event: `{ "ok": true, "event": "workflow-profile-plan", "data": { "workflowProfilePlan": { "change": "lean-to-temporal" | "temporal-to-lean", "from": "lean" | "temporal", "to": "lean" | "temporal", "services": { "added": string[], "removed": string[] }, "preservedVolumes": string[] } } }`; stdout remains one final JSON envelope that includes `workflowProfilePlan`
+- Switching from temporal to lean stops and removes the Temporal containers while preserving named volumes, including `temporal-pgdata`. The installer does not delete those volumes as part of the profile switch
+- Temporal UI remains separately opt-in through its own Compose profile and is not started by either workflow profile
 - `daoflow install --json` success shape:
-  - `{ "ok": true, "version": string, "directory": string, "domain": string, "port": number, "url": string, "healthy": boolean, "exposure": { "ok": boolean, "mode": "none" | "cloudflare-quick" | "tailscale-serve" | "tailscale-funnel" | "traefik", "access": "local" | "tailnet" | "public", "url": string | null, "detail": string | null, "statePath": string | null, "logPath": string | null }, "cloudflareTunnel"?: { "publicUrl": string, "guide": string[] }, "configFiles": string[] }`
+  - `{ "ok": true, "version": string, "directory": string, "domain": string, "port": number, "url": string, "healthy": boolean, "workflowProfile": "lean" | "temporal", "workflowProfileChange": "lean-to-temporal" | "temporal-to-lean" | null, "workflowProfilePlan": { "change": "lean-to-temporal" | "temporal-to-lean", "from": "lean" | "temporal", "to": "lean" | "temporal", "services": { "added": string[], "removed": string[] }, "preservedVolumes": string[] } | null, "exposure": { "ok": boolean, "mode": "none" | "cloudflare-quick" | "tailscale-serve" | "tailscale-funnel" | "traefik", "access": "local" | "tailnet" | "public", "url": string | null, "detail": string | null, "statePath": string | null, "logPath": string | null }, "cloudflareTunnel"?: { "publicUrl": string, "guide": string[] }, "configFiles": string[] }`
 - `daoflow install --expose <mode>` supports:
   - `none` for host-only access
   - `traefik` for a built-in public HTTPS edge with automatic Let's Encrypt
@@ -538,6 +546,7 @@ This file holds the detailed CLI contract, scope map, and agent-facing command r
 ## Local Upgrade Contract
 
 - `daoflow upgrade` is a local-lane command and never requires API auth
+- Upgrades preserve the selected workflow profile. Temporal upgrades activate the `temporal` Compose profile, wait for cluster health before restarting DaoFlow, and require the Temporal worker readiness check before succeeding
 - `daoflow upgrade --json` success shape:
   - `{ "ok": true, "previousVersion": string, "newVersion": string, "directory": string, "healthy": boolean }`
 - `daoflow upgrade --version <semver>` must fetch the compose file from the matching release tag before pulling images; `latest` continues to use the mainline compose template

@@ -17,7 +17,7 @@ curl -fsSL https://raw.githubusercontent.com/DaoFlow-dev/DaoFlow/main/scripts/in
 This downloads the `daoflow` CLI binary and runs the interactive installer, which:
 
 1. Checks Docker is installed (installs it on Linux if needed)
-2. Asks for your domain, dashboard exposure mode, admin email, and password
+2. Asks for your domain, workflow profile, dashboard exposure mode, admin email, and password
 3. Creates `/opt/daoflow/` with `.env` and `docker-compose.yml`
 4. Auto-generates all secrets (auth, encryption, database)
 5. Pulls images, starts services, and verifies startup readiness
@@ -34,6 +34,41 @@ curl -fsSL https://raw.githubusercontent.com/DaoFlow-dev/DaoFlow/main/scripts/in
   --password 'YourSecurePassword123' \
   --yes
 ```
+
+The default workflow profile is lean. To explicitly install the durable Temporal workflow
+services, add `--workflow-profile temporal`:
+
+```bash
+daoflow install \
+  --dir /opt/daoflow \
+  --domain deploy.example.com \
+  --email admin@example.com \
+  --password 'YourSecurePassword123' \
+  --workflow-profile temporal \
+  --yes
+```
+
+### Workflow Profiles
+
+`--workflow-profile <lean|temporal>` controls which local services are started:
+
+| Profile          | Services started                                            | Persisted settings                                                                                            |
+| ---------------- | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `lean` (default) | `daoflow`, `postgres`, and `redis` only                     | `DAOFLOW_WORKFLOW_PROFILE=lean`, `COMPOSE_PROFILES=` (no active profile), and `DAOFLOW_ENABLE_TEMPORAL=false` |
+| `temporal`       | The lean services plus `temporal-postgresql` and `temporal` | `DAOFLOW_WORKFLOW_PROFILE=temporal`, `COMPOSE_PROFILES=temporal`, and `DAOFLOW_ENABLE_TEMPORAL=true`          |
+
+Lean can omit `TEMPORAL_POSTGRES_PASSWORD`. A temporal install requires a non-empty
+`TEMPORAL_POSTGRES_PASSWORD` for the Temporal database.
+
+The Temporal UI is a separate opt-in Compose profile. Selecting the temporal workflow profile does
+not start the dashboard; start it only when needed with the instructions in
+[Docker Compose Setup](/docs/self-hosting/docker-compose).
+
+When you rerun the installer for an existing directory without supplying a profile, it preserves
+the current workflow choice. It reads the persisted profile when available and infers the choice
+from the existing Temporal settings for older installs. If you request `temporal` to `lean`, the
+installer explains the transition plan before mutation, stops and removes the Temporal containers,
+and keeps the `temporal-pgdata` named volume. Do not use `docker compose down -v` for this switch.
 
 ### Optional Dashboard Exposure
 
@@ -78,10 +113,22 @@ DAOFLOW_PORT=3000
 DAOFLOW_INITIAL_ADMIN_EMAIL=admin@example.com
 DAOFLOW_INITIAL_ADMIN_PASSWORD=GENERATED_OR_SUPPLIED_SECRET
 POSTGRES_PASSWORD=GENERATED_48_CHAR_HEX
-TEMPORAL_POSTGRES_PASSWORD=GENERATED_48_CHAR_HEX
+# TEMPORAL_POSTGRES_PASSWORD=GENERATED_48_CHAR_HEX  # temporal profile only
 BETTER_AUTH_SECRET=GENERATED_64_CHAR_HEX
 ENCRYPTION_KEY=GENERATED_32_CHAR_HEX
+DAOFLOW_WORKFLOW_PROFILE=lean
+COMPOSE_PROFILES=
+DAOFLOW_ENABLE_TEMPORAL=false
+# TEMPORAL_ADDRESS=temporal:7233
+```
+
+For a temporal install, the generated profile settings are instead:
+
+```bash
+DAOFLOW_WORKFLOW_PROFILE=temporal
+COMPOSE_PROFILES=temporal
 DAOFLOW_ENABLE_TEMPORAL=true
+TEMPORAL_POSTGRES_PASSWORD=GENERATED_48_CHAR_HEX
 TEMPORAL_ADDRESS=temporal:7233
 ```
 
@@ -117,6 +164,9 @@ daoflow uninstall --yes
 # Stop + remove all data (requires typing DELETE)
 daoflow uninstall --remove-data --yes
 ```
+
+Stopping services does not remove the database or other named volumes. Back up data before
+upgrades or profile changes, and use `--remove-data` only when permanent data removal is intended.
 
 ## Installing the CLI Only
 

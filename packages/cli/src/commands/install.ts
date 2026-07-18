@@ -1,48 +1,38 @@
 import { Command } from "commander";
 import chalk from "chalk";
 import ora from "ora";
-import { CommandActionError, runCommandAction } from "../command-action";
+import { runCommandAction } from "../command-action";
 import { getErrorMessage, getExecErrorMessage } from "../command-helpers";
-import { writeInstallComposeFile } from "../install-compose";
-import { collectInstallConfiguration, type InstallOptions } from "../install-config";
-import { buildCloudflareTunnelGuide, getCloudflareTunnelDashboardUrl } from "../install-cloudflare";
-import { configureDashboardExposure } from "../install-exposure";
-import { describeDashboardExposureMode } from "../install-exposure-state";
 import {
-  buildInstallUrl,
-  ensureInstallDirectories,
-  installerRuntime,
-  runComposeCommand,
-  waitForInstallHealth,
-  writeInstallFile
-} from "../installer-lifecycle";
-import { renderInstallSuccess } from "../install-output";
-import { defaultInstallDir, generateEnvFile } from "../templates";
+  captureInstallComposeFile,
+  restoreInstallComposeFile,
+  writeInstallComposeFile
+} from "../install-compose";
+import { collectInstallConfiguration, type InstallOptions } from "../install-config";
+import { ensureInstallDirectories, installerRuntime } from "../installer-lifecycle";
+import {
+  InstallEnvironmentPreparationError,
+  persistInstallEnvironment,
+  prepareInstallEnvironment
+} from "../install-environment";
+import { finalizeInstallExposure, verifyInstallStartup } from "../install-finalization";
+import {
+  emitInstallError,
+  emitInstallWorkflowProfilePlan,
+  renderInstallSuccess
+} from "../install-output";
+import {
+  getInstallWorkflowProfilePlan,
+  InstallWorkflowRuntimeError,
+  type InstallWorkflowProfileChange
+} from "../install-workflow-runtime";
+import { runInstallWorkflowWithProgress } from "../install-workflow-runner";
+import { defaultInstallDir } from "../templates";
 import { CLI_VERSION } from "../version";
 
 export { resolveInitialAdminCredentials } from "../install-credentials";
 
 export const installRuntime = installerRuntime;
-
-export function buildInstallErrorPayload(error: CommandActionError): Record<string, unknown> {
-  return { ...(error.extra ?? {}), ok: false, error: error.message, code: error.code };
-}
-
-function emitInstallError(error: CommandActionError, isJson: boolean): void {
-  if (isJson) {
-    console.log(JSON.stringify(buildInstallErrorPayload(error)));
-    return;
-  }
-
-  if (error.code === "DOCKER_NOT_FOUND") {
-    console.error(chalk.red("\nDocker is required. Install it first:"));
-    console.error(chalk.dim("  https://docs.docker.com/engine/install/"));
-    console.error(chalk.dim("  Or: curl -fsSL https://get.docker.com | sh"));
-    return;
-  }
-
-  console.error(chalk.red(error.humanMessage ?? error.message));
-}
 
 export function installCommand(): Command {
   return new Command("install")
@@ -52,6 +42,11 @@ export function installCommand(): Command {
     .option("--dir <path>", "Installation directory", defaultInstallDir())
     .option("--domain <hostname>", "Public domain (e.g., deploy.example.com)")
     .option("--port <number>", "Local DaoFlow HTTP port", "3000")
+    .option(
+      "--workflow-profile <profile>",
+      "Workflow profile: lean (default) or temporal (adds workflow orchestration services)",
+      "lean"
+    )
     .option("--acme-email <email>", "Let's Encrypt email to use when --expose traefik")
     .option(
       "--cloudflare-tunnel",
@@ -137,32 +132,43 @@ export function installCommand(): Command {
             });
           }
 
+          const workflowProfilePlan = getInstallWorkflowProfilePlan({
+            existingWorkflowProfile: config.existingInstall?.workflowProfile ?? null,
+            workflowProfile: config.workflowProfile
+          });
+          if (workflowProfilePlan && (ctx.isJson || opts.yes)) {
+            emitInstallWorkflowProfilePlan({ plan: workflowProfilePlan, json: ctx.isJson });
+          }
+
           const dirSpinner = !ctx.isJson ? ora("Creating installation directory...").start() : null;
           const { envPath, composePath } = ensureInstallDirectories(config.dir);
+          const composeSnapshot = captureInstallComposeFile(composePath);
           dirSpinner?.succeed(`Directory: ${config.dir}`);
 
           const envSpinner = !ctx.isJson
             ? ora("Generating secrets and configuration...").start()
             : null;
-          let envContent = generateEnvFile({
-            version: CLI_VERSION,
-            domain: config.domain,
-            port: config.port,
-            scheme: config.scheme,
-            exposureMode: config.exposureMode,
-            cloudflareTunnelEnabled: config.cloudflareTunnelEnabled,
-            cloudflareTunnelToken: config.cloudflareTunnelToken,
-            acmeEmail: config.acmeEmail,
-            initialAdminEmail: config.email,
-            initialAdminPassword: config.password,
-            postgresPassword: config.postgresPassword,
-            temporalPostgresPassword: config.temporalPostgresPassword,
-            authSecret: config.existingInstall?.env.BETTER_AUTH_SECRET,
-            encryptionKey: config.existingInstall?.env.ENCRYPTION_KEY,
-            preservedEnv: config.existingInstall?.env
-          });
-          writeInstallFile(envPath, envContent);
-          envSpinner?.succeed("Secrets generated and saved to .env");
+          let envContent = "";
+          try {
+            ({ envContent } = prepareInstallEnvironment({
+              config,
+              version: CLI_VERSION
+            }));
+          } catch (error) {
+            if (error instanceof InstallEnvironmentPreparationError) {
+              envSpinner?.fail("Temporal workflow profile needs a Temporal database password");
+              ctx.fail(error.message, {
+                code: error.code,
+                extra: workflowProfilePlan ? { workflowProfilePlan } : undefined
+              });
+            }
+            envSpinner?.fail("Failed to prepare installation configuration");
+            ctx.fail(getExecErrorMessage(error), {
+              code: "START_FAILED",
+              extra: { workflowProfilePlan }
+            });
+          }
+          envSpinner?.succeed("Installation configuration prepared");
 
           const composeSpinner = !ctx.isJson ? ora("Fetching docker-compose.yml...").start() : null;
           try {
@@ -179,188 +185,74 @@ export function installCommand(): Command {
             ctx.fail(getErrorMessage(error), { code: "COMPOSE_FETCH_FAILED" });
           }
 
-          const pullSpinner = !ctx.isJson
-            ? ora("Pulling Docker images (this may take a minute)...").start()
+          const persistSpinner = !ctx.isJson
+            ? ora("Saving secrets and workflow profile...").start()
             : null;
+          let skipTemporalCleanup = false;
           try {
-            runComposeCommand({
-              runtime: installRuntime,
-              dir: config.dir,
-              args: "pull",
-              envPath
-            });
-            pullSpinner?.succeed("Docker images pulled");
-          } catch {
-            pullSpinner?.warn("Image pull failed — will attempt to start anyway");
-          }
-
-          if (!config.existingInstall) {
-            try {
-              runComposeCommand({
-                runtime: installRuntime,
-                dir: config.dir,
-                args: "down -v",
-                envPath
-              });
-            } catch {
-              // No existing project to tear down — expected on first install
+            if (workflowProfilePlan?.change === "temporal-to-lean" && persistSpinner) {
+              persistSpinner.text =
+                "Switching to lean: removing Temporal containers and keeping their data...";
             }
-          }
-
-          const startSpinner = !ctx.isJson ? ora("Starting DaoFlow services...").start() : null;
-          try {
-            runComposeCommand({
+            ({ skippedTemporalCleanup: skipTemporalCleanup } = persistInstallEnvironment({
               runtime: installRuntime,
               dir: config.dir,
-              args: "up -d",
-              envPath
-            });
-            startSpinner?.succeed("DaoFlow services started");
+              envPath,
+              contents: envContent,
+              workflowProfilePlan
+            }));
+            persistSpinner?.succeed("Secrets and workflow profile saved to .env");
           } catch (error) {
-            startSpinner?.fail("Failed to start services");
+            restoreInstallComposeFile(composePath, composeSnapshot);
+            persistSpinner?.fail("Failed to save installation configuration");
+            if (error instanceof InstallWorkflowRuntimeError) {
+              ctx.fail(error.message, {
+                code: error.code,
+                extra: { workflowProfilePlan }
+              });
+            }
+            ctx.fail(getExecErrorMessage(error), {
+              code: "START_FAILED",
+              extra: { workflowProfilePlan }
+            });
+          }
+
+          const workflowSpinner = !ctx.isJson ? ora("Preparing DaoFlow services...").start() : null;
+          let workflowProfileChange: InstallWorkflowProfileChange | null = null;
+          try {
+            const workflow = await runInstallWorkflowWithProgress({
+              runtime: installRuntime,
+              dir: config.dir,
+              envPath,
+              existingWorkflowProfile: config.existingInstall?.workflowProfile ?? null,
+              workflowProfile: config.workflowProfile,
+              skipTemporalCleanup,
+              spinner: workflowSpinner
+            });
+            workflowProfileChange = workflow.workflowProfileChange;
+          } catch (error) {
+            if (error instanceof InstallWorkflowRuntimeError) {
+              ctx.fail(error.message, { code: error.code });
+            }
             ctx.fail(getExecErrorMessage(error), { code: "START_FAILED" });
           }
 
-          const healthSpinner = !ctx.isJson
-            ? ora("Waiting for DaoFlow startup readiness...").start()
-            : null;
-          let healthy = await waitForInstallHealth({
+          const initialHealthy = await verifyInstallStartup({
             runtime: installRuntime,
-            port: config.port
+            config,
+            envPath,
+            ctx
           });
-
-          if (healthy) {
-            healthSpinner?.succeed("DaoFlow is ready!");
-          } else {
-            healthSpinner?.fail("Readiness check timed out");
-
-            let containerStatus = "";
-            try {
-              containerStatus = String(
-                runComposeCommand({
-                  runtime: installRuntime,
-                  dir: config.dir,
-                  args: 'ps daoflow --format "{{.Status}}"',
-                  envPath
-                })
-              ).trim();
-            } catch {
-              // best-effort
+          const { displayUrl, healthy, exposure, cloudflareTunnel } = await finalizeInstallExposure(
+            {
+              runtime: installRuntime,
+              config,
+              envPath,
+              envContent,
+              healthy: initialHealthy,
+              ctx
             }
-
-            const lines = [
-              "DaoFlow did not become ready before the installer timeout.",
-              `Run 'docker compose logs daoflow' in ${config.dir} to diagnose.`
-            ];
-            if (containerStatus.toLowerCase().includes("restarting")) {
-              lines.push(
-                "The container is crash-looping — check the logs above for database auth errors or missing AVX CPU support."
-              );
-            }
-
-            ctx.fail(lines.join(" "), {
-              code: "INSTALL_READINESS_TIMEOUT",
-              extra: {
-                directory: config.dir,
-                port: config.port,
-                containerStatus: containerStatus || undefined
-              }
-            });
-          }
-
-          const exposureSpinner =
-            config.exposureMode !== "none" && !ctx.isJson
-              ? ora("Configuring dashboard exposure...").start()
-              : null;
-          let exposure = await configureDashboardExposure({
-            runtime: installRuntime,
-            installDir: config.dir,
-            mode: config.exposureMode,
-            port: config.port,
-            domain: config.domain
-          });
-
-          const cloudflareTunnel = config.cloudflareTunnelEnabled
-            ? {
-                publicUrl: getCloudflareTunnelDashboardUrl(config.domain),
-                guide: buildCloudflareTunnelGuide({
-                  domain: config.domain
-                })
-              }
-            : undefined;
-
-          const displayUrl =
-            cloudflareTunnel?.publicUrl ??
-            exposure.url ??
-            buildInstallUrl({ domain: config.domain, scheme: config.scheme, port: config.port });
-
-          const currentPublicUrl = envContent.match(/^BETTER_AUTH_URL=(.+)$/m)?.[1]?.trim();
-          if (exposure.url && exposure.url !== currentPublicUrl) {
-            envContent = envContent.replace(
-              /^BETTER_AUTH_URL=.*/m,
-              `BETTER_AUTH_URL=${exposure.url}`
-            );
-            writeInstallFile(envPath, envContent);
-
-            const authUrlSpinner = !ctx.isJson
-              ? ora(
-                  `Applying exposed auth URL (${describeDashboardExposureMode(config.exposureMode)})...`
-                ).start()
-              : null;
-            try {
-              runComposeCommand({
-                runtime: installRuntime,
-                dir: config.dir,
-                args: "up -d",
-                envPath
-              });
-              authUrlSpinner?.succeed("BETTER_AUTH_URL updated to the exposed HTTPS URL");
-              healthy = await waitForInstallHealth({
-                runtime: installRuntime,
-                port: config.port,
-                attempts: 10
-              });
-              if (!healthy) {
-                authUrlSpinner?.fail("DaoFlow did not become ready after applying BETTER_AUTH_URL");
-                ctx.fail(
-                  "DaoFlow did not become ready after applying the exposed auth URL. Run 'docker compose logs daoflow' in the install directory and retry.",
-                  {
-                    code: "INSTALL_READINESS_TIMEOUT",
-                    extra: {
-                      directory: config.dir,
-                      port: config.port
-                    }
-                  }
-                );
-              }
-            } catch (error) {
-              if (error instanceof CommandActionError) {
-                throw error;
-              }
-
-              authUrlSpinner?.fail("Failed to apply the exposed auth URL");
-              exposure = {
-                ...exposure,
-                ok: false,
-                detail: `Exposure was created, but restarting DaoFlow with the new BETTER_AUTH_URL failed: ${getExecErrorMessage(error)}`
-              };
-            }
-          }
-
-          if (exposureSpinner) {
-            if (exposure.ok) {
-              exposureSpinner.succeed(
-                exposure.url
-                  ? `Exposure ready: ${exposure.url}`
-                  : `Exposure configured: ${describeDashboardExposureMode(config.exposureMode)}`
-              );
-            } else {
-              exposureSpinner.warn(
-                exposure.detail ??
-                  `Could not configure ${describeDashboardExposureMode(config.exposureMode)}.`
-              );
-            }
-          }
+          );
 
           return ctx.complete({
             exitCode: 0,
@@ -372,6 +264,9 @@ export function installCommand(): Command {
               port: config.port,
               url: displayUrl,
               healthy,
+              workflowProfile: config.workflowProfile,
+              workflowProfileChange,
+              workflowProfilePlan,
               exposure,
               cloudflareTunnel,
               configFiles: [envPath, composePath]

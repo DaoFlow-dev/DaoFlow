@@ -8,6 +8,23 @@ function asRecord(value: unknown): Record<string, unknown> {
     : {};
 }
 
+function resolveServiceNames(
+  services: Record<string, unknown>,
+  activeProfiles: string[]
+): string[] {
+  const active = new Set(activeProfiles);
+  return Object.entries(services)
+    .filter(([, service]) => {
+      const profiles = asRecord(service).profiles;
+      return (
+        !Array.isArray(profiles) ||
+        profiles.length === 0 ||
+        profiles.some((profile) => typeof profile === "string" && active.has(profile))
+      );
+    })
+    .map(([name]) => name);
+}
+
 describe("production docker-compose.yml", () => {
   test("keeps local secrets out of the Docker build context", async () => {
     const dockerignoreContent = await Bun.file(
@@ -32,6 +49,7 @@ describe("production docker-compose.yml", () => {
     const services = asRecord(doc.services);
     const daoflow = asRecord(services.daoflow);
     const temporal = asRecord(services.temporal);
+    const temporalPostgres = asRecord(services["temporal-postgresql"]);
     const temporalUi = asRecord(services["temporal-ui"]);
 
     const images = Object.values(services)
@@ -57,13 +75,52 @@ describe("production docker-compose.yml", () => {
     expect(asRecord(asRecord(services.postgres).environment).POSTGRES_PASSWORD).toBe(
       "${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}"
     );
-    expect(asRecord(asRecord(services["temporal-postgresql"]).environment).POSTGRES_PASSWORD).toBe(
-      "${TEMPORAL_POSTGRES_PASSWORD:?Set TEMPORAL_POSTGRES_PASSWORD in .env}"
+    expect(asRecord(temporalPostgres.environment).POSTGRES_PASSWORD).toBe(
+      "${TEMPORAL_POSTGRES_PASSWORD-}"
     );
+    expect(temporal.environment).toContain("POSTGRES_PWD=${TEMPORAL_POSTGRES_PASSWORD-}");
+    expect(temporalPostgres.profiles).toEqual(["temporal", "temporal-ui"]);
     expect(temporal.image).toBe("temporalio/auto-setup:1.29.6");
+    expect(temporal.profiles).toEqual(["temporal", "temporal-ui"]);
     expect(temporal.ports).toBeUndefined();
     expect(temporal.expose).toEqual(["7233"]);
     expect(temporalUi.profiles).toEqual(["temporal-ui"]);
     expect(temporalUi.ports).toEqual(["127.0.0.1:${TEMPORAL_UI_PORT:-8233}:8080"]);
+    expect(asRecord(daoflow.depends_on).temporal).toBeUndefined();
+    expect(asRecord(temporal.depends_on)["temporal-postgresql"]).toEqual({
+      condition: "service_healthy"
+    });
+  });
+
+  test("resolves only the lean services when Temporal is disabled", async () => {
+    const composeContent = await Bun.file(
+      new URL("../../../docker-compose.yml", import.meta.url)
+    ).text();
+    const services = asRecord(asRecord(parseYaml(composeContent) as unknown).services);
+
+    expect(resolveServiceNames(services, [])).toEqual(["daoflow", "postgres", "redis"]);
+  });
+
+  test("resolves the Temporal services only for the explicit temporal profile", async () => {
+    const composeContent = await Bun.file(
+      new URL("../../../docker-compose.yml", import.meta.url)
+    ).text();
+    const services = asRecord(asRecord(parseYaml(composeContent) as unknown).services);
+
+    expect(resolveServiceNames(services, ["temporal"])).toEqual([
+      "daoflow",
+      "postgres",
+      "redis",
+      "temporal-postgresql",
+      "temporal"
+    ]);
+    expect(resolveServiceNames(services, ["temporal-ui"])).toEqual([
+      "daoflow",
+      "postgres",
+      "redis",
+      "temporal-postgresql",
+      "temporal",
+      "temporal-ui"
+    ]);
   });
 });

@@ -4,13 +4,9 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { CommandActionError } from "./command-action";
-import {
-  buildInstallErrorPayload,
-  installCommand,
-  installRuntime,
-  resolveInitialAdminCredentials
-} from "./commands/install";
+import { installCommand, installRuntime, resolveInitialAdminCredentials } from "./commands/install";
 import { getDashboardExposureStatePath } from "./install-exposure-state";
+import { buildInstallErrorPayload } from "./install-output";
 import { captureCommandExecution } from "./login-test-helpers";
 import { generateEnvFile, parseEnvFile } from "./templates";
 import { CLI_VERSION } from "./version";
@@ -594,7 +590,7 @@ DEPLOY_TIMEOUT_MS=900000
   });
 
   test("interactive install upgrades localhost to https when the user enters a public domain", async () => {
-    // New prompt order: dir, (exposure via promptSelect), CF tunnel, domain, port, email, password, DB passwords, confirm
+    // Prompt order: dir, profile, exposure, CF tunnel, domain, port, email, password, DB passwords, confirm
     installRuntime.prompt = (() => {
       const answers = [
         installDir,
@@ -609,7 +605,10 @@ DEPLOY_TIMEOUT_MS=900000
 
       return () => Promise.resolve(String(answers.shift() ?? ""));
     })();
-    installRuntime.promptSelect = () => Promise.resolve("none" as never);
+    installRuntime.promptSelect = (() => {
+      const choices = ["lean", "none"];
+      return () => Promise.resolve(choices.shift() as never);
+    })();
 
     const program = new Command().name("daoflow");
     program.addCommand(installCommand());
@@ -664,7 +663,7 @@ DEPLOY_TIMEOUT_MS=900000
   });
 
   test("interactive install re-prompts on invalid domain for traefik", async () => {
-    // Answers: dir, (exposure = traefik via promptSelect), CF tunnel = n,
+    // Answers: dir, profile and exposure via promptSelect, CF tunnel = n,
     // domain = localhost (invalid, re-prompted), domain = deploy.example.com (valid),
     // port, email, password, ACME email, DB passwords, confirm
     installRuntime.prompt = (() => {
@@ -683,7 +682,10 @@ DEPLOY_TIMEOUT_MS=900000
 
       return () => Promise.resolve(String(answers.shift() ?? ""));
     })();
-    installRuntime.promptSelect = () => Promise.resolve("traefik" as never);
+    installRuntime.promptSelect = (() => {
+      const choices = ["lean", "traefik"];
+      return () => Promise.resolve(choices.shift() as never);
+    })();
 
     const program = new Command().name("daoflow");
     program.addCommand(installCommand());

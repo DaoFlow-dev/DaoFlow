@@ -1,5 +1,9 @@
 import { randomBytes } from "crypto";
 import embeddedCompose from "../../../docker-compose.yml" with { type: "text" };
+import {
+  getInstallWorkflowProfileEnv,
+  type InstallWorkflowProfile
+} from "./install-workflow-profile";
 
 const embeddedComposeTemplate = String(embeddedCompose);
 const SAFE_ENV_VALUE = /^[A-Za-z0-9_./:@+-]*$/;
@@ -139,10 +143,13 @@ export function generateEnvFile(opts: {
   initialAdminPassword?: string;
   postgresPassword?: string;
   temporalPostgresPassword?: string;
+  workflowProfile?: InstallWorkflowProfile;
   authSecret?: string;
   encryptionKey?: string;
   preservedEnv?: Record<string, string>;
 }): string {
+  const workflowProfile = opts.workflowProfile ?? "lean";
+  const workflowProfileEnv = getInstallWorkflowProfileEnv(workflowProfile);
   const pgPass = opts.postgresPassword ?? secureHex(24);
   const temporalPgPass = opts.temporalPostgresPassword ?? secureHex(24);
   const authSecret = opts.authSecret ?? secureHex(32);
@@ -171,6 +178,8 @@ export function generateEnvFile(opts: {
     "TEMPORAL_POSTGRES_PASSWORD",
     "BETTER_AUTH_SECRET",
     "ENCRYPTION_KEY",
+    "DAOFLOW_WORKFLOW_PROFILE",
+    "COMPOSE_PROFILES",
     "DAOFLOW_ENABLE_TEMPORAL"
   ]);
   const preservedEntries = Object.entries(opts.preservedEnv ?? {}).filter(
@@ -183,6 +192,11 @@ export function generateEnvFile(opts: {
 
 # -- Version ---------------------------------------------------------------
 ${envLine("DAOFLOW_VERSION", opts.version)}
+
+# -- Workflow Profile -------------------------------------------------------
+# Lean runs DaoFlow, PostgreSQL, and Redis. Temporal adds workflow services.
+${envLine("DAOFLOW_WORKFLOW_PROFILE", workflowProfileEnv.DAOFLOW_WORKFLOW_PROFILE)}
+${envLine("COMPOSE_PROFILES", workflowProfileEnv.COMPOSE_PROFILES)}
 
 # -- Public URL -------------------------------------------------------------
 ${envLine("BETTER_AUTH_URL", `${scheme}://${opts.domain}${portSuffix}`)}
@@ -209,7 +223,7 @@ ${envLine("ENCRYPTION_KEY", encKey)}
 # DEPLOY_TIMEOUT_MS=600000
 
 # -- Temporal (workflow orchestration) --------------------------------------
-${envLine("DAOFLOW_ENABLE_TEMPORAL", "true")}
+${envLine("DAOFLOW_ENABLE_TEMPORAL", workflowProfileEnv.DAOFLOW_ENABLE_TEMPORAL)}
 ${envLine("TEMPORAL_ADDRESS", "temporal:7233")}
 # TEMPORAL_NAMESPACE=daoflow
 # TEMPORAL_TASK_QUEUE=daoflow-deployments

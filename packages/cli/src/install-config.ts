@@ -26,6 +26,11 @@ import {
   resolveInstallScheme
 } from "./install-config-helpers";
 import { collectNonInteractiveInstallConfiguration } from "./install-config-noninteractive";
+import { collectNewInstallDatabasePasswords } from "./install-database-config";
+import {
+  promptForInstallWorkflowProfile,
+  resolveRequestedInstallWorkflowProfile
+} from "./install-workflow-configuration";
 import type {
   CollectInstallConfigurationInput,
   DatabasePasswordMode,
@@ -43,6 +48,11 @@ export async function collectInstallConfiguration(
 ): Promise<InstallConfigurationResult> {
   const isNonInteractive = input.options.yes ?? false;
   const sources = buildInstallOptionSources(input.command);
+
+  let workflowProfile = resolveRequestedInstallWorkflowProfile({
+    value: input.options.workflowProfile,
+    ctx: input.ctx
+  });
 
   let dir = input.options.dir;
   let domain = input.options.domain ?? "localhost";
@@ -110,6 +120,13 @@ export async function collectInstallConfiguration(
         existingInstall.env[CLOUDFLARE_TUNNEL_TOKEN_ENV]?.trim() ??
         undefined;
     }
+
+    workflowProfile = await promptForInstallWorkflowProfile({
+      runtime: input.runtime,
+      sources,
+      requestedProfile: workflowProfile,
+      existingProfile: existingInstall?.workflowProfile
+    });
 
     exposureMode = sources.hasExplicitExpose
       ? exposureMode
@@ -210,21 +227,12 @@ export async function collectInstallConfiguration(
         "Current secrets and settings will be preserved unless you explicitly override them."
       );
     } else {
-      const pwChoice = await input.runtime.prompt(
-        "Database passwords - auto-generate or enter manually? (auto/manual)",
-        "auto"
-      );
-
-      if (pwChoice.toLowerCase() === "manual") {
-        postgresPassword = await input.runtime.prompt("Postgres password (daoflow DB)");
-        temporalPostgresPassword = await input.runtime.prompt("Postgres password (temporal DB)");
-        if (!postgresPassword || !temporalPostgresPassword) {
-          input.ctx.fail("Both database passwords are required.");
-        }
-        databasePasswordMode = "manual";
-      } else {
-        console.error("  Secure passwords will be auto-generated.");
-      }
+      ({ databasePasswordMode, postgresPassword, temporalPostgresPassword } =
+        await collectNewInstallDatabasePasswords({
+          runtime: input.runtime,
+          ctx: input.ctx,
+          workflowProfile
+        }));
     }
 
     const traefikError = getTraefikConfigurationError({
@@ -257,6 +265,8 @@ export async function collectInstallConfiguration(
       port,
       email,
       databasePasswordMode,
+      workflowProfile,
+      existingWorkflowProfile: existingInstall?.workflowProfile,
       exposureMode,
       cloudflareTunnelEnabled,
       acmeEmail
@@ -280,6 +290,7 @@ export async function collectInstallConfiguration(
       acmeEmail,
       postgresPassword,
       temporalPostgresPassword,
+      workflowProfile,
       existingInstall,
       databasePasswordMode,
       exposureMode,
@@ -294,6 +305,7 @@ export async function collectInstallConfiguration(
     ctx: input.ctx,
     sources,
     parsedPort: port,
-    exposureMode
+    exposureMode,
+    requestedWorkflowProfile: workflowProfile
   });
 }

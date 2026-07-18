@@ -47,6 +47,36 @@ describe("fetchComposeYml", () => {
 });
 
 describe("generateEnvFile", () => {
+  it("writes lean as the default install profile and enables Temporal only when selected", () => {
+    const lean = parseEnvFile(
+      generateEnvFile({
+        version: "0.7.0",
+        domain: "localhost",
+        port: 3000
+      })
+    );
+    const temporal = parseEnvFile(
+      generateEnvFile({
+        version: "0.7.0",
+        domain: "localhost",
+        port: 3000,
+        workflowProfile: "temporal"
+      })
+    );
+
+    expect(lean).toMatchObject({
+      DAOFLOW_WORKFLOW_PROFILE: "lean",
+      COMPOSE_PROFILES: "",
+      DAOFLOW_ENABLE_TEMPORAL: "false"
+    });
+    expect(temporal).toMatchObject({
+      DAOFLOW_WORKFLOW_PROFILE: "temporal",
+      COMPOSE_PROFILES: "temporal",
+      DAOFLOW_ENABLE_TEMPORAL: "true"
+    });
+    expect(temporal.TEMPORAL_POSTGRES_PASSWORD).not.toBe("");
+  });
+
   it("quotes generated and preserved values that would otherwise corrupt dotenv parsing", () => {
     const envContent = generateEnvFile({
       version: "0.7.0",

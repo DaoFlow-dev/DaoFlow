@@ -6,6 +6,18 @@ sidebar_position: 6
 
 How to upgrade DaoFlow to a new version.
 
+## CLI Upgrade
+
+The recommended path is the CLI because it preserves the install's selected workflow profile:
+
+```bash
+daoflow upgrade --yes
+```
+
+Lean upgrades keep only the base services active. Temporal upgrades start the Temporal services,
+wait for cluster health, restart DaoFlow, and verify that its Temporal worker reconnects before the
+command reports success.
+
 ## Docker Compose Upgrade
 
 ```bash
@@ -18,6 +30,17 @@ docker compose up -d
 # Check process health and startup readiness
 curl http://localhost:3000/health
 curl http://localhost:3000/ready
+```
+
+These manual commands use the profile values already stored in `.env`. For a Temporal install,
+start and verify Temporal before restarting DaoFlow:
+
+```bash
+docker compose --profile temporal pull
+docker compose --profile temporal up -d temporal
+docker compose --profile temporal exec -T temporal \
+  temporal operator cluster health --address temporal:7233
+docker compose --profile temporal up -d --remove-orphans daoflow
 ```
 
 DaoFlow automatically runs required database migrations before the HTTP server starts accepting traffic. In production, a migration failure stops startup by default instead of serving requests against an incompatible schema.

@@ -1,4 +1,4 @@
-import { writeFileSync } from "node:fs";
+import { existsSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { isMap, parseDocument } from "yaml";
 import type { Document, YAMLMap } from "yaml";
 import { buildCloudflareTunnelService } from "./install-cloudflare";
@@ -128,13 +128,48 @@ export async function writeInstallComposeFile(input: {
   exposureMode: DashboardExposureMode;
   cloudflareTunnelEnabled?: boolean;
 }): Promise<void> {
-  const composeContent = await input.runtime.fetchComposeYml(input.version);
-  writeFileSync(
+  writeInstallComposeContent(
     input.composePath,
-    buildInstallComposeContent({
-      composeContent,
+    await resolveInstallComposeContent({
+      runtime: input.runtime,
+      version: input.version,
       exposureMode: input.exposureMode,
       cloudflareTunnelEnabled: input.cloudflareTunnelEnabled
     })
   );
+}
+
+export async function resolveInstallComposeContent(input: {
+  runtime: InstallerRuntime;
+  version?: string;
+  exposureMode: DashboardExposureMode;
+  cloudflareTunnelEnabled?: boolean;
+}): Promise<string> {
+  const composeContent = await input.runtime.fetchComposeYml(input.version);
+  return buildInstallComposeContent({
+    composeContent,
+    exposureMode: input.exposureMode,
+    cloudflareTunnelEnabled: input.cloudflareTunnelEnabled
+  });
+}
+
+export function writeInstallComposeContent(path: string, contents: string): void {
+  writeFileSync(path, contents);
+}
+
+export interface InstallComposeSnapshot {
+  contents: string | null;
+}
+
+export function captureInstallComposeFile(path: string): InstallComposeSnapshot {
+  return { contents: existsSync(path) ? readFileSync(path, "utf8") : null };
+}
+
+export function restoreInstallComposeFile(path: string, snapshot: InstallComposeSnapshot): void {
+  if (snapshot.contents === null) {
+    if (existsSync(path)) unlinkSync(path);
+    return;
+  }
+
+  writeFileSync(path, snapshot.contents);
 }

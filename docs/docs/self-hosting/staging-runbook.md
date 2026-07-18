@@ -39,6 +39,9 @@ curl -fsSL https://raw.githubusercontent.com/DaoFlow-dev/DaoFlow/main/scripts/in
   --yes
 ```
 
+This uses the default lean workflow profile. To rehearse the durable workflow path instead, add
+`--workflow-profile temporal`; the installer persists the matching Temporal settings in `.env`.
+
 If you prefer manual control, use the repository production `docker-compose.yml` plus a copy of `.env.example` as described in [Docker Compose Setup](./docker-compose).
 
 ### Local-Source QA Build
@@ -87,9 +90,9 @@ Before the first rehearsal, confirm at least:
 
 - `BETTER_AUTH_URL` points at your staging origin
 - `DAOFLOW_VERSION` is pinned to the release or `qa-<revision>` image you want to rehearse
-- `DAOFLOW_ENABLE_TEMPORAL=false` for the first pass unless you specifically want to test Temporal;
-  the installer writes `true`, so change it and apply the stack again for the baseline rehearsal
-- `POSTGRES_PASSWORD` and `TEMPORAL_POSTGRES_PASSWORD` are non-empty
+- `DAOFLOW_WORKFLOW_PROFILE=lean`, `COMPOSE_PROFILES=` (no active profile), and
+  `DAOFLOW_ENABLE_TEMPORAL=false` for the first pass
+- `POSTGRES_PASSWORD` is non-empty; `TEMPORAL_POSTGRES_PASSWORD` is required only for a Temporal run
 - `DAOFLOW_BIND=0.0.0.0` only when the QA network is trusted and direct LAN access is intentional
 
 For a released image, pull the full stack and wait for its health checks:
@@ -105,8 +108,20 @@ local-only DaoFlow tag:
 
 ```bash
 cd "${DAOFLOW_DIR:-/opt/daoflow-staging}"
-docker compose pull postgres redis temporal-postgresql temporal
+docker compose pull postgres redis
 docker compose up -d --wait --wait-timeout 300
+```
+
+For a Temporal rehearsal, set all three profile values in `.env` first, then pull and start the
+profiled dependencies:
+
+```bash
+cd "${DAOFLOW_DIR:-/opt/daoflow-staging}"
+docker compose --profile temporal pull temporal-postgresql temporal
+docker compose --profile temporal up -d temporal
+docker compose --profile temporal exec -T temporal \
+  temporal operator cluster health --address temporal:7233
+docker compose up -d --wait --wait-timeout 300 daoflow
 ```
 
 ## 4. Verify The Control Plane
@@ -121,8 +136,9 @@ curl -fsS http://127.0.0.1:3000/ready
 
 Expected result:
 
-- `daoflow`, `postgres`, `redis`, `temporal-postgresql`, and `temporal` are running; `temporal-ui`
-  only runs when its profile is enabled
+- Lean rehearsal: only `daoflow`, `postgres`, and `redis` are running
+- Temporal rehearsal: the lean services plus `temporal-postgresql` and `temporal` are running;
+  `temporal-ui` only runs when its separate profile is enabled
 - `/health` responds and `/ready` returns `ready`
 - the `daoflow` logs show database migrations completed before the HTTP server started
 - the UI loads and you can sign in as the initial owner
@@ -193,26 +209,27 @@ daoflow backup run --policy bkp_pol_123 --yes
 daoflow backup verify --backup-run-id bkp_run_123 --yes
 ```
 
-## 9. Optional: Enable Temporal
+## 9. Optional: Rehearse Temporal
 
 After the baseline rehearsal is green, you can exercise durable orchestration:
 
 ```bash
 cd "${DAOFLOW_DIR:-/opt/daoflow-staging}"
-if grep -q '^DAOFLOW_ENABLE_TEMPORAL=' .env || grep -q '^#DAOFLOW_ENABLE_TEMPORAL=' .env; then
-  sed -i \
-    -e 's/^#DAOFLOW_ENABLE_TEMPORAL=.*/DAOFLOW_ENABLE_TEMPORAL=true/' \
-    -e 's/^DAOFLOW_ENABLE_TEMPORAL=.*/DAOFLOW_ENABLE_TEMPORAL=true/' \
-    .env
-else
-  printf '\nDAOFLOW_ENABLE_TEMPORAL=true\n' >> .env
-fi
-docker compose up -d daoflow
+daoflow install --dir "${DAOFLOW_DIR:-/opt/daoflow-staging}" --workflow-profile temporal --yes
 docker compose logs --tail=200 daoflow temporal
 ```
 
-Keep the fallback in mind: if Temporal mode is unstable, set `DAOFLOW_ENABLE_TEMPORAL=false` and run
-`docker compose up -d daoflow` to reload the environment and return to the legacy worker.
+The temporal install persists:
+
+```bash
+DAOFLOW_WORKFLOW_PROFILE=temporal
+COMPOSE_PROFILES=temporal
+DAOFLOW_ENABLE_TEMPORAL=true
+```
+
+If Temporal mode is unstable, rerun the installer with `--workflow-profile lean`. It explains the
+transition plan before mutation, stops and removes the Temporal containers, and preserves the
+`temporal-pgdata` named volume. Do not use `docker compose down -v` for this rollback.
 
 ## Exit Checklist
 

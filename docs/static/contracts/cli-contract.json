@@ -2265,6 +2265,11 @@
           "required": false
         },
         {
+          "flags": "--workflow-profile <profile>",
+          "description": "Workflow profile: lean (default) or temporal (adds workflow orchestration services)",
+          "required": false
+        },
+        {
           "flags": "--acme-email <email>",
           "description": "Let's Encrypt email to use when --expose traefik",
           "required": false

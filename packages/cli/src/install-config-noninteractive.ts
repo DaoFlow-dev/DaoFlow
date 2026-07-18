@@ -18,6 +18,7 @@ import type {
 import { requireInstallValue, resolveInstallScheme } from "./install-config-helpers";
 import type { CommandActionContext } from "./command-action";
 import { readExistingInstall } from "./installer-lifecycle";
+import type { InstallWorkflowProfile } from "./install-workflow-profile";
 
 export function collectNonInteractiveInstallConfiguration(input: {
   options: InstallOptions;
@@ -25,6 +26,7 @@ export function collectNonInteractiveInstallConfiguration(input: {
   sources: InstallOptionSources;
   parsedPort: number | null;
   exposureMode: DashboardExposureMode;
+  requestedWorkflowProfile: InstallWorkflowProfile;
 }): InstallConfigurationResult {
   const { options, ctx, sources } = input;
   let domain = options.domain ?? "localhost";
@@ -41,6 +43,7 @@ export function collectNonInteractiveInstallConfiguration(input: {
   const existingInstall = readExistingInstall(options.dir);
   let cloudflareTunnelEnabled = Boolean(options.cloudflareTunnel);
   let cloudflareTunnelToken = options.cloudflareTunnelToken?.trim() || undefined;
+  let workflowProfile = input.requestedWorkflowProfile;
 
   if (existingInstall) {
     domain = sources.hasExplicitDomain ? domain : (existingInstall.domain ?? domain);
@@ -60,6 +63,9 @@ export function collectNonInteractiveInstallConfiguration(input: {
       cloudflareTunnelToken ??
       existingInstall.env[CLOUDFLARE_TUNNEL_TOKEN_ENV]?.trim() ??
       undefined;
+    workflowProfile = sources.hasExplicitWorkflowProfile
+      ? workflowProfile
+      : existingInstall.workflowProfile;
 
     if (!ctx.isJson) {
       console.error(
@@ -148,6 +154,7 @@ export function collectNonInteractiveInstallConfiguration(input: {
     acmeEmail,
     postgresPassword: existingInstall?.env.POSTGRES_PASSWORD,
     temporalPostgresPassword: existingInstall?.env.TEMPORAL_POSTGRES_PASSWORD,
+    workflowProfile,
     existingInstall,
     databasePasswordMode: "auto-generated",
     exposureMode,
