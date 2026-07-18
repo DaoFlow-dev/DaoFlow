@@ -22,7 +22,10 @@ test.describe("Onboarding", () => {
     await page.getByTestId("setup-server-region").fill("us-west-2");
     await page.getByTestId("setup-server-submit").click();
 
-    await expect(page.getByTestId("setup-project-step")).toBeVisible();
+    // Registration performs a bounded SSH host-key discovery before returning.
+    // The TEST-NET address is intentionally unreachable, so allow its five-second
+    // scanner timeout plus CI scheduling overhead before the wizard advances.
+    await expect(page.getByTestId("setup-project-step")).toBeVisible({ timeout: 15_000 });
     await page.getByTestId("setup-project-name").fill(projectName);
     await page
       .getByTestId("setup-project-description")
