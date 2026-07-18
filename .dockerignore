@@ -1,5 +1,11 @@
 .git
 .github
+.env
+.env.*
+**/.env
+**/.env.*
+!.env.example
+!**/.env.example
 coverage
 dist
 node_modules

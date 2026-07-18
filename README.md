@@ -144,13 +144,14 @@ bun start                     # Start production server
 Docker:
 
 ```bash
-docker build -t daoflow:local .
-docker run --rm -p 3000:3000 \
-  -e BETTER_AUTH_SECRET=replace-with-a-long-random-secret \
-  -e ENCRYPTION_KEY=replace-with-a-32-character-secret \
-  -e BETTER_AUTH_URL=http://localhost:3000 \
-  daoflow:local
+docker build --target runtime -t ghcr.io/daoflow-dev/daoflow:local .
 ```
+
+The Dockerfile's final target is the development-task runner, so application builds must select
+the `runtime` target explicitly. Set `DAOFLOW_VERSION=local` in the production Compose `.env`, then
+run the stack so PostgreSQL, Redis, health checks, persistent volumes, and required secrets are
+configured together. See the
+[local-source staging workflow](https://daoflow-dev.github.io/DaoFlow/docs/self-hosting/staging-runbook#local-source-qa-build).
 
 ## Documentation
 

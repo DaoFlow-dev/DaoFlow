@@ -29,15 +29,15 @@ Or deploy manually with Docker Compose (see [Docker Compose Setup](./docker-comp
 
 ## Contents
 
-| Guide                                            | Description                           |
-| ------------------------------------------------ | ------------------------------------- |
-| [Requirements](./requirements)                   | Hardware and software prerequisites   |
-| [Docker Compose](./docker-compose)               | Production Docker Compose deployment  |
-| [Staging Runbook](./staging-runbook)             | Rehearse operator bring-up safely     |
-| [Incident Recovery](./incident-recovery)         | Recover from common operator failures |
-| [Environment Variables](./environment-variables) | All configurable env vars             |
-| [SSL & Domains](./ssl-and-domains)               | HTTPS and domain configuration        |
-| [Upgrading](./upgrading)                         | Upgrading to new versions             |
+| Guide                                            | Description                              |
+| ------------------------------------------------ | ---------------------------------------- |
+| [Requirements](./requirements)                   | Hardware and software prerequisites      |
+| [Docker Compose](./docker-compose)               | Production Docker Compose deployment     |
+| [Staging Runbook](./staging-runbook)             | Rehearse releases or local source safely |
+| [Incident Recovery](./incident-recovery)         | Recover from common operator failures    |
+| [Environment Variables](./environment-variables) | All configurable env vars                |
+| [SSL & Domains](./ssl-and-domains)               | HTTPS and domain configuration           |
+| [Upgrading](./upgrading)                         | Upgrading to new versions                |
 
 ## Current Production Topology
 

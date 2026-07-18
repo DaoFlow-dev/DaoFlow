@@ -27,7 +27,7 @@ The `daoflow` service also mounts:
 ```yaml
 services:
   daoflow:
-    image: ghcr.io/daoflow-dev/daoflow:${DAOFLOW_VERSION:-0.8.7}
+    image: ghcr.io/daoflow-dev/daoflow:${DAOFLOW_VERSION:-0.9.1}
     ports:
       - "${DAOFLOW_BIND:-127.0.0.1}:${DAOFLOW_PORT:-3000}:3000"
     volumes:
@@ -77,7 +77,7 @@ ENCRYPTION_KEY=generate-at-least-32-char-secret
 POSTGRES_PASSWORD=generate-a-secure-password
 TEMPORAL_POSTGRES_PASSWORD=generate-another-secure-password
 BETTER_AUTH_URL=https://deploy.example.com
-DAOFLOW_VERSION=0.8.7
+DAOFLOW_VERSION=0.9.1
 DAOFLOW_BIND=127.0.0.1
 DAOFLOW_PORT=3000
 # DAOFLOW_ENABLE_TEMPORAL=false
@@ -90,6 +90,43 @@ openssl rand -hex 32  # BETTER_AUTH_SECRET
 openssl rand -hex 32  # ENCRYPTION_KEY
 openssl rand -hex 16  # POSTGRES_PASSWORD / TEMPORAL_POSTGRES_PASSWORD
 ```
+
+## Local-Source QA Build
+
+Production should normally use a released image. To test an exact local revision on a QA host,
+build the application target and give it a revision-specific tag:
+
+```bash
+test -z "$(git status --short)" || {
+  echo "Working tree is not clean" >&2
+  exit 1
+}
+
+REVISION=$(git rev-parse --short=12 HEAD)
+IMAGE_TAG="qa-${REVISION}"
+
+docker build \
+  --target runtime \
+  --tag "ghcr.io/daoflow-dev/daoflow:${IMAGE_TAG}" \
+  .
+```
+
+The Dockerfile's final target is the development-task runner, not the DaoFlow application. Always
+select `--target runtime` for a control-plane image. Build on the QA host, or use Docker Buildx with
+the QA host's target platform when the build machine has a different CPU architecture.
+
+Set `DAOFLOW_VERSION` in `.env` to the generated `qa-<revision>` tag and fill every required secret.
+For a fresh database, also set both `DAOFLOW_INITIAL_ADMIN_EMAIL` and
+`DAOFLOW_INITIAL_ADMIN_PASSWORD`; the server only bootstraps an owner when both values are present.
+Pull only the dependency images so Compose does not try to fetch the local-only DaoFlow tag:
+
+```bash
+docker compose pull postgres redis temporal-postgresql temporal
+docker compose up -d --wait --wait-timeout 300
+```
+
+Record both the full Git revision (`git rev-parse HEAD`) and image tag with the QA result so the
+tested source can be reproduced exactly.
 
 ## Startup
 

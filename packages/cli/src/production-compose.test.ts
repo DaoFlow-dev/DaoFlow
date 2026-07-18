@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import dockerignore from "@balena/dockerignore";
 import { parse as parseYaml } from "yaml";
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -8,6 +9,21 @@ function asRecord(value: unknown): Record<string, unknown> {
 }
 
 describe("production docker-compose.yml", () => {
+  test("keeps local secrets out of the Docker build context", async () => {
+    const dockerignoreContent = await Bun.file(
+      new URL("../../../.dockerignore", import.meta.url)
+    ).text();
+    const matcher = dockerignore().add(dockerignoreContent.split(/\r?\n/));
+
+    for (const secretPath of [".env", ".env.local", "nested/.env", "nested/.env.production"]) {
+      expect(matcher.ignores(secretPath)).toBe(true);
+    }
+
+    for (const examplePath of [".env.example", "nested/.env.example"]) {
+      expect(matcher.ignores(examplePath)).toBe(false);
+    }
+  });
+
   test("keeps production runtime defaults hardened", async () => {
     const composeContent = await Bun.file(
       new URL("../../../docker-compose.yml", import.meta.url)
