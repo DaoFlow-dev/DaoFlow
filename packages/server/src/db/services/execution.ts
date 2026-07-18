@@ -1,4 +1,4 @@
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { db } from "../connection";
 import { auditEntries, events } from "../schema/audit";
 import { deploymentLogs, deployments } from "../schema/deployments";
@@ -51,12 +51,20 @@ async function resolveDisplayContext(deployment: typeof deployments.$inferSelect
   };
 }
 
-export async function listExecutionQueue(status?: string, limit = 12) {
-  const rows = await db
-    .select()
-    .from(deployments)
-    .orderBy(desc(deployments.createdAt))
-    .limit(limit);
+export async function listExecutionQueue(
+  status: string | undefined,
+  limit: number,
+  teamId: string
+) {
+  const rows = (
+    await db
+      .select({ deployment: deployments })
+      .from(deployments)
+      .innerJoin(projects, eq(projects.id, deployments.projectId))
+      .where(eq(projects.teamId, teamId))
+      .orderBy(desc(deployments.createdAt))
+      .limit(limit)
+  ).map((row) => row.deployment);
   const jobs = await Promise.all(
     rows.map(async (deployment) => {
       const context = await resolveDisplayContext(deployment);
@@ -100,14 +108,17 @@ async function mutateDeploymentStatus(
   userId: string,
   email: string,
   role: AppRole,
+  teamId: string,
   action: "execution.dispatch" | "execution.complete" | "execution.fail",
   reason?: string
 ) {
-  const [deployment] = await db
-    .select()
+  const [row] = await db
+    .select({ deployment: deployments })
     .from(deployments)
-    .where(eq(deployments.id, jobId))
+    .innerJoin(projects, eq(projects.id, deployments.projectId))
+    .where(and(eq(deployments.id, jobId), eq(projects.teamId, teamId)))
     .limit(1);
+  const deployment = row?.deployment;
   if (!deployment) return { status: "not-found" as const };
 
   if (deployment.status === "completed" || deployment.status === "failed") {
@@ -253,12 +264,32 @@ async function mutateDeploymentStatus(
   return { status: "ok" as const, job: updated };
 }
 
-export function dispatchExecutionJob(jobId: string, userId: string, email: string, role: AppRole) {
-  return mutateDeploymentStatus(jobId, "deploy", userId, email, role, "execution.dispatch");
+export function dispatchExecutionJob(
+  jobId: string,
+  userId: string,
+  email: string,
+  role: AppRole,
+  teamId: string
+) {
+  return mutateDeploymentStatus(jobId, "deploy", userId, email, role, teamId, "execution.dispatch");
 }
 
-export function completeExecutionJob(jobId: string, userId: string, email: string, role: AppRole) {
-  return mutateDeploymentStatus(jobId, "completed", userId, email, role, "execution.complete");
+export function completeExecutionJob(
+  jobId: string,
+  userId: string,
+  email: string,
+  role: AppRole,
+  teamId: string
+) {
+  return mutateDeploymentStatus(
+    jobId,
+    "completed",
+    userId,
+    email,
+    role,
+    teamId,
+    "execution.complete"
+  );
 }
 
 export function failExecutionJob(
@@ -266,7 +297,17 @@ export function failExecutionJob(
   userId: string,
   email: string,
   role: AppRole,
+  teamId: string,
   reason?: string
 ) {
-  return mutateDeploymentStatus(jobId, "failed", userId, email, role, "execution.fail", reason);
+  return mutateDeploymentStatus(
+    jobId,
+    "failed",
+    userId,
+    email,
+    role,
+    teamId,
+    "execution.fail",
+    reason
+  );
 }

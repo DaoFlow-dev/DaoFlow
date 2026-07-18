@@ -34,11 +34,17 @@ async function requireDeploymentReadTeamId(userId: string) {
 export const deploymentReadRouter = t.router({
   recentDeployments: protectedProcedure
     .input(statusLimitInput(deploymentHealthStatuses, 50))
-    .query(async ({ input }) => {
-      return listDeploymentRecords(input.status, input.limit ?? 20);
+    .query(async ({ ctx, input }) => {
+      const teamId = await requireDeploymentReadTeamId(
+        ctx.auth.principal.linkedUserId ?? ctx.session.user.id
+      );
+      return listDeploymentRecords(input.status, input.limit ?? 20, teamId);
     }),
-  composeReleaseCatalog: protectedProcedure.input(limitInput(40)).query(async ({ input }) => {
-    return listComposeReleaseCatalog(input.limit ?? 24);
+  composeReleaseCatalog: protectedProcedure.input(limitInput(40)).query(async ({ ctx, input }) => {
+    const teamId = await requireDeploymentReadTeamId(
+      ctx.auth.principal.linkedUserId ?? ctx.session.user.id
+    );
+    return listComposeReleaseCatalog(input.limit ?? 24, teamId);
   }),
   composeDriftReport: deployReadProcedure.input(limitInput(40)).query(async ({ ctx, input }) => {
     const userId = ctx.auth.principal.linkedUserId ?? ctx.session.user.id;
@@ -75,8 +81,11 @@ export const deploymentReadRouter = t.router({
         deploymentId: z.string().min(1)
       })
     )
-    .query(async ({ input }) => {
-      const deployment = await getDeploymentRecord(input.deploymentId);
+    .query(async ({ ctx, input }) => {
+      const teamId = await requireDeploymentReadTeamId(
+        ctx.auth.principal.linkedUserId ?? ctx.session.user.id
+      );
+      const deployment = await getDeploymentRecord(input.deploymentId, teamId);
 
       if (!deployment) {
         throw new TRPCError({
@@ -89,15 +98,26 @@ export const deploymentReadRouter = t.router({
     }),
   executionQueue: protectedProcedure
     .input(statusLimitInput(executionJobStatuses, 50))
-    .query(async ({ input }) => {
-      return listExecutionQueue(input.status, input.limit ?? 12);
+    .query(async ({ ctx, input }) => {
+      const teamId = await requireDeploymentReadTeamId(
+        ctx.auth.principal.linkedUserId ?? ctx.session.user.id
+      );
+      return listExecutionQueue(input.status, input.limit ?? 12, teamId);
     }),
-  deploymentInsights: protectedProcedure.input(limitInput(12)).query(async ({ input }) => {
-    return listDeploymentInsights(input.limit ?? 6);
+  deploymentInsights: protectedProcedure.input(limitInput(12)).query(async ({ ctx, input }) => {
+    const teamId = await requireDeploymentReadTeamId(
+      ctx.auth.principal.linkedUserId ?? ctx.session.user.id
+    );
+    return listDeploymentInsights(input.limit ?? 6, teamId);
   }),
-  deploymentRollbackPlans: protectedProcedure.input(limitInput(12)).query(async ({ input }) => {
-    return listDeploymentRollbackPlans(input.limit ?? 6);
-  }),
+  deploymentRollbackPlans: protectedProcedure
+    .input(limitInput(12))
+    .query(async ({ ctx, input }) => {
+      const teamId = await requireDeploymentReadTeamId(
+        ctx.auth.principal.linkedUserId ?? ctx.session.user.id
+      );
+      return listDeploymentRollbackPlans(input.limit ?? 6, teamId);
+    }),
   deploymentLogs: protectedProcedure
     .input(
       z.object({
@@ -108,8 +128,12 @@ export const deploymentReadRouter = t.router({
         limit: z.number().int().min(1).max(100).optional()
       })
     )
-    .query(async ({ input }) => {
+    .query(async ({ ctx, input }) => {
+      const teamId = await requireDeploymentReadTeamId(
+        ctx.auth.principal.linkedUserId ?? ctx.session.user.id
+      );
       return listDeploymentLogs({
+        teamId,
         deploymentId: input.deploymentId,
         serviceName: input.service,
         query: input.query,

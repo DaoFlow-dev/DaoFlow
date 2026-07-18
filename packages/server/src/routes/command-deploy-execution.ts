@@ -9,6 +9,7 @@ import {
   failExecutionJob
 } from "../db/services/execution";
 import { deployStartProcedure, getActorContext, t, throwOnOperationError } from "../trpc";
+import { requireActorTeamId } from "./team-scope";
 
 const deploymentRecordInputSchema = z.object({
   projectName: z.string().min(1).max(80),
@@ -47,8 +48,10 @@ export const deployExecutionCommandRouter = t.router({
   createDeploymentRecord: deployStartProcedure
     .input(deploymentRecordInputSchema)
     .mutation(async ({ ctx, input }) => {
+      const teamId = await requireActorTeamId(ctx.session.user.id);
       const deployment = await createDeploymentRecord({
         ...input,
+        teamId,
         ...getActorContext(ctx)
       });
 
@@ -83,11 +86,13 @@ export const deployExecutionCommandRouter = t.router({
     .input(executionJobIdInputSchema)
     .mutation(async ({ ctx, input }) => {
       const actor = getActorContext(ctx);
+      const teamId = await requireActorTeamId(ctx.session.user.id);
       const result = await dispatchExecutionJob(
         input.jobId,
         actor.requestedByUserId,
         actor.requestedByEmail,
-        actor.requestedByRole
+        actor.requestedByRole,
+        teamId
       );
 
       throwOnOperationError(result, "Execution job");
@@ -97,11 +102,13 @@ export const deployExecutionCommandRouter = t.router({
     .input(executionJobIdInputSchema)
     .mutation(async ({ ctx, input }) => {
       const actor = getActorContext(ctx);
+      const teamId = await requireActorTeamId(ctx.session.user.id);
       const result = await completeExecutionJob(
         input.jobId,
         actor.requestedByUserId,
         actor.requestedByEmail,
-        actor.requestedByRole
+        actor.requestedByRole,
+        teamId
       );
 
       throwOnOperationError(result, "Execution job");
@@ -111,11 +118,13 @@ export const deployExecutionCommandRouter = t.router({
     .input(executionJobFailureInputSchema)
     .mutation(async ({ ctx, input }) => {
       const actor = getActorContext(ctx);
+      const teamId = await requireActorTeamId(ctx.session.user.id);
       const result = await failExecutionJob(
         input.jobId,
         actor.requestedByUserId,
         actor.requestedByEmail,
         actor.requestedByRole,
+        teamId,
         input.reason
       );
 

@@ -384,19 +384,28 @@ export async function listInfrastructureInventory(teamId: string) {
 
 export interface DeleteServerInput {
   serverId: string;
+  teamId: string;
   deletedByUserId: string;
   deletedByEmail: string;
   deletedByRole: AppRole;
 }
 
 export async function deleteServer(input: DeleteServerInput) {
-  const [server] = await db.select().from(servers).where(eq(servers.id, input.serverId)).limit(1);
+  const [server] = await db
+    .select()
+    .from(servers)
+    .where(and(eq(servers.id, input.serverId), eq(servers.teamId, input.teamId)))
+    .limit(1);
   if (!server) return { status: "not-found" as const };
 
   // Check for active environments targeting this server
-  const envRows = await db.select().from(environments);
+  const envRows = await db
+    .select({ environment: environments })
+    .from(environments)
+    .innerJoin(projects, eq(projects.id, environments.projectId))
+    .where(eq(projects.teamId, input.teamId));
   const activeEnvs = envRows.filter((env) => {
-    const config = asRecord(env.config);
+    const config = asRecord(env.environment.config);
     return readString(config, "targetServerId") === input.serverId;
   });
 
@@ -408,7 +417,9 @@ export async function deleteServer(input: DeleteServerInput) {
     };
   }
 
-  await db.delete(servers).where(eq(servers.id, input.serverId));
+  await db
+    .delete(servers)
+    .where(and(eq(servers.id, input.serverId), eq(servers.teamId, input.teamId)));
 
   await db.insert(auditEntries).values({
     actorType: "user",
@@ -433,6 +444,7 @@ export async function deleteServer(input: DeleteServerInput) {
 
 export async function configureServerManagedTraefikProxy(input: {
   serverId: string;
+  teamId: string;
   enabled: boolean;
   networkName?: string | null;
   entrypoint?: string | null;
@@ -442,7 +454,11 @@ export async function configureServerManagedTraefikProxy(input: {
   requestedByEmail: string;
   requestedByRole: AppRole;
 }) {
-  const [server] = await db.select().from(servers).where(eq(servers.id, input.serverId)).limit(1);
+  const [server] = await db
+    .select()
+    .from(servers)
+    .where(and(eq(servers.id, input.serverId), eq(servers.teamId, input.teamId)))
+    .limit(1);
   if (!server) {
     return { status: "not_found" as const };
   }
@@ -457,7 +473,7 @@ export async function configureServerManagedTraefikProxy(input: {
       metadata,
       updatedAt: new Date()
     })
-    .where(eq(servers.id, input.serverId))
+    .where(and(eq(servers.id, input.serverId), eq(servers.teamId, input.teamId)))
     .returning();
 
   await db.insert(auditEntries).values({

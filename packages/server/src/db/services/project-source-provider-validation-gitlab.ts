@@ -1,4 +1,5 @@
-import { readGitInstallationAccessToken, getGitInstallation } from "./git-providers";
+import { getGitInstallation } from "./git-providers";
+import { resolveGitLabInstallationAccessToken } from "./gitlab-installation-auth";
 import type {
   ProjectSourceValidationResult,
   ProviderLinkedProjectSource
@@ -15,7 +16,7 @@ export async function validateGitLabSource(
   provider: GitProviderValidationRecord,
   source: ProviderLinkedProjectSource
 ): Promise<ProjectSourceValidationResult> {
-  const installation = await getGitInstallation(source.gitInstallationId);
+  const installation = await getGitInstallation(source.gitInstallationId, source.teamId);
 
   if (provider.type !== "gitlab") {
     return invalidResult(
@@ -30,7 +31,11 @@ export async function validateGitLabSource(
     );
   }
 
-  if (!installation || installation.providerId !== source.gitProviderId) {
+  if (
+    !installation ||
+    installation.providerId !== source.gitProviderId ||
+    installation.teamId !== source.teamId
+  ) {
     return invalidResult(
       source,
       "gitlab",
@@ -43,7 +48,10 @@ export async function validateGitLabSource(
     );
   }
 
-  const accessToken = readGitInstallationAccessToken(installation);
+  const accessToken = await resolveGitLabInstallationAccessToken({
+    provider,
+    installation
+  });
   if (!accessToken) {
     return invalidResult(
       source,

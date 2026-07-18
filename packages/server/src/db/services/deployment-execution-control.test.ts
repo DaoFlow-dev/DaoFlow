@@ -229,6 +229,7 @@ describe("deployment execution control", () => {
 
     const result = await cancelDeployment({
       deploymentId,
+      teamId: "team_foundation",
       cancelledByUserId: "user_foundation_owner",
       cancelledByEmail: "owner@daoflow.local",
       cancelledByRole: "owner"

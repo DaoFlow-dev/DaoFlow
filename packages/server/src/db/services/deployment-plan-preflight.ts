@@ -1,12 +1,10 @@
-import { eq } from "drizzle-orm";
 import type { ComposeBuildPlan } from "../../compose-build-plan";
 import { materializeComposeWorkspaceArtifacts } from "../../compose-workspace-artifacts";
-import { db } from "../connection";
 import { environments, projects } from "../schema/projects";
-import { servers } from "../schema/servers";
 import { resolveComposeFilePath, resolveComposeImageOverride } from "./deployment-source";
 import { asRecord } from "./json-helpers";
 import { materializeProjectSourceInspection } from "./project-source-checkout-inspection";
+import { getServerForTeam, resolveServerForTeam } from "./team-scoped-servers";
 
 export type DeploymentPlanSourceType = "compose" | "dockerfile" | "image";
 
@@ -102,21 +100,14 @@ export function normalizeDeploymentPlanSourceType(value: string): DeploymentPlan
 
 export async function resolveTargetServer(
   serverRef: string | undefined,
-  fallbackServerId: string | null
+  fallbackServerId: string | null,
+  teamId: string
 ) {
   const ref = serverRef?.trim();
 
   if (ref) {
-    const [byId] = await db.select().from(servers).where(eq(servers.id, ref)).limit(1);
-    if (byId) {
-      return byId;
-    }
-
-    const [byName] = await db.select().from(servers).where(eq(servers.name, ref)).limit(1);
-    if (byName) {
-      return byName;
-    }
-
+    const server = await resolveServerForTeam(ref, teamId);
+    if (server) return server;
     throw new Error(`Server "${ref}" not found.`);
   }
 
@@ -124,11 +115,5 @@ export async function resolveTargetServer(
     return null;
   }
 
-  const [fallback] = await db
-    .select()
-    .from(servers)
-    .where(eq(servers.id, fallbackServerId))
-    .limit(1);
-
-  return fallback ?? null;
+  return getServerForTeam(fallbackServerId, teamId);
 }

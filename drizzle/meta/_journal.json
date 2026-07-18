@@ -183,6 +183,34 @@
       "when": 1784386580792,
       "tag": "0025_team_scoped_backup_destinations_and_registries",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1784394216580,
+      "tag": "0026_add_git_provider_team_ownership",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1784394221082,
+      "tag": "0027_backfill_git_provider_team_ownership",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1784394243855,
+      "tag": "0028_enforce_git_provider_team_ownership",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1784394247741,
+      "tag": "0029_team_scoped_execution_targets",
+      "breakpoints": true
     }
   ]
 }

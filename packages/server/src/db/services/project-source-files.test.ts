@@ -6,7 +6,7 @@ import { gitInstallations, gitProviders } from "../schema/git-providers";
 import { createLocalGitRepository } from "../../test-git-repo";
 import { encodeGitInstallationPermissions } from "./git-providers";
 import { fetchProjectRepositoryTextFile } from "./project-source-files";
-import { resetTestDatabase } from "../../test-db";
+import { resetTestDatabaseWithControlPlane } from "../../test-db";
 
 function toRequestUrl(input: string | URL | Request): string {
   if (typeof input === "string") {
@@ -22,7 +22,7 @@ function toRequestUrl(input: string | URL | Request): string {
 
 describe("project source files", () => {
   beforeEach(async () => {
-    await resetTestDatabase();
+    await resetTestDatabaseWithControlPlane();
   });
 
   afterEach(() => {
@@ -35,6 +35,7 @@ describe("project source files", () => {
 
     await db.insert(gitProviders).values({
       id: "gitprov_plan_github",
+      teamId: "team_foundation",
       type: "github",
       name: "Plan GitHub",
       appId: "123456",
@@ -44,6 +45,7 @@ describe("project source files", () => {
     });
     await db.insert(gitInstallations).values({
       id: "gitinst_plan_github",
+      teamId: "team_foundation",
       providerId: "gitprov_plan_github",
       installationId: "777",
       accountName: "example-org",
@@ -86,6 +88,7 @@ describe("project source files", () => {
 
     const result = await fetchProjectRepositoryTextFile({
       project: {
+        teamId: "team_foundation",
         repoUrl: "https://github.com/example-org/platform.git",
         repoFullName: "example-org/platform",
         gitProviderId: "gitprov_plan_github",
@@ -104,6 +107,7 @@ describe("project source files", () => {
   it("reads GitLab repository files through the stored installation access token", async () => {
     await db.insert(gitProviders).values({
       id: "gitprov_plan_gitlab",
+      teamId: "team_foundation",
       type: "gitlab",
       name: "Plan GitLab",
       status: "active",
@@ -111,6 +115,7 @@ describe("project source files", () => {
     });
     await db.insert(gitInstallations).values({
       id: "gitinst_plan_gitlab",
+      teamId: "team_foundation",
       providerId: "gitprov_plan_gitlab",
       installationId: "888",
       accountName: "example-group",
@@ -150,6 +155,7 @@ describe("project source files", () => {
 
     const result = await fetchProjectRepositoryTextFile({
       project: {
+        teamId: "team_foundation",
         repoUrl: "https://gitlab.com/example-group/platform.git",
         repoFullName: "example-group/platform",
         gitProviderId: "gitprov_plan_gitlab",
@@ -175,6 +181,7 @@ describe("project source files", () => {
     try {
       const result = await fetchProjectRepositoryTextFile({
         project: {
+          teamId: "team_foundation",
           repoUrl: repository.rootDir,
           repoFullName: null,
           gitProviderId: null,

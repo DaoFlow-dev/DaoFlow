@@ -3,6 +3,7 @@ import { generateKeyPairSync } from "node:crypto";
 import { db } from "../db/connection";
 import { gitInstallations, gitProviders } from "../db/schema/git-providers";
 import { projects, repositoryCredentials } from "../db/schema/projects";
+import { teams } from "../db/schema/teams";
 import { encodeGitInstallationPermissions } from "../db/services/git-providers";
 import { encrypt } from "../db/crypto";
 import { resetTestDatabaseWithControlPlane } from "../test-db";
@@ -160,6 +161,7 @@ describe("resolveCheckoutSpec", () => {
 
     await db.insert(gitProviders).values({
       id: providerId,
+      teamId: "team_foundation",
       type: "gitlab",
       name: `GitLab Provider ${Date.now()}`,
       baseUrl: "https://gitlab.example.com",
@@ -169,6 +171,7 @@ describe("resolveCheckoutSpec", () => {
 
     await db.insert(gitInstallations).values({
       id: installationId,
+      teamId: "team_foundation",
       providerId,
       installationId: "54321",
       accountName: "example-group",
@@ -181,6 +184,7 @@ describe("resolveCheckoutSpec", () => {
     });
 
     const spec = await resolveCheckoutSpec({
+      teamId: "team_foundation",
       gitProviderId: providerId,
       gitInstallationId: installationId,
       repoFullName: "example-group/platform",
@@ -200,12 +204,13 @@ describe("resolveCheckoutSpec", () => {
     });
   });
 
-  it("supports legacy plain-text GitLab installation tokens while migrating new writes to encrypted storage", async () => {
+  it("rejects legacy plain-text GitLab installation tokens", async () => {
     const providerId = `gitprov_${Date.now()}`.slice(0, 32);
     const installationId = `gitinst_${Date.now()}`.slice(0, 32);
 
     await db.insert(gitProviders).values({
       id: providerId,
+      teamId: "team_foundation",
       type: "gitlab",
       name: `GitLab Legacy ${Date.now()}`,
       status: "active",
@@ -214,6 +219,7 @@ describe("resolveCheckoutSpec", () => {
 
     await db.insert(gitInstallations).values({
       id: installationId,
+      teamId: "team_foundation",
       providerId,
       installationId: "67890",
       accountName: "legacy-group",
@@ -225,20 +231,15 @@ describe("resolveCheckoutSpec", () => {
       updatedAt: new Date()
     });
 
-    const spec = await resolveCheckoutSpec({
-      gitProviderId: providerId,
-      gitInstallationId: installationId,
-      repoFullName: "legacy-group/platform",
-      branch: "main"
-    });
-
-    expect(spec?.gitConfig).toEqual([
-      { key: "http.extraHeader", value: "Authorization: Bearer glpat-legacy" }
-    ]);
-    expect(spec?.repositoryPreparation).toEqual({
-      submodules: false,
-      gitLfs: false
-    });
+    await expect(
+      resolveCheckoutSpec({
+        teamId: "team_foundation",
+        gitProviderId: providerId,
+        gitInstallationId: installationId,
+        repoFullName: "legacy-group/platform",
+        branch: "main"
+      })
+    ).rejects.toThrow("does not have a usable access token");
   });
 
   it("mints a GitHub installation token and resolves a provider-backed checkout spec", async () => {
@@ -249,6 +250,7 @@ describe("resolveCheckoutSpec", () => {
 
     await db.insert(gitProviders).values({
       id: providerId,
+      teamId: "team_foundation",
       type: "github",
       name: `GitHub Provider ${Date.now()}`,
       appId: "123456",
@@ -259,6 +261,7 @@ describe("resolveCheckoutSpec", () => {
 
     await db.insert(gitInstallations).values({
       id: installationId,
+      teamId: "team_foundation",
       providerId,
       installationId: "777",
       accountName: "example-org",
@@ -277,6 +280,7 @@ describe("resolveCheckoutSpec", () => {
     );
 
     const spec = await resolveCheckoutSpec({
+      teamId: "team_foundation",
       gitProviderId: providerId,
       gitInstallationId: installationId,
       repoFullName: "example-org/platform",
@@ -305,5 +309,84 @@ describe("resolveCheckoutSpec", () => {
       },
       requiresLocalMaterialization: true
     });
+  });
+
+  it("does not resolve another team's provider credential for a durable project", async () => {
+    const projectId = `proj_team_scope_${Date.now()}`.slice(0, 32);
+    const providerA = `gitprov_a_${Date.now()}`.slice(0, 32);
+    const installationA = `gitinst_a_${Date.now()}`.slice(0, 32);
+    const providerB = `gitprov_b_${Date.now()}`.slice(0, 32);
+    const installationB = `gitinst_b_${Date.now()}`.slice(0, 32);
+
+    await db.insert(teams).values({
+      id: "team_checkout_b",
+      name: "Checkout B",
+      slug: "checkout-b",
+      createdByUserId: "user_foundation_owner",
+      updatedAt: new Date()
+    });
+    await db.insert(gitProviders).values([
+      {
+        id: providerA,
+        teamId: "team_foundation",
+        type: "gitlab",
+        name: `Checkout A ${Date.now()}`,
+        status: "active",
+        updatedAt: new Date()
+      },
+      {
+        id: providerB,
+        teamId: "team_checkout_b",
+        type: "gitlab",
+        name: `Checkout B ${Date.now()}`,
+        status: "active",
+        updatedAt: new Date()
+      }
+    ]);
+    await db.insert(gitInstallations).values([
+      {
+        id: installationA,
+        teamId: "team_foundation",
+        providerId: providerA,
+        installationId: "a",
+        accountName: "a",
+        accountType: "group",
+        repositorySelection: "all",
+        permissions: encodeGitInstallationPermissions({ accessToken: "team-a-token" }),
+        status: "active",
+        updatedAt: new Date()
+      },
+      {
+        id: installationB,
+        teamId: "team_checkout_b",
+        providerId: providerB,
+        installationId: "b",
+        accountName: "b",
+        accountType: "group",
+        repositorySelection: "all",
+        permissions: encodeGitInstallationPermissions({ accessToken: "team-b-token" }),
+        status: "active",
+        updatedAt: new Date()
+      }
+    ]);
+    await db.insert(projects).values({
+      id: projectId,
+      name: `Checkout Project ${Date.now()}`,
+      teamId: "team_foundation",
+      repoFullName: "team-a/private",
+      gitProviderId: providerA,
+      gitInstallationId: installationA,
+      updatedAt: new Date()
+    });
+
+    await expect(
+      resolveCheckoutSpec({
+        projectId,
+        teamId: "team_checkout_b",
+        gitProviderId: providerB,
+        gitInstallationId: installationB,
+        repoFullName: "team-b/private"
+      })
+    ).rejects.toThrow("durable provider installation binding");
   });
 });

@@ -3,14 +3,23 @@ import {
   DeploymentHealthStatus,
   DeploymentLifecycleStatus
 } from "@daoflow/shared";
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql, type SQL } from "drizzle-orm";
 import { db } from "../connection";
 import { deployments, deploymentSteps } from "../schema/deployments";
+import { projects } from "../schema/projects";
 import { buildDeploymentIndex, buildDeploymentView } from "./deployment-record-views";
 
-export async function getDeploymentRecord(deploymentId: string) {
-  const rows = await db.select().from(deployments).where(eq(deployments.id, deploymentId)).limit(1);
-  if (!rows[0]) return null;
+export async function getDeploymentRecord(deploymentId: string, teamId?: string) {
+  const filters = [eq(deployments.id, deploymentId)];
+  if (teamId) filters.push(eq(projects.teamId, teamId));
+  const [row] = await db
+    .select({ deployment: deployments })
+    .from(deployments)
+    .innerJoin(projects, eq(projects.id, deployments.projectId))
+    .where(and(...filters))
+    .limit(1);
+  if (!row) return null;
+  const deployment = row.deployment;
 
   const steps = await db
     .select()
@@ -18,60 +27,58 @@ export async function getDeploymentRecord(deploymentId: string) {
     .where(eq(deploymentSteps.deploymentId, deploymentId))
     .orderBy(deploymentSteps.sortOrder);
 
-  const index = await buildDeploymentIndex(rows);
+  const index = await buildDeploymentIndex([deployment]);
 
   return buildDeploymentView(
-    rows[0],
-    index.projectById.get(rows[0].projectId),
-    index.environmentById.get(rows[0].environmentId),
-    index.serverById.get(rows[0].targetServerId),
-    index.serviceByKey.get(`${rows[0].projectId}:${rows[0].environmentId}:${rows[0].serviceName}`),
+    deployment,
+    index.projectById.get(deployment.projectId),
+    index.environmentById.get(deployment.environmentId),
+    index.serverById.get(deployment.targetServerId),
+    index.serviceByKey.get(
+      `${deployment.projectId}:${deployment.environmentId}:${deployment.serviceName}`
+    ),
     steps
   );
 }
 
-export async function listDeploymentRecords(status?: string, limit = 20) {
-  const baseQuery = db.select().from(deployments);
-  const rows = status
-    ? await (() => {
-        switch (status) {
-          case DeploymentHealthStatus.Healthy:
-            return baseQuery
-              .where(
-                and(
-                  eq(deployments.status, DeploymentLifecycleStatus.Completed),
-                  eq(deployments.conclusion, DeploymentConclusion.Succeeded)
-                )
-              )
-              .orderBy(desc(deployments.createdAt))
-              .limit(limit);
-          case DeploymentHealthStatus.Failed:
-            return baseQuery
-              .where(
-                sql`${deployments.status} = ${DeploymentLifecycleStatus.Failed}
-                    or ${deployments.conclusion} = ${DeploymentConclusion.Failed}
-                    or ${deployments.conclusion} = ${DeploymentConclusion.Cancelled}`
-              )
-              .orderBy(desc(deployments.createdAt))
-              .limit(limit);
-          case DeploymentHealthStatus.Running:
-            return baseQuery
-              .where(
-                sql`${deployments.status} in (${DeploymentLifecycleStatus.Prepare}, ${DeploymentLifecycleStatus.Deploy}, ${DeploymentLifecycleStatus.Finalize}, ${DeploymentLifecycleStatus.Running})`
-              )
-              .orderBy(desc(deployments.createdAt))
-              .limit(limit);
-          default:
-            return baseQuery
-              .where(
-                sql`${deployments.status} not in (${DeploymentLifecycleStatus.Failed}, ${DeploymentLifecycleStatus.Completed}, ${DeploymentLifecycleStatus.Prepare}, ${DeploymentLifecycleStatus.Deploy}, ${DeploymentLifecycleStatus.Finalize}, ${DeploymentLifecycleStatus.Running})
-                    and coalesce(${deployments.conclusion}, '') not in (${DeploymentConclusion.Failed}, ${DeploymentConclusion.Cancelled})`
-              )
-              .orderBy(desc(deployments.createdAt))
-              .limit(limit);
-        }
-      })()
-    : await baseQuery.orderBy(desc(deployments.createdAt)).limit(limit);
+function deploymentStatusCondition(status?: string): SQL | undefined {
+  if (!status) return undefined;
+  switch (status) {
+    case DeploymentHealthStatus.Healthy:
+      return and(
+        eq(deployments.status, DeploymentLifecycleStatus.Completed),
+        eq(deployments.conclusion, DeploymentConclusion.Succeeded)
+      );
+    case DeploymentHealthStatus.Failed:
+      return sql`${deployments.status} = ${DeploymentLifecycleStatus.Failed}
+        or ${deployments.conclusion} = ${DeploymentConclusion.Failed}
+        or ${deployments.conclusion} = ${DeploymentConclusion.Cancelled}`;
+    case DeploymentHealthStatus.Running:
+      return sql`${deployments.status} in (${DeploymentLifecycleStatus.Prepare}, ${DeploymentLifecycleStatus.Deploy}, ${DeploymentLifecycleStatus.Finalize}, ${DeploymentLifecycleStatus.Running})`;
+    default:
+      return sql`${deployments.status} not in (${DeploymentLifecycleStatus.Failed}, ${DeploymentLifecycleStatus.Completed}, ${DeploymentLifecycleStatus.Prepare}, ${DeploymentLifecycleStatus.Deploy}, ${DeploymentLifecycleStatus.Finalize}, ${DeploymentLifecycleStatus.Running})
+        and coalesce(${deployments.conclusion}, '') not in (${DeploymentConclusion.Failed}, ${DeploymentConclusion.Cancelled})`;
+  }
+}
+
+export async function listDeploymentRecords(
+  status: string | undefined,
+  limit: number,
+  teamId: string
+) {
+  const filters: SQL[] = [];
+  const statusCondition = deploymentStatusCondition(status);
+  if (statusCondition) filters.push(statusCondition);
+  filters.push(eq(projects.teamId, teamId));
+  const rows = (
+    await db
+      .select({ deployment: deployments })
+      .from(deployments)
+      .innerJoin(projects, eq(projects.id, deployments.projectId))
+      .where(filters.length > 0 ? and(...filters) : undefined)
+      .orderBy(desc(deployments.createdAt))
+      .limit(limit)
+  ).map((row) => row.deployment);
   if (rows.length === 0) return [];
   const index = await buildDeploymentIndex(rows);
 

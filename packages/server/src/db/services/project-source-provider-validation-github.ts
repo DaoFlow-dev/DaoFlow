@@ -56,7 +56,7 @@ export async function validateGitHubSource(
   provider: GitProviderValidationRecord,
   source: ProviderLinkedProjectSource
 ): Promise<ProjectSourceValidationResult> {
-  const installation = await getGitInstallation(source.gitInstallationId);
+  const installation = await getGitInstallation(source.gitInstallationId, source.teamId);
 
   if (provider.type !== "github") {
     return invalidResult(
@@ -71,7 +71,11 @@ export async function validateGitHubSource(
     );
   }
 
-  if (!installation || installation.providerId !== source.gitProviderId) {
+  if (
+    !installation ||
+    installation.providerId !== source.gitProviderId ||
+    installation.teamId !== source.teamId
+  ) {
     return invalidResult(
       source,
       "github",

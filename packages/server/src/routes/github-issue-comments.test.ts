@@ -39,6 +39,7 @@ async function createGitHubTargetFixture() {
 
   await db.insert(gitProviders).values({
     id: providerId,
+    teamId: "team_foundation",
     type: "github",
     name: `GitHub Comment Recovery ${suffix}`,
     appId: "123456",
@@ -50,6 +51,7 @@ async function createGitHubTargetFixture() {
 
   await db.insert(gitInstallations).values({
     id: installationId,
+    teamId: "team_foundation",
     providerId,
     installationId: "9106",
     accountName: "example",

@@ -21,6 +21,8 @@ import {
   t
 } from "../trpc";
 import { requireActorTeamId } from "./command-admin-shared";
+import { recordDeniedServiceAccess } from "../db/services/service-access";
+import { serviceAccessActor } from "./service-scope";
 
 const repositoryCredentialSchema = z.discriminatedUnion("kind", [
   z.object({
@@ -86,8 +88,10 @@ export const adminServerProjectRouter = t.router({
   deleteServer: serverWriteProcedure
     .input(z.object({ serverId: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => {
+      const teamId = await requireActorTeamId(ctx.session.user.id);
       const result = await deleteServer({
         serverId: input.serverId,
+        teamId,
         deletedByUserId: ctx.session.user.id,
         deletedByEmail: ctx.session.user.email,
         deletedByRole: (ctx.session.user.role ?? "viewer") as
@@ -120,8 +124,10 @@ export const adminServerProjectRouter = t.router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      const teamId = await requireActorTeamId(ctx.session.user.id);
       const result = await configureServerManagedTraefikProxy({
         ...input,
+        teamId,
         ...getActorContext(ctx)
       });
 
@@ -151,12 +157,11 @@ export const adminServerProjectRouter = t.router({
         webhookWatchedPaths: z.array(z.string().max(500)).max(50).optional(),
         repositorySubmodules: z.boolean().optional(),
         repositoryGitLfs: z.boolean().optional(),
-        repositoryCredential: repositoryCredentialSchema.nullable().optional(),
-        teamId: z.string().min(1).optional()
+        repositoryCredential: repositoryCredentialSchema.nullable().optional()
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const teamId = input.teamId ?? (await requireActorTeamId(ctx.session.user.id));
+      const teamId = await requireActorTeamId(ctx.session.user.id);
 
       const result = await createProject({
         ...input,
@@ -179,6 +184,12 @@ export const adminServerProjectRouter = t.router({
         throw new TRPCError({
           code: "PRECONDITION_FAILED",
           message: result.message
+        });
+      }
+      if (result.status === "not_found") {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Repository connection not found."
         });
       }
       return result.project;
@@ -277,7 +288,19 @@ export const adminServerProjectRouter = t.router({
         ...getActorContext(ctx)
       });
       if (result.status === "not_found") {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Parent project not found." });
+        if (result.entity === "server") {
+          await recordDeniedServiceAccess({
+            projectId: input.projectId,
+            actor: serviceAccessActor(ctx),
+            action: "environment.target-server.denied",
+            permissionScope: "service:update"
+          });
+        }
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message:
+            result.entity === "server" ? "Target server not found." : "Parent project not found."
+        });
       }
       if (result.status === "conflict") {
         throw new TRPCError({
@@ -307,7 +330,21 @@ export const adminServerProjectRouter = t.router({
         ...getActorContext(ctx)
       });
       if (result.status === "not_found") {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Environment not found." });
+        if ("entity" in result && result.entity === "server") {
+          await recordDeniedServiceAccess({
+            environmentId: input.environmentId,
+            actor: serviceAccessActor(ctx),
+            action: "environment.target-server.denied",
+            permissionScope: "service:update"
+          });
+        }
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message:
+            "entity" in result && result.entity === "server"
+              ? "Target server not found."
+              : "Environment not found."
+        });
       }
       if (result.status === "conflict") {
         throw new TRPCError({

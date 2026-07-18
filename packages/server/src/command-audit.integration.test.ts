@@ -196,6 +196,7 @@ describe("command audit boundary", () => {
       serviceName: "audit-reconcile",
       sourceType: "compose",
       targetServerId: server.id,
+      teamId: "team_foundation",
       commitSha: "abcdef2",
       imageTag: "ghcr.io/daoflow/audit-reconcile:abcdef2",
       commandAuditAttemptId: attemptId,

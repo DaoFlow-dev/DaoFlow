@@ -1,56 +1,22 @@
-import { z } from "zod";
 import { TRPCError } from "@trpc/server";
+import { z } from "zod";
 import {
-  registerGitProvider,
   deleteGitProvider,
-  createGitInstallation,
-  encodeGitInstallationPermissions
+  getGitProvider,
+  registerGitProvider
 } from "../db/services/git-providers";
-import { decrypt } from "../db/crypto";
-import { t, adminProcedure, getActorContext } from "../trpc";
+import {
+  buildGitLabAuthorizationUrl,
+  completeGitLabOAuthSetup,
+  resolveGitProviderCallbackOrigin
+} from "../db/services/git-provider-callbacks";
+import { createGitProviderSetupState } from "../db/services/git-provider-setup-states";
+import { buildGitHubWebBaseUrl, fetchGitHubAppSlug } from "../db/services/github-app-auth";
+import { adminProcedure, getActorContext, t } from "../trpc";
+import { requireActorTeamId } from "./team-scope";
 
-const DEFAULT_GITLAB_BASE_URL = "https://gitlab.com";
-const DEFAULT_APP_BASE_URL = "http://localhost:3000";
-const GITLAB_CALLBACK_PATH = "/settings/git/callback";
-
-function trimTrailingSlash(value: string): string {
-  return value.replace(/\/+$/, "");
-}
-
-function resolveGitLabBaseUrl(baseUrl?: string | null): string {
-  return trimTrailingSlash(baseUrl || DEFAULT_GITLAB_BASE_URL);
-}
-
-function resolveGitLabRedirectUri(): string {
-  return new URL(
-    GITLAB_CALLBACK_PATH,
-    `${trimTrailingSlash(process.env.APP_BASE_URL || DEFAULT_APP_BASE_URL)}/`
-  ).toString();
-}
-
-function requireGitLabOAuthConfig(provider: {
-  clientId?: string | null;
-  clientSecretEncrypted?: string | null;
-}) {
-  const clientId = provider.clientId?.trim();
-  if (!clientId) {
-    throw new TRPCError({
-      code: "BAD_REQUEST",
-      message: "GitLab provider is missing a client ID"
-    });
-  }
-
-  if (!provider.clientSecretEncrypted) {
-    throw new TRPCError({
-      code: "BAD_REQUEST",
-      message: "GitLab provider is missing a client secret"
-    });
-  }
-
-  return {
-    clientId,
-    clientSecret: decrypt(provider.clientSecretEncrypted)
-  };
+function notFound() {
+  return new TRPCError({ code: "NOT_FOUND", message: "Git provider setup was not found." });
 }
 
 export const gitRouter = t.router({
@@ -68,8 +34,10 @@ export const gitRouter = t.router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      const teamId = await requireActorTeamId(ctx.session.user.id);
       const result = await registerGitProvider({
         ...input,
+        teamId,
         ...getActorContext(ctx)
       });
       return result.summary;
@@ -78,110 +46,118 @@ export const gitRouter = t.router({
   deleteGitProvider: adminProcedure
     .input(z.object({ providerId: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => {
-      await deleteGitProvider(input.providerId, getActorContext(ctx));
+      const teamId = await requireActorTeamId(ctx.session.user.id);
+      const result = await deleteGitProvider(input.providerId, teamId, getActorContext(ctx));
+      if (result.status === "not_found") {
+        throw notFound();
+      }
       return { deleted: true };
     }),
 
-  createGitInstallation: adminProcedure
-    .input(
-      z.object({
-        providerId: z.string().min(1),
-        installationId: z.string().min(1),
-        accountName: z.string().min(1).max(100),
-        accountType: z.string().max(20).optional(),
-        repositorySelection: z.string().max(20).optional(),
-        permissions: z.string().optional(),
-        installedByUserId: z.string().optional()
-      })
-    )
+  startGitHubAppManifestSetup: adminProcedure.mutation(async ({ ctx }) => {
+    const teamId = await requireActorTeamId(ctx.session.user.id);
+    const setup = await createGitProviderSetupState({
+      teamId,
+      providerType: "github",
+      action: "github_manifest",
+      callbackOrigin: resolveGitProviderCallbackOrigin(),
+      initiatedByUserId: ctx.session.user.id
+    });
+    return { state: setup.id };
+  }),
+
+  startGitProviderSetup: adminProcedure
+    .input(z.object({ providerId: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => {
-      const result = await createGitInstallation({
-        ...input,
-        ...getActorContext(ctx)
+      const teamId = await requireActorTeamId(ctx.session.user.id);
+      const provider = await getGitProvider(input.providerId, teamId);
+      if (!provider || (provider.type !== "github" && provider.type !== "gitlab")) {
+        throw notFound();
+      }
+
+      if (provider.type === "github") {
+        if (
+          !provider.appId ||
+          !provider.clientId ||
+          !provider.clientSecretEncrypted ||
+          !provider.privateKeyEncrypted
+        ) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message: "GitHub provider is missing app or OAuth setup details."
+          });
+        }
+        let appSlug: string;
+        try {
+          appSlug = await fetchGitHubAppSlug(provider);
+        } catch {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message: "GitHub App credentials could not be verified."
+          });
+        }
+        const setup = await createGitProviderSetupState({
+          teamId,
+          providerId: provider.id,
+          providerType: "github",
+          action: "github_installation",
+          callbackOrigin: resolveGitProviderCallbackOrigin(),
+          initiatedByUserId: ctx.session.user.id
+        });
+        return {
+          authorizationUrl: `${buildGitHubWebBaseUrl(provider.baseUrl)}/apps/${encodeURIComponent(appSlug)}/installations/new?state=${encodeURIComponent(setup.id)}`
+        };
+      }
+
+      if (!provider.clientId || !provider.clientSecretEncrypted) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "GitLab provider is missing OAuth setup details."
+        });
+      }
+
+      const setup = await createGitProviderSetupState({
+        teamId,
+        providerId: provider.id,
+        providerType: "gitlab",
+        action: "gitlab_oauth",
+        callbackOrigin: resolveGitProviderCallbackOrigin(),
+        initiatedByUserId: ctx.session.user.id
       });
-      return result.summary;
+
+      return {
+        authorizationUrl: buildGitLabAuthorizationUrl({
+          clientId: provider.clientId,
+          baseUrl: provider.baseUrl,
+          state: setup.id
+        })
+      };
     }),
 
-  exchangeGitLabCode: adminProcedure
-    .input(
-      z.object({
-        code: z.string().min(1),
-        providerId: z.string().min(1)
-      })
-    )
+  completeGitLabOAuthSetup: adminProcedure
+    .input(z.object({ state: z.string().length(32), code: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => {
-      const { getGitProvider } = await import("../db/services/git-providers");
-      const provider = await getGitProvider(input.providerId);
-      if (!provider) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Git provider not found" });
-      }
-      if (provider.type !== "gitlab") {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "Provider is not GitLab" });
-      }
-
-      const { clientId, clientSecret } = requireGitLabOAuthConfig(provider);
-      const gitlabBaseUrl = resolveGitLabBaseUrl(provider.baseUrl);
-      const tokenUrl = `${gitlabBaseUrl}/oauth/token`;
-      const redirectUri = resolveGitLabRedirectUri();
-      const tokenRequest = new URLSearchParams({
-        client_id: clientId,
-        client_secret: clientSecret,
-        code: input.code,
-        grant_type: "authorization_code",
-        redirect_uri: redirectUri
+      const result = await completeGitLabOAuthSetup({
+        ...input,
+        initiatedByUserId: ctx.session.user.id,
+        requestedByEmail: ctx.session.user.email,
+        requestedByRole: ctx.role
       });
-
-      const tokenResponse = await fetch(tokenUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: tokenRequest.toString()
-      });
-
-      if (!tokenResponse.ok) {
-        const err = await tokenResponse.text();
+      if (result.status === "not_found") {
+        throw notFound();
+      }
+      if (result.status === "invalid_provider") {
         throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: `GitLab token exchange failed: ${err}`
+          code: "PRECONDITION_FAILED",
+          message: "GitLab provider is missing required OAuth credentials."
         });
       }
-
-      const tokenData = (await tokenResponse.json()) as { access_token?: string };
-      if (!tokenData.access_token) {
+      if (result.status === "exchange_failed") {
         throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "No access token returned from GitLab"
+          code: "BAD_REQUEST",
+          message: "GitLab authorization could not be completed."
         });
       }
-
-      // Fetch user info to get account name
-      const userResponse = await fetch(`${gitlabBaseUrl}/api/v4/user`, {
-        headers: { Authorization: `Bearer ${tokenData.access_token}` }
-      });
-      if (!userResponse.ok) {
-        const err = await userResponse.text();
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: `GitLab user lookup failed: ${err}`
-        });
-      }
-
-      const userData = (await userResponse.json()) as {
-        username?: string;
-        id?: number;
-      };
-
-      const result = await createGitInstallation({
-        providerId: input.providerId,
-        installationId: String(userData.id ?? "unknown"),
-        accountName: userData.username ?? "unknown",
-        accountType: "user",
-        permissions: encodeGitInstallationPermissions({
-          accessToken: tokenData.access_token,
-          tokenType: "bearer"
-        }),
-        ...getActorContext(ctx)
-      });
-
       return result.summary;
     })
 });

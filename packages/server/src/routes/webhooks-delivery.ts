@@ -158,13 +158,20 @@ export async function listWebhookTargets(input: {
     }
 
     const provider = providerById.get(project.gitProviderId);
-    if (!provider || provider.type !== input.providerType) {
+    if (!provider || provider.type !== input.providerType || provider.teamId !== project.teamId) {
       return [];
     }
 
     const installation = project.gitInstallationId
       ? (installationById.get(project.gitInstallationId) ?? null)
       : null;
+
+    if (
+      installation &&
+      (installation.teamId !== project.teamId || installation.providerId !== provider.id)
+    ) {
+      return [];
+    }
 
     if (
       input.externalInstallationId &&

@@ -6,6 +6,8 @@ import type { OnLog } from "../../worker/docker-executor";
 import { readRepositoryPreparationConfig } from "../../repository-preparation";
 
 export interface ProjectSourceInspectionProject {
+  id?: string | null;
+  teamId?: string | null;
   repoUrl: string | null;
   repoFullName?: string | null;
   gitProviderId?: string | null;
@@ -46,6 +48,8 @@ export async function materializeProjectSourceInspection(input: {
 
   try {
     const checkout = await resolveCheckoutSpec({
+      projectId: input.project.id ?? undefined,
+      teamId: input.project.teamId ?? undefined,
       repoUrl,
       repoFullName: input.project.repoFullName ?? undefined,
       gitProviderId: input.project.gitProviderId ?? undefined,

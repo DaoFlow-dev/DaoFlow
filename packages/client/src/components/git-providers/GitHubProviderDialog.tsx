@@ -35,12 +35,23 @@ export function GitHubProviderDialog({
   const appBaseUrl = window.location.origin;
   const manifest = buildGitHubManifest(appBaseUrl, appBaseUrl);
 
-  const stateValue = "gh_init";
-
   const githubFormTarget =
     isOrganization && orgName.trim()
-      ? `https://github.com/organizations/${orgName.trim()}/settings/apps/new?state=${stateValue}`
-      : `https://github.com/settings/apps/new?state=${stateValue}`;
+      ? `https://github.com/organizations/${orgName.trim()}/settings/apps/new`
+      : "https://github.com/settings/apps/new";
+  const startManifestSetup = trpc.startGitHubAppManifestSetup.useMutation({
+    onSuccess: ({ state }) => {
+      const form = formRef.current;
+      if (!form) return;
+      form.action = `${githubFormTarget}?state=${encodeURIComponent(state)}`;
+      form.submit();
+    }
+  });
+
+  function handleManifestSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    startManifestSetup.mutate();
+  }
 
   if (showManualForm) {
     return (
@@ -103,12 +114,17 @@ export function GitHubProviderDialog({
         </div>
 
         <DialogFooter className="flex-col gap-2 sm:flex-col">
-          <form ref={formRef} method="post" action={githubFormTarget}>
+          <form
+            ref={formRef}
+            method="post"
+            action={githubFormTarget}
+            onSubmit={handleManifestSubmit}
+          >
             <input type="hidden" name="manifest" value={JSON.stringify(manifest)} />
             <Button
               type="submit"
               className="w-full"
-              disabled={isOrganization && !orgName.trim()}
+              disabled={startManifestSetup.isPending || (isOrganization && !orgName.trim())}
               data-testid="github-create-app-button"
             >
               Create GitHub App
@@ -138,6 +154,8 @@ function ManualGitHubProviderDialog({
 }: GitHubProviderDialogProps) {
   const [name, setName] = useState("");
   const [appId, setAppId] = useState("");
+  const [clientId, setClientId] = useState("");
+  const [clientSecret, setClientSecret] = useState("");
   const [privateKey, setPrivateKey] = useState("");
   const [webhookSecret, setWebhookSecret] = useState("");
   const [baseUrl, setBaseUrl] = useState("");
@@ -148,6 +166,8 @@ function ManualGitHubProviderDialog({
       onOpenChange(false);
       setName("");
       setAppId("");
+      setClientId("");
+      setClientSecret("");
       setPrivateKey("");
       setWebhookSecret("");
       setBaseUrl("");
@@ -160,13 +180,20 @@ function ManualGitHubProviderDialog({
       type: "github",
       name: name.trim(),
       appId: appId.trim() || undefined,
+      clientId: clientId.trim() || undefined,
+      clientSecret: clientSecret.trim() || undefined,
       privateKey: privateKey.trim() || undefined,
       webhookSecret: webhookSecret.trim() || undefined,
       baseUrl: baseUrl.trim() || undefined
     });
   }
 
-  const isFormValid = Boolean(name.trim()) && Boolean(appId.trim()) && Boolean(privateKey.trim());
+  const isFormValid =
+    Boolean(name.trim()) &&
+    Boolean(appId.trim()) &&
+    Boolean(clientId.trim()) &&
+    Boolean(clientSecret.trim()) &&
+    Boolean(privateKey.trim());
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -210,6 +237,29 @@ function ManualGitHubProviderDialog({
               placeholder="-----BEGIN RSA PRIVATE KEY-----"
               required
               rows={6}
+            />
+          </div>
+          <div>
+            <Label htmlFor="gp-client-id">Client ID</Label>
+            <Input
+              id="gp-client-id"
+              data-testid="git-provider-client-id-input"
+              value={clientId}
+              onChange={(e) => setClientId(e.target.value)}
+              placeholder="Iv1.0123456789abcdef"
+              required
+            />
+          </div>
+          <div>
+            <Label htmlFor="gp-client-secret">Client Secret</Label>
+            <Input
+              id="gp-client-secret"
+              data-testid="git-provider-client-secret-input"
+              type="password"
+              value={clientSecret}
+              onChange={(e) => setClientSecret(e.target.value)}
+              placeholder="GitHub App client secret"
+              required
             />
           </div>
           <div>

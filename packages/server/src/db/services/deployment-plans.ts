@@ -49,9 +49,13 @@ export async function buildDeploymentPlan(input: BuildDeploymentPlanInput) {
   const environmentTargetServerId =
     typeof environmentConfig.targetServerId === "string" ? environmentConfig.targetServerId : null;
   const configuredTargetServerId = service.targetServerId ?? environmentTargetServerId;
-  const configuredServer = await resolveTargetServer(undefined, configuredTargetServerId);
+  const configuredServer = await resolveTargetServer(
+    undefined,
+    configuredTargetServerId,
+    project.teamId
+  );
   const resolvedServer = input.serverRef
-    ? await resolveTargetServer(input.serverRef, null)
+    ? await resolveTargetServer(input.serverRef, null, project.teamId)
     : configuredServer;
 
   if (input.serverRef) {

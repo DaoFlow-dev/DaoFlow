@@ -4,7 +4,8 @@ import { queueBackupRestore } from "./backups";
 import { listComposeReleaseCatalog } from "./compose";
 import { approvalRequests, auditEntries, events } from "../schema/audit";
 import { services } from "../schema/services";
-import { backupPolicies, backupRuns } from "../schema/storage";
+import { projects } from "../schema/projects";
+import { backupPolicies, backupRuns, volumes } from "../schema/storage";
 import type { AppRole } from "@daoflow/shared";
 import { newId as id, asRecord, readString, readStringArray } from "./json-helpers";
 import { buildApprovalNotification } from "../../worker/temporal/activities/notification-builders";
@@ -16,10 +17,12 @@ import {
   type PreviewApprovalBinding
 } from "../../preview-trust";
 import { triggerDeploy } from "./trigger-deploy";
+import { resolveVolumeTeamId } from "./backup-resource-team";
 
 export type ApprovalActionType = "compose-release" | "backup-restore" | "preview-deployment";
 
 type ApprovalRequester = {
+  teamId: string;
   requestedByUserId: string | null;
   requestedByEmail: string;
   requestedByRole: AppRole;
@@ -63,7 +66,7 @@ function getApprovalStatusTone(status: string, riskLevel: "medium" | "elevated" 
 
 async function resolveApprovalPresentation(input: CreateApprovalRequestInput) {
   if (input.actionType === "compose-release") {
-    const catalog = await listComposeReleaseCatalog(100);
+    const catalog = await listComposeReleaseCatalog(100, input.teamId);
     const service = catalog.services.find((candidate) => candidate.id === input.composeServiceId);
     if (!service) return null;
 
@@ -81,11 +84,13 @@ async function resolveApprovalPresentation(input: CreateApprovalRequestInput) {
   }
 
   if (input.actionType === "preview-deployment") {
-    const [service] = await db
-      .select()
+    const [row] = await db
+      .select({ service: services })
       .from(services)
-      .where(eq(services.id, input.serviceId))
+      .innerJoin(projects, eq(projects.id, services.projectId))
+      .where(and(eq(services.id, input.serviceId), eq(projects.teamId, input.teamId)))
       .limit(1);
+    const service = row?.service;
     if (!service || service.projectId === null || input.previewTrust.serviceId !== service.id) {
       return null;
     }
@@ -122,6 +127,8 @@ async function resolveApprovalPresentation(input: CreateApprovalRequestInput) {
     .where(eq(backupPolicies.id, run.policyId))
     .limit(1);
   if (!policy) return null;
+  const [volume] = await db.select().from(volumes).where(eq(volumes.id, policy.volumeId)).limit(1);
+  if (!volume || (await resolveVolumeTeamId(volume)) !== input.teamId) return null;
 
   const serviceName =
     policy.id === "bpol_foundation_volume_daily" ? "postgres-volume" : policy.name;

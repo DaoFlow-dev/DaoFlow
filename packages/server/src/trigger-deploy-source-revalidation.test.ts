@@ -111,6 +111,7 @@ async function createGitLabComposeFixture(input: {
 }) {
   await db.insert(gitProviders).values({
     id: input.providerId,
+    teamId: "team_foundation",
     type: "gitlab",
     name: `${input.projectName} Provider ${input.providerId}`,
     webhookSecret: input.webhookSecret ?? null,
@@ -120,6 +121,7 @@ async function createGitLabComposeFixture(input: {
 
   await db.insert(gitInstallations).values({
     id: input.installationId,
+    teamId: "team_foundation",
     providerId: input.providerId,
     installationId: `${Date.now()}`,
     accountName: "example-group",

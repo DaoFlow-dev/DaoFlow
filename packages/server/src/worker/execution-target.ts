@@ -39,8 +39,12 @@ function isLocalHost(host: string): boolean {
 export async function resolveExecutionTarget(
   server: typeof servers.$inferSelect,
   deploymentId: string,
-  teamId?: string
+  teamId: string
 ): Promise<ExecutionTarget> {
+  if (server.teamId !== teamId) {
+    throw new Error("Execution target is not available in the requested team scope.");
+  }
+
   if (isLocalHost(server.host)) {
     return {
       mode: "local",
@@ -48,11 +52,7 @@ export async function resolveExecutionTarget(
     };
   }
 
-  const resolvedTeamId = teamId ?? server.teamId;
-  if (!resolvedTeamId) {
-    throw new Error("Remote SSH execution requires a team-scoped approved host identity.");
-  }
-  const hostIdentity = await getApprovedSshHostIdentity(server.id, resolvedTeamId);
+  const hostIdentity = await getApprovedSshHostIdentity(server.id, teamId);
   if (!hostIdentity) {
     throw new Error(
       `SSH host identity is not approved for ${server.name}. DaoFlow will not send credentials or commands.`
@@ -60,7 +60,7 @@ export async function resolveExecutionTarget(
   }
 
   const managedPrivateKey = server.sshKeyId
-    ? await resolveManagedSshPrivateKey(server.sshKeyId, resolvedTeamId)
+    ? await resolveManagedSshPrivateKey(server.sshKeyId, teamId)
     : null;
 
   return {

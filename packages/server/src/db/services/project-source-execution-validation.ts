@@ -12,6 +12,7 @@ import {
 type ProjectExecutionValidationProject = Pick<
   typeof projects.$inferSelect,
   | "id"
+  | "teamId"
   | "repoFullName"
   | "repoUrl"
   | "gitProviderId"
@@ -50,6 +51,7 @@ export async function revalidateProjectSourceForExecution(input: {
   environment?: ProjectExecutionValidationEnvironment;
 }): Promise<ProjectSourceExecutionValidationResult> {
   const validation = await validateProjectSourceReadiness({
+    teamId: input.project.teamId,
     repoUrl: input.project.repoUrl,
     repoFullName: input.project.repoFullName,
     gitProviderId: input.project.gitProviderId,
@@ -76,6 +78,15 @@ export async function revalidateProjectSourceForExecution(input: {
 
   if (validation.status === "provider_unavailable") {
     return validation;
+  }
+
+  if (validation.status === "not_found") {
+    return {
+      status: "invalid_source",
+      message: validation.message,
+      readiness: null,
+      config: mergeProjectSourceReadiness(input.project.config, null)
+    };
   }
 
   const readiness = validation.readiness;

@@ -1,12 +1,14 @@
 import { and, desc, eq, ilike, sql, type SQL } from "drizzle-orm";
 import { db } from "../connection";
 import { deploymentLogs, deployments } from "../schema/deployments";
+import { projects } from "../schema/projects";
 import { buildDeploymentIndex } from "./deployment-record-views";
 import { asRecord, readString } from "./json-helpers";
 
 export type DeploymentLogStream = "all" | "stdout" | "stderr";
 
 export interface ListDeploymentLogsInput {
+  teamId: string;
   deploymentId?: string;
   serviceName?: string;
   query?: string;
@@ -16,6 +18,8 @@ export interface ListDeploymentLogsInput {
 
 function buildDeploymentLogFilters(input: ListDeploymentLogsInput) {
   const filters: SQL[] = [];
+
+  filters.push(eq(projects.teamId, input.teamId));
 
   if (input.deploymentId) {
     filters.push(eq(deploymentLogs.deploymentId, input.deploymentId));
@@ -44,7 +48,7 @@ function buildDeploymentLogFilters(input: ListDeploymentLogsInput) {
   return filters;
 }
 
-export async function listDeploymentLogs(input: ListDeploymentLogsInput = {}) {
+export async function listDeploymentLogs(input: ListDeploymentLogsInput) {
   const limit = input.limit ?? 18;
   const filters = buildDeploymentLogFilters(input);
   const condition = filters.length > 0 ? and(...filters) : undefined;
@@ -54,7 +58,8 @@ export async function listDeploymentLogs(input: ListDeploymentLogsInput = {}) {
       deployment: deployments
     })
     .from(deploymentLogs)
-    .innerJoin(deployments, eq(deploymentLogs.deploymentId, deployments.id));
+    .innerJoin(deployments, eq(deploymentLogs.deploymentId, deployments.id))
+    .innerJoin(projects, eq(projects.id, deployments.projectId));
 
   const rows = await (condition ? baseQuery.where(condition) : baseQuery)
     .orderBy(desc(deploymentLogs.createdAt))
@@ -72,6 +77,7 @@ export async function listDeploymentLogs(input: ListDeploymentLogsInput = {}) {
     })
     .from(deploymentLogs)
     .innerJoin(deployments, eq(deploymentLogs.deploymentId, deployments.id))
+    .innerJoin(projects, eq(projects.id, deployments.projectId))
     .where(condition);
 
   return {

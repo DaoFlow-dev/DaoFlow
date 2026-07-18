@@ -165,6 +165,7 @@ async function createGitHubComposeWebhookFixture(input: {
 
   await db.insert(gitProviders).values({
     id: providerId,
+    teamId: "team_foundation",
     type: "github",
     name: `GitHub Webhook ${input.suffix}`,
     appId: `app-${input.suffix}`.slice(0, 40),
@@ -176,6 +177,7 @@ async function createGitHubComposeWebhookFixture(input: {
 
   await db.insert(gitInstallations).values({
     id: installationId,
+    teamId: "team_foundation",
     providerId,
     installationId: input.externalInstallationId,
     accountName: "example",
@@ -276,6 +278,7 @@ async function createGitLabComposeWebhookFixture(input: {
 
   await db.insert(gitProviders).values({
     id: providerId,
+    teamId: "team_foundation",
     type: "gitlab",
     name: `GitLab Webhook ${input.suffix}`,
     webhookSecret: input.webhookSecret,
@@ -285,6 +288,7 @@ async function createGitLabComposeWebhookFixture(input: {
 
   await db.insert(gitInstallations).values({
     id: installationId,
+    teamId: "team_foundation",
     providerId,
     installationId: String(input.projectApiId),
     accountName: "example",

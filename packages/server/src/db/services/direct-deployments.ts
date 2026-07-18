@@ -3,11 +3,11 @@ import type { AppRole } from "@daoflow/shared";
 import type { ManagedDatabaseConfigInput } from "../../managed-database-config";
 import { db } from "../connection";
 import { environments, projects } from "../schema/projects";
-import { servers } from "../schema/servers";
 import { services } from "../schema/services";
 import { createEnvironment, createProject, updateEnvironment } from "./projects";
 import { createService, updateService } from "./services";
 import { resolveTeamIdForUser } from "./teams";
+import { resolveServerForTeam } from "./team-scoped-servers";
 
 interface ActorContext {
   requestedByUserId: string;
@@ -37,25 +37,10 @@ function sanitizeName(value: string, fallback: string): string {
   return cleaned.slice(0, 80) || fallback;
 }
 
-async function resolveServerId(serverRef: string): Promise<string> {
-  const ref = serverRef.trim();
-  if (!ref) throw new Error("Server reference is required.");
-
-  const [byId] = await db
-    .select({ id: servers.id })
-    .from(servers)
-    .where(eq(servers.id, ref))
-    .limit(1);
-  if (byId) return byId.id;
-
-  const [byName] = await db
-    .select({ id: servers.id })
-    .from(servers)
-    .where(eq(servers.name, ref))
-    .limit(1);
-  if (byName) return byName.id;
-
-  throw new Error(`Server "${ref}" not found.`);
+async function resolveServerId(serverRef: string, teamId: string): Promise<string> {
+  const server = await resolveServerForTeam(serverRef, teamId);
+  if (!server) throw new Error(`Server "${serverRef.trim()}" not found.`);
+  return server.id;
 }
 
 function toSlug(value: string): string {
@@ -69,34 +54,40 @@ function toSlug(value: string): string {
 async function resolveProject(
   projectRef: string | undefined,
   fallbackProjectName: string,
+  teamId: string,
   actor: ActorContext
 ) {
   const reference = projectRef?.trim();
 
   if (reference) {
-    const [byId] = await db.select().from(projects).where(eq(projects.id, reference)).limit(1);
+    const [byId] = await db
+      .select()
+      .from(projects)
+      .where(and(eq(projects.id, reference), eq(projects.teamId, teamId)))
+      .limit(1);
     if (byId) {
       return byId;
     }
 
-    const [byName] = await db.select().from(projects).where(eq(projects.name, reference)).limit(1);
+    const [byName] = await db
+      .select()
+      .from(projects)
+      .where(and(eq(projects.name, reference), eq(projects.teamId, teamId)))
+      .limit(1);
     if (byName) {
       return byName;
     }
+
+    throw new Error(`Project "${reference}" not found.`);
   }
 
   const [existing] = await db
     .select()
     .from(projects)
-    .where(eq(projects.name, fallbackProjectName))
+    .where(and(eq(projects.name, fallbackProjectName), eq(projects.teamId, teamId)))
     .limit(1);
   if (existing) {
     return existing;
-  }
-
-  const teamId = await resolveTeamIdForUser(actor.requestedByUserId);
-  if (!teamId) {
-    throw new Error("No organization is available for this user.");
   }
 
   const created = await createProject({
@@ -119,6 +110,7 @@ async function resolveEnvironment(
   projectId: string,
   environmentName: string,
   serverId: string,
+  teamId: string,
   actor: ActorContext
 ) {
   const slug = toSlug(environmentName);
@@ -133,6 +125,7 @@ async function resolveEnvironment(
       projectId,
       name: environmentName,
       targetServerId: serverId,
+      teamId,
       requestedByUserId: actor.requestedByUserId,
       requestedByEmail: actor.requestedByEmail,
       requestedByRole: actor.requestedByRole
@@ -154,6 +147,7 @@ async function resolveEnvironment(
     const updated = await updateEnvironment({
       environmentId: existing.id,
       targetServerId: serverId,
+      teamId,
       requestedByUserId: actor.requestedByUserId,
       requestedByEmail: actor.requestedByEmail,
       requestedByRole: actor.requestedByRole
@@ -174,6 +168,7 @@ async function resolveStackService(
   environmentId: string,
   serverId: string,
   serviceName: string,
+  teamId: string,
   actor: ActorContext,
   managedDatabase?: ManagedDatabaseConfigInput | null
 ) {
@@ -191,6 +186,7 @@ async function resolveStackService(
       environmentId,
       sourceType: "compose",
       targetServerId: serverId,
+      teamId,
       managedDatabase,
       requestedByUserId: actor.requestedByUserId,
       requestedByEmail: actor.requestedByEmail,
@@ -208,6 +204,7 @@ async function resolveStackService(
     serviceId: existing.id,
     sourceType: "compose",
     targetServerId: serverId,
+    teamId,
     managedDatabase,
     requestedByUserId: actor.requestedByUserId,
     requestedByEmail: actor.requestedByEmail,
@@ -222,7 +219,11 @@ async function resolveStackService(
 }
 
 export async function ensureDirectDeploymentScope(input: EnsureDirectDeploymentScopeInput) {
-  const resolvedServerId = await resolveServerId(input.serverId);
+  const teamId = await resolveTeamIdForUser(input.requestedByUserId);
+  if (!teamId) {
+    throw new Error("No organization is available for this user.");
+  }
+  const resolvedServerId = await resolveServerId(input.serverId, teamId);
 
   const projectName = sanitizeName(
     input.projectName ?? input.projectRef ?? "uploaded-compose",
@@ -237,11 +238,12 @@ export async function ensureDirectDeploymentScope(input: EnsureDirectDeploymentS
     requestedByRole: input.requestedByRole
   };
 
-  const project = await resolveProject(input.projectRef, projectName, actor);
+  const project = await resolveProject(input.projectRef, projectName, teamId, actor);
   const environment = await resolveEnvironment(
     project.id,
     environmentName,
     resolvedServerId,
+    teamId,
     actor
   );
   const service = await resolveStackService(
@@ -249,6 +251,7 @@ export async function ensureDirectDeploymentScope(input: EnsureDirectDeploymentS
     environment.id,
     resolvedServerId,
     serviceName,
+    teamId,
     actor,
     input.managedDatabase
   );

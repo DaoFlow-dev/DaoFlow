@@ -1,5 +1,6 @@
 import {
   boolean,
+  foreignKey,
   integer,
   index,
   jsonb,
@@ -49,6 +50,16 @@ export const projects = pgTable(
     updatedAt: timestamp("updated_at").defaultNow().notNull()
   },
   (table) => [
+    foreignKey({
+      columns: [table.gitProviderId, table.teamId],
+      foreignColumns: [gitProviders.id, gitProviders.teamId],
+      name: "projects_git_provider_id_team_id_git_providers_id_team_id_fk"
+    }),
+    foreignKey({
+      columns: [table.gitInstallationId, table.teamId],
+      foreignColumns: [gitInstallations.id, gitInstallations.teamId],
+      name: "projects_git_installation_id_team_id_git_installations_id_team_id_fk"
+    }),
     uniqueIndex("projects_slug_idx").on(table.slug),
     index("projects_team_id_idx").on(table.teamId),
     index("projects_name_idx").on(table.name),

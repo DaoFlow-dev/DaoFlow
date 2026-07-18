@@ -556,6 +556,33 @@
       }
     },
     {
+      "name": "completeGitLabOAuthSetup",
+      "summary": "complete Git Lab OAuth Setup",
+      "path": "/trpc/completeGitLabOAuthSetup",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin"],
+      "requiredScopes": [],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "state": {
+            "type": "string",
+            "minLength": 32,
+            "maxLength": 32
+          },
+          "code": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["state", "code"],
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "composeDeploymentPlan",
       "summary": "compose Deployment Plan",
       "path": "/trpc/composeDeploymentPlan",
@@ -1328,51 +1355,6 @@
       }
     },
     {
-      "name": "createGitInstallation",
-      "summary": "create Git Installation",
-      "path": "/trpc/createGitInstallation",
-      "method": "POST",
-      "lane": "command",
-      "auth": "authenticated",
-      "requiredRoles": ["owner", "admin"],
-      "requiredScopes": [],
-      "inputSchema": {
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "type": "object",
-        "properties": {
-          "providerId": {
-            "type": "string",
-            "minLength": 1
-          },
-          "installationId": {
-            "type": "string",
-            "minLength": 1
-          },
-          "accountName": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 100
-          },
-          "accountType": {
-            "type": "string",
-            "maxLength": 20
-          },
-          "repositorySelection": {
-            "type": "string",
-            "maxLength": 20
-          },
-          "permissions": {
-            "type": "string"
-          },
-          "installedByUserId": {
-            "type": "string"
-          }
-        },
-        "required": ["providerId", "installationId", "accountName"],
-        "additionalProperties": false
-      }
-    },
-    {
       "name": "createLogDrain",
       "summary": "create Log Drain",
       "path": "/trpc/createLogDrain",
@@ -1749,10 +1731,6 @@
                 "type": "null"
               }
             ]
-          },
-          "teamId": {
-            "type": "string",
-            "minLength": 1
           }
         },
         "required": ["name"],
@@ -2998,32 +2976,6 @@
             "enum": ["info", "warning", "error", "critical"]
           }
         },
-        "additionalProperties": false
-      }
-    },
-    {
-      "name": "exchangeGitLabCode",
-      "summary": "exchange Git Lab Code",
-      "path": "/trpc/exchangeGitLabCode",
-      "method": "POST",
-      "lane": "command",
-      "auth": "authenticated",
-      "requiredRoles": ["owner", "admin"],
-      "requiredScopes": [],
-      "inputSchema": {
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "type": "object",
-        "properties": {
-          "code": {
-            "type": "string",
-            "minLength": 1
-          },
-          "providerId": {
-            "type": "string",
-            "minLength": 1
-          }
-        },
-        "required": ["code", "providerId"],
         "additionalProperties": false
       }
     },
@@ -4846,6 +4798,39 @@
           }
         },
         "required": ["eventType", "channelType", "enabled"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "startGitHubAppManifestSetup",
+      "summary": "start Git Hub App Manifest Setup",
+      "path": "/trpc/startGitHubAppManifestSetup",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin"],
+      "requiredScopes": [],
+      "inputSchema": null
+    },
+    {
+      "name": "startGitProviderSetup",
+      "summary": "start Git Provider Setup",
+      "path": "/trpc/startGitProviderSetup",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin"],
+      "requiredScopes": [],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "providerId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["providerId"],
         "additionalProperties": false
       }
     },

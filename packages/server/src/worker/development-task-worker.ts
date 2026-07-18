@@ -6,7 +6,7 @@ import {
   recordDevelopmentTaskEvent,
   updateDevelopmentTaskRun
 } from "../db/services/development-tasks";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { upsertRunningGitHubDevelopmentTaskComment } from "../routes/github-issue-comments";
 import { upsertRunningGitLabDevelopmentTaskComment } from "../routes/gitlab-issue-comments";
 import { buildDevelopmentTaskCodexPlan } from "./development-task-codex-plan";
@@ -65,9 +65,29 @@ async function loadReviewTarget(
       installation: gitInstallations
     })
     .from(projects)
-    .innerJoin(gitInstallations, eq(gitInstallations.id, claimed.task.providerInstallationId))
-    .innerJoin(gitProviders, eq(gitProviders.id, gitInstallations.providerId))
-    .where(eq(projects.id, claimed.task.projectId))
+    .innerJoin(
+      gitInstallations,
+      and(
+        eq(gitInstallations.id, claimed.task.providerInstallationId),
+        eq(gitInstallations.id, projects.gitInstallationId),
+        eq(gitInstallations.teamId, projects.teamId)
+      )
+    )
+    .innerJoin(
+      gitProviders,
+      and(
+        eq(gitProviders.id, gitInstallations.providerId),
+        eq(gitProviders.id, projects.gitProviderId),
+        eq(gitProviders.teamId, projects.teamId),
+        eq(gitProviders.type, claimed.task.providerType)
+      )
+    )
+    .where(
+      and(
+        eq(projects.id, claimed.task.projectId),
+        eq(projects.repoFullName, claimed.task.repoFullName)
+      )
+    )
     .limit(1);
 
   return target ?? null;

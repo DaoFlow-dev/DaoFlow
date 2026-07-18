@@ -2,7 +2,6 @@ import { and, eq } from "drizzle-orm";
 import { buildComposeEnvPlanDiagnostics } from "../../compose-env-plan";
 import { db } from "../connection";
 import { environments, projects } from "../schema/projects";
-import { servers } from "../schema/servers";
 import { services } from "../schema/services";
 import {
   buildComposePlanSteps,
@@ -17,6 +16,7 @@ import {
 import { buildComposeEnvPlanChecks, makePlanCheck as makeCheck } from "./deployment-plan-checks";
 import { resolveComposeDeploymentEnvEntries } from "./compose-env";
 import { resolveTeamIdForUser } from "./teams";
+import { resolveServerForTeam } from "./team-scoped-servers";
 
 function sanitizeName(value: string, fallback: string): string {
   const trimmed = value.trim();
@@ -52,22 +52,14 @@ function formatBytes(sizeBytes: number): string {
   return `${sizeMb.toFixed(1)} MB`;
 }
 
-async function resolveServer(serverRef: string) {
+async function resolveServer(serverRef: string, teamId: string) {
   const ref = serverRef.trim();
   if (!ref) {
     throw new Error("Server reference is required.");
   }
 
-  const [byId] = await db.select().from(servers).where(eq(servers.id, ref)).limit(1);
-  if (byId) {
-    return byId;
-  }
-
-  const [byName] = await db.select().from(servers).where(eq(servers.name, ref)).limit(1);
-  if (byName) {
-    return byName;
-  }
-
+  const server = await resolveServerForTeam(ref, teamId);
+  if (server) return server;
   throw new Error(`Server "${ref}" not found.`);
 }
 
@@ -75,11 +67,12 @@ async function resolveExistingScope(input: {
   projectName: string;
   environmentName: string;
   serviceName: string;
+  teamId: string;
 }) {
   const [project] = await db
     .select()
     .from(projects)
-    .where(eq(projects.name, input.projectName))
+    .where(and(eq(projects.name, input.projectName), eq(projects.teamId, input.teamId)))
     .limit(1);
 
   if (!project) {
@@ -239,8 +232,11 @@ export async function buildComposeDeploymentPlan(input: ComposeDeploymentPlanInp
   const clientDeclaredLocalBuildContexts = canonicalizeLocalBuildContexts(input.localBuildContexts);
   const serverDerivedLocalBuildContexts = canonicalizeLocalBuildContexts(derivedLocalBuildContexts);
 
-  const resolvedServer = await resolveServer(input.serverRef);
   const teamId = await resolveTeamIdForUser(input.requestedByUserId);
+  if (!teamId) {
+    throw new Error("No organization is available for this user.");
+  }
+  const resolvedServer = await resolveServer(input.serverRef, teamId);
 
   const derivedName = deriveComposeStackName(buildPlan, "uploaded-compose");
   const projectName = sanitizeName(derivedName, "uploaded-compose");
@@ -249,7 +245,8 @@ export async function buildComposeDeploymentPlan(input: ComposeDeploymentPlanInp
   const scope = await resolveExistingScope({
     projectName,
     environmentName,
-    serviceName
+    serviceName,
+    teamId
   });
   const branch = scope.project.defaultBranch ?? "main";
   const deploymentEntries = scope.environment.id
@@ -267,9 +264,7 @@ export async function buildComposeDeploymentPlan(input: ComposeDeploymentPlanInp
   });
 
   const checks = [
-    teamId
-      ? makeCheck("ok", "Organization scope resolved for direct compose deployment.")
-      : makeCheck("fail", "No organization is available for this user."),
+    makeCheck("ok", "Organization scope resolved for direct compose deployment."),
     makeCheck(
       "ok",
       `Target server resolved to ${resolvedServer.name} (${resolvedServer.host}) as ${resolvedServer.kind}.`

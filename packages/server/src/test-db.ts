@@ -26,7 +26,7 @@ import { resetAuthState } from "./auth";
 
 const { Client } = pg;
 const TEST_DB_PREPARE_LOCK_ID = 8_705_231;
-const MIN_EXPECTED_PUBLIC_TABLES = 44;
+const MIN_EXPECTED_PUBLIC_TABLES = 45;
 
 let prepared = false;
 let preparePromise: Promise<string> | null = null;
@@ -103,6 +103,9 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
       deployments: string | null;
       serviceVariables: string | null;
       gitProviders: string | null;
+      gitProviderSetupStates: string | null;
+      gitProvidersTeamId: string | null;
+      gitInstallationsTeamId: string | null;
       repositoryCredentials: string | null;
       cliAuthRequests: string | null;
       developmentTasks: string | null;
@@ -131,6 +134,10 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
       auditEntriesImmutableGuard: string | null;
       auditCommandAcceptanceIndex: string | null;
       approvalRequestsBindingKey: string | null;
+      servicesExecutionScopeGuard: string | null;
+      environmentsExecutionScopeGuard: string | null;
+      deploymentsExecutionScopeGuard: string | null;
+      gitProviderSetupScopeConstraint: string | null;
     }>(`
       SELECT
         (SELECT count(*)::int FROM pg_tables WHERE schemaname = 'public') AS "tableCount",
@@ -151,6 +158,9 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
         to_regclass('public.deployments') AS "deployments",
         to_regclass('public.service_variables') AS "serviceVariables",
         to_regclass('public.git_providers') AS "gitProviders",
+        to_regclass('public.git_provider_setup_states') AS "gitProviderSetupStates",
+        (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'git_providers' AND column_name = 'team_id') AS "gitProvidersTeamId",
+        (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'git_installations' AND column_name = 'team_id') AS "gitInstallationsTeamId",
         to_regclass('public.repository_credentials') AS "repositoryCredentials",
         to_regclass('public.cli_auth_requests') AS "cliAuthRequests",
         to_regclass('public.development_tasks') AS "developmentTasks"
@@ -178,7 +188,11 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
         (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'projects' AND column_name = 'preview_policy_revision') AS "projectsPreviewPolicyRevision",
         (SELECT tgname FROM pg_trigger WHERE tgname = 'audit_entries_immutable_guard' AND NOT tgisinternal) AS "auditEntriesImmutableGuard",
         (SELECT indexname FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'audit_command_acceptance_attempt_unique') AS "auditCommandAcceptanceIndex",
-        (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'approval_requests' AND column_name = 'binding_key') AS "approvalRequestsBindingKey"
+        (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'approval_requests' AND column_name = 'binding_key') AS "approvalRequestsBindingKey",
+        (SELECT tgname FROM pg_trigger WHERE tgname = 'services_execution_scope_guard' AND NOT tgisinternal) AS "servicesExecutionScopeGuard",
+        (SELECT tgname FROM pg_trigger WHERE tgname = 'environments_execution_scope_guard' AND NOT tgisinternal) AS "environmentsExecutionScopeGuard",
+        (SELECT tgname FROM pg_trigger WHERE tgname = 'deployments_execution_scope_guard' AND NOT tgisinternal) AS "deploymentsExecutionScopeGuard",
+        (SELECT conname FROM pg_constraint WHERE conname = 'git_provider_setup_states_provider_id_team_id_git_providers_id_team_id_fk') AS "gitProviderSetupScopeConstraint"
     `);
     const row = result.rows[0];
     return Boolean(
@@ -201,6 +215,9 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
       row.deployments &&
       row.serviceVariables &&
       row.gitProviders &&
+      row.gitProviderSetupStates &&
+      row.gitProvidersTeamId &&
+      row.gitInstallationsTeamId &&
       row.repositoryCredentials &&
       row.cliAuthRequests &&
       row.developmentTasks &&
@@ -228,7 +245,11 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
       row.projectsPreviewPolicyRevision &&
       row.auditEntriesImmutableGuard &&
       row.auditCommandAcceptanceIndex &&
-      row.approvalRequestsBindingKey
+      row.approvalRequestsBindingKey &&
+      row.servicesExecutionScopeGuard &&
+      row.environmentsExecutionScopeGuard &&
+      row.deploymentsExecutionScopeGuard &&
+      row.gitProviderSetupScopeConstraint
     );
   } finally {
     await client.end();
@@ -284,6 +305,9 @@ async function readPoolSchemaState() {
     deployments: string | null;
     serviceVariables: string | null;
     gitProviders: string | null;
+    gitProviderSetupStates: string | null;
+    gitProvidersTeamId: string | null;
+    gitInstallationsTeamId: string | null;
     repositoryCredentials: string | null;
     cliAuthRequests: string | null;
     developmentTasks: string | null;
@@ -310,6 +334,10 @@ async function readPoolSchemaState() {
     auditEntriesImmutableGuard: string | null;
     auditCommandAcceptanceIndex: string | null;
     approvalRequestsBindingKey: string | null;
+    servicesExecutionScopeGuard: string | null;
+    environmentsExecutionScopeGuard: string | null;
+    deploymentsExecutionScopeGuard: string | null;
+    gitProviderSetupScopeConstraint: string | null;
   }>(`
     SELECT
       current_database() AS "databaseName",
@@ -331,6 +359,9 @@ async function readPoolSchemaState() {
       to_regclass('public.deployments') AS "deployments",
       to_regclass('public.service_variables') AS "serviceVariables",
       to_regclass('public.git_providers') AS "gitProviders",
+      to_regclass('public.git_provider_setup_states') AS "gitProviderSetupStates",
+      (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'git_providers' AND column_name = 'team_id') AS "gitProvidersTeamId",
+      (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'git_installations' AND column_name = 'team_id') AS "gitInstallationsTeamId",
       to_regclass('public.repository_credentials') AS "repositoryCredentials",
       to_regclass('public.cli_auth_requests') AS "cliAuthRequests",
       to_regclass('public.development_tasks') AS "developmentTasks"
@@ -356,7 +387,11 @@ async function readPoolSchemaState() {
       (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'projects' AND column_name = 'preview_policy_revision') AS "projectsPreviewPolicyRevision",
       (SELECT tgname FROM pg_trigger WHERE tgname = 'audit_entries_immutable_guard' AND NOT tgisinternal) AS "auditEntriesImmutableGuard",
       (SELECT indexname FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'audit_command_acceptance_attempt_unique') AS "auditCommandAcceptanceIndex",
-      (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'approval_requests' AND column_name = 'binding_key') AS "approvalRequestsBindingKey"
+      (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'approval_requests' AND column_name = 'binding_key') AS "approvalRequestsBindingKey",
+      (SELECT tgname FROM pg_trigger WHERE tgname = 'services_execution_scope_guard' AND NOT tgisinternal) AS "servicesExecutionScopeGuard",
+      (SELECT tgname FROM pg_trigger WHERE tgname = 'environments_execution_scope_guard' AND NOT tgisinternal) AS "environmentsExecutionScopeGuard",
+      (SELECT tgname FROM pg_trigger WHERE tgname = 'deployments_execution_scope_guard' AND NOT tgisinternal) AS "deploymentsExecutionScopeGuard",
+      (SELECT conname FROM pg_constraint WHERE conname = 'git_provider_setup_states_provider_id_team_id_git_providers_id_team_id_fk') AS "gitProviderSetupScopeConstraint"
   `);
 
   return result.rows[0];
@@ -392,6 +427,9 @@ async function ensurePooledTestSchemaReady(connectionString: string) {
         state.deployments &&
         state.serviceVariables &&
         state.gitProviders &&
+        state.gitProviderSetupStates &&
+        state.gitProvidersTeamId &&
+        state.gitInstallationsTeamId &&
         state.repositoryCredentials &&
         state.cliAuthRequests &&
         state.developmentTasks &&
@@ -417,7 +455,11 @@ async function ensurePooledTestSchemaReady(connectionString: string) {
         state.projectsPreviewPolicyRevision &&
         state.auditEntriesImmutableGuard &&
         state.auditCommandAcceptanceIndex &&
-        state.approvalRequestsBindingKey
+        state.approvalRequestsBindingKey &&
+        state.servicesExecutionScopeGuard &&
+        state.environmentsExecutionScopeGuard &&
+        state.deploymentsExecutionScopeGuard &&
+        state.gitProviderSetupScopeConstraint
       ) {
         return;
       }

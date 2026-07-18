@@ -1,10 +1,8 @@
-import { eq } from "drizzle-orm";
 import { Hono } from "hono";
-import { db } from "../db/connection";
-import { servers } from "../db/schema/servers";
 import { resolveServiceRuntime } from "../db/services/service-runtime";
 import { getLatestServerMetrics, listServerMetricsHistory } from "../db/services/server-metrics";
 import { resolveTeamIdForUser } from "../db/services/teams";
+import { getServerForTeam } from "../db/services/team-scoped-servers";
 import { collectServerMetrics } from "../worker/server-metrics-collector";
 import { detectPortConflicts } from "../worker/port-conflict-detection";
 import { resolveExecutionTarget } from "../worker/execution-target";
@@ -79,14 +77,20 @@ serviceObservabilityRouter.get("/server-metrics/:serverId", async (c) => {
 
   const serverId = c.req.param("serverId");
   const live = c.req.query("live") === "true";
+  const teamId = await resolveTeamIdForUser(authResult.actor.session.user.id);
+  if (!teamId) {
+    return c.json(
+      { ok: false, error: "No organization is available for this user.", code: "NO_TEAM" },
+      412
+    );
+  }
+  const server = await getServerForTeam(serverId, teamId);
+  if (!server) {
+    return c.json({ ok: false, error: "Server not found", code: "NOT_FOUND" }, 404);
+  }
 
   if (live) {
-    const [server] = await db.select().from(servers).where(eq(servers.id, serverId)).limit(1);
-    if (!server) {
-      return c.json({ ok: false, error: "Server not found", code: "NOT_FOUND" }, 404);
-    }
-    const teamId = await resolveTeamIdForUser(authResult.actor.session.user.id);
-    const target = await resolveExecutionTarget(server, "metrics", teamId ?? undefined);
+    const target = await resolveExecutionTarget(server, "metrics", teamId);
     const snapshot = await collectServerMetrics(target);
     if (!snapshot) {
       return c.json(
@@ -126,7 +130,14 @@ serviceObservabilityRouter.post("/port-check/:serverId", async (c) => {
   }
 
   const serverId = c.req.param("serverId");
-  const [server] = await db.select().from(servers).where(eq(servers.id, serverId)).limit(1);
+  const teamId = await resolveTeamIdForUser(authResult.actor.session.user.id);
+  if (!teamId) {
+    return c.json(
+      { ok: false, error: "No organization is available for this user.", code: "NO_TEAM" },
+      412
+    );
+  }
+  const server = await getServerForTeam(serverId, teamId);
   if (!server) {
     return c.json({ ok: false, error: "Server not found", code: "NOT_FOUND" }, 404);
   }
@@ -143,8 +154,7 @@ serviceObservabilityRouter.post("/port-check/:serverId", async (c) => {
     return c.json({ conflicts: [], checked: [] });
   }
 
-  const teamId = await resolveTeamIdForUser(authResult.actor.session.user.id);
-  const target = await resolveExecutionTarget(server, "port-check", teamId ?? undefined);
+  const target = await resolveExecutionTarget(server, "port-check", teamId);
   const report = await detectPortConflicts(target, ports);
   return c.json(report);
 });

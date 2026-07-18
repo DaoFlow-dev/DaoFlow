@@ -5,23 +5,29 @@ import {
   getDeploymentStatusTone,
   normalizeDeploymentStatus
 } from "@daoflow/shared";
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { db } from "../connection";
 import { deployments } from "../schema/deployments";
+import { projects } from "../schema/projects";
 import { buildDeploymentIndex } from "./deployment-record-views";
 import { asRecord, readRecordArray, readString, readStringArray } from "./json-helpers";
 
-export async function listDeploymentInsights(limit = 6) {
+export async function listDeploymentInsights(limit: number, teamId: string) {
+  const filters = [eq(deployments.status, DeploymentLifecycleStatus.Failed)];
+  filters.push(eq(projects.teamId, teamId));
   const rows = await db
-    .select()
+    .select({ deployment: deployments })
     .from(deployments)
-    .where(eq(deployments.status, DeploymentLifecycleStatus.Failed))
+    .innerJoin(projects, eq(projects.id, deployments.projectId))
+    .where(and(...filters))
     .orderBy(desc(deployments.createdAt))
     .limit(limit);
 
-  const index = await buildDeploymentIndex(rows);
+  const deploymentRows = rows.map((row) => row.deployment);
 
-  return rows.map((deployment) => {
+  const index = await buildDeploymentIndex(deploymentRows);
+
+  return deploymentRows.map((deployment) => {
     const snapshot = asRecord(deployment.configSnapshot);
     const insight = asRecord(snapshot.insight);
     const healthyBaseline = asRecord(insight.healthyBaseline);
@@ -68,15 +74,18 @@ export async function listDeploymentInsights(limit = 6) {
   });
 }
 
-export async function listDeploymentRollbackPlans(limit = 6) {
+export async function listDeploymentRollbackPlans(limit: number, teamId: string) {
   const rows = await db
-    .select()
+    .select({ deployment: deployments })
     .from(deployments)
+    .innerJoin(projects, eq(projects.id, deployments.projectId))
+    .where(eq(projects.teamId, teamId))
     .orderBy(desc(deployments.createdAt))
     .limit(limit);
-  const index = await buildDeploymentIndex(rows);
+  const deploymentRows = rows.map((row) => row.deployment);
+  const index = await buildDeploymentIndex(deploymentRows);
 
-  return rows.map((deployment) => {
+  return deploymentRows.map((deployment) => {
     const snapshot = asRecord(deployment.configSnapshot);
     const rollbackPlan = asRecord(snapshot.rollbackPlan);
     const currentStatus = normalizeDeploymentStatus(deployment.status, deployment.conclusion);

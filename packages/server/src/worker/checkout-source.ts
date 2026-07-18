@@ -1,16 +1,17 @@
-import { createSign } from "node:crypto";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "../db/connection";
 import { gitProviders } from "../db/schema/git-providers";
+import { projects } from "../db/schema/projects";
 import { getGitInstallation, readGitInstallationAccessToken } from "../db/services/git-providers";
-import { decrypt } from "../db/crypto";
+import { fetchGitHubInstallationAccessToken } from "../db/services/github-app-auth";
+import { resolveGitLabInstallationAccessToken } from "../db/services/gitlab-installation-auth";
 import { resolveActiveProjectRepositoryCredential } from "../db/services/repository-credentials";
-import type { ConfigSnapshot } from "./step-management";
 import {
   hasRepositoryPreparation,
   readRepositoryPreparationConfig,
   type RepositoryPreparationConfig
 } from "../repository-preparation";
+import type { ConfigSnapshot } from "./step-management";
 
 type GitConfigEntry = {
   key: string;
@@ -36,60 +37,54 @@ function toBase64(value: string): string {
 }
 
 function authorizationHeader(value: string) {
-  return {
-    key: "http.extraHeader",
-    value
-  };
-}
-
-function toBase64Url(value: string): string {
-  return toBase64(value).replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
-}
-
-function buildGitHubApiBaseUrl(baseUrl: string | null): string {
-  if (!baseUrl) {
-    return "https://api.github.com";
-  }
-
-  const normalized = trimTrailingSlash(baseUrl);
-  return normalized.includes("/api/") ? normalized : `${normalized}/api/v3`;
+  return { key: "http.extraHeader", value };
 }
 
 function buildGitHubRepoUrl(baseUrl: string | null, repoFullName: string): string {
-  const normalized = trimTrailingSlash(baseUrl ?? "https://github.com");
-  return `${normalized}/${repoFullName}.git`;
+  return `${trimTrailingSlash(baseUrl ?? "https://github.com")}/${repoFullName}.git`;
 }
 
 function buildGitLabRepoUrl(baseUrl: string | null, repoFullName: string): string {
-  const normalized = trimTrailingSlash(baseUrl ?? "https://gitlab.com");
-  return `${normalized}/${repoFullName}.git`;
+  return `${trimTrailingSlash(baseUrl ?? "https://gitlab.com")}/${repoFullName}.git`;
 }
 
-function createGitHubAppJwt(appId: string, privateKeyPem: string): string {
-  const nowSeconds = Math.floor(Date.now() / 1000);
-  const header = toBase64Url(JSON.stringify({ alg: "RS256", typ: "JWT" }));
-  const payload = toBase64Url(
-    JSON.stringify({
-      iat: nowSeconds - 60,
-      exp: nowSeconds + 600,
-      iss: appId
-    })
-  );
+async function resolveProviderCheckoutTeamId(config: ConfigSnapshot): Promise<string> {
+  if (config.projectId) {
+    const [project] = await db
+      .select({
+        teamId: projects.teamId,
+        gitProviderId: projects.gitProviderId,
+        gitInstallationId: projects.gitInstallationId
+      })
+      .from(projects)
+      .where(eq(projects.id, config.projectId))
+      .limit(1);
 
-  const signingInput = `${header}.${payload}`;
-  const signer = createSign("RSA-SHA256");
-  signer.update(signingInput);
-  signer.end();
-  const signature = signer
-    .sign(privateKeyPem, "base64")
-    .replace(/=/g, "")
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_");
+    if (!project) {
+      throw new Error(`Project ${config.projectId} not found for provider checkout.`);
+    }
+    if (
+      project.gitProviderId !== config.gitProviderId ||
+      project.gitInstallationId !== config.gitInstallationId
+    ) {
+      throw new Error(
+        "Project source no longer matches its durable provider installation binding."
+      );
+    }
+    return project.teamId;
+  }
 
-  return `${header}.${payload}.${signature}`;
+  if (!config.teamId) {
+    throw new Error("Provider checkout requires a durable project or team ownership context.");
+  }
+
+  return config.teamId;
 }
 
-async function resolveGitHubCheckoutSpec(config: ConfigSnapshot): Promise<CheckoutSpec> {
+async function resolveGitHubCheckoutSpec(
+  config: ConfigSnapshot,
+  teamId: string
+): Promise<CheckoutSpec> {
   const providerId = config.gitProviderId;
   const installationId = config.gitInstallationId;
   const repoFullName = config.repoFullName;
@@ -97,61 +92,42 @@ async function resolveGitHubCheckoutSpec(config: ConfigSnapshot): Promise<Checko
     throw new Error("GitHub source is missing provider, installation, or repository metadata.");
   }
 
-  const [provider, installation] = await Promise.all([
-    db.select().from(gitProviders).where(eq(gitProviders.id, providerId)).limit(1),
-    getGitInstallation(installationId)
+  const [providerRows, installation] = await Promise.all([
+    db
+      .select()
+      .from(gitProviders)
+      .where(and(eq(gitProviders.id, providerId), eq(gitProviders.teamId, teamId)))
+      .limit(1),
+    getGitInstallation(installationId, teamId)
   ]);
+  const provider = providerRows[0];
 
-  if (!provider[0]) {
+  if (!provider || provider.type !== "github") {
     throw new Error(`Git provider ${providerId} not found.`);
   }
-  if (provider[0].type !== "github") {
-    throw new Error(`Git provider ${providerId} is not a GitHub provider.`);
-  }
-  if (!installation || installation.providerId !== providerId) {
+  if (!installation || installation.providerId !== providerId || installation.teamId !== teamId) {
     throw new Error(`Git installation ${installationId} not found for provider ${providerId}.`);
   }
-  if (!provider[0].appId || !provider[0].privateKeyEncrypted) {
-    throw new Error(`GitHub provider ${provider[0].name} is missing app credentials.`);
-  }
 
-  const jwt = createGitHubAppJwt(provider[0].appId, decrypt(provider[0].privateKeyEncrypted));
-  const response = await fetch(
-    `${buildGitHubApiBaseUrl(provider[0].baseUrl)}/app/installations/${installation.installationId}/access_tokens`,
-    {
-      method: "POST",
-      headers: {
-        Accept: "application/vnd.github+json",
-        Authorization: `Bearer ${jwt}`,
-        "User-Agent": "DaoFlow"
-      }
-    }
-  );
-
-  if (!response.ok) {
-    throw new Error(`GitHub installation token exchange failed with status ${response.status}.`);
-  }
-
-  const tokenData = (await response.json()) as { token?: string };
-  if (!tokenData.token) {
-    throw new Error("GitHub installation token exchange did not return a token.");
-  }
-
+  const accessToken = await fetchGitHubInstallationAccessToken({ provider, installation });
   const repositoryPreparation = readRepositoryPreparationConfig(config.repositoryPreparation);
 
   return {
-    repoUrl: buildGitHubRepoUrl(provider[0].baseUrl, repoFullName),
+    repoUrl: buildGitHubRepoUrl(provider.baseUrl, repoFullName),
     branch: config.branch ?? "main",
     displayLabel: repoFullName,
     gitConfig: [
-      authorizationHeader(`AUTHORIZATION: basic ${toBase64(`x-access-token:${tokenData.token}`)}`)
+      authorizationHeader(`AUTHORIZATION: basic ${toBase64(`x-access-token:${accessToken}`)}`)
     ],
     repositoryPreparation,
     requiresLocalMaterialization: true
   };
 }
 
-async function resolveGitLabCheckoutSpec(config: ConfigSnapshot): Promise<CheckoutSpec> {
+async function resolveGitLabCheckoutSpec(
+  config: ConfigSnapshot,
+  teamId: string
+): Promise<CheckoutSpec> {
   const providerId = config.gitProviderId;
   const installationId = config.gitInstallationId;
   const repoFullName = config.repoFullName;
@@ -159,30 +135,31 @@ async function resolveGitLabCheckoutSpec(config: ConfigSnapshot): Promise<Checko
     throw new Error("GitLab source is missing provider, installation, or repository metadata.");
   }
 
-  const [provider, installation] = await Promise.all([
-    db.select().from(gitProviders).where(eq(gitProviders.id, providerId)).limit(1),
-    getGitInstallation(installationId)
+  const [providerRows, installation] = await Promise.all([
+    db
+      .select()
+      .from(gitProviders)
+      .where(and(eq(gitProviders.id, providerId), eq(gitProviders.teamId, teamId)))
+      .limit(1),
+    getGitInstallation(installationId, teamId)
   ]);
+  const provider = providerRows[0];
 
-  if (!provider[0]) {
+  if (!provider || provider.type !== "gitlab") {
     throw new Error(`Git provider ${providerId} not found.`);
   }
-  if (provider[0].type !== "gitlab") {
-    throw new Error(`Git provider ${providerId} is not a GitLab provider.`);
-  }
-  if (!installation || installation.providerId !== providerId) {
+  if (!installation || installation.providerId !== providerId || installation.teamId !== teamId) {
     throw new Error(`Git installation ${installationId} not found for provider ${providerId}.`);
   }
 
-  const accessToken = readGitInstallationAccessToken(installation);
+  const accessToken = await resolveGitLabInstallationAccessToken({ provider, installation });
   if (!accessToken) {
     throw new Error(`GitLab installation ${installationId} does not have a usable access token.`);
   }
 
   const repositoryPreparation = readRepositoryPreparationConfig(config.repositoryPreparation);
-
   return {
-    repoUrl: buildGitLabRepoUrl(provider[0].baseUrl, repoFullName),
+    repoUrl: buildGitLabRepoUrl(provider.baseUrl, repoFullName),
     branch: config.branch ?? "main",
     displayLabel: repoFullName,
     gitConfig: [authorizationHeader(`Authorization: Bearer ${accessToken}`)],
@@ -193,7 +170,8 @@ async function resolveGitLabCheckoutSpec(config: ConfigSnapshot): Promise<Checko
 
 async function resolveGenericOAuthCheckoutSpec(
   config: ConfigSnapshot,
-  providerType: string
+  providerType: string,
+  teamId: string
 ): Promise<CheckoutSpec> {
   const providerId = config.gitProviderId;
   const installationId = config.gitInstallationId;
@@ -204,13 +182,18 @@ async function resolveGenericOAuthCheckoutSpec(
     );
   }
 
-  const [provider, installation] = await Promise.all([
-    db.select().from(gitProviders).where(eq(gitProviders.id, providerId)).limit(1),
-    getGitInstallation(installationId)
+  const [providerRows, installation] = await Promise.all([
+    db
+      .select()
+      .from(gitProviders)
+      .where(and(eq(gitProviders.id, providerId), eq(gitProviders.teamId, teamId)))
+      .limit(1),
+    getGitInstallation(installationId, teamId)
   ]);
+  const provider = providerRows[0];
 
-  if (!provider[0]) throw new Error(`Git provider ${providerId} not found.`);
-  if (!installation || installation.providerId !== providerId) {
+  if (!provider) throw new Error(`Git provider ${providerId} not found.`);
+  if (!installation || installation.providerId !== providerId || installation.teamId !== teamId) {
     throw new Error(`Git installation ${installationId} not found for provider ${providerId}.`);
   }
 
@@ -221,14 +204,13 @@ async function resolveGenericOAuthCheckoutSpec(
     );
   }
 
-  const baseUrl = provider[0].baseUrl?.replace(/\/$/, "");
+  const baseUrl = provider.baseUrl?.replace(/\/$/, "");
   const repoUrl =
     providerType === "bitbucket"
       ? `https://bitbucket.org/${repoFullName}.git`
       : baseUrl
         ? `${baseUrl}/${repoFullName}.git`
         : `https://${providerType}.com/${repoFullName}.git`;
-
   const repositoryPreparation = readRepositoryPreparationConfig(config.repositoryPreparation);
 
   return {
@@ -245,34 +227,25 @@ export async function resolveCheckoutSpec(config: ConfigSnapshot): Promise<Check
   const repositoryPreparation = readRepositoryPreparationConfig(config.repositoryPreparation);
 
   if (config.gitProviderId && config.gitInstallationId && config.repoFullName) {
+    const teamId = await resolveProviderCheckoutTeamId(config);
     const [provider] = await db
       .select()
       .from(gitProviders)
-      .where(eq(gitProviders.id, config.gitProviderId))
+      .where(and(eq(gitProviders.id, config.gitProviderId), eq(gitProviders.teamId, teamId)))
       .limit(1);
 
     if (!provider) {
       throw new Error(`Git provider ${config.gitProviderId} not found.`);
     }
-
-    if (provider.type === "github") {
-      return resolveGitHubCheckoutSpec(config);
-    }
-
-    if (provider.type === "gitlab") {
-      return resolveGitLabCheckoutSpec(config);
-    }
-
+    if (provider.type === "github") return resolveGitHubCheckoutSpec(config, teamId);
+    if (provider.type === "gitlab") return resolveGitLabCheckoutSpec(config, teamId);
     if (provider.type === "bitbucket" || provider.type === "gitea") {
-      return resolveGenericOAuthCheckoutSpec(config, provider.type);
+      return resolveGenericOAuthCheckoutSpec(config, provider.type, teamId);
     }
-
     throw new Error(`Unsupported git provider type: ${provider.type}`);
   }
 
-  if (!config.repoUrl) {
-    return null;
-  }
+  if (!config.repoUrl) return null;
 
   const credential = await resolveActiveProjectRepositoryCredential(config.projectId);
   const credentialCheckout =
@@ -297,14 +270,8 @@ export async function resolveCheckoutSpec(config: ConfigSnapshot): Promise<Check
             sshPrivateKey: undefined
           }
         : credential?.kind === "ssh_key"
-          ? {
-              gitConfig: [],
-              sshPrivateKey: credential.privateKey
-            }
-          : {
-              gitConfig: [],
-              sshPrivateKey: undefined
-            };
+          ? { gitConfig: [], sshPrivateKey: credential.privateKey }
+          : { gitConfig: [], sshPrivateKey: undefined };
 
   return {
     repoUrl: config.repoUrl,

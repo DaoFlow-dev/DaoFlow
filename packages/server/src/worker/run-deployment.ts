@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { db } from "../db/connection";
-import { servers } from "../db/schema/servers";
+import { projects } from "../db/schema/projects";
 import { cleanupStagingDir } from "./docker-executor";
 import { resolveExecutionTarget, withPreparedExecutionTarget } from "./execution-target";
 import { createLogStreamer } from "./log-streamer";
@@ -15,6 +15,7 @@ import {
 import { throwIfDeploymentCancellationRequested } from "../db/services/deployment-execution-control";
 import { DeploymentCancellationError } from "../deployment-cancellation";
 import { buildDockerContainerName } from "../docker-identifiers";
+import { getServerForTeam } from "../db/services/team-scoped-servers";
 
 const DEPLOY_TIMEOUT_MS = Number(process.env.DEPLOY_TIMEOUT_MS ?? 600_000);
 
@@ -28,17 +29,21 @@ export async function runDeployment(
   const projectName = config.projectName ?? deployment.serviceName.replace(/[^a-zA-Z0-9_-]/g, "_");
   const composeProjectName = config.stackName ?? projectName;
   const containerName = buildDockerContainerName(projectName, deployment.serviceName);
-  const [server] = await db
-    .select()
-    .from(servers)
-    .where(eq(servers.id, deployment.targetServerId))
+  const [project] = await db
+    .select({ teamId: projects.teamId })
+    .from(projects)
+    .where(eq(projects.id, deployment.projectId))
     .limit(1);
+  if (!project) {
+    throw new Error(`Project ${deployment.projectId} not found`);
+  }
+  const server = await getServerForTeam(deployment.targetServerId, project.teamId);
 
   if (!server) {
     throw new Error(`Target server ${deployment.targetServerId} not found`);
   }
 
-  const target = await resolveExecutionTarget(server, deployment.id, server.teamId ?? undefined);
+  const target = await resolveExecutionTarget(server, deployment.id, project.teamId);
   const timeoutPromise = new Promise<never>((_, reject) => {
     setTimeout(
       () => reject(new Error(`Deployment timed out after ${DEPLOY_TIMEOUT_MS / 1000}s`)),

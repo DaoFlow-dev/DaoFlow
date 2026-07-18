@@ -164,6 +164,7 @@ export interface ComposeImageOverride {
 export interface ConfigSnapshot extends Record<string, unknown> {
   projectName?: string;
   projectId?: string;
+  teamId?: string;
   environmentName?: string;
   targetServerName?: string;
   targetServerHost?: string;

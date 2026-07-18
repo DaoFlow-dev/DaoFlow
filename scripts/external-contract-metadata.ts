@@ -173,8 +173,9 @@ addApiGroup(
     "updateContainerRegistry",
     "deleteContainerRegistry",
     "deleteGitProvider",
-    "createGitInstallation",
-    "exchangeGitLabCode",
+    "startGitHubAppManifestSetup",
+    "startGitProviderSetup",
+    "completeGitLabOAuthSetup",
     "createSecretProvider",
     "testSecretProvider",
     "deleteSecretProvider"

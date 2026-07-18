@@ -6,6 +6,7 @@ import { db } from "../db/connection";
 import { auditEntries } from "../db/schema/audit";
 import { developmentTaskRuns } from "../db/schema/development-tasks";
 import { gitInstallations, gitProviders } from "../db/schema/git-providers";
+import { projects } from "../db/schema/projects";
 import { createDevelopmentTaskRun, queueDevelopmentTask } from "../db/services/development-tasks";
 import { encodeGitInstallationPermissions } from "../db/services/git-providers";
 import { createProject } from "../db/services/projects";
@@ -39,6 +40,7 @@ async function createGitLabHandoffFixture() {
     .insert(gitProviders)
     .values({
       id: `gitprov_handoff_${suffix}`.slice(0, 32),
+      teamId: "team_foundation",
       type: "gitlab",
       name: `GitLab Handoff ${suffix}`,
       baseUrl: "https://gitlab.com",
@@ -50,6 +52,7 @@ async function createGitLabHandoffFixture() {
     .insert(gitInstallations)
     .values({
       id: `gitinst_handoff_${suffix}`.slice(0, 32),
+      teamId: "team_foundation",
       providerId: provider.id,
       installationId: "example",
       accountName: "example",
@@ -60,11 +63,22 @@ async function createGitLabHandoffFixture() {
       updatedAt: new Date()
     })
     .returning();
+  const [project] = await db
+    .update(projects)
+    .set({
+      repoFullName: "example/development-task-mr",
+      repoUrl: null,
+      gitProviderId: provider.id,
+      gitInstallationId: installation.id,
+      updatedAt: new Date()
+    })
+    .where(eq(projects.id, projectResult.project.id))
+    .returning();
 
   const queued = await queueDevelopmentTask({
     providerType: "gitlab",
     providerInstallationId: installation.id,
-    projectId: projectResult.project.id,
+    projectId: project.id,
     repoFullName: "example/development-task-mr",
     externalIssueId: "gitlab-mr-task",
     issueNumber: 185,
@@ -92,7 +106,7 @@ async function createGitLabHandoffFixture() {
   await mkdir(workspace.logsPath, { recursive: true });
 
   return {
-    project: projectResult.project,
+    project,
     provider,
     installation,
     task: queued.task,

@@ -200,6 +200,7 @@ export async function createManagedDatabase(input: CreateManagedDatabaseInput) {
   };
   const updatedService = await updateService({
     serviceId: scope.service.id,
+    teamId: scope.project.teamId,
     managedDatabase: managedDatabaseWithBackup,
     requestedByUserId: input.requestedByUserId,
     requestedByEmail: input.requestedByEmail,
@@ -221,6 +222,7 @@ export async function createManagedDatabase(input: CreateManagedDatabaseInput) {
     requestedByUserId: input.requestedByUserId,
     requestedByEmail: input.requestedByEmail,
     requestedByRole: input.requestedByRole,
+    teamId: scope.project.teamId,
     commandAuditAttemptId: input.commandAuditAttemptId,
     steps: [
       { label: "Render managed database", detail: `Render ${definition.label} Compose source.` },

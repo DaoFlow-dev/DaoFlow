@@ -252,6 +252,7 @@ export async function triggerPreviewWebhookDeploys(input: {
               preview: input.preview
             }),
             reason: `Verified ${input.providerType} pull-request preview requires human approval for ${input.commitSha.slice(0, 12)}.`,
+            teamId: project.teamId,
             requestedByUserId: null,
             requestedByEmail: input.requestedByEmail,
             requestedByRole: "agent"

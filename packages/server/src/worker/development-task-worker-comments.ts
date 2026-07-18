@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "../db/connection";
 import { gitInstallations, gitProviders } from "../db/schema/git-providers";
 import type { developmentTaskRuns, developmentTasks } from "../db/schema/development-tasks";
@@ -19,9 +19,24 @@ async function loadCommentTarget(task: typeof developmentTasks.$inferSelect) {
       installation: gitInstallations
     })
     .from(projects)
-    .innerJoin(gitInstallations, eq(gitInstallations.id, task.providerInstallationId))
-    .innerJoin(gitProviders, eq(gitProviders.id, gitInstallations.providerId))
-    .where(eq(projects.id, task.projectId))
+    .innerJoin(
+      gitInstallations,
+      and(
+        eq(gitInstallations.id, task.providerInstallationId),
+        eq(gitInstallations.id, projects.gitInstallationId),
+        eq(gitInstallations.teamId, projects.teamId)
+      )
+    )
+    .innerJoin(
+      gitProviders,
+      and(
+        eq(gitProviders.id, gitInstallations.providerId),
+        eq(gitProviders.id, projects.gitProviderId),
+        eq(gitProviders.teamId, projects.teamId),
+        eq(gitProviders.type, task.providerType)
+      )
+    )
+    .where(and(eq(projects.id, task.projectId), eq(projects.repoFullName, task.repoFullName)))
     .limit(1);
 
   return target ?? null;

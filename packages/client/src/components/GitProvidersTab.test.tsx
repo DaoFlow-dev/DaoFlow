@@ -9,17 +9,24 @@ import GitProvidersTab from "./GitProvidersTab";
 const {
   gitProvidersUseQueryMock,
   registerGitProviderUseMutationMock,
-  deleteGitProviderUseMutationMock
+  deleteGitProviderUseMutationMock,
+  startGitHubAppManifestSetupUseMutationMock,
+  startGitProviderSetupUseMutationMock
 } = vi.hoisted(() => ({
   gitProvidersUseQueryMock: vi.fn(),
   registerGitProviderUseMutationMock: vi.fn(),
-  deleteGitProviderUseMutationMock: vi.fn()
+  deleteGitProviderUseMutationMock: vi.fn(),
+  startGitHubAppManifestSetupUseMutationMock: vi.fn(),
+  startGitProviderSetupUseMutationMock: vi.fn()
 }));
 
-const { registerGitProviderMutateMock, refetchMock } = vi.hoisted(() => ({
-  registerGitProviderMutateMock: vi.fn(),
-  refetchMock: vi.fn()
-}));
+const { registerGitProviderMutateMock, startGitProviderSetupMutateMock, refetchMock } = vi.hoisted(
+  () => ({
+    registerGitProviderMutateMock: vi.fn(),
+    startGitProviderSetupMutateMock: vi.fn(),
+    refetchMock: vi.fn()
+  })
+);
 
 vi.mock("@/lib/trpc", () => ({
   trpc: {
@@ -31,6 +38,12 @@ vi.mock("@/lib/trpc", () => ({
     },
     deleteGitProvider: {
       useMutation: deleteGitProviderUseMutationMock
+    },
+    startGitHubAppManifestSetup: {
+      useMutation: startGitHubAppManifestSetupUseMutationMock
+    },
+    startGitProviderSetup: {
+      useMutation: startGitProviderSetupUseMutationMock
     }
   }
 }));
@@ -55,6 +68,15 @@ describe("GitProvidersTab", () => {
       isPending: false,
       mutate: vi.fn()
     });
+    startGitHubAppManifestSetupUseMutationMock.mockReturnValue({
+      isPending: false,
+      mutate: vi.fn()
+    });
+    startGitProviderSetupMutateMock.mockReset();
+    startGitProviderSetupUseMutationMock.mockReturnValue({
+      isPending: false,
+      mutate: startGitProviderSetupMutateMock
+    });
   });
 
   afterEach(() => {
@@ -73,6 +95,12 @@ describe("GitProvidersTab", () => {
     fireEvent.change(screen.getByTestId("git-provider-app-id-input"), {
       target: { value: "123456" }
     });
+    fireEvent.change(screen.getByTestId("git-provider-client-id-input"), {
+      target: { value: "Iv1.github-client" }
+    });
+    fireEvent.change(screen.getByTestId("git-provider-client-secret-input"), {
+      target: { value: "github-client-secret" }
+    });
     fireEvent.change(screen.getByTestId("git-provider-private-key-input"), {
       target: { value: "-----BEGIN RSA PRIVATE KEY-----\nkey-material" }
     });
@@ -85,6 +113,8 @@ describe("GitProvidersTab", () => {
       type: "github",
       name: "My GitHub App",
       appId: "123456",
+      clientId: "Iv1.github-client",
+      clientSecret: "github-client-secret",
       privateKey: "-----BEGIN RSA PRIVATE KEY-----\nkey-material",
       webhookSecret: "github-webhook-secret",
       baseUrl: undefined
@@ -123,7 +153,7 @@ describe("GitProvidersTab", () => {
     });
   });
 
-  it("normalizes the GitHub install href from the provider display name", () => {
+  it("starts a server-bound GitHub installation flow", () => {
     gitProvidersUseQueryMock.mockReturnValue({
       data: [
         {
@@ -142,15 +172,14 @@ describe("GitProvidersTab", () => {
     renderWithRouter(<GitProvidersTab />);
 
     const installButton = screen.getByTestId("git-provider-install-provider_github");
-    const installLink = installButton.closest("a");
+    fireEvent.click(installButton);
 
-    expect(installLink).toHaveAttribute(
-      "href",
-      "https://github.com/apps/my-app-n-ame/installations/new?state=gh_setup:provider_github"
-    );
+    expect(startGitProviderSetupMutateMock).toHaveBeenCalledWith({
+      providerId: "provider_github"
+    });
   });
 
-  it("suppresses the GitHub install action when the normalized app slug is empty", () => {
+  it("starts GitHub setup without deriving an app slug from the display name", () => {
     gitProvidersUseQueryMock.mockReturnValue({
       data: [
         {
@@ -168,10 +197,14 @@ describe("GitProvidersTab", () => {
 
     renderWithRouter(<GitProvidersTab />);
 
-    expect(screen.queryByTestId("git-provider-install-provider_github_empty_slug")).toBeNull();
+    fireEvent.click(screen.getByTestId("git-provider-install-provider_github_empty_slug"));
+
+    expect(startGitProviderSetupMutateMock).toHaveBeenCalledWith({
+      providerId: "provider_github_empty_slug"
+    });
   });
 
-  it("normalizes the GitLab connect href when the provider base URL has a trailing slash", () => {
+  it("starts a server-bound GitLab OAuth flow", () => {
     gitProvidersUseQueryMock.mockReturnValue({
       data: [
         {
@@ -190,12 +223,11 @@ describe("GitProvidersTab", () => {
     renderWithRouter(<GitProvidersTab />);
 
     const connectButton = screen.getByTestId("git-provider-connect-provider_gitlab");
-    const connectLink = connectButton.closest("a");
+    fireEvent.click(connectButton);
 
-    expect(connectLink).toHaveAttribute(
-      "href",
-      "https://gitlab.example.com/oauth/authorize?client_id=gitlab-client-id&redirect_uri=http%3A%2F%2Flocalhost%3A3000%2Fsettings%2Fgit%2Fcallback&response_type=code&state=provider_gitlab&scope=api"
-    );
+    expect(startGitProviderSetupMutateMock).toHaveBeenCalledWith({
+      providerId: "provider_gitlab"
+    });
   });
 
   it("shows the one-click GitHub manifest dialog with organization toggle", () => {
@@ -206,5 +238,12 @@ describe("GitProvidersTab", () => {
     expect(screen.getByTestId("github-create-app-button")).toBeInTheDocument();
     expect(screen.getByTestId("github-org-toggle")).toBeInTheDocument();
     expect(screen.getByTestId("github-manual-link")).toBeInTheDocument();
+    const manifestInput = document.querySelector<HTMLInputElement>('input[name="manifest"]');
+    expect(manifestInput).not.toBeNull();
+    expect(JSON.parse(manifestInput?.value ?? "{}")).toMatchObject({
+      callback_urls: ["http://localhost:3000/api/github/setup"],
+      redirect_url: "http://localhost:3000/api/github/setup",
+      request_oauth_on_install: true
+    });
   });
 });

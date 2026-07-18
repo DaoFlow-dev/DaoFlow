@@ -1,5 +1,5 @@
 import { fetchGitHubInstallationAccessToken } from "../db/services/github-app-auth";
-import { readGitInstallationAccessToken } from "../db/services/git-providers";
+import { resolveGitLabInstallationAccessToken } from "../db/services/gitlab-installation-auth";
 import {
   buildGitHubApiBaseUrl,
   buildGitLabApiBaseUrl
@@ -107,7 +107,10 @@ export async function authorizeGitLabDevelopmentTaskActor(input: {
     return { ok: false, reason: "missing_actor_or_installation" };
   }
 
-  const accessToken = readGitInstallationAccessToken(input.target.installation);
+  const accessToken = await resolveGitLabInstallationAccessToken({
+    provider: input.target.provider,
+    installation: input.target.installation
+  });
   if (!accessToken) {
     return { ok: false, reason: "missing_installation_access_token" };
   }

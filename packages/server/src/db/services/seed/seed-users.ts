@@ -103,6 +103,20 @@ export async function seedUsers(tx: SeedTransaction) {
         userId: "user_developer",
         role: "member",
         createdAt: daysBefore(21)
+      },
+      {
+        id: 7004,
+        teamId: "team_foundation",
+        userId: "user_observer_agent",
+        role: "member",
+        createdAt: daysBefore(18)
+      },
+      {
+        id: 7005,
+        teamId: "team_foundation",
+        userId: "user_planner_agent",
+        role: "member",
+        createdAt: daysBefore(14)
       }
     ])
     .onConflictDoNothing();

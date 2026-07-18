@@ -2,7 +2,7 @@ import { and, desc, eq } from "drizzle-orm";
 import { db } from "../connection";
 import { auditEntries } from "../schema/audit";
 import { services } from "../schema/services";
-import { environments } from "../schema/projects";
+import { environments, projects } from "../schema/projects";
 import type { AppRole } from "@daoflow/shared";
 import { newId as id } from "./json-helpers";
 import {
@@ -21,6 +21,7 @@ import {
   buildServiceReadModel,
   normalizeServiceRecord
 } from "./service-record-views";
+import { getServerForTeam } from "./team-scoped-servers";
 
 /* ──────────────────────── Helpers ──────────────────────── */
 
@@ -48,6 +49,7 @@ export interface CreateServiceInput {
   preview?: ComposePreviewConfigInput | null;
   managedDatabase?: ManagedDatabaseConfigInput | null;
   targetServerId?: string;
+  teamId?: string;
   requestedByUserId: string;
   requestedByEmail: string;
   requestedByRole: AppRole;
@@ -67,6 +69,7 @@ export interface UpdateServiceInput {
   managedDatabase?: ManagedDatabaseConfigInput | null;
   replicaCount?: string;
   targetServerId?: string;
+  teamId?: string;
   requestedByUserId: string;
   requestedByEmail: string;
   requestedByRole: AppRole;
@@ -74,6 +77,7 @@ export interface UpdateServiceInput {
 
 export interface DeleteServiceInput {
   serviceId: string;
+  teamId?: string;
   requestedByUserId: string;
   requestedByEmail: string;
   requestedByRole: AppRole;
@@ -82,14 +86,26 @@ export interface DeleteServiceInput {
 /* ──────────────────────── Service CRUD ──────────────────────── */
 
 export async function createService(input: CreateServiceInput) {
-  // Verify the environment exists
-  const [env] = await db
-    .select()
+  const [scope] = await db
+    .select({ environment: environments, project: projects })
     .from(environments)
+    .innerJoin(projects, eq(projects.id, environments.projectId))
     .where(eq(environments.id, input.environmentId))
     .limit(1);
 
-  if (!env) return { status: "not_found" as const, entity: "environment" };
+  if (
+    !scope ||
+    scope.environment.projectId !== input.projectId ||
+    (input.teamId && scope.project.teamId !== input.teamId)
+  ) {
+    return { status: "not_found" as const, entity: "environment" };
+  }
+  if (
+    input.targetServerId &&
+    !(await getServerForTeam(input.targetServerId, scope.project.teamId))
+  ) {
+    return { status: "not_found" as const, entity: "server" };
+  }
 
   // Check for duplicate slug within environment
   const slug = toSlug(input.name);
@@ -160,13 +176,23 @@ export async function createService(input: CreateServiceInput) {
 }
 
 export async function updateService(input: UpdateServiceInput) {
-  const [existing] = await db
-    .select()
+  const [scope] = await db
+    .select({ service: services, project: projects })
     .from(services)
+    .innerJoin(projects, eq(projects.id, services.projectId))
     .where(eq(services.id, input.serviceId))
     .limit(1);
 
-  if (!existing) return { status: "not_found" as const };
+  if (!scope || (input.teamId && scope.project.teamId !== input.teamId)) {
+    return { status: "not_found" as const };
+  }
+  if (
+    input.targetServerId &&
+    !(await getServerForTeam(input.targetServerId, scope.project.teamId))
+  ) {
+    return { status: "not_found" as const, entity: "server" };
+  }
+  const existing = scope.service;
 
   const nextSourceType: CreateServiceInput["sourceType"] =
     input.sourceType ?? (existing.sourceType as CreateServiceInput["sourceType"]);
@@ -233,13 +259,17 @@ export async function updateService(input: UpdateServiceInput) {
 }
 
 export async function deleteService(input: DeleteServiceInput) {
-  const [existing] = await db
-    .select()
+  const [scope] = await db
+    .select({ service: services, project: projects })
     .from(services)
+    .innerJoin(projects, eq(projects.id, services.projectId))
     .where(eq(services.id, input.serviceId))
     .limit(1);
 
-  if (!existing) return { status: "not_found" as const };
+  if (!scope || (input.teamId && scope.project.teamId !== input.teamId)) {
+    return { status: "not_found" as const };
+  }
+  const existing = scope.service;
 
   await db.delete(services).where(eq(services.id, input.serviceId));
 

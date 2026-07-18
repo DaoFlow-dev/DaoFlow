@@ -7,6 +7,7 @@ import type { AppRole } from "@daoflow/shared";
 import { asRecord, readNumber, readRecordArray, readString, readStringArray } from "./json-helpers";
 import { buildComposeSourceSnapshot, resolveComposeImageOverride } from "./deployment-source";
 import { prepareComposeDeploymentEnvState } from "./compose-env";
+import { resolveTeamIdForUser } from "./teams";
 
 function formatReleaseTrackLabel(releaseTrack: string) {
   if (!releaseTrack) {
@@ -20,8 +21,15 @@ function getReleaseTrackTone(releaseTrack: string) {
   return releaseTrack === "stable" ? "healthy" : "running";
 }
 
-export async function listComposeReleaseCatalog(limit = 24) {
-  const rows = await db.select().from(environments).orderBy(desc(environments.createdAt));
+export async function listComposeReleaseCatalog(limit = 24, teamId?: string) {
+  const rows = (
+    await db
+      .select({ environment: environments })
+      .from(environments)
+      .innerJoin(projects, eq(projects.id, environments.projectId))
+      .where(teamId ? eq(projects.teamId, teamId) : undefined)
+      .orderBy(desc(environments.createdAt))
+  ).map((row) => row.environment);
   const services = rows.flatMap((environment) => {
     const config = asRecord(environment.config);
     const composeServices = readRecordArray(config, "composeServices");
@@ -87,7 +95,9 @@ export async function queueComposeRelease(input: {
   requestedByRole: string;
   commandAuditAttemptId?: string;
 }) {
-  const catalog = await listComposeReleaseCatalog(100);
+  const teamId = await resolveTeamIdForUser(input.requestedByUserId);
+  if (!teamId) return null;
+  const catalog = await listComposeReleaseCatalog(100, teamId);
   const service = catalog.services.find((candidate) => candidate.id === input.composeServiceId);
   if (!service) return null;
 
@@ -104,6 +114,7 @@ export async function queueComposeRelease(input: {
     .where(eq(projects.id, environment.projectId))
     .limit(1);
   if (!project) return null;
+  if (project.teamId !== teamId) return null;
 
   const envState = await prepareComposeDeploymentEnvState({
     environmentId: environment.id,
@@ -145,6 +156,7 @@ export async function queueComposeRelease(input: {
     requestedByUserId: input.requestedByUserId,
     requestedByEmail: input.requestedByEmail,
     requestedByRole: input.requestedByRole as AppRole,
+    teamId,
     commandAuditAttemptId: input.commandAuditAttemptId,
     envVarsEncrypted: envState.envVarsEncrypted,
     configSnapshot,

@@ -1,16 +1,3 @@
-export function normalizeGitHubAppNameSegment(name: string): string {
-  return name
-    .normalize("NFKD")
-    .replace(/[̀-ͯ]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-}
-
-export function trimTrailingSlash(value: string): string {
-  return value.replace(/\/+$/, "");
-}
-
 function generateManifestAppName(): string {
   const random = Math.random().toString(36).slice(2, 8);
   const date = new Date().toISOString().split("T")[0];
@@ -26,9 +13,7 @@ export function buildGitHubManifest(baseUrl: string, webhookUrl: string) {
       active: true
     },
     redirect_url: `${webhookUrl}/api/github/setup`,
-    callback_urls: [`${baseUrl}/settings/git/callback`],
-    setup_url: `${webhookUrl}/api/github/setup`,
-    setup_on_updates: true,
+    callback_urls: [`${webhookUrl}/api/github/setup`],
     public: false,
     request_oauth_on_install: true,
     default_permissions: {

@@ -142,8 +142,16 @@ export const deployLifecycleCommandRouter = t.router({
     .input(deploymentIdInputSchema)
     .mutation(async ({ ctx, input }) => {
       const actor = getDeleteContext(ctx);
+      const teamId = await resolveTeamIdForUser(ctx.session.user.id);
+      if (!teamId) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "No organization is available for this user."
+        });
+      }
       const result = await cancelDeployment({
         deploymentId: input.deploymentId,
+        teamId,
         cancelledByUserId: actor.userId,
         cancelledByEmail: actor.email,
         cancelledByRole: actor.role

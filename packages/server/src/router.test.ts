@@ -131,6 +131,8 @@ async function createOtherTeamFixture() {
   const userId = `user_other_${suffix}`.slice(0, 32);
   const projectName = `other-team-project-${suffix}`;
   const environmentName = `other-team-env-${suffix}`;
+  const serverId = `srv_other_${suffix}`.slice(0, 32);
+  const serverName = `other-team-server-${suffix}`.slice(0, 80);
 
   await db.insert(users).values({
     id: userId,
@@ -163,6 +165,21 @@ async function createOtherTeamFixture() {
     createdAt: new Date()
   });
 
+  await db.insert(servers).values({
+    id: serverId,
+    name: serverName,
+    host: `198.51.100.${otherTeamFixtureCounter + 20}`,
+    region: "test",
+    teamId,
+    sshPort: 22,
+    kind: "docker-engine",
+    status: "pending host identity approval",
+    metadata: {},
+    registeredByUserId: userId,
+    createdAt: new Date(),
+    updatedAt: new Date()
+  });
+
   const fixture = await createProjectEnvironmentServiceFixture({
     project: {
       name: projectName,
@@ -172,12 +189,12 @@ async function createOtherTeamFixture() {
     environment: {
       teamId,
       name: environmentName,
-      targetServerId: "srv_foundation_1"
+      targetServerId: serverId
     },
     service: {
       name: `other-team-svc-${suffix}`.slice(0, 80),
       sourceType: "compose",
-      targetServerId: "srv_foundation_1"
+      targetServerId: serverId
     },
     requester: {
       ...foundationOwnerRequester,
@@ -190,6 +207,8 @@ async function createOtherTeamFixture() {
   return {
     teamId,
     userId,
+    serverId,
+    serverName,
     projectId: fixture.project.id,
     environmentId: fixture.environment.id,
     serviceId: fixture.service.id
@@ -421,8 +440,8 @@ describe("appRouter", () => {
       .set({
         config: {
           projectName: "Other team project",
-          targetServerId: "srv_foundation_1",
-          targetServerName: "foundation-vps-1",
+          targetServerId: other.serverId,
+          targetServerName: other.serverName,
           composeFilePath: "/srv/other/compose.yaml",
           composeServices: [
             {

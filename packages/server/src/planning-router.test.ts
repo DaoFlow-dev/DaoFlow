@@ -25,6 +25,12 @@ async function createConfigDiffFixture(teamId = "team_foundation") {
   const projectName = `config-diff-${suffix}`;
   const environmentName = `preview-${suffix}`;
   const serviceName = `svc-${suffix}`;
+  const targetServerId =
+    teamId === "team_foundation" ? "srv_foundation_1" : `srv_${suffix}`.slice(0, 32);
+  const targetServerName =
+    teamId === "team_foundation" ? "foundation-vps-1" : `scoped-server-${suffix}`.slice(0, 80);
+  const targetServerHost =
+    teamId === "team_foundation" ? "203.0.113.24" : `198.51.100.${(fixtureCounter % 200) + 20}`;
 
   if (teamId !== "team_foundation") {
     await db.insert(teams).values({
@@ -33,6 +39,16 @@ async function createConfigDiffFixture(teamId = "team_foundation") {
       slug: `scoped-${suffix}`.slice(0, 40),
       status: "active",
       createdByUserId: "user_foundation_owner"
+    });
+    await db.insert(servers).values({
+      id: targetServerId,
+      name: targetServerName,
+      host: targetServerHost,
+      teamId,
+      region: "test",
+      status: "pending host identity approval",
+      metadata: {},
+      updatedAt: new Date()
     });
   }
 
@@ -44,12 +60,12 @@ async function createConfigDiffFixture(teamId = "team_foundation") {
     },
     environment: {
       name: environmentName,
-      targetServerId: "srv_foundation_1"
+      targetServerId
     },
     service: {
       name: serviceName,
       sourceType: "compose",
-      targetServerId: "srv_foundation_1"
+      targetServerId
     }
   });
 
@@ -63,7 +79,7 @@ async function createConfigDiffFixture(teamId = "team_foundation") {
       id: baselineDeploymentId,
       projectId: fixture.project.id,
       environmentId: fixture.environment.id,
-      targetServerId: "srv_foundation_1",
+      targetServerId,
       serviceName,
       sourceType: "compose",
       commitSha: "abcdef1",
@@ -71,8 +87,8 @@ async function createConfigDiffFixture(teamId = "team_foundation") {
       configSnapshot: {
         projectName,
         environmentName,
-        targetServerName: "foundation-vps-1",
-        targetServerHost: "203.0.113.24",
+        targetServerName,
+        targetServerHost,
         composePath: `/srv/${serviceName}/compose.v1.yaml`,
         runtime: {
           replicas: 1,
@@ -93,7 +109,7 @@ async function createConfigDiffFixture(teamId = "team_foundation") {
       id: comparisonDeploymentId,
       projectId: fixture.project.id,
       environmentId: fixture.environment.id,
-      targetServerId: "srv_foundation_1",
+      targetServerId,
       serviceName,
       sourceType: "compose",
       commitSha: "fedcba9",
@@ -101,8 +117,8 @@ async function createConfigDiffFixture(teamId = "team_foundation") {
       configSnapshot: {
         projectName,
         environmentName,
-        targetServerName: "foundation-vps-1",
-        targetServerHost: "203.0.113.24",
+        targetServerName,
+        targetServerHost,
         composePath: `/srv/${serviceName}/compose.v2.yaml`,
         runtime: {
           replicas: 2,

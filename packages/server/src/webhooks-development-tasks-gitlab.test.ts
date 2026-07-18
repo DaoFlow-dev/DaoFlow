@@ -32,6 +32,7 @@ async function createGitLabDevelopmentTaskFixture(input: {
 
   await db.insert(gitProviders).values({
     id: providerId,
+    teamId: "team_foundation",
     type: "gitlab",
     name: `GitLab Development Task ${input.suffix}`,
     baseUrl: "https://gitlab.example.com",
@@ -42,6 +43,7 @@ async function createGitLabDevelopmentTaskFixture(input: {
 
   await db.insert(gitInstallations).values({
     id: installationId,
+    teamId: "team_foundation",
     providerId,
     installationId: "example",
     accountName: "example",

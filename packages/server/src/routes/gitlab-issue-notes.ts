@@ -1,5 +1,5 @@
 import { gitInstallations, gitProviders } from "../db/schema/git-providers";
-import { readGitInstallationAccessToken } from "../db/services/git-providers";
+import { resolveGitLabInstallationAccessToken } from "../db/services/gitlab-installation-auth";
 import { buildGitLabApiBaseUrl } from "../db/services/project-source-provider-validation-shared";
 
 function encodeProjectPath(repoFullName: string) {
@@ -38,7 +38,10 @@ export async function sendGitLabIssueNote(input: {
   body: string;
   existingCommentId?: string | null;
 }) {
-  const accessToken = readGitInstallationAccessToken(input.installation);
+  const accessToken = await resolveGitLabInstallationAccessToken({
+    provider: input.provider,
+    installation: input.installation
+  });
   if (!accessToken) {
     throw new Error("GitLab issue note requires an installation access token.");
   }

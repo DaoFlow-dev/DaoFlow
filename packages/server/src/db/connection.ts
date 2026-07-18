@@ -105,6 +105,9 @@ function createPoolProxy(state: Pick<DatabaseConnectionState, "activePool">) {
     },
     getOwnPropertyDescriptor(_target, property) {
       return Object.getOwnPropertyDescriptor(state.activePool, property);
+    },
+    getPrototypeOf() {
+      return Reflect.getPrototypeOf(state.activePool);
     }
   });
 }

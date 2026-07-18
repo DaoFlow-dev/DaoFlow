@@ -9,7 +9,15 @@ export type ProviderValidationProviderType = "github" | "gitlab";
 
 export type GitProviderValidationRecord = Pick<
   typeof gitProviders.$inferSelect,
-  "id" | "type" | "name" | "baseUrl" | "appId" | "privateKeyEncrypted"
+  | "id"
+  | "teamId"
+  | "type"
+  | "name"
+  | "baseUrl"
+  | "appId"
+  | "clientId"
+  | "clientSecretEncrypted"
+  | "privateKeyEncrypted"
 >;
 
 const DEFAULT_PROVIDER_VALIDATION_TIMEOUT_MS = 10_000;

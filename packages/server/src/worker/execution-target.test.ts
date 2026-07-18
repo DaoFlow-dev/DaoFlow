@@ -22,7 +22,7 @@ describe("resolveExecutionTarget", () => {
         name: "local-dev",
         host: "127.0.0.1",
         region: null,
-        teamId: null,
+        teamId: "team_foundation",
         sshPort: 22,
         sshUser: null,
         sshKeyId: null,
@@ -37,7 +37,8 @@ describe("resolveExecutionTarget", () => {
         createdAt: new Date(),
         updatedAt: new Date()
       },
-      "dep_123"
+      "dep_123",
+      "team_foundation"
     );
 
     expect(target).toEqual({ mode: "local", serverKind: "docker-engine" });
@@ -72,7 +73,8 @@ describe("resolveExecutionTarget", () => {
         createdAt: new Date(),
         updatedAt: new Date()
       },
-      "dep_456"
+      "dep_456",
+      "team_foundation"
     );
 
     expect(target.mode).toBe("remote");
@@ -118,8 +120,39 @@ describe("resolveExecutionTarget", () => {
           createdAt: new Date(),
           updatedAt: new Date()
         },
-        "dep_789"
+        "dep_789",
+        "team_foundation"
       )
     ).rejects.toThrow("will not send credentials or commands");
+  });
+
+  it("rejects another team's server before local or SSH execution is selected", async () => {
+    await expect(
+      resolveExecutionTarget(
+        {
+          id: "srv_other",
+          name: "other-team-local",
+          host: "127.0.0.1",
+          region: null,
+          teamId: "team_other",
+          sshPort: 22,
+          sshUser: null,
+          sshKeyId: null,
+          sshPrivateKeyEncrypted: null,
+          kind: "docker-engine",
+          status: "ready",
+          dockerVersion: null,
+          composeVersion: null,
+          metadata: {},
+          registeredByUserId: null,
+          lastCheckedAt: null,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        },
+        "dep_cross_team",
+        "team_foundation"
+      )
+    ).rejects.toThrow("not available in the requested team scope");
+    expect(getApprovedSshHostIdentityMock).not.toHaveBeenCalled();
   });
 });

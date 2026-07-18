@@ -118,6 +118,7 @@ describe("preview trust", () => {
 
     await db.insert(gitProviders).values({
       id: "gitprov_preview_trust",
+      teamId: "team_foundation",
       type: "github",
       name: "Preview trust GitHub App",
       webhookSecret: "preview-trust-secret",
@@ -125,6 +126,7 @@ describe("preview trust", () => {
     });
     await db.insert(gitInstallations).values({
       id: "gitinst_preview_trust",
+      teamId: "team_foundation",
       providerId: "gitprov_preview_trust",
       installationId: "4242",
       accountName: "acme",

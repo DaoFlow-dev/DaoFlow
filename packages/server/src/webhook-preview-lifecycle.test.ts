@@ -183,6 +183,7 @@ async function createPreviewFixture(input: {
 
     await db.insert(gitProviders).values({
       id: providerId,
+      teamId: "team_foundation",
       type: "github",
       name: `Preview GitHub ${suffix}`,
       appId: "123456",
@@ -194,6 +195,7 @@ async function createPreviewFixture(input: {
 
     await db.insert(gitInstallations).values({
       id: installationId,
+      teamId: "team_foundation",
       providerId,
       installationId: "9801",
       accountName: "example",
@@ -213,6 +215,7 @@ async function createPreviewFixture(input: {
   } else {
     await db.insert(gitProviders).values({
       id: providerId,
+      teamId: "team_foundation",
       type: "gitlab",
       name: `Preview GitLab ${suffix}`,
       webhookSecret,
@@ -222,6 +225,7 @@ async function createPreviewFixture(input: {
 
     await db.insert(gitInstallations).values({
       id: installationId,
+      teamId: "team_foundation",
       providerId,
       installationId: "9802",
       accountName: "example",

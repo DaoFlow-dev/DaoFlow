@@ -1,11 +1,9 @@
 /**
- * GitCallbackPage.tsx — Handles OAuth callbacks from GitHub App installations
- * and GitLab OAuth flows. Parses the callback query params and creates the
- * corresponding git installation record.
+ * GitCallbackPage.tsx — Handles GitLab OAuth callbacks through a server-bound,
+ * one-time setup state.
  *
  * Routes:
- *   /settings/git/callback?installation_id=...&setup_action=install&provider_id=...
- *   /settings/git/callback?code=...&state=<providerId>  (GitLab OAuth)
+ *   /settings/git/callback?code=...&state=<opaque-single-use-state>  (GitLab OAuth)
  */
 
 import { useEffect, useState } from "react";
@@ -31,20 +29,7 @@ export default function GitCallbackPage() {
   const [message, setMessage] = useState("Processing callback…");
   const [detail, setDetail] = useState("");
 
-  const createInstallation = trpc.createGitInstallation.useMutation({
-    onSuccess: (data: GitInstallationSuccessData) => {
-      setState("success");
-      setMessage("Installation connected successfully");
-      setDetail(`Account: ${getInstallationAccountName(data)}`);
-    },
-    onError: (err: { message: string }) => {
-      setState("error");
-      setMessage("Failed to connect installation");
-      setDetail(err.message);
-    }
-  });
-
-  const exchangeGitLabCode = trpc.exchangeGitLabCode.useMutation({
+  const completeGitLabOAuthSetup = trpc.completeGitLabOAuthSetup.useMutation({
     onSuccess: (data: GitInstallationSuccessData) => {
       setState("success");
       setMessage("GitLab connected successfully");
@@ -58,33 +43,14 @@ export default function GitCallbackPage() {
   });
 
   useEffect(() => {
-    const installationId = searchParams.get("installation_id");
-    const setupAction = searchParams.get("setup_action");
-    const providerId = searchParams.get("provider_id") || searchParams.get("state");
+    const callbackState = searchParams.get("state");
     const code = searchParams.get("code");
 
-    // GitHub App callback
-    if (installationId && providerId) {
-      if (setupAction === "install" || setupAction === "update") {
-        createInstallation.mutate({
-          providerId,
-          installationId,
-          accountName: searchParams.get("account") || "Unknown",
-          accountType: searchParams.get("target_type") || "organization"
-        });
-      } else {
-        setState("error");
-        setMessage("Installation was cancelled");
-        setDetail("The GitHub App installation was not completed.");
-      }
-      return;
-    }
-
     // GitLab OAuth callback
-    if (code && providerId) {
-      exchangeGitLabCode.mutate({
+    if (code && callbackState) {
+      completeGitLabOAuthSetup.mutate({
         code,
-        providerId
+        state: callbackState
       });
       return;
     }

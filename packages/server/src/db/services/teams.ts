@@ -1,49 +1,17 @@
 import { and, asc, eq } from "drizzle-orm";
 import { db } from "../connection";
-import { teams, teamMembers } from "../schema/teams";
+import { teamMembers } from "../schema/teams";
 import { users } from "../schema/users";
 
-/**
- * Resolve the active team for the current single-team control plane.
- *
- * The product is not truly multi-tenant yet, so signed-up users may not have
- * a default team or membership row. In that case we fall back to the first
- * available team instead of hardcoding an invalid sentinel like "default".
- */
+/** Resolve the active team only from a real membership. */
 export async function resolveTeamIdForUser(userId: string): Promise<string | null> {
-  const [user] = await db
-    .select({ defaultTeamId: users.defaultTeamId })
-    .from(users)
-    .where(eq(users.id, userId))
-    .limit(1);
-
-  if (user?.defaultTeamId) {
-    return user.defaultTeamId;
-  }
-
-  const [membership] = await db
-    .select({ teamId: teamMembers.teamId })
-    .from(teamMembers)
-    .where(eq(teamMembers.userId, userId))
-    .limit(1);
-
-  if (membership?.teamId) {
-    return membership.teamId;
-  }
-
-  const [fallbackTeam] = await db
-    .select({ id: teams.id })
-    .from(teams)
-    .orderBy(asc(teams.createdAt))
-    .limit(1);
-
-  return fallbackTeam?.id ?? null;
+  return resolveMemberTeamIdForUser(userId);
 }
 
 /**
  * Resolve a user's active team only when the user is actually a member.
- * Read surfaces that expose team-owned operational data must not use the
- * single-team fallback above, because it can select another team's data.
+ * Prefer the default team when it is still backed by a membership, then use
+ * the oldest real membership as the deterministic fallback.
  */
 export async function resolveMemberTeamIdForUser(userId: string): Promise<string | null> {
   const [preferredMembership] = await db
@@ -68,4 +36,14 @@ export async function resolveMemberTeamIdForUser(userId: string): Promise<string
     .limit(1);
 
   return membership?.teamId ?? null;
+}
+
+export async function isUserMemberOfTeam(userId: string, teamId: string): Promise<boolean> {
+  const [membership] = await db
+    .select({ id: teamMembers.id })
+    .from(teamMembers)
+    .where(and(eq(teamMembers.userId, userId), eq(teamMembers.teamId, teamId)))
+    .limit(1);
+
+  return Boolean(membership);
 }

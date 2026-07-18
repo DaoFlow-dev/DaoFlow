@@ -13,6 +13,7 @@ import type {
   UpdateEnvironmentInput
 } from "./project-service-types";
 import { writeComposeSourceSelectionToConfig } from "../../compose-source";
+import { getServerForTeam } from "./team-scoped-servers";
 
 export async function createEnvironment(input: CreateEnvironmentInput) {
   const project = input.teamId
@@ -20,6 +21,10 @@ export async function createEnvironment(input: CreateEnvironmentInput) {
     : ((await db.select().from(projects).where(eq(projects.id, input.projectId)).limit(1))[0] ??
       null);
   if (!project) return { status: "not_found" as const, entity: "project" };
+
+  if (input.targetServerId && !(await getServerForTeam(input.targetServerId, project.teamId))) {
+    return { status: "not_found" as const, entity: "server" };
+  }
 
   const slug = toSlug(input.name);
   const [bySlug] = await db
@@ -85,6 +90,13 @@ export async function updateEnvironment(input: UpdateEnvironmentInput) {
           .limit(1)
       )[0] ?? null);
   if (!existing) return { status: "not_found" as const };
+
+  if (
+    input.targetServerId &&
+    !(await getServerForTeam(input.targetServerId, existing.project.teamId))
+  ) {
+    return { status: "not_found" as const, entity: "server" };
+  }
 
   if (input.name) {
     const nextSlug = toSlug(input.name);

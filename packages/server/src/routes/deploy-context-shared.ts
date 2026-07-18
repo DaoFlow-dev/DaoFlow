@@ -215,6 +215,7 @@ export async function queueUploadedDeployment(input: {
     requestedByUserId: input.actor.userId,
     requestedByEmail: input.actor.email,
     requestedByRole: input.actor.role,
+    teamId: scope.project.teamId,
     steps: [...input.steps],
     configSnapshot: input.configSnapshot
   });

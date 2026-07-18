@@ -1,8 +1,9 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "../connection";
 import { auditEntries, events } from "../schema/audit";
 import { deploymentLogs, deployments, deploymentSteps } from "../schema/deployments";
 import { servers } from "../schema/servers";
+import { projects } from "../schema/projects";
 import {
   DeploymentConclusion,
   DeploymentHealthStatus,
@@ -41,6 +42,7 @@ export interface CreateDeploymentInput {
   requestedByEmail?: string | null;
   requestedByRole?: AppRole | null;
   commandAuditAttemptId?: string;
+  teamId: string;
   trigger?: DeploymentTrigger;
   steps: readonly { label: string; detail: string }[];
   configSnapshot?: Record<string, unknown>;
@@ -53,7 +55,14 @@ export async function createDeploymentRecord(input: CreateDeploymentInput) {
     loadProjectEnvironmentByNames(input.projectName, input.environmentName)
   ]);
 
-  if (!server[0] || !projectEnvironment) return null;
+  if (
+    !server[0] ||
+    !projectEnvironment ||
+    server[0].teamId !== projectEnvironment.project.teamId ||
+    projectEnvironment.project.teamId !== input.teamId
+  ) {
+    return null;
+  }
 
   const deploymentId = input.deploymentId ?? id();
   const now = new Date();
@@ -153,17 +162,20 @@ export async function createDeploymentRecord(input: CreateDeploymentInput) {
 
 export interface CancelDeploymentInput {
   deploymentId: string;
+  teamId: string;
   cancelledByUserId: string;
   cancelledByEmail: string;
   cancelledByRole: AppRole;
 }
 
 export async function cancelDeployment(input: CancelDeploymentInput) {
-  const [deployment] = await db
-    .select()
+  const [row] = await db
+    .select({ deployment: deployments })
     .from(deployments)
-    .where(eq(deployments.id, input.deploymentId))
+    .innerJoin(projects, eq(projects.id, deployments.projectId))
+    .where(and(eq(deployments.id, input.deploymentId), eq(projects.teamId, input.teamId)))
     .limit(1);
+  const deployment = row?.deployment;
 
   if (!deployment) return { status: "not-found" as const };
 

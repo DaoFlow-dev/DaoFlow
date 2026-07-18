@@ -52,7 +52,12 @@ export async function listDevelopmentTaskWebhookTargets(input: {
     }
 
     const provider = providerById.get(project.gitProviderId);
-    if (!provider || provider.type !== input.providerType || provider.status !== "active") {
+    if (
+      !provider ||
+      provider.type !== input.providerType ||
+      provider.status !== "active" ||
+      provider.teamId !== project.teamId
+    ) {
       return [];
     }
 
@@ -60,7 +65,12 @@ export async function listDevelopmentTaskWebhookTargets(input: {
       ? (installationById.get(project.gitInstallationId) ?? null)
       : null;
 
-    if (!installation || installation.status !== "active") {
+    if (
+      !installation ||
+      installation.status !== "active" ||
+      installation.teamId !== project.teamId ||
+      installation.providerId !== provider.id
+    ) {
       return [];
     }
 

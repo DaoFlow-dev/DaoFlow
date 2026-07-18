@@ -1,15 +1,18 @@
 import { existsSync, readFileSync } from "node:fs";
 import { isAbsolute, join, relative } from "node:path";
 import { createSign } from "node:crypto";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "../connection";
 import { gitProviders } from "../schema/git-providers";
 import { decrypt } from "../crypto";
-import { getGitInstallation, readGitInstallationAccessToken } from "./git-providers";
+import { getGitInstallation } from "./git-providers";
+import { resolveGitLabInstallationAccessToken } from "./gitlab-installation-auth";
 import { asRecord } from "./json-helpers";
 import { materializeProjectSourceInspection } from "./project-source-checkout-inspection";
 
 type ProjectSourceFileProject = {
+  id?: string;
+  teamId: string;
   repoUrl: string | null;
   repoFullName: string | null;
   gitProviderId: string | null;
@@ -146,6 +149,8 @@ export async function fetchProjectRepositoryTextFile(input: {
   if (input.project.repoUrl && !input.project.gitProviderId && !input.project.gitInstallationId) {
     const inspection = await materializeProjectSourceInspection({
       project: {
+        id: input.project.id,
+        teamId: input.project.teamId,
         repoUrl: input.project.repoUrl,
         repoFullName: input.project.repoFullName,
         repositoryPreparation: asRecord(asRecord(input.project.config).repositoryPreparation)
@@ -197,8 +202,17 @@ export async function fetchProjectRepositoryTextFile(input: {
   }
 
   const [provider, installation] = await Promise.all([
-    db.select().from(gitProviders).where(eq(gitProviders.id, input.project.gitProviderId)).limit(1),
-    getGitInstallation(input.project.gitInstallationId)
+    db
+      .select()
+      .from(gitProviders)
+      .where(
+        and(
+          eq(gitProviders.id, input.project.gitProviderId),
+          eq(gitProviders.teamId, input.project.teamId)
+        )
+      )
+      .limit(1),
+    getGitInstallation(input.project.gitInstallationId, input.project.teamId)
   ]);
   const providerRow = provider[0];
 
@@ -209,7 +223,11 @@ export async function fetchProjectRepositoryTextFile(input: {
     };
   }
 
-  if (!installation || installation.providerId !== input.project.gitProviderId) {
+  if (
+    !installation ||
+    installation.providerId !== input.project.gitProviderId ||
+    installation.teamId !== input.project.teamId
+  ) {
     return {
       status: "not_available",
       reason: `Git installation ${input.project.gitInstallationId} was not found for provider ${input.project.gitProviderId}.`
@@ -270,7 +288,10 @@ export async function fetchProjectRepositoryTextFile(input: {
   }
 
   if (providerRow.type === "gitlab") {
-    const accessToken = readGitInstallationAccessToken(installation);
+    const accessToken = await resolveGitLabInstallationAccessToken({
+      provider: providerRow,
+      installation
+    });
     if (!accessToken) {
       return {
         status: "not_available",

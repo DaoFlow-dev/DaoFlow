@@ -9,6 +9,7 @@ import { updateServiceDomainRouting } from "../db/services/service-domain-routin
 import { updateServicePortMappings } from "../db/services/service-port-mappings";
 import { updateServiceRuntimeConfig } from "../db/services/service-runtime-config";
 import { createService, deleteService, updateService } from "../db/services/services";
+import { recordDeniedServiceAccess } from "../db/services/service-access";
 import { getActorContext, t } from "../trpc";
 import {
   composePreviewConfigSchema,
@@ -19,7 +20,12 @@ import {
   serviceRuntimeRestartPolicySchema,
   serviceRuntimeVolumeSchema
 } from "./command-admin-service-schemas";
-import { teamScopedAdminServiceProcedure, teamScopedServiceUpdateProcedure } from "./service-scope";
+import {
+  serviceAccessActor,
+  teamScopedAdminServiceProcedure,
+  teamScopedServiceUpdateProcedure
+} from "./service-scope";
+import { requireActorTeamId } from "./team-scope";
 
 export const adminServiceRouter = t.router({
   createService: teamScopedServiceUpdateProcedure
@@ -40,12 +46,25 @@ export const adminServiceRouter = t.router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      const teamId = await requireActorTeamId(ctx.session.user.id);
       const result = await createService({
         ...input,
+        teamId,
         ...getActorContext(ctx)
       });
       if (result.status === "not_found") {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Environment not found." });
+        if (result.entity === "server") {
+          await recordDeniedServiceAccess({
+            actor: serviceAccessActor(ctx),
+            action: "service.target-server.denied",
+            permissionScope: "service:update"
+          });
+        }
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message:
+            result.entity === "server" ? "Target server not found." : "Environment not found."
+        });
       }
       if (result.status === "conflict") {
         throw new TRPCError({
@@ -77,12 +96,27 @@ export const adminServiceRouter = t.router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      const teamId = await requireActorTeamId(ctx.session.user.id);
       const result = await updateService({
         ...input,
+        teamId,
         ...getActorContext(ctx)
       });
       if (result.status === "not_found") {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Service not found." });
+        if ("entity" in result && result.entity === "server") {
+          await recordDeniedServiceAccess({
+            actor: serviceAccessActor(ctx),
+            action: "service.target-server.denied",
+            permissionScope: "service:update"
+          });
+        }
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message:
+            "entity" in result && result.entity === "server"
+              ? "Target server not found."
+              : "Service not found."
+        });
       }
       if (result.status === "invalid_config") {
         throw new TRPCError({ code: "BAD_REQUEST", message: result.message });
@@ -272,8 +306,10 @@ export const adminServiceRouter = t.router({
   deleteService: teamScopedAdminServiceProcedure
     .input(z.object({ serviceId: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => {
+      const teamId = await requireActorTeamId(ctx.session.user.id);
       const result = await deleteService({
         ...input,
+        teamId,
         ...getActorContext(ctx)
       });
       if (result.status === "not_found") {

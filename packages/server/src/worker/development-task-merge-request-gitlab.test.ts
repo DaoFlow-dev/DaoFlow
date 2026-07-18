@@ -30,6 +30,7 @@ async function createGitLabMergeRequestFixture() {
     .insert(gitProviders)
     .values({
       id: `gitprov_mr_${suffix}`.slice(0, 32),
+      teamId: "team_foundation",
       type: "gitlab",
       name: `GitLab MR ${suffix}`,
       baseUrl: "https://gitlab.example.com",
@@ -41,6 +42,7 @@ async function createGitLabMergeRequestFixture() {
     .insert(gitInstallations)
     .values({
       id: `gitinst_mr_${suffix}`.slice(0, 32),
+      teamId: "team_foundation",
       providerId: provider.id,
       installationId: "example",
       accountName: "example",

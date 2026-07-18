@@ -6,6 +6,7 @@ import { triggerDeploy } from "../db/services/trigger-deploy";
 import { deleteService, getService } from "../db/services/services";
 import { getActorContext, t, throwOnDeployResultError } from "../trpc";
 import { teamScopedServiceUpdateProcedure } from "./service-scope";
+import { requireActorTeamId } from "./team-scope";
 
 const managedDatabaseKindSchema = z.enum(managedDatabaseKinds);
 const managedDatabaseServiceInput = z.object({ serviceId: z.string().min(1) });
@@ -93,8 +94,10 @@ export const adminManagedDatabaseRouter = t.router({
     .input(managedDatabaseServiceInput)
     .mutation(async ({ ctx, input }) => {
       await requireManagedDatabaseService(input.serviceId);
+      const teamId = await requireActorTeamId(ctx.session.user.id);
       const result = await deleteService({
         serviceId: input.serviceId,
+        teamId,
         ...getActorContext(ctx)
       });
       if (result.status === "not_found") {

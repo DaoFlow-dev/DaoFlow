@@ -110,6 +110,7 @@ async function insertGitLabProviderFixture(input: {
 }) {
   await db.insert(gitProviders).values({
     id: input.providerId,
+    teamId: "team_foundation",
     type: "gitlab",
     name: input.providerName,
     status: "active",
@@ -118,6 +119,7 @@ async function insertGitLabProviderFixture(input: {
 
   await db.insert(gitInstallations).values({
     id: input.installationId,
+    teamId: "team_foundation",
     providerId: input.providerId,
     installationId: `${Date.now()}`,
     accountName: "example-group",
@@ -148,6 +150,7 @@ describe("project source persistence", () => {
 
     await db.insert(gitProviders).values({
       id: providerId,
+      teamId: "team_foundation",
       type: "github",
       name: `Project Provider ${Date.now()}`,
       appId: "123456",
@@ -158,6 +161,7 @@ describe("project source persistence", () => {
 
     await db.insert(gitInstallations).values({
       id: installationId,
+      teamId: "team_foundation",
       providerId,
       installationId: "777",
       accountName: "example-org",
@@ -428,6 +432,7 @@ describe("project source persistence", () => {
 
     await db.insert(gitProviders).values({
       id: providerId,
+      teamId: "team_foundation",
       type: "gitlab",
       name: `Rollback Provider ${Date.now()}`,
       status: "active",
@@ -436,6 +441,7 @@ describe("project source persistence", () => {
 
     await db.insert(gitInstallations).values({
       id: installationId,
+      teamId: "team_foundation",
       providerId,
       installationId: `${Date.now()}`,
       accountName: "example-group",
@@ -686,6 +692,7 @@ describe("project source persistence", () => {
 
     await db.insert(gitProviders).values({
       id: providerId,
+      teamId: "team_foundation",
       type: "gitlab",
       name: `Invalid Branch ${Date.now()}`,
       status: "active",
@@ -694,6 +701,7 @@ describe("project source persistence", () => {
 
     await db.insert(gitInstallations).values({
       id: installationId,
+      teamId: "team_foundation",
       providerId,
       installationId: `${Date.now()}`,
       accountName: "example-group",

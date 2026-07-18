@@ -77,6 +77,7 @@ export async function createAgentPrincipal(input: CreateAgentInput) {
       type: "agent",
       name: input.name,
       description: input.description ?? null,
+      linkedUserId: input.requestedByUserId,
       defaultScopes: filteredScopes.join(","),
       status: "active",
       updatedAt: new Date()

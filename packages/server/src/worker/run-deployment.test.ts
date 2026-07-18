@@ -139,6 +139,7 @@ describe("runDeployment", () => {
     executeComposeDeploymentMock.mockImplementationOnce(async () => {
       const result = await cancelDeployment({
         deploymentId: deployment.id,
+        teamId: "team_foundation",
         cancelledByUserId: "user_foundation_owner",
         cancelledByEmail: "owner@daoflow.local",
         cancelledByRole: "owner"

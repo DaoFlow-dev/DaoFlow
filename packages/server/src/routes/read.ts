@@ -320,13 +320,15 @@ const coreReadRouter = t.router({
   agents: protectedProcedure.query(async () => {
     return listAgentPrincipals();
   }),
-  gitProviders: protectedProcedure.query(async () => {
-    return listGitProviderSummaries();
+  gitProviders: protectedProcedure.query(async ({ ctx }) => {
+    const teamId = await requireActorTeamId(ctx.session.user.id);
+    return listGitProviderSummaries(teamId);
   }),
   gitInstallations: protectedProcedure
     .input(z.object({ providerId: z.string().min(1).optional() }))
-    .query(async ({ input }) => {
-      return listGitInstallationSummaries(input.providerId);
+    .query(async ({ ctx, input }) => {
+      const teamId = await requireActorTeamId(ctx.session.user.id);
+      return listGitInstallationSummaries(teamId, input.providerId);
     }),
   containerRegistries: serverWriteProcedure.query(async ({ ctx }) => {
     const teamId = await requireActorTeamId(ctx.session.user.id);

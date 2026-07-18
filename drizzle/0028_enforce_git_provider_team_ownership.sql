@@ -1,0 +1,6 @@
+ALTER TABLE "git_installations" ALTER COLUMN "team_id" SET NOT NULL;--> statement-breakpoint
+ALTER TABLE "git_providers" ALTER COLUMN "team_id" SET NOT NULL;--> statement-breakpoint
+ALTER TABLE "projects" ADD CONSTRAINT "projects_git_provider_id_team_id_git_providers_id_team_id_fk" FOREIGN KEY ("git_provider_id","team_id") REFERENCES "public"."git_providers"("id","team_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "projects" ADD CONSTRAINT "projects_git_installation_id_team_id_git_installations_id_team_id_fk" FOREIGN KEY ("git_installation_id","team_id") REFERENCES "public"."git_installations"("id","team_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "git_installations" ADD CONSTRAINT "git_installations_provider_id_team_id_git_providers_id_team_id_fk" FOREIGN KEY ("provider_id","team_id") REFERENCES "public"."git_providers"("id","team_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "git_provider_setup_states" ADD CONSTRAINT "git_provider_setup_states_provider_id_team_id_git_providers_id_team_id_fk" FOREIGN KEY ("provider_id","team_id") REFERENCES "public"."git_providers"("id","team_id") ON DELETE cascade ON UPDATE no action;

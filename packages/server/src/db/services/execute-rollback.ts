@@ -12,7 +12,6 @@ import { and, desc, eq } from "drizzle-orm";
 import { db } from "../connection";
 import { deployments } from "../schema/deployments";
 import { environments, projects } from "../schema/projects";
-import { servers } from "../schema/servers";
 import { services } from "../schema/services";
 import { createDeploymentRecord, type CreateDeploymentInput } from "./deployments";
 import { dispatchDeploymentExecution } from "./deployment-dispatch";
@@ -22,6 +21,7 @@ import type { AppRole } from "@daoflow/shared";
 import { extractReplayableConfigSnapshot, resolveComposeImageOverride } from "./deployment-source";
 import { buildDeployNotification } from "../../worker/temporal/activities/notification-builders";
 import { dispatchNotification } from "../../worker/temporal/activities/notification-activities";
+import { getServerForTeam } from "./team-scoped-servers";
 
 const DEFAULT_ROLLBACK_RETENTION = 3;
 
@@ -160,11 +160,8 @@ export async function executeRollback(input: ExecuteRollbackInput) {
   } else {
     delete configSnapshot.composeImageOverride;
   }
-  const [targetServer] = await db
-    .select()
-    .from(servers)
-    .where(eq(servers.id, target.targetServerId))
-    .limit(1);
+  const targetServer = await getServerForTeam(target.targetServerId, project[0].teamId);
+  if (!targetServer) return { status: "not_found" as const, entity: "deployment" };
 
   const deployInput: CreateDeploymentInput = {
     projectName: readString(snapshot, "projectName", project[0].name),
@@ -177,6 +174,7 @@ export async function executeRollback(input: ExecuteRollbackInput) {
     requestedByUserId: input.requestedByUserId,
     requestedByEmail: input.requestedByEmail,
     requestedByRole: input.requestedByRole,
+    teamId: project[0].teamId,
     commandAuditAttemptId: input.commandAuditAttemptId,
     envVarsEncrypted: target.envVarsEncrypted,
     configSnapshot,
@@ -188,7 +186,7 @@ export async function executeRollback(input: ExecuteRollbackInput) {
       {
         label: "Queue execution handoff",
         detail:
-          target.sourceType === "compose" && targetServer?.kind === "docker-swarm-manager"
+          target.sourceType === "compose" && targetServer.kind === "docker-swarm-manager"
             ? "Dispatch the rollback deployment to the execution plane as a Docker Swarm stack update."
             : "Dispatch the rollback deployment to the execution plane."
       }

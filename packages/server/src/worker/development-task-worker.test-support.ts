@@ -30,6 +30,7 @@ export async function createClaimedCommentFixture() {
 
   await db.insert(gitProviders).values({
     id: providerId,
+    teamId: "team_foundation",
     type: "github",
     name: `GitHub Worker Status ${suffix}`,
     appId: "123456",
@@ -41,6 +42,7 @@ export async function createClaimedCommentFixture() {
 
   await db.insert(gitInstallations).values({
     id: installationId,
+    teamId: "team_foundation",
     providerId,
     installationId: "9107",
     accountName: "example",

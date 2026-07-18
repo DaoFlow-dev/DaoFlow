@@ -10,7 +10,6 @@ import { basename, isAbsolute } from "node:path";
 import { db } from "../connection";
 import { deployments } from "../schema/deployments";
 import { environments, projects } from "../schema/projects";
-import { servers } from "../schema/servers";
 import { services } from "../schema/services";
 import {
   createDeploymentRecord,
@@ -49,6 +48,7 @@ import {
   validatePreviewDeploymentAuthorization,
   type PreviewAuthorization
 } from "../../preview-trust";
+import { getServerForTeam } from "./team-scoped-servers";
 
 export interface TriggerDeployInput {
   serviceId: string;
@@ -209,12 +209,7 @@ export async function triggerDeploy(input: TriggerDeployInput) {
   if (!targetServerId) {
     return { status: "no_server" as const };
   }
-  const [targetServer] = await db
-    .select()
-    .from(servers)
-    .where(eq(servers.id, targetServerId))
-    .limit(1);
-
+  const targetServer = await getServerForTeam(targetServerId, project.teamId);
   if (!targetServer) {
     return { status: "no_server" as const };
   }
@@ -435,6 +430,7 @@ export async function triggerDeploy(input: TriggerDeployInput) {
     requestedByUserId: input.requestedByUserId ?? null,
     requestedByEmail: input.requestedByEmail ?? null,
     requestedByRole: input.requestedByRole ?? null,
+    teamId: project.teamId,
     commandAuditAttemptId: input.commandAuditAttemptId,
     trigger: input.trigger ?? "user",
     steps: stepsForSourceType({

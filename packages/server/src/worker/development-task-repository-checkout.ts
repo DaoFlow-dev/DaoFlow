@@ -85,11 +85,11 @@ export function buildDevelopmentTaskCheckoutConfig(input: {
 
   return {
     projectId: input.project.id,
+    teamId: input.project.teamId,
     repoUrl: input.project.repoUrl ?? undefined,
     repoFullName: input.task.repoFullName ?? input.project.repoFullName ?? undefined,
     gitProviderId: input.project.gitProviderId ?? undefined,
-    gitInstallationId:
-      input.task.providerInstallationId ?? input.project.gitInstallationId ?? undefined,
+    gitInstallationId: input.project.gitInstallationId ?? undefined,
     branch: input.task.baseBranch ?? input.project.defaultBranch ?? "main",
     repositoryPreparation: readRepositoryPreparationConfig(projectConfig.repositoryPreparation)
   };

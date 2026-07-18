@@ -1,15 +1,12 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { trpc } from "@/lib/trpc";
+import { useSession } from "@/lib/auth-client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { GitBranch, Plus, Trash2, ExternalLink, Github } from "lucide-react";
 import { getInventoryBadgeVariant } from "../lib/tone-utils";
-import {
-  normalizeGitHubAppNameSegment,
-  trimTrailingSlash
-} from "./git-providers/git-provider-utils";
 import { GitHubProviderDialog } from "./git-providers/GitHubProviderDialog";
 import { GitLabProviderDialog } from "./git-providers/GitLabProviderDialog";
 
@@ -17,7 +14,8 @@ export default function GitProvidersTab() {
   const [showGitHubDialog, setShowGitHubDialog] = useState(false);
   const [showGitLabDialog, setShowGitLabDialog] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
-  const providers = trpc.gitProviders.useQuery();
+  const session = useSession();
+  const providers = trpc.gitProviders.useQuery(undefined, { enabled: Boolean(session.data) });
 
   const gitSetup = searchParams.get("git_setup");
   const gitError = searchParams.get("git_error");
@@ -139,10 +137,14 @@ function ProviderCard({
   const deleteMutation = trpc.deleteGitProvider.useMutation({
     onSuccess: onDeleted
   });
-  const githubInstallPath = normalizeGitHubAppNameSegment(provider.name);
-  const canRenderGitHubInstallLink =
-    provider.type === "github" && Boolean(provider.appId) && githubInstallPath.length > 0;
-  const gitlabBaseUrl = trimTrailingSlash(provider.baseUrl || "https://gitlab.com");
+  const startSetup = trpc.startGitProviderSetup.useMutation({
+    onSuccess: ({ authorizationUrl }) => {
+      window.location.assign(authorizationUrl);
+    }
+  });
+  const canStartSetup =
+    (provider.type === "github" && Boolean(provider.appId)) ||
+    (provider.type === "gitlab" && Boolean(provider.clientId));
 
   return (
     <Card>
@@ -174,26 +176,21 @@ function ProviderCard({
             : `Client ID: ${provider.clientId ?? "—"}`}
           {provider.baseUrl ? ` · ${provider.baseUrl}` : ""}
         </p>
-        {canRenderGitHubInstallLink ? (
-          <a
-            href={`https://github.com/apps/${githubInstallPath}/installations/new?state=gh_setup:${provider.id}`}
-            target="_blank"
-            rel="noopener noreferrer"
+        {canStartSetup ? (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => startSetup.mutate({ providerId: provider.id })}
+            disabled={startSetup.isPending}
+            data-testid={
+              provider.type === "github"
+                ? `git-provider-install-${provider.id}`
+                : `git-provider-connect-${provider.id}`
+            }
           >
-            <Button variant="outline" size="sm" data-testid={`git-provider-install-${provider.id}`}>
-              <ExternalLink size={12} className="mr-1" /> Install on GitHub
-            </Button>
-          </a>
-        ) : provider.type === "gitlab" && provider.clientId ? (
-          <a
-            href={`${gitlabBaseUrl}/oauth/authorize?client_id=${provider.clientId}&redirect_uri=${encodeURIComponent(window.location.origin + "/settings/git/callback")}&response_type=code&state=${provider.id}&scope=api`}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Button variant="outline" size="sm" data-testid={`git-provider-connect-${provider.id}`}>
-              <ExternalLink size={12} className="mr-1" /> Connect GitLab
-            </Button>
-          </a>
+            <ExternalLink size={12} className="mr-1" />
+            {provider.type === "github" ? "Install on GitHub" : "Connect GitLab"}
+          </Button>
         ) : null}
       </CardContent>
     </Card>

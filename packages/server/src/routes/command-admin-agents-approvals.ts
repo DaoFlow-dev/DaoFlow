@@ -15,6 +15,7 @@ import {
   throwOnOperationError,
   tokensManageProcedure
 } from "../trpc";
+import { requireActorTeamId } from "./team-scope";
 
 export const adminAgentApprovalRouter = t.router({
   createAgent: adminProcedure
@@ -91,8 +92,10 @@ export const adminAgentApprovalRouter = t.router({
       ])
     )
     .mutation(async ({ ctx, input }) => {
+      const teamId = await requireActorTeamId(ctx.session.user.id);
       const request = await createApprovalRequest({
         ...input,
+        teamId,
         ...getActorContext(ctx)
       });
 

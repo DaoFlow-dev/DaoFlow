@@ -1,5 +1,14 @@
-import { index, pgTable, text, timestamp, uniqueIndex, varchar } from "drizzle-orm/pg-core";
+import {
+  foreignKey,
+  index,
+  pgTable,
+  text,
+  timestamp,
+  uniqueIndex,
+  varchar
+} from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
+import { teams } from "./teams";
 
 /**
  * Git Providers — registered GitHub/GitLab App credentials.
@@ -9,6 +18,9 @@ export const gitProviders = pgTable(
   "git_providers",
   {
     id: varchar("id", { length: 32 }).primaryKey(),
+    teamId: varchar("team_id", { length: 32 })
+      .notNull()
+      .references(() => teams.id, { onDelete: "cascade" }),
     type: varchar("type", { length: 20 }).default("github").notNull(), // github | gitlab | bitbucket | gitea
     name: varchar("name", { length: 100 }).notNull(), // human-readable label
     appId: varchar("app_id", { length: 40 }), // GitHub App ID
@@ -22,8 +34,10 @@ export const gitProviders = pgTable(
     updatedAt: timestamp("updated_at").defaultNow().notNull()
   },
   (table) => [
+    index("git_providers_team_id_idx").on(table.teamId),
     index("git_providers_type_idx").on(table.type),
-    uniqueIndex("git_providers_name_idx").on(table.name)
+    uniqueIndex("git_providers_name_team_idx").on(table.name, table.teamId),
+    uniqueIndex("git_providers_id_team_id_idx").on(table.id, table.teamId)
   ]
 );
 
@@ -35,6 +49,9 @@ export const gitInstallations = pgTable(
   "git_installations",
   {
     id: varchar("id", { length: 32 }).primaryKey(),
+    teamId: varchar("team_id", { length: 32 })
+      .notNull()
+      .references(() => teams.id, { onDelete: "cascade" }),
     providerId: varchar("provider_id", { length: 32 })
       .notNull()
       .references(() => gitProviders.id, { onDelete: "cascade" }),
@@ -49,19 +66,76 @@ export const gitInstallations = pgTable(
     updatedAt: timestamp("updated_at").defaultNow().notNull()
   },
   (table) => [
+    foreignKey({
+      columns: [table.providerId, table.teamId],
+      foreignColumns: [gitProviders.id, gitProviders.teamId],
+      name: "git_installations_provider_id_team_id_git_providers_id_team_id_fk"
+    }),
+    index("git_installations_team_id_idx").on(table.teamId),
     index("git_installations_provider_id_idx").on(table.providerId),
-    uniqueIndex("git_installations_provider_install_idx").on(table.providerId, table.installationId)
+    uniqueIndex("git_installations_provider_install_idx").on(
+      table.providerId,
+      table.installationId
+    ),
+    uniqueIndex("git_installations_id_team_id_idx").on(table.id, table.teamId)
+  ]
+);
+
+/**
+ * Git provider setup states — one-time, short-lived callback binding records.
+ * The opaque state is the primary key and is consumed atomically by the callback.
+ */
+export const gitProviderSetupStates = pgTable(
+  "git_provider_setup_states",
+  {
+    id: varchar("id", { length: 32 }).primaryKey(),
+    teamId: varchar("team_id", { length: 32 })
+      .notNull()
+      .references(() => teams.id, { onDelete: "cascade" }),
+    providerId: varchar("provider_id", { length: 32 }).references(() => gitProviders.id, {
+      onDelete: "cascade"
+    }),
+    providerType: varchar("provider_type", { length: 20 }).notNull(),
+    action: varchar("action", { length: 40 }).notNull(),
+    callbackOrigin: varchar("callback_origin", { length: 255 }).notNull(),
+    initiatedByUserId: text("initiated_by_user_id").notNull(),
+    expiresAt: timestamp("expires_at").notNull(),
+    consumedAt: timestamp("consumed_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull()
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.providerId, table.teamId],
+      foreignColumns: [gitProviders.id, gitProviders.teamId],
+      name: "git_provider_setup_states_provider_id_team_id_git_providers_id_team_id_fk"
+    }).onDelete("cascade"),
+    index("git_provider_setup_states_team_id_idx").on(table.teamId),
+    index("git_provider_setup_states_provider_id_idx").on(table.providerId),
+    index("git_provider_setup_states_expires_at_idx").on(table.expiresAt),
+    index("git_provider_setup_states_initiated_by_user_id_idx").on(table.initiatedByUserId)
   ]
 );
 
 export const gitProvidersRelations = relations(gitProviders, ({ many }) => ({
-  installations: many(gitInstallations)
+  installations: many(gitInstallations),
+  setupStates: many(gitProviderSetupStates)
 }));
 
 export const gitInstallationsRelations = relations(gitInstallations, ({ one }) => ({
   provider: one(gitProviders, {
     fields: [gitInstallations.providerId],
     references: [gitProviders.id]
+  })
+}));
+
+export const gitProviderSetupStatesRelations = relations(gitProviderSetupStates, ({ one }) => ({
+  provider: one(gitProviders, {
+    fields: [gitProviderSetupStates.providerId],
+    references: [gitProviders.id]
+  }),
+  team: one(teams, {
+    fields: [gitProviderSetupStates.teamId],
+    references: [teams.id]
   })
 }));
 

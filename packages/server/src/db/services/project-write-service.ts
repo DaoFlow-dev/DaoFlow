@@ -49,6 +49,7 @@ export async function createProject(input: CreateProjectInput) {
     watchedPaths: input.webhookWatchedPaths
   });
   const sourceValidation = await validateProjectSourceReadiness({
+    teamId: input.teamId,
     repoUrl: input.repoUrl,
     repoFullName: input.repoFullName,
     gitProviderId: input.gitProviderId,
@@ -71,6 +72,9 @@ export async function createProject(input: CreateProjectInput) {
       status: "provider_unavailable" as const,
       message: sourceValidation.message
     };
+  }
+  if (sourceValidation.status === "not_found") {
+    return { status: "not_found" as const };
   }
 
   const projectId = id();
@@ -100,6 +104,10 @@ export async function createProject(input: CreateProjectInput) {
       updatedAt: new Date()
     })
     .returning();
+
+  if (!project) {
+    throw new Error("Project creation did not return the created record.");
+  }
 
   if (input.repositoryCredential !== undefined) {
     await replaceProjectRepositoryCredential({
@@ -216,6 +224,7 @@ export async function updateProject(input: UpdateProjectInput) {
 
   const sourceValidation = sourceFieldsTouched
     ? await validateProjectSourceReadiness({
+        teamId: existing.teamId,
         repoUrl: input.repoUrl ?? existing.repoUrl,
         repoFullName: input.repoFullName ?? existing.repoFullName,
         gitProviderId: input.gitProviderId ?? existing.gitProviderId,
@@ -240,6 +249,9 @@ export async function updateProject(input: UpdateProjectInput) {
       status: "provider_unavailable" as const,
       message: sourceValidation.message
     };
+  }
+  if (sourceValidation?.status === "not_found") {
+    return { status: "not_found" as const };
   }
 
   const updates: Partial<typeof projects.$inferInsert> = { updatedAt: new Date() };
@@ -300,6 +312,10 @@ export async function updateProject(input: UpdateProjectInput) {
     .set(updates)
     .where(eq(projects.id, input.projectId))
     .returning();
+
+  if (!project) {
+    throw new Error("Project update did not return the updated record.");
+  }
 
   if (input.repositoryCredential !== undefined) {
     await replaceProjectRepositoryCredential({

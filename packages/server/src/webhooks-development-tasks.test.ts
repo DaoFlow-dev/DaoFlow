@@ -45,6 +45,7 @@ async function createDevelopmentTaskWebhookFixture(input: {
 
   await db.insert(gitProviders).values({
     id: providerId,
+    teamId: "team_foundation",
     type: "github",
     name: `GitHub Development Task ${input.suffix}`,
     appId: input.githubAppCredentials ? "123456" : null,
@@ -56,6 +57,7 @@ async function createDevelopmentTaskWebhookFixture(input: {
 
   await db.insert(gitInstallations).values({
     id: installationId,
+    teamId: "team_foundation",
     providerId,
     installationId: input.externalInstallationId,
     accountName: "example",

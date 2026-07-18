@@ -8,6 +8,7 @@ import {
 
 type ProjectRow = {
   id?: string | null;
+  teamId?: string | null;
   repoFullName: string | null;
   repoUrl: string | null;
   gitProviderId: string | null;
@@ -79,6 +80,7 @@ export function buildRepositorySourceSnapshot(project: ProjectRow): ConfigSnapsh
   return {
     ...(hasRepositorySource ? { deploymentSource: "git-repository" } : {}),
     projectId: project.id ?? undefined,
+    teamId: project.teamId ?? undefined,
     repoFullName: project.repoFullName ?? undefined,
     repoUrl: project.repoUrl ?? undefined,
     gitProviderId: project.gitProviderId ?? undefined,

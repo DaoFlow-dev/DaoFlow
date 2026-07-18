@@ -537,6 +537,7 @@ describe("compose preview reconciliation", () => {
 
     await db.insert(gitProviders).values({
       id: providerId,
+      teamId: "team_foundation",
       type: "github",
       name: `Router Preview GC ${suffix}`,
       appId: "123456",
@@ -548,6 +549,7 @@ describe("compose preview reconciliation", () => {
 
     await db.insert(gitInstallations).values({
       id: installationId,
+      teamId: "team_foundation",
       providerId,
       installationId: "9901",
       accountName: "example",

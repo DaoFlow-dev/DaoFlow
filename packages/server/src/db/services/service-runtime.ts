@@ -83,27 +83,20 @@ function deriveContainerName(
 
 export async function resolveServiceRuntime(
   serviceId: string,
-  scope?: {
+  scope: {
     teamId: string;
     actor?: ServiceAccessActor;
     action?: string;
     permissionScope?: string;
   }
 ): Promise<ResolveServiceRuntimeResult> {
-  const service = scope
-    ? await getServiceForTeam({
-        serviceId,
-        teamId: scope.teamId,
-        actor: scope.actor,
-        action: scope.action,
-        permissionScope: scope.permissionScope
-      })
-    : await db
-        .select()
-        .from(services)
-        .where(eq(services.id, serviceId))
-        .limit(1)
-        .then((rows) => rows[0] ?? null);
+  const service = await getServiceForTeam({
+    serviceId,
+    teamId: scope.teamId,
+    actor: scope.actor,
+    action: scope.action,
+    permissionScope: scope.permissionScope
+  });
 
   if (!service) {
     return {
@@ -140,14 +133,14 @@ export async function resolveServiceRuntime(
     .where(eq(servers.id, deployment.targetServerId))
     .limit(1);
 
-  if (!server) {
+  if (!server || server.teamId !== scope.teamId) {
     return {
       status: "no_server",
-      message: `Target server ${deployment.targetServerId} could not be resolved.`
+      message: "Target server could not be resolved in this team."
     };
   }
 
-  const target = await resolveExecutionTarget(server, `obs_${deployment.id}`, scope?.teamId);
+  const target = await resolveExecutionTarget(server, `obs_${deployment.id}`, scope.teamId);
 
   if (service.sourceType === "compose") {
     const snapshot = asRecord(deployment.configSnapshot);

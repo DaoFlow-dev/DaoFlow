@@ -44,6 +44,7 @@ async function createPullRequestFixture() {
     .insert(gitProviders)
     .values({
       id: providerId,
+      teamId: "team_foundation",
       type: "github",
       name: `GitHub PR ${suffix}`,
       appId: "123456",
@@ -58,6 +59,7 @@ async function createPullRequestFixture() {
     .insert(gitInstallations)
     .values({
       id: installationId,
+      teamId: "team_foundation",
       providerId,
       installationId: "9107",
       accountName: "example",

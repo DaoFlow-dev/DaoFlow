@@ -10,6 +10,7 @@ import { requestAccessLogs } from "./db/schema/request-access-logs";
 import { deployments } from "./db/schema/deployments";
 import { gitInstallations, gitProviders } from "./db/schema/git-providers";
 import { projects } from "./db/schema/projects";
+import { servers } from "./db/schema/servers";
 import { teamInvites, teamMembers, teams } from "./db/schema/teams";
 import { apiTokens, principals } from "./db/schema/tokens";
 import { users } from "./db/schema/users";
@@ -283,6 +284,21 @@ async function resetAppTestState(input?: { seedControlPlane?: boolean }) {
   if (input?.seedControlPlane) {
     await ensureControlPlaneReady();
   }
+}
+
+async function addUserToFoundationTeam(email: string) {
+  await ensureControlPlaneReady();
+  const [user] = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.email, email))
+    .limit(1);
+  if (!user) throw new Error(`Expected signed-up user ${email}.`);
+  await db.insert(teamMembers).values({
+    teamId: "team_foundation",
+    userId: user.id,
+    role: "owner"
+  });
 }
 
 async function createAppComposeFixture(input: {
@@ -1236,6 +1252,7 @@ describe("createApp", () => {
         .getSetCookie?.()
         .find((cookie) => cookie.startsWith("better-auth.session_token=")) ??
       signUpResponse.headers.get("set-cookie")?.match(/better-auth\.session_token=[^;]+/)?.[0];
+    await addUserToFoundationTeam(ownerEmail);
 
     const response = await app.request("/api/v1/deploy/compose", {
       method: "POST",
@@ -1287,6 +1304,7 @@ describe("createApp", () => {
         .getSetCookie?.()
         .find((cookie) => cookie.startsWith("better-auth.session_token=")) ??
       signUpResponse.headers.get("set-cookie")?.match(/better-auth\.session_token=[^;]+/)?.[0];
+    await addUserToFoundationTeam(ownerEmail);
     const largeCompose =
       "services:\n  web:\n    image: nginx:alpine\n" + "# comment\n".repeat(10_000);
 
@@ -1477,6 +1495,7 @@ describe("createApp", () => {
 
     await db.insert(gitProviders).values({
       id: providerId,
+      teamId: "team_foundation",
       type: "github",
       name: `Webhook GitHub ${suffix}`,
       appId: "123456",
@@ -1488,6 +1507,7 @@ describe("createApp", () => {
 
     await db.insert(gitInstallations).values({
       id: installationId,
+      teamId: "team_foundation",
       providerId,
       installationId: "701",
       accountName: "example",
@@ -1579,6 +1599,7 @@ describe("createApp", () => {
 
     await db.insert(gitProviders).values({
       id: providerId,
+      teamId: "team_foundation",
       type: "github",
       name: `Webhook Drift ${suffix}`,
       appId: "123456",
@@ -1590,6 +1611,7 @@ describe("createApp", () => {
 
     await db.insert(gitInstallations).values({
       id: installationId,
+      teamId: "team_foundation",
       providerId,
       installationId: "702",
       accountName: "example",
@@ -1676,6 +1698,7 @@ describe("createApp", () => {
 
     await db.insert(gitProviders).values({
       id: providerId,
+      teamId: "team_foundation",
       type: "gitlab",
       name: `Webhook GitLab ${suffix}`,
       webhookSecret: "gitlab-webhook-secret",
@@ -1685,6 +1708,7 @@ describe("createApp", () => {
 
     await db.insert(gitInstallations).values({
       id: installationId,
+      teamId: "team_foundation",
       providerId,
       installationId: "703",
       accountName: "example",
@@ -1786,6 +1810,7 @@ describe("createApp", () => {
     await db.insert(gitProviders).values([
       {
         id: githubProviderId,
+        teamId: "team_foundation",
         type: "github",
         name: `Overlap GitHub ${suffix}`,
         appId: "123456",
@@ -1796,6 +1821,7 @@ describe("createApp", () => {
       },
       {
         id: gitlabProviderId,
+        teamId: "team_foundation",
         type: "gitlab",
         name: `Overlap GitLab ${suffix}`,
         webhookSecret: "overlap-gitlab-webhook-secret",
@@ -1807,6 +1833,7 @@ describe("createApp", () => {
     await db.insert(gitInstallations).values([
       {
         id: githubInstallationId,
+        teamId: "team_foundation",
         providerId: githubProviderId,
         installationId: "704",
         accountName: "example",
@@ -1818,6 +1845,7 @@ describe("createApp", () => {
       },
       {
         id: gitlabInstallationId,
+        teamId: "team_foundation",
         providerId: gitlabProviderId,
         installationId: "705",
         accountName: "example",
@@ -1948,6 +1976,7 @@ describe("createApp", () => {
     await db.insert(gitProviders).values([
       {
         id: gitlabComProviderId,
+        teamId: "team_foundation",
         type: "gitlab",
         name: `GitLab.com ${suffix}`,
         webhookSecret: "shared-gitlab-webhook-secret",
@@ -1956,6 +1985,7 @@ describe("createApp", () => {
       },
       {
         id: selfProviderId,
+        teamId: "team_foundation",
         type: "gitlab",
         name: `Self GitLab ${suffix}`,
         baseUrl: "https://gitlab.example.com/",
@@ -1968,6 +1998,7 @@ describe("createApp", () => {
     await db.insert(gitInstallations).values([
       {
         id: gitlabComInstallationId,
+        teamId: "team_foundation",
         providerId: gitlabComProviderId,
         installationId: "805",
         accountName: "example",
@@ -1980,6 +2011,7 @@ describe("createApp", () => {
       },
       {
         id: selfInstallationId,
+        teamId: "team_foundation",
         providerId: selfProviderId,
         installationId: "806",
         accountName: "example",
@@ -2151,7 +2183,6 @@ describe("createApp", () => {
   it("denies agent bearer tokens on GET /api/v1/container-stats for services outside the caller's team", async () => {
     await resetAppTestState({ seedControlPlane: true });
 
-    const fixture = await createServiceRuntimeFixture();
     await db.insert(teams).values({
       id: "team_obs_other",
       name: "Observability Other Team",
@@ -2161,16 +2192,42 @@ describe("createApp", () => {
       createdAt: new Date(),
       updatedAt: new Date()
     });
-    await db
-      .update(projects)
-      .set({ teamId: "team_obs_other" })
-      .where(eq(projects.id, fixture.projectId));
+    await db.insert(servers).values({
+      id: "srv_obs_other",
+      name: "observability-other-server",
+      host: "198.51.100.181",
+      region: "test",
+      teamId: "team_obs_other",
+      sshPort: 22,
+      kind: "docker-engine",
+      status: "pending host identity approval",
+      metadata: {},
+      registeredByUserId: "user_foundation_owner",
+      createdAt: new Date(),
+      updatedAt: new Date()
+    });
+    const fixture = await createProjectEnvironmentServiceFixture({
+      project: {
+        name: `obs-other-project-${Date.now()}`,
+        teamId: "team_obs_other"
+      },
+      environment: {
+        name: "production",
+        targetServerId: "srv_obs_other"
+      },
+      service: {
+        name: `obs-other-service-${Date.now()}`,
+        sourceType: "compose",
+        composeServiceName: "web",
+        targetServerId: "srv_obs_other"
+      }
+    });
 
     const app = createApp();
     const tokenValue = await createAgentBearerToken({ preset: "agent:read-only" });
     const readStatsSpy = vi.spyOn(serviceObservabilityWorker, "readServiceStats");
 
-    const response = await app.request(`/api/v1/container-stats/${fixture.serviceId}`, {
+    const response = await app.request(`/api/v1/container-stats/${fixture.service.id}`, {
       headers: {
         Authorization: `Bearer ${tokenValue}`
       }

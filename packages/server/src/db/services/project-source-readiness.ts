@@ -1,6 +1,6 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "../connection";
-import { gitProviders } from "../schema/git-providers";
+import { gitInstallations, gitProviders } from "../schema/git-providers";
 import { asRecord } from "./json-helpers";
 import {
   normalizeComposeFilePath,
@@ -31,6 +31,7 @@ export interface ProjectSourceReadiness {
 }
 
 export interface ProviderLinkedProjectSource {
+  teamId: string;
   repoFullName: string;
   gitProviderId: string;
   gitInstallationId: string;
@@ -66,10 +67,15 @@ export type ProjectSourceValidationResult =
       message: string;
     }
   | {
+      status: "not_found";
+      message: string;
+    }
+  | {
       status: "skipped";
     };
 
 type SourceValidationInput = {
+  teamId?: string | null;
   repoUrl?: string | null;
   repoFullName?: string | null;
   gitProviderId?: string | null;
@@ -133,12 +139,13 @@ function toProviderLinkedSource(
 ): { status: "ok"; source: ProviderLinkedProjectSource } | { status: "invalid"; message: string } {
   const gitProviderId = input.gitProviderId?.trim() ?? "";
   const gitInstallationId = input.gitInstallationId?.trim() ?? "";
+  const teamId = input.teamId?.trim() ?? "";
 
-  if (!input.repoFullName || !gitProviderId || !gitInstallationId) {
+  if (!input.repoFullName || !gitProviderId || !gitInstallationId || !teamId) {
     return {
       status: "invalid",
       message:
-        "Provider-linked repository sources require repoFullName, gitProviderId, and gitInstallationId."
+        "Provider-linked repository sources require teamId, repoFullName, gitProviderId, and gitInstallationId."
     };
   }
 
@@ -168,6 +175,7 @@ function toProviderLinkedSource(
   return {
     status: "ok",
     source: {
+      teamId,
       repoFullName: repoFullName.value,
       gitProviderId,
       gitInstallationId,
@@ -252,14 +260,37 @@ export async function validateProjectSourceReadiness(
     const [provider] = await db
       .select()
       .from(gitProviders)
-      .where(eq(gitProviders.id, sourceResult.source.gitProviderId))
+      .where(
+        and(
+          eq(gitProviders.id, sourceResult.source.gitProviderId),
+          eq(gitProviders.teamId, sourceResult.source.teamId)
+        )
+      )
       .limit(1);
 
     if (!provider) {
       return {
-        status: "invalid",
-        message: `Git provider ${sourceResult.source.gitProviderId} was not found.`,
-        readiness: null
+        status: "not_found",
+        message: `Git provider ${sourceResult.source.gitProviderId} was not found.`
+      };
+    }
+
+    const [installation] = await db
+      .select({ id: gitInstallations.id })
+      .from(gitInstallations)
+      .where(
+        and(
+          eq(gitInstallations.id, sourceResult.source.gitInstallationId),
+          eq(gitInstallations.providerId, provider.id),
+          eq(gitInstallations.teamId, sourceResult.source.teamId)
+        )
+      )
+      .limit(1);
+
+    if (!installation) {
+      return {
+        status: "not_found",
+        message: `Git installation ${sourceResult.source.gitInstallationId} was not found.`
       };
     }
 

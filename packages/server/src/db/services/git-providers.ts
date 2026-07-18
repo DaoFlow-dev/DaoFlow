@@ -4,7 +4,7 @@
  * Handles registration, listing, and token exchange for GitHub/GitLab Apps.
  */
 
-import { desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { db } from "../connection";
 import { gitProviders, gitInstallations } from "../schema/git-providers";
 import { auditEntries } from "../schema/audit";
@@ -15,6 +15,7 @@ import { decrypt, encrypt } from "../crypto";
 /* ──────────────────────── Interfaces ──────────────────────── */
 
 export interface RegisterGitProviderInput {
+  teamId: string;
   type: "github" | "gitlab";
   name: string;
   appId?: string;
@@ -29,6 +30,7 @@ export interface RegisterGitProviderInput {
 }
 
 export interface CreateInstallationInput {
+  teamId: string;
   providerId: string;
   installationId: string;
   accountName: string;
@@ -66,9 +68,12 @@ export interface GitInstallationSummary {
   updatedAt: Date;
 }
 
-type StoredInstallationPermissions =
-  | { accessTokenEncrypted: string; tokenType?: string }
-  | { access_token: string; token_type?: string };
+type StoredInstallationPermissions = {
+  accessTokenEncrypted: string;
+  refreshTokenEncrypted?: string;
+  tokenType?: string;
+  expiresAt?: string;
+};
 
 function toGitProviderSummary(row: typeof gitProviders.$inferSelect): GitProviderSummary {
   return {
@@ -103,36 +108,49 @@ function toGitInstallationSummary(
 
 export function encodeGitInstallationPermissions(input: {
   accessToken: string;
+  refreshToken?: string;
   tokenType?: string;
+  expiresAt?: string;
 }) {
   return JSON.stringify({
     accessTokenEncrypted: encrypt(input.accessToken),
-    tokenType: input.tokenType ?? "bearer"
+    ...(input.refreshToken ? { refreshTokenEncrypted: encrypt(input.refreshToken) } : {}),
+    tokenType: input.tokenType ?? "bearer",
+    ...(input.expiresAt ? { expiresAt: input.expiresAt } : {})
   } satisfies StoredInstallationPermissions);
+}
+
+export function readGitInstallationOAuthCredentials(
+  installation: Pick<typeof gitInstallations.$inferSelect, "permissions">
+): {
+  accessToken: string;
+  refreshToken: string | null;
+  tokenType: string;
+  expiresAt: string | null;
+} | null {
+  if (!installation.permissions) return null;
+
+  try {
+    const parsed = JSON.parse(installation.permissions) as StoredInstallationPermissions;
+    if (typeof parsed.accessTokenEncrypted !== "string") return null;
+    return {
+      accessToken: decrypt(parsed.accessTokenEncrypted),
+      refreshToken:
+        typeof parsed.refreshTokenEncrypted === "string"
+          ? decrypt(parsed.refreshTokenEncrypted)
+          : null,
+      tokenType: parsed.tokenType ?? "bearer",
+      expiresAt: typeof parsed.expiresAt === "string" ? parsed.expiresAt : null
+    };
+  } catch {
+    return null;
+  }
 }
 
 export function readGitInstallationAccessToken(
   installation: Pick<typeof gitInstallations.$inferSelect, "permissions">
 ): string | null {
-  if (!installation.permissions) {
-    return null;
-  }
-
-  try {
-    const parsed = JSON.parse(installation.permissions) as StoredInstallationPermissions;
-
-    if ("accessTokenEncrypted" in parsed && typeof parsed.accessTokenEncrypted === "string") {
-      return decrypt(parsed.accessTokenEncrypted);
-    }
-
-    if ("access_token" in parsed && typeof parsed.access_token === "string") {
-      return parsed.access_token;
-    }
-  } catch {
-    return null;
-  }
-
-  return null;
+  return readGitInstallationOAuthCredentials(installation)?.accessToken ?? null;
 }
 
 /* ──────────────────────── Git Providers ──────────────────────── */
@@ -144,6 +162,7 @@ export async function registerGitProvider(input: RegisterGitProviderInput) {
     .insert(gitProviders)
     .values({
       id: providerId,
+      teamId: input.teamId,
       type: input.type,
       name: input.name,
       appId: input.appId ?? null,
@@ -170,6 +189,7 @@ export async function registerGitProvider(input: RegisterGitProviderInput) {
     metadata: {
       resourceType: "git_provider",
       resourceId: providerId,
+      teamId: input.teamId,
       providerType: input.type
     }
   });
@@ -177,38 +197,50 @@ export async function registerGitProvider(input: RegisterGitProviderInput) {
   return { status: "ok" as const, provider, summary: toGitProviderSummary(provider) };
 }
 
-export async function listGitProviders() {
-  return db.select().from(gitProviders).orderBy(desc(gitProviders.createdAt));
+export async function listGitProviders(teamId: string) {
+  return db
+    .select()
+    .from(gitProviders)
+    .where(eq(gitProviders.teamId, teamId))
+    .orderBy(desc(gitProviders.createdAt));
 }
 
-export async function listGitProviderSummaries() {
-  const rows = await listGitProviders();
+export async function listGitProviderSummaries(teamId: string) {
+  const rows = await listGitProviders(teamId);
   return rows.map(toGitProviderSummary);
 }
 
-export async function getGitProvider(providerId: string) {
+export async function getGitProvider(providerId: string, teamId: string) {
   const [row] = await db
     .select()
     .from(gitProviders)
-    .where(eq(gitProviders.id, providerId))
+    .where(and(eq(gitProviders.id, providerId), eq(gitProviders.teamId, teamId)))
     .limit(1);
   return row ?? null;
 }
 
-export async function getGitInstallation(installationId: string) {
+export async function getGitInstallation(installationId: string, teamId: string) {
   const [row] = await db
     .select()
     .from(gitInstallations)
-    .where(eq(gitInstallations.id, installationId))
+    .where(and(eq(gitInstallations.id, installationId), eq(gitInstallations.teamId, teamId)))
     .limit(1);
   return row ?? null;
 }
 
 export async function deleteGitProvider(
   providerId: string,
+  teamId: string,
   actor: { requestedByUserId: string; requestedByEmail: string; requestedByRole: AppRole }
 ) {
-  await db.delete(gitProviders).where(eq(gitProviders.id, providerId));
+  const deleted = await db
+    .delete(gitProviders)
+    .where(and(eq(gitProviders.id, providerId), eq(gitProviders.teamId, teamId)))
+    .returning({ id: gitProviders.id });
+
+  if (!deleted[0]) {
+    return { status: "not_found" as const };
+  }
 
   await db.insert(auditEntries).values({
     actorType: "user",
@@ -219,7 +251,12 @@ export async function deleteGitProvider(
     action: "git_provider.delete",
     inputSummary: `Deleted git provider ${providerId}`,
     permissionScope: "server:write",
-    outcome: "success"
+    outcome: "success",
+    metadata: {
+      resourceType: "git_provider",
+      resourceId: providerId,
+      teamId
+    }
   });
 
   return { status: "ok" as const };
@@ -228,12 +265,18 @@ export async function deleteGitProvider(
 /* ──────────────────────── Installations ──────────────────────── */
 
 export async function createGitInstallation(input: CreateInstallationInput) {
+  const provider = await getGitProvider(input.providerId, input.teamId);
+  if (!provider) {
+    return { status: "not_found" as const };
+  }
+
   const now = new Date();
   const installId = id();
   const [installation] = await db
     .insert(gitInstallations)
     .values({
       id: installId,
+      teamId: input.teamId,
       providerId: input.providerId,
       installationId: input.installationId,
       accountName: input.accountName,
@@ -294,7 +337,9 @@ export async function createGitInstallation(input: CreateInstallationInput) {
     metadata: {
       resourceType: "git_installation",
       resourceId: installation.id,
-      providerId: input.providerId
+      teamId: input.teamId,
+      providerId: input.providerId,
+      externalInstallationId: input.installationId
     }
   });
 
@@ -305,17 +350,17 @@ export async function createGitInstallation(input: CreateInstallationInput) {
   };
 }
 
-export async function listGitInstallations(providerId?: string) {
+export async function listGitInstallations(teamId: string, providerId?: string) {
   const query = db.select().from(gitInstallations);
   if (providerId) {
     return query
-      .where(eq(gitInstallations.providerId, providerId))
+      .where(and(eq(gitInstallations.providerId, providerId), eq(gitInstallations.teamId, teamId)))
       .orderBy(desc(gitInstallations.createdAt));
   }
-  return query.orderBy(desc(gitInstallations.createdAt));
+  return query.where(eq(gitInstallations.teamId, teamId)).orderBy(desc(gitInstallations.createdAt));
 }
 
-export async function listGitInstallationSummaries(providerId?: string) {
-  const rows = await listGitInstallations(providerId);
+export async function listGitInstallationSummaries(teamId: string, providerId?: string) {
+  const rows = await listGitInstallations(teamId, providerId);
   return rows.map(toGitInstallationSummary);
 }
