@@ -38,6 +38,7 @@ import { db } from "../connection";
 import { auditEntries } from "../schema/audit";
 import { backupPolicies, backupRestores, backupRuns, volumes } from "../schema/storage";
 import { servers } from "../schema/servers";
+import { teams } from "../schema/teams";
 import { users } from "../schema/users";
 import { resetTestDatabase } from "../../test-db";
 import { BackupVerificationEligibilityError } from "./backup-restores";
@@ -50,6 +51,7 @@ function createFixtureSuffix() {
 async function createBackupPolicyFixture() {
   const suffix = createFixtureSuffix();
   const userId = `usrbk${suffix}`;
+  const teamId = `teambk${suffix}`;
   const serverId = `srvbk${suffix}`;
   const volumeId = `volbk${suffix}`;
   const policyId = `bpolbk${suffix}`;
@@ -67,10 +69,21 @@ async function createBackupPolicyFixture() {
     updatedAt: now
   });
 
+  await db.insert(teams).values({
+    id: teamId,
+    name: `Backup Fixture Team ${suffix}`,
+    slug: `backup-fixture-${suffix}`,
+    status: "active",
+    createdByUserId: userId,
+    createdAt: now,
+    updatedAt: now
+  });
+
   await db.insert(servers).values({
     id: serverId,
     name: `backup-fixture-${suffix}`,
     host: `backup-fixture-${suffix}.test`,
+    teamId,
     sshPort: 22,
     kind: "docker-engine",
     status: "ready",
@@ -219,7 +232,9 @@ describe("triggerBackupRun", () => {
       backupRunId: runId,
       triggeredBy: fixture.userId,
       targetPath: null,
-      mode: "verification"
+      mode: "verification",
+      testRestore: true,
+      approval: undefined
     });
 
     const [audit] = await db
