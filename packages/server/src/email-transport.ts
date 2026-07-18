@@ -24,7 +24,8 @@ import type { BetterAuthOptions } from "better-auth";
 // ---------------------------------------------------------------------------
 
 function buildSmtpSendEmail():
-  NonNullable<BetterAuthOptions["emailAndPassword"]>["sendResetPassword"] | null {
+  | NonNullable<BetterAuthOptions["emailAndPassword"]>["sendResetPassword"]
+  | null {
   const { SMTP_ADDRESS, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD, MAILER_FROM_ADDRESS } =
     process.env;
 
@@ -61,7 +62,8 @@ function buildSmtpSendEmail():
 // ---------------------------------------------------------------------------
 
 function buildResendSendEmail():
-  NonNullable<BetterAuthOptions["emailAndPassword"]>["sendResetPassword"] | null {
+  | NonNullable<BetterAuthOptions["emailAndPassword"]>["sendResetPassword"]
+  | null {
   const { RESEND_API_KEY, RESEND_FROM, RESEND_DOMAIN } = process.env;
 
   if (!RESEND_API_KEY) {
@@ -106,7 +108,8 @@ function buildResendSendEmail():
  * Prefers SMTP if both are set. Returns `undefined` if neither is configured.
  */
 export function resolveEmailSender():
-  NonNullable<BetterAuthOptions["emailAndPassword"]>["sendResetPassword"] | undefined {
+  | NonNullable<BetterAuthOptions["emailAndPassword"]>["sendResetPassword"]
+  | undefined {
   const smtp = buildSmtpSendEmail();
   if (smtp) {
     console.log(

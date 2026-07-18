@@ -79,7 +79,8 @@ export function PatchingPanel(props: {
   onPlan: () => void;
 }) {
   const result = props.latestPlan?.result as
-    { summary?: string; packageCount?: number } | undefined;
+    | { summary?: string; packageCount?: number }
+    | undefined;
   return (
     <Card>
       <CardHeader className="flex-row items-center justify-between">

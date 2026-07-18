@@ -18,7 +18,8 @@ const GITHUB_RUN_LABEL = "daoflow:run";
 const GITHUB_RUN_COMMAND = /(^|\n)\s*\/daoflow\s+run(?:\s|$)/i;
 
 type DevelopmentTaskTrigger =
-  { kind: "label"; externalCommentId?: never } | { kind: "comment"; externalCommentId: string };
+  | { kind: "label"; externalCommentId?: never }
+  | { kind: "comment"; externalCommentId: string };
 
 function readIssue(payload: GitHubPushEvent) {
   const issue = payload.issue;

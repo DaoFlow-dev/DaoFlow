@@ -195,9 +195,11 @@ describe("development task worker", () => {
 
     const claimed = await pollDevelopmentTaskQueue();
     const checkoutCall = checkoutMock.mock.calls[0]?.[0] as
-      { repoPath: string; artifactsPath: string } | undefined;
+      | { repoPath: string; artifactsPath: string }
+      | undefined;
     const validationCall = validationExecutionMock.mock.calls[0]?.[0] as
-      { allowedCommands?: string[] } | undefined;
+      | { allowedCommands?: string[] }
+      | undefined;
 
     expect(claimed?.task.id).toBe(queued.task.id);
     expect(checkoutMock).toHaveBeenCalledOnce();

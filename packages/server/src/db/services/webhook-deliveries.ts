@@ -16,7 +16,14 @@ import { asRecord, newId } from "./json-helpers";
 
 type ProviderType = "github" | "gitlab";
 type DeliveryStatus =
-  "processing" | "queued" | "ignored" | "rejected" | "failed" | "partial" | "deduped" | "mixed";
+  | "processing"
+  | "queued"
+  | "ignored"
+  | "rejected"
+  | "failed"
+  | "partial"
+  | "deduped"
+  | "mixed";
 type LifecycleOutcome = "queued" | "deduped" | "ignored" | "failed";
 
 export type WebhookDeliveryProviderType = ProviderType;

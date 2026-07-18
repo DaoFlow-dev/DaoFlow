@@ -137,12 +137,14 @@ export function mapInfrastructureServers(
     targetKind?: string | null;
   }>
 ): SetupServerOption[] {
-  return servers.map((server): SetupServerOption => ({
-    id: server.id,
-    name: server.name,
-    host: server.host ?? "unknown host",
-    targetKind: server.targetKind ?? "docker-engine"
-  }));
+  return servers.map(
+    (server): SetupServerOption => ({
+      id: server.id,
+      name: server.name,
+      host: server.host ?? "unknown host",
+      targetKind: server.targetKind ?? "docker-engine"
+    })
+  );
 }
 
 export function buildSetupWizardHandoff(input: {

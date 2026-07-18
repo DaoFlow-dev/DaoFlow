@@ -5,7 +5,12 @@ type PreviewEnvironmentRow = typeof previewEnvironments.$inferSelect;
 type DeploymentRow = typeof deployments.$inferSelect;
 
 export type PreviewLifecycleStatus =
-  "deploying" | "active" | "failed" | "stale" | "cleaning" | "cleaned_up";
+  | "deploying"
+  | "active"
+  | "failed"
+  | "stale"
+  | "cleaning"
+  | "cleaned_up";
 
 export function toPreviewStatus(input: {
   action: "deploy" | "destroy";

@@ -10,7 +10,11 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 
 export type RepositoryCredentialDraftKind =
-  "unchanged" | "clear" | "https_token" | "https_basic" | "ssh_key";
+  | "unchanged"
+  | "clear"
+  | "https_token"
+  | "https_basic"
+  | "ssh_key";
 
 function isRepositoryCredentialDraftKind(value: unknown): value is RepositoryCredentialDraftKind {
   return (

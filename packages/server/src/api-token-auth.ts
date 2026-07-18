@@ -36,7 +36,10 @@ export interface TokenBackedSession {
 }
 
 export type TokenAuthFailureCode =
-  "TOKEN_INVALID" | "TOKEN_REVOKED" | "TOKEN_EXPIRED" | "TOKEN_INVALIDATED";
+  | "TOKEN_INVALID"
+  | "TOKEN_REVOKED"
+  | "TOKEN_EXPIRED"
+  | "TOKEN_INVALIDATED";
 
 export interface TokenAuthFailure {
   code: TokenAuthFailureCode;

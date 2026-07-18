@@ -52,17 +52,19 @@ export function ServiceRolloutPanel() {
       statusTone?: string;
       statusLabel?: string;
     }>
-  ).map((service): ServiceOption => ({
-    id: service.id,
-    name: service.name,
-    projectId: service.projectId,
-    projectName: service.projectName ?? "Project",
-    environmentName: service.environmentName ?? "Environment",
-    sourceType: service.sourceType,
-    status: service.status,
-    statusTone: service.statusTone,
-    statusLabel: service.statusLabel
-  }));
+  ).map(
+    (service): ServiceOption => ({
+      id: service.id,
+      name: service.name,
+      projectId: service.projectId,
+      projectName: service.projectName ?? "Project",
+      environmentName: service.environmentName ?? "Environment",
+      sourceType: service.sourceType,
+      status: service.status,
+      statusTone: service.statusTone,
+      statusLabel: service.statusLabel
+    })
+  );
 
   useEffect(() => {
     if (!selectedServiceId && services.length > 0) {

@@ -153,7 +153,8 @@ describe("control-plane environment variables", () => {
 
     const [deletedEntry, updatedEntry, createdEntry] = entries;
     const deletedDiff = deletedEntry?.metadata as
-      { redactedDiff?: { before?: { value: string }; after: null } } | undefined;
+      | { redactedDiff?: { before?: { value: string }; after: null } }
+      | undefined;
     const updatedDiff = updatedEntry?.metadata as
       | {
           redactedDiff?: {
@@ -164,7 +165,8 @@ describe("control-plane environment variables", () => {
         }
       | undefined;
     const createdDiff = createdEntry?.metadata as
-      { redactedDiff?: { before: null; after?: { value: string } } } | undefined;
+      | { redactedDiff?: { before: null; after?: { value: string } } }
+      | undefined;
 
     expect(createdDiff?.redactedDiff?.before).toBeNull();
     expect(createdDiff?.redactedDiff?.after?.value).toBe("[secret]");
