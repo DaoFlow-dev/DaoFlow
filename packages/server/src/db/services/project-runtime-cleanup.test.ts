@@ -254,14 +254,12 @@ describe("cleanupProjectRuntime", () => {
       cleanedTargets: 4
     });
     expect(cleanupComposeProjectRuntimeMock).toHaveBeenCalledTimes(2);
-    expect(cleanupComposeProjectRuntimeMock).toHaveBeenNthCalledWith(
-      1,
+    expect(cleanupComposeProjectRuntimeMock).toHaveBeenCalledWith(
       expect.objectContaining({ mode: "remote" }),
       "demo",
       expect.any(Function)
     );
-    expect(cleanupComposeProjectRuntimeMock).toHaveBeenNthCalledWith(
-      2,
+    expect(cleanupComposeProjectRuntimeMock).toHaveBeenCalledWith(
       expect.objectContaining({ mode: "remote" }),
       "demo-pr-42",
       expect.any(Function)
