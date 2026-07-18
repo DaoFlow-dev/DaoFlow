@@ -22,6 +22,7 @@ export interface GitCloneOptions {
   sshPrivateKey?: string;
   repositoryPreparation?: RepositoryPreparationConfig;
   commitSha?: string;
+  signal?: AbortSignal;
 }
 
 /**
@@ -132,13 +133,33 @@ export async function gitClone(
     timestamp: new Date()
   });
 
-  const result = await execRunner(
-    "git",
-    ["clone", "--depth", "1", "--branch", branch, "--single-branch", "--", repoUrl, "."],
-    workDir,
-    onLog,
-    Object.keys(gitEnv).length > 0 ? gitEnv : undefined
-  );
+  const cloneArgs = [
+    "clone",
+    "--depth",
+    "1",
+    "--branch",
+    branch,
+    "--single-branch",
+    "--",
+    repoUrl,
+    "."
+  ];
+  const result = options?.signal
+    ? await execRunner(
+        "git",
+        cloneArgs,
+        workDir,
+        onLog,
+        Object.keys(gitEnv).length > 0 ? gitEnv : undefined,
+        { signal: options.signal }
+      )
+    : await execRunner(
+        "git",
+        cloneArgs,
+        workDir,
+        onLog,
+        Object.keys(gitEnv).length > 0 ? gitEnv : undefined
+      );
 
   if (result.exitCode !== 0) {
     return {
@@ -153,7 +174,7 @@ export async function gitClone(
       workDir,
       commitSha,
       onLog,
-      { gitConfigPath },
+      { gitConfigPath, signal: options?.signal },
       execRunner
     );
     if (pinnedCheckout.exitCode !== 0) {
@@ -170,7 +191,8 @@ export async function gitClone(
     onLog,
     {
       repositoryPreparation: options?.repositoryPreparation,
-      gitConfigPath
+      gitConfigPath,
+      signal: options?.signal
     },
     execRunner
   );

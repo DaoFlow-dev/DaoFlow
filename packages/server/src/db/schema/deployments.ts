@@ -80,6 +80,47 @@ export const deploymentLogs = pgTable(
   ]
 );
 
+export const deploymentBuildLeases = pgTable(
+  "deployment_build_leases",
+  {
+    deploymentId: varchar("deployment_id", { length: 32 })
+      .primaryKey()
+      .references(() => deployments.id, { onDelete: "cascade" }),
+    serverId: varchar("server_id", { length: 32 })
+      .notNull()
+      .references(() => servers.id, { onDelete: "cascade" }),
+    ownerToken: varchar("owner_token", { length: 64 }).notNull(),
+    acquiredAt: timestamp("acquired_at").defaultNow().notNull(),
+    heartbeatAt: timestamp("heartbeat_at").defaultNow().notNull(),
+    expiresAt: timestamp("expires_at").notNull()
+  },
+  (table) => [
+    index("deployment_build_leases_server_id_idx").on(table.serverId),
+    index("deployment_build_leases_server_expires_at_idx").on(table.serverId, table.expiresAt),
+    index("deployment_build_leases_expires_at_idx").on(table.expiresAt)
+  ]
+);
+
+export const deploymentQueueReservations = pgTable(
+  "deployment_queue_reservations",
+  {
+    id: varchar("id", { length: 32 }).primaryKey(),
+    serverId: varchar("server_id", { length: 32 })
+      .notNull()
+      .references(() => servers.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    expiresAt: timestamp("expires_at").notNull()
+  },
+  (table) => [
+    index("deployment_queue_reservations_server_id_idx").on(table.serverId),
+    index("deployment_queue_reservations_server_expires_at_idx").on(
+      table.serverId,
+      table.expiresAt
+    ),
+    index("deployment_queue_reservations_expires_at_idx").on(table.expiresAt)
+  ]
+);
+
 export const deploymentsRelations = relations(deployments, ({ one, many }) => ({
   project: one(projects, {
     fields: [deployments.projectId],
@@ -94,7 +135,11 @@ export const deploymentsRelations = relations(deployments, ({ one, many }) => ({
     references: [users.id]
   }),
   steps: many(deploymentSteps),
-  logs: many(deploymentLogs)
+  logs: many(deploymentLogs),
+  buildLease: one(deploymentBuildLeases, {
+    fields: [deployments.id],
+    references: [deploymentBuildLeases.deploymentId]
+  })
 }));
 
 export const deploymentStepsRelations = relations(deploymentSteps, ({ one }) => ({
@@ -110,3 +155,24 @@ export const deploymentLogsRelations = relations(deploymentLogs, ({ one }) => ({
     references: [deployments.id]
   })
 }));
+
+export const deploymentBuildLeasesRelations = relations(deploymentBuildLeases, ({ one }) => ({
+  deployment: one(deployments, {
+    fields: [deploymentBuildLeases.deploymentId],
+    references: [deployments.id]
+  }),
+  server: one(servers, {
+    fields: [deploymentBuildLeases.serverId],
+    references: [servers.id]
+  })
+}));
+
+export const deploymentQueueReservationsRelations = relations(
+  deploymentQueueReservations,
+  ({ one }) => ({
+    server: one(servers, {
+      fields: [deploymentQueueReservations.serverId],
+      references: [servers.id]
+    })
+  })
+);

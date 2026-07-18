@@ -45,7 +45,7 @@ Most operators edit only these values:
 | `DAOFLOW_CONTROL_PLANE_RECOVERY_VERIFIER_STORAGE_MB` | `4096`                       | Storage and memory ceiling for each isolated recovery verifier                                      |
 | `POSTGRES_PASSWORD`                                  | —                            | Password for the DaoFlow application database                                                       |
 | `TEMPORAL_POSTGRES_PASSWORD`                         | —                            | Password for Temporal's Postgres database                                                           |
-| `DEPLOY_TIMEOUT_MS`                                  | `600000`                     | Timeout for a single deployment execution                                                           |
+| `DEPLOY_TIMEOUT_MS`                                  | `86400000`                   | Max queue-wait and execution time; expiry aborts active work                                         |
 | `DAOFLOW_ENABLE_TEMPORAL`                            | `false`                      | Enables durable Temporal-backed orchestration                                                       |
 | `TEMPORAL_NAMESPACE`                                 | `daoflow`                    | Temporal namespace when Temporal mode is enabled                                                    |
 | `TEMPORAL_TASK_QUEUE`                                | `daoflow-deployments`        | Temporal task queue name                                                                            |

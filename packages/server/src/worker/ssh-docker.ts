@@ -15,11 +15,13 @@ export async function remoteDockerPull(
   target: SSHTarget,
   tag: string,
   onLog: OnLog,
-  registryCredentials: ContainerRegistryCredential[] = []
+  registryCredentials: ContainerRegistryCredential[] = [],
+  signal?: AbortSignal
 ): Promise<{ exitCode: number }> {
   const result = await execRemote(target, "sh", onLog, {
     preview: `docker pull ${tag}`,
-    stdin: buildRegistryAwareShellCommand(`docker pull ${shellQuote(tag)}`, registryCredentials)
+    stdin: buildRegistryAwareShellCommand(`docker pull ${shellQuote(tag)}`, registryCredentials),
+    signal
   });
   return { exitCode: result.exitCode };
 }
@@ -29,7 +31,8 @@ export async function remoteDockerRun(
   tag: string,
   containerName: string,
   options: { ports?: string[]; volumes?: string[]; env?: Record<string, string>; network?: string },
-  onLog: OnLog
+  onLog: OnLog,
+  signal?: AbortSignal
 ): Promise<{ exitCode: number }> {
   let cmd = `docker run -d --name ${shellQuote(containerName)} --restart unless-stopped`;
   if (options.network) cmd += ` --network ${shellQuote(options.network)}`;
@@ -39,7 +42,7 @@ export async function remoteDockerRun(
     cmd += ` -e ${shellQuote(`${k}=${val}`)}`;
   cmd += ` ${shellQuote(tag)}`;
 
-  const result = await execRemote(target, cmd, onLog);
+  const result = await execRemote(target, cmd, onLog, { signal });
   return { exitCode: result.exitCode };
 }
 
@@ -49,7 +52,8 @@ export async function remoteDockerBuild(
   dockerfile: string,
   tag: string,
   onLog: OnLog,
-  registryCredentials: ContainerRegistryCredential[] = []
+  registryCredentials: ContainerRegistryCredential[] = [],
+  signal?: AbortSignal
 ): Promise<{ exitCode: number }> {
   const scriptLines = [
     "set -e",
@@ -61,7 +65,8 @@ export async function remoteDockerBuild(
   ];
   const result = await execRemote(target, "sh", onLog, {
     preview: `docker build -t ${tag} -f ${dockerfile} .`,
-    stdin: scriptLines.join("\n")
+    stdin: scriptLines.join("\n"),
+    signal
   });
   return { exitCode: result.exitCode };
 }
@@ -88,9 +93,10 @@ export async function remoteGitClone(
 export async function remoteEnsureDir(
   target: SSHTarget,
   remoteDir: string,
-  onLog: OnLog
+  onLog: OnLog,
+  signal?: AbortSignal
 ): Promise<{ exitCode: number }> {
-  const result = await execRemote(target, `mkdir -p ${shellQuote(remoteDir)}`, onLog);
+  const result = await execRemote(target, `mkdir -p ${shellQuote(remoteDir)}`, onLog, { signal });
   return { exitCode: result.exitCode };
 }
 
@@ -98,17 +104,19 @@ export async function remoteExtractArchive(
   target: SSHTarget,
   archivePath: string,
   destinationDir: string,
-  onLog: OnLog
+  onLog: OnLog,
+  signal?: AbortSignal
 ): Promise<{ exitCode: number }> {
   const cmd = `mkdir -p ${shellQuote(destinationDir)} && tar -xzf ${shellQuote(archivePath)} -C ${shellQuote(destinationDir)}`;
-  const result = await execRemote(target, cmd, onLog);
+  const result = await execRemote(target, cmd, onLog, { signal });
   return { exitCode: result.exitCode };
 }
 
 export async function remoteCheckContainerHealth(
   target: SSHTarget,
   containerName: string,
-  onLog: OnLog
+  onLog: OnLog,
+  signal?: AbortSignal
 ): Promise<boolean> {
   let healthy = false;
   const result = await execRemote(
@@ -119,7 +127,8 @@ export async function remoteCheckContainerHealth(
       if (line.stream === "stdout" && line.message.trim() === "running") {
         healthy = true;
       }
-    }
+    },
+    { signal }
   );
   return result.exitCode === 0 && healthy;
 }

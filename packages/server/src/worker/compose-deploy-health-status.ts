@@ -33,7 +33,8 @@ export async function readComposeHealthStatuses(
   target: ExecutionTarget,
   envFile?: string,
   envExportFile?: string,
-  composeServiceName?: string
+  composeServiceName?: string,
+  signal?: AbortSignal
 ): Promise<ComposeHealthStatusResult> {
   return target.mode === "remote"
     ? remoteDockerComposePs(
@@ -44,24 +45,36 @@ export async function readComposeHealthStatuses(
         onLog,
         envFile,
         envExportFile,
-        composeServiceName
+        composeServiceName,
+        undefined,
+        signal
       )
-    : dockerComposePs(composeFile, projectName, workDir, onLog, envFile, composeServiceName);
+    : dockerComposePs(
+        composeFile,
+        projectName,
+        workDir,
+        onLog,
+        envFile,
+        composeServiceName,
+        undefined,
+        signal
+      );
 }
 
 export async function readSwarmHealthStatuses(
   stackName: string,
   workDir: string,
   onLog: OnLog,
-  target: ExecutionTarget
+  target: ExecutionTarget,
+  signal?: AbortSignal
 ): Promise<SwarmHealthStatusResult> {
   const [serviceResult, taskResult] = await Promise.all([
     target.mode === "remote"
-      ? remoteDockerStackServices(target.ssh, stackName, workDir, onLog)
-      : dockerStackServices(stackName, workDir, onLog),
+      ? remoteDockerStackServices(target.ssh, stackName, workDir, onLog, undefined, signal)
+      : dockerStackServices(stackName, workDir, onLog, undefined, signal),
     target.mode === "remote"
-      ? remoteDockerStackPs(target.ssh, stackName, workDir, onLog)
-      : dockerStackPs(stackName, workDir, onLog)
+      ? remoteDockerStackPs(target.ssh, stackName, workDir, onLog, undefined, signal)
+      : dockerStackPs(stackName, workDir, onLog, undefined, signal)
   ]);
 
   return {

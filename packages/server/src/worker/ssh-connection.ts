@@ -44,6 +44,7 @@ export interface SSHTarget {
 export interface ExecRemoteOptions {
   preview?: string;
   stdin?: string;
+  signal?: AbortSignal;
 }
 
 /**
@@ -176,7 +177,8 @@ export function execRemote(
     try {
       child = spawn(sshCommand, args, {
         stdio: [options?.stdin === undefined ? "ignore" : "pipe", "pipe", "pipe"],
-        env: withCommandPath(process.env)
+        env: withCommandPath(process.env),
+        signal: options?.signal
       });
     } catch (err) {
       reject(err instanceof Error ? err : new Error(String(err)));
@@ -276,7 +278,8 @@ export function scpUpload(
   target: SSHTarget,
   localPath: string,
   remotePath: string,
-  onLog: OnLog
+  onLog: OnLog,
+  signal?: AbortSignal
 ): Promise<{ exitCode: number; signal: string | null }> {
   return new Promise((resolve, reject) => {
     const transport = buildSSHTransportArgs(target, {
@@ -294,7 +297,8 @@ export function scpUpload(
     try {
       child = spawn(scpCommand, args, {
         stdio: ["ignore", "pipe", "pipe"],
-        env: withCommandPath(process.env)
+        env: withCommandPath(process.env),
+        signal
       });
     } catch (err) {
       reject(err instanceof Error ? err : new Error(String(err)));

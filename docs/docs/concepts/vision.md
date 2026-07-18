@@ -24,6 +24,18 @@ reproducible evidence record naming the tested commit and image tag. Operators s
 expected build, deployment, backup, log-retention, and application workload on their own target
 infrastructure before relying on it for production.
 
+Each deployment server defaults to one active image build and at most 20 queued deployments. Owners
+and admins can tune those limits per server. Build slots are durable across workers, abandoned slots
+expire, and image-only or runtime-only operations do not consume build capacity. Build work waits in
+oldest-first order, remains counted against the queue limit after a worker claims it, and exposes its
+position in the deployment dashboard. Queue admission is reserved before upload and managed-resource
+side effects; long uploads renew that reservation while bytes are still streaming. Worker and build
+lease heartbeats keep healthy long-running deployments from being mistaken for abandoned work.
+
+DaoFlow does not yet claim full Coolify or Dokploy breadth. Provider-native commit and pull-request or
+merge-request status, dedicated build-server placement, broader dashboard recovery flows, and deeper
+retention automation remain explicit production gaps.
+
 ## Why DaoFlow?
 
 Self-hosting should not require operators to assemble unrelated scripts for source control, builds, releases, logs, backups, and recovery. Existing platforms prove that a useful control plane can make these workflows approachable. DaoFlow builds on that lesson while making production safety and evidence part of the deployment model.

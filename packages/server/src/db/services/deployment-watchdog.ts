@@ -1,11 +1,12 @@
-import { and, asc, eq, inArray, isNull, lt } from "drizzle-orm";
+import { and, asc, eq, gt, inArray, isNull, lt, notExists } from "drizzle-orm";
 import { DeploymentConclusion, DeploymentLifecycleStatus } from "@daoflow/shared";
 import { db } from "../connection";
 import { auditEntries, events } from "../schema/audit";
-import { deploymentLogs, deployments } from "../schema/deployments";
+import { deploymentBuildLeases, deploymentLogs, deployments } from "../schema/deployments";
 import { asRecord, readStringArray } from "./json-helpers";
 
 const ACTIVE_DEPLOYMENT_STATUSES = [
+  DeploymentLifecycleStatus.Waiting,
   DeploymentLifecycleStatus.Prepare,
   DeploymentLifecycleStatus.Deploy,
   DeploymentLifecycleStatus.Finalize,
@@ -73,7 +74,18 @@ export async function listDeploymentWatchdogCandidates(input?: {
       and(
         inArray(deployments.status, [...ACTIVE_DEPLOYMENT_STATUSES]),
         isNull(deployments.concludedAt),
-        lt(deployments.updatedAt, staleBefore)
+        lt(deployments.updatedAt, staleBefore),
+        notExists(
+          db
+            .select({ deploymentId: deploymentBuildLeases.deploymentId })
+            .from(deploymentBuildLeases)
+            .where(
+              and(
+                eq(deploymentBuildLeases.deploymentId, deployments.id),
+                gt(deploymentBuildLeases.expiresAt, now)
+              )
+            )
+        )
       )
     )
     .orderBy(asc(deployments.updatedAt))
@@ -159,6 +171,20 @@ async function markDeploymentFailedByWatchdog(input: {
   };
 
   return db.transaction(async (tx) => {
+    const [liveBuildLease] = await tx
+      .select({ deploymentId: deploymentBuildLeases.deploymentId })
+      .from(deploymentBuildLeases)
+      .where(
+        and(
+          eq(deploymentBuildLeases.deploymentId, current.id),
+          gt(deploymentBuildLeases.expiresAt, input.now)
+        )
+      )
+      .limit(1);
+    if (liveBuildLease) {
+      return null;
+    }
+
     // Transition the deployment first (guarded) so evidence rows are never
     // written for a deployment another process already concluded.
     const [updated] = await tx

@@ -182,6 +182,34 @@ describe("buildComposeCommandEnv", () => {
 });
 
 describe("gitClone", () => {
+  it("forwards cancellation to clone, fetch, and checkout commands", async () => {
+    const collector = createLogCollector();
+    const deploymentId = "cancel-clone-checkout";
+    const controller = new AbortController();
+    const execRunner = vi.fn().mockResolvedValue({ exitCode: 0, signal: null });
+
+    try {
+      await gitClone(
+        "https://example.com/org/repo.git",
+        "main",
+        deploymentId,
+        collector.onLog,
+        {
+          commitSha: "abcdef1234567890abcdef1234567890abcdef12",
+          signal: controller.signal
+        },
+        execRunner
+      );
+
+      expect(execRunner).toHaveBeenCalledTimes(3);
+      for (const call of execRunner.mock.calls as Parameters<typeof execStreaming>[]) {
+        expect(call[5]?.signal).toBe(controller.signal);
+      }
+    } finally {
+      cleanupStagingDir(deploymentId);
+    }
+  });
+
   it("pins the checkout to a recorded commit when one is provided", async () => {
     const collector = createLogCollector();
     const deploymentId = "pin-commit-checkout";
@@ -337,6 +365,28 @@ describe("gitClone", () => {
 });
 
 describe("dockerComposePull", () => {
+  it("forwards cancellation to compose pull", async () => {
+    const collector = createLogCollector();
+    const controller = new AbortController();
+    const execRunner = vi.fn().mockResolvedValueOnce({ exitCode: 0, signal: null });
+
+    await dockerComposePull(
+      "compose.yaml",
+      "demo",
+      "/tmp/demo",
+      collector.onLog,
+      undefined,
+      undefined,
+      [],
+      execRunner,
+      controller.signal
+    );
+
+    expect((execRunner.mock.calls[0] as Parameters<typeof execStreaming>)[5]?.signal).toBe(
+      controller.signal
+    );
+  });
+
   it("scopes pull execution to the selected compose service", async () => {
     const collector = createLogCollector();
     process.env.PATH = "/usr/bin:/bin";
@@ -438,6 +488,28 @@ describe("dockerComposeBuild", () => {
 });
 
 describe("dockerComposeUp", () => {
+  it("forwards cancellation to compose up", async () => {
+    const collector = createLogCollector();
+    const controller = new AbortController();
+    const execRunner = vi.fn().mockResolvedValueOnce({ exitCode: 0, signal: null });
+
+    await dockerComposeUp(
+      "compose.yaml",
+      "demo",
+      "/tmp/demo",
+      collector.onLog,
+      undefined,
+      undefined,
+      [],
+      execRunner,
+      controller.signal
+    );
+
+    expect((execRunner.mock.calls[0] as Parameters<typeof execStreaming>)[5]?.signal).toBe(
+      controller.signal
+    );
+  });
+
   it("scopes up execution to the selected compose service", async () => {
     const collector = createLogCollector();
     process.env.PATH = "/usr/bin:/bin";
@@ -467,6 +539,7 @@ describe("dockerComposeUp", () => {
         "up",
         "-d",
         "--remove-orphans",
+        "--no-build",
         "api"
       ],
       "/tmp/demo",

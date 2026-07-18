@@ -1,4 +1,5 @@
 import {
+  check,
   index,
   integer,
   jsonb,
@@ -8,7 +9,7 @@ import {
   uniqueIndex,
   varchar
 } from "drizzle-orm/pg-core";
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 import { managedSshKeys } from "./access-assets";
 import { teams } from "./teams";
 import { users } from "./users";
@@ -31,6 +32,8 @@ export const servers = pgTable(
     sshPrivateKeyEncrypted: text("ssh_private_key_encrypted"),
     kind: varchar("kind", { length: 30 }).default("docker-engine").notNull(),
     status: varchar("status", { length: 30 }).default("pending verification").notNull(),
+    maxConcurrentBuilds: integer("max_concurrent_builds").default(1).notNull(),
+    maxQueuedDeployments: integer("max_queued_deployments").default(20).notNull(),
     dockerVersion: varchar("docker_version", { length: 40 }),
     composeVersion: varchar("compose_version", { length: 40 }),
     metadata: jsonb("metadata").default({}).notNull(),
@@ -47,7 +50,15 @@ export const servers = pgTable(
     index("servers_team_id_idx").on(table.teamId),
     index("servers_ssh_key_id_idx").on(table.sshKeyId),
     index("servers_region_idx").on(table.region),
-    index("servers_created_at_idx").on(table.createdAt)
+    index("servers_created_at_idx").on(table.createdAt),
+    check(
+      "servers_max_concurrent_builds_check",
+      sql`${table.maxConcurrentBuilds} between 1 and 20`
+    ),
+    check(
+      "servers_max_queued_deployments_check",
+      sql`${table.maxQueuedDeployments} between 1 and 500`
+    )
   ]
 );
 

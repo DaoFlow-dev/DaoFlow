@@ -37,7 +37,8 @@ export async function getDeploymentRecord(deploymentId: string, teamId?: string)
     index.serviceByKey.get(
       `${deployment.projectId}:${deployment.environmentId}:${deployment.serviceName}`
     ),
-    steps
+    steps,
+    index.queueByDeploymentId.get(deployment.id)
   );
 }
 
@@ -109,7 +110,8 @@ export async function listDeploymentRecords(
       index.serviceByKey.get(
         `${deployment.projectId}:${deployment.environmentId}:${deployment.serviceName}`
       ),
-      stepsByDeploymentId.get(deployment.id) ?? []
+      stepsByDeploymentId.get(deployment.id) ?? [],
+      index.queueByDeploymentId.get(deployment.id)
     )
   );
 

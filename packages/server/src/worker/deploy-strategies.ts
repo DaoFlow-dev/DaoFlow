@@ -39,6 +39,7 @@ import {
   type ConfigSnapshot
 } from "./step-management";
 import { throwIfDeploymentCancellationRequested } from "../db/services/deployment-execution-control";
+import { withDeploymentBuildLease } from "./deployment-build-lease";
 
 const HEALTH_CHECK_TIMEOUT_MS = 60_000;
 const HEALTH_CHECK_INTERVAL_MS = 3_000;
@@ -47,7 +48,8 @@ export async function executeDockerfileDeployment(
   config: ConfigSnapshot,
   containerName: string,
   onLog: OnLog,
-  target: ExecutionTarget
+  target: ExecutionTarget,
+  signal?: AbortSignal
 ): Promise<void> {
   const dockerfile = config.dockerfile ?? "Dockerfile";
   const buildContext = config.buildContext ?? ".";
@@ -74,7 +76,8 @@ export async function executeDockerfileDeployment(
     gitConfig: checkout.gitConfig,
     sshPrivateKey: checkout.sshPrivateKey,
     repositoryPreparation: checkout.repositoryPreparation,
-    commitSha: deployment.commitSha ?? undefined
+    commitSha: deployment.commitSha ?? undefined,
+    signal
   });
   if (cloneResult.exitCode !== 0) {
     await markStepFailed(cloneStepId, `git clone exited with code ${cloneResult.exitCode}`);
@@ -84,17 +87,28 @@ export async function executeDockerfileDeployment(
   if (target.mode === "remote") {
     const localArchivePath = getStagingArchivePath(deployment.id);
     const remoteArchivePath = `${target.remoteWorkDir}/${deployment.id}.tar.gz`;
-    const archiveResult = await createTarArchive(cloneResult.workDir, localArchivePath, onLog);
+    const archiveResult = await createTarArchive(
+      cloneResult.workDir,
+      localArchivePath,
+      onLog,
+      signal
+    );
     if (archiveResult.exitCode !== 0) {
       await markStepFailed(cloneStepId, `tar archive exited with code ${archiveResult.exitCode}`);
       throw new Error(`tar archive creation failed with exit code ${archiveResult.exitCode}`);
     }
-    const ensureDirResult = await remoteEnsureDir(target.ssh, target.remoteWorkDir, onLog);
+    const ensureDirResult = await remoteEnsureDir(target.ssh, target.remoteWorkDir, onLog, signal);
     if (ensureDirResult.exitCode !== 0) {
       await markStepFailed(cloneStepId, "Remote workspace preparation failed");
       throw new Error(`Failed to prepare remote workspace ${target.remoteWorkDir}.`);
     }
-    const uploadArchive = await scpUpload(target.ssh, localArchivePath, remoteArchivePath, onLog);
+    const uploadArchive = await scpUpload(
+      target.ssh,
+      localArchivePath,
+      remoteArchivePath,
+      onLog,
+      signal
+    );
     if (uploadArchive.exitCode !== 0) {
       await markStepFailed(cloneStepId, "Repository archive upload failed");
       throw new Error(`Failed to upload repository archive for deployment ${deployment.id}.`);
@@ -103,7 +117,8 @@ export async function executeDockerfileDeployment(
       target.ssh,
       remoteArchivePath,
       target.remoteWorkDir,
-      onLog
+      onLog,
+      signal
     );
     if (extractRemote.exitCode !== 0) {
       await markStepFailed(cloneStepId, "Repository archive extraction failed");
@@ -117,22 +132,28 @@ export async function executeDockerfileDeployment(
   // Step 2: Build
   const buildStepId = await createStep(deployment.id, "Build image", 2);
   await markStepRunning(buildStepId);
-  await transitionDeployment(deployment.id, "deploy");
 
   const absoluteContext = `${workDir}/${buildContext}`.replace("//", "/");
   const absoluteDockerfile = `${workDir}/${dockerfile}`.replace("//", "/");
 
-  const buildResult =
-    target.mode === "remote"
-      ? await remoteDockerBuild(
-          target.ssh,
-          absoluteContext,
-          absoluteDockerfile,
-          tag,
-          onLog,
-          registryCredentials
-        )
-      : await dockerBuild(absoluteContext, absoluteDockerfile, tag, onLog, registryCredentials);
+  const buildResult = await withDeploymentBuildLease({
+    deploymentId: deployment.id,
+    serverId: deployment.targetServerId,
+    onLog,
+    signal,
+    run: (signal) =>
+      target.mode === "remote"
+        ? remoteDockerBuild(
+            target.ssh,
+            absoluteContext,
+            absoluteDockerfile,
+            tag,
+            onLog,
+            registryCredentials,
+            signal
+          )
+        : dockerBuild(absoluteContext, absoluteDockerfile, tag, onLog, registryCredentials, signal)
+  });
   if (buildResult.exitCode !== 0) {
     await markStepFailed(buildStepId, `docker build exited with code ${buildResult.exitCode}`);
     throw new Error(`docker build failed with exit code ${buildResult.exitCode}`);
@@ -156,7 +177,8 @@ export async function executeDockerfileDeployment(
             env: config.env ?? {},
             network: config.network
           },
-          onLog
+          onLog,
+          signal
         )
       : await dockerRun(
           tag,
@@ -167,7 +189,8 @@ export async function executeDockerfileDeployment(
             env: config.env ?? {},
             network: config.network
           },
-          onLog
+          onLog,
+          signal
         );
   if (runResult.exitCode !== 0) {
     await markStepFailed(runStepId, `docker run exited with code ${runResult.exitCode}`);
@@ -183,7 +206,7 @@ export async function executeDockerfileDeployment(
   await throwIfDeploymentCancellationRequested(deployment.id);
 
   // Step 4: Health check
-  await waitForHealthy(deployment, containerName, onLog, target);
+  await waitForHealthy(deployment, containerName, onLog, target, signal);
 }
 
 export async function executeImageDeployment(
@@ -191,7 +214,8 @@ export async function executeImageDeployment(
   config: ConfigSnapshot,
   containerName: string,
   onLog: OnLog,
-  target: ExecutionTarget
+  target: ExecutionTarget,
+  signal?: AbortSignal
 ): Promise<void> {
   const tag = deployment.imageTag ?? "";
   if (!tag) {
@@ -210,8 +234,8 @@ export async function executeImageDeployment(
 
   const pullResult =
     target.mode === "remote"
-      ? await remoteDockerPull(target.ssh, tag, onLog, registryCredentials)
-      : await dockerPull(tag, onLog, registryCredentials);
+      ? await remoteDockerPull(target.ssh, tag, onLog, registryCredentials, signal)
+      : await dockerPull(tag, onLog, registryCredentials, signal);
   if (pullResult.exitCode !== 0) {
     await markStepFailed(pullStepId, `docker pull exited with code ${pullResult.exitCode}`);
     throw new Error(`docker pull failed with exit code ${pullResult.exitCode}`);
@@ -236,7 +260,8 @@ export async function executeImageDeployment(
             env: config.env ?? {},
             network: config.network
           },
-          onLog
+          onLog,
+          signal
         )
       : await dockerRun(
           tag,
@@ -247,7 +272,8 @@ export async function executeImageDeployment(
             env: config.env ?? {},
             network: config.network
           },
-          onLog
+          onLog,
+          signal
         );
   if (runResult.exitCode !== 0) {
     await markStepFailed(runStepId, `docker run exited with code ${runResult.exitCode}`);
@@ -263,7 +289,7 @@ export async function executeImageDeployment(
   await throwIfDeploymentCancellationRequested(deployment.id);
 
   // Step 3: Health check
-  await waitForHealthy(deployment, containerName, onLog, target);
+  await waitForHealthy(deployment, containerName, onLog, target, signal);
 }
 
 export async function executeNixpacksDeployment(
@@ -271,7 +297,8 @@ export async function executeNixpacksDeployment(
   config: ConfigSnapshot,
   containerName: string,
   onLog: OnLog,
-  target: ExecutionTarget
+  target: ExecutionTarget,
+  signal?: AbortSignal
 ): Promise<void> {
   const tag = `daoflow/${deployment.serviceName}:${deployment.commitSha ?? "latest"}`;
 
@@ -291,7 +318,8 @@ export async function executeNixpacksDeployment(
     gitConfig: checkout.gitConfig,
     sshPrivateKey: checkout.sshPrivateKey,
     repositoryPreparation: checkout.repositoryPreparation,
-    commitSha: deployment.commitSha ?? undefined
+    commitSha: deployment.commitSha ?? undefined,
+    signal
   });
   if (cloneResult.exitCode !== 0) {
     await markStepFailed(cloneStepId, `git clone exited with code ${cloneResult.exitCode}`);
@@ -302,7 +330,6 @@ export async function executeNixpacksDeployment(
 
   const buildStepId = await createStep(deployment.id, "Nixpacks build", 2);
   await markStepRunning(buildStepId);
-  await transitionDeployment(deployment.id, "deploy");
 
   const nixpacksArgs = ["build", cloneResult.workDir, "--name", tag];
   const envVars = config.env ?? {};
@@ -310,7 +337,14 @@ export async function executeNixpacksDeployment(
     nixpacksArgs.push("--env", `${key}=${value}`);
   }
 
-  const buildResult = await execStreaming("nixpacks", nixpacksArgs, STAGING_DIR, onLog);
+  const buildResult = await withDeploymentBuildLease({
+    deploymentId: deployment.id,
+    serverId: deployment.targetServerId,
+    onLog,
+    signal,
+    run: (signal) =>
+      execStreaming("nixpacks", nixpacksArgs, STAGING_DIR, onLog, undefined, { signal })
+  });
   if (buildResult.exitCode !== 0) {
     await markStepFailed(buildStepId, `nixpacks build exited with code ${buildResult.exitCode}`);
     throw new Error(`nixpacks build failed with exit code ${buildResult.exitCode}`);
@@ -333,7 +367,8 @@ export async function executeNixpacksDeployment(
             env: envVars,
             network: config.network
           },
-          onLog
+          onLog,
+          signal
         )
       : await dockerRun(
           tag,
@@ -344,7 +379,8 @@ export async function executeNixpacksDeployment(
             env: envVars,
             network: config.network
           },
-          onLog
+          onLog,
+          signal
         );
   if (runResult.exitCode !== 0) {
     await markStepFailed(runStepId, `docker run exited with code ${runResult.exitCode}`);
@@ -359,25 +395,27 @@ export async function executeNixpacksDeployment(
   await markStepComplete(runStepId, `Container ${containerName} started`);
   await throwIfDeploymentCancellationRequested(deployment.id);
 
-  await waitForHealthy(deployment, containerName, onLog, target);
+  await waitForHealthy(deployment, containerName, onLog, target, signal);
 }
 
 async function waitForHealthy(
   deployment: DeploymentRow,
   containerName: string,
   onLog: OnLog,
-  target: ExecutionTarget
+  target: ExecutionTarget,
+  signal?: AbortSignal
 ): Promise<void> {
   const healthStepId = await createStep(deployment.id, "Health check", 10);
   await markStepRunning(healthStepId);
 
   const start = Date.now();
   while (Date.now() - start < HEALTH_CHECK_TIMEOUT_MS) {
+    signal?.throwIfAborted();
     await throwIfDeploymentCancellationRequested(deployment.id);
     const healthy =
       target.mode === "remote"
-        ? await remoteCheckContainerHealth(target.ssh, containerName, onLog)
-        : await checkContainerHealth(containerName, onLog);
+        ? await remoteCheckContainerHealth(target.ssh, containerName, onLog, signal)
+        : await checkContainerHealth(containerName, onLog, signal);
     if (healthy) {
       await markStepComplete(healthStepId, `Container ${containerName} is healthy`);
       return;
@@ -397,7 +435,8 @@ export async function executeBuildpackDeployment(
   config: ConfigSnapshot,
   containerName: string,
   onLog: OnLog,
-  target: ExecutionTarget
+  target: ExecutionTarget,
+  signal?: AbortSignal
 ): Promise<void> {
   const tag = `daoflow/${deployment.serviceName}:${deployment.commitSha ?? "latest"}`;
   const builder = config.buildpackBuilder ?? "heroku/builder:24";
@@ -418,7 +457,8 @@ export async function executeBuildpackDeployment(
     gitConfig: checkout.gitConfig,
     sshPrivateKey: checkout.sshPrivateKey,
     repositoryPreparation: checkout.repositoryPreparation,
-    commitSha: deployment.commitSha ?? undefined
+    commitSha: deployment.commitSha ?? undefined,
+    signal
   });
   if (cloneResult.exitCode !== 0) {
     await markStepFailed(cloneStepId, `git clone exited with code ${cloneResult.exitCode}`);
@@ -429,7 +469,6 @@ export async function executeBuildpackDeployment(
 
   const buildStepId = await createStep(deployment.id, "Buildpack build", 2);
   await markStepRunning(buildStepId);
-  await transitionDeployment(deployment.id, "deploy");
 
   const packArgs: string[] = ["build", tag, "--builder", builder, "--path", cloneResult.workDir];
   const envVars = config.env ?? {};
@@ -437,7 +476,13 @@ export async function executeBuildpackDeployment(
     packArgs.push("--env", `${key}=${value}`);
   }
 
-  const buildResult = await execStreaming("pack", packArgs, STAGING_DIR, onLog);
+  const buildResult = await withDeploymentBuildLease({
+    deploymentId: deployment.id,
+    serverId: deployment.targetServerId,
+    onLog,
+    signal,
+    run: (signal) => execStreaming("pack", packArgs, STAGING_DIR, onLog, undefined, { signal })
+  });
   if (buildResult.exitCode !== 0) {
     await markStepFailed(buildStepId, `pack build exited with code ${buildResult.exitCode}`);
     throw new Error(`pack build failed with exit code ${buildResult.exitCode}`);
@@ -460,7 +505,8 @@ export async function executeBuildpackDeployment(
             env: envVars,
             network: config.network
           },
-          onLog
+          onLog,
+          signal
         )
       : await dockerRun(
           tag,
@@ -471,7 +517,8 @@ export async function executeBuildpackDeployment(
             env: envVars,
             network: config.network
           },
-          onLog
+          onLog,
+          signal
         );
   if (runResult.exitCode !== 0) {
     await markStepFailed(runStepId, `docker run exited with code ${runResult.exitCode}`);
@@ -486,5 +533,5 @@ export async function executeBuildpackDeployment(
   await markStepComplete(runStepId, `Container ${containerName} started`);
   await throwIfDeploymentCancellationRequested(deployment.id);
 
-  await waitForHealthy(deployment, containerName, onLog, target);
+  await waitForHealthy(deployment, containerName, onLog, target, signal);
 }

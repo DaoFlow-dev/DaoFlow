@@ -1,3 +1,4 @@
+import { Context } from "@temporalio/activity";
 import { eq } from "drizzle-orm";
 import { db } from "../../../db/connection";
 import { deployments } from "../../../db/schema/deployments";
@@ -8,6 +9,8 @@ import {
   claimDeploymentForExecution,
   claimNextQueuedDeploymentForExecution
 } from "../../../db/services/deployment-execution-control";
+
+const DEPLOYMENT_HEARTBEAT_INTERVAL_MS = 30_000;
 
 /**
  * Claim a queued deployment atomically and record an audit entry.
@@ -59,7 +62,18 @@ export async function runDeploymentActivity(
     throw new Error(`Deployment ${input.id} not found`);
   }
 
-  return runDeployment(deployment, "temporal-worker");
+  const activityContext = Context.current();
+  activityContext.heartbeat();
+  const heartbeatInterval = setInterval(
+    () => activityContext.heartbeat(),
+    DEPLOYMENT_HEARTBEAT_INTERVAL_MS
+  );
+
+  try {
+    return await runDeployment(deployment, "temporal-worker", activityContext.cancellationSignal);
+  } finally {
+    clearInterval(heartbeatInterval);
+  }
 }
 
 /**

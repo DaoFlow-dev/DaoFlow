@@ -194,7 +194,8 @@ describe("runDeployment", () => {
       expect.any(Function),
       expect.objectContaining({
         serverKind: "docker-swarm-manager"
-      })
+      }),
+      expect.any(AbortSignal)
     );
   });
 
@@ -210,7 +211,46 @@ describe("runDeployment", () => {
       expect.any(Object),
       expect.stringMatching(/^run-deployment-\d+-run-svc-\d+$/),
       expect.any(Function),
-      expect.any(Object)
+      expect.any(Object),
+      expect.any(AbortSignal)
     );
+  });
+
+  it("aborts deployment work when the execution deadline expires", async () => {
+    const deployment = await createDeploymentRecordFixture();
+    let strategySignal: AbortSignal | undefined;
+    executeComposeDeploymentMock.mockImplementationOnce(
+      async (...args: Parameters<typeof executeComposeDeploymentMock>) => {
+        strategySignal = args[5] as AbortSignal;
+        await new Promise<void>((_resolve, reject) => {
+          strategySignal?.addEventListener(
+            "abort",
+            () =>
+              reject(
+                strategySignal?.reason instanceof Error
+                  ? strategySignal.reason
+                  : new Error("Deployment execution cancelled.")
+              ),
+            { once: true }
+          );
+        });
+      }
+    );
+
+    const { runDeployment } = await import("./run-deployment");
+    await expect(runDeployment(deployment, "test-worker", undefined, 20)).rejects.toThrow(
+      "Deployment timed out after 0.02s"
+    );
+
+    const [updated] = await db
+      .select()
+      .from(deployments)
+      .where(eq(deployments.id, deployment.id))
+      .limit(1);
+
+    expect(strategySignal?.aborted).toBe(true);
+    expect(updated?.status).toBe("failed");
+    expect(updated?.conclusion).toBe("failed");
+    expect(cleanupStagingDirMock).toHaveBeenCalledWith(deployment.id);
   });
 });

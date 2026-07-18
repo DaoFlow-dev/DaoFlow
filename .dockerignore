@@ -1,5 +1,6 @@
 .git
 .github
+.pnpm-store
 .env
 .env.*
 **/.env

@@ -34,6 +34,7 @@ export async function resolveSwarmInternalNetworkTargets(
     tasks: SwarmTaskStatus[];
     onLog: OnLog;
     target: ExecutionTarget;
+    signal?: AbortSignal;
   },
   dependencies: {
     inspectLocalTaskAddresses?: LocalTaskAddressInspector;
@@ -54,8 +55,25 @@ export async function resolveSwarmInternalNetworkTargets(
 
     const result =
       input.target.mode === "remote"
-        ? await inspectRemoteTaskAddresses(input.target.ssh, task.id, input.workDir, input.onLog)
-        : await inspectLocalTaskAddresses(task.id, input.workDir, input.onLog);
+        ? input.signal
+          ? await inspectRemoteTaskAddresses(
+              input.target.ssh,
+              task.id,
+              input.workDir,
+              input.onLog,
+              undefined,
+              input.signal
+            )
+          : await inspectRemoteTaskAddresses(input.target.ssh, task.id, input.workDir, input.onLog)
+        : input.signal
+          ? await inspectLocalTaskAddresses(
+              task.id,
+              input.workDir,
+              input.onLog,
+              undefined,
+              input.signal
+            )
+          : await inspectLocalTaskAddresses(task.id, input.workDir, input.onLog);
 
     if (result.exitCode !== 0) {
       continue;

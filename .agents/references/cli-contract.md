@@ -72,6 +72,7 @@ This file holds the detailed CLI contract, scope map, and agent-facing command r
 | `approvals`                         | read/command           | any valid token, `approvals:decide`             | varies   |
 | `status`                            | read                   | `server:read`                                   | no       |
 | `server add`                        | command                | `server:write`                                  | yes      |
+| `server capacity`                   | command                | `server:write`                                  | yes      |
 | `server proxy`                      | command                | `server:write`                                  | yes      |
 | `server ops`                        | read/command           | `server:read`, `server:write`                   | varies   |
 | `tunnels`                           | read/command           | `server:read`, `server:write`                   | varies   |

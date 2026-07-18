@@ -446,6 +446,142 @@ describe("CLI JSON contract", () => {
     });
   });
 
+  test("server capacity in JSON mode requires confirmation and supports dry-run", async () => {
+    const program = new Command().name("daoflow");
+    program.addCommand(serverCommand());
+
+    const confirmation = await captureCommandExecution(async () => {
+      await program.parseAsync([
+        "node",
+        "daoflow",
+        "server",
+        "capacity",
+        "--server",
+        "srv_123",
+        "--max-concurrent-builds",
+        "1",
+        "--max-queued-deployments",
+        "20",
+        "--json"
+      ]);
+    });
+
+    expect(confirmation.exitCode).toBe(1);
+    expect(JSON.parse(confirmation.logs[0])).toEqual({
+      ok: false,
+      error: "Configure deployment capacity for server srv_123. Pass --yes to confirm.",
+      code: "CONFIRMATION_REQUIRED"
+    });
+
+    const dryRunProgram = new Command().name("daoflow");
+    dryRunProgram.addCommand(serverCommand());
+    const dryRun = await captureCommandExecution(async () => {
+      await dryRunProgram.parseAsync([
+        "node",
+        "daoflow",
+        "server",
+        "capacity",
+        "--server",
+        "srv_123",
+        "--max-concurrent-builds",
+        "2",
+        "--max-queued-deployments",
+        "50",
+        "--dry-run",
+        "--json"
+      ]);
+    });
+
+    expect(dryRun.exitCode).toBe(3);
+    expect(JSON.parse(dryRun.logs[0])).toEqual({
+      ok: true,
+      data: {
+        dryRun: true,
+        serverId: "srv_123",
+        maxConcurrentBuilds: 2,
+        maxQueuedDeployments: 50
+      }
+    });
+  });
+
+  test("server capacity forwards limits and returns the updated server", async () => {
+    const program = new Command().name("daoflow");
+    program.addCommand(serverCommand());
+    const originalFetch = globalThis.fetch;
+
+    const result = await withTempHome(async () => {
+      process.env.DAOFLOW_URL = "https://daoflow.test";
+      process.env.DAOFLOW_TOKEN = "dfl_test_token";
+      globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
+        const url =
+          typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+        expect(url).toContain("/trpc/configureServerCapacity");
+        const rawBody = typeof init?.body === "string" ? init.body : "";
+        expect(rawBody).toContain('"serverId":"srv_123"');
+        expect(rawBody).toContain('"maxConcurrentBuilds":2');
+        expect(rawBody).toContain('"maxQueuedDeployments":50');
+
+        return new Response(
+          JSON.stringify({
+            result: {
+              data: {
+                id: "srv_123",
+                name: "edge-vps-1",
+                host: "203.0.113.42",
+                region: "us-west-2",
+                sshPort: 22,
+                sshUser: "root",
+                sshKeyId: null,
+                kind: "docker-engine",
+                status: "ready",
+                dockerVersion: "29.0.0",
+                composeVersion: "2.35.0",
+                maxConcurrentBuilds: 2,
+                maxQueuedDeployments: 50
+              }
+            }
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } }
+        );
+      }) as unknown as typeof fetch;
+
+      try {
+        return await captureCommandExecution(async () => {
+          await program.parseAsync([
+            "node",
+            "daoflow",
+            "server",
+            "capacity",
+            "--server",
+            "srv_123",
+            "--max-concurrent-builds",
+            "2",
+            "--max-queued-deployments",
+            "50",
+            "--yes",
+            "--json"
+          ]);
+        });
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
+    });
+
+    expect(result.exitCode).toBeNull();
+    expect(JSON.parse(result.logs[0])).toEqual({
+      ok: true,
+      data: {
+        server: {
+          id: "srv_123",
+          name: "edge-vps-1",
+          host: "203.0.113.42",
+          maxConcurrentBuilds: 2,
+          maxQueuedDeployments: 50
+        }
+      }
+    });
+  });
+
   test("server add forwards registration input and returns readiness in the standard success envelope", async () => {
     const program = new Command().name("daoflow");
     program.addCommand(serverCommand());

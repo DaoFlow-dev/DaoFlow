@@ -27,22 +27,58 @@ export async function runComposeStopOperation(input: {
   onLog: OnLog;
   composeEnvFile?: string;
   composeEnvExportFile?: string;
+  signal?: AbortSignal;
 }): Promise<{ exitCode: number }> {
   if (input.swarmManagerTarget) {
-    return input.target.mode === "remote"
-      ? remoteDockerStackRemove(input.target.ssh, input.projectName, input.workDir, input.onLog)
+    if (input.target.mode === "remote") {
+      return input.signal
+        ? remoteDockerStackRemove(
+            input.target.ssh,
+            input.projectName,
+            input.workDir,
+            input.onLog,
+            undefined,
+            input.signal
+          )
+        : remoteDockerStackRemove(input.target.ssh, input.projectName, input.workDir, input.onLog);
+    }
+    return input.signal
+      ? dockerStackRemove(input.projectName, input.workDir, input.onLog, undefined, input.signal)
       : dockerStackRemove(input.projectName, input.workDir, input.onLog);
   }
 
-  return input.target.mode === "remote"
-    ? remoteDockerComposeDown(
-        input.target.ssh,
+  if (input.target.mode === "remote") {
+    return input.signal
+      ? remoteDockerComposeDown(
+          input.target.ssh,
+          input.composeFile,
+          input.projectName,
+          input.workDir,
+          input.onLog,
+          input.composeEnvFile,
+          input.composeEnvExportFile,
+          undefined,
+          input.signal
+        )
+      : remoteDockerComposeDown(
+          input.target.ssh,
+          input.composeFile,
+          input.projectName,
+          input.workDir,
+          input.onLog,
+          input.composeEnvFile,
+          input.composeEnvExportFile
+        );
+  }
+  return input.signal
+    ? dockerComposeDown(
         input.composeFile,
         input.projectName,
         input.workDir,
         input.onLog,
         input.composeEnvFile,
-        input.composeEnvExportFile
+        undefined,
+        input.signal
       )
     : dockerComposeDown(
         input.composeFile,
@@ -63,18 +99,46 @@ export async function runComposePullOperation(input: {
   composeEnvExportFile?: string;
   composeServiceName?: string;
   registryCredentials?: ContainerRegistryCredential[];
+  signal?: AbortSignal;
 }): Promise<{ exitCode: number }> {
-  return input.target.mode === "remote"
-    ? remoteDockerComposePull(
-        input.target.ssh,
+  if (input.target.mode === "remote") {
+    return input.signal
+      ? remoteDockerComposePull(
+          input.target.ssh,
+          input.composeFile,
+          input.projectName,
+          input.workDir,
+          input.onLog,
+          input.composeEnvFile,
+          input.composeEnvExportFile,
+          input.composeServiceName,
+          input.registryCredentials,
+          undefined,
+          input.signal
+        )
+      : remoteDockerComposePull(
+          input.target.ssh,
+          input.composeFile,
+          input.projectName,
+          input.workDir,
+          input.onLog,
+          input.composeEnvFile,
+          input.composeEnvExportFile,
+          input.composeServiceName,
+          input.registryCredentials
+        );
+  }
+  return input.signal
+    ? dockerComposePull(
         input.composeFile,
         input.projectName,
         input.workDir,
         input.onLog,
         input.composeEnvFile,
-        input.composeEnvExportFile,
         input.composeServiceName,
-        input.registryCredentials
+        input.registryCredentials,
+        undefined,
+        input.signal
       )
     : dockerComposePull(
         input.composeFile,
@@ -97,9 +161,11 @@ export async function runComposeBuildOperation(input: {
   composeEnvExportFile?: string;
   executionScope: ComposeExecutionScope;
   registryCredentials?: ContainerRegistryCredential[];
+  signal?: AbortSignal;
 }): Promise<{ exitCode: number }> {
-  return input.target.mode === "remote"
-    ? remoteDockerComposeBuild(
+  if (input.target.mode === "remote") {
+    if (input.signal) {
+      return remoteDockerComposeBuild(
         input.target.ssh,
         input.composeFile,
         input.projectName,
@@ -108,17 +174,46 @@ export async function runComposeBuildOperation(input: {
         input.composeEnvFile,
         input.composeEnvExportFile,
         input.executionScope.requestedServiceName ?? undefined,
-        input.registryCredentials
-      )
-    : dockerComposeBuild(
-        input.composeFile,
-        input.projectName,
-        input.workDir,
-        input.onLog,
-        input.composeEnvFile,
-        input.executionScope.requestedServiceName ?? undefined,
-        input.registryCredentials
+        input.registryCredentials,
+        undefined,
+        input.signal
       );
+    }
+    return remoteDockerComposeBuild(
+      input.target.ssh,
+      input.composeFile,
+      input.projectName,
+      input.workDir,
+      input.onLog,
+      input.composeEnvFile,
+      input.composeEnvExportFile,
+      input.executionScope.requestedServiceName ?? undefined,
+      input.registryCredentials
+    );
+  }
+
+  if (input.signal) {
+    return dockerComposeBuild(
+      input.composeFile,
+      input.projectName,
+      input.workDir,
+      input.onLog,
+      input.composeEnvFile,
+      input.executionScope.requestedServiceName ?? undefined,
+      input.registryCredentials,
+      undefined,
+      input.signal
+    );
+  }
+  return dockerComposeBuild(
+    input.composeFile,
+    input.projectName,
+    input.workDir,
+    input.onLog,
+    input.composeEnvFile,
+    input.executionScope.requestedServiceName ?? undefined,
+    input.registryCredentials
+  );
 }
 
 export async function runComposeStartOperation(input: {
@@ -132,18 +227,44 @@ export async function runComposeStartOperation(input: {
   composeEnvExportFile?: string;
   composeServiceName?: string;
   registryCredentials?: ContainerRegistryCredential[];
+  signal?: AbortSignal;
 }): Promise<{ exitCode: number }> {
   if (input.swarmManagerTarget) {
-    return input.target.mode === "remote"
-      ? remoteDockerStackDeploy(
-          input.target.ssh,
+    if (input.target.mode === "remote") {
+      return input.signal
+        ? remoteDockerStackDeploy(
+            input.target.ssh,
+            input.composeFile,
+            input.projectName,
+            input.workDir,
+            input.onLog,
+            input.composeEnvFile,
+            input.composeEnvExportFile,
+            input.registryCredentials,
+            undefined,
+            input.signal
+          )
+        : remoteDockerStackDeploy(
+            input.target.ssh,
+            input.composeFile,
+            input.projectName,
+            input.workDir,
+            input.onLog,
+            input.composeEnvFile,
+            input.composeEnvExportFile,
+            input.registryCredentials
+          );
+    }
+    return input.signal
+      ? dockerStackDeploy(
           input.composeFile,
           input.projectName,
           input.workDir,
           input.onLog,
           input.composeEnvFile,
-          input.composeEnvExportFile,
-          input.registryCredentials
+          input.registryCredentials,
+          undefined,
+          input.signal
         )
       : dockerStackDeploy(
           input.composeFile,
@@ -155,17 +276,44 @@ export async function runComposeStartOperation(input: {
         );
   }
 
-  return input.target.mode === "remote"
-    ? remoteDockerComposeUp(
-        input.target.ssh,
+  if (input.target.mode === "remote") {
+    return input.signal
+      ? remoteDockerComposeUp(
+          input.target.ssh,
+          input.composeFile,
+          input.projectName,
+          input.workDir,
+          input.onLog,
+          input.composeEnvFile,
+          input.composeEnvExportFile,
+          input.composeServiceName,
+          input.registryCredentials,
+          undefined,
+          input.signal
+        )
+      : remoteDockerComposeUp(
+          input.target.ssh,
+          input.composeFile,
+          input.projectName,
+          input.workDir,
+          input.onLog,
+          input.composeEnvFile,
+          input.composeEnvExportFile,
+          input.composeServiceName,
+          input.registryCredentials
+        );
+  }
+  return input.signal
+    ? dockerComposeUp(
         input.composeFile,
         input.projectName,
         input.workDir,
         input.onLog,
         input.composeEnvFile,
-        input.composeEnvExportFile,
         input.composeServiceName,
-        input.registryCredentials
+        input.registryCredentials,
+        undefined,
+        input.signal
       )
     : dockerComposeUp(
         input.composeFile,

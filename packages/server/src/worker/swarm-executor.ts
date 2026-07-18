@@ -19,7 +19,8 @@ export async function dockerStackDeploy(
   onLog: OnLog,
   envFile?: string,
   registryCredentials: ContainerRegistryCredential[] = [],
-  execRunner: ExecRunner = execStreaming
+  execRunner: ExecRunner = execStreaming,
+  signal?: AbortSignal
 ): Promise<{ exitCode: number }> {
   const executionEnv = prepareComposeCommandEnv(cwd, envFile);
   onLog({
@@ -48,8 +49,12 @@ export async function dockerStackDeploy(
   });
   const execOptions =
     execution.stdin === undefined
-      ? { inheritParentEnv: false }
-      : { inheritParentEnv: false, stdin: execution.stdin };
+      ? signal
+        ? { inheritParentEnv: false, signal }
+        : { inheritParentEnv: false }
+      : signal
+        ? { inheritParentEnv: false, stdin: execution.stdin, signal }
+        : { inheritParentEnv: false, stdin: execution.stdin };
 
   return execRunner(execution.command, execution.args, cwd, onLog, executionEnv.env, execOptions);
 }
@@ -58,7 +63,8 @@ export async function dockerStackRemove(
   stackName: string,
   cwd: string,
   onLog: OnLog,
-  execRunner: ExecRunner = execStreaming
+  execRunner: ExecRunner = execStreaming,
+  signal?: AbortSignal
 ): Promise<{ exitCode: number }> {
   const executionEnv = prepareComposeCommandEnv(cwd);
   onLog({
@@ -73,7 +79,8 @@ export async function dockerStackRemove(
   });
 
   return execRunner(dockerCommand, ["stack", "rm", stackName], cwd, onLog, executionEnv.env, {
-    inheritParentEnv: false
+    inheritParentEnv: false,
+    ...(signal ? { signal } : {})
   });
 }
 
@@ -81,7 +88,8 @@ export async function dockerStackServices(
   stackName: string,
   cwd: string,
   onLog: OnLog,
-  execRunner: ExecRunner = execStreaming
+  execRunner: ExecRunner = execStreaming,
+  signal?: AbortSignal
 ): Promise<{ exitCode: number; services: SwarmServiceStatus[] }> {
   const executionEnv = prepareComposeCommandEnv(cwd);
   onLog({
@@ -104,7 +112,7 @@ export async function dockerStackServices(
       onLog(line);
     },
     executionEnv.env,
-    { inheritParentEnv: false }
+    signal ? { inheritParentEnv: false, signal } : { inheritParentEnv: false }
   );
 
   return {
@@ -117,7 +125,8 @@ export async function dockerStackPs(
   stackName: string,
   cwd: string,
   onLog: OnLog,
-  execRunner: ExecRunner = execStreaming
+  execRunner: ExecRunner = execStreaming,
+  signal?: AbortSignal
 ): Promise<{ exitCode: number; tasks: SwarmTaskStatus[] }> {
   const executionEnv = prepareComposeCommandEnv(cwd);
   onLog({
@@ -140,7 +149,7 @@ export async function dockerStackPs(
       onLog(line);
     },
     executionEnv.env,
-    { inheritParentEnv: false }
+    signal ? { inheritParentEnv: false, signal } : { inheritParentEnv: false }
   );
 
   return {
@@ -162,7 +171,8 @@ export async function dockerInspectSwarmTaskNetworkAddresses(
   taskId: string,
   cwd: string,
   onLog: OnLog,
-  execRunner: ExecRunner = execStreaming
+  execRunner: ExecRunner = execStreaming,
+  signal?: AbortSignal
 ): Promise<{ exitCode: number; addresses: string[] }> {
   const executionEnv = prepareComposeCommandEnv(cwd);
   const stdoutLines: string[] = [];
@@ -186,7 +196,7 @@ export async function dockerInspectSwarmTaskNetworkAddresses(
       onLog(line);
     },
     executionEnv.env,
-    { inheritParentEnv: false }
+    signal ? { inheritParentEnv: false, signal } : { inheritParentEnv: false }
   );
 
   return {

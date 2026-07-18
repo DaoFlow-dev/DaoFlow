@@ -12,7 +12,7 @@ import {
   cleanupSwarmStackRuntime
 } from "../../worker/runtime-cleanup";
 
-const ACTIVE_DEPLOYMENT_STATUSES = new Set(["queued", "prepare", "deploy", "finalize"]);
+const ACTIVE_DEPLOYMENT_STATUSES = new Set(["queued", "waiting", "prepare", "deploy", "finalize"]);
 
 type RuntimeCleanupTask =
   | {

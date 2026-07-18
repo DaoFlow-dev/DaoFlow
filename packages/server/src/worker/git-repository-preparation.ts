@@ -3,6 +3,19 @@ import type { RepositoryPreparationConfig } from "../repository-preparation";
 
 type ExecRunner = typeof execStreaming;
 
+function runGitCommand(
+  execRunner: ExecRunner,
+  args: string[],
+  workDir: string,
+  onLog: OnLog,
+  envOverrides: Record<string, string> | undefined,
+  signal: AbortSignal | undefined
+) {
+  return signal
+    ? execRunner("git", args, workDir, onLog, envOverrides, { signal })
+    : execRunner("git", args, workDir, onLog, envOverrides);
+}
+
 function describeRepositoryPreparation(config: RepositoryPreparationConfig): string[] {
   const required: string[] = [];
   if (config.submodules) {
@@ -24,6 +37,7 @@ export async function checkoutPinnedGitCommit(
   onLog: OnLog,
   options: {
     gitConfigPath?: string | null;
+    signal?: AbortSignal;
   },
   execRunner: ExecRunner = execStreaming
 ): Promise<{ exitCode: number; errorMessage?: string }> {
@@ -37,12 +51,13 @@ export async function checkoutPinnedGitCommit(
     timestamp: new Date()
   });
 
-  const fetch = await execRunner(
-    "git",
+  const fetch = await runGitCommand(
+    execRunner,
     ["fetch", "--depth", "1", "origin", commitSha],
     workDir,
     onLog,
-    envOverrides
+    envOverrides,
+    options.signal
   );
   if (fetch.exitCode !== 0) {
     return {
@@ -51,12 +66,13 @@ export async function checkoutPinnedGitCommit(
     };
   }
 
-  const checkout = await execRunner(
-    "git",
+  const checkout = await runGitCommand(
+    execRunner,
     ["checkout", "--detach", commitSha],
     workDir,
     onLog,
-    envOverrides
+    envOverrides,
+    options.signal
   );
   if (checkout.exitCode !== 0) {
     return {
@@ -74,6 +90,7 @@ export async function prepareClonedRepository(
   options: {
     repositoryPreparation?: RepositoryPreparationConfig;
     gitConfigPath?: string | null;
+    signal?: AbortSignal;
   },
   execRunner: ExecRunner = execStreaming
 ): Promise<{ exitCode: number; errorMessage?: string }> {
@@ -97,7 +114,14 @@ export async function prepareClonedRepository(
   });
 
   if (repositoryPreparation.gitLfs) {
-    const lfsCheck = await execRunner("git", ["lfs", "version"], workDir, onLog, envOverrides);
+    const lfsCheck = await runGitCommand(
+      execRunner,
+      ["lfs", "version"],
+      workDir,
+      onLog,
+      envOverrides,
+      options.signal
+    );
     if (lfsCheck.exitCode !== 0) {
       return {
         exitCode: lfsCheck.exitCode,
@@ -113,12 +137,13 @@ export async function prepareClonedRepository(
       message: "Synchronizing git submodules recursively",
       timestamp: new Date()
     });
-    const sync = await execRunner(
-      "git",
+    const sync = await runGitCommand(
+      execRunner,
       ["submodule", "sync", "--recursive"],
       workDir,
       onLog,
-      envOverrides
+      envOverrides,
+      options.signal
     );
     if (sync.exitCode !== 0) {
       return {
@@ -132,12 +157,13 @@ export async function prepareClonedRepository(
       message: "Updating git submodules recursively",
       timestamp: new Date()
     });
-    const update = await execRunner(
-      "git",
+    const update = await runGitCommand(
+      execRunner,
       ["submodule", "update", "--init", "--recursive", "--depth", "1"],
       workDir,
       onLog,
-      envOverrides
+      envOverrides,
+      options.signal
     );
     if (update.exitCode !== 0) {
       return {
@@ -153,7 +179,14 @@ export async function prepareClonedRepository(
       message: "Pulling Git LFS objects",
       timestamp: new Date()
     });
-    const lfsPull = await execRunner("git", ["lfs", "pull"], workDir, onLog, envOverrides);
+    const lfsPull = await runGitCommand(
+      execRunner,
+      ["lfs", "pull"],
+      workDir,
+      onLog,
+      envOverrides,
+      options.signal
+    );
     if (lfsPull.exitCode !== 0) {
       return {
         exitCode: lfsPull.exitCode,
@@ -167,12 +200,13 @@ export async function prepareClonedRepository(
         message: "Pulling Git LFS objects for submodules",
         timestamp: new Date()
       });
-      const submoduleLfsPull = await execRunner(
-        "git",
+      const submoduleLfsPull = await runGitCommand(
+        execRunner,
         ["submodule", "foreach", "--recursive", "git lfs pull"],
         workDir,
         onLog,
-        envOverrides
+        envOverrides,
+        options.signal
       );
       if (submoduleLfsPull.exitCode !== 0) {
         return {

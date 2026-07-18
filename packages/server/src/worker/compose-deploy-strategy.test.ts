@@ -23,7 +23,8 @@ describe("executeComposeDeployment", () => {
       persistDeploymentComposeEnvState,
       dockerComposePull,
       dockerComposeBuild,
-      dockerComposeUp
+      dockerComposeUp,
+      withDeploymentBuildLease
     } = await loadHarness({
       buildPlan: createBuildPlan({
         strategy: "build-only",
@@ -35,6 +36,7 @@ describe("executeComposeDeployment", () => {
       {
         id: "dep_build_only",
         serviceName: "api",
+        targetServerId: "srv_build_only",
         envVarsEncrypted: null
       } as never,
       {
@@ -68,6 +70,16 @@ describe("executeComposeDeployment", () => {
     expect(dockerComposeBuild.mock.invocationCallOrder[0]).toBeLessThan(
       dockerComposeUp.mock.invocationCallOrder[0]
     );
+    const leaseInput = (
+      withDeploymentBuildLease.mock.calls as unknown as Array<
+        [{ deploymentId: string; serverId: string; run: unknown }]
+      >
+    )[0]?.[0];
+    expect(leaseInput).toMatchObject({
+      deploymentId: "dep_build_only",
+      serverId: "srv_build_only"
+    });
+    expect(leaseInput?.run).toEqual(expect.any(Function));
 
     const persistedState = persistDeploymentComposeEnvState.mock.calls[0]?.[0] as {
       deploymentId: string;
@@ -130,14 +142,19 @@ describe("executeComposeDeployment", () => {
   });
 
   it("pulls only the scoped service when the selected service has no build context", async () => {
-    const { executeComposeDeployment, dockerComposePull, dockerComposeBuild, dockerComposeUp } =
-      await loadHarness({
-        composeStatuses: [createHealthyStatus("worker")],
-        buildPlan: createBuildPlan({
-          strategy: "mixed",
-          services: [createLocalBuildService("api", "ghcr.io/example/api:stable")]
-        })
-      });
+    const {
+      executeComposeDeployment,
+      dockerComposePull,
+      dockerComposeBuild,
+      dockerComposeUp,
+      withDeploymentBuildLease
+    } = await loadHarness({
+      composeStatuses: [createHealthyStatus("worker")],
+      buildPlan: createBuildPlan({
+        strategy: "mixed",
+        services: [createLocalBuildService("api", "ghcr.io/example/api:stable")]
+      })
+    });
 
     await executeComposeDeployment(
       {
@@ -165,6 +182,7 @@ describe("executeComposeDeployment", () => {
       []
     );
     expect(dockerComposeBuild).not.toHaveBeenCalled();
+    expect(withDeploymentBuildLease).not.toHaveBeenCalled();
     expect(dockerComposeUp).toHaveBeenCalledWith(
       ".daoflow.compose.inputs/compose-01__deploy__compose.yaml.yaml",
       "demo",

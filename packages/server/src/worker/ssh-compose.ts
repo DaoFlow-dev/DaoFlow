@@ -62,7 +62,8 @@ export async function remoteDockerComposePull(
   envExportFile?: string,
   serviceName?: string,
   registryCredentials: ContainerRegistryCredential[] = [],
-  exec: typeof execRemote = execRemote
+  exec: typeof execRemote = execRemote,
+  signal?: AbortSignal
 ): Promise<{ exitCode: number }> {
   onLog({
     stream: "stdout",
@@ -84,7 +85,8 @@ export async function remoteDockerComposePull(
   });
   const result = await exec(target, execution.remoteCommand, onLog, {
     preview: execution.preview,
-    stdin: execution.stdin
+    stdin: execution.stdin,
+    signal
   });
   return { exitCode: result.exitCode };
 }
@@ -99,7 +101,8 @@ export async function remoteDockerComposeBuild(
   envExportFile?: string,
   serviceName?: string,
   registryCredentials: ContainerRegistryCredential[] = [],
-  exec: typeof execRemote = execRemote
+  exec: typeof execRemote = execRemote,
+  signal?: AbortSignal
 ): Promise<{ exitCode: number }> {
   onLog({
     stream: "stdout",
@@ -120,7 +123,8 @@ export async function remoteDockerComposeBuild(
   });
   const result = await exec(target, execution.remoteCommand, onLog, {
     preview: execution.preview,
-    stdin: execution.stdin
+    stdin: execution.stdin,
+    signal
   });
   return { exitCode: result.exitCode };
 }
@@ -135,7 +139,8 @@ export async function remoteDockerComposeUp(
   envExportFile?: string,
   serviceName?: string,
   registryCredentials: ContainerRegistryCredential[] = [],
-  exec: typeof execRemote = execRemote
+  exec: typeof execRemote = execRemote,
+  signal?: AbortSignal
 ): Promise<{ exitCode: number }> {
   onLog({
     stream: "stdout",
@@ -148,13 +153,14 @@ export async function remoteDockerComposeUp(
     workDir,
     envFile,
     envExportFile,
-    subcommand: "up -d --remove-orphans",
+    subcommand: "up -d --remove-orphans --no-build",
     serviceName,
     registryCredentials
   });
   const result = await exec(target, execution.remoteCommand, onLog, {
     preview: execution.preview,
-    stdin: execution.stdin
+    stdin: execution.stdin,
+    signal
   });
   return { exitCode: result.exitCode };
 }
@@ -168,7 +174,8 @@ export async function remoteDockerComposePs(
   envFile?: string,
   envExportFile?: string,
   serviceName?: string,
-  exec: typeof execRemote = execRemote
+  exec: typeof execRemote = execRemote,
+  signal?: AbortSignal
 ): Promise<{ exitCode: number; statuses: ComposeContainerStatus[] }> {
   onLog({
     stream: "stdout",
@@ -199,7 +206,8 @@ export async function remoteDockerComposePs(
     },
     {
       preview: execution.preview,
-      stdin: execution.stdin
+      stdin: execution.stdin,
+      signal
     }
   );
 
@@ -217,7 +225,8 @@ export async function remoteDockerComposeDown(
   onLog: OnLog,
   envFile?: string,
   envExportFile?: string,
-  exec: typeof execRemote = execRemote
+  exec: typeof execRemote = execRemote,
+  signal?: AbortSignal
 ): Promise<{ exitCode: number }> {
   onLog({
     stream: "stdout",
@@ -234,7 +243,8 @@ export async function remoteDockerComposeDown(
   });
   const result = await exec(target, execution.remoteCommand, onLog, {
     preview: execution.preview,
-    stdin: execution.stdin
+    stdin: execution.stdin,
+    signal
   });
   return { exitCode: result.exitCode };
 }

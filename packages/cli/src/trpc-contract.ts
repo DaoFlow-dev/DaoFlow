@@ -738,6 +738,8 @@ export interface RegisterServerOutput {
   status: string;
   dockerVersion: string | null;
   composeVersion: string | null;
+  maxConcurrentBuilds: number;
+  maxQueuedDeployments: number;
   metadata?: {
     managedTraefikProxy?: unknown;
     readinessCheck?: {
@@ -1469,6 +1471,14 @@ export interface DaoFlowTRPC {
       entrypoint?: string | null;
       certificateResolver?: string | null;
       dnsTarget?: string | null;
+    },
+    RegisterServerOutput
+  >;
+  configureServerCapacity: MutationProcedure<
+    {
+      serverId: string;
+      maxConcurrentBuilds: number;
+      maxQueuedDeployments: number;
     },
     RegisterServerOutput
   >;

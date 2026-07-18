@@ -26,7 +26,7 @@ import { resetAuthState } from "./auth";
 
 const { Client } = pg;
 const TEST_DB_PREPARE_LOCK_ID = 8_705_231;
-const MIN_EXPECTED_PUBLIC_TABLES = 45;
+const MIN_EXPECTED_PUBLIC_TABLES = 47;
 
 let prepared = false;
 let preparePromise: Promise<string> | null = null;
@@ -106,6 +106,9 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
       serviceScheduleRuns: string | null;
       previewEnvironments: string | null;
       deployments: string | null;
+      deploymentBuildLeases: string | null;
+      deploymentQueueReservations: string | null;
+      deploymentBuildLeaseOwnerToken: string | null;
       serviceVariables: string | null;
       gitProviders: string | null;
       gitProviderSetupStates: string | null;
@@ -116,6 +119,8 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
       developmentTasks: string | null;
       serverOperations: string | null;
       serversTeamId: string | null;
+      serversMaxConcurrentBuilds: string | null;
+      serversMaxQueuedDeployments: string | null;
       logDrains: string | null;
       logDrainsTeamId: string | null;
       managedSshKeys: string | null;
@@ -167,6 +172,9 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
         to_regclass('public.service_schedule_runs') AS "serviceScheduleRuns",
         to_regclass('public.preview_environments') AS "previewEnvironments",
         to_regclass('public.deployments') AS "deployments",
+        to_regclass('public.deployment_build_leases') AS "deploymentBuildLeases",
+        to_regclass('public.deployment_queue_reservations') AS "deploymentQueueReservations",
+        (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'deployment_build_leases' AND column_name = 'owner_token') AS "deploymentBuildLeaseOwnerToken",
         to_regclass('public.service_variables') AS "serviceVariables",
         to_regclass('public.git_providers') AS "gitProviders",
         to_regclass('public.git_provider_setup_states') AS "gitProviderSetupStates",
@@ -177,6 +185,8 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
         to_regclass('public.development_tasks') AS "developmentTasks"
         ,to_regclass('public.server_operations') AS "serverOperations",
         (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'servers' AND column_name = 'team_id') AS "serversTeamId",
+        (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'servers' AND column_name = 'max_concurrent_builds') AS "serversMaxConcurrentBuilds",
+        (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'servers' AND column_name = 'max_queued_deployments') AS "serversMaxQueuedDeployments",
         to_regclass('public.log_drains') AS "logDrains",
         (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'log_drains' AND column_name = 'team_id') AS "logDrainsTeamId",
         to_regclass('public.managed_ssh_keys') AS "managedSshKeys",
@@ -230,6 +240,9 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
       row.serviceScheduleRuns &&
       row.previewEnvironments &&
       row.deployments &&
+      row.deploymentBuildLeases &&
+      row.deploymentQueueReservations &&
+      row.deploymentBuildLeaseOwnerToken &&
       row.serviceVariables &&
       row.gitProviders &&
       row.gitProviderSetupStates &&
@@ -240,6 +253,8 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
       row.developmentTasks &&
       row.serverOperations &&
       row.serversTeamId &&
+      row.serversMaxConcurrentBuilds &&
+      row.serversMaxQueuedDeployments &&
       row.logDrains &&
       row.logDrainsTeamId &&
       row.managedSshKeys &&
@@ -326,6 +341,9 @@ async function readPoolSchemaState() {
     serviceScheduleRuns: string | null;
     previewEnvironments: string | null;
     deployments: string | null;
+    deploymentBuildLeases: string | null;
+    deploymentQueueReservations: string | null;
+    deploymentBuildLeaseOwnerToken: string | null;
     serviceVariables: string | null;
     gitProviders: string | null;
     gitProviderSetupStates: string | null;
@@ -336,6 +354,8 @@ async function readPoolSchemaState() {
     developmentTasks: string | null;
     serverOperations: string | null;
     serversTeamId: string | null;
+    serversMaxConcurrentBuilds: string | null;
+    serversMaxQueuedDeployments: string | null;
     logDrains: string | null;
     logDrainsTeamId: string | null;
     managedSshKeys: string | null;
@@ -386,6 +406,9 @@ async function readPoolSchemaState() {
       to_regclass('public.service_schedule_runs') AS "serviceScheduleRuns",
       to_regclass('public.preview_environments') AS "previewEnvironments",
       to_regclass('public.deployments') AS "deployments",
+      to_regclass('public.deployment_build_leases') AS "deploymentBuildLeases",
+      to_regclass('public.deployment_queue_reservations') AS "deploymentQueueReservations",
+      (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'deployment_build_leases' AND column_name = 'owner_token') AS "deploymentBuildLeaseOwnerToken",
       to_regclass('public.service_variables') AS "serviceVariables",
       to_regclass('public.git_providers') AS "gitProviders",
       to_regclass('public.git_provider_setup_states') AS "gitProviderSetupStates",
@@ -396,6 +419,8 @@ async function readPoolSchemaState() {
       to_regclass('public.development_tasks') AS "developmentTasks"
       ,to_regclass('public.server_operations') AS "serverOperations",
       (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'servers' AND column_name = 'team_id') AS "serversTeamId",
+      (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'servers' AND column_name = 'max_concurrent_builds') AS "serversMaxConcurrentBuilds",
+      (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'servers' AND column_name = 'max_queued_deployments') AS "serversMaxQueuedDeployments",
       to_regclass('public.log_drains') AS "logDrains",
       (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'log_drains' AND column_name = 'team_id') AS "logDrainsTeamId",
       to_regclass('public.managed_ssh_keys') AS "managedSshKeys",
@@ -460,6 +485,9 @@ async function ensurePooledTestSchemaReady(connectionString: string) {
         state.serviceScheduleRuns &&
         state.previewEnvironments &&
         state.deployments &&
+        state.deploymentBuildLeases &&
+        state.deploymentQueueReservations &&
+        state.deploymentBuildLeaseOwnerToken &&
         state.serviceVariables &&
         state.gitProviders &&
         state.gitProviderSetupStates &&
@@ -470,6 +498,8 @@ async function ensurePooledTestSchemaReady(connectionString: string) {
         state.developmentTasks &&
         state.serverOperations &&
         state.serversTeamId &&
+        state.serversMaxConcurrentBuilds &&
+        state.serversMaxQueuedDeployments &&
         state.logDrains &&
         state.logDrainsTeamId &&
         state.managedSshKeys &&

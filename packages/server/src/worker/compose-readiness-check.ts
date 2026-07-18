@@ -28,14 +28,20 @@ export async function runLocalComposeReadinessCheck(
   probe: ComposeReadinessProbeSnapshot,
   statuses: ComposeContainerStatus[],
   fetchImpl: typeof fetch = fetch,
-  execRunner: LocalExecRunner = execStreaming
+  execRunner: LocalExecRunner = execStreaming,
+  signal?: AbortSignal
 ): Promise<ComposeReadinessAttempt> {
   if (isPublishedPortProbe(probe)) {
-    return runLocalPublishedPortReadinessCheck(probe, fetchImpl);
+    return runLocalPublishedPortReadinessCheck(probe, fetchImpl, signal);
   }
 
-  const internalTargets = await resolveLocalInternalNetworkTargets(probe, statuses, execRunner);
-  return runLocalInternalNetworkReadinessCheck(probe, internalTargets, fetchImpl);
+  const internalTargets = await resolveLocalInternalNetworkTargets(
+    probe,
+    statuses,
+    execRunner,
+    signal
+  );
+  return runLocalInternalNetworkReadinessCheck(probe, internalTargets, fetchImpl, signal);
 }
 
 export async function runRemoteComposeReadinessCheck(
@@ -43,10 +49,11 @@ export async function runRemoteComposeReadinessCheck(
   probe: ComposeReadinessProbeSnapshot,
   statuses: ComposeContainerStatus[],
   onLog: OnLog,
-  exec: typeof execRemote = execRemote
+  exec: typeof execRemote = execRemote,
+  signal?: AbortSignal
 ): Promise<ComposeReadinessAttempt> {
   if (isPublishedPortProbe(probe)) {
-    return runRemotePublishedPortReadinessCheck(target, probe, onLog, exec);
+    return runRemotePublishedPortReadinessCheck(target, probe, onLog, exec, signal);
   }
 
   const internalTargets = await resolveRemoteInternalNetworkTargets(
@@ -54,7 +61,15 @@ export async function runRemoteComposeReadinessCheck(
     probe,
     statuses,
     onLog,
-    exec
+    exec,
+    signal
   );
-  return runRemoteInternalNetworkReadinessCheck(target, probe, internalTargets, onLog, exec);
+  return runRemoteInternalNetworkReadinessCheck(
+    target,
+    probe,
+    internalTargets,
+    onLog,
+    exec,
+    signal
+  );
 }

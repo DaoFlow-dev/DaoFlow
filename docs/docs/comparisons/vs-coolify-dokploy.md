@@ -2,71 +2,71 @@
 sidebar_position: 3
 ---
 
-# DaoFlow vs Coolify & Dokploy
+# DaoFlow vs Coolify and Dokploy
 
-Coolify and Dokploy are open-source, self-hosted PaaS platforms. Like DaoFlow, they let you deploy Docker applications on your own servers. The difference is that DaoFlow is built **agent-first** — designed from day one for AI coding agents to operate safely alongside humans.
+Coolify and Dokploy are the deployment-product references for DaoFlow. They demonstrate the breadth
+operators expect from a self-hosted platform: a capable dashboard, Git integrations, repeatable
+builds, deployment history, domains, databases, backups, and server maintenance.
 
-## The Core Difference
+DaoFlow is not positioned as feature-complete parity today. The immediate goal is narrower: make
+the production deployment loop dependable first, then close the most important dashboard and source
+control gaps without weakening permissions, audit evidence, or CLI contracts.
 
-**Coolify and Dokploy** are excellent UI-driven platforms for humans managing deployments through dashboards. Their APIs exist but are secondary to the GUI experience.
+## Current Product Truth
 
-**DaoFlow** is agent-driven. Every feature is designed so an AI coding agent can deploy, diagnose, and rollback infrastructure — with dedicated permission controls that prevent agents from accidentally wiping production data or leaking secrets.
+| Area                         | DaoFlow today                                                                                                                                      | Coolify and Dokploy reference point                                                            |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| Deployment sources           | Compose, Dockerfile, image, Nixpacks, and Buildpack paths share one deployment record and worker boundary                                          | Broad dashboard-driven source and build configuration                                          |
+| Small-server operation       | Lean control-plane profile validated at 1 vCPU / 1 GB; production guidance starts higher                                                           | Mature operational guidance and larger field experience                                        |
+| Build pressure               | Per-server build slots, oldest-first waiting, queue positions, same-service serialization, durable lease recovery, and image-only bypass           | Dokploy exposes per-server concurrent builds; Coolify supports separate build servers          |
+| Queue safety                 | Claimed waiters remain bounded, long uploads renew admission, and queue-full API and CLI errors are stable                                         | Mature queue and deployment-history UX                                                         |
+| GitHub                       | GitHub App setup, repository and branch sources, push deploys, approval-gated pull-request previews                                                | Mature GitHub App and pull-request deployment workflows                                        |
+| GitLab                       | GitLab.com and self-hosted GitLab OAuth, push deploys, merge-request previews, and host-isolated repository identity                               | Coolify has direct GitLab integration; Dokploy supports GitLab sources and webhook auto-deploy |
+| Provider-native build status | Deployment state is visible in DaoFlow; publishing complete commit/check status back to every GitHub and GitLab workflow is still a production gap | More established source-control feedback workflows                                             |
+| Web dashboard breadth        | Core server, project, service, deployment, backup, and capacity operations exist; breadth and polish still trail the reference products            | Clear current lead                                                                             |
+| CLI and automation           | Stable JSON envelopes, explicit scopes, confirmation, dry-run, and audit records                                                                   | Dashboard and API are the primary paths                                                        |
+| Templates and ecosystem      | Curated Compose-first catalog                                                                                                                      | Much broader template catalogs and community history                                           |
 
-## Comparison
+## What DaoFlow Is Copying Deliberately
 
-|                         | DaoFlow                                                                   | Coolify                    | Dokploy                        |
-| ----------------------- | ------------------------------------------------------------------------- | -------------------------- | ------------------------------ |
-| **Primary interface**   | CLI + API (agent-first), UI for humans                                    | Dashboard-first            | Dashboard-first                |
-| **AI agent support**    | Dedicated agent principals, scoped tokens, structured JSON, `--dry-run`   | No agent-specific features | No agent-specific features     |
-| **Permission model**    | 26 granular scopes, agent role, per-token scoping                         | Basic admin/member roles   | Basic user roles               |
-| **Secret protection**   | Masked by default, `secrets:read` scope required, never in logs           | Visible in dashboard       | Visible in dashboard           |
-| **Audit trail**         | Immutable audit log on every write — actor, action, timestamp, outcome    | Basic activity log         | Basic deployment history       |
-| **API design**          | Three lanes: read → planning → command (agents can't accidentally mutate) | Single API surface         | Single API with JWT auth       |
-| **CLI output**          | `--json` on every command, deterministic exit codes (0/1/2/3)             | No CLI                     | No CLI                         |
-| **Dry-run previews**    | Every mutating command supports `--dry-run`                               | Not available              | Not available                  |
-| **Approval gates**      | Built-in for high-risk operations (backup restore, production deploys)    | Not available              | Not available                  |
-| **Docker Compose**      | First-class, preserves original + resolved spec                           | Supported                  | Strong native support          |
-| **Docker Swarm**        | Manager registration plus stack deploy and rollback semantics             | Supported                  | Native integration             |
-| **One-click templates** | Curated Compose-first starter catalog with preview-before-apply flows     | 280+ templates             | 200+ templates                 |
-| **Monitoring**          | Structured event timeline + agent-ready summaries                         | Container metrics          | Real-time per-resource metrics |
-| **Backups**             | Typed policies, S3 storage, restore workflows with approval gates         | S3 backups                 | Unlimited S3 backups           |
+- **Per-server concurrency, not one global build switch.** Dokploy documents independent queues and
+  concurrency for each server, with a safe default of one build. DaoFlow follows that operational
+  model and also places a separate bound on queued deployments.
+- **Build work should be separable from runtime servers.** Coolify documents dedicated build servers.
+  DaoFlow does not yet claim equivalent build-server UX, but the worker and server-capacity boundaries
+  should preserve that direction.
+- **Disk cleanup must be an operator workflow.** Coolify documents automated Docker cleanup. DaoFlow
+  currently exposes cleanup preview and execution with durable operation history; scheduling and
+  policy depth remain areas to expand.
+- **Preview deployments are part of the source-control loop.** Dokploy documents GitHub pull-request
+  previews, while Coolify documents GitHub App and GitLab integrations. DaoFlow supports GitHub pull
+  requests and GitLab merge requests, with explicit approval and fork trust checks before deployment.
 
-## Why Agent Safety Matters
+## Remaining Production Gaps
 
-When an AI agent has access to your infrastructure, the permission model is critical:
+The highest-value gaps are not generic “feature parity” epics. They are concrete operator outcomes:
 
-```
-# Coolify / Dokploy: broad API access, no agent-specific guardrails
-# The agent can do anything the API token allows — no safety boundaries
+1. Publish clear queued, building, deployed, failed, and cancelled status back to GitHub commits and
+   pull requests and to GitLab commits and merge requests.
+2. Finish dedicated build-server placement and isolation so low-spec runtime servers can pull images
+   without compiling application source.
+3. Add policy-driven Docker image, build-cache, log, preview, and backup retention with conservative
+   defaults and reclaim previews.
+4. Continue closing dashboard gaps for deployment diagnosis, rollback, source configuration, and
+   recovery without requiring CLI-only knowledge.
+5. Expand real upgrade, failure, and low-resource testing before claiming broad production parity.
 
-# DaoFlow: dedicated agent principal with explicit scopes
-daoflow capabilities --json
-# → { "scopes": ["server:read", "deploy:read", "logs:read", "events:read"] }
-# Agent can observe everything but cannot deploy, modify env vars, or read secrets
-# until explicitly granted those scopes
+## Reference Documentation
 
-# Safe deployment workflow
-daoflow deploy --service svc_my_app --dry-run  # Preview first
-daoflow deploy --service svc_my_app --yes      # Execute with confirmation
-```
+- [Dokploy concurrent builds](https://docs.dokploy.com/docs/core/concurrent-builds)
+- [Dokploy preview deployments](https://docs.dokploy.com/docs/core/applications/preview-deployments)
+- [Dokploy GitLab integration](https://docs.dokploy.com/docs/core/gitlab)
+- [Coolify build servers](https://coolify.io/docs/knowledge-base/server/build-server)
+- [Coolify automated Docker cleanup](https://coolify.io/docs/knowledge-base/server/automated-cleanup)
+- [Coolify GitHub App setup](https://coolify.io/docs/applications/ci-cd/github/setup-app)
+- [Coolify GitLab integration](https://coolify.io/docs/applications/ci-cd/gitlab/integration)
 
-## When to Choose DaoFlow
-
-- You use **AI coding agents** (Cursor, Copilot, custom) to manage infrastructure
-- You need **fine-grained permissions** — not just admin/member, but scoped capabilities
-- You want agents that can **observe and plan without accidentally mutating** production
-- You want curated **Compose-first starter templates** that still land as normal DaoFlow plans
-- **Secret protection** is critical — agents should never see production credentials unless explicitly authorized
-- You need an **immutable audit trail** of every action taken by humans and agents
-- You want **approval gates** for dangerous operations like backup restores
-
-## When to Choose Coolify or Dokploy
-
-- You manage infrastructure **manually through a dashboard** and don't use AI agents
-- You need **Docker Swarm** clustering today with real stack deploy semantics (DaoFlow currently
-  still trails the ecosystem on broader cluster UX and ecosystem maturity)
-- You prefer a **mature ecosystem** with larger community and extensive templates
-
-## The DaoFlow Advantage
-
-DaoFlow gives you the self-hosting benefits of Coolify and Dokploy — own your infrastructure, no vendor lock-in, open source — plus dedicated agent-safety features that let your AI fully empower your DevOps without worrying about wiping out production data or leaking production credentials.
+Choose Coolify or Dokploy today when dashboard breadth, template breadth, and ecosystem maturity are
+the deciding factors. Choose DaoFlow when its current deployment paths meet the workload and the
+team values stricter permissions, durable audit evidence, and a first-class CLI enough to accept the
+remaining breadth gaps.

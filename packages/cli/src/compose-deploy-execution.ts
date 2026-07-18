@@ -1,6 +1,6 @@
 import { createReadStream, statSync, unlinkSync } from "node:fs";
 import { basename } from "node:path";
-import { ApiClient, ApiError } from "./api-client";
+import { ApiClient } from "./api-client";
 import { emitJsonSuccess } from "./command-helpers";
 import { analyzeComposeInputs } from "./compose-input-analysis";
 import { parseSizeString } from "./config-loader";
@@ -26,26 +26,20 @@ export async function executeComposeDeploy(
   await executeRemoteComposeDeploy(composeContent, options);
 }
 
-function executeRemoteComposeDeploy(
+async function executeRemoteComposeDeploy(
   composeContent: string,
   options: ComposeDeployCoreOptions
 ): Promise<void> {
   const api = new ApiClient();
-  return api
-    .post<{
-      ok: boolean;
-      deploymentId: string;
-    }>("/api/v1/deploy/compose", {
-      server: options.serverId,
-      compose: composeContent,
-      project: deriveProjectName(options.composePath, composeContent)
-    })
-    .then((response) => {
-      renderQueuedDeployment(response.deploymentId, options);
-    })
-    .catch((error) => {
-      throw normalizeDeployError(error);
-    });
+  const response = await api.post<{
+    ok: boolean;
+    deploymentId: string;
+  }>("/api/v1/deploy/compose", {
+    server: options.serverId,
+    compose: composeContent,
+    project: deriveProjectName(options.composePath, composeContent)
+  });
+  renderQueuedDeployment(response.deploymentId, options);
 }
 
 async function uploadContextBundle(
@@ -84,8 +78,6 @@ async function uploadContextBundle(
     )) as { ok: boolean; deploymentId: string };
 
     renderQueuedDeployment(response.deploymentId, options);
-  } catch (error) {
-    throw normalizeDeployError(error);
   } finally {
     try {
       unlinkSync(bundle.tarPath);
@@ -103,19 +95,6 @@ function deriveProjectName(composePath: string, composeContent: string): string 
 
   const fileName = basename(composePath).replace(/\.(ya?ml)$/i, "");
   return fileName || "uploaded-compose";
-}
-
-function normalizeDeployError(error: unknown): Error {
-  if (error instanceof ApiError) {
-    try {
-      const body = JSON.parse(error.body) as { error?: string };
-      return new Error(body.error ?? error.message);
-    } catch {
-      return new Error(error.body || error.message);
-    }
-  }
-
-  return error instanceof Error ? error : new Error(String(error));
 }
 
 function renderQueuedDeployment(deploymentId: string, options: ComposeDeployCoreOptions): void {

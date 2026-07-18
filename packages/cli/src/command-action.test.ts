@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { Command } from "commander";
+import { ApiError } from "./api-client";
 import { runCommandAction } from "./command-action";
 
 class ExitSignal extends Error {
@@ -105,6 +106,48 @@ describe("runCommandAction", () => {
       code: "SCOPE_DENIED",
       requiredScopes: ["deploy:start"],
       grantedScopes: ["deploy:read"]
+    });
+  });
+
+  test("preserves stable domain codes from nested tRPC errors", async () => {
+    const command = new Command("deploy");
+    command.setOptionValue("json", true);
+
+    const result = await captureExecution(async () => {
+      await runCommandAction({
+        command,
+        action: () =>
+          Promise.reject(
+            new ApiError(
+              409,
+              JSON.stringify({
+                error: {
+                  json: {
+                    message: "Server queue is full.",
+                    data: {
+                      code: "CONFLICT",
+                      cause: {
+                        code: "DEPLOYMENT_QUEUE_FULL",
+                        serverId: "srv_123",
+                        limit: 20
+                      }
+                    }
+                  }
+                }
+              })
+            )
+          )
+      });
+    });
+
+    expect(result.exitCode).toBe(1);
+    expect(result.errors).toEqual([]);
+    expect(JSON.parse(result.logs[0])).toEqual({
+      ok: false,
+      error: "Server queue is full.",
+      code: "DEPLOYMENT_QUEUE_FULL",
+      serverId: "srv_123",
+      limit: 20
     });
   });
 });

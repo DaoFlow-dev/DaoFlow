@@ -25,6 +25,9 @@ Image builds, concurrent deployments, application containers, logs, backup reten
 workflow history all increase required capacity. The separate `temporal-ui` profile is optional and
 should be included in sizing when enabled. Final measured results belong in a repository evidence
 record that names the tested commit and image tag and excludes private QA host details.
+On a constrained QA host, leave the server's maximum concurrent builds at the default of `1` and
+increase it only after observing sustained CPU, memory, and disk headroom. Keep backups outside the
+host's working volumes where possible.
 
 | Network | Interim requirement                      | Preferred          |
 | ------- | ---------------------------------------- | ------------------ |

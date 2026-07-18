@@ -2,7 +2,11 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { createManagedDatabase, listManagedDatabases } from "./managed-databases";
 import { db } from "../connection";
 import { backupPolicies, volumes } from "../schema/storage";
+import { deployments } from "../schema/deployments";
+import { servers } from "../schema/servers";
+import { services } from "../schema/services";
 import { eq } from "drizzle-orm";
+import { reserveDeploymentQueueSlot } from "./deployment-capacity";
 import {
   createProjectEnvironmentServiceFixture,
   foundationOwnerRequester
@@ -32,6 +36,7 @@ describe("managed database services", () => {
       projectId: fixture.project.id,
       environmentName: fixture.environment.name,
       serverId: "srv_foundation_1",
+      teamId: "team_foundation",
       name: "orders-db",
       databaseName: "orders",
       username: "orders",
@@ -77,5 +82,64 @@ describe("managed database services", () => {
     expect(created?.database?.connectionUriMasked).toBe(
       "mysql://orders:[secret]@localhost:3307/orders"
     );
+  });
+
+  it("rejects a full queue before creating managed database artifacts or resources", async () => {
+    const fixture = await createProjectEnvironmentServiceFixture({
+      project: {
+        name: `Managed DB queue ${Date.now()}`,
+        description: "Managed database capacity test project",
+        teamId: "team_foundation"
+      },
+      environment: {
+        name: "production",
+        targetServerId: "srv_foundation_1"
+      }
+    });
+    await db
+      .update(servers)
+      .set({ maxQueuedDeployments: 1 })
+      .where(eq(servers.id, "srv_foundation_1"));
+    await reserveDeploymentQueueSlot({
+      reservationId: "res_managed_db_full",
+      serverId: "srv_foundation_1",
+      teamId: "team_foundation"
+    });
+
+    const [servicesBefore, volumesBefore, policiesBefore, deploymentsBefore] = await Promise.all([
+      db.select({ id: services.id }).from(services),
+      db.select({ id: volumes.id }).from(volumes),
+      db.select({ id: backupPolicies.id }).from(backupPolicies),
+      db.select({ id: deployments.id }).from(deployments)
+    ]);
+
+    await expect(
+      createManagedDatabase({
+        kind: "mysql",
+        projectId: fixture.project.id,
+        environmentName: fixture.environment.name,
+        serverId: "srv_foundation_1",
+        teamId: "team_foundation",
+        name: "orders-db-full",
+        ...foundationOwnerRequester
+      })
+    ).rejects.toMatchObject({
+      code: "DEPLOYMENT_QUEUE_FULL",
+      serverId: "srv_foundation_1",
+      maxQueuedDeployments: 1,
+      queuedDeploymentCount: 1
+    });
+
+    const [servicesAfter, volumesAfter, policiesAfter, deploymentsAfter] = await Promise.all([
+      db.select({ id: services.id }).from(services),
+      db.select({ id: volumes.id }).from(volumes),
+      db.select({ id: backupPolicies.id }).from(backupPolicies),
+      db.select({ id: deployments.id }).from(deployments)
+    ]);
+
+    expect(servicesAfter).toEqual(servicesBefore);
+    expect(volumesAfter).toEqual(volumesBefore);
+    expect(policiesAfter).toEqual(policiesBefore);
+    expect(deploymentsAfter).toEqual(deploymentsBefore);
   });
 });

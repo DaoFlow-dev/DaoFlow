@@ -128,4 +128,43 @@ describe("resolveSwarmInternalNetworkTargets", () => {
       onLog
     );
   });
+
+  it("forwards cancellation to Swarm task network inspection", async () => {
+    const controller = new AbortController();
+    const inspectLocalTaskAddresses = vi
+      .fn()
+      .mockResolvedValueOnce({ exitCode: 0, addresses: ["10.0.0.12"] });
+
+    await resolveSwarmInternalNetworkTargets(
+      {
+        stackName: "demo-stack",
+        workDir: "/tmp/demo-stack",
+        probe,
+        tasks: [
+          {
+            id: "task_api_1",
+            name: "demo-stack_api.1",
+            image: "ghcr.io/example/api:stable",
+            node: "manager-1",
+            desiredState: "Running",
+            currentState: "Running 3 seconds ago",
+            error: null,
+            ports: null
+          }
+        ],
+        onLog,
+        target: { mode: "local", serverKind: "docker-swarm-manager" },
+        signal: controller.signal
+      },
+      { inspectLocalTaskAddresses }
+    );
+
+    expect(inspectLocalTaskAddresses).toHaveBeenCalledWith(
+      "task_api_1",
+      "/tmp/demo-stack",
+      onLog,
+      undefined,
+      controller.signal
+    );
+  });
 });

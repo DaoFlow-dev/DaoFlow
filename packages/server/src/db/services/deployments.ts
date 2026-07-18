@@ -2,8 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { db } from "../connection";
 import { auditEntries, events } from "../schema/audit";
 import { deploymentLogs, deployments, deploymentSteps } from "../schema/deployments";
-import { servers } from "../schema/servers";
-import { projects } from "../schema/projects";
+import { environments, projects } from "../schema/projects";
 import {
   DeploymentConclusion,
   DeploymentHealthStatus,
@@ -17,7 +16,13 @@ import {
   writeDeploymentCancellationSnapshot
 } from "../../deployment-cancellation";
 import { getDeploymentRecord } from "./deployment-queries";
-import { loadProjectEnvironmentByNames } from "./deployment-record-views";
+import {
+  consumeDeploymentQueueReservation,
+  countDeploymentQueueOccupancyForServer,
+  DeploymentQueueFullError,
+  DeploymentQueueReservationUnavailableError,
+  lockTargetServerForDeploymentCapacity
+} from "./deployment-capacity";
 
 export type DeploymentStatus = DeploymentLifecycleStatus;
 export type DeploymentSourceType = "compose" | "dockerfile" | "image";
@@ -31,6 +36,7 @@ export { listDeploymentLogs } from "./deployment-log-queries";
 export type { DeploymentLogStream, ListDeploymentLogsInput } from "./deployment-log-queries";
 export interface CreateDeploymentInput {
   deploymentId?: string;
+  queueReservationId?: string;
   projectName: string;
   environmentName: string;
   serviceName: string;
@@ -50,51 +56,102 @@ export interface CreateDeploymentInput {
 }
 
 export async function createDeploymentRecord(input: CreateDeploymentInput) {
-  const [server, projectEnvironment] = await Promise.all([
-    db.select().from(servers).where(eq(servers.id, input.targetServerId)).limit(1),
-    loadProjectEnvironmentByNames(input.projectName, input.environmentName)
-  ]);
+  const deploymentId = input.deploymentId ?? id();
+  if (input.queueReservationId && input.queueReservationId !== deploymentId) {
+    throw new Error("Deployment queue reservations must use the deployment ID as their key.");
+  }
+  const now = new Date();
+  const queuedDeployment = await db.transaction(async (tx) => {
+    const server = await lockTargetServerForDeploymentCapacity(tx, input.targetServerId);
+    if (!server) {
+      return null;
+    }
 
-  if (
-    !server[0] ||
-    !projectEnvironment ||
-    server[0].teamId !== projectEnvironment.project.teamId ||
-    projectEnvironment.project.teamId !== input.teamId
-  ) {
+    const [project] = await tx
+      .select()
+      .from(projects)
+      .where(eq(projects.name, input.projectName))
+      .limit(1);
+    if (!project) {
+      return null;
+    }
+
+    const [environment] = await tx
+      .select()
+      .from(environments)
+      .where(
+        and(eq(environments.projectId, project.id), eq(environments.name, input.environmentName))
+      )
+      .limit(1);
+
+    if (!environment || server.teamId !== project.teamId || project.teamId !== input.teamId) {
+      return null;
+    }
+
+    if (input.queueReservationId) {
+      const reservationConsumed = await consumeDeploymentQueueReservation(tx, {
+        reservationId: input.queueReservationId,
+        serverId: input.targetServerId,
+        now
+      });
+      if (!reservationConsumed) {
+        throw new DeploymentQueueReservationUnavailableError(
+          input.queueReservationId,
+          input.targetServerId
+        );
+      }
+    } else {
+      const queueOccupancy = await countDeploymentQueueOccupancyForServer(
+        tx,
+        input.targetServerId,
+        now
+      );
+      if (queueOccupancy >= server.maxQueuedDeployments) {
+        throw new DeploymentQueueFullError({
+          serverId: input.targetServerId,
+          maxQueuedDeployments: server.maxQueuedDeployments,
+          queuedDeploymentCount: queueOccupancy
+        });
+      }
+    }
+
+    await tx.insert(deployments).values({
+      id: deploymentId,
+      projectId: project.id,
+      environmentId: environment.id,
+      targetServerId: input.targetServerId,
+      serviceName: input.serviceName,
+      sourceType: input.sourceType,
+      commitSha: input.commitSha,
+      imageTag: input.imageTag,
+      configSnapshot: {
+        projectName: input.projectName,
+        environmentName: input.environmentName,
+        targetServerName: server.name,
+        targetServerHost: server.host,
+        targetServerKind: server.kind,
+        queueName: "docker-ssh",
+        workerHint: `ssh://${server.name}/${server.kind}`,
+        ...(input.configSnapshot ?? {}),
+        ...(input.commandAuditAttemptId
+          ? { commandAuditAttemptId: input.commandAuditAttemptId }
+          : {})
+      },
+      envVarsEncrypted: input.envVarsEncrypted ?? null,
+      status: "queued",
+      trigger: input.trigger ?? "user",
+      requestedByUserId: input.requestedByUserId ?? null,
+      requestedByEmail: input.requestedByEmail ?? null,
+      requestedByRole: input.requestedByRole ?? null,
+      updatedAt: now
+    });
+
+    return { environment, project, server };
+  });
+
+  if (!queuedDeployment) {
     return null;
   }
-
-  const deploymentId = input.deploymentId ?? id();
-  const now = new Date();
-
-  await db.insert(deployments).values({
-    id: deploymentId,
-    projectId: projectEnvironment.project.id,
-    environmentId: projectEnvironment.environment.id,
-    targetServerId: input.targetServerId,
-    serviceName: input.serviceName,
-    sourceType: input.sourceType,
-    commitSha: input.commitSha,
-    imageTag: input.imageTag,
-    configSnapshot: {
-      projectName: input.projectName,
-      environmentName: input.environmentName,
-      targetServerName: server[0].name,
-      targetServerHost: server[0].host,
-      targetServerKind: server[0].kind,
-      queueName: "docker-ssh",
-      workerHint: `ssh://${server[0].name}/${server[0].kind}`,
-      ...(input.configSnapshot ?? {}),
-      ...(input.commandAuditAttemptId ? { commandAuditAttemptId: input.commandAuditAttemptId } : {})
-    },
-    envVarsEncrypted: input.envVarsEncrypted ?? null,
-    status: "queued",
-    trigger: input.trigger ?? "user",
-    requestedByUserId: input.requestedByUserId ?? null,
-    requestedByEmail: input.requestedByEmail ?? null,
-    requestedByRole: input.requestedByRole ?? null,
-    updatedAt: now
-  });
 
   const actorType = input.requestedByUserId ? "user" : "system";
   const actorId =

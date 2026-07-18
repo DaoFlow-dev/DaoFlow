@@ -222,6 +222,7 @@ describe("CLI JSON option coverage", () => {
   test("server add declares --json", () => {
     const server = serverCommand();
     expect(hasLongOption(getSubcommand(server, "add"), "--json")).toBe(true);
+    expect(hasLongOption(getSubcommand(server, "capacity"), "--json")).toBe(true);
   });
 
   test("server ops subcommands declare --json", () => {
@@ -246,6 +247,11 @@ describe("CLI JSON option coverage", () => {
     expect(help).toContain("Examples:");
     expect(help).toContain("daoflow server add --name edge-vps-1");
     expect(help).toContain("Example JSON shapes:");
+
+    const capacityHelp = renderHelp(getSubcommand(serverCommand(), "capacity"));
+    expect(capacityHelp).toContain("server:write");
+    expect(capacityHelp).toContain("--max-concurrent-builds 1");
+    expect(capacityHelp).toContain("Example JSON shapes:");
   });
 
   test("server ops help includes scopes and examples", () => {

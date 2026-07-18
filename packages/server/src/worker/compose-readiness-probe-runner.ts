@@ -28,9 +28,16 @@ export {
 async function runLocalHttpProbe(
   probe: HttpComposeReadinessProbeSnapshot,
   url: string,
-  fetchImpl: typeof fetch
+  fetchImpl: typeof fetch,
+  signal?: AbortSignal
 ): Promise<ComposeReadinessAttempt> {
   const controller = new AbortController();
+  const abortFromCaller = () => controller.abort(signal?.reason);
+  if (signal?.aborted) {
+    abortFromCaller();
+  } else {
+    signal?.addEventListener("abort", abortFromCaller, { once: true });
+  }
   const timeout = setTimeout(() => controller.abort(), buildRequestTimeoutMs(probe));
 
   try {
@@ -52,25 +59,33 @@ async function runLocalHttpProbe(
       summary: summarizePending(probe, `HTTP ${response.status}`)
     };
   } catch (error) {
+    if (signal?.aborted) {
+      throw signal.reason instanceof Error
+        ? signal.reason
+        : new Error("Readiness check cancelled.");
+    }
     return {
       kind: "pending",
       summary: summarizePending(probe, error instanceof Error ? error.message : String(error))
     };
   } finally {
     clearTimeout(timeout);
+    signal?.removeEventListener("abort", abortFromCaller);
   }
 }
 
 async function runLocalTcpProbe(
   probe: ComposeReadinessProbeSnapshot,
   host: string,
-  port: number
+  port: number,
+  signal?: AbortSignal
 ): Promise<ComposeReadinessAttempt> {
   const timeoutMs = buildRequestTimeoutMs(probe);
 
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     const socket = new Socket();
     let settled = false;
+    const cleanup = () => signal?.removeEventListener("abort", abortFromCaller);
 
     const finish = (attempt: ComposeReadinessAttempt) => {
       if (settled) {
@@ -78,9 +93,25 @@ async function runLocalTcpProbe(
       }
 
       settled = true;
+      cleanup();
       socket.destroy();
       resolve(attempt);
     };
+    const abortFromCaller = () => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      socket.destroy();
+      reject(
+        signal?.reason instanceof Error ? signal.reason : new Error("Readiness check cancelled.")
+      );
+    };
+
+    if (signal?.aborted) {
+      abortFromCaller();
+      return;
+    }
+    signal?.addEventListener("abort", abortFromCaller, { once: true });
 
     socket.setTimeout(timeoutMs);
     socket.once("connect", () => {
@@ -124,18 +155,24 @@ async function runRemoteHttpProbe(
   probe: HttpComposeReadinessProbeSnapshot,
   url: string,
   onLog: OnLog,
-  exec: typeof execRemote
+  exec: typeof execRemote,
+  signal?: AbortSignal
 ): Promise<ComposeReadinessAttempt> {
   const stdoutLines: string[] = [];
   const timeoutSeconds = Math.max(1, Math.min(10, probe.intervalSeconds));
-  const result = await exec(target, buildRemoteHttpProbeCommand(url, timeoutSeconds), (line) => {
-    if (line.stream === "stdout") {
-      stdoutLines.push(line.message.trim());
-      return;
-    }
+  const result = await exec(
+    target,
+    buildRemoteHttpProbeCommand(url, timeoutSeconds),
+    (line) => {
+      if (line.stream === "stdout") {
+        stdoutLines.push(line.message.trim());
+        return;
+      }
 
-    onLog(line);
-  });
+      onLog(line);
+    },
+    { signal }
+  );
 
   if (result.exitCode === 127) {
     return {
@@ -173,10 +210,13 @@ async function runRemoteTcpProbe(
   host: string,
   port: number,
   onLog: OnLog,
-  exec: typeof execRemote
+  exec: typeof execRemote,
+  signal?: AbortSignal
 ): Promise<ComposeReadinessAttempt> {
   const timeoutSeconds = Math.max(1, Math.min(10, probe.intervalSeconds));
-  const result = await exec(target, buildRemoteTcpProbeCommand(host, port, timeoutSeconds), onLog);
+  const result = await exec(target, buildRemoteTcpProbeCommand(host, port, timeoutSeconds), onLog, {
+    signal
+  });
 
   if (result.exitCode === 127) {
     return {
@@ -202,32 +242,42 @@ async function runRemoteTcpProbe(
 
 export async function runLocalPublishedPortReadinessCheck(
   probe: PublishedPortComposeReadinessProbeSnapshot,
-  fetchImpl: typeof fetch = fetch
+  fetchImpl: typeof fetch = fetch,
+  signal?: AbortSignal
 ): Promise<ComposeReadinessAttempt> {
   if (isTcpProbe(probe)) {
-    return runLocalTcpProbe(probe, probe.host, probe.port);
+    return runLocalTcpProbe(probe, probe.host, probe.port, signal);
   }
 
-  return runLocalHttpProbe(probe, buildComposeReadinessProbeUrl(probe), fetchImpl);
+  return runLocalHttpProbe(probe, buildComposeReadinessProbeUrl(probe), fetchImpl, signal);
 }
 
 export async function runRemotePublishedPortReadinessCheck(
   target: SSHTarget,
   probe: PublishedPortComposeReadinessProbeSnapshot,
   onLog: OnLog,
-  exec: typeof execRemote = execRemote
+  exec: typeof execRemote = execRemote,
+  signal?: AbortSignal
 ): Promise<ComposeReadinessAttempt> {
   if (isTcpProbe(probe)) {
-    return runRemoteTcpProbe(target, probe, probe.host, probe.port, onLog, exec);
+    return runRemoteTcpProbe(target, probe, probe.host, probe.port, onLog, exec, signal);
   }
 
-  return runRemoteHttpProbe(target, probe, buildComposeReadinessProbeUrl(probe), onLog, exec);
+  return runRemoteHttpProbe(
+    target,
+    probe,
+    buildComposeReadinessProbeUrl(probe),
+    onLog,
+    exec,
+    signal
+  );
 }
 
 export async function runLocalInternalNetworkReadinessCheck(
   probe: ComposeReadinessProbeSnapshot,
   internalTargets: ComposeInternalNetworkTarget[],
-  fetchImpl: typeof fetch = fetch
+  fetchImpl: typeof fetch = fetch,
+  signal?: AbortSignal
 ): Promise<ComposeReadinessAttempt> {
   if (internalTargets.length === 0) {
     return summarizeNoInternalNetworkTargets(probe);
@@ -238,12 +288,14 @@ export async function runLocalInternalNetworkReadinessCheck(
     attempt: ComposeReadinessAttempt;
   }> = [];
   for (const target of internalTargets) {
+    signal?.throwIfAborted();
     const attempt = isTcpProbe(probe)
-      ? await runLocalTcpProbe(probe, target.address, probe.port)
+      ? await runLocalTcpProbe(probe, target.address, probe.port, signal)
       : await runLocalHttpProbe(
           probe,
           `${probe.scheme}://${target.address}:${probe.port}${probe.path}`,
-          fetchImpl
+          fetchImpl,
+          signal
         );
     attempts.push({ target, attempt });
   }
@@ -256,7 +308,8 @@ export async function runRemoteInternalNetworkReadinessCheck(
   probe: ComposeReadinessProbeSnapshot,
   internalTargets: ComposeInternalNetworkTarget[],
   onLog: OnLog,
-  exec: typeof execRemote = execRemote
+  exec: typeof execRemote = execRemote,
+  signal?: AbortSignal
 ): Promise<ComposeReadinessAttempt> {
   if (internalTargets.length === 0) {
     return summarizeNoInternalNetworkTargets(probe);
@@ -267,14 +320,24 @@ export async function runRemoteInternalNetworkReadinessCheck(
     attempt: ComposeReadinessAttempt;
   }> = [];
   for (const internalTarget of internalTargets) {
+    signal?.throwIfAborted();
     const attempt = isTcpProbe(probe)
-      ? await runRemoteTcpProbe(target, probe, internalTarget.address, probe.port, onLog, exec)
+      ? await runRemoteTcpProbe(
+          target,
+          probe,
+          internalTarget.address,
+          probe.port,
+          onLog,
+          exec,
+          signal
+        )
       : await runRemoteHttpProbe(
           target,
           probe,
           `${probe.scheme}://${internalTarget.address}:${probe.port}${probe.path}`,
           onLog,
-          exec
+          exec,
+          signal
         );
     attempts.push({ target: internalTarget, attempt });
   }

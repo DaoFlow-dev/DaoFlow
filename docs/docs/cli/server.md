@@ -94,6 +94,34 @@ daoflow server add \
 
 ## Server Operations
 
+### Build And Queue Capacity
+
+Each server starts with one active build slot and room for 20 queued deployments. Owners and
+admins can change both values from the server's **Capacity** tab or the CLI:
+
+```bash
+daoflow server capacity \
+  --server srv_123 \
+  --max-concurrent-builds 1 \
+  --max-queued-deployments 20 \
+  --yes \
+  --json
+```
+
+Use `--dry-run` to validate the payload without changing the server. Image pulls, image-only
+deployments, health checks, and runtime restarts do not use build slots. Dockerfile, Compose,
+Nixpacks, and Buildpack image builds do. When the queue is full, mutations fail with the stable
+`DEPLOYMENT_QUEUE_FULL` code instead of silently overloading the host.
+
+Build waiters stay counted after a worker claims them, acquire slots oldest-first, and expose their
+queue position on the deployment page. Long context uploads renew their admission reservation while
+streaming so a slow connection cannot silently lose its place before artifact persistence.
+
+For a small VPS, keep `--max-concurrent-builds 1`. Raise it only after measuring memory, CPU, and
+Docker disk pressure during representative application builds.
+
+### Operational Commands
+
 ```bash
 daoflow server ops resources --server srv_123 --json
 daoflow server ops cleanup --server srv_123 --dry-run --json

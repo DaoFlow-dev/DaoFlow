@@ -169,6 +169,12 @@ export interface DeploymentRowData {
   executionEngine?: "temporal" | "legacy";
   temporalWorkflowId?: string | null;
   temporalRunId?: string | null;
+  queueState?: {
+    reason: "build-slot";
+    position: number;
+    activeBuilds: number;
+    maxConcurrentBuilds: number;
+  } | null;
   steps?: DeploymentStepData[];
   recoveryGuidance?: DeploymentRecoveryGuidanceData | null;
   stateArtifacts?: DeploymentStateArtifactsData | null;

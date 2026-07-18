@@ -29,6 +29,8 @@ export type ServerSummary = {
   kind: string;
   status: string;
   swarmTopology: SwarmTopologySnapshot | null;
+  maxConcurrentBuilds: number;
+  maxQueuedDeployments: number;
 };
 
 export type ServerOperationsHub = {

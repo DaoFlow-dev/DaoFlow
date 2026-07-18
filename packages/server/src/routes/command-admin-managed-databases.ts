@@ -4,7 +4,12 @@ import { managedDatabaseKinds } from "@daoflow/shared";
 import { createManagedDatabase } from "../db/services/managed-databases";
 import { triggerDeploy } from "../db/services/trigger-deploy";
 import { deleteService, getService } from "../db/services/services";
-import { getActorContext, t, throwOnDeployResultError } from "../trpc";
+import {
+  deploymentCapacityErrorMiddleware,
+  getActorContext,
+  t,
+  throwOnDeployResultError
+} from "../trpc";
 import { teamScopedServiceUpdateProcedure } from "./service-scope";
 import { requireActorTeamId } from "./team-scope";
 
@@ -27,6 +32,7 @@ async function requireManagedDatabaseService(serviceId: string) {
 
 export const adminManagedDatabaseRouter = t.router({
   createManagedDatabase: teamScopedServiceUpdateProcedure
+    .use(deploymentCapacityErrorMiddleware)
     .input(
       z.object({
         kind: managedDatabaseKindSchema,
@@ -45,8 +51,10 @@ export const adminManagedDatabaseRouter = t.router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      const teamId = await requireActorTeamId(ctx.session.user.id);
       const result = await createManagedDatabase({
         ...input,
+        teamId,
         ...getActorContext(ctx)
       });
 
@@ -70,6 +78,7 @@ export const adminManagedDatabaseRouter = t.router({
       };
     }),
   setManagedDatabaseState: teamScopedServiceUpdateProcedure
+    .use(deploymentCapacityErrorMiddleware)
     .input(
       managedDatabaseServiceInput.extend({
         action: z.enum(["start", "restart", "stop"])

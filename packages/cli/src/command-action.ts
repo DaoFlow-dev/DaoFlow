@@ -115,6 +115,14 @@ function buildScopeDeniedExtra(
   return Object.keys(extra).length > 0 ? extra : undefined;
 }
 
+function buildDomainErrorExtra(
+  cause: Record<string, unknown> | undefined
+): Record<string, unknown> | undefined {
+  if (!cause) return undefined;
+  const extra = Object.fromEntries(Object.entries(cause).filter(([key]) => key !== "code"));
+  return Object.keys(extra).length > 0 ? extra : undefined;
+}
+
 function readNestedTrpcErrorBody(parsedBody: Record<string, unknown> | undefined): {
   topLevelCode?: string;
   message?: string;
@@ -147,6 +155,19 @@ function readNestedTrpcErrorBody(parsedBody: Record<string, unknown> | undefined
             : undefined,
       extra: buildScopeDeniedExtra(causeRecord),
       exitCode: 2
+    };
+  }
+
+  if (causeCode) {
+    return {
+      topLevelCode: causeCode,
+      message:
+        typeof jsonRecord?.message === "string"
+          ? jsonRecord.message
+          : typeof parsedBody.message === "string"
+            ? parsedBody.message
+            : undefined,
+      extra: buildDomainErrorExtra(causeRecord)
     };
   }
 
@@ -219,6 +240,14 @@ function resolveStructuredErrorParts(error: unknown): {
       code: causeCode ?? topLevelCode ?? "AUTH_ERROR",
       exitCode: 2,
       extra: buildScopeDeniedExtra(cause)
+    };
+  }
+
+  if (causeCode) {
+    return {
+      code: causeCode,
+      message: typeof error.message === "string" ? error.message : undefined,
+      extra: buildDomainErrorExtra(cause)
     };
   }
 

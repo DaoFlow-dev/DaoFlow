@@ -98,13 +98,13 @@ profile values in `.env`.
 
 ## Execution And Temporal
 
-| Variable                     | Default                               | Description                              |
-| ---------------------------- | ------------------------------------- | ---------------------------------------- |
-| `DEPLOY_TIMEOUT_MS`          | `600000`                              | Max runtime for one deployment execution |
-| `TEMPORAL_POSTGRES_PASSWORD` | unset in lean; required in temporal   | Temporal database password               |
-| `TEMPORAL_ADDRESS`           | `temporal:7233` in generated installs | Temporal connection target               |
-| `TEMPORAL_NAMESPACE`         | `daoflow`                             | Temporal namespace                       |
-| `TEMPORAL_TASK_QUEUE`        | `daoflow-deployments`                 | Temporal task queue                      |
+| Variable                     | Default                               | Description                                                  |
+| ---------------------------- | ------------------------------------- | ------------------------------------------------------------ |
+| `DEPLOY_TIMEOUT_MS`          | `86400000`                            | Max queue-wait and execution time; expiry aborts active work |
+| `TEMPORAL_POSTGRES_PASSWORD` | unset in lean; required in temporal   | Temporal database password                                   |
+| `TEMPORAL_ADDRESS`           | `temporal:7233` in generated installs | Temporal connection target                                   |
+| `TEMPORAL_NAMESPACE`         | `daoflow`                             | Temporal namespace                                           |
+| `TEMPORAL_TASK_QUEUE`        | `daoflow-deployments`                 | Temporal task queue                                          |
 
 On an existing install, rerunning the installer without `--workflow-profile` preserves the current
 choice and infers older installs from their existing Temporal settings. Switching from temporal to

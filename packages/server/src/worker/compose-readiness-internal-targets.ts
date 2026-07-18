@@ -31,7 +31,8 @@ function collectTargetContainerNames(
 
 async function readLocalContainerAddresses(
   containerName: string,
-  execRunner: LocalExecRunner
+  execRunner: LocalExecRunner,
+  signal?: AbortSignal
 ): Promise<string[]> {
   const stdoutLines: string[] = [];
   const result = await execRunner(
@@ -47,7 +48,9 @@ async function readLocalContainerAddresses(
       if (line.stream === "stdout") {
         stdoutLines.push(line.message.trim());
       }
-    }
+    },
+    undefined,
+    signal ? { signal } : undefined
   );
 
   if (result.exitCode !== 0) {
@@ -65,7 +68,8 @@ async function readRemoteContainerAddresses(
   target: SSHTarget,
   containerName: string,
   onLog: OnLog,
-  exec: typeof execRemote
+  exec: typeof execRemote,
+  signal?: AbortSignal
 ): Promise<string[]> {
   const stdoutLines: string[] = [];
   const result = await exec(
@@ -78,7 +82,8 @@ async function readRemoteContainerAddresses(
       }
 
       onLog(line);
-    }
+    },
+    { signal }
   );
 
   if (result.exitCode !== 0) {
@@ -95,12 +100,13 @@ async function readRemoteContainerAddresses(
 export async function resolveLocalInternalNetworkTargets(
   probe: ComposeReadinessProbeSnapshot,
   statuses: ComposeContainerStatus[],
-  execRunner: LocalExecRunner = execStreaming
+  execRunner: LocalExecRunner = execStreaming,
+  signal?: AbortSignal
 ): Promise<ComposeInternalNetworkTarget[]> {
   const targets: ComposeInternalNetworkTarget[] = [];
 
   for (const containerName of collectTargetContainerNames(probe, statuses)) {
-    const addresses = await readLocalContainerAddresses(containerName, execRunner);
+    const addresses = await readLocalContainerAddresses(containerName, execRunner, signal);
     for (const address of addresses) {
       targets.push({
         label: containerName,
@@ -117,12 +123,19 @@ export async function resolveRemoteInternalNetworkTargets(
   probe: ComposeReadinessProbeSnapshot,
   statuses: ComposeContainerStatus[],
   onLog: OnLog,
-  exec: typeof execRemote = execRemote
+  exec: typeof execRemote = execRemote,
+  signal?: AbortSignal
 ): Promise<ComposeInternalNetworkTarget[]> {
   const targets: ComposeInternalNetworkTarget[] = [];
 
   for (const containerName of collectTargetContainerNames(probe, statuses)) {
-    const addresses = await readRemoteContainerAddresses(target, containerName, onLog, exec);
+    const addresses = await readRemoteContainerAddresses(
+      target,
+      containerName,
+      onLog,
+      exec,
+      signal
+    );
     for (const address of addresses) {
       targets.push({
         label: containerName,

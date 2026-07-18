@@ -10,6 +10,7 @@ import {
 } from "./deploy-context-upload";
 import {
   DirectComposeRequestError,
+  deploymentQueueFullResponse,
   queueUploadedDeployment,
   readDirectComposeRequestBody,
   readErrorMessage,
@@ -17,6 +18,12 @@ import {
   resolveUploadedComposeFiles
 } from "./deploy-context-shared";
 import { streamBodyToFile } from "./stream-to-file";
+import {
+  DEPLOYMENT_QUEUE_RESERVATION_TTL_MS,
+  DeploymentQueueFullError,
+  releaseDeploymentQueueReservation,
+  reserveDeploymentQueueSlot
+} from "../db/services/deployment-capacity";
 
 export const deployContextRouter = new Hono();
 
@@ -40,8 +47,14 @@ deployContextRouter.post("/uploads/intake", async (c) => {
   }
 
   const uploadId = id();
+  let reservation: Awaited<ReturnType<typeof reserveDeploymentQueueSlot>> | null = null;
 
   try {
+    reservation = await reserveDeploymentQueueSlot({
+      reservationId: uploadId,
+      serverId: body.server,
+      teamId: actor.teamId
+    });
     await createDirectContextUploadSession({
       uploadId,
       serverId: body.server,
@@ -56,7 +69,17 @@ deployContextRouter.post("/uploads/intake", async (c) => {
       uploadId
     });
   } catch (error) {
+    if (reservation) {
+      await releaseDeploymentQueueReservation({
+        reservationId: reservation.id,
+        serverId: reservation.serverId,
+        expiresAt: reservation.expiresAt
+      });
+    }
     cleanupStagingDir(uploadId);
+    if (error instanceof DeploymentQueueFullError) {
+      return deploymentQueueFullResponse(c, error);
+    }
     return c.json(
       {
         ok: false,
@@ -92,8 +115,28 @@ deployContextRouter.post("/uploads/:uploadId", async (c) => {
     );
   }
 
+  let reservation: Awaited<ReturnType<typeof reserveDeploymentQueueSlot>> | null = null;
   try {
-    await streamBodyToFile(body, `${upload.stageDir}/${upload.archiveFileName}`);
+    reservation = await reserveDeploymentQueueSlot({
+      reservationId: uploadId,
+      serverId: upload.serverId,
+      teamId: actor.teamId
+    });
+    await streamBodyToFile(body, `${upload.stageDir}/${upload.archiveFileName}`, {
+      heartbeat: async () => {
+        reservation = await reserveDeploymentQueueSlot({
+          reservationId: uploadId,
+          serverId: upload.serverId,
+          teamId: actor.teamId
+        });
+      },
+      heartbeatIntervalMs: DEPLOYMENT_QUEUE_RESERVATION_TTL_MS / 3
+    });
+    reservation = await reserveDeploymentQueueSlot({
+      reservationId: uploadId,
+      serverId: upload.serverId,
+      teamId: actor.teamId
+    });
     const { artifactId } = await persistUploadedArtifacts({
       sourceDir: upload.stageDir,
       composeFileName: upload.composeFileName,
@@ -134,7 +177,17 @@ deployContextRouter.post("/uploads/:uploadId", async (c) => {
       serviceId: scope.service.id
     });
   } catch (error) {
+    if (reservation) {
+      await releaseDeploymentQueueReservation({
+        reservationId: reservation.id,
+        serverId: reservation.serverId,
+        expiresAt: reservation.expiresAt
+      });
+    }
     cleanupStagingDir(uploadId);
+    if (error instanceof DeploymentQueueFullError) {
+      return deploymentQueueFullResponse(c, error);
+    }
     return c.json(
       {
         ok: false,
@@ -166,9 +219,15 @@ deployContextRouter.post("/compose", async (c) => {
   }
 
   const deploymentId = id();
-  const stageDir = ensureStagingDir(deploymentId);
+  let reservation: Awaited<ReturnType<typeof reserveDeploymentQueueSlot>> | null = null;
 
   try {
+    reservation = await reserveDeploymentQueueSlot({
+      reservationId: deploymentId,
+      serverId: body.server,
+      teamId: actor.teamId
+    });
+    const stageDir = ensureStagingDir(deploymentId);
     const composeFiles = resolveUploadedComposeFiles(stageDir, body);
     for (const composeFile of composeFiles) {
       await mkdir(dirname(join(stageDir, composeFile.path)), { recursive: true });
@@ -224,6 +283,13 @@ deployContextRouter.post("/compose", async (c) => {
       serviceId: scope.service.id
     });
   } catch (error) {
+    if (reservation) {
+      await releaseDeploymentQueueReservation({
+        reservationId: reservation.id,
+        serverId: reservation.serverId,
+        expiresAt: reservation.expiresAt
+      });
+    }
     cleanupStagingDir(deploymentId);
     if (error instanceof DirectComposeRequestError) {
       return c.json(
@@ -234,6 +300,9 @@ deployContextRouter.post("/compose", async (c) => {
         },
         400
       );
+    }
+    if (error instanceof DeploymentQueueFullError) {
+      return deploymentQueueFullResponse(c, error);
     }
     return c.json(
       {

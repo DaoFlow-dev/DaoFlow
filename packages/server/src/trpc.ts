@@ -10,6 +10,7 @@ import { assertHumanMfaSatisfied } from "./db/services/account-security";
 import type { CommandAuditContract } from "./db/services/command-audit";
 import { commandAuditContract, commandAuditMiddleware } from "./trpc-command-audit";
 import { t } from "./trpc-core";
+import { DeploymentQueueFullError } from "./db/services/deployment-capacity";
 
 export { t } from "./trpc-core";
 export type { ProcedureMeta } from "./trpc-core";
@@ -172,8 +173,38 @@ export const controlPlaneRecoveryReadProcedure = auditedScopedProcedure(OWNER_ON
 export const volumesReadProcedure = auditedScopedProcedure(ALL_READERS, ["volumes:read"]);
 export const envReadProcedure = auditedScopedProcedure(ALL_READERS, ["env:read"]);
 export const logsReadProcedure = auditedScopedProcedure(ALL_READERS, ["logs:read"]);
-export const deployStartProcedure = auditedScopedProcedure(ALL_WRITE, ["deploy:start"]);
-export const deployRollbackProcedure = auditedScopedProcedure(ALL_WRITE, ["deploy:rollback"]);
+
+export const deploymentCapacityErrorMiddleware = t.middleware(async ({ next }) => {
+  const result = await next();
+  const queueError =
+    !result.ok && result.error.cause instanceof DeploymentQueueFullError
+      ? result.error.cause
+      : null;
+  if (queueError) {
+    throw new TRPCError({
+      code: "CONFLICT",
+      message: queueError.message,
+      cause: {
+        code: queueError.code,
+        serverId: queueError.serverId,
+        maxQueuedDeployments: queueError.maxQueuedDeployments,
+        queuedDeploymentCount: queueError.queuedDeploymentCount
+      }
+    });
+  }
+  return result;
+});
+
+function withDeploymentCapacityErrors(procedure: ReturnType<typeof auditedScopedProcedure>) {
+  return procedure.use(deploymentCapacityErrorMiddleware);
+}
+
+export const deployStartProcedure = withDeploymentCapacityErrors(
+  auditedScopedProcedure(ALL_WRITE, ["deploy:start"])
+);
+export const deployRollbackProcedure = withDeploymentCapacityErrors(
+  auditedScopedProcedure(ALL_WRITE, ["deploy:rollback"])
+);
 export const deployCancelProcedure = auditedScopedProcedure(ALL_WRITE, ["deploy:cancel"]);
 export const envWriteProcedure = auditedScopedProcedure(ALL_WRITE, ["env:write"]);
 export const secretsReadProcedure = auditedScopedProcedure(ALL_INCL_AGENT, ["secrets:read"]);

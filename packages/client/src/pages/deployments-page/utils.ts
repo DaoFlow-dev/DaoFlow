@@ -25,7 +25,8 @@ export function matchesDeploymentFilters(
   const matchesStatus =
     statusFilter === "all"
       ? true
-      : String(deployment.statusLabel).toLowerCase() === statusFilter.toLowerCase();
+      : String(deployment.status ?? deployment.statusLabel).toLowerCase() ===
+        statusFilter.toLowerCase();
 
   return matchesSearch && matchesStatus;
 }

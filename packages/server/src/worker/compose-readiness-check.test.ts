@@ -7,7 +7,7 @@ import {
   runRemoteComposeReadinessCheck
 } from "./compose-readiness-check";
 import type { LogLine } from "./docker-executor";
-import type { SSHTarget } from "./ssh-connection";
+import type { execRemote, SSHTarget } from "./ssh-connection";
 
 const publishedHttpProbe: ComposeReadinessProbeSnapshot = {
   serviceName: "api",
@@ -229,6 +229,37 @@ describe("runRemoteComposeReadinessCheck", () => {
     });
     expect(execImpl.mock.calls[0]?.[1]).toContain("docker inspect");
     expect(execImpl.mock.calls[1]?.[1]).toContain("curl");
+  });
+
+  it("forwards cancellation through remote internal-network inspection and probing", async () => {
+    const controller = new AbortController();
+    const execImpl = vi
+      .fn()
+      .mockImplementationOnce((_target, _command, execOnLog: (line: LogLine) => void) => {
+        execOnLog({
+          stream: "stdout",
+          message: "172.20.0.10",
+          timestamp: new Date()
+        });
+        return Promise.resolve({ exitCode: 0, signal: null });
+      })
+      .mockImplementationOnce((_target, _command, execOnLog: (line: LogLine) => void) => {
+        execOnLog({ stream: "stdout", message: "200", timestamp: new Date() });
+        return Promise.resolve({ exitCode: 0, signal: null });
+      });
+
+    await runRemoteComposeReadinessCheck(
+      target,
+      internalHttpProbe,
+      runningStatuses,
+      onLog,
+      execImpl,
+      controller.signal
+    );
+
+    const calls = execImpl.mock.calls as Parameters<typeof execRemote>[];
+    expect(calls[0]?.[3]?.signal).toBe(controller.signal);
+    expect(calls[1]?.[3]?.signal).toBe(controller.signal);
   });
 
   it("passes published TCP readiness when the remote shell can open the socket", async () => {

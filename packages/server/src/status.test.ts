@@ -43,6 +43,9 @@ describe("deployment status helpers", () => {
 
   it("provides operator-friendly deployment labels", () => {
     expect(formatDeploymentStatusLabel(DeploymentLifecycleStatus.Queued, null)).toBe("Queued");
+    expect(formatDeploymentStatusLabel(DeploymentLifecycleStatus.Waiting, null)).toBe(
+      "Waiting for build slot"
+    );
     expect(formatDeploymentStatusLabel(DeploymentLifecycleStatus.Prepare, null)).toBe("Preparing");
     expect(formatDeploymentStatusLabel(DeploymentLifecycleStatus.Deploy, null)).toBe("Deploying");
     expect(
@@ -55,6 +58,7 @@ describe("deployment status helpers", () => {
 
   it("only allows cancellation for queued and running deployments", () => {
     expect(canCancelDeployment(DeploymentLifecycleStatus.Queued, null)).toBe(true);
+    expect(canCancelDeployment(DeploymentLifecycleStatus.Waiting, null)).toBe(true);
     expect(canCancelDeployment(DeploymentLifecycleStatus.Deploy, null)).toBe(true);
     expect(
       canCancelDeployment(DeploymentLifecycleStatus.Completed, DeploymentConclusion.Succeeded)

@@ -16,6 +16,7 @@ export interface ExecStreamingOptions {
   inheritParentEnv?: boolean;
   stdin?: string;
   timeoutMs?: number;
+  signal?: AbortSignal;
 }
 
 /**
@@ -43,7 +44,8 @@ export function execStreaming(
       child = spawn(command, args, {
         cwd,
         stdio: [options?.stdin === undefined ? "ignore" : "pipe", "pipe", "pipe"],
-        env: withCommandPath(env)
+        env: withCommandPath(env),
+        signal: options?.signal
       });
     } catch (err) {
       reject(err instanceof Error ? err : new Error(String(err)));

@@ -59,7 +59,8 @@ export async function remoteDockerStackDeploy(
   envFile?: string,
   envExportFile?: string,
   registryCredentials: ContainerRegistryCredential[] = [],
-  exec: typeof execRemote = execRemote
+  exec: typeof execRemote = execRemote,
+  signal?: AbortSignal
 ): Promise<{ exitCode: number }> {
   onLog({
     stream: "stdout",
@@ -76,7 +77,8 @@ export async function remoteDockerStackDeploy(
   });
   const result = await exec(target, "sh", onLog, {
     preview: execution.preview,
-    stdin: execution.stdin
+    stdin: execution.stdin,
+    signal
   });
   return { exitCode: result.exitCode };
 }
@@ -86,7 +88,8 @@ export async function remoteDockerStackRemove(
   stackName: string,
   workDir: string,
   onLog: OnLog,
-  exec: typeof execRemote = execRemote
+  exec: typeof execRemote = execRemote,
+  signal?: AbortSignal
 ): Promise<{ exitCode: number }> {
   onLog({
     stream: "stdout",
@@ -100,7 +103,8 @@ export async function remoteDockerStackRemove(
       workDir,
       subcommand: `docker stack rm ${shellQuote(stackName)}`
     }),
-    onLog
+    onLog,
+    { signal }
   );
   return { exitCode: result.exitCode };
 }
@@ -110,7 +114,8 @@ export async function remoteDockerStackServices(
   stackName: string,
   workDir: string,
   onLog: OnLog,
-  exec: typeof execRemote = execRemote
+  exec: typeof execRemote = execRemote,
+  signal?: AbortSignal
 ): Promise<{ exitCode: number; services: SwarmServiceStatus[] }> {
   onLog({
     stream: "stdout",
@@ -132,7 +137,8 @@ export async function remoteDockerStackServices(
       }
 
       onLog(line);
-    }
+    },
+    { signal }
   );
 
   return {
@@ -146,7 +152,8 @@ export async function remoteDockerStackPs(
   stackName: string,
   workDir: string,
   onLog: OnLog,
-  exec: typeof execRemote = execRemote
+  exec: typeof execRemote = execRemote,
+  signal?: AbortSignal
 ): Promise<{ exitCode: number; tasks: SwarmTaskStatus[] }> {
   onLog({
     stream: "stdout",
@@ -168,7 +175,8 @@ export async function remoteDockerStackPs(
       }
 
       onLog(line);
-    }
+    },
+    { signal }
   );
 
   return {
@@ -191,7 +199,8 @@ export async function remoteDockerInspectSwarmTaskNetworkAddresses(
   taskId: string,
   workDir: string,
   onLog: OnLog,
-  exec: typeof execRemote = execRemote
+  exec: typeof execRemote = execRemote,
+  signal?: AbortSignal
 ): Promise<{ exitCode: number; addresses: string[] }> {
   const stdoutLines: string[] = [];
   const result = await exec(
@@ -210,7 +219,8 @@ export async function remoteDockerInspectSwarmTaskNetworkAddresses(
       }
 
       onLog(line);
-    }
+    },
+    { signal }
   );
 
   return {

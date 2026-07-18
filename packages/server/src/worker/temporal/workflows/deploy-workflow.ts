@@ -12,16 +12,28 @@ import { proxyActivities, ApplicationFailure, sleep } from "@temporalio/workflow
 import type * as activities from "../activities/deploy-activities";
 import type { DeploymentWorkflowInput } from "../../deployment-workflow-input";
 
-const { claimSpecificDeploymentActivity, runDeploymentActivity, cleanupDeploymentStaging } =
-  proxyActivities<typeof activities>({
-    startToCloseTimeout: "15 minutes",
-    retry: {
-      maximumAttempts: 3,
-      backoffCoefficient: 2,
-      initialInterval: "10s",
-      maximumInterval: "2m"
-    }
-  });
+const { claimSpecificDeploymentActivity, cleanupDeploymentStaging } = proxyActivities<
+  typeof activities
+>({
+  startToCloseTimeout: "15 minutes",
+  retry: {
+    maximumAttempts: 3,
+    backoffCoefficient: 2,
+    initialInterval: "10s",
+    maximumInterval: "2m"
+  }
+});
+
+// A deployment activity starts external build/runtime processes. Retrying it automatically can
+// overlap the original attempt after a timeout, so execution is single-attempt until the worker
+// has an attempt-aware cancellation and resume protocol.
+const { runDeploymentActivity } = proxyActivities<typeof activities>({
+  // Keep Temporal's hard activity deadline beyond DaoFlow's default 24-hour aborting
+  // execution deadline so the activity can stop its subprocesses and persist failure first.
+  startToCloseTimeout: "26 hours",
+  heartbeatTimeout: "1 minute",
+  retry: { maximumAttempts: 1 }
+});
 
 /**
  * Main deployment workflow.

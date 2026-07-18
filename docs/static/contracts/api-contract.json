@@ -842,6 +842,39 @@
       }
     },
     {
+      "name": "configureServerCapacity",
+      "summary": "configure Server Capacity",
+      "path": "/trpc/configureServerCapacity",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin"],
+      "requiredScopes": ["server:write"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "serverId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32
+          },
+          "maxConcurrentBuilds": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 20
+          },
+          "maxQueuedDeployments": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 500
+          }
+        },
+        "required": ["serverId", "maxConcurrentBuilds", "maxQueuedDeployments"],
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "configureServerManagedTraefikProxy",
       "summary": "configure Server Managed Traefik Proxy",
       "path": "/trpc/configureServerManagedTraefikProxy",

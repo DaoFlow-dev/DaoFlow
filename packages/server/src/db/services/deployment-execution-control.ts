@@ -10,6 +10,7 @@ import {
 } from "../../deployment-cancellation";
 
 const ACTIVE_DEPLOYMENT_STATUSES = [
+  DeploymentLifecycleStatus.Waiting,
   DeploymentLifecycleStatus.Prepare,
   DeploymentLifecycleStatus.Deploy,
   DeploymentLifecycleStatus.Finalize,
@@ -47,6 +48,25 @@ function activeDeploymentConflictSql(candidateTable: string, activeTable: string
   `;
 }
 
+function olderQueuedBuildCandidateSql(candidateTable: string) {
+  return rawSql`
+    NOT EXISTS (
+      SELECT 1
+      FROM ${deployments} AS older_queued
+      WHERE older_queued.target_server_id = ${rawSql.raw(candidateTable)}.target_server_id
+        AND older_queued.status = ${DeploymentLifecycleStatus.Queued}
+        AND older_queued.source_type <> 'image'
+        AND (
+          older_queued.created_at < ${rawSql.raw(candidateTable)}.created_at
+          OR (
+            older_queued.created_at = ${rawSql.raw(candidateTable)}.created_at
+            AND older_queued.id < ${rawSql.raw(candidateTable)}.id
+          )
+        )
+    )
+  `;
+}
+
 async function recordExecutionClaimAudit(
   deployment: DeploymentRow,
   actor: DeploymentExecutionActor
@@ -76,7 +96,10 @@ export async function claimNextQueuedDeploymentForExecution(
   const now = new Date();
   const [job] = await db
     .update(deployments)
-    .set({ status: DeploymentLifecycleStatus.Prepare, updatedAt: now })
+    .set({
+      status: rawSql`case when ${deployments.sourceType} = 'image' then ${DeploymentLifecycleStatus.Prepare} else ${DeploymentLifecycleStatus.Waiting} end`,
+      updatedAt: now
+    })
     .where(
       and(
         eq(deployments.status, DeploymentLifecycleStatus.Queued),
@@ -133,14 +156,21 @@ export async function claimDeploymentForExecution(
   }
 
   const now = new Date();
+  const claimedStatus =
+    existing.sourceType === "image"
+      ? DeploymentLifecycleStatus.Prepare
+      : DeploymentLifecycleStatus.Waiting;
+  const buildQueueOrderCondition =
+    existing.sourceType === "image" ? rawSql`true` : olderQueuedBuildCandidateSql("deployments");
   const [claimed] = await db
     .update(deployments)
-    .set({ status: DeploymentLifecycleStatus.Prepare, updatedAt: now })
+    .set({ status: claimedStatus, updatedAt: now })
     .where(
       and(
         eq(deployments.id, deploymentId),
         eq(deployments.status, DeploymentLifecycleStatus.Queued),
-        activeDeploymentConflictSql("deployments", "active")
+        activeDeploymentConflictSql("deployments", "active"),
+        buildQueueOrderCondition
       )
     )
     .returning();

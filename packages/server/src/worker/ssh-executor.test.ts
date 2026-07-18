@@ -70,6 +70,28 @@ describe("remoteDockerComposePull", () => {
 });
 
 describe("remoteDockerComposeUp", () => {
+  it("forwards cancellation to remote compose up", async () => {
+    const controller = new AbortController();
+    const execRemoteImpl = vi.fn().mockResolvedValueOnce({ exitCode: 0, signal: null });
+
+    await remoteDockerComposeUp(
+      target,
+      "compose.yaml",
+      "demo",
+      "/srv/demo",
+      onLog,
+      undefined,
+      undefined,
+      undefined,
+      [],
+      execRemoteImpl,
+      controller.signal
+    );
+
+    const options = (execRemoteImpl.mock.calls as ExecRemoteCall[])[0]?.[3];
+    expect(options?.signal).toBe(controller.signal);
+  });
+
   it("scopes remote up execution to the selected compose service", async () => {
     const execRemoteImpl = vi.fn().mockResolvedValueOnce({ exitCode: 0, signal: null });
 
@@ -93,7 +115,7 @@ describe("remoteDockerComposeUp", () => {
     expect(command).toBe("sh");
     expect(options?.stdin).toContain(".daoflow.compose.export.sh");
     expect(options?.stdin).toContain("docker compose");
-    expect(options?.stdin).toContain(" up -d --remove-orphans ");
+    expect(options?.stdin).toContain(" up -d --remove-orphans --no-build ");
     expect(options?.stdin).toContain("api");
   });
 

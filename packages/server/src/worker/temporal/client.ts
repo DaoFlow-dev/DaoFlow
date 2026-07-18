@@ -17,6 +17,7 @@ import { TEMPORAL_ADDRESS, TEMPORAL_NAMESPACE, TEMPORAL_TASK_QUEUE } from "./tem
 import type { RestoreApproval } from "./restore-workflow-input";
 
 let client: Client | null = null;
+export const DEPLOYMENT_WORKFLOW_EXECUTION_TIMEOUT = "7 days";
 
 /**
  * Get or create a singleton Temporal client.
@@ -43,8 +44,9 @@ export async function startDeploymentWorkflow(
     taskQueue: TEMPORAL_TASK_QUEUE,
     workflowId: `deployment-${input.id}`,
     args: [input],
-    // Allow deployment to run up to 30 minutes total
-    workflowExecutionTimeout: "30m"
+    // Queue serialization can precede the activity's own aborting deadline. Keep the
+    // workflow alive long enough to wait safely without silently abandoning the record.
+    workflowExecutionTimeout: DEPLOYMENT_WORKFLOW_EXECUTION_TIMEOUT
   });
 
   console.log(

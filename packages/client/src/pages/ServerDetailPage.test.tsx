@@ -20,6 +20,7 @@ const {
   rotateIdentityUseMutationMock,
   scanIdentityUseMutationMock,
   nodeSwarmUseMutationMock,
+  configureServerCapacityUseMutationMock,
   useSessionMock,
   useUtilsMock,
   viewerUseQueryMock
@@ -37,6 +38,7 @@ const {
   rotateIdentityUseMutationMock: vi.fn(),
   scanIdentityUseMutationMock: vi.fn(),
   nodeSwarmUseMutationMock: vi.fn(),
+  configureServerCapacityUseMutationMock: vi.fn(),
   useSessionMock: vi.fn(),
   useUtilsMock: vi.fn(),
   viewerUseQueryMock: vi.fn()
@@ -59,6 +61,7 @@ vi.mock("../lib/trpc", () => ({
     refreshSwarmTopology: { useMutation: refreshSwarmUseMutationMock },
     updateSwarmNodeAvailability: { useMutation: nodeSwarmUseMutationMock },
     updateSwarmServiceScale: { useMutation: scaleSwarmUseMutationMock },
+    configureServerCapacity: { useMutation: configureServerCapacityUseMutationMock },
     serverSshHostIdentities: { useQuery: serverIdentitiesUseQueryMock },
     scanServerSshHostIdentities: { useMutation: scanIdentityUseMutationMock },
     approveServerSshHostIdentity: { useMutation: approveIdentityUseMutationMock },
@@ -70,6 +73,7 @@ describe("ServerDetailPage", () => {
   const hubRefetch = vi.fn();
   const collectMutateAsync = vi.fn();
   const previewMutateAsync = vi.fn();
+  const configureServerCapacityMutateAsync = vi.fn();
 
   afterEach(() => {
     cleanup();
@@ -79,10 +83,11 @@ describe("ServerDetailPage", () => {
     useSessionMock.mockReturnValue({ data: { user: { id: "user_1" } } });
     useUtilsMock.mockReturnValue({ serverReadiness: { invalidate: vi.fn() } });
     viewerUseQueryMock.mockReturnValue({
-      data: { authz: { capabilities: ["server:read", "server:write"] } },
+      data: { authz: { role: "admin", capabilities: ["server:read", "server:write"] } },
       isLoading: false
     });
     hubRefetch.mockResolvedValue({});
+    configureServerCapacityMutateAsync.mockClear();
     hubUseQueryMock.mockReturnValue({
       isLoading: false,
       refetch: hubRefetch,
@@ -93,7 +98,9 @@ describe("ServerDetailPage", () => {
           host: "203.0.113.42",
           kind: "docker-engine",
           status: "ready",
-          swarmTopology: null
+          swarmTopology: null,
+          maxConcurrentBuilds: 4,
+          maxQueuedDeployments: 75
         },
         latestResource: {
           cpu: { loadPercent: 12 },
@@ -145,6 +152,15 @@ describe("ServerDetailPage", () => {
     refreshSwarmUseMutationMock.mockReturnValue({ isPending: false, mutateAsync: vi.fn() });
     nodeSwarmUseMutationMock.mockReturnValue({ isPending: false, mutateAsync: vi.fn() });
     scaleSwarmUseMutationMock.mockReturnValue({ isPending: false, mutateAsync: vi.fn() });
+    configureServerCapacityMutateAsync.mockResolvedValue({
+      id: "srv_1",
+      maxConcurrentBuilds: 6,
+      maxQueuedDeployments: 120
+    });
+    configureServerCapacityUseMutationMock.mockReturnValue({
+      isPending: false,
+      mutateAsync: configureServerCapacityMutateAsync
+    });
     scanIdentityUseMutationMock.mockReturnValue({ isPending: false, mutateAsync: vi.fn() });
     approveIdentityUseMutationMock.mockReturnValue({ isPending: false, mutateAsync: vi.fn() });
     rotateIdentityUseMutationMock.mockReturnValue({ isPending: false, mutateAsync: vi.fn() });
@@ -166,6 +182,100 @@ describe("ServerDetailPage", () => {
     await waitFor(() => {
       expect(collectMutateAsync).toHaveBeenCalledWith({ serverId: "srv_1" });
     });
+  });
+
+  it("renders the current server capacity values", () => {
+    render(
+      <MemoryRouter initialEntries={["/servers/srv_1"]}>
+        <Routes>
+          <Route path="/servers/:id" element={<ServerDetailPage />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    fireEvent.click(screen.getByTestId("server-detail-capacity-tab-srv_1"));
+
+    expect(screen.getByTestId("server-capacity-panel-srv_1")).toBeVisible();
+    expect(screen.getByTestId("server-capacity-builds-srv_1")).toHaveValue(4);
+    expect(screen.getByTestId("server-capacity-queued-srv_1")).toHaveValue(75);
+    expect(screen.getByTestId("server-capacity-build-slot-explanation-srv_1")).toHaveTextContent(
+      "Image-only and runtime-only deployments do not use build slots"
+    );
+  });
+
+  it("saves changed server capacity with the expected payload", async () => {
+    render(
+      <MemoryRouter initialEntries={["/servers/srv_1"]}>
+        <Routes>
+          <Route path="/servers/:id" element={<ServerDetailPage />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    fireEvent.click(screen.getByTestId("server-detail-capacity-tab-srv_1"));
+    fireEvent.change(screen.getByTestId("server-capacity-builds-srv_1"), {
+      target: { value: "6" }
+    });
+    fireEvent.change(screen.getByTestId("server-capacity-queued-srv_1"), {
+      target: { value: "120" }
+    });
+    fireEvent.click(screen.getByTestId("server-capacity-save-srv_1"));
+
+    await waitFor(() => {
+      expect(configureServerCapacityMutateAsync).toHaveBeenCalledWith({
+        serverId: "srv_1",
+        maxConcurrentBuilds: 6,
+        maxQueuedDeployments: 120
+      });
+    });
+    expect(screen.getByTestId("server-capacity-feedback-srv_1")).toHaveTextContent(
+      "Server capacity saved."
+    );
+  });
+
+  it("shows capacity as read-only without server write permission", () => {
+    viewerUseQueryMock.mockReturnValue({
+      data: { authz: { role: "viewer", capabilities: ["server:read"] } },
+      isLoading: false
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/servers/srv_1"]}>
+        <Routes>
+          <Route path="/servers/:id" element={<ServerDetailPage />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    fireEvent.click(screen.getByTestId("server-detail-capacity-tab-srv_1"));
+
+    expect(screen.getByTestId("server-capacity-builds-srv_1")).toHaveAttribute("readonly");
+    expect(screen.getByTestId("server-capacity-queued-srv_1")).toHaveAttribute("readonly");
+    expect(screen.getByTestId("server-capacity-read-only-srv_1")).toBeVisible();
+    expect(screen.queryByTestId("server-capacity-save-srv_1")).not.toBeInTheDocument();
+    expect(configureServerCapacityMutateAsync).not.toHaveBeenCalled();
+  });
+
+  it("shows owner-only capacity controls as read-only to operators", () => {
+    viewerUseQueryMock.mockReturnValue({
+      data: {
+        authz: { role: "operator", capabilities: ["server:read", "server:write"] }
+      },
+      isLoading: false
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/servers/srv_1"]}>
+        <Routes>
+          <Route path="/servers/:id" element={<ServerDetailPage />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    fireEvent.click(screen.getByTestId("server-detail-capacity-tab-srv_1"));
+
+    expect(screen.getByTestId("server-capacity-read-only-srv_1")).toBeVisible();
+    expect(screen.queryByTestId("server-capacity-save-srv_1")).not.toBeInTheDocument();
   });
 
   it("shows Swarm operations for Swarm managers", async () => {

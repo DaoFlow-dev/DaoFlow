@@ -269,6 +269,7 @@ addApiGroup(
   [
     "registerServer",
     "deleteServer",
+    "configureServerCapacity",
     "configureServerManagedTraefikProxy",
     "previewServerCleanup",
     "runServerCleanup",
@@ -806,6 +807,7 @@ export const cliCommandMeta: Record<string, CliCommandMeta> = {
   rollback: { lane: "command", requiredScopes: ["deploy:rollback"], mutating: true },
   status: { lane: "read", requiredScopes: ["server:read"], mutating: false },
   "server add": { lane: "command", requiredScopes: ["server:write"], mutating: true },
+  "server capacity": { lane: "command", requiredScopes: ["server:write"], mutating: true },
   "server proxy": { lane: "command", requiredScopes: ["server:write"], mutating: true },
   "server ops": { lane: "read", requiredScopes: ["server:read"], mutating: false },
   "server ops resources": { lane: "read", requiredScopes: ["server:read"], mutating: true },

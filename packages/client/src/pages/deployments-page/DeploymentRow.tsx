@@ -54,6 +54,12 @@ export const DeploymentRow = memo(function DeploymentRow({
               {String(deployment.statusLabel)}
             </Badge>
             <span className="text-xs text-muted-foreground">Lifecycle: {lifecycleStatus}</span>
+            {deployment.queueState?.reason === "build-slot" ? (
+              <span className="text-xs text-muted-foreground">
+                Build queue #{deployment.queueState.position} · {deployment.queueState.activeBuilds}
+                /{deployment.queueState.maxConcurrentBuilds} slots active
+              </span>
+            ) : null}
           </div>
         </TableCell>
         <TableCell className="text-muted-foreground">
@@ -93,7 +99,9 @@ export const DeploymentRow = memo(function DeploymentRow({
               Retry
             </Button>
           ) : null}
-          {lifecycleStatus === "queued" || lifecycleStatus === "running" ? (
+          {lifecycleStatus === "queued" ||
+          lifecycleStatus === "waiting" ||
+          lifecycleStatus === "running" ? (
             <Button
               variant="ghost"
               size="sm"

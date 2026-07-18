@@ -3682,6 +3682,52 @@
       "supportsYes": true
     },
     {
+      "path": "server capacity",
+      "summary": "Configure per-server build concurrency and deployment queue limits",
+      "lane": "command",
+      "requiredScopes": ["server:write"],
+      "mutating": true,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--server <id>",
+          "description": "Server ID",
+          "required": true
+        },
+        {
+          "flags": "--max-concurrent-builds <count>",
+          "description": "Maximum active builds (1-20)",
+          "required": true
+        },
+        {
+          "flags": "--max-queued-deployments <count>",
+          "description": "Maximum queued deployments (1-500)",
+          "required": true
+        },
+        {
+          "flags": "--dry-run",
+          "description": "Preview the capacity settings without mutating",
+          "required": false
+        },
+        {
+          "flags": "-y, --yes",
+          "description": "Skip confirmation prompt",
+          "required": false
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": true,
+      "supportsYes": true
+    },
+    {
       "path": "server ops",
       "summary": "Inspect and run audited server operations",
       "lane": "read",

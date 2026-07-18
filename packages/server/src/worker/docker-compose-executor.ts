@@ -20,7 +20,8 @@ export async function dockerComposePull(
   envFile?: string,
   composeServiceName?: string,
   registryCredentials: ContainerRegistryCredential[] = [],
-  execRunner: ExecRunner = execStreaming
+  execRunner: ExecRunner = execStreaming,
+  signal?: AbortSignal
 ): Promise<{ exitCode: number }> {
   const scopedServiceName = composeServiceName?.trim();
   const composeExecutionEnv = prepareComposeCommandEnv(cwd, envFile);
@@ -54,8 +55,12 @@ export async function dockerComposePull(
   });
   const execOptions =
     execution.stdin === undefined
-      ? { inheritParentEnv: false }
-      : { inheritParentEnv: false, stdin: execution.stdin };
+      ? signal
+        ? { inheritParentEnv: false, signal }
+        : { inheritParentEnv: false }
+      : signal
+        ? { inheritParentEnv: false, stdin: execution.stdin, signal }
+        : { inheritParentEnv: false, stdin: execution.stdin };
 
   return execRunner(
     execution.command,
@@ -75,7 +80,8 @@ export async function dockerComposeBuild(
   envFile?: string,
   composeServiceName?: string,
   registryCredentials: ContainerRegistryCredential[] = [],
-  execRunner: ExecRunner = execStreaming
+  execRunner: ExecRunner = execStreaming,
+  signal?: AbortSignal
 ): Promise<{ exitCode: number }> {
   const scopedServiceName = composeServiceName?.trim();
   const composeExecutionEnv = prepareComposeCommandEnv(cwd, envFile);
@@ -109,8 +115,12 @@ export async function dockerComposeBuild(
   });
   const execOptions =
     execution.stdin === undefined
-      ? { inheritParentEnv: false }
-      : { inheritParentEnv: false, stdin: execution.stdin };
+      ? signal
+        ? { inheritParentEnv: false, signal }
+        : { inheritParentEnv: false }
+      : signal
+        ? { inheritParentEnv: false, stdin: execution.stdin, signal }
+        : { inheritParentEnv: false, stdin: execution.stdin };
 
   return execRunner(
     execution.command,
@@ -130,7 +140,8 @@ export async function dockerComposeUp(
   envFile?: string,
   composeServiceName?: string,
   registryCredentials: ContainerRegistryCredential[] = [],
-  execRunner: ExecRunner = execStreaming
+  execRunner: ExecRunner = execStreaming,
+  signal?: AbortSignal
 ): Promise<{ exitCode: number }> {
   const scopedServiceName = composeServiceName?.trim();
   const composeExecutionEnv = prepareComposeCommandEnv(cwd, envFile);
@@ -151,7 +162,7 @@ export async function dockerComposeUp(
   if (envFile) {
     args.push("--env-file", envFile);
   }
-  args.push("up", "-d", "--remove-orphans");
+  args.push("up", "-d", "--remove-orphans", "--no-build");
   if (scopedServiceName) {
     args.push(scopedServiceName);
   }
@@ -163,8 +174,12 @@ export async function dockerComposeUp(
   });
   const execOptions =
     execution.stdin === undefined
-      ? { inheritParentEnv: false }
-      : { inheritParentEnv: false, stdin: execution.stdin };
+      ? signal
+        ? { inheritParentEnv: false, signal }
+        : { inheritParentEnv: false }
+      : signal
+        ? { inheritParentEnv: false, stdin: execution.stdin, signal }
+        : { inheritParentEnv: false, stdin: execution.stdin };
 
   return execRunner(
     execution.command,
@@ -183,7 +198,8 @@ export async function dockerComposePs(
   onLog: OnLog,
   envFile?: string,
   composeServiceName?: string,
-  execRunner: ExecRunner = execStreaming
+  execRunner: ExecRunner = execStreaming,
+  signal?: AbortSignal
 ): Promise<{ exitCode: number; statuses: ComposeContainerStatus[] }> {
   const composeExecutionEnv = prepareComposeCommandEnv(cwd, envFile);
   const args = ["compose", "-f", composeFile, "-p", projectName];
@@ -218,7 +234,7 @@ export async function dockerComposePs(
       onLog(line);
     },
     composeExecutionEnv.env,
-    { inheritParentEnv: false }
+    signal ? { inheritParentEnv: false, signal } : { inheritParentEnv: false }
   );
 
   return {
@@ -233,7 +249,8 @@ export async function dockerComposeDown(
   cwd: string,
   onLog: OnLog,
   envFile?: string,
-  execRunner: ExecRunner = execStreaming
+  execRunner: ExecRunner = execStreaming,
+  signal?: AbortSignal
 ): Promise<{ exitCode: number }> {
   const composeExecutionEnv = prepareComposeCommandEnv(cwd, envFile);
   onLog({
@@ -255,6 +272,6 @@ export async function dockerComposeDown(
     cwd,
     onLog,
     composeExecutionEnv.env,
-    { inheritParentEnv: false }
+    signal ? { inheritParentEnv: false, signal } : { inheritParentEnv: false }
   );
 }

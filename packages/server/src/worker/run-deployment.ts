@@ -4,7 +4,13 @@ import { projects } from "../db/schema/projects";
 import { cleanupStagingDir } from "./docker-executor";
 import { resolveExecutionTarget, withPreparedExecutionTarget } from "./execution-target";
 import { createLogStreamer } from "./log-streamer";
-import { transitionDeployment, emitEvent, readConfig, type DeploymentRow } from "./step-management";
+import {
+  transitionDeployment,
+  emitEvent,
+  readConfig,
+  touchDeploymentProgress,
+  type DeploymentRow
+} from "./step-management";
 import {
   executeBuildpackDeployment,
   executeComposeDeployment,
@@ -16,12 +22,31 @@ import { throwIfDeploymentCancellationRequested } from "../db/services/deploymen
 import { DeploymentCancellationError } from "../deployment-cancellation";
 import { buildDockerContainerName } from "../docker-identifiers";
 import { getServerForTeam } from "../db/services/team-scoped-servers";
+import { DeploymentLifecycleStatus } from "@daoflow/shared";
 
-const DEPLOY_TIMEOUT_MS = Number(process.env.DEPLOY_TIMEOUT_MS ?? 600_000);
+const DEFAULT_DEPLOY_TIMEOUT_MS = 24 * 60 * 60_000;
+const DEPLOY_TIMEOUT_MS = (() => {
+  const parsed = Number(process.env.DEPLOY_TIMEOUT_MS ?? DEFAULT_DEPLOY_TIMEOUT_MS);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_DEPLOY_TIMEOUT_MS;
+})();
+const DEPLOYMENT_PROGRESS_HEARTBEAT_MS = 30_000;
+
+class DeploymentTimeoutError extends Error {
+  constructor(timeoutMs: number) {
+    super(`Deployment timed out after ${timeoutMs / 1000}s`);
+    this.name = "DeploymentTimeoutError";
+  }
+}
+
+function throwIfExecutionAborted(signal?: AbortSignal): void {
+  signal?.throwIfAborted();
+}
 
 export async function runDeployment(
   deployment: DeploymentRow,
-  actorLabel = "execution-worker"
+  actorLabel = "execution-worker",
+  signal?: AbortSignal,
+  timeoutMs = DEPLOY_TIMEOUT_MS
 ): Promise<"succeeded" | "cancelled"> {
   const config = readConfig(deployment);
   const { onLog, flush } = createLogStreamer(deployment.id, actorLabel);
@@ -44,16 +69,31 @@ export async function runDeployment(
   }
 
   const target = await resolveExecutionTarget(server, deployment.id, project.teamId);
-  const timeoutPromise = new Promise<never>((_, reject) => {
-    setTimeout(
-      () => reject(new Error(`Deployment timed out after ${DEPLOY_TIMEOUT_MS / 1000}s`)),
-      DEPLOY_TIMEOUT_MS
-    );
-  });
+  const executionController = new AbortController();
+  const abortFromCaller = () => executionController.abort(signal?.reason);
+  if (signal?.aborted) {
+    abortFromCaller();
+  } else {
+    signal?.addEventListener("abort", abortFromCaller, { once: true });
+  }
+  const timeoutError = new DeploymentTimeoutError(timeoutMs);
+  const executionTimeout = setTimeout(() => executionController.abort(timeoutError), timeoutMs);
+  const executionSignal = executionController.signal;
+  const progressHeartbeat = setInterval(() => {
+    void touchDeploymentProgress(deployment.id).catch((error) => {
+      console.warn(
+        `[deployment-heartbeat] Unable to update deployment ${deployment.id}:`,
+        error instanceof Error ? error.message : String(error)
+      );
+    });
+  }, DEPLOYMENT_PROGRESS_HEARTBEAT_MS);
 
   try {
+    throwIfExecutionAborted(executionSignal);
     await throwIfDeploymentCancellationRequested(deployment.id);
-    await transitionDeployment(deployment.id, "prepare");
+    if (deployment.status !== DeploymentLifecycleStatus.Waiting) {
+      await transitionDeployment(deployment.id, DeploymentLifecycleStatus.Prepare);
+    }
     await emitEvent(
       "deployment.prepare.started",
       deployment,
@@ -62,48 +102,74 @@ export async function runDeployment(
     );
 
     await withPreparedExecutionTarget(target, async (preparedTarget) => {
+      throwIfExecutionAborted(executionSignal);
       await throwIfDeploymentCancellationRequested(deployment.id);
       if (deployment.sourceType === "compose") {
-        await Promise.race([
-          executeComposeDeployment(deployment, config, composeProjectName, onLog, preparedTarget),
-          timeoutPromise
-        ]);
+        await executeComposeDeployment(
+          deployment,
+          config,
+          composeProjectName,
+          onLog,
+          preparedTarget,
+          executionSignal
+        );
+        throwIfExecutionAborted(executionSignal);
         await throwIfDeploymentCancellationRequested(deployment.id);
         return;
       }
 
       if (deployment.sourceType === "dockerfile") {
-        await Promise.race([
-          executeDockerfileDeployment(deployment, config, containerName, onLog, preparedTarget),
-          timeoutPromise
-        ]);
+        await executeDockerfileDeployment(
+          deployment,
+          config,
+          containerName,
+          onLog,
+          preparedTarget,
+          executionSignal
+        );
+        throwIfExecutionAborted(executionSignal);
         await throwIfDeploymentCancellationRequested(deployment.id);
         return;
       }
 
       if (deployment.sourceType === "image") {
-        await Promise.race([
-          executeImageDeployment(deployment, config, containerName, onLog, preparedTarget),
-          timeoutPromise
-        ]);
+        await executeImageDeployment(
+          deployment,
+          config,
+          containerName,
+          onLog,
+          preparedTarget,
+          executionSignal
+        );
+        throwIfExecutionAborted(executionSignal);
         await throwIfDeploymentCancellationRequested(deployment.id);
         return;
       }
 
       if (deployment.sourceType === "nixpacks") {
-        await Promise.race([
-          executeNixpacksDeployment(deployment, config, containerName, onLog, preparedTarget),
-          timeoutPromise
-        ]);
+        await executeNixpacksDeployment(
+          deployment,
+          config,
+          containerName,
+          onLog,
+          preparedTarget,
+          executionSignal
+        );
+        throwIfExecutionAborted(executionSignal);
         await throwIfDeploymentCancellationRequested(deployment.id);
         return;
       }
 
       if (deployment.sourceType === "buildpack") {
-        await Promise.race([
-          executeBuildpackDeployment(deployment, config, containerName, onLog, preparedTarget),
-          timeoutPromise
-        ]);
+        await executeBuildpackDeployment(
+          deployment,
+          config,
+          containerName,
+          onLog,
+          preparedTarget,
+          executionSignal
+        );
+        throwIfExecutionAborted(executionSignal);
         await throwIfDeploymentCancellationRequested(deployment.id);
         return;
       }
@@ -120,16 +186,34 @@ export async function runDeployment(
     );
     return "succeeded";
   } catch (error) {
-    if (error instanceof DeploymentCancellationError) {
-      await transitionDeployment(deployment.id, "failed", "cancelled", error.message);
+    if (error instanceof DeploymentCancellationError || signal?.aborted) {
+      const message =
+        error instanceof DeploymentCancellationError
+          ? error.message
+          : signal?.reason instanceof Error
+            ? signal.reason.message
+            : "Deployment execution was cancelled by the workflow engine.";
+      await transitionDeployment(deployment.id, "failed", "cancelled", message);
       await emitEvent(
         "deployment.cancelled",
         deployment,
         "Deployment cancelled",
-        error.message,
+        message,
         "warning"
       );
       return "cancelled";
+    }
+
+    if (executionSignal.aborted && executionSignal.reason === timeoutError) {
+      await transitionDeployment(deployment.id, "failed", "failed", timeoutError);
+      await emitEvent(
+        "deployment.failed",
+        deployment,
+        "Deployment failed",
+        timeoutError.message,
+        "error"
+      );
+      throw timeoutError;
     }
 
     await transitionDeployment(deployment.id, "failed", "failed", error);
@@ -142,6 +226,9 @@ export async function runDeployment(
     );
     throw error;
   } finally {
+    clearTimeout(executionTimeout);
+    clearInterval(progressHeartbeat);
+    signal?.removeEventListener("abort", abortFromCaller);
     await flush();
     cleanupStagingDir(deployment.id);
   }

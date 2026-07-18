@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { db } from "../connection";
 import { auditEntries, events } from "../schema/audit";
-import { deploymentLogs, deployments } from "../schema/deployments";
+import { deploymentBuildLeases, deploymentLogs, deployments } from "../schema/deployments";
 import { createEnvironment, createProject } from "./projects";
 import { createService } from "./services";
 import { resetTestDatabaseWithControlPlane } from "../../test-db";
@@ -196,6 +196,42 @@ describe("deployment watchdog", () => {
 
     expect(fresh[0]?.status).toBe("prepare");
     expect(terminal[0]?.status).toBe("failed");
+  });
+
+  it("does not fail a stale deployment while its build lease heartbeat is live", async () => {
+    const fixture = await createWatchdogFixture("watchdog-live-build");
+    const now = new Date("2026-03-28T12:00:00.000Z");
+    const deploymentId = `deplease${Date.now()}`.slice(0, 32);
+    await db.insert(deployments).values({
+      id: deploymentId,
+      projectId: fixture.projectId,
+      environmentId: fixture.environmentId,
+      targetServerId: "srv_foundation_1",
+      serviceName: fixture.serviceName,
+      sourceType: "dockerfile",
+      status: "deploy",
+      configSnapshot: {},
+      createdAt: new Date(now.getTime() - 30 * 60_000),
+      updatedAt: new Date(now.getTime() - 20 * 60_000)
+    });
+    await db.insert(deploymentBuildLeases).values({
+      deploymentId,
+      serverId: "srv_foundation_1",
+      ownerToken: "watchdog-live-owner",
+      acquiredAt: new Date(now.getTime() - 20 * 60_000),
+      heartbeatAt: new Date(now.getTime() - 10_000),
+      expiresAt: new Date(now.getTime() + 60_000)
+    });
+
+    await expect(runDeploymentWatchdogOnce({ now, timeoutMs: 10 * 60_000 })).resolves.toMatchObject(
+      { failedCount: 0 }
+    );
+
+    const [deployment] = await db
+      .select()
+      .from(deployments)
+      .where(eq(deployments.id, deploymentId));
+    expect(deployment?.status).toBe("deploy");
   });
 
   it("falls back to the default timeout when the environment override is invalid", () => {

@@ -133,3 +133,7 @@ WORKDIR /workspace
 USER runner
 
 CMD ["codex", "--version"]
+
+# Keep the application image as the default build target. The Codex runner is
+# an opt-in utility image and must be selected explicitly with --target.
+FROM runtime AS production

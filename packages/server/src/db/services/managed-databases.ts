@@ -15,7 +15,7 @@ import {
   secret
 } from "./managed-database-helpers";
 import { parseComposeBuildPlan } from "./compose-deployment-plan-build";
-import { ensureStagingDir } from "../../worker/docker-executor";
+import { cleanupStagingDir, ensureStagingDir } from "../../worker/docker-executor";
 import { persistUploadedArtifacts } from "../../worker/uploaded-artifacts";
 import { dispatchDeploymentExecution } from "./deployment-dispatch";
 import { createDeploymentRecord } from "./deployments";
@@ -30,6 +30,10 @@ import { services } from "../schema/services";
 import type { AppRole } from "@daoflow/shared";
 import { newId as id } from "./json-helpers";
 import { readManagedDatabaseConfigFromConfig } from "../../managed-database-config";
+import {
+  releaseDeploymentQueueReservation,
+  reserveDeploymentQueueSlot
+} from "./deployment-capacity";
 
 interface ActorContext {
   requestedByUserId: string;
@@ -39,6 +43,7 @@ interface ActorContext {
 }
 
 export interface CreateManagedDatabaseInput extends ActorContext {
+  teamId: string;
   kind: ManagedDatabaseKind;
   projectId: string;
   environmentName?: string;
@@ -98,181 +103,202 @@ export async function createManagedDatabase(input: CreateManagedDatabaseInput) {
   const definition = getManagedDatabaseDefinition(input.kind);
   if (!definition) return { status: "unsupported-kind" as const };
 
-  const databaseName = definition.defaultDatabaseName
-    ? cleanName(input.databaseName, definition.defaultDatabaseName)
-    : null;
-  const username = definition.defaultUsername
-    ? cleanName(input.username, definition.defaultUsername)
-    : null;
-  const password = input.password?.trim() || secret();
-  const rootPassword =
-    input.rootPassword?.trim() || (definition.rootPasswordField ? secret() : password);
-  const port = input.port?.trim() || definition.defaultPort;
-  const serviceName = cleanName(input.name, definition.serviceName);
-  const rendered = renderAppTemplate({
-    slug: definition.templateSlug,
-    projectName: serviceName,
-    values: buildTemplateValues({
-      kind: input.kind,
+  const deploymentId = id();
+  let reservation: Awaited<ReturnType<typeof reserveDeploymentQueueSlot>> | null = null;
+
+  try {
+    reservation = await reserveDeploymentQueueSlot({
+      reservationId: deploymentId,
+      serverId: input.serverId,
+      teamId: input.teamId
+    });
+
+    const databaseName = definition.defaultDatabaseName
+      ? cleanName(input.databaseName, definition.defaultDatabaseName)
+      : null;
+    const username = definition.defaultUsername
+      ? cleanName(input.username, definition.defaultUsername)
+      : null;
+    const password = input.password?.trim() || secret();
+    const rootPassword =
+      input.rootPassword?.trim() || (definition.rootPasswordField ? secret() : password);
+    const port = input.port?.trim() || definition.defaultPort;
+    const serviceName = cleanName(input.name, definition.serviceName);
+    const rendered = renderAppTemplate({
+      slug: definition.templateSlug,
+      projectName: serviceName,
+      values: buildTemplateValues({
+        kind: input.kind,
+        databaseName,
+        username,
+        password,
+        rootPassword,
+        port
+      })
+    });
+    const composePath = `managed-databases/${definition.templateSlug}.yaml`;
+    const stageDir = ensureStagingDir(deploymentId);
+    await mkdir(dirname(join(stageDir, composePath)), { recursive: true });
+    await writeFile(join(stageDir, composePath), rendered.compose, "utf8");
+    const { artifactId } = await persistUploadedArtifacts({
+      sourceDir: stageDir,
+      composeFileName: composePath
+    });
+    const managedDatabase = buildManagedDatabaseMetadata({
+      definition,
       databaseName,
       username,
-      password,
-      rootPassword,
-      port
-    })
-  });
-  const deploymentId = id();
-  const composePath = `managed-databases/${definition.templateSlug}.yaml`;
-  const stageDir = ensureStagingDir(deploymentId);
-  await mkdir(dirname(join(stageDir, composePath)), { recursive: true });
-  await writeFile(join(stageDir, composePath), rendered.compose, "utf8");
-  const { artifactId } = await persistUploadedArtifacts({
-    sourceDir: stageDir,
-    composeFileName: composePath
-  });
-  const managedDatabase = buildManagedDatabaseMetadata({
-    definition,
-    databaseName,
-    username,
-    port,
-    stackName: rendered.stackName
-  });
-  const scope = await ensureDirectDeploymentScope({
-    serverId: input.serverId,
-    projectRef: input.projectId,
-    projectName: serviceName,
-    environmentName: input.environmentName,
-    serviceName,
-    managedDatabase,
-    requestedByUserId: input.requestedByUserId,
-    requestedByEmail: input.requestedByEmail,
-    requestedByRole: input.requestedByRole
-  });
-  const volumeResult = await createVolume(
-    {
-      name: managedDatabase.volumeName,
+      port,
+      stackName: rendered.stackName
+    });
+    const scope = await ensureDirectDeploymentScope({
       serverId: input.serverId,
-      mountPath: definition.volumeMountPath,
-      serviceId: scope.service.id
-    },
-    {
-      userId: input.requestedByUserId,
-      email: input.requestedByEmail,
-      role: input.requestedByRole
-    }
-  );
-  if (volumeResult.status !== "ok") {
-    throw new Error(
-      "message" in volumeResult
-        ? volumeResult.message
-        : `Unable to register managed database ${volumeResult.entity}.`
+      projectRef: input.projectId,
+      projectName: serviceName,
+      environmentName: input.environmentName,
+      serviceName,
+      managedDatabase,
+      requestedByUserId: input.requestedByUserId,
+      requestedByEmail: input.requestedByEmail,
+      requestedByRole: input.requestedByRole
+    });
+    const volumeResult = await createVolume(
+      {
+        name: managedDatabase.volumeName,
+        serverId: input.serverId,
+        mountPath: definition.volumeMountPath,
+        serviceId: scope.service.id
+      },
+      {
+        userId: input.requestedByUserId,
+        email: input.requestedByEmail,
+        role: input.requestedByRole
+      }
     );
-  }
-  const backupEngine = backupEngineForKind(input.kind);
-  const backupPolicyResult = await createBackupPolicy(
-    {
-      name: `${serviceName} backup policy`,
+    if (volumeResult.status !== "ok") {
+      throw new Error(
+        "message" in volumeResult
+          ? volumeResult.message
+          : `Unable to register managed database ${volumeResult.entity}.`
+      );
+    }
+    const backupEngine = backupEngineForKind(input.kind);
+    const backupPolicyResult = await createBackupPolicy(
+      {
+        name: `${serviceName} backup policy`,
+        volumeId: volumeResult.volume.id,
+        backupType: backupEngine ? "database" : "volume",
+        databaseEngine: backupEngine,
+        turnOff: false,
+        retentionDays: 30
+      },
+      {
+        userId: input.requestedByUserId,
+        email: input.requestedByEmail,
+        role: input.requestedByRole
+      }
+    );
+    if (backupPolicyResult.status !== "ok") {
+      throw new Error(
+        "message" in backupPolicyResult
+          ? backupPolicyResult.message
+          : `Unable to create managed database ${backupPolicyResult.entity}.`
+      );
+    }
+    const managedDatabaseWithBackup = {
+      ...managedDatabase,
       volumeId: volumeResult.volume.id,
-      backupType: backupEngine ? "database" : "volume",
-      databaseEngine: backupEngine,
-      turnOff: false,
-      retentionDays: 30
-    },
-    {
-      userId: input.requestedByUserId,
-      email: input.requestedByEmail,
-      role: input.requestedByRole
-    }
-  );
-  if (backupPolicyResult.status !== "ok") {
-    throw new Error(
-      "message" in backupPolicyResult
-        ? backupPolicyResult.message
-        : `Unable to create managed database ${backupPolicyResult.entity}.`
-    );
-  }
-  const managedDatabaseWithBackup = {
-    ...managedDatabase,
-    volumeId: volumeResult.volume.id,
-    backupPolicyId: backupPolicyResult.policy.id,
-    backupType: backupEngine ? ("database" as const) : ("volume" as const),
-    backupEngine
-  };
-  const updatedService = await updateService({
-    serviceId: scope.service.id,
-    teamId: scope.project.teamId,
-    managedDatabase: managedDatabaseWithBackup,
-    requestedByUserId: input.requestedByUserId,
-    requestedByEmail: input.requestedByEmail,
-    requestedByRole: input.requestedByRole
-  });
-  if (updatedService.status !== "ok") {
-    throw new Error("Unable to link managed database backup metadata to the service.");
-  }
-  const plan = parseComposeBuildPlan(rendered.compose);
-  const deployment = await createDeploymentRecord({
-    deploymentId,
-    projectName: scope.project.name,
-    environmentName: scope.environment.name,
-    serviceName: scope.service.name,
-    sourceType: "compose",
-    targetServerId: scope.service.targetServerId ?? input.serverId,
-    commitSha: "",
-    imageTag: "",
-    requestedByUserId: input.requestedByUserId,
-    requestedByEmail: input.requestedByEmail,
-    requestedByRole: input.requestedByRole,
-    teamId: scope.project.teamId,
-    commandAuditAttemptId: input.commandAuditAttemptId,
-    steps: [
-      { label: "Render managed database", detail: `Render ${definition.label} Compose source.` },
-      { label: "Queue execution handoff", detail: "Dispatch the database stack to the worker." }
-    ],
-    configSnapshot: {
-      deploymentSource: "uploaded-compose",
-      composeFilePath: composePath,
-      composeFilePaths: [composePath],
-      uploadedComposeFileName: composePath,
-      uploadedComposeFileNames: [composePath],
-      uploadedArtifactId: artifactId,
-      stackName: rendered.stackName,
+      backupPolicyId: backupPolicyResult.policy.id,
+      backupType: backupEngine ? ("database" as const) : ("volume" as const),
+      backupEngine
+    };
+    const updatedService = await updateService({
+      serviceId: scope.service.id,
+      teamId: scope.project.teamId,
       managedDatabase: managedDatabaseWithBackup,
-      composeBuildPlan: plan
+      requestedByUserId: input.requestedByUserId,
+      requestedByEmail: input.requestedByEmail,
+      requestedByRole: input.requestedByRole
+    });
+    if (updatedService.status !== "ok") {
+      throw new Error("Unable to link managed database backup metadata to the service.");
     }
-  });
-  if (!deployment) throw new Error("Failed to create deployment record.");
-  await dispatchDeploymentExecution(deployment);
+    const plan = parseComposeBuildPlan(rendered.compose);
+    const deployment = await createDeploymentRecord({
+      deploymentId,
+      queueReservationId: deploymentId,
+      projectName: scope.project.name,
+      environmentName: scope.environment.name,
+      serviceName: scope.service.name,
+      sourceType: "compose",
+      targetServerId: scope.service.targetServerId ?? input.serverId,
+      commitSha: "",
+      imageTag: "",
+      requestedByUserId: input.requestedByUserId,
+      requestedByEmail: input.requestedByEmail,
+      requestedByRole: input.requestedByRole,
+      teamId: scope.project.teamId,
+      commandAuditAttemptId: input.commandAuditAttemptId,
+      steps: [
+        { label: "Render managed database", detail: `Render ${definition.label} Compose source.` },
+        { label: "Queue execution handoff", detail: "Dispatch the database stack to the worker." }
+      ],
+      configSnapshot: {
+        deploymentSource: "uploaded-compose",
+        composeFilePath: composePath,
+        composeFilePaths: [composePath],
+        uploadedComposeFileName: composePath,
+        uploadedComposeFileNames: [composePath],
+        uploadedArtifactId: artifactId,
+        stackName: rendered.stackName,
+        managedDatabase: managedDatabaseWithBackup,
+        composeBuildPlan: plan
+      }
+    });
+    if (!deployment) throw new Error("Failed to create deployment record.");
+    await dispatchDeploymentExecution(deployment);
 
-  // Audit the managed-database provisioning itself. The sub-resources (service,
-  // volume, backup policy, deployment) each emit their own audit entries, but the
-  // top-level mutation must record the actor and intent for the whole operation
-  // (charter §14: every write path is auditable).
-  await db.insert(auditEntries).values({
-    actorType: "user",
-    actorId: input.requestedByUserId,
-    actorEmail: input.requestedByEmail,
-    actorRole: input.requestedByRole,
-    targetResource: `service/${scope.service.id}`,
-    action: "managed_database.create",
-    inputSummary: `Provisioned ${definition.label} managed database "${serviceName}"`,
-    permissionScope: "service:update",
-    outcome: "success",
-    metadata: {
-      resourceType: "managed-database",
-      resourceId: scope.service.id,
-      resourceLabel: serviceName,
-      kind: input.kind,
-      serverId: input.serverId,
-      deploymentId: deployment.id
+    // Audit the managed-database provisioning itself. The sub-resources (service,
+    // volume, backup policy, deployment) each emit their own audit entries, but the
+    // top-level mutation must record the actor and intent for the whole operation
+    // (charter §14: every write path is auditable).
+    await db.insert(auditEntries).values({
+      actorType: "user",
+      actorId: input.requestedByUserId,
+      actorEmail: input.requestedByEmail,
+      actorRole: input.requestedByRole,
+      targetResource: `service/${scope.service.id}`,
+      action: "managed_database.create",
+      inputSummary: `Provisioned ${definition.label} managed database "${serviceName}"`,
+      permissionScope: "service:update",
+      outcome: "success",
+      metadata: {
+        resourceType: "managed-database",
+        resourceId: scope.service.id,
+        resourceLabel: serviceName,
+        kind: input.kind,
+        serverId: input.serverId,
+        deploymentId: deployment.id
+      }
+    });
+
+    return {
+      status: "ok" as const,
+      service: updatedService.service,
+      deployment,
+      managedDatabase: managedDatabaseWithBackup,
+      volume: volumeResult.volume,
+      backupPolicy: backupPolicyResult.policy
+    };
+  } catch (error) {
+    if (reservation) {
+      await releaseDeploymentQueueReservation({
+        reservationId: reservation.id,
+        serverId: reservation.serverId,
+        expiresAt: reservation.expiresAt
+      });
     }
-  });
-
-  return {
-    status: "ok" as const,
-    service: updatedService.service,
-    deployment,
-    managedDatabase: managedDatabaseWithBackup,
-    volume: volumeResult.volume,
-    backupPolicy: backupPolicyResult.policy
-  };
+    cleanupStagingDir(deploymentId);
+    throw error;
+  }
 }

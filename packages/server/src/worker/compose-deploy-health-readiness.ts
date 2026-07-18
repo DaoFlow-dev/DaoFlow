@@ -17,15 +17,24 @@ export async function runComposeHealthReadinessCheck(input: {
   statuses: ComposeContainerStatus[];
   onLog: OnLog;
   target: ExecutionTarget;
+  signal?: AbortSignal;
 }): Promise<ComposeReadinessAttempt> {
   return input.target.mode === "remote"
     ? runRemoteComposeReadinessCheck(
         input.target.ssh,
         input.readinessProbe,
         input.statuses,
-        input.onLog
+        input.onLog,
+        undefined,
+        input.signal
       )
-    : runLocalComposeReadinessCheck(input.readinessProbe, input.statuses);
+    : runLocalComposeReadinessCheck(
+        input.readinessProbe,
+        input.statuses,
+        undefined,
+        undefined,
+        input.signal
+      );
 }
 
 export async function runSwarmHealthReadinessCheck(input: {
@@ -35,6 +44,7 @@ export async function runSwarmHealthReadinessCheck(input: {
   tasks: SwarmTaskStatus[];
   onLog: OnLog;
   target: ExecutionTarget;
+  signal?: AbortSignal;
 }): Promise<ComposeReadinessAttempt> {
   if (input.readinessProbe.target === "internal-network") {
     const internalTargets = await resolveSwarmInternalNetworkTargets({
@@ -43,7 +53,8 @@ export async function runSwarmHealthReadinessCheck(input: {
       probe: input.readinessProbe,
       tasks: input.tasks,
       onLog: input.onLog,
-      target: input.target
+      target: input.target,
+      signal: input.signal
     });
 
     return input.target.mode === "remote"
@@ -51,12 +62,26 @@ export async function runSwarmHealthReadinessCheck(input: {
           input.target.ssh,
           input.readinessProbe,
           internalTargets,
-          input.onLog
+          input.onLog,
+          undefined,
+          input.signal
         )
-      : runLocalInternalNetworkReadinessCheck(input.readinessProbe, internalTargets);
+      : runLocalInternalNetworkReadinessCheck(
+          input.readinessProbe,
+          internalTargets,
+          undefined,
+          input.signal
+        );
   }
 
   return input.target.mode === "remote"
-    ? runRemoteComposeReadinessCheck(input.target.ssh, input.readinessProbe, [], input.onLog)
-    : runLocalComposeReadinessCheck(input.readinessProbe, []);
+    ? runRemoteComposeReadinessCheck(
+        input.target.ssh,
+        input.readinessProbe,
+        [],
+        input.onLog,
+        undefined,
+        input.signal
+      )
+    : runLocalComposeReadinessCheck(input.readinessProbe, [], undefined, undefined, input.signal);
 }

@@ -13,6 +13,7 @@ import {
   deleteServer,
   registerServer
 } from "../db/services/servers";
+import { configureServerCapacity } from "../db/services/server-capacity";
 import {
   deployStartProcedure,
   getActorContext,
@@ -126,6 +127,29 @@ export const adminServerProjectRouter = t.router({
     .mutation(async ({ ctx, input }) => {
       const teamId = await requireActorTeamId(ctx.session.user.id);
       const result = await configureServerManagedTraefikProxy({
+        ...input,
+        teamId,
+        ...getActorContext(ctx)
+      });
+
+      if (result.status === "not_found") {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Server not found." });
+      }
+
+      return result.server;
+    }),
+
+  configureServerCapacity: serverWriteProcedure
+    .input(
+      z.object({
+        serverId: z.string().min(1).max(32),
+        maxConcurrentBuilds: z.number().int().min(1).max(20),
+        maxQueuedDeployments: z.number().int().min(1).max(500)
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const teamId = await requireActorTeamId(ctx.session.user.id);
+      const result = await configureServerCapacity({
         ...input,
         teamId,
         ...getActorContext(ctx)

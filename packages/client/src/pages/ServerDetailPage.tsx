@@ -1,6 +1,15 @@
 import { useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Activity, ArrowLeft, HardDrive, History, Network, Shield, Terminal } from "lucide-react";
+import {
+  Activity,
+  ArrowLeft,
+  Gauge,
+  HardDrive,
+  History,
+  Network,
+  Shield,
+  Terminal
+} from "lucide-react";
 import { trpc } from "../lib/trpc";
 import { useSession } from "../lib/auth-client";
 import { Badge } from "@/components/ui/badge";
@@ -9,6 +18,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { HostTerminalTab } from "@/components/server-detail/HostTerminalTab";
+import { ServerCapacityPanel } from "@/components/server-detail/ServerCapacityPanel";
 import { ServerHostIdentityPanel } from "@/components/server-detail/ServerHostIdentityPanel";
 import {
   CleanupPanel,
@@ -48,6 +58,8 @@ export default function ServerDetailPage() {
   const data = hub.data as ServerOperationsHub | undefined;
   const caps = viewer.data?.authz.capabilities ?? [];
   const canWriteServer = caps.includes("server:write");
+  const canConfigureCapacity =
+    canWriteServer && ["owner", "admin"].includes(viewer.data?.authz.role ?? "");
   const canOpenTerminal = caps.includes("terminal:open");
   const isSwarmManager = data?.server.kind === "docker-swarm-manager";
   const operations = useMemo(() => data?.operations ?? [], [data?.operations]);
@@ -124,6 +136,14 @@ export default function ServerDetailPage() {
             <Activity size={14} />
             Resources
           </TabsTrigger>
+          <TabsTrigger
+            value="capacity"
+            className="gap-1.5"
+            data-testid={`server-detail-capacity-tab-${data.server.id}`}
+          >
+            <Gauge size={14} />
+            Capacity
+          </TabsTrigger>
           <TabsTrigger value="cleanup" className="gap-1.5">
             <HardDrive size={14} />
             Cleanup
@@ -167,6 +187,16 @@ export default function ServerDetailPage() {
                 "Resource check completed."
               )
             }
+          />
+        </TabsContent>
+
+        <TabsContent value="capacity" className="mt-4">
+          <ServerCapacityPanel
+            serverId={data.server.id}
+            maxConcurrentBuilds={data.server.maxConcurrentBuilds ?? 1}
+            maxQueuedDeployments={data.server.maxQueuedDeployments ?? 20}
+            canManage={canConfigureCapacity}
+            onSaved={() => refreshHub("Server capacity updated.")}
           />
         </TabsContent>
 

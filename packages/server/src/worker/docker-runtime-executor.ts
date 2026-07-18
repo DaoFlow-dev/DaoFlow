@@ -19,7 +19,8 @@ export async function dockerBuild(
   dockerfile: string,
   tag: string,
   onLog: OnLog,
-  registryCredentials: ContainerRegistryCredential[] = []
+  registryCredentials: ContainerRegistryCredential[] = [],
+  signal?: AbortSignal
 ): Promise<{ exitCode: number }> {
   onLog({
     stream: "stdout",
@@ -32,7 +33,14 @@ export async function dockerBuild(
     args: ["build", "-t", tag, "-f", dockerfile, "."],
     registries: registryCredentials
   });
-  const execOptions = execution.stdin === undefined ? undefined : { stdin: execution.stdin };
+  const execOptions =
+    execution.stdin === undefined
+      ? signal
+        ? { signal }
+        : undefined
+      : signal
+        ? { stdin: execution.stdin, signal }
+        : { stdin: execution.stdin };
 
   return execStreaming(execution.command, execution.args, context, onLog, undefined, execOptions);
 }
@@ -44,7 +52,8 @@ export async function dockerRun(
   tag: string,
   containerName: string,
   options: { ports?: string[]; volumes?: string[]; env?: Record<string, string>; network?: string },
-  onLog: OnLog
+  onLog: OnLog,
+  signal?: AbortSignal
 ): Promise<{ exitCode: number }> {
   const args = ["run", "-d", "--name", containerName, "--restart", "unless-stopped"];
 
@@ -68,7 +77,7 @@ export async function dockerRun(
     timestamp: new Date()
   });
 
-  return execStreaming(dockerCommand, args, STAGING_DIR, onLog);
+  return execStreaming(dockerCommand, args, STAGING_DIR, onLog, undefined, { signal });
 }
 
 /**
@@ -77,7 +86,8 @@ export async function dockerRun(
 export async function dockerPull(
   tag: string,
   onLog: OnLog,
-  registryCredentials: ContainerRegistryCredential[] = []
+  registryCredentials: ContainerRegistryCredential[] = [],
+  signal?: AbortSignal
 ): Promise<{ exitCode: number }> {
   onLog({
     stream: "stdout",
@@ -90,7 +100,14 @@ export async function dockerPull(
     args: ["pull", tag],
     registries: registryCredentials
   });
-  const execOptions = execution.stdin === undefined ? undefined : { stdin: execution.stdin };
+  const execOptions =
+    execution.stdin === undefined
+      ? signal
+        ? { signal }
+        : undefined
+      : signal
+        ? { stdin: execution.stdin, signal }
+        : { stdin: execution.stdin };
 
   return execStreaming(
     execution.command,
@@ -106,7 +123,11 @@ export async function dockerPull(
  * Check if a container is running and healthy.
  * Returns true if the container is in "running" state.
  */
-export async function checkContainerHealth(containerName: string, onLog: OnLog): Promise<boolean> {
+export async function checkContainerHealth(
+  containerName: string,
+  onLog: OnLog,
+  signal?: AbortSignal
+): Promise<boolean> {
   let healthy = false;
 
   const result = await execStreaming(
@@ -118,7 +139,9 @@ export async function checkContainerHealth(containerName: string, onLog: OnLog):
       if (line.message.trim() === "running") {
         healthy = true;
       }
-    }
+    },
+    undefined,
+    signal ? { signal } : undefined
   );
 
   return result.exitCode === 0 && healthy;
@@ -220,7 +243,8 @@ export async function detectLocalRuntimeVersions(
 export async function extractTarArchive(
   tarPath: string,
   destinationDir: string,
-  onLog: OnLog
+  onLog: OnLog,
+  signal?: AbortSignal
 ): Promise<{ exitCode: number }> {
   onLog({
     stream: "stdout",
@@ -228,13 +252,21 @@ export async function extractTarArchive(
     timestamp: new Date()
   });
 
-  return execStreaming("tar", ["-xzf", tarPath, "-C", destinationDir], STAGING_DIR, onLog);
+  return execStreaming(
+    "tar",
+    ["-xzf", tarPath, "-C", destinationDir],
+    STAGING_DIR,
+    onLog,
+    undefined,
+    signal ? { signal } : undefined
+  );
 }
 
 export async function createTarArchive(
   sourceDir: string,
   tarPath: string,
-  onLog: OnLog
+  onLog: OnLog,
+  signal?: AbortSignal
 ): Promise<{ exitCode: number }> {
   onLog({
     stream: "stdout",
@@ -242,5 +274,12 @@ export async function createTarArchive(
     timestamp: new Date()
   });
 
-  return execStreaming("tar", ["-czf", tarPath, "-C", sourceDir, "."], STAGING_DIR, onLog);
+  return execStreaming(
+    "tar",
+    ["-czf", tarPath, "-C", sourceDir, "."],
+    STAGING_DIR,
+    onLog,
+    undefined,
+    signal ? { signal } : undefined
+  );
 }

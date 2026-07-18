@@ -70,11 +70,12 @@ async function uploadRemoteFiles(
   remoteWorkDir: string,
   relativePaths: string[],
   onLog: OnLog,
-  deploymentId: string
+  deploymentId: string,
+  signal?: AbortSignal
 ): Promise<void> {
   for (const relativePath of relativePaths) {
     const remoteDir = dirname(join(remoteWorkDir, relativePath));
-    const ensureDir = await remoteEnsureDir(target.ssh, remoteDir, onLog);
+    const ensureDir = await remoteEnsureDir(target.ssh, remoteDir, onLog, signal);
     if (ensureDir.exitCode !== 0) {
       throw new Error(
         `Failed to prepare remote directory "${remoteDir}" for deployment ${deploymentId}.`
@@ -85,7 +86,8 @@ async function uploadRemoteFiles(
       target.ssh,
       join(localWorkDir, relativePath),
       join(remoteWorkDir, relativePath),
-      onLog
+      onLog,
+      signal
     );
     if (upload.exitCode !== 0) {
       throw new Error(
@@ -101,7 +103,8 @@ export async function prepareComposeWorkspace(
   target: ExecutionTarget,
   onLog: OnLog,
   deploymentState: DeploymentComposeState = { envState: { kind: "queued", entries: [] } },
-  pinnedCommitSha?: string
+  pinnedCommitSha?: string,
+  signal?: AbortSignal
 ): Promise<ComposeWorkspace> {
   if (!isUploadedCompose(config)) {
     const checkout = await resolveCheckoutSpec(config);
@@ -116,7 +119,8 @@ export async function prepareComposeWorkspace(
       gitConfig: checkout.gitConfig,
       sshPrivateKey: checkout.sshPrivateKey,
       repositoryPreparation: checkout.repositoryPreparation,
-      commitSha: pinnedCommitSha
+      commitSha: pinnedCommitSha,
+      signal
     });
     if (localClone.exitCode !== 0) {
       throw new Error(
@@ -140,17 +144,33 @@ export async function prepareComposeWorkspace(
     if (target.mode === "remote") {
       const remoteArchivePath = join(target.remoteWorkDir, `${deploymentId}.tar.gz`);
       const localArchivePath = getStagingArchivePath(deploymentId);
-      const archiveResult = await createTarArchive(localClone.workDir, localArchivePath, onLog);
+      const archiveResult = await createTarArchive(
+        localClone.workDir,
+        localArchivePath,
+        onLog,
+        signal
+      );
       if (archiveResult.exitCode !== 0) {
         throw new Error(`tar archive creation failed with exit code ${archiveResult.exitCode}`);
       }
 
-      const ensureDirResult = await remoteEnsureDir(target.ssh, target.remoteWorkDir, onLog);
+      const ensureDirResult = await remoteEnsureDir(
+        target.ssh,
+        target.remoteWorkDir,
+        onLog,
+        signal
+      );
       if (ensureDirResult.exitCode !== 0) {
         throw new Error(`Failed to prepare remote workspace ${target.remoteWorkDir}.`);
       }
 
-      const uploadArchive = await scpUpload(target.ssh, localArchivePath, remoteArchivePath, onLog);
+      const uploadArchive = await scpUpload(
+        target.ssh,
+        localArchivePath,
+        remoteArchivePath,
+        onLog,
+        signal
+      );
       if (uploadArchive.exitCode !== 0) {
         throw new Error(`Failed to upload repository archive for deployment ${deploymentId}.`);
       }
@@ -159,7 +179,8 @@ export async function prepareComposeWorkspace(
         target.ssh,
         remoteArchivePath,
         target.remoteWorkDir,
-        onLog
+        onLog,
+        signal
       );
       if (extractRemote.exitCode !== 0) {
         throw new Error(`Failed to extract repository archive for deployment ${deploymentId}.`);
@@ -193,7 +214,8 @@ export async function prepareComposeWorkspace(
     const extractResult = await extractTarArchive(
       join(localStageDir, contextArchive),
       localStageDir,
-      onLog
+      onLog,
+      signal
     );
     if (extractResult.exitCode !== 0) {
       throw new Error(
@@ -224,7 +246,7 @@ export async function prepareComposeWorkspace(
     };
   }
 
-  const ensureDirResult = await remoteEnsureDir(target.ssh, target.remoteWorkDir, onLog);
+  const ensureDirResult = await remoteEnsureDir(target.ssh, target.remoteWorkDir, onLog, signal);
   if (ensureDirResult.exitCode !== 0) {
     throw new Error(`Failed to prepare remote workspace ${target.remoteWorkDir}.`);
   }
@@ -232,7 +254,13 @@ export async function prepareComposeWorkspace(
   if (contextArchive) {
     const localArchivePath = join(localStageDir, contextArchive);
     const remoteArchivePath = join(target.remoteWorkDir, contextArchive);
-    const uploadArchive = await scpUpload(target.ssh, localArchivePath, remoteArchivePath, onLog);
+    const uploadArchive = await scpUpload(
+      target.ssh,
+      localArchivePath,
+      remoteArchivePath,
+      onLog,
+      signal
+    );
     if (uploadArchive.exitCode !== 0) {
       throw new Error(`Failed to upload context archive for deployment ${deploymentId}.`);
     }
@@ -241,7 +269,8 @@ export async function prepareComposeWorkspace(
       target.ssh,
       remoteArchivePath,
       target.remoteWorkDir,
-      onLog
+      onLog,
+      signal
     );
     if (extractRemote.exitCode !== 0) {
       throw new Error(`Failed to extract remote context archive for deployment ${deploymentId}.`);
@@ -259,7 +288,8 @@ export async function prepareComposeWorkspace(
       ...artifacts.composeInputs.frozenInputs.envFiles.map((envFile) => envFile.path)
     ],
     onLog,
-    deploymentId
+    deploymentId,
+    signal
   );
 
   return {

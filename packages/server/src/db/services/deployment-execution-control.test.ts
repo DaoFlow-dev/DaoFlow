@@ -133,6 +133,7 @@ describe("deployment execution control", () => {
     });
 
     expect(claimed?.serviceName).toBe(secondary.serviceName);
+    expect(claimed?.status).toBe("waiting");
 
     const [blocked] = await db
       .select()
@@ -205,7 +206,65 @@ describe("deployment execution control", () => {
       actorLabel: "temporal-worker"
     });
     expect(claimed.status).toBe("claimed");
-    expect(claimed.deployment?.status).toBe("prepare");
+    expect(claimed.deployment?.status).toBe("waiting");
+  });
+
+  it("claims Temporal build candidates in server FIFO order", async () => {
+    const older = await createDeploymentFixture("fifo-older");
+    const newer = await createDeploymentFixture("fifo-newer");
+    const olderId = `depolder${Date.now()}`.slice(0, 32);
+    const newerId = `depnewer${Date.now()}`.slice(0, 32);
+
+    await db.insert(deployments).values([
+      {
+        id: olderId,
+        projectId: older.projectId,
+        environmentId: older.environmentId,
+        targetServerId: "srv_foundation_1",
+        serviceName: older.serviceName,
+        sourceType: "compose",
+        status: "queued",
+        configSnapshot: {},
+        createdAt: new Date("2000-01-01T00:00:00.000Z"),
+        updatedAt: new Date("2000-01-01T00:00:00.000Z")
+      },
+      {
+        id: newerId,
+        projectId: newer.projectId,
+        environmentId: newer.environmentId,
+        targetServerId: "srv_foundation_1",
+        serviceName: newer.serviceName,
+        sourceType: "compose",
+        status: "queued",
+        configSnapshot: {},
+        createdAt: new Date("2000-01-02T00:00:00.000Z"),
+        updatedAt: new Date("2000-01-02T00:00:00.000Z")
+      }
+    ]);
+
+    const actor = {
+      actorId: "temporal-worker",
+      actorEmail: "system@daoflow.local",
+      actorRole: "admin" as const,
+      actorLabel: "temporal-worker"
+    };
+    const blockedNewer = await claimDeploymentForExecution(newerId, actor);
+    expect(blockedNewer.status).toBe("waiting");
+
+    const [stillQueued] = await db
+      .select({ status: deployments.status })
+      .from(deployments)
+      .where(eq(deployments.id, newerId))
+      .limit(1);
+    expect(stillQueued?.status).toBe("queued");
+
+    const claimedOlder = await claimDeploymentForExecution(olderId, actor);
+    expect(claimedOlder.status).toBe("claimed");
+    expect(claimedOlder.deployment?.status).toBe("waiting");
+
+    const claimedNewer = await claimDeploymentForExecution(newerId, actor);
+    expect(claimedNewer.status).toBe("claimed");
+    expect(claimedNewer.deployment?.status).toBe("waiting");
   });
 
   it("records active deployment cancellation as a cooperative request", async () => {

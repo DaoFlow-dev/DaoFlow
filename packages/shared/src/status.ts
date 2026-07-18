@@ -9,6 +9,7 @@ export type StatusTone = (typeof StatusTone)[keyof typeof StatusTone];
 
 export const DeploymentLifecycleStatus = {
   Queued: "queued",
+  Waiting: "waiting",
   Prepare: "prepare",
   Deploy: "deploy",
   Finalize: "finalize",
@@ -139,6 +140,8 @@ export function formatDeploymentStatusLabel(status: string, conclusion: string |
   switch (status) {
     case DeploymentLifecycleStatus.Queued:
       return "Queued";
+    case DeploymentLifecycleStatus.Waiting:
+      return "Waiting for build slot";
     case DeploymentLifecycleStatus.Prepare:
       return "Preparing";
     case DeploymentLifecycleStatus.Deploy:

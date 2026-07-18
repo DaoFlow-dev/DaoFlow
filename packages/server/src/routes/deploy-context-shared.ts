@@ -6,6 +6,8 @@ import { deriveComposeStackName } from "../db/services/compose-deployment-plan-b
 import { ensureDirectDeploymentScope } from "../db/services/direct-deployments";
 import { createDeploymentRecord } from "../db/services/deployments";
 import { dispatchDeploymentExecution } from "../db/services/deployment-dispatch";
+import { DeploymentQueueFullError } from "../db/services/deployment-capacity";
+import { resolveTeamIdForUser } from "../db/services/teams";
 import { authorizeRequest } from "./request-auth";
 import { normalize, relative, resolve } from "node:path";
 
@@ -13,6 +15,7 @@ export interface DeployActor {
   userId: string;
   email: string;
   role: AppRole;
+  teamId: string;
 }
 
 export interface DirectComposeRequestBody {
@@ -39,6 +42,20 @@ export class DirectComposeRequestError extends Error {
 
 export function readErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+export function deploymentQueueFullResponse(c: Context, error: DeploymentQueueFullError) {
+  return c.json(
+    {
+      ok: false,
+      error: error.message,
+      code: error.code,
+      serverId: error.serverId,
+      maxQueuedDeployments: error.maxQueuedDeployments,
+      queuedDeploymentCount: error.queuedDeploymentCount
+    },
+    409
+  );
 }
 
 export async function readDirectComposeRequestBody(
@@ -174,10 +191,20 @@ export async function requireDeployActor(c: Context) {
     return c.json(authResult.body, authResult.status);
   }
 
+  const userId = authResult.actor.auth.principal.linkedUserId ?? authResult.actor.auth.principal.id;
+  const teamId = await resolveTeamIdForUser(userId);
+  if (!teamId) {
+    return c.json(
+      { ok: false, error: "No organization is available for this user.", code: "TEAM_REQUIRED" },
+      403
+    );
+  }
+
   return {
-    userId: authResult.actor.auth.principal.linkedUserId ?? authResult.actor.auth.principal.id,
+    userId,
     email: authResult.actor.auth.principal.email,
-    role: authResult.actor.role
+    role: authResult.actor.role,
+    teamId
   } satisfies DeployActor;
 }
 
@@ -205,6 +232,7 @@ export async function queueUploadedDeployment(input: {
 
   const deployment = await createDeploymentRecord({
     deploymentId: input.deploymentId,
+    queueReservationId: input.deploymentId,
     projectName: scope.project.name,
     environmentName: scope.environment.name,
     serviceName: scope.service.name,

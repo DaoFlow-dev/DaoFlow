@@ -72,7 +72,8 @@ const mocks = vi.hoisted(() => ({
   runComposeHealthReadinessCheck: vi.fn(),
   runSwarmHealthReadinessCheck: vi.fn(),
   readComposeHealthStatuses: vi.fn(),
-  readSwarmHealthStatuses: vi.fn()
+  readSwarmHealthStatuses: vi.fn(),
+  withDeploymentBuildLease: vi.fn((input: { run: () => Promise<unknown> }) => input.run())
 }));
 
 vi.mock("../db/services/compose-env", () => ({
@@ -149,6 +150,10 @@ vi.mock("./compose-deploy-health-readiness", () => ({
 vi.mock("./compose-deploy-health-status", () => ({
   readComposeHealthStatuses: mocks.readComposeHealthStatuses,
   readSwarmHealthStatuses: mocks.readSwarmHealthStatuses
+}));
+
+vi.mock("./deployment-build-lease", () => ({
+  withDeploymentBuildLease: mocks.withDeploymentBuildLease
 }));
 
 export function createLocalBuildService(
@@ -270,6 +275,7 @@ interface ComposeDeployStrategyHarness {
   dockerComposePs: Mock;
   dockerComposePull: Mock;
   dockerComposeUp: Mock;
+  withDeploymentBuildLease: Mock;
   dockerStackDeploy: Mock;
   dockerInspectSwarmTaskNetworkAddresses: Mock;
   dockerStackRemove: Mock;
@@ -345,6 +351,7 @@ export async function loadHarness(input: {
     dockerComposePs: mocks.dockerComposePs,
     dockerComposePull: mocks.dockerComposePull,
     dockerComposeUp: mocks.dockerComposeUp,
+    withDeploymentBuildLease: mocks.withDeploymentBuildLease,
     dockerStackDeploy: mocks.dockerStackDeploy,
     dockerInspectSwarmTaskNetworkAddresses: mocks.dockerInspectSwarmTaskNetworkAddresses,
     dockerStackRemove: mocks.dockerStackRemove,

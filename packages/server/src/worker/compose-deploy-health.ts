@@ -29,6 +29,7 @@ export async function waitForComposeHealthy(input: {
   readinessProbe: ComposeReadinessProbeSnapshot | null;
   expectedServiceNames?: string[];
   expectedHealthcheckServiceNames?: string[];
+  signal?: AbortSignal;
 }): Promise<void> {
   const composeStart = Date.now();
   let readinessStart: number | null = null;
@@ -43,6 +44,7 @@ export async function waitForComposeHealthy(input: {
     : HEALTH_CHECK_INTERVAL_MS;
 
   while (true) {
+    input.signal?.throwIfAborted();
     await throwIfDeploymentCancellationRequested(input.deploymentId);
     const now = Date.now();
     if (!readinessStart && now - composeStart >= HEALTH_CHECK_TIMEOUT_MS) {
@@ -73,7 +75,8 @@ export async function waitForComposeHealthy(input: {
       input.target,
       input.composeEnvFile,
       input.composeEnvExportFile,
-      composePsScopeServiceName
+      composePsScopeServiceName,
+      input.signal
     );
     if (statusResult.exitCode !== 0) {
       await markStepFailed(
@@ -100,7 +103,8 @@ export async function waitForComposeHealthy(input: {
         readinessProbe: input.readinessProbe,
         statuses: statusResult.statuses,
         onLog: input.onLog,
-        target: input.target
+        target: input.target,
+        signal: input.signal
       });
 
       if (readinessAttempt.kind === "success") {
@@ -140,6 +144,7 @@ export async function waitForSwarmStackHealthy(input: {
   target: ExecutionTarget;
   healthStepId: number;
   readinessProbe: ComposeReadinessProbeSnapshot | null;
+  signal?: AbortSignal;
 }): Promise<void> {
   const swarmStart = Date.now();
   let readinessStart: number | null = null;
@@ -149,6 +154,7 @@ export async function waitForSwarmStackHealthy(input: {
     : HEALTH_CHECK_INTERVAL_MS;
 
   while (true) {
+    input.signal?.throwIfAborted();
     await throwIfDeploymentCancellationRequested(input.deploymentId);
     const now = Date.now();
     if (!readinessStart && now - swarmStart >= HEALTH_CHECK_TIMEOUT_MS) {
@@ -175,7 +181,8 @@ export async function waitForSwarmStackHealthy(input: {
       input.stackName,
       input.workDir,
       input.onLog,
-      input.target
+      input.target,
+      input.signal
     );
 
     if (serviceResult.exitCode !== 0) {
@@ -213,7 +220,8 @@ export async function waitForSwarmStackHealthy(input: {
         readinessProbe,
         tasks: taskResult.tasks,
         onLog: input.onLog,
-        target: input.target
+        target: input.target,
+        signal: input.signal
       });
 
       if (readinessAttempt.kind === "success") {

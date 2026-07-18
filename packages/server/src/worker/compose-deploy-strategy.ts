@@ -30,6 +30,7 @@ import {
   type DeploymentRow
 } from "./step-management";
 import { throwIfDeploymentCancellationRequested } from "../db/services/deployment-execution-control";
+import { withDeploymentBuildLease } from "./deployment-build-lease";
 
 function isSwarmManagerTarget(target: ExecutionTarget): boolean {
   return target.serverKind === "docker-swarm-manager";
@@ -51,7 +52,8 @@ export async function executeComposeDeployment(
   config: ConfigSnapshot,
   projectName: string,
   onLog: OnLog,
-  target: ExecutionTarget
+  target: ExecutionTarget,
+  signal?: AbortSignal
 ): Promise<void> {
   const uploadedSource =
     config.deploymentSource === "uploaded-compose" ||
@@ -89,7 +91,8 @@ export async function executeComposeDeployment(
       target,
       onLog,
       deploymentComposeState,
-      deployment.commitSha ?? undefined
+      deployment.commitSha ?? undefined,
+      signal
     );
     workDir = workspace.workDir;
     composeFile = workspace.composeFile;
@@ -138,7 +141,8 @@ export async function executeComposeDeployment(
       composeFile,
       onLog,
       composeEnvFile,
-      composeEnvExportFile
+      composeEnvExportFile,
+      signal
     });
     if (downResult.exitCode !== 0) {
       await markStepFailed(
@@ -184,7 +188,8 @@ export async function executeComposeDeployment(
       composeEnvFile,
       composeEnvExportFile,
       composeServiceName,
-      registryCredentials: pullRegistryCredentials
+      registryCredentials: pullRegistryCredentials,
+      signal
     });
     if (pullResult.exitCode !== 0) {
       await markStepFailed(
@@ -206,16 +211,24 @@ export async function executeComposeDeployment(
     nextSortOrder += 1;
     await markStepRunning(buildStepId);
 
-    const buildResult = await runComposeBuildOperation({
-      target,
-      composeFile,
-      projectName,
-      workDir,
+    const buildResult = await withDeploymentBuildLease({
+      deploymentId: deployment.id,
+      serverId: deployment.targetServerId,
       onLog,
-      composeEnvFile,
-      composeEnvExportFile,
-      executionScope,
-      registryCredentials: buildRegistryCredentials
+      signal,
+      run: (signal) =>
+        runComposeBuildOperation({
+          target,
+          composeFile,
+          projectName,
+          workDir,
+          onLog,
+          composeEnvFile,
+          composeEnvExportFile,
+          executionScope,
+          registryCredentials: buildRegistryCredentials,
+          signal
+        })
     });
     if (buildResult.exitCode !== 0) {
       await markStepFailed(
@@ -251,7 +264,8 @@ export async function executeComposeDeployment(
     composeEnvFile,
     composeEnvExportFile,
     composeServiceName,
-    registryCredentials: pullRegistryCredentials
+    registryCredentials: pullRegistryCredentials,
+    signal
   });
   if (upResult.exitCode !== 0) {
     await markStepFailed(
@@ -283,7 +297,8 @@ export async function executeComposeDeployment(
       onLog,
       target,
       healthStepId,
-      readinessProbe
+      readinessProbe,
+      signal
     });
     return;
   }
@@ -302,6 +317,7 @@ export async function executeComposeDeployment(
     readinessProbe,
     expectedServiceNames: executionScope.expectedServiceNames,
     expectedHealthcheckServiceNames: executionScope.buildHealthcheckServiceNames,
-    deploymentId: deployment.id
+    deploymentId: deployment.id,
+    signal
   });
 }

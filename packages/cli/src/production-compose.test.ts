@@ -26,6 +26,16 @@ function resolveServiceNames(
 }
 
 describe("production docker-compose.yml", () => {
+  test("builds the application runtime by default instead of the development-task runner", async () => {
+    const dockerfile = await Bun.file(new URL("../../../Dockerfile", import.meta.url)).text();
+    const stages = dockerfile
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line.startsWith("FROM "));
+
+    expect(stages.at(-1)).toBe("FROM runtime AS production");
+  });
+
   test("keeps local secrets out of the Docker build context", async () => {
     const dockerignoreContent = await Bun.file(
       new URL("../../../.dockerignore", import.meta.url)
@@ -74,6 +84,7 @@ describe("production docker-compose.yml", () => {
       "${DAOFLOW_RECOVERY_ENCRYPTION_KEY:-}"
     );
     expect(asRecord(daoflow.environment).CORS_ORIGIN).toBe("${CORS_ORIGIN:-}");
+    expect(asRecord(daoflow.environment).DEPLOY_TIMEOUT_MS).toBe("${DEPLOY_TIMEOUT_MS:-86400000}");
     expect(daoflow.healthcheck).toBeDefined();
     expect(asRecord(asRecord(services.postgres).environment).POSTGRES_DB).toBe("daoflow");
     expect(asRecord(asRecord(services.postgres).environment).POSTGRES_PASSWORD).toBe(

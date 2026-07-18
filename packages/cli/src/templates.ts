@@ -232,7 +232,7 @@ ${envLine("DAOFLOW_RECOVERY_ENCRYPTION_KEY", recoveryKey)}
 # DAOFLOW_CONTROL_PLANE_POSTGRES_CONTAINER=
 
 # -- Deployment Worker ------------------------------------------------------
-# DEPLOY_TIMEOUT_MS=600000
+# DEPLOY_TIMEOUT_MS=86400000
 
 # -- Temporal (workflow orchestration) --------------------------------------
 ${envLine("DAOFLOW_ENABLE_TEMPORAL", workflowProfileEnv.DAOFLOW_ENABLE_TEMPORAL)}

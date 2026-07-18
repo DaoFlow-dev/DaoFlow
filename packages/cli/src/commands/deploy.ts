@@ -13,12 +13,15 @@ import { Command } from "commander";
 import chalk from "chalk";
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { ApiError } from "../api-client";
+import { toCommandActionError } from "../command-action";
 import { createClient } from "../trpc-client";
 import { loadDaoflowConfig, type DaoflowConfig } from "../config-loader";
 import {
   emitJsonError,
   emitJsonSuccess,
   getErrorMessage,
+  isRecord,
   normalizeCliInput,
   resolveCommandJsonOption,
   resolveCommandQuietOption,
@@ -59,6 +62,73 @@ const DEPLOY_HELP_TEXT = [
   '  service execute: { "ok": true, "data": { "id": "dep_123", "serviceName": "api", ... } }',
   '  compose execute: { "ok": true, "data": { "deploymentId": "dep_123", "serverId": "srv_123" } }'
 ].join("\n");
+
+interface DeployErrorDetails {
+  code: string;
+  exitCode: number;
+  extra?: Record<string, unknown>;
+  message: string;
+}
+
+function readApiErrorDetails(error: ApiError): {
+  code?: string;
+  extra?: Record<string, unknown>;
+  message?: string;
+} {
+  try {
+    const body = JSON.parse(error.body) as unknown;
+    if (!isRecord(body)) {
+      return {};
+    }
+
+    const code = typeof body.code === "string" ? body.code : undefined;
+    const message =
+      typeof body.error === "string"
+        ? body.error
+        : typeof body.message === "string"
+          ? body.message
+          : undefined;
+    const extra = Object.fromEntries(
+      Object.entries(body).filter(([key]) => !["ok", "error", "message", "code"].includes(key))
+    );
+
+    return {
+      code,
+      message,
+      extra: Object.keys(extra).length > 0 ? extra : undefined
+    };
+  } catch {
+    return {};
+  }
+}
+
+function resolveDeployError(error: unknown, fallbackCode: string): DeployErrorDetails {
+  const actionError = toCommandActionError(error);
+  const apiErrorDetails = error instanceof ApiError ? readApiErrorDetails(error) : undefined;
+
+  return {
+    code: apiErrorDetails?.code ?? (actionError.code === "ERROR" ? fallbackCode : actionError.code),
+    exitCode: actionError.exitCode,
+    extra: apiErrorDetails?.extra ?? actionError.extra,
+    message: apiErrorDetails?.message ?? actionError.message
+  };
+}
+
+function renderDeployError(
+  error: unknown,
+  fallbackCode: string,
+  isJson: boolean
+): DeployErrorDetails {
+  const deployError = resolveDeployError(error, fallbackCode);
+
+  if (isJson) {
+    emitJsonError(deployError.message, deployError.code, deployError.extra);
+  } else {
+    console.error(chalk.red(`Error: ${deployError.message}`));
+  }
+
+  return deployError;
+}
 
 export function deployCommand(): Command {
   return new Command("deploy")
@@ -231,14 +301,8 @@ export function deployCommand(): Command {
               console.log(chalk.dim(`  Service: ${result.serviceName}`));
             }
           } catch (err) {
-            if (isJson) {
-              emitJsonError(getErrorMessage(err), "API_ERROR");
-            } else {
-              console.error(
-                chalk.red(`Error: ${err instanceof Error ? err.message : String(err)}`)
-              );
-            }
-            process.exit(1);
+            const deployError = renderDeployError(err, "API_ERROR", isJson);
+            process.exit(deployError.exitCode);
           }
         });
       }
@@ -415,12 +479,11 @@ async function handleComposeDeploy(opts: ComposeDeployOpts): Promise<void> {
     }
 
     if (opts.json) {
-      emitJsonError(getErrorMessage(err), "DEPLOY_ERROR");
+      const deployError = renderDeployError(err, "DEPLOY_ERROR", true);
+      process.exit(deployError.exitCode);
     } else {
-      console.error(
-        chalk.red(`✗ Deployment failed: ${err instanceof Error ? err.message : String(err)}`)
-      );
+      const deployError = renderDeployError(err, "DEPLOY_ERROR", false);
+      process.exit(deployError.exitCode);
     }
-    process.exit(1);
   }
 }
