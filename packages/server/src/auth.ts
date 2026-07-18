@@ -25,6 +25,11 @@ function createAuthInstance() {
     appName: "DaoFlow",
     baseURL: authBaseURL,
     secret: AUTH_SECRET,
+    rateLimit: {
+      // Playwright exercises many sign-ins from one local address while DaoFlow's
+      // credential-endpoint limiter remains active in app.ts.
+      enabled: process.env.DAOFLOW_E2E === "true" ? false : undefined
+    },
     advanced: {
       // Better Auth defaults to Secure cookies in production mode, but if
       // the server is behind plain HTTP (CI, local dev without TLS), the

@@ -47,6 +47,7 @@ export default defineConfig({
       TEMPORAL_NAMESPACE: process.env.TEMPORAL_NAMESPACE ?? "daoflow",
       TEMPORAL_TASK_QUEUE: process.env.TEMPORAL_TASK_QUEUE ?? "daoflow-deployments",
       DAOFLOW_ENABLE_TEMPORAL: "true",
+      DAOFLOW_E2E: "true",
       NODE_ENV: "production",
       PORT: playwrightServerPort
       // NOTE: DISABLE_WORKER is intentionally NOT set
