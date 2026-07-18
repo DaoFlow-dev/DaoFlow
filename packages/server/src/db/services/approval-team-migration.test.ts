@@ -26,10 +26,10 @@ async function applyApprovalTeamOwnershipMigrations() {
     "../../../../../drizzle"
   );
   for (const migrationName of [
-    "0031_add_approval_team_ownership.sql",
-    "0032_backfill_approval_team_ownership.sql",
-    "0033_enforce_approval_team_ownership.sql",
-    "0034_scope_approval_binding_uniqueness.sql"
+    "0034_add_approval_team_ownership.sql",
+    "0035_backfill_approval_team_ownership.sql",
+    "0036_enforce_approval_team_ownership.sql",
+    "0037_scope_approval_binding_uniqueness.sql"
   ]) {
     const migrationSql = await readFile(path.join(migrationDirectory, migrationName), "utf8");
     const statements = migrationSql
