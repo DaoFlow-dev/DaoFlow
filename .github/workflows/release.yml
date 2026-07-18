@@ -25,6 +25,12 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      - name: Verify production readiness evidence
+        run: bun run readiness:check
+
+      - name: Generate plain-language production readiness report
+        run: bun run readiness:report -- --output dist/PRODUCTION_READINESS.md
+
       - name: Extract version from tag
         id: version
         run: echo "version=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
@@ -87,6 +93,12 @@ jobs:
             | macOS | Apple Silicon | `daoflow-darwin-arm64` |
             | macOS | Intel | `daoflow-darwin-x64` |
 
+            ### Production readiness
+
+            The attached `PRODUCTION_READINESS.md` lists verified repository facts,
+            open readiness limitations, evidence freshness limits, and the active
+            issue dependencies. It does not include workflow logs or credentials.
+
             ### Manual Install
 
             ```bash
@@ -107,4 +119,5 @@ jobs:
             dist/daoflow-linux-x64.tar.gz
             dist/daoflow-linux-arm64.tar.gz
             dist/checksums.txt
+            dist/PRODUCTION_READINESS.md
           generate_release_notes: true

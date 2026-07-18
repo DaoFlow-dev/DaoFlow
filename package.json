@@ -21,6 +21,9 @@
     "contracts:check": "bun ./scripts/generate-external-contracts.ts --check",
     "templates:check": "bun ./scripts/check-app-templates.ts",
     "templates:report": "bun ./scripts/check-app-templates.ts --report",
+    "readiness:test": "bun test scripts/readiness/readiness.test.mjs scripts/readiness/repository-paths.test.mjs",
+    "readiness:report": "bun scripts/readiness/generate-report.mjs",
+    "readiness:check": "bun run readiness:test && bun scripts/readiness/check.mjs",
     "check:server-build-references": "bun --filter @daoflow/server build && bun --filter @daoflow/client typecheck",
     "start": "NODE_ENV=production bun packages/server/dist/index.js",
     "start:e2e": "NODE_ENV=production bun packages/server/src/index.ts",
@@ -37,7 +40,7 @@
     "test:e2e:bootstrap": "sh ./scripts/run-e2e-bootstrap.sh",
     "test:e2e:cli": "sh ./scripts/run-e2e-cli.sh",
     "test:e2e:worker": "./node_modules/.bin/playwright test --config playwright.worker.config.ts",
-    "verify": "bun run format:check && bun run lint && bun run typecheck && bun run contracts:check && bun run test:unit",
+    "verify": "bun run format:check && bun run lint && bun run typecheck && bun run contracts:check && bun run readiness:check && bun run test:unit",
     "db:generate": "drizzle-kit generate",
     "db:generate:fresh": "bun packages/server/src/db/regenerate-migrations.ts",
     "db:migrate": "bun packages/server/src/db/migration.ts",
@@ -64,7 +67,8 @@
     "globals": "16.5.0",
     "prettier": "3.9.5",
     "typescript": "6.0.2",
-    "typescript-eslint": "8.64.0"
+    "typescript-eslint": "8.64.0",
+    "yaml": "2.9.0"
   },
   "overrides": {
     "zod": "4.3.6"

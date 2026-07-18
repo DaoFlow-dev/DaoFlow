@@ -1,0 +1,185 @@
+# Public production-readiness claims must use explicit readiness-claim markers in the files
+# below. The checker also rejects high-risk absolute wording outside those registered blocks.
+version: 1
+public_claim_files:
+  - README.md
+  - docs/docs/concepts/vision.md
+report_path: PRODUCTION_READINESS.md
+
+freshness_limits:
+  real-infrastructure: 14
+  restore: 14
+  audit: 30
+  agent-safety: 30
+  contract: 30
+  source-availability: 365
+
+claims:
+  - id: production-deployment-readiness
+    title: Production deployment readiness
+    status: unverified
+    public_text: >-
+      **Goal:** DaoFlow aims to make self-hosted Docker Compose deployments dependable enough for a small team to operate without a dedicated platform team.
+    sources:
+      - path: README.md
+      - path: docs/docs/concepts/vision.md
+    required_issues: [207, 208, 209, 217, 234, 236, 242]
+    evidence_requirements:
+      - category: real-infrastructure
+        max_age_days: 14
+
+  - id: cli-contract-surface
+    title: Agent-facing CLI contract
+    status: verified
+    public_text: >-
+      **Verified in this repository:** The CLI publishes structured JSON contracts, scoped permission metadata, and dry-run behavior in the generated [CLI contract](./docs/static/contracts/cli-contract.json).
+    public_evidence_citation: docs/static/contracts/cli-contract.json
+    sources:
+      - path: README.md
+    evidence_requirements:
+      - category: contract
+        max_age_days: 30
+    evidence:
+      - kind: test
+        category: contract
+        gate: cli-contract
+        path: docs/static/contracts/cli-contract.json
+        max_age_days: 30
+
+  - id: api-lane-separation
+    title: Read, planning, and command API lanes
+    status: verified
+    public_text: >-
+      **Verified in this repository:** The API separates read, planning, and command procedures under the documented [command audit contract](./.agents/references/command-audit-contract.md).
+    public_evidence_citation: .agents/references/command-audit-contract.md
+    sources:
+      - path: README.md
+    evidence_requirements:
+      - category: contract
+        max_age_days: 30
+    evidence:
+      - kind: test
+        category: contract
+        gate: api-lanes
+        path: scripts/readiness/api-lanes.test.mjs
+        max_age_days: 30
+
+  - id: compose-lifecycle-evidence
+    title: Compose lifecycle evidence
+    status: unverified
+    public_text: >-
+      **Current limitation:** Compose deployment records and recovery behavior are not yet independently verified across a real remote deployment, failure, and rollback lifecycle.
+    sources:
+      - path: README.md
+    required_issues: [207, 209, 233, 238]
+    evidence_requirements:
+      - category: real-infrastructure
+        max_age_days: 14
+
+  - id: agent-safety-controls
+    title: Agent-safety controls
+    status: unverified
+    public_text: >-
+      **Current limitation:** Agent permissions and destructive-action controls are under active verification and are not yet an unconditional production-safety guarantee.
+    sources:
+      - path: README.md
+      - path: docs/docs/concepts/vision.md
+    required_issues: [202, 208, 236, 241, 242]
+    evidence_requirements:
+      - category: agent-safety
+        max_age_days: 30
+
+  - id: command-audit-completeness
+    title: Command audit completeness
+    status: unverified
+    public_text: >-
+      **Current limitation:** DaoFlow has not yet proved that every command-lane mutation creates a complete immutable audit record.
+    sources:
+      - path: README.md
+      - path: docs/docs/concepts/vision.md
+    required_issues: [208]
+    evidence_requirements:
+      - category: audit
+        max_age_days: 30
+
+  - id: backup-restore-assurance
+    title: Backup and restore assurance
+    status: unverified
+    public_text: >-
+      **Current limitation:** Backup and restore workflows have not yet been proven through a current real-infrastructure round trip with verified data integrity.
+    sources:
+      - path: README.md
+      - path: docs/docs/concepts/vision.md
+    required_issues: [217, 218, 234, 235, 239, 240]
+    evidence_requirements:
+      - category: restore
+        max_age_days: 14
+
+  - id: source-control-isolation
+    title: Source-control team isolation
+    status: unverified
+    public_text: >-
+      **Current limitation:** GitHub and GitLab provider, installation, callback, and checkout boundaries are not yet fully verified as team-isolated.
+    sources:
+      - path: docs/docs/concepts/vision.md
+    required_issues: [225, 226, 227, 228, 229, 242]
+    evidence_requirements:
+      - category: agent-safety
+        max_age_days: 30
+
+  - id: operator-data-control
+    title: Operator data control
+    status: unverified
+    public_text: >-
+      **Goal:** Keep deployment state, backups, and operational decisions under the operator's explicit control.
+    sources:
+      - path: docs/docs/concepts/vision.md
+    required_issues: [217, 218, 234, 235, 239]
+    evidence_requirements:
+      - category: restore
+        max_age_days: 14
+
+  - id: deterministic-deployment-contract
+    title: Deterministic deployment contract
+    status: unverified
+    public_text: >-
+      **Current limitation:** DaoFlow has not yet independently proven deterministic deployment and recovery outcomes across the complete production lifecycle.
+    sources:
+      - path: docs/docs/concepts/vision.md
+    required_issues: [207, 209, 212, 216, 222, 233, 238, 240]
+    evidence_requirements:
+      - category: real-infrastructure
+        max_age_days: 14
+
+  - id: interface-parity
+    title: Web, CLI, and automation parity
+    status: unverified
+    public_text: >-
+      **Goal:** Provide one evidence-backed deployment contract for the Web UI, CLI, CI, and constrained automation.
+    sources:
+      - path: docs/docs/concepts/vision.md
+    required_issues: [202, 208, 214, 215, 218, 225, 228, 229, 241, 242]
+    evidence_requirements:
+      - category: audit
+        max_age_days: 30
+      - category: agent-safety
+        max_age_days: 30
+
+  - id: open-source-license
+    title: Open-source license availability
+    status: verified
+    public_text: >-
+      **Verified in this repository:** DaoFlow is published under the [Apache License 2.0](https://github.com/DaoFlow-dev/DaoFlow/blob/main/LICENSE), and the repository source is available for inspection.
+    public_evidence_citation: LICENSE
+    sources:
+      - path: README.md
+      - path: docs/docs/concepts/vision.md
+    evidence_requirements:
+      - category: source-availability
+        max_age_days: 365
+    evidence:
+      - kind: test
+        category: source-availability
+        gate: license-source
+        path: scripts/readiness/license-evidence.test.mjs
+        max_age_days: 365

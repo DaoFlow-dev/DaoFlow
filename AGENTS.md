@@ -30,6 +30,7 @@ Use these files instead of expanding the root charter:
 - [product-charter.md](.agents/charters/product-charter.md) — product thesis, architecture, MVP scope, permission model, UX direction, and implementation hygiene
 - [cli-contract.md](.agents/references/cli-contract.md) — CLI contract, scope map, JSON output rules, and command guardrails
 - [command-audit-contract.md](.agents/references/command-audit-contract.md) — enforced command intent, outcome, redaction, and append-only rules
+- [production-readiness.yml](.agents/references/production-readiness.yml) — public claim registry, evidence requirements, and freshness limits
 - [e2e-implementation-roadmap.md](.agents/roadmaps/e2e-implementation-roadmap.md) — long-lived milestone and task tracking
 - [pre-commit.md](.agents/workflows/pre-commit.md) — required validation workflow before commit and push
 - [acpx-review.md](.agents/workflows/acpx-review.md) — required Gemini and Claude Code self-review workflow before commit and push

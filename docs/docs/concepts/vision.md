@@ -4,9 +4,12 @@ sidebar_position: 6
 
 # Vision & Principles
 
-DaoFlow exists to make production deployment on your own servers dependable enough for a small team to operate without a dedicated platform team.
+<!-- readiness-claim: id=production-deployment-readiness state=goal -->
 
-The primary product is a deployment platform: connect GitHub or GitLab, configure an application in the Web UI, deploy it to a Docker server, understand what happened, and recover safely when something fails. The CLI exposes the same deployment engine for humans, CI, and constrained automation.
+**Goal:** DaoFlow aims to make self-hosted Docker Compose deployments dependable enough for a small team to operate without a dedicated platform team.
+<!-- /readiness-claim -->
+
+The intended product is a deployment platform: connect GitHub or GitLab, configure an application in the Web UI, deploy it to a Docker server, understand what happened, and recover with clear evidence when something fails. The CLI is intended to expose the same deployment engine for humans, CI, and constrained automation.
 
 ## Why DaoFlow?
 
@@ -16,9 +19,9 @@ Teams should not have to choose between:
 
 - **Vendor lock-in** — an easy deployment experience that only works on someone else's cloud
 - **Unsafe flexibility** — raw Docker and SSH access without durable plans, permissions, or recovery evidence
-- **Shallow automation** — APIs and CLIs that can start work but cannot reliably explain, constrain, or recover it
+- **Shallow automation** — APIs and CLIs that can start work but cannot consistently explain, constrain, or recover it
 
-DaoFlow's goal is a strong middle path: **a practical Coolify- or Dokploy-class deployment experience, with stricter permissions, immutable operation history, explicit approval for dangerous actions, and deterministic CLI contracts**.
+DaoFlow's goal is a strong middle path: **a practical Coolify- or Dokploy-class deployment experience, with stricter permissions, evidence-backed operation history, explicit approval for dangerous actions, and stable CLI contracts**.
 
 ## Product Priority
 
@@ -27,7 +30,7 @@ Work is prioritized in this order:
 1. **Production deployment reliability** — remote Docker/Compose execution, health checks, rollback, cleanup, resource limits, and recovery
 2. **Web UI and source-control integration** — GitHub and GitLab installation, repository and branch selection, push and pull-request builds, deployment status, logs, and approvals
 3. **Production data safety** — team-scoped registries, backup destinations, backup and restore verification, and credential isolation
-4. **CLI parity** — every important deployment and recovery workflow available with stable structured output, dry-run, permissions, and audit evidence
+4. **CLI parity** — important deployment and recovery workflows available with stable structured output, dry-run, permissions, and audit evidence
 5. **Agentic access** — agents may use the CLI/API under the same constraints, but agent-specific breadth does not outrank deployment readiness
 
 Features outside this path are deferred when they compete with making the core deployment loop trustworthy.
@@ -38,60 +41,87 @@ DaoFlow is inspired by the same open-source ethos that drives projects like Open
 
 ### Security as Architecture
 
-Security is not a feature we bolt on. It's an architectural decision made at the foundation:
+Security is an architectural priority. The following controls are targets, not an assertion that end-to-end production assurance has already been achieved:
 
-- Automation principals default to **read-only** — zero write access until explicitly granted
-- Every write operation produces an **immutable audit record**
-- Secrets are **masked by default** — callers cannot read credentials unless specifically authorized
-- **Approval gates** ensure humans stay in the loop for dangerous operations
+- Automation principals should default to **read-only** until explicitly granted a scoped write capability
+- Write paths should produce durable audit evidence
+- Secrets should be masked unless specifically authorized
+- **Approval gates** should keep humans in the loop for dangerous operations
 
-Security-sensitive deployment paths fail closed when required trust, scope, or approval evidence is missing.
+<!-- readiness-claim: id=agent-safety-controls state=limitation -->
+
+**Current limitation:** Agent permissions and destructive-action controls are under active verification and are not yet an unconditional production-safety guarantee.
+<!-- /readiness-claim -->
+
+<!-- readiness-claim: id=command-audit-completeness state=limitation -->
+
+**Current limitation:** DaoFlow has not yet proved that every command-lane mutation creates a complete immutable audit record.
+<!-- /readiness-claim -->
+
+<!-- readiness-claim: id=backup-restore-assurance state=limitation -->
+
+**Current limitation:** Backup and restore workflows have not yet been proven through a current real-infrastructure round trip with verified data integrity.
+<!-- /readiness-claim -->
+
+<!-- readiness-claim: id=source-control-isolation state=limitation -->
+
+**Current limitation:** GitHub and GitLab provider, installation, callback, and checkout boundaries are not yet fully verified as team-isolated.
+<!-- /readiness-claim -->
 
 ### Data Ownership
 
-Your data runs on your servers. Period.
+<!-- readiness-claim: id=operator-data-control state=goal -->
 
-- No telemetry sent to third parties
-- No vendor cloud dependency
-- Standard Docker Compose — move servers anytime with zero lock-in
-- Your backups, your volumes, your jurisdiction
+**Goal:** Keep deployment state, backups, and operational decisions under the operator's explicit control.
+<!-- /readiness-claim -->
 
-You own every bit of deployment state, and nothing leaves your infrastructure without your explicit action.
+The target architecture is self-hosted and Compose-first, with operator-visible backup and recovery evidence. Current evidence and limitations are published in the [production readiness report](https://github.com/DaoFlow-dev/DaoFlow/blob/main/PRODUCTION_READINESS.md).
 
 ### Transparency Through Open Source
 
-DaoFlow is fully open source under the MIT license. Every line of code is inspectable. Every design decision is documented in [AGENTS.md](https://github.com/DaoFlow-dev/DaoFlow/blob/main/AGENTS.md).
+<!-- readiness-claim: id=open-source-license state=verified -->
 
-We believe transparency creates trust. When software has access to production infrastructure, operators need to know exactly what the platform can and cannot do. Open source makes that possible.
+**Verified in this repository:** DaoFlow is published under the [Apache License 2.0](https://github.com/DaoFlow-dev/DaoFlow/blob/main/LICENSE), and the repository source is available for inspection.
+<!-- /readiness-claim -->
+
+We believe transparency creates trust. When software has access to production infrastructure, operators need clear evidence of what the platform can and cannot do.
 
 ### Impact Over Enterprise
 
-DaoFlow is built to be the tool a small team can trust to run production workloads on their own servers. Automation may observe, explain, and assist, but it must not be able to casually break production.
+DaoFlow aims to become a tool a small team can trust to run production workloads on their own servers. Automation may observe, explain, and assist, but should not be able to casually break production.
 
-The goal is impact: make reliable self-hosted deployments accessible to everyone, not just teams with dedicated DevOps engineers.
+The goal is impact: make dependable self-hosted deployments accessible to everyone, not just teams with dedicated DevOps engineers.
 
-### Deterministic by Design
+### Repeatable Contract Design
 
-Unlike chatbots that generate different responses each time, DaoFlow is deterministic:
+<!-- readiness-claim: id=deterministic-deployment-contract state=limitation -->
 
-- `daoflow deploy --compose ./compose.yaml --yes` produces the same result every time
-- Deployment records capture exact inputs, resolved configs, and outcomes
-- Rollback targets a specific previous deployment — not "best effort"
-- Exit codes are consistent: `0` = success, `1` = error, `2` = denied, `3` = dry-run
+**Current limitation:** DaoFlow has not yet independently proven deterministic deployment and recovery outcomes across the complete production lifecycle.
+<!-- /readiness-claim -->
 
-Humans, CI systems, and agents all need deterministic tools. DaoFlow exposes one deployment contract to all three.
+The target deployment contract is repeatable and evidence-backed:
+
+- `daoflow deploy --compose ./compose.yaml --yes` should have a repeatable, evidence-backed result
+- Deployment records should capture exact inputs, resolved configs, and outcomes
+- Rollback should target a specific previous deployment rather than use "best effort"
+- Exit codes should remain stable: `0` = success, `1` = error, `2` = denied, `3` = dry-run
+
+<!-- readiness-claim: id=interface-parity state=goal -->
+
+**Goal:** Provide one evidence-backed deployment contract for the Web UI, CLI, CI, and constrained automation.
+<!-- /readiness-claim -->
 
 ## One Deployment Engine, Multiple Interfaces
 
-DaoFlow is designed around these outcomes:
+DaoFlow is designed around these intended outcomes:
 
-1. **The Web UI is a complete production operator surface** — not a thin wrapper around missing server behavior
-2. **GitHub and GitLab are first-class deployment sources** — commit, branch, pull-request or merge-request, and build status remain traceable
-3. **The CLI has deployment parity** — it uses the same plans, permissions, approvals, and records as the Web UI
-4. **Automation is constrained by default** — scoped permissions beat ambient shell access
-5. **Self-hosting remains portable and open** — standard Docker and Compose workloads stay under the operator's control
+1. **The Web UI should become a comprehensive production operator surface** — not a thin wrapper around missing server behavior
+2. **GitHub and GitLab should become first-class deployment sources** — commit, branch, pull-request or merge-request, and build status remain traceable
+3. **The CLI should reach deployment parity** — using the same plans, permissions, approvals, and records as the Web UI
+4. **Automation should be constrained by default** — scoped permissions beat ambient shell access
+5. **Self-hosting should remain portable and open** — standard Docker and Compose workloads stay under the operator's control
 
-An agent is one possible CLI/API caller. It is not a separate deployment system and does not receive a shortcut around production controls.
+An agent is one possible CLI/API caller. It should not be a separate deployment system or receive a shortcut around production controls.
 
 ## Decision Rules
 

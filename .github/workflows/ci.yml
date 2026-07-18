@@ -35,6 +35,9 @@ jobs:
       - name: Check generated API and CLI contracts
         run: bun run contracts:check
 
+      - name: Check production readiness evidence
+        run: bun run readiness:check
+
       - name: Check generated database migrations
         run: |
           bun run db:generate

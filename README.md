@@ -1,15 +1,43 @@
 # DaoFlow
 
-> The agentic platform to host deterministic systems — from one prompt to production.
+<!-- readiness-claim: id=production-deployment-readiness state=goal -->
 
-Open-source Agentic DevOps System built for AI agents and humans. Deploy, inspect, diagnose, and rollback Docker Compose applications on your own VPS and bare-metal servers — safely and reliably.
+**Goal:** DaoFlow aims to make self-hosted Docker Compose deployments dependable enough for a small team to operate without a dedicated platform team.
+<!-- /readiness-claim -->
 
-- **Agent-first CLI** — structured JSON output, scoped permissions, dry-run previews
-- **Three-lane API** — read, planning, and command lanes so agents observe without mutating
-- **Docker Compose native** — first-class Compose deployments with immutable deployment records
-- **Safe by default** — agents start read-only; destructive actions need explicit scopes and `--yes`
-- **Full audit trail** — every mutation produces an immutable audit record
-- **Persistent data** — named volumes, backup policies, S3-compatible storage, restore workflows
+DaoFlow is an open-source Agentic DevOps project for AI agents and humans. It is being built to deploy, inspect, diagnose, and recover Docker Compose applications on operator-owned VPS and bare-metal servers.
+
+<!-- readiness-claim: id=cli-contract-surface state=verified -->
+
+**Verified in this repository:** The CLI publishes structured JSON contracts, scoped permission metadata, and dry-run behavior in the generated [CLI contract](./docs/static/contracts/cli-contract.json).
+<!-- /readiness-claim -->
+
+<!-- readiness-claim: id=api-lane-separation state=verified -->
+
+**Verified in this repository:** The API separates read, planning, and command procedures under the documented [command audit contract](./.agents/references/command-audit-contract.md).
+<!-- /readiness-claim -->
+
+<!-- readiness-claim: id=compose-lifecycle-evidence state=limitation -->
+
+**Current limitation:** Compose deployment records and recovery behavior are not yet independently verified across a real remote deployment, failure, and rollback lifecycle.
+<!-- /readiness-claim -->
+
+<!-- readiness-claim: id=agent-safety-controls state=limitation -->
+
+**Current limitation:** Agent permissions and destructive-action controls are under active verification and are not yet an unconditional production-safety guarantee.
+<!-- /readiness-claim -->
+
+<!-- readiness-claim: id=command-audit-completeness state=limitation -->
+
+**Current limitation:** DaoFlow has not yet proved that every command-lane mutation creates a complete immutable audit record.
+<!-- /readiness-claim -->
+
+<!-- readiness-claim: id=backup-restore-assurance state=limitation -->
+
+**Current limitation:** Backup and restore workflows have not yet been proven through a current real-infrastructure round trip with verified data integrity.
+<!-- /readiness-claim -->
+
+Current public readiness evidence and the active dependencies behind these limitations are tracked in [PRODUCTION_READINESS.md](./PRODUCTION_READINESS.md).
 
 ## Quick Start
 
@@ -19,9 +47,9 @@ Open-source Agentic DevOps System built for AI agents and humans. Deploy, inspec
 curl -fsSL https://raw.githubusercontent.com/DaoFlow-dev/DaoFlow/main/scripts/install.sh | sh
 ```
 
-This downloads the `daoflow` CLI, checks Docker, and runs the interactive installer — creates `/opt/daoflow/` with `.env`, `docker-compose.yml`, and starts all services.
+This downloads the `daoflow` CLI, checks Docker, and runs the interactive installer — creates `/opt/daoflow/` with `.env`, `docker-compose.yml`, and starts the configured services.
 
-Re-running the script always refreshes the local `daoflow` binary before starting the installer.
+Re-running the script refreshes the local `daoflow` binary before starting the installer.
 
 Non-interactive (CI / agent-friendly):
 
@@ -161,7 +189,7 @@ Full docs at [**daoflow-dev.github.io/DaoFlow**](https://daoflow-dev.github.io/D
 | --------------------------------------------------------------------------------- | ----------------------------------------- |
 | [Getting Started](https://daoflow-dev.github.io/DaoFlow/docs/)                    | Install, configure, deploy your first app |
 | [Vision & Principles](https://daoflow-dev.github.io/DaoFlow/docs/concepts/vision) | Why DaoFlow — open-source philosophy      |
-| [CLI Reference](https://daoflow-dev.github.io/DaoFlow/docs/cli)                   | Every command, flag, and exit code        |
+| [CLI Reference](https://daoflow-dev.github.io/DaoFlow/docs/cli)                   | Commands, flags, and exit codes           |
 | [Comparisons](https://daoflow-dev.github.io/DaoFlow/docs/comparisons)             | vs Vercel, Coolify, Dokploy, AWS, Kamal   |
 | [Agent Integration](https://daoflow-dev.github.io/DaoFlow/docs/agents)            | Using DaoFlow with AI coding agents       |
 | [Security & RBAC](https://daoflow-dev.github.io/DaoFlow/docs/security)            | Roles, scopes, tokens, audit              |
@@ -172,4 +200,7 @@ The product charter for contributors and coding agents lives in [AGENTS.md](./AG
 
 ## License
 
-MIT
+<!-- readiness-claim: id=open-source-license state=verified -->
+
+**Verified in this repository:** DaoFlow is published under the [Apache License 2.0](https://github.com/DaoFlow-dev/DaoFlow/blob/main/LICENSE), and the repository source is available for inspection.
+<!-- /readiness-claim -->
