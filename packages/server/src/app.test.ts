@@ -1214,6 +1214,7 @@ describe("createApp", () => {
         .getSetCookie?.()
         .find((cookie) => cookie.startsWith("better-auth.session_token=")) ??
       signUpResponse.headers.get("set-cookie")?.match(/better-auth\.session_token=[^;]+/)?.[0];
+    await addUserToFoundationTeam(ownerEmail);
 
     const response = await app.request("/api/v1/deploy/uploads/intake", {
       method: "POST",
