@@ -1,13 +1,11 @@
 import type { AppRole } from "@daoflow/shared";
-import { and, desc, eq, inArray, ne } from "drizzle-orm";
+import { and, desc, eq, ne } from "drizzle-orm";
 import {
-  collectContainerRegistryHostsFromImageReferences,
   normalizeContainerRegistryHost,
-  type ContainerRegistryCredential,
   type ContainerRegistrySummary
 } from "../../container-registries-shared";
 import { db } from "../connection";
-import { decrypt, encrypt } from "../crypto";
+import { encrypt } from "../crypto";
 import { auditEntries } from "../schema/audit";
 import { containerRegistries } from "../schema/registries";
 import { newId as id } from "./json-helpers";
@@ -16,6 +14,7 @@ interface RegistryActor {
   requestedByUserId: string;
   requestedByEmail: string;
   requestedByRole: AppRole;
+  teamId: string;
 }
 
 export interface RegisterContainerRegistryInput extends RegistryActor {
@@ -38,6 +37,22 @@ type RegistryWriteResult =
   | { status: "not_found" }
   | { status: "conflict"; message: string };
 
+function isRegistryUniquenessViolation(error: unknown): boolean {
+  let current = error;
+  for (let depth = 0; depth < 4 && current && typeof current === "object"; depth += 1) {
+    const candidate = current as { code?: unknown; constraint?: unknown; cause?: unknown };
+    if (
+      candidate.code === "23505" &&
+      (candidate.constraint === "container_registries_name_team_idx" ||
+        candidate.constraint === "container_registries_host_team_idx")
+    ) {
+      return true;
+    }
+    current = candidate.cause;
+  }
+  return false;
+}
+
 function toSummary(row: typeof containerRegistries.$inferSelect): ContainerRegistrySummary {
   return {
     id: row.id,
@@ -50,6 +65,7 @@ function toSummary(row: typeof containerRegistries.$inferSelect): ContainerRegis
 }
 
 async function findConflictingRegistry(input: {
+  teamId: string;
   name: string;
   registryHost: string;
   excludeId?: string;
@@ -57,14 +73,13 @@ async function findConflictingRegistry(input: {
   const excludeCondition = input.excludeId
     ? ne(containerRegistries.id, input.excludeId)
     : undefined;
+  const baseConditions = [eq(containerRegistries.teamId, input.teamId)];
+  if (excludeCondition) baseConditions.push(excludeCondition);
+
   const [hostConflict] = await db
     .select()
     .from(containerRegistries)
-    .where(
-      excludeCondition
-        ? and(eq(containerRegistries.registryHost, input.registryHost), excludeCondition)
-        : eq(containerRegistries.registryHost, input.registryHost)
-    )
+    .where(and(...baseConditions, eq(containerRegistries.registryHost, input.registryHost)))
     .limit(1);
   if (hostConflict) {
     return `A registry credential for ${input.registryHost} already exists.`;
@@ -73,40 +88,9 @@ async function findConflictingRegistry(input: {
   const [nameConflict] = await db
     .select()
     .from(containerRegistries)
-    .where(
-      excludeCondition
-        ? and(eq(containerRegistries.name, input.name), excludeCondition)
-        : eq(containerRegistries.name, input.name)
-    )
+    .where(and(...baseConditions, eq(containerRegistries.name, input.name)))
     .limit(1);
-  if (nameConflict) {
-    return `A registry named "${input.name}" already exists.`;
-  }
-
-  return null;
-}
-
-async function writeRegistryAudit(input: {
-  actor: RegistryActor;
-  registryId: string;
-  action: string;
-  inputSummary: string;
-}) {
-  await db.insert(auditEntries).values({
-    actorType: "user",
-    actorId: input.actor.requestedByUserId,
-    actorEmail: input.actor.requestedByEmail,
-    actorRole: input.actor.requestedByRole,
-    targetResource: `container_registry/${input.registryId}`,
-    action: input.action,
-    inputSummary: input.inputSummary,
-    permissionScope: "server:write",
-    outcome: "success",
-    metadata: {
-      resourceType: "container_registry",
-      resourceId: input.registryId
-    }
-  });
+  return nameConflict ? `A registry named "${input.name}" already exists.` : null;
 }
 
 export async function registerContainerRegistry(
@@ -115,158 +99,163 @@ export async function registerContainerRegistry(
   const name = input.name.trim();
   const registryHost = normalizeContainerRegistryHost(input.registryHost);
   const username = input.username.trim();
-  const conflict = await findConflictingRegistry({ name, registryHost });
-  if (conflict) {
-    return { status: "conflict", message: conflict };
+  const conflict = await findConflictingRegistry({ ...input, name, registryHost });
+  if (conflict) return { status: "conflict", message: conflict };
+
+  let row: typeof containerRegistries.$inferSelect | undefined;
+  try {
+    [row] = await db
+      .insert(containerRegistries)
+      .values({
+        id: id(),
+        teamId: input.teamId,
+        name,
+        registryHost,
+        username,
+        passwordEncrypted: encrypt(input.password),
+        updatedAt: new Date()
+      })
+      .returning();
+  } catch (error) {
+    if (isRegistryUniquenessViolation(error)) {
+      return {
+        status: "conflict",
+        message:
+          (await findConflictingRegistry({ ...input, name, registryHost })) ??
+          "A registry with the same name or host already exists."
+      };
+    }
+    throw error;
   }
+  if (!row) throw new Error("Expected registry insert to return a row.");
 
-  const [row] = await db
-    .insert(containerRegistries)
-    .values({
-      id: id(),
-      name,
-      registryHost,
-      username,
-      passwordEncrypted: encrypt(input.password),
-      updatedAt: new Date()
-    })
-    .returning();
-
-  if (!row) {
-    throw new Error("Expected registry insert to return a row.");
-  }
-
-  await writeRegistryAudit({
-    actor: input,
-    registryId: row.id,
-    action: "container_registry.register",
-    inputSummary: `Registered ${registryHost} credentials for ${username}`
-  });
-
+  await writeRegistryAudit(
+    input,
+    row.id,
+    "container_registry.register",
+    `Registered ${registryHost} credentials for ${username}`
+  );
   return { status: "ok", summary: toSummary(row) };
 }
 
 export async function updateContainerRegistry(
   input: UpdateContainerRegistryInput
 ): Promise<RegistryWriteResult> {
-  const existing = await getContainerRegistry(input.registryId);
-  if (!existing) {
-    return { status: "not_found" };
-  }
+  const existing = await getContainerRegistry(input.registryId, input.teamId);
+  if (!existing) return { status: "not_found" };
 
   const name = input.name.trim();
   const registryHost = normalizeContainerRegistryHost(input.registryHost);
   const username = input.username.trim();
   const conflict = await findConflictingRegistry({
+    ...input,
     name,
     registryHost,
     excludeId: input.registryId
   });
-  if (conflict) {
-    return { status: "conflict", message: conflict };
+  if (conflict) return { status: "conflict", message: conflict };
+
+  let row: typeof containerRegistries.$inferSelect | undefined;
+  try {
+    [row] = await db
+      .update(containerRegistries)
+      .set({
+        name,
+        registryHost,
+        username,
+        passwordEncrypted: input.password?.trim()
+          ? encrypt(input.password)
+          : existing.passwordEncrypted,
+        updatedAt: new Date()
+      })
+      .where(
+        and(
+          eq(containerRegistries.id, input.registryId),
+          eq(containerRegistries.teamId, input.teamId)
+        )
+      )
+      .returning();
+  } catch (error) {
+    if (isRegistryUniquenessViolation(error)) {
+      return {
+        status: "conflict",
+        message:
+          (await findConflictingRegistry({
+            ...input,
+            name,
+            registryHost,
+            excludeId: input.registryId
+          })) ?? "A registry with the same name or host already exists."
+      };
+    }
+    throw error;
   }
+  if (!row) return { status: "not_found" };
 
-  const [row] = await db
-    .update(containerRegistries)
-    .set({
-      name,
-      registryHost,
-      username,
-      passwordEncrypted: input.password?.trim()
-        ? encrypt(input.password)
-        : existing.passwordEncrypted,
-      updatedAt: new Date()
-    })
-    .where(eq(containerRegistries.id, input.registryId))
-    .returning();
-
-  if (!row) {
-    return { status: "not_found" };
-  }
-
-  await writeRegistryAudit({
-    actor: input,
-    registryId: row.id,
-    action: "container_registry.update",
-    inputSummary: `Updated ${registryHost} credentials for ${username}`
-  });
-
+  await writeRegistryAudit(
+    input,
+    row.id,
+    "container_registry.update",
+    `Updated ${registryHost} credentials for ${username}`
+  );
   return { status: "ok", summary: toSummary(row) };
 }
 
-export async function deleteContainerRegistry(
-  registryId: string,
-  actor: RegistryActor
-): Promise<{ status: "ok" } | { status: "not_found" }> {
+export async function deleteContainerRegistry(registryId: string, actor: RegistryActor) {
   const [row] = await db
     .delete(containerRegistries)
-    .where(eq(containerRegistries.id, registryId))
+    .where(
+      and(eq(containerRegistries.id, registryId), eq(containerRegistries.teamId, actor.teamId))
+    )
     .returning();
+  if (!row) return { status: "not_found" as const };
 
-  if (!row) {
-    return { status: "not_found" };
-  }
-
-  await writeRegistryAudit({
+  await writeRegistryAudit(
     actor,
     registryId,
-    action: "container_registry.delete",
-    inputSummary: `Deleted ${row.registryHost} credentials`
-  });
-
-  return { status: "ok" };
+    "container_registry.delete",
+    `Deleted ${row.registryHost} credentials`
+  );
+  return { status: "ok" as const };
 }
 
-export async function listContainerRegistrySummaries(): Promise<ContainerRegistrySummary[]> {
+export async function listContainerRegistrySummaries(
+  teamId: string
+): Promise<ContainerRegistrySummary[]> {
   const rows = await db
     .select()
     .from(containerRegistries)
+    .where(eq(containerRegistries.teamId, teamId))
     .orderBy(desc(containerRegistries.createdAt));
   return rows.map(toSummary);
 }
 
-export async function listAllContainerRegistryCredentials(): Promise<
-  ContainerRegistryCredential[]
-> {
-  const rows = await db
-    .select()
-    .from(containerRegistries)
-    .orderBy(desc(containerRegistries.createdAt));
-  return rows.map((row) => ({
-    id: row.id,
-    registryHost: row.registryHost,
-    username: row.username,
-    password: decrypt(row.passwordEncrypted)
-  }));
-}
-
-export async function listContainerRegistryCredentialsByImageReferences(
-  imageReferences: Iterable<string | null | undefined>
-): Promise<ContainerRegistryCredential[]> {
-  const registryHosts = collectContainerRegistryHostsFromImageReferences(imageReferences);
-  if (registryHosts.length === 0) {
-    return [];
-  }
-
-  const rows = await db
-    .select()
-    .from(containerRegistries)
-    .where(inArray(containerRegistries.registryHost, registryHosts))
-    .orderBy(desc(containerRegistries.createdAt));
-
-  return rows.map((row) => ({
-    id: row.id,
-    registryHost: row.registryHost,
-    username: row.username,
-    password: decrypt(row.passwordEncrypted)
-  }));
-}
-
-async function getContainerRegistry(registryId: string) {
+async function getContainerRegistry(registryId: string, teamId: string) {
   const [row] = await db
     .select()
     .from(containerRegistries)
-    .where(eq(containerRegistries.id, registryId))
+    .where(and(eq(containerRegistries.id, registryId), eq(containerRegistries.teamId, teamId)))
     .limit(1);
   return row ?? null;
+}
+
+async function writeRegistryAudit(
+  actor: RegistryActor,
+  registryId: string,
+  action: string,
+  inputSummary: string
+) {
+  await db.insert(auditEntries).values({
+    actorType: "user",
+    actorId: actor.requestedByUserId,
+    actorEmail: actor.requestedByEmail,
+    actorRole: actor.requestedByRole,
+    organizationId: actor.teamId,
+    targetResource: `container_registry/${registryId}`,
+    action,
+    inputSummary,
+    permissionScope: "server:write",
+    outcome: "success",
+    metadata: { resourceType: "container_registry", resourceId: registryId, teamId: actor.teamId }
+  });
 }

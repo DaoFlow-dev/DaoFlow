@@ -25,3 +25,4 @@ export * from "./secret-providers";
 export * from "./cli-auth";
 export * from "./registries";
 export * from "./server-metrics";
+export * from "./ssh-host-identities";

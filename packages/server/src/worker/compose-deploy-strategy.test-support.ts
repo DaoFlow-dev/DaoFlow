@@ -52,8 +52,8 @@ const mocks = vi.hoisted(() => ({
   dockerStackServices: vi.fn(),
   dockerStackPs: vi.fn(),
   dockerInspectSwarmTaskNetworkAddresses: vi.fn(),
-  listAllContainerRegistryCredentials: vi.fn(),
-  listContainerRegistryCredentialsByImageReferences: vi.fn(),
+  listContainerRegistryCredentialsForProject: vi.fn(),
+  listContainerRegistryCredentialsForProjectImageReferences: vi.fn(),
   remoteDockerComposeBuild: vi.fn(),
   remoteDockerComposeDown: vi.fn(),
   remoteDockerComposePs: vi.fn(),
@@ -85,10 +85,10 @@ vi.mock("../db/services/compose-env", () => ({
   }))
 }));
 
-vi.mock("../db/services/container-registries", () => ({
-  listAllContainerRegistryCredentials: mocks.listAllContainerRegistryCredentials,
-  listContainerRegistryCredentialsByImageReferences:
-    mocks.listContainerRegistryCredentialsByImageReferences
+vi.mock("../db/services/container-registry-credentials", () => ({
+  listContainerRegistryCredentialsForProject: mocks.listContainerRegistryCredentialsForProject,
+  listContainerRegistryCredentialsForProjectImageReferences:
+    mocks.listContainerRegistryCredentialsForProjectImageReferences
 }));
 
 vi.mock("../compose-readiness", async (importOriginal) => {
@@ -403,8 +403,8 @@ export function resetComposeDeployStrategyHarness() {
       addresses: mockState.swarmTaskAddressesById?.[taskId] ?? []
     })
   );
-  mocks.listAllContainerRegistryCredentials.mockResolvedValue([]);
-  mocks.listContainerRegistryCredentialsByImageReferences.mockResolvedValue([]);
+  mocks.listContainerRegistryCredentialsForProject.mockResolvedValue([]);
+  mocks.listContainerRegistryCredentialsForProjectImageReferences.mockResolvedValue([]);
   mocks.remoteDockerComposeBuild.mockResolvedValue({ exitCode: 0 });
   mocks.remoteDockerComposeDown.mockResolvedValue({ exitCode: 0 });
   mocks.remoteDockerComposePs.mockResolvedValue({ exitCode: 0, statuses: [] });

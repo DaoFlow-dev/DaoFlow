@@ -145,6 +145,10 @@ export async function handleGitLabWebhook(c: Context) {
           eventAction: lifecycle.eventAction,
           requestedByEmail: lifecycle.requestedByEmail,
           commitSha: lifecycle.commitSha,
+          origin: {
+            ...lifecycle.origin,
+            installationVerified: true
+          },
           preview: {
             target: "pull-request",
             branch: lifecycle.preview.branch,

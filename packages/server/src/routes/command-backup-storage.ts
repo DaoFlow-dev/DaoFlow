@@ -18,7 +18,11 @@ import {
   volumeDeleteInputSchema,
   volumeUpdateInputSchema
 } from "./command-backup-schemas";
-import { assertBackupPolicyScope, assertVolumeScope } from "./backup-scope";
+import {
+  assertBackupDestinationScope,
+  assertBackupPolicyScope,
+  assertVolumeScope
+} from "./backup-scope";
 import { getServiceForTeam } from "../db/services/service-access";
 import { resolveTeamIdForUser } from "../db/services/teams";
 import { serviceAccessActor } from "./service-scope";
@@ -189,6 +193,14 @@ export const backupStorageCommandRouter = t.router({
         action: "backup.policy-create.denied",
         permissionScope: "backup:run"
       });
+      if (input.destinationId) {
+        await assertBackupDestinationScope({
+          ctx,
+          destinationId: input.destinationId,
+          action: "backup.policy-create.denied",
+          permissionScope: "backup:run"
+        });
+      }
       const result = await createBackupPolicy(input, toStorageActor(getActorContext(ctx)));
       throwBackupPolicyMutationError(result);
       if (!("policy" in result) || !result.policy) {
@@ -212,6 +224,14 @@ export const backupStorageCommandRouter = t.router({
         await assertVolumeScope({
           ctx,
           volumeId: input.volumeId,
+          action: "backup.policy-update.denied",
+          permissionScope: "backup:run"
+        });
+      }
+      if (input.destinationId) {
+        await assertBackupDestinationScope({
+          ctx,
+          destinationId: input.destinationId,
           action: "backup.policy-update.denied",
           permissionScope: "backup:run"
         });

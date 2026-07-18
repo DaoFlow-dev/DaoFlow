@@ -6,10 +6,12 @@ import { readComposePreviewMetadata } from "./compose-preview";
 import { db } from "./db/connection";
 import { encrypt } from "./db/crypto";
 import { encodeGitInstallationPermissions } from "./db/services/git-providers";
+import { approveApprovalRequest } from "./db/services/approvals";
+import { triggerDeploy } from "./db/services/trigger-deploy";
 import { createEnvironment, createProject } from "./db/services/projects";
 import { asRecord } from "./db/services/json-helpers";
 import { createService } from "./db/services/services";
-import { events } from "./db/schema/audit";
+import { approvalRequests, events } from "./db/schema/audit";
 import { deployments } from "./db/schema/deployments";
 import { gitInstallations, gitProviders } from "./db/schema/git-providers";
 import { previewEnvironments } from "./db/schema/preview-environments";
@@ -119,6 +121,7 @@ function mockGitLabSourceFetch(input: {
 async function createPreviewFixture(input: {
   providerType: "github" | "gitlab";
   previewMode?: "pull-request" | "any" | "branch";
+  previewPolicy?: "disabled" | "manual-approval";
 }) {
   const suffix = Date.now();
   const repoFullName = `example/preview-webhook-${input.providerType}-${suffix}`;
@@ -248,6 +251,8 @@ async function createPreviewFixture(input: {
       autoDeploy: true,
       autoDeployBranch: "main",
       defaultBranch: "main",
+      previewPolicy: input.previewPolicy ?? "manual-approval",
+      previewPolicyRevision: 1,
       updatedAt: new Date()
     })
     .where(eq(projects.id, projectResult.project.id));
@@ -270,16 +275,34 @@ describe("preview lifecycle webhooks", () => {
     vi.restoreAllMocks();
   });
 
-  it("queues GitHub pull request preview deploys and records delivery state", async () => {
+  it("requires approval for GitHub pull request previews before queueing deployment inputs", async () => {
     const fixture = await createPreviewFixture({ providerType: "github" });
+    await expect(
+      triggerDeploy({
+        serviceId: fixture.serviceId,
+        commitSha: "abcdef1234567890abcdef1234567890abcdef12",
+        preview: {
+          target: "pull-request",
+          branch: "feature/login",
+          pullRequestNumber: 42,
+          action: "deploy"
+        },
+        requestedByUserId: "user_foundation_owner",
+        requestedByEmail: "owner@daoflow.local",
+        requestedByRole: "owner",
+        trigger: "user"
+      })
+    ).resolves.toMatchObject({ status: "preview_approval_required" });
     const payload = JSON.stringify({
       action: "opened",
       number: 42,
       repository: { full_name: fixture.repoFullName },
+      installation: { id: 9801, account: { login: "example" } },
       pull_request: {
         head: {
           ref: "feature/login",
-          sha: "abcdef1234567890abcdef1234567890abcdef12"
+          sha: "abcdef1234567890abcdef1234567890abcdef12",
+          repo: { full_name: fixture.repoFullName }
         }
       },
       sender: { login: "octocat" }
@@ -302,6 +325,7 @@ describe("preview lifecycle webhooks", () => {
       action: string;
       previewKey: string;
       deployments: number;
+      approvalRequiredTargets: number;
     };
 
     expect(response.status).toBe(200);
@@ -309,13 +333,43 @@ describe("preview lifecycle webhooks", () => {
       ok: true,
       action: "deploy",
       previewKey: "pr-42",
-      deployments: 1
+      deployments: 0,
+      approvalRequiredTargets: 1
     });
 
-    const [deployment] = await db
+    const [approval] = await db
+      .select()
+      .from(approvalRequests)
+      .where(eq(approvalRequests.targetResource, `service/${fixture.serviceId}`));
+    expect(approval?.status).toBe("pending");
+
+    expect(
+      await db.select().from(deployments).where(eq(deployments.serviceName, fixture.serviceName))
+    ).toHaveLength(0);
+
+    if (!approval) {
+      throw new Error("Expected a pending preview approval request.");
+    }
+    const approvalResults = await Promise.all([
+      approveApprovalRequest(approval.id, "user_foundation_owner", "owner@daoflow.local", "owner"),
+      approveApprovalRequest(
+        approval.id,
+        "user_foundation_operator",
+        "operator@daoflow.local",
+        "operator"
+      )
+    ]);
+    expect(approvalResults.map((result) => result.status).sort()).toEqual(["invalid-state", "ok"]);
+
+    const previewDeployments = await db
       .select()
       .from(deployments)
       .where(eq(deployments.serviceName, fixture.serviceName));
+    expect(previewDeployments).toHaveLength(1);
+    const [deployment] = previewDeployments;
+    if (!deployment) {
+      throw new Error("Expected exactly one approved preview deployment.");
+    }
     const preview = readComposePreviewMetadata(asRecord(deployment.configSnapshot).preview);
 
     expect(preview).toMatchObject({
@@ -354,7 +408,7 @@ describe("preview lifecycle webhooks", () => {
           deliveryKey: "gh-preview-open-1",
           previewKey: "pr-42",
           previewAction: "deploy",
-          status: "queued"
+          status: "rejected"
         })
       ])
     );
@@ -366,8 +420,180 @@ describe("preview lifecycle webhooks", () => {
     expect(serviceEvents).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          kind: "webhook.preview.deploy.recorded"
+          kind: "webhook.preview.approval_required.recorded"
         })
+      ])
+    );
+  });
+
+  it("rejects GitHub pull-request webhooks without an exact installation identity", async () => {
+    const fixture = await createPreviewFixture({ providerType: "github" });
+    const payload = JSON.stringify({
+      action: "opened",
+      number: 43,
+      repository: { full_name: fixture.repoFullName },
+      pull_request: {
+        head: {
+          ref: "feature/missing-installation",
+          sha: "abcdef2234567890abcdef1234567890abcdef12",
+          repo: { full_name: fixture.repoFullName }
+        }
+      }
+    });
+    const signature =
+      "sha256=" + createHmac("sha256", fixture.webhookSecret).update(payload).digest("hex");
+
+    const response = await createApp().request("/api/webhooks/github", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-GitHub-Event": "pull_request",
+        "X-GitHub-Delivery": "gh-preview-missing-installation",
+        "X-Hub-Signature-256": signature
+      },
+      body: payload
+    });
+
+    expect(response.status).toBe(400);
+    expect(
+      await db
+        .select()
+        .from(approvalRequests)
+        .where(eq(approvalRequests.targetResource, `service/${fixture.serviceId}`))
+    ).toHaveLength(0);
+  });
+
+  it("holds a same-repository GitHub pull request for exact-commit approval by default", async () => {
+    const fixture = await createPreviewFixture({
+      providerType: "github",
+      previewPolicy: "manual-approval"
+    });
+    const payload = JSON.stringify({
+      action: "opened",
+      number: 43,
+      repository: { full_name: fixture.repoFullName },
+      installation: { id: 9801, account: { login: "example" } },
+      pull_request: {
+        head: {
+          ref: "feature/manual-approval",
+          sha: "abcdefabcdefabcdefabcdefabcdefabcdefabcd",
+          repo: { full_name: fixture.repoFullName }
+        },
+        author_association: "CONTRIBUTOR"
+      },
+      sender: { login: "octocat" }
+    });
+    const signature =
+      "sha256=" + createHmac("sha256", fixture.webhookSecret).update(payload).digest("hex");
+
+    const response = await createApp().request("/api/webhooks/github", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-GitHub-Event": "pull_request",
+        "X-GitHub-Delivery": "gh-preview-manual-approval",
+        "X-Hub-Signature-256": signature
+      },
+      body: payload
+    });
+    const body = (await response.json()) as {
+      deployments: number;
+      approvalRequiredTargets: number;
+      blockedTargets: number;
+    };
+
+    expect(response.status).toBe(200);
+    expect(body).toMatchObject({
+      deployments: 0,
+      approvalRequiredTargets: 1,
+      blockedTargets: 0
+    });
+    expect(
+      await db.select().from(deployments).where(eq(deployments.serviceName, fixture.serviceName))
+    ).toHaveLength(0);
+
+    const [approval] = await db
+      .select()
+      .from(approvalRequests)
+      .where(eq(approvalRequests.targetResource, `service/${fixture.serviceId}`));
+    expect(approval?.status).toBe("pending");
+    const approvalSummary = asRecord(approval?.inputSummary);
+    expect(approvalSummary.previewTrust).toMatchObject({
+      providerType: "github",
+      sourceRepository: fixture.repoFullName,
+      commitSha: "abcdefabcdefabcdefabcdefabcdefabcdefabcd",
+      policy: "manual-approval",
+      policyRevision: 1,
+      allowedSecretProfile: "project-environment",
+      serviceId: fixture.serviceId,
+      origin: {
+        repositoryRelationship: "same-repository",
+        authorAssociation: "CONTRIBUTOR",
+        protectedSecretsAttached: true
+      }
+    });
+    expect(asRecord(approvalSummary.previewTrust).expiresAt).toEqual(approvalSummary.expiresAt);
+  });
+
+  it("blocks a signed GitHub fork pull request without creating an approval or deployment", async () => {
+    const fixture = await createPreviewFixture({ providerType: "github" });
+    const payload = JSON.stringify({
+      action: "opened",
+      number: 44,
+      repository: { full_name: fixture.repoFullName },
+      installation: { id: 9801, account: { login: "example" } },
+      pull_request: {
+        head: {
+          ref: "feature/from-fork",
+          sha: "fedcbafedcbafedcbafedcbafedcbafedcbafedc",
+          repo: { full_name: "contributor/forked-api" }
+        },
+        author_association: "FIRST_TIME_CONTRIBUTOR"
+      },
+      sender: { login: "contributor" }
+    });
+    const signature =
+      "sha256=" + createHmac("sha256", fixture.webhookSecret).update(payload).digest("hex");
+
+    const response = await createApp().request("/api/webhooks/github", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-GitHub-Event": "pull_request",
+        "X-GitHub-Delivery": "gh-preview-fork-blocked",
+        "X-Hub-Signature-256": signature
+      },
+      body: payload
+    });
+    const body = (await response.json()) as {
+      deployments: number;
+      approvalRequiredTargets: number;
+      blockedTargets: number;
+    };
+
+    expect(response.status).toBe(200);
+    expect(body).toMatchObject({
+      deployments: 0,
+      approvalRequiredTargets: 0,
+      blockedTargets: 1
+    });
+    expect(
+      await db.select().from(deployments).where(eq(deployments.serviceName, fixture.serviceName))
+    ).toHaveLength(0);
+    expect(
+      await db
+        .select()
+        .from(approvalRequests)
+        .where(eq(approvalRequests.targetResource, `service/${fixture.serviceId}`))
+    ).toHaveLength(0);
+
+    const serviceEvents = await db
+      .select()
+      .from(events)
+      .where(eq(events.resourceId, fixture.serviceId));
+    expect(serviceEvents).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ kind: "webhook.preview.blocked.recorded" })
       ])
     );
   });
@@ -429,10 +655,12 @@ describe("preview lifecycle webhooks", () => {
       action: "opened",
       number: 77,
       repository: { full_name: fixture.repoFullName },
+      installation: { id: 9801, account: { login: "example" } },
       pull_request: {
         head: {
           ref: "feature/cache",
-          sha: "bbbbbb1234567890abcdef1234567890abcdef12"
+          sha: "bbbbbb1234567890abcdef1234567890abcdef12",
+          repo: { full_name: fixture.repoFullName }
         }
       },
       sender: { login: "octocat" }
@@ -486,14 +714,20 @@ describe("preview lifecycle webhooks", () => {
       .select()
       .from(deployments)
       .where(eq(deployments.serviceName, fixture.serviceName));
-    expect(queued).toHaveLength(1);
+    expect(queued).toHaveLength(0);
+    expect(
+      await db
+        .select()
+        .from(approvalRequests)
+        .where(eq(approvalRequests.targetResource, `service/${fixture.serviceId}`))
+    ).toHaveLength(1);
 
     const deliveryRows = await db.select().from(webhookDeliveries);
     expect(deliveryRows).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           deliveryKey: "gh-preview-dup-1",
-          status: "queued"
+          status: "rejected"
         }),
         expect.objectContaining({
           deliveryKey: "gh-preview-dup-2",
@@ -510,10 +744,12 @@ describe("preview lifecycle webhooks", () => {
       action: "opened",
       number: 19,
       repository: { full_name: fixture.repoFullName },
+      installation: { id: 9801, account: { login: "example" } },
       pull_request: {
         head: {
           ref: "feature/cleanup",
-          sha: "cccccc1234567890abcdef1234567890abcdef12"
+          sha: "cccccc1234567890abcdef1234567890abcdef12",
+          repo: { full_name: fixture.repoFullName }
         }
       },
       sender: { login: "octocat" }
@@ -535,11 +771,13 @@ describe("preview lifecycle webhooks", () => {
       action: "closed",
       number: 19,
       repository: { full_name: fixture.repoFullName },
+      installation: { id: 9801, account: { login: "example" } },
       pull_request: {
         merged: true,
         head: {
           ref: "feature/cleanup",
-          sha: "cccccc1234567890abcdef1234567890abcdef12"
+          sha: "cccccc1234567890abcdef1234567890abcdef12",
+          repo: { full_name: fixture.repoFullName }
         }
       },
       sender: { login: "octocat" }
@@ -570,13 +808,13 @@ describe("preview lifecycle webhooks", () => {
       .from(deployments)
       .where(eq(deployments.serviceName, fixture.serviceName))
       .orderBy(deployments.createdAt);
-    expect(rows).toHaveLength(2);
-    const latestPreview = readComposePreviewMetadata(asRecord(rows[1].configSnapshot).preview);
+    expect(rows).toHaveLength(1);
+    const latestPreview = readComposePreviewMetadata(asRecord(rows[0].configSnapshot).preview);
     expect(latestPreview).toMatchObject({
       key: "pr-19",
       action: "destroy"
     });
-    expect(asRecord(rows[1].configSnapshot)).toMatchObject({
+    expect(asRecord(rows[0].configSnapshot)).toMatchObject({
       composeOperation: "down"
     });
   });
@@ -593,6 +831,7 @@ describe("preview lifecycle webhooks", () => {
         iid: 51,
         action: "open",
         source_branch: "feature/gitlab-preview",
+        source: { path_with_namespace: fixture.repoFullName },
         last_commit: {
           id: "dddddd1234567890abcdef1234567890abcdef12"
         }
@@ -609,13 +848,29 @@ describe("preview lifecycle webhooks", () => {
       },
       body: openPayload
     });
-    const openBody = (await openResponse.json()) as { deployments: number; action: string };
+    const openBody = (await openResponse.json()) as {
+      deployments: number;
+      action: string;
+      approvalRequiredTargets: number;
+    };
 
     expect(openResponse.status).toBe(200);
     expect(openBody).toMatchObject({
-      deployments: 1,
-      action: "deploy"
+      deployments: 0,
+      action: "deploy",
+      approvalRequiredTargets: 1
     });
+
+    const [approval] = await db
+      .select()
+      .from(approvalRequests)
+      .where(eq(approvalRequests.targetResource, `service/${fixture.serviceId}`));
+    if (!approval) {
+      throw new Error("Expected a pending GitLab preview approval request.");
+    }
+    await expect(
+      approveApprovalRequest(approval.id, "user_foundation_owner", "owner@daoflow.local", "owner")
+    ).resolves.toMatchObject({ status: "ok" });
 
     const mergePayload = JSON.stringify({
       object_kind: "merge_request",
@@ -626,6 +881,7 @@ describe("preview lifecycle webhooks", () => {
         iid: 51,
         action: "merge",
         source_branch: "feature/gitlab-preview",
+        source: { path_with_namespace: fixture.repoFullName },
         last_commit: {
           id: "dddddd1234567890abcdef1234567890abcdef12"
         }
@@ -675,10 +931,12 @@ describe("preview lifecycle webhooks", () => {
       action: "opened",
       number: 12,
       repository: { full_name: fixture.repoFullName },
+      installation: { id: 9801, account: { login: "example" } },
       pull_request: {
         head: {
           ref: "feature/ignored",
-          sha: "eeeeee1234567890abcdef1234567890abcdef12"
+          sha: "eeeeee1234567890abcdef1234567890abcdef12",
+          repo: { full_name: fixture.repoFullName }
         }
       },
       sender: { login: "octocat" }

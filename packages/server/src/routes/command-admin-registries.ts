@@ -6,6 +6,7 @@ import {
   updateContainerRegistry
 } from "../db/services/container-registries";
 import { getActorContext, serverWriteProcedure, t } from "../trpc";
+import { requireActorTeamId } from "./team-scope";
 
 const containerRegistryInputSchema = z.object({
   name: z.string().min(1).max(100),
@@ -21,10 +22,13 @@ export const adminRegistryRouter = t.router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      const actor = getActorContext(ctx);
+      const teamId = await requireActorTeamId(actor.requestedByUserId);
       const result = await withRegistryInputValidation(() =>
         registerContainerRegistry({
           ...input,
-          ...getActorContext(ctx)
+          ...actor,
+          teamId
         })
       );
 
@@ -49,10 +53,13 @@ export const adminRegistryRouter = t.router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      const actor = getActorContext(ctx);
+      const teamId = await requireActorTeamId(actor.requestedByUserId);
       const result = await withRegistryInputValidation(() =>
         updateContainerRegistry({
           ...input,
-          ...getActorContext(ctx)
+          ...actor,
+          teamId
         })
       );
 
@@ -69,7 +76,11 @@ export const adminRegistryRouter = t.router({
   deleteContainerRegistry: serverWriteProcedure
     .input(z.object({ registryId: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => {
-      const result = await deleteContainerRegistry(input.registryId, getActorContext(ctx));
+      const actor = getActorContext(ctx);
+      const result = await deleteContainerRegistry(input.registryId, {
+        ...actor,
+        teamId: await requireActorTeamId(actor.requestedByUserId)
+      });
       if (result.status === "not_found") {
         throw new TRPCError({ code: "NOT_FOUND", message: "Registry not found." });
       }

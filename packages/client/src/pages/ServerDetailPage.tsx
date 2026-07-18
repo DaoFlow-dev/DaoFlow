@@ -9,6 +9,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { HostTerminalTab } from "@/components/server-detail/HostTerminalTab";
+import { ServerHostIdentityPanel } from "@/components/server-detail/ServerHostIdentityPanel";
 import {
   CleanupPanel,
   HistoryPanel,
@@ -131,6 +132,14 @@ export default function ServerDetailPage() {
             <Shield size={14} />
             Patching
           </TabsTrigger>
+          <TabsTrigger
+            value="identity"
+            className="gap-1.5"
+            data-testid={`server-detail-identity-tab-${data.server.id}`}
+          >
+            <Shield size={14} />
+            Identity
+          </TabsTrigger>
           {isSwarmManager ? (
             <TabsTrigger value="swarm" className="gap-1.5">
               <Network size={14} />
@@ -195,6 +204,10 @@ export default function ServerDetailPage() {
               )
             }
           />
+        </TabsContent>
+
+        <TabsContent value="identity" className="mt-4">
+          <ServerHostIdentityPanel serverId={data.server.id} canManage={canWriteServer} />
         </TabsContent>
 
         {isSwarmManager ? (

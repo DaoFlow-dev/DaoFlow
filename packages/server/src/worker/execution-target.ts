@@ -1,6 +1,10 @@
 import type { servers } from "../db/schema/servers";
 import { decrypt } from "../db/crypto";
 import { resolveManagedSshPrivateKey } from "../db/services/access-assets";
+import {
+  getApprovedSshHostIdentity,
+  toManagedSshHostIdentity
+} from "../db/services/ssh-host-identities";
 import { removeSSHKey, type SSHTarget, writeSSHKey } from "./ssh-executor";
 import { hostname } from "node:os";
 
@@ -44,8 +48,19 @@ export async function resolveExecutionTarget(
     };
   }
 
+  const resolvedTeamId = teamId ?? server.teamId;
+  if (!resolvedTeamId) {
+    throw new Error("Remote SSH execution requires a team-scoped approved host identity.");
+  }
+  const hostIdentity = await getApprovedSshHostIdentity(server.id, resolvedTeamId);
+  if (!hostIdentity) {
+    throw new Error(
+      `SSH host identity is not approved for ${server.name}. DaoFlow will not send credentials or commands.`
+    );
+  }
+
   const managedPrivateKey = server.sshKeyId
-    ? await resolveManagedSshPrivateKey(server.sshKeyId, teamId)
+    ? await resolveManagedSshPrivateKey(server.sshKeyId, resolvedTeamId)
     : null;
 
   return {
@@ -56,6 +71,7 @@ export async function resolveExecutionTarget(
       host: server.host,
       port: server.sshPort,
       user: server.sshUser ?? undefined,
+      hostIdentity: toManagedSshHostIdentity(hostIdentity),
       privateKey:
         managedPrivateKey ??
         (server.sshPrivateKeyEncrypted ? decrypt(server.sshPrivateKeyEncrypted) : undefined)

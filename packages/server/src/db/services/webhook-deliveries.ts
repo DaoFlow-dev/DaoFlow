@@ -17,7 +17,8 @@ import { asRecord, newId } from "./json-helpers";
 type ProviderType = "github" | "gitlab";
 type DeliveryStatus =
   "processing" | "queued" | "ignored" | "rejected" | "failed" | "partial" | "deduped" | "mixed";
-type LifecycleOutcome = "queued" | "deduped" | "ignored" | "failed";
+type LifecycleOutcome =
+  "queued" | "deduped" | "ignored" | "failed" | "blocked" | "approval_required";
 
 export type WebhookDeliveryProviderType = ProviderType;
 export type WebhookDeliveryStatus = DeliveryStatus;
@@ -288,7 +289,7 @@ export async function recordPreviewWebhookLifecycleEvent(input: {
     action: lifecycleAction,
     inputSummary: input.summary,
     permissionScope: "deploy:start",
-    outcome: input.outcome === "failed" ? "failed" : "success",
+    outcome: input.outcome === "failed" || input.outcome === "blocked" ? "failure" : "success",
     metadata: {
       providerType: input.providerType,
       repoFullName: input.repoFullName,
@@ -307,7 +308,12 @@ export async function recordPreviewWebhookLifecycleEvent(input: {
     resourceId,
     summary: input.summary,
     detail: input.detail,
-    severity: input.outcome === "failed" ? "warning" : "info",
+    severity:
+      input.outcome === "failed" ||
+      input.outcome === "blocked" ||
+      input.outcome === "approval_required"
+        ? "warning"
+        : "info",
     metadata: {
       providerType: input.providerType,
       repoFullName: input.repoFullName,

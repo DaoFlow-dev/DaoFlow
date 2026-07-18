@@ -148,6 +148,41 @@
       "when": 1778768249786,
       "tag": "0020_lying_skreet",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1784383588554,
+      "tag": "0021_solid_medusa",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1784384142451,
+      "tag": "0022_command_audit_append_only",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1784384998157,
+      "tag": "0023_peaceful_thunderbird",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1784386222560,
+      "tag": "0024_preview_approval_binding",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1784386580792,
+      "tag": "0025_team_scoped_backup_destinations_and_registries",
+      "breakpoints": true
     }
   ]
 }

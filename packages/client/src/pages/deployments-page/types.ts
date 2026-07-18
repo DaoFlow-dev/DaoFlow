@@ -117,11 +117,16 @@ export interface DeploymentStateEffectiveData {
 }
 
 export interface DeploymentStateLiveRuntimeData {
+  source: "cached-snapshot" | "unavailable";
+  authoritative: false;
+  attemptedAt: string | null;
+  observedAt: string | null;
+  maxAgeSeconds: number;
+  evidenceRefs: string[];
   status: string;
   statusLabel: string;
   statusTone: string;
   summary: string;
-  checkedAt?: string | null;
   actualContainerState?: string | null;
   desiredImageReference?: string | null;
   actualImageReference?: string | null;

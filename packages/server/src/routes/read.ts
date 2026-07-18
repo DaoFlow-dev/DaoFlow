@@ -46,8 +46,10 @@ import { developmentTaskReadRouter } from "./read-development-tasks";
 import { deploymentReadRouter } from "./read-deployments";
 import { managedOperationsReadRouter } from "./read-managed-operations";
 import { serverOperationsReadRouter } from "./read-server-operations";
+import { serverSshHostIdentityReadRouter } from "./read-server-ssh-host-identities";
 import { serviceSchedulesReadRouter } from "./read-service-schedules";
 import { serviceAccessActor } from "./service-scope";
+import { requireActorTeamId } from "./team-scope";
 
 const productPrinciples = [
   "Agent-first, human-supervised",
@@ -326,16 +328,19 @@ const coreReadRouter = t.router({
     .query(async ({ input }) => {
       return listGitInstallationSummaries(input.providerId);
     }),
-  containerRegistries: serverWriteProcedure.query(async () => {
-    return listContainerRegistrySummaries();
+  containerRegistries: serverWriteProcedure.query(async ({ ctx }) => {
+    const teamId = await requireActorTeamId(ctx.session.user.id);
+    return listContainerRegistrySummaries(teamId);
   }),
-  backupDestinations: protectedProcedure.input(limitInput(50)).query(async ({ input }) => {
-    return listDestinations(input.limit ?? 50);
+  backupDestinations: protectedProcedure.input(limitInput(50)).query(async ({ ctx, input }) => {
+    const teamId = await requireActorTeamId(ctx.session.user.id);
+    return listDestinations(teamId, input.limit ?? 50);
   }),
   backupDestination: protectedProcedure
     .input(z.object({ destinationId: z.string().min(1) }))
-    .query(async ({ input }) => {
-      const dest = await getDestination(input.destinationId);
+    .query(async ({ ctx, input }) => {
+      const teamId = await requireActorTeamId(ctx.session.user.id);
+      const dest = await getDestination(input.destinationId, teamId);
       if (!dest) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Destination not found." });
       }
@@ -387,5 +392,6 @@ export const readRouter = t.mergeRouters(
   accessAssetsReadRouter,
   managedOperationsReadRouter,
   serverOperationsReadRouter,
+  serverSshHostIdentityReadRouter,
   serviceSchedulesReadRouter
 );

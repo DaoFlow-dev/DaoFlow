@@ -21,7 +21,7 @@ describe("buildDeploymentStateArtifacts", () => {
     });
   });
 
-  it("maps live runtime drift details from the environment record", () => {
+  it("maps stored drift details as a non-authoritative cached snapshot", () => {
     const artifacts = buildDeploymentStateArtifacts({
       deployment: {
         sourceType: "compose",
@@ -63,16 +63,25 @@ describe("buildDeploymentStateArtifacts", () => {
     });
 
     expect(artifacts.liveRuntime).toMatchObject({
+      source: "cached-snapshot",
+      authoritative: false,
       status: "drifted",
-      statusLabel: "Review required",
+      statusLabel: "Cached drift snapshot",
       statusTone: "running",
-      summary: "Runtime image drift detected.",
+      summary: "Cached snapshot only: Runtime image drift detected.",
+      attemptedAt: "2026-03-28T20:00:00.000Z",
+      observedAt: "2026-03-28T20:00:00.000Z",
       actualContainerState: "running-with-warnings",
       desiredImageReference: "ghcr.io/daoflow/api:sha-123",
       actualImageReference: "ghcr.io/daoflow/api:sha-122",
-      impactSummary: "One service is still on the previous image.",
-      recommendedActions: ["Re-run the deployment after verifying image availability."]
+      impactSummary: "One service is still on the previous image."
     });
+    expect(artifacts.liveRuntime?.recommendedActions).toEqual(
+      expect.arrayContaining([
+        "Treat this as a non-authoritative cached snapshot, not a live host inspection.",
+        "Re-run the deployment after verifying image availability."
+      ])
+    );
     expect(artifacts.liveRuntime?.diffs).toEqual([
       {
         field: "image",

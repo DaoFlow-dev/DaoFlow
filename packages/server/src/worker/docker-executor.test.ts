@@ -18,6 +18,7 @@ import {
 import { dockerCommand } from "./command-env";
 
 const originalPath = process.env.PATH;
+const originalRepositoryKnownHostsFile = process.env.DAOFLOW_REPOSITORY_KNOWN_HOSTS_FILE;
 
 function createLogCollector() {
   const lines: LogLine[] = [];
@@ -32,10 +33,15 @@ function createLogCollector() {
 afterEach(() => {
   if (originalPath === undefined) {
     delete process.env.PATH;
-    return;
+  } else {
+    process.env.PATH = originalPath;
   }
 
-  process.env.PATH = originalPath;
+  if (originalRepositoryKnownHostsFile === undefined) {
+    delete process.env.DAOFLOW_REPOSITORY_KNOWN_HOSTS_FILE;
+  } else {
+    process.env.DAOFLOW_REPOSITORY_KNOWN_HOSTS_FILE = originalRepositoryKnownHostsFile;
+  }
 });
 
 describe("prepareClonedRepository", () => {
@@ -230,7 +236,11 @@ describe("gitClone", () => {
     const collector = createLogCollector();
     const deploymentId = "ssh-key-checkout";
     const execRunner = vi.fn().mockResolvedValueOnce({ exitCode: 0, signal: null });
+    const trustDir = mkdtempSync(join(tmpdir(), "daoflow-repository-known-hosts-"));
+    const knownHostsPath = join(trustDir, "known_hosts");
     let keyPath: string | null = null;
+    writeFileSync(knownHostsPath, "git.example ssh-ed25519 AQIDBA==\n", { mode: 0o600 });
+    process.env.DAOFLOW_REPOSITORY_KNOWN_HOSTS_FILE = knownHostsPath;
 
     try {
       const result = await gitClone(
@@ -248,15 +258,81 @@ describe("gitClone", () => {
       expect(result).toMatchObject({ exitCode: 0 });
       const env = (execRunner.mock.calls[0] as Parameters<typeof execStreaming>[][number])[4];
       expect(env?.GIT_SSH_COMMAND).toContain("-o IdentitiesOnly=yes");
-      const match = env?.GIT_SSH_COMMAND?.match(/-i ([^ ]+)/);
+      expect(env?.GIT_SSH_COMMAND).toContain("StrictHostKeyChecking=yes");
+      expect(env?.GIT_SSH_COMMAND).toContain("UpdateHostKeys=no");
+      expect(env?.GIT_SSH_COMMAND).not.toContain("accept-new");
+      const match = env?.GIT_SSH_COMMAND?.match(/-i '([^']+)'/);
       keyPath = match?.[1] ?? null;
       expect(keyPath).toBeTruthy();
       expect(existsSync(keyPath ?? "")).toBe(true);
     } finally {
       cleanupStagingDir(deploymentId);
+      rmSync(trustDir, { recursive: true, force: true });
     }
 
     expect(existsSync(keyPath ?? "")).toBe(false);
+  });
+
+  it("rejects SSH repository clones before Git can use ambient credentials", async () => {
+    const collector = createLogCollector();
+    const execRunner = vi.fn();
+
+    await expect(
+      gitClone(
+        "git@example.com:org/repo.git",
+        "main",
+        "ssh-ambient-credential-rejection",
+        collector.onLog,
+        undefined,
+        execRunner
+      )
+    ).rejects.toThrow("explicitly managed SSH key");
+    expect(execRunner).not.toHaveBeenCalled();
+  });
+
+  it("requires a provisioned repository trust store before using an SSH deploy key", async () => {
+    const collector = createLogCollector();
+    const deploymentId = "ssh-key-missing-known-hosts";
+    const execRunner = vi.fn();
+    const trustDir = mkdtempSync(join(tmpdir(), "daoflow-empty-repository-known-hosts-"));
+    const emptyKnownHostsPath = join(trustDir, "known_hosts");
+    delete process.env.DAOFLOW_REPOSITORY_KNOWN_HOSTS_FILE;
+
+    try {
+      await expect(
+        gitClone(
+          "git@example.com:org/repo.git",
+          "main",
+          deploymentId,
+          collector.onLog,
+          {
+            sshPrivateKey:
+              "-----BEGIN OPENSSH PRIVATE KEY-----\nabc\n-----END OPENSSH PRIVATE KEY-----"
+          },
+          execRunner
+        )
+      ).rejects.toThrow("DAOFLOW_REPOSITORY_KNOWN_HOSTS_FILE");
+      expect(execRunner).not.toHaveBeenCalled();
+
+      writeFileSync(emptyKnownHostsPath, "", { mode: 0o600 });
+      process.env.DAOFLOW_REPOSITORY_KNOWN_HOSTS_FILE = emptyKnownHostsPath;
+      await expect(
+        gitClone(
+          "git@example.com:org/repo.git",
+          "main",
+          deploymentId,
+          collector.onLog,
+          {
+            sshPrivateKey:
+              "-----BEGIN OPENSSH PRIVATE KEY-----\nabc\n-----END OPENSSH PRIVATE KEY-----"
+          },
+          execRunner
+        )
+      ).rejects.toThrow("non-empty");
+    } finally {
+      cleanupStagingDir(deploymentId);
+      rmSync(trustDir, { recursive: true, force: true });
+    }
   });
 });
 

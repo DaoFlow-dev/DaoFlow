@@ -7,11 +7,15 @@
  */
 
 import { spawn, type ChildProcess } from "node:child_process";
-import { randomUUID } from "node:crypto";
-import { existsSync, mkdirSync, unlinkSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { createHash } from "node:crypto";
+import { existsSync, lstatSync, mkdirSync } from "node:fs";
+import { isAbsolute, join } from "node:path";
 import type { OnLog } from "./docker-executor";
 import { scpCommand, sshCommand, withCommandPath } from "./command-env";
+import { materializeManagedKnownHosts, type ManagedSshHostIdentity } from "./ssh-known-hosts";
+
+export { removeSSHKey, writeSSHKey } from "./ssh-key-files";
+export { shellQuote } from "./ssh-shell";
 
 const SSH_CONNECT_TIMEOUT = 10; // seconds
 
@@ -34,6 +38,7 @@ export interface SSHTarget {
   user?: string;
   privateKey?: string;
   privateKeyPath?: string;
+  hostIdentity?: ManagedSshHostIdentity;
 }
 
 export interface ExecRemoteOptions {
@@ -46,9 +51,20 @@ export interface ExecRemoteOptions {
  */
 function ensureControlDir(): void {
   const controlDir = getSSHControlDir();
-
-  if (!existsSync(controlDir)) {
-    mkdirSync(controlDir, { recursive: true, mode: 0o700 });
+  if (!isAbsolute(controlDir)) {
+    throw new Error("SSH_CONTROL_DIR must be an absolute path.");
+  }
+  mkdirSync(controlDir, { recursive: true, mode: 0o700 });
+  const stats = lstatSync(controlDir);
+  if (!stats.isDirectory() || stats.isSymbolicLink()) {
+    throw new Error("SSH control directory must be a real directory, not a symbolic link.");
+  }
+  const userId = process.getuid?.();
+  if (typeof userId !== "number" || stats.uid !== userId) {
+    throw new Error("SSH control directory must be owned by the DaoFlow runtime user.");
+  }
+  if ((stats.mode & 0o777) !== 0o700) {
+    throw new Error("SSH control directory must have permissions 700.");
   }
 }
 
@@ -78,11 +94,26 @@ function buildSSHTransportArgs(
 ): SSHResolvedIdentity & { args: string[] } {
   ensureControlDir();
 
-  const controlPath = join(getSSHControlDir(), `%h-%p-%r`);
+  const trustStore = materializeManagedKnownHosts({
+    host: target.host,
+    port: target.port,
+    identity: target.hostIdentity
+  });
   const identity = resolveSSHIdentity(target);
+  const controlPathToken = createHash("sha256")
+    .update(`${identity.destination}:${target.port}:${trustStore.controlPathToken}`)
+    .digest("hex")
+    .slice(0, 32);
+  const controlPath = join(getSSHControlDir(), `cm-${controlPathToken}`);
   const args = [
     "-o",
-    "StrictHostKeyChecking=accept-new",
+    "StrictHostKeyChecking=yes",
+    "-o",
+    `UserKnownHostsFile=${trustStore.path}`,
+    "-o",
+    `GlobalKnownHostsFile=${trustStore.path}`,
+    "-o",
+    "UpdateHostKeys=no",
     "-o",
     `ConnectTimeout=${SSH_CONNECT_TIMEOUT}`,
     "-o",
@@ -238,34 +269,6 @@ export async function detectDockerVersion(
 }
 
 /**
- * Write an SSH key to the key directory for a server.
- */
-export function writeSSHKey(serverName: string, privateKey: string): string {
-  const keyDir = getSSHKeyDir();
-
-  if (!existsSync(keyDir)) {
-    mkdirSync(keyDir, { recursive: true, mode: 0o700 });
-  }
-  const keyPath = join(
-    keyDir,
-    `${serverName.replace(/[^a-zA-Z0-9_-]/g, "_")}-${randomUUID().slice(0, 8)}_id`
-  );
-  writeFileSync(keyPath, privateKey, { mode: 0o600 });
-  return keyPath;
-}
-
-/**
- * Remove an SSH key for a server.
- */
-export function removeSSHKey(keyPath: string): void {
-  try {
-    if (existsSync(keyPath)) unlinkSync(keyPath);
-  } catch {
-    /* best-effort cleanup */
-  }
-}
-
-/**
  * Upload a file to a remote server via SCP.
  * Uses the same SSH key and connection options as execRemote.
  */
@@ -313,16 +316,4 @@ export function scpUpload(
       reject(err);
     });
   });
-}
-
-/**
- * Shell-escape a value for safe inclusion in SSH commands.
- * Uses single quotes (POSIX) which prevent all interpolation.
- */
-export function shellQuote(s: string): string {
-  // Reject dangerous inputs before quoting
-  if (s.length > 4096) throw new Error("Input too long for shell argument");
-
-  // Replace single quotes with the POSIX-safe '"'"' sequence.
-  return `'${s.replace(/'/g, "'\"'\"'")}'`;
 }

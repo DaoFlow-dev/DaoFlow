@@ -13,7 +13,9 @@ Servers are the physical or virtual machines that DaoFlow deploys to. DaoFlow co
 1. Navigate to **Servers** in the sidebar
 2. Click **Add Server**
 3. Enter: name, host IP, SSH port, and SSH key path
-4. DaoFlow verifies connectivity and detects Docker/Compose versions
+4. DaoFlow collects the server's public SSH host keys and shows their algorithms and SHA-256 fingerprints
+5. An owner or admin reviews and approves one exact key in the server's **Identity** tab
+6. DaoFlow then performs strict SSH readiness checks and detects Docker/Compose versions
 
 ### Via CLI
 
@@ -38,8 +40,9 @@ daoflow access-assets ssh-key attach --key-id key_123 --server-id srv_123 --yes
 daoflow access-assets ssh-key detach --server-id srv_123 --yes
 ```
 
-The CLI registration flow returns the same readiness status, issues, and recommended actions that
-the dashboard uses after registration.
+Registration never trusts a newly discovered host key automatically. Remote SSH and SCP work stay
+blocked until an owner or admin approves the exact algorithm, public key, and SHA-256 fingerprint
+for the server's team.
 
 For `docker-swarm-manager` targets, DaoFlow also persists a Swarm topology snapshot in server
 metadata. DaoFlow uses that persisted topology to keep target kind and cluster context visible in
@@ -65,6 +68,25 @@ ssh-keygen -t ed25519 -f ~/.ssh/daoflow_key -N ""
 ssh-copy-id -i ~/.ssh/daoflow_key.pub user@your-server
 ```
 
+### SSH Host Identity Approval
+
+DaoFlow treats the server's SSH host key separately from the private key it uses to authenticate.
+During registration, it uses a bounded public-key scan to collect untrusted host-key material. The
+scan does not grant trust and does not send the configured private key.
+
+An owner or admin must open the server's **Identity** tab and approve one displayed algorithm,
+public key, and SHA-256 fingerprint. DaoFlow stores the approved key only within that team and
+writes it into its own isolated `known_hosts` store. Every SSH and SCP command then uses that store
+with `StrictHostKeyChecking=yes` and host-key updates disabled.
+
+DaoFlow accepts modern Ed25519, ECDSA, and RSA host keys. It does not accept obsolete DSA host
+keys for enrollment or approval.
+
+If a later scan finds that the approved key is absent, or SSH reports a mismatch, DaoFlow fails
+closed before it sends credentials or commands. Replacing a host key is a separate rotation action:
+the approval screen shows both the current and new fingerprints, and DaoFlow records the old/new
+pair in the audit trail. Private host keys are never stored.
+
 ## Health Checks
 
 DaoFlow monitors server readiness with recurring checks:
@@ -76,7 +98,7 @@ DaoFlow monitors server readiness with recurring checks:
 | Compose Available | Docker Compose is installed |
 
 Readiness checks run at a configurable interval using `SERVER_READINESS_POLL_INTERVAL_MS`
-(default: `60000`).
+(default: `60000`) only after a remote server has an approved host identity.
 
 ### Checking Server Health
 
@@ -228,18 +250,19 @@ the asset reference.
 
 Access to server operations requires specific scopes:
 
-| Action               | Required Scope  |
-| -------------------- | --------------- |
-| List servers         | `server:read`   |
-| View server health   | `server:read`   |
-| View operation logs  | `server:read`   |
-| View managed tunnels | `server:read`   |
-| View access assets   | `server:read`   |
-| Register server      | `server:write`  |
-| Update server config | `server:write`  |
-| Cleanup and patching | `server:write`  |
-| Manage Swarm         | `server:write`  |
-| Manage tunnels       | `server:write`  |
-| Manage access assets | `server:write`  |
-| Open host terminal   | `terminal:open` |
-| Remove server        | `server:write`  |
+| Action                              | Required Scope                  |
+| ----------------------------------- | ------------------------------- |
+| List servers                        | `server:read`                   |
+| View server health                  | `server:read`                   |
+| View operation logs                 | `server:read`                   |
+| View managed tunnels                | `server:read`                   |
+| View access assets                  | `server:read`                   |
+| Register server                     | `server:write`                  |
+| Approve or rotate SSH host identity | `server:write` (owner or admin) |
+| Update server config                | `server:write`                  |
+| Cleanup and patching                | `server:write`                  |
+| Manage Swarm                        | `server:write`                  |
+| Manage tunnels                      | `server:write`                  |
+| Manage access assets                | `server:write`                  |
+| Open host terminal                  | `terminal:open`                 |
+| Remove server                       | `server:write`                  |

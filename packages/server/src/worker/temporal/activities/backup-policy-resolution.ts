@@ -1,9 +1,9 @@
 import { eq } from "drizzle-orm";
 import { db } from "../../../db/connection";
 import type { BackupProvider } from "../../../db/schema/destinations";
-import { backupDestinations } from "../../../db/schema/destinations";
 import { backupPolicies, volumes } from "../../../db/schema/storage";
 import { servers } from "../../../db/schema/servers";
+import { resolveTeamScopedDestinationForVolume } from "../../../db/services/backup-resource-team";
 import type { BackupPolicyResolved } from "./backup-activity-types";
 
 export async function resolveBackupPolicy(policyId: string): Promise<BackupPolicyResolved | null> {
@@ -25,13 +25,12 @@ export async function resolveBackupPolicy(policyId: string): Promise<BackupPolic
 
   if (!policy.destinationId) return null;
 
-  const [dest] = await db
-    .select()
-    .from(backupDestinations)
-    .where(eq(backupDestinations.id, policy.destinationId))
-    .limit(1);
-
-  if (!dest) return null;
+  const destinationScope = await resolveTeamScopedDestinationForVolume(
+    volume,
+    policy.destinationId
+  );
+  if (!destinationScope) return null;
+  const { destination: dest, teamId } = destinationScope;
 
   const volumeMeta =
     volume.metadata && typeof volume.metadata === "object"
@@ -40,6 +39,7 @@ export async function resolveBackupPolicy(policyId: string): Promise<BackupPolic
 
   return {
     policyId: policy.id,
+    teamId,
     policyName: policy.name,
     volumeId: volume.id,
     volumeName: volume.name,

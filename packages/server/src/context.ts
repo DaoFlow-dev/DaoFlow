@@ -1,4 +1,4 @@
-import type { Context as HonoContext } from "hono";
+import type { Context as HonoContext, Env as HonoEnv, Input as HonoInput } from "hono";
 import {
   normalizeAppRole,
   roleCapabilities,
@@ -12,6 +12,7 @@ import {
   buildAccessLogAttribution,
   rememberRequestAccessLogAttribution
 } from "./request-access-log-context";
+import type { PreparedCommandAuditAttempt } from "./db/services/command-audit";
 
 export interface RequestAuthContext {
   method: "session" | "api-token";
@@ -46,6 +47,8 @@ export interface Context {
       code: TokenAuthFailureCode;
     };
   } | null;
+  commandAuditAttempts?: Map<string, PreparedCommandAuditAttempt>;
+  commandAuditAttemptId?: string;
 }
 
 export function getSessionAuthContext(session: AuthSession): RequestAuthContext | null {
@@ -79,7 +82,11 @@ function getClientIp(c: HonoContext): string {
   );
 }
 
-export async function createContext(c: HonoContext): Promise<Context> {
+export async function createContext<
+  E extends HonoEnv & { Variables: { requestId: string } },
+  P extends string,
+  I extends HonoInput
+>(c: HonoContext<E, P, I>): Promise<Context> {
   const session = await auth.api.getSession({
     headers: c.req.raw.headers
   });
@@ -114,8 +121,7 @@ export async function createContext(c: HonoContext): Promise<Context> {
   );
 
   return {
-    requestId:
-      (c.get("requestId") as string | undefined) ?? c.req.header("x-request-id") ?? "unknown",
+    requestId: c.get("requestId") ?? c.req.header("x-request-id") ?? "unknown",
     requestHeaders: c.req.raw.headers,
     session: tokenAuth?.session ?? session,
     auth: authContext,

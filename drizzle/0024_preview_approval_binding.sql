@@ -1,0 +1,2 @@
+ALTER TABLE "approval_requests" ADD COLUMN "binding_key" varchar(64);--> statement-breakpoint
+CREATE UNIQUE INDEX "approval_requests_pending_binding_idx" ON "approval_requests" USING btree ("binding_key") WHERE "approval_requests"."binding_key" is not null and "approval_requests"."status" = 'pending';

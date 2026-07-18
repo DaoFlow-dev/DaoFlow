@@ -3,10 +3,10 @@ import type { AppRole } from "@daoflow/shared";
 import { and, eq } from "drizzle-orm";
 import { db } from "../db/connection";
 import { auditEntries } from "../db/schema/audit";
-import { projects } from "../db/schema/projects";
 import { backupPolicies, backupRuns, volumes } from "../db/schema/storage";
-import { asRecord, readString } from "../db/services/json-helpers";
-import { resolveTeamIdForUser } from "../db/services/teams";
+import { resolveMemberTeamIdForUser } from "../db/services/teams";
+import { backupDestinations } from "../db/schema/destinations";
+import { resolveVolumeTeamId } from "../db/services/backup-resource-team";
 
 type BackupScopeContext = {
   session: { user: { id: string; email: string } };
@@ -17,7 +17,7 @@ async function recordDeniedBackupAccess(input: {
   ctx: BackupScopeContext;
   action: string;
   permissionScope: string;
-  resourceType: "backup-policy" | "backup-run" | "volume";
+  resourceType: "backup-destination" | "backup-policy" | "backup-run" | "volume";
 }) {
   await db.insert(auditEntries).values({
     actorType: input.ctx.auth.method === "api-token" ? "token" : "user",
@@ -37,7 +37,7 @@ async function recordDeniedBackupAccess(input: {
 }
 
 async function requireTeamId(userId: string) {
-  const teamId = await resolveTeamIdForUser(userId);
+  const teamId = await resolveMemberTeamIdForUser(userId);
   if (!teamId) {
     throw new TRPCError({
       code: "PRECONDITION_FAILED",
@@ -48,17 +48,7 @@ async function requireTeamId(userId: string) {
 }
 
 async function volumeBelongsToTeam(volume: typeof volumes.$inferSelect, teamId: string) {
-  const projectId = readString(asRecord(volume.metadata), "projectId");
-  if (!projectId) {
-    return true;
-  }
-
-  const [project] = await db
-    .select({ id: projects.id })
-    .from(projects)
-    .where(and(eq(projects.id, projectId), eq(projects.teamId, teamId)))
-    .limit(1);
-  return Boolean(project);
+  return (await resolveVolumeTeamId(volume)) === teamId;
 }
 
 export async function assertVolumeScope(input: {
@@ -76,6 +66,26 @@ export async function assertVolumeScope(input: {
   if (!(await volumeBelongsToTeam(volume, teamId))) {
     await recordDeniedBackupAccess({ ...input, resourceType: "volume" });
     throw new TRPCError({ code: "NOT_FOUND", message: "Volume not found." });
+  }
+}
+
+export async function assertBackupDestinationScope(input: {
+  ctx: BackupScopeContext;
+  destinationId: string;
+  action: string;
+  permissionScope: string;
+}) {
+  const teamId = await requireTeamId(input.ctx.session.user.id);
+  const [destination] = await db
+    .select({ id: backupDestinations.id })
+    .from(backupDestinations)
+    .where(
+      and(eq(backupDestinations.id, input.destinationId), eq(backupDestinations.teamId, teamId))
+    )
+    .limit(1);
+  if (!destination) {
+    await recordDeniedBackupAccess({ ...input, resourceType: "backup-destination" });
+    throw new TRPCError({ code: "NOT_FOUND", message: "Destination not found." });
   }
 }
 

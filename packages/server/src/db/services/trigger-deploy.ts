@@ -45,6 +45,10 @@ import { buildManagedTraefikRoutingPlan } from "../../managed-traefik";
 import { readServiceDomainConfigFromConfig } from "../../service-domain-config";
 import { resolveServiceForUser } from "./scoped-services";
 import { recordPreviewEnvironmentDeployment } from "./preview-environments";
+import {
+  validatePreviewDeploymentAuthorization,
+  type PreviewAuthorization
+} from "../../preview-trust";
 
 export interface TriggerDeployInput {
   serviceId: string;
@@ -52,10 +56,12 @@ export interface TriggerDeployInput {
   imageTag?: string;
   preview?: ComposePreviewRequestInput;
   previewProviderType?: string | null;
+  previewAuthorization?: PreviewAuthorization;
   composeOperation?: "up" | "down";
   requestedByUserId?: string | null;
   requestedByEmail?: string | null;
   requestedByRole?: AppRole | null;
+  commandAuditAttemptId?: string;
   trigger?: DeploymentTrigger;
 }
 
@@ -192,6 +198,8 @@ export async function triggerDeploy(input: TriggerDeployInput) {
 
   if (!project) return { status: "not_found" as const, entity: "project" };
 
+  const previewRequest = input.preview ? normalizeComposePreviewRequest(input.preview) : null;
+
   // Determine target server
   const envConfig = env.config && typeof env.config === "object" ? env.config : {};
   const targetServerId =
@@ -213,11 +221,31 @@ export async function triggerDeploy(input: TriggerDeployInput) {
 
   const composeProjectHasRepositorySource =
     svc.sourceType === "compose" ? hasRepositorySource(project) : false;
-  if (input.preview && svc.sourceType !== "compose") {
+  if (previewRequest && svc.sourceType !== "compose") {
     return {
       status: "invalid_preview" as const,
       message: "Preview deployments are only supported for compose services."
     };
+  }
+
+  if (previewRequest?.target === "pull-request" && previewRequest.action === "deploy") {
+    const authorization = await validatePreviewDeploymentAuthorization({
+      authorization: input.previewAuthorization,
+      project,
+      serviceId: svc.id,
+      providerType:
+        input.previewProviderType === "github" || input.previewProviderType === "gitlab"
+          ? input.previewProviderType
+          : null,
+      commitSha: input.commitSha ?? "",
+      preview: previewRequest
+    });
+    if (!authorization.allowed) {
+      return {
+        status: "preview_approval_required" as const,
+        message: authorization.reason
+      };
+    }
   }
 
   if (svc.sourceType === "compose" && composeProjectHasRepositorySource) {
@@ -247,7 +275,6 @@ export async function triggerDeploy(input: TriggerDeployInput) {
   let previewMetadata: ReturnType<typeof deriveComposePreviewMetadata> | null = null;
 
   if (svc.sourceType === "compose") {
-    const previewRequest = input.preview ? normalizeComposePreviewRequest(input.preview) : null;
     if (previewRequest) {
       if (!composeProjectHasRepositorySource) {
         return {
@@ -298,20 +325,22 @@ export async function triggerDeploy(input: TriggerDeployInput) {
         configSnapshot.composeOperation = input.composeOperation ?? "up";
       }
 
-      const envState = await prepareComposeDeploymentEnvState({
-        environmentId: env.id,
-        serviceId: svc.id,
-        branch:
-          typeof configSnapshot.composeEnvBranch === "string"
-            ? configSnapshot.composeEnvBranch
-            : typeof configSnapshot.branch === "string"
-              ? configSnapshot.branch
-              : "main",
-        additionalEntries:
-          previewMetadata !== null ? buildComposePreviewEnvEntries(previewMetadata) : undefined
-      });
-      configSnapshot.composeEnv = envState.composeEnv;
-      envVarsEncrypted = envState.envVarsEncrypted;
+      if (previewRequest?.action !== "destroy") {
+        const envState = await prepareComposeDeploymentEnvState({
+          environmentId: env.id,
+          serviceId: svc.id,
+          branch:
+            typeof configSnapshot.composeEnvBranch === "string"
+              ? configSnapshot.composeEnvBranch
+              : typeof configSnapshot.branch === "string"
+                ? configSnapshot.branch
+                : "main",
+          additionalEntries:
+            previewMetadata !== null ? buildComposePreviewEnvEntries(previewMetadata) : undefined
+        });
+        configSnapshot.composeEnv = envState.composeEnv;
+        envVarsEncrypted = envState.envVarsEncrypted;
+      }
     } else {
       replayedComposeDeployment = await findLatestReplayableUploadedDeployment({
         projectId: project.id,
@@ -406,6 +435,7 @@ export async function triggerDeploy(input: TriggerDeployInput) {
     requestedByUserId: input.requestedByUserId ?? null,
     requestedByEmail: input.requestedByEmail ?? null,
     requestedByRole: input.requestedByRole ?? null,
+    commandAuditAttemptId: input.commandAuditAttemptId,
     trigger: input.trigger ?? "user",
     steps: stepsForSourceType({
       sourceType: svc.sourceType,

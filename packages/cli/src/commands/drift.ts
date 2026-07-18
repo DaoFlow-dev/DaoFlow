@@ -6,7 +6,7 @@ import { createClient } from "../trpc-client";
 
 export function driftCommand(): Command {
   return new Command("drift")
-    .description("Show config drift between desired and actual service state")
+    .description("Show non-authoritative cached Compose drift snapshots")
     .option("--limit <n>", "Maximum services to check", "24")
     .option("--json", "Output as JSON")
     .addHelpText(
@@ -20,7 +20,7 @@ Examples:
   daoflow drift --limit 10
 
 Example JSON shape:
-  { "ok": true, "data": { "summary": { "totalServices": 5, "alignedServices": 4, "driftedServices": 1 }, "services": [...] } }
+  { "ok": true, "data": { "inspection": { "availability": "not-implemented" }, "summary": { "totalServices": 5, "cachedSnapshotServices": 3, "unavailableServices": 2 }, "reports": [{ "source": "cached-snapshot", "authoritative": false, "attemptedAt": "2026-07-18T12:00:00.000Z", "observedAt": "2026-07-18T12:00:00.000Z", "maxAgeSeconds": 900 }] } }
 `
     )
     .action(async (opts: { limit: string; json?: boolean }, command: Command) => {
@@ -48,28 +48,38 @@ Example JSON shape:
               console.log(chalk.bold("\n  Compose Drift Report\n"));
               const summary = report.summary;
               console.log(
-                `  Services: ${summary.totalServices}  Aligned: ${chalk.green(String(summary.alignedServices))}  Drifted: ${summary.driftedServices > 0 ? chalk.red(String(summary.driftedServices)) : chalk.dim("0")}`
+                `  Services: ${summary.totalServices}  Cached snapshots: ${summary.cachedSnapshotServices}  Unavailable: ${summary.unavailableServices}  Review required: ${summary.reviewRequired}`
+              );
+              console.log(
+                chalk.yellow(
+                  `  Live inspection: ${report.inspection.availability}. Results are not authoritative.`
+                )
               );
               console.log();
 
-              if (report.services.length === 0) {
-                console.log(chalk.dim("  No compose services to check.\n"));
+              if (report.reports.length === 0) {
+                console.log(chalk.dim("  No Compose services are available for this team.\n"));
                 return;
               }
 
-              for (const svc of report.services) {
+              for (const svc of report.reports) {
                 const statusColor =
-                  svc.status === "aligned"
-                    ? chalk.green
+                  svc.status === "blocked"
+                    ? chalk.red
                     : svc.status === "drifted"
-                      ? chalk.red
+                      ? chalk.yellow
                       : chalk.yellow;
                 console.log(`  ${svc.serviceName}  ${statusColor(svc.statusLabel)}`);
+                console.log(
+                  chalk.dim(
+                    `    Source: ${svc.source} · Authoritative: no · Observed: ${svc.observedAt ?? "—"} · Attempted: ${svc.attemptedAt ?? "—"} · Max age: ${svc.maxAgeSeconds}s`
+                  )
+                );
                 if (svc.summary) console.log(chalk.dim(`    ${svc.summary}`));
                 if (svc.diffs && Array.isArray(svc.diffs) && svc.diffs.length > 0) {
                   for (const diff of svc.diffs) {
                     console.log(
-                      `    ${chalk.dim(diff.field)}: ${chalk.red(diff.expected ?? "—")} → ${chalk.green(diff.actual ?? "—")}`
+                      `    ${chalk.dim(diff.field)}: ${chalk.red(diff.desiredValue ?? "—")} → ${chalk.yellow(diff.actualValue ?? "—")}`
                     );
                   }
                 }

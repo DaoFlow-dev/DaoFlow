@@ -4,6 +4,7 @@ import type { projects } from "../db/schema/projects";
 import type { developmentTaskRuns, developmentTasks } from "../db/schema/development-tasks";
 import { execStreaming, type OnLog } from "./docker-exec-shared";
 import { prepareClonedRepository } from "./git-repository-preparation";
+import { requireManagedSshGitCredential, strictGitSshCommand } from "./git-ssh-trust";
 import { resolveCheckoutSpec } from "./checkout-source";
 import type { ConfigSnapshot } from "./step-management";
 import { readRepositoryPreparationConfig } from "../repository-preparation";
@@ -115,6 +116,8 @@ export async function checkoutDevelopmentTaskRepository(input: {
     };
   }
 
+  requireManagedSshGitCredential(checkout.repoUrl, checkout.sshPrivateKey);
+
   const execRunner = input.execRunner ?? execStreaming;
   const gitConfigPath = await writeGitConfigFile(
     input.artifactsPath,
@@ -130,7 +133,7 @@ export async function checkoutDevelopmentTaskRepository(input: {
     ...(gitConfigPath ? { GIT_CONFIG_GLOBAL: gitConfigPath } : {}),
     ...(gitSshKeyPath
       ? {
-          GIT_SSH_COMMAND: `ssh -i ${gitSshKeyPath} -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new`
+          GIT_SSH_COMMAND: strictGitSshCommand(gitSshKeyPath)
         }
       : {})
   };

@@ -1,35 +1,49 @@
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { db } from "../connection";
 import { queueBackupRestore } from "./backups";
 import { listComposeReleaseCatalog } from "./compose";
-import { approvalRequests, auditEntries } from "../schema/audit";
+import { approvalRequests, auditEntries, events } from "../schema/audit";
+import { services } from "../schema/services";
 import { backupPolicies, backupRuns } from "../schema/storage";
 import type { AppRole } from "@daoflow/shared";
 import { newId as id, asRecord, readString, readStringArray } from "./json-helpers";
 import { buildApprovalNotification } from "../../worker/temporal/activities/notification-builders";
 import { dispatchNotification } from "../../worker/temporal/activities/notification-activities";
+import {
+  buildPreviewApprovalBindingKey,
+  readPreviewApprovalBinding,
+  readPreviewApprovalExpiry,
+  type PreviewApprovalBinding
+} from "../../preview-trust";
+import { triggerDeploy } from "./trigger-deploy";
 
-export type ApprovalActionType = "compose-release" | "backup-restore";
+export type ApprovalActionType = "compose-release" | "backup-restore" | "preview-deployment";
+
+type ApprovalRequester = {
+  requestedByUserId: string | null;
+  requestedByEmail: string;
+  requestedByRole: AppRole;
+};
 
 export type CreateApprovalRequestInput =
-  | {
+  | ({
       actionType: "compose-release";
       composeServiceId: string;
       commitSha: string;
       imageTag?: string | null;
       reason: string;
-      requestedByUserId: string;
-      requestedByEmail: string;
-      requestedByRole: AppRole;
-    }
-  | {
+    } & ApprovalRequester)
+  | ({
       actionType: "backup-restore";
       backupRunId: string;
       reason: string;
-      requestedByUserId: string;
-      requestedByEmail: string;
-      requestedByRole: AppRole;
-    };
+    } & ApprovalRequester)
+  | ({
+      actionType: "preview-deployment";
+      serviceId: string;
+      previewTrust: PreviewApprovalBinding;
+      reason: string;
+    } & ApprovalRequester);
 
 function getApprovalStatusTone(status: string, riskLevel: "medium" | "elevated" | "critical") {
   if (status === "approved") {
@@ -37,6 +51,10 @@ function getApprovalStatusTone(status: string, riskLevel: "medium" | "elevated" 
   }
 
   if (status === "rejected") {
+    return "failed" as const;
+  }
+
+  if (status === "expired") {
     return "failed" as const;
   }
 
@@ -59,6 +77,35 @@ async function resolveApprovalPresentation(input: CreateApprovalRequestInput) {
         "Verify the Compose diff still matches the intended release track."
       ],
       expiresAt: new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString()
+    } as const;
+  }
+
+  if (input.actionType === "preview-deployment") {
+    const [service] = await db
+      .select()
+      .from(services)
+      .where(eq(services.id, input.serviceId))
+      .limit(1);
+    if (!service || service.projectId === null || input.previewTrust.serviceId !== service.id) {
+      return null;
+    }
+
+    const preview = input.previewTrust.preview;
+    if (preview.target !== "pull-request" || preview.action !== "deploy") {
+      return null;
+    }
+
+    return {
+      targetResource: `service/${service.id}`,
+      resourceLabel: `${service.name} · PR #${preview.pullRequestNumber} @${input.previewTrust.commitSha.slice(0, 12)}`,
+      riskLevel: "critical",
+      commandSummary: `Deploy the approved ${input.previewTrust.providerType} commit ${input.previewTrust.commitSha} from ${input.previewTrust.sourceRepository}.`,
+      recommendedChecks: [
+        "Confirm the commit and source repository match the pull request you reviewed.",
+        "Approve only when the project preview policy and target environment are still intended."
+      ],
+      expiresAt: input.previewTrust.expiresAt,
+      previewTrust: input.previewTrust
     } as const;
   }
 
@@ -96,11 +143,13 @@ async function resolveApprovalPresentation(input: CreateApprovalRequestInput) {
 }
 
 function enrichApproval(request: typeof approvalRequests.$inferSelect) {
+  const { bindingKey: _bindingKey, ...publicRequest } = request;
+  void _bindingKey;
   const summary = asRecord(request.inputSummary);
   const riskLevel = readString(summary, "riskLevel", "medium") as
     "medium" | "elevated" | "critical";
   return {
-    ...request,
+    ...publicRequest,
     requestedBy: request.requestedByEmail ?? "",
     resourceLabel: readString(summary, "resourceLabel", request.targetResource),
     riskLevel,
@@ -111,6 +160,7 @@ function enrichApproval(request: typeof approvalRequests.$inferSelect) {
     decidedBy: request.resolvedByEmail ?? null,
     decidedAt: request.resolvedAt?.toISOString() ?? null,
     recommendedChecks: readStringArray(summary, "recommendedChecks"),
+    previewTrust: readPreviewApprovalBinding(summary.previewTrust),
     createdAt: request.createdAt.toISOString()
   };
 }
@@ -121,32 +171,40 @@ export async function createApprovalRequest(input: CreateApprovalRequestInput) {
 
   const requestId = id();
   const createdAt = new Date();
-  const [request] = await db
-    .insert(approvalRequests)
-    .values({
-      id: requestId,
-      actionType: input.actionType,
-      targetResource: presentation.targetResource,
-      reason: input.reason,
-      status: "pending",
-      requestedByUserId: input.requestedByUserId,
-      requestedByEmail: input.requestedByEmail,
-      requestedByRole: input.requestedByRole,
-      inputSummary: {
-        riskLevel: presentation.riskLevel,
-        resourceLabel: presentation.resourceLabel,
-        commandSummary: presentation.commandSummary,
-        recommendedChecks: presentation.recommendedChecks,
-        requestedAt: createdAt.toISOString(),
-        expiresAt: presentation.expiresAt
-      },
-      createdAt
-    })
-    .returning();
+  const bindingKey =
+    input.actionType === "preview-deployment"
+      ? buildPreviewApprovalBindingKey(input.previewTrust)
+      : null;
+  const insert = db.insert(approvalRequests).values({
+    id: requestId,
+    actionType: input.actionType,
+    bindingKey,
+    targetResource: presentation.targetResource,
+    reason: input.reason,
+    status: "pending",
+    requestedByUserId: input.requestedByUserId,
+    requestedByEmail: input.requestedByEmail,
+    requestedByRole: input.requestedByRole,
+    inputSummary: {
+      riskLevel: presentation.riskLevel,
+      resourceLabel: presentation.resourceLabel,
+      commandSummary: presentation.commandSummary,
+      recommendedChecks: presentation.recommendedChecks,
+      requestedAt: createdAt.toISOString(),
+      expiresAt: presentation.expiresAt,
+      ...("previewTrust" in presentation ? { previewTrust: presentation.previewTrust } : {})
+    },
+    createdAt
+  });
+  const [request] =
+    input.actionType === "preview-deployment"
+      ? await insert.onConflictDoNothing().returning()
+      : await insert.returning();
+  if (!request) return null;
 
   await db.insert(auditEntries).values({
-    actorType: "user",
-    actorId: input.requestedByUserId,
+    actorType: input.requestedByUserId ? "user" : "system",
+    actorId: input.requestedByUserId ?? "preview-webhook",
     actorEmail: input.requestedByEmail,
     actorRole: input.requestedByRole,
     targetResource: `approval-request/${requestId}`,
@@ -178,6 +236,81 @@ export async function createApprovalRequest(input: CreateApprovalRequestInput) {
   }
 
   return request;
+}
+
+function samePreviewApprovalBinding(left: PreviewApprovalBinding, right: PreviewApprovalBinding) {
+  return (
+    left.providerType === right.providerType &&
+    left.providerId === right.providerId &&
+    left.installationId === right.installationId &&
+    left.sourceRepository === right.sourceRepository &&
+    left.baseRepository === right.baseRepository &&
+    left.commitSha === right.commitSha &&
+    left.policy === right.policy &&
+    left.policyRevision === right.policyRevision &&
+    left.serviceId === right.serviceId &&
+    left.preview.target === right.preview.target &&
+    left.preview.branch === right.preview.branch &&
+    left.preview.pullRequestNumber === right.preview.pullRequestNumber &&
+    left.preview.action === right.preview.action &&
+    left.allowedSecretProfile === right.allowedSecretProfile
+  );
+}
+
+export async function createOrReusePreviewApprovalRequest(
+  input: Extract<CreateApprovalRequestInput, { actionType: "preview-deployment" }>
+) {
+  const bindingKey = buildPreviewApprovalBindingKey(input.previewTrust);
+  const candidates = await db
+    .select()
+    .from(approvalRequests)
+    .where(and(eq(approvalRequests.bindingKey, bindingKey), eq(approvalRequests.status, "pending")))
+    .orderBy(desc(approvalRequests.createdAt))
+    .limit(24);
+
+  for (const candidate of candidates) {
+    if (candidate.actionType !== "preview-deployment") {
+      continue;
+    }
+
+    const summary = asRecord(candidate.inputSummary);
+    const binding = readPreviewApprovalBinding(summary.previewTrust);
+    if (!binding || !samePreviewApprovalBinding(binding, input.previewTrust)) {
+      continue;
+    }
+
+    const expiresAt = readPreviewApprovalExpiry(summary);
+    const expiresAtMs = expiresAt ? new Date(expiresAt).getTime() : Number.NaN;
+    if (!Number.isFinite(expiresAtMs) || expiresAtMs <= Date.now()) {
+      if (candidate.status === "pending") {
+        await db
+          .update(approvalRequests)
+          .set({ status: "expired", resolvedAt: new Date() })
+          .where(eq(approvalRequests.id, candidate.id));
+      }
+      continue;
+    }
+
+    if (candidate.status === "pending") {
+      return { status: "pending" as const, request: candidate };
+    }
+  }
+
+  const request = await createApprovalRequest(input);
+  if (!request) {
+    const [concurrent] = await db
+      .select()
+      .from(approvalRequests)
+      .where(
+        and(eq(approvalRequests.bindingKey, bindingKey), eq(approvalRequests.status, "pending"))
+      )
+      .limit(1);
+    return concurrent
+      ? { status: "pending" as const, request: concurrent }
+      : { status: "invalid" as const, request: null };
+  }
+
+  return { status: "created" as const, request };
 }
 
 export async function listApprovalQueue(limit = 24) {
@@ -217,8 +350,33 @@ export async function approveApprovalRequest(
   if (request.status !== "pending") {
     return { status: "invalid-state" as const, currentStatus: request.status };
   }
+  const summary = asRecord(request.inputSummary);
+  const expiresAt = readPreviewApprovalExpiry(summary) ?? readString(summary, "expiresAt", "");
+  const expiresAtMs = new Date(expiresAt).getTime();
+  if (!Number.isFinite(expiresAtMs) || expiresAtMs <= Date.now()) {
+    await db
+      .update(approvalRequests)
+      .set({ status: "expired", resolvedAt: new Date() })
+      .where(eq(approvalRequests.id, requestId));
+    await db.insert(auditEntries).values({
+      actorType: "user",
+      actorId: userId,
+      actorEmail: email,
+      actorRole: role,
+      targetResource: `approval-request/${requestId}`,
+      action: "approval.expire",
+      inputSummary: `Approval expired before ${readString(summary, "resourceLabel", request.targetResource)} could be approved.`,
+      permissionScope: "policy:override",
+      outcome: "failure",
+      metadata: {
+        resourceType: "approval-request",
+        resourceId: requestId,
+        expiresAt
+      }
+    });
+    return { status: "expired" as const };
+  }
   if (request.requestedByUserId === userId) {
-    const summary = asRecord(request.inputSummary);
     await db.insert(auditEntries).values({
       actorType: "user",
       actorId: userId,
@@ -240,7 +398,7 @@ export async function approveApprovalRequest(
     return { status: "self-approval" as const };
   }
 
-  await db
+  const [approvedRequest] = await db
     .update(approvalRequests)
     .set({
       status: "approved",
@@ -248,9 +406,19 @@ export async function approveApprovalRequest(
       resolvedByEmail: email,
       resolvedAt: new Date()
     })
-    .where(eq(approvalRequests.id, requestId));
+    .where(and(eq(approvalRequests.id, requestId), eq(approvalRequests.status, "pending")))
+    .returning();
+  if (!approvedRequest) {
+    const [current] = await db
+      .select({ status: approvalRequests.status })
+      .from(approvalRequests)
+      .where(eq(approvalRequests.id, requestId))
+      .limit(1);
+    return current
+      ? { status: "invalid-state" as const, currentStatus: current.status }
+      : { status: "not-found" as const };
+  }
 
-  const summary = asRecord(request.inputSummary);
   await db.insert(auditEntries).values({
     actorType: "user",
     actorId: userId,
@@ -292,6 +460,82 @@ export async function approveApprovalRequest(
     }
   }
 
+  if (request.actionType === "preview-deployment") {
+    const binding = readPreviewApprovalBinding(summary.previewTrust);
+    const serviceId = binding?.serviceId;
+    const result =
+      binding && serviceId
+        ? await triggerDeploy({
+            serviceId,
+            commitSha: binding.commitSha,
+            preview: {
+              target: binding.preview.target,
+              branch: binding.preview.branch,
+              action: binding.preview.action,
+              ...(binding.preview.pullRequestNumber !== null
+                ? { pullRequestNumber: binding.preview.pullRequestNumber }
+                : {})
+            },
+            previewProviderType: binding.providerType,
+            previewAuthorization: {
+              kind: "approval",
+              approvalRequestId: requestId
+            },
+            requestedByUserId: userId,
+            requestedByEmail: email,
+            requestedByRole: role,
+            trigger: "webhook"
+          })
+        : null;
+    const queued = result?.status === "ok";
+    const detail = queued
+      ? `Queued the approved preview for ${binding!.commitSha.slice(0, 12)}.`
+      : "Approval was recorded, but DaoFlow could not queue the bound preview deployment.";
+
+    await db.insert(auditEntries).values({
+      actorType: "user",
+      actorId: userId,
+      actorEmail: email,
+      actorRole: role,
+      targetResource: serviceId ? `service/${serviceId}` : `approval-request/${requestId}`,
+      action: queued ? "preview.approval.queued" : "preview.approval.queue_failed",
+      inputSummary: detail,
+      permissionScope: "deploy:start",
+      outcome: queued ? "success" : "failure",
+      metadata: {
+        approvalRequestId: requestId,
+        providerType: binding?.providerType ?? null,
+        sourceRepository: binding?.sourceRepository ?? null,
+        commitSha: binding?.commitSha ?? null,
+        policyRevision: binding?.policyRevision ?? null,
+        allowedSecretProfile: binding?.allowedSecretProfile ?? null,
+        deploymentId: queued ? result.deployment.id : null,
+        status: result?.status ?? "invalid-binding"
+      }
+    });
+    await db.insert(events).values({
+      kind: queued ? "preview.approval.queued" : "preview.approval.queue_failed",
+      resourceType: serviceId ? "service" : "approval-request",
+      resourceId: serviceId ?? requestId,
+      summary: detail,
+      detail: queued
+        ? "DaoFlow will use the approved immutable commit when the worker prepares the preview."
+        : "No preview environment or secret material was prepared for this failed approval dispatch.",
+      severity: queued ? "info" : "warning",
+      metadata: {
+        approvalRequestId: requestId,
+        providerType: binding?.providerType ?? null,
+        sourceRepository: binding?.sourceRepository ?? null,
+        commitSha: binding?.commitSha ?? null,
+        policyRevision: binding?.policyRevision ?? null,
+        allowedSecretProfile: binding?.allowedSecretProfile ?? null,
+        deploymentId: queued ? result.deployment.id : null,
+        status: result?.status ?? "invalid-binding"
+      },
+      createdAt: new Date()
+    });
+  }
+
   const [updated] = await db
     .select()
     .from(approvalRequests)
@@ -315,7 +559,7 @@ export async function rejectApprovalRequest(
     return { status: "invalid-state" as const, currentStatus: request.status };
   }
 
-  await db
+  const [rejectedRequest] = await db
     .update(approvalRequests)
     .set({
       status: "rejected",
@@ -323,7 +567,18 @@ export async function rejectApprovalRequest(
       resolvedByEmail: email,
       resolvedAt: new Date()
     })
-    .where(eq(approvalRequests.id, requestId));
+    .where(and(eq(approvalRequests.id, requestId), eq(approvalRequests.status, "pending")))
+    .returning();
+  if (!rejectedRequest) {
+    const [current] = await db
+      .select({ status: approvalRequests.status })
+      .from(approvalRequests)
+      .where(eq(approvalRequests.id, requestId))
+      .limit(1);
+    return current
+      ? { status: "invalid-state" as const, currentStatus: current.status }
+      : { status: "not-found" as const };
+  }
 
   const summary = asRecord(request.inputSummary);
   await db.insert(auditEntries).values({

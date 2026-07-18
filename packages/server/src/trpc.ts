@@ -1,31 +1,25 @@
-import { initTRPC, TRPCError } from "@trpc/server";
+import { TRPCError } from "@trpc/server";
 import { canAssumeAnyRole, hasAllScopes, type ApiTokenScope, type AppRole } from "@daoflow/shared";
-import { getSessionAuthContext, type Context } from "./context";
+import { getSessionAuthContext } from "./context";
 import { ensureControlPlaneReady } from "./db/services/seed";
 import {
   buildAccessLogAttribution,
   rememberRequestAccessLogAttribution
 } from "./request-access-log-context";
 import { assertHumanMfaSatisfied } from "./db/services/account-security";
+import type { CommandAuditContract } from "./db/services/command-audit";
+import { commandAuditContract, commandAuditMiddleware } from "./trpc-command-audit";
+import { t } from "./trpc-core";
 
-export const t = initTRPC.context<Context>().create({
-  errorFormatter({ shape, error }) {
-    const cause =
-      error.cause && typeof error.cause === "object"
-        ? (error.cause as unknown as Record<string, unknown>)
-        : null;
+export { t } from "./trpc-core";
+export type { ProcedureMeta } from "./trpc-core";
 
-    return cause
-      ? {
-          ...shape,
-          data: {
-            ...shape.data,
-            cause
-          }
-        }
-      : shape;
-  }
-});
+function auditedProcedure(
+  procedure: ReturnType<typeof roleProcedure>,
+  contract: CommandAuditContract
+) {
+  return t.procedure.meta({ commandAudit: contract }).use(commandAuditMiddleware).concat(procedure);
+}
 
 // ── Protected: requires session ──────────────────────────────
 export const protectedProcedure = t.procedure.use(async ({ ctx, next }) => {
@@ -50,6 +44,11 @@ export const protectedProcedure = t.procedure.use(async ({ ctx, next }) => {
     }
   });
 });
+
+export const userWriteProcedure = t.procedure
+  .meta({ commandAudit: commandAuditContract("authenticated", []) })
+  .use(commandAuditMiddleware)
+  .concat(protectedProcedure);
 
 // ── Role-gated ───────────────────────────────────────────────
 export const roleProcedure = (allowedRoles: readonly AppRole[]) =>
@@ -128,7 +127,10 @@ export const scopedProcedure = (
   });
 
 // ── Convenience role shortcuts ───────────────────────────────
-export const adminProcedure = roleProcedure(["owner", "admin"]);
+export const adminProcedure = auditedProcedure(
+  roleProcedure(["owner", "admin"]),
+  commandAuditContract("role:owner,admin", [])
+);
 export const deployProcedure = roleProcedure(["owner", "admin", "operator", "developer"]);
 export const executionProcedure = roleProcedure(["owner", "admin", "operator"]);
 export const planningProcedure = roleProcedure([
@@ -147,39 +149,52 @@ const ADMIN_ONLY = ["owner", "admin"] as const;
 const ALL_INCL_AGENT = ["owner", "admin", "operator", "developer", "agent"] as const;
 const ALL_READERS = ["owner", "admin", "operator", "developer", "viewer", "agent"] as const;
 
-export const serverWriteProcedure = scopedProcedure(ADMIN_ONLY, ["server:write"]);
-export const serverOpsWriteProcedure = scopedProcedure(ALL_OPS, ["server:write"]);
-export const serverReadProcedure = scopedProcedure(ALL_READERS, ["server:read"]);
-export const terminalOpenProcedure = scopedProcedure(["owner"], ["terminal:open"]);
-export const deployReadProcedure = scopedProcedure(ALL_READERS, ["deploy:read"]);
-export const serviceReadProcedure = scopedProcedure(ALL_READERS, ["service:read"]);
-export const backupReadProcedure = scopedProcedure(ALL_READERS, ["backup:read"]);
-export const volumesReadProcedure = scopedProcedure(ALL_READERS, ["volumes:read"]);
-export const envReadProcedure = scopedProcedure(ALL_READERS, ["env:read"]);
-export const logsReadProcedure = scopedProcedure(ALL_READERS, ["logs:read"]);
-export const deployStartProcedure = scopedProcedure(ALL_WRITE, ["deploy:start"]);
-export const deployRollbackProcedure = scopedProcedure(ALL_WRITE, ["deploy:rollback"]);
-export const deployCancelProcedure = scopedProcedure(ALL_WRITE, ["deploy:cancel"]);
-export const envWriteProcedure = scopedProcedure(ALL_WRITE, ["env:write"]);
-export const secretsReadProcedure = scopedProcedure(ALL_INCL_AGENT, ["secrets:read"]);
-export const serviceUpdateProcedure = scopedProcedure(ALL_WRITE, ["service:update"]);
-export const volumesWriteProcedure = scopedProcedure(ALL_WRITE, ["volumes:write"]);
-export const backupRunProcedure = scopedProcedure(ALL_OPS, ["backup:run"]);
-export const backupRestoreProcedure = scopedProcedure(ALL_OPS, ["backup:restore"]);
-export const approvalsCreateProcedure = scopedProcedure(ALL_INCL_AGENT, ["approvals:create"]);
-export const approvalsDecideProcedure = scopedProcedure(ALL_OPS, ["approvals:decide"]);
-export const tokensManageProcedure = scopedProcedure(ADMIN_ONLY, ["tokens:manage"]);
-export const membersManageProcedure = scopedProcedure(ADMIN_ONLY, ["members:manage"]);
+const auditedScopedProcedure = (
+  allowedRoles: readonly AppRole[],
+  requiredScopes: readonly ApiTokenScope[]
+) =>
+  auditedProcedure(
+    scopedProcedure(allowedRoles, requiredScopes),
+    commandAuditContract(requiredScopes.join(","), requiredScopes)
+  );
+
+export const serverWriteProcedure = auditedScopedProcedure(ADMIN_ONLY, ["server:write"]);
+export const serverOpsWriteProcedure = auditedScopedProcedure(ALL_OPS, ["server:write"]);
+export const serverReadProcedure = auditedScopedProcedure(ALL_READERS, ["server:read"]);
+export const terminalOpenProcedure = auditedScopedProcedure(["owner"], ["terminal:open"]);
+export const deployReadProcedure = auditedScopedProcedure(ALL_READERS, ["deploy:read"]);
+export const serviceReadProcedure = auditedScopedProcedure(ALL_READERS, ["service:read"]);
+export const backupReadProcedure = auditedScopedProcedure(ALL_READERS, ["backup:read"]);
+export const volumesReadProcedure = auditedScopedProcedure(ALL_READERS, ["volumes:read"]);
+export const envReadProcedure = auditedScopedProcedure(ALL_READERS, ["env:read"]);
+export const logsReadProcedure = auditedScopedProcedure(ALL_READERS, ["logs:read"]);
+export const deployStartProcedure = auditedScopedProcedure(ALL_WRITE, ["deploy:start"]);
+export const deployRollbackProcedure = auditedScopedProcedure(ALL_WRITE, ["deploy:rollback"]);
+export const deployCancelProcedure = auditedScopedProcedure(ALL_WRITE, ["deploy:cancel"]);
+export const envWriteProcedure = auditedScopedProcedure(ALL_WRITE, ["env:write"]);
+export const secretsReadProcedure = auditedScopedProcedure(ALL_INCL_AGENT, ["secrets:read"]);
+export const serviceUpdateProcedure = auditedScopedProcedure(ALL_WRITE, ["service:update"]);
+export const volumesWriteProcedure = auditedScopedProcedure(ALL_WRITE, ["volumes:write"]);
+export const backupRunProcedure = auditedScopedProcedure(ALL_OPS, ["backup:run"]);
+export const backupRestoreProcedure = auditedScopedProcedure(ALL_OPS, ["backup:restore"]);
+export const approvalsCreateProcedure = auditedScopedProcedure(ALL_INCL_AGENT, [
+  "approvals:create"
+]);
+export const approvalsDecideProcedure = auditedScopedProcedure(ALL_OPS, ["approvals:decide"]);
+export const tokensManageProcedure = auditedScopedProcedure(ADMIN_ONLY, ["tokens:manage"]);
+export const membersManageProcedure = auditedScopedProcedure(ADMIN_ONLY, ["members:manage"]);
 
 // ── Actor context helper (dedup 15+ call sites) ──────────────
 export function getActorContext(ctx: {
   session: { user: { id: string; email: string } };
   role: AppRole;
+  commandAuditAttemptId?: string;
 }) {
   return {
     requestedByUserId: ctx.session.user.id,
     requestedByEmail: ctx.session.user.email,
-    requestedByRole: ctx.role
+    requestedByRole: ctx.role,
+    commandAuditAttemptId: ctx.commandAuditAttemptId
   };
 }
 
@@ -187,11 +202,13 @@ export function getActorContext(ctx: {
 export function getUpdaterContext(ctx: {
   session: { user: { id: string; email: string } };
   role: AppRole;
+  commandAuditAttemptId?: string;
 }) {
   return {
     updatedByUserId: ctx.session.user.id,
     updatedByEmail: ctx.session.user.email,
-    updatedByRole: ctx.role
+    updatedByRole: ctx.role,
+    commandAuditAttemptId: ctx.commandAuditAttemptId
   };
 }
 

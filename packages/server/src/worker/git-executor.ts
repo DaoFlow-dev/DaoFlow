@@ -10,6 +10,7 @@ import { join } from "node:path";
 import { execStreaming, type OnLog } from "./docker-exec-shared";
 import type { RepositoryPreparationConfig } from "../repository-preparation";
 import { checkoutPinnedGitCommit, prepareClonedRepository } from "./git-repository-preparation";
+import { requireManagedSshGitCredential, strictGitSshCommand } from "./git-ssh-trust";
 
 const STAGING_DIR = process.env.GIT_WORK_DIR ?? "/tmp/daoflow-staging";
 
@@ -110,6 +111,7 @@ export async function gitClone(
   options?: GitCloneOptions,
   execRunner: ExecRunner = execStreaming
 ): Promise<{ exitCode: number; workDir: string; errorMessage?: string }> {
+  requireManagedSshGitCredential(repoUrl, options?.sshPrivateKey);
   const workDir = ensureStagingDir(deploymentId);
   const displayLabel = options?.displayLabel ?? repoUrl;
   const gitConfigPath = writeGitConfigFile(deploymentId, options?.gitConfig ?? []);
@@ -119,7 +121,7 @@ export async function gitClone(
     ...(gitConfigPath ? { GIT_CONFIG_GLOBAL: gitConfigPath } : {}),
     ...(gitSshKeyPath
       ? {
-          GIT_SSH_COMMAND: `ssh -i ${gitSshKeyPath} -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new`
+          GIT_SSH_COMMAND: strictGitSshCommand(gitSshKeyPath)
         }
       : {})
   };

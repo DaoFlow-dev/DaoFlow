@@ -247,39 +247,57 @@ prove that. 1.0 ships only when all of the following are true:
    [e2e-coverage-and-real-infra.md](../references/e2e-coverage-and-real-infra.md).
    Today the main E2E suite mocks the execution plane (`DISABLE_WORKER=true`) and
    the only real run is localhost happy-path.
-2. **Agent loop proven.** An LLM driving DaoFlow purely through the CLI/API can
-   deploy, diagnose a real failure (with diagnosis citing real log/event IDs), and
-   propose a rollback — and provably cannot perform any mutation outside its
-   granted scopes. This is the product thesis; nothing else validates it.
-3. **Audit completeness.** Every command-lane mutation provably emits an
+2. **SCM-to-production lifecycle proven.** GitHub and self-hosted GitLab can each
+   connect a repository, select a branch and exact commit, receive push and
+   pull-request or merge-request events, show build and deployment status, and
+   deploy only the reviewed revision. Untrusted preview deployments remain
+   blocked until explicitly approved.
+3. **Web operator path proven.** A new operator can use only the Web UI to add a
+   server, verify its SSH identity, connect source control, configure a production
+   service, deploy it, inspect logs and health, roll back, and verify backup and
+   restore evidence without hidden shell steps.
+4. **Audit completeness.** Every command-lane mutation provably emits an
    `audit_entry`, enforced by a test, not by reviewer vigilance.
-4. **No feature masquerades as working when it is stale or stubbed.** Specifically,
+5. **CLI parity proven.** The same deploy, inspect, diagnose, rollback, backup,
+   and restore paths work through the CLI with structured output, stable exit
+   codes, scoped permissions, dry-run where applicable, and operation evidence.
+6. **No feature masquerades as working when it is stale or stubbed.** Specifically,
    `daoflow drift` must either compute live drift or clearly mark its output as a
    cached snapshot (see Known Gaps).
-5. **Quickstart verified by a stranger.** Someone who did not build DaoFlow goes
+7. **Quickstart verified by a stranger.** Someone who did not build DaoFlow goes
    from clone to a deployed, backed-up production service in under 30 minutes
    following only the README.
 
-Until #1 and #2 are green, prefer hardening the standalone Docker/Compose path
-over any scope expansion (Swarm, autonomous code-writing agents).
+Until #1 through #3 are green, prefer hardening the standalone Docker/Compose,
+Web UI, and GitHub/GitLab paths over scope expansion such as autonomous
+code-writing agents or additional orchestration systems.
 
 ## Known Gaps
 
 These are implemented-but-shallow or stubbed surfaces. Documented here so they are
 not mistaken for finished work.
 
-- **`daoflow drift` is not live (STUB).** `listComposeDriftReport`
-  (`packages/server/src/db/services/compose.ts`) only reads pre-computed reports
-  from `environment.config.composeDriftReports`. Nothing populates that array from
-  the running server, so drift output is empty or stale and currently presents as
-  authoritative. Fix: a `computeComposeDriftReport(environment, server)` that SSHes
-  to the target, runs `docker compose ps` / `docker inspect`, and diffs desired vs
-  actual (image refs, replica counts, container state). Interim safety: surface a
-  `dataSource: "cached-snapshot"` / `live: false` flag so consumers and agents are
-  not misled.
+- **`daoflow drift` is not live (containment shipped; live phase pending).**
+  `listComposeDriftReport` (`packages/server/src/db/services/compose-drift.ts`)
+  now applies `deploy:read` and caller-team filtering, and it returns stored records
+  only as `source: "cached-snapshot"` or `source: "unavailable"` with
+  `authoritative: false`, `attemptedAt`, `observedAt`, and `maxAgeSeconds`. A legacy
+  stored `aligned` value is deliberately returned as unavailable, so an uninspected
+  host is never reported as aligned. The live collector still needs #230 strict SSH
+  identity and #233 owned-resource selection before it may run bounded, narrowly
+  formatted Docker checks. It must persist normalized diffs and safe evidence IDs,
+  never raw `docker inspect` output or environment values.
 - **Remote-SSH deploy, rollback, and backup/restore are unverified against real
   infrastructure.** See the coverage reference above.
-- **Audit logging is ad-hoc, not enforced.** There is no central middleware and no
-  test asserting coverage. `createManagedDatabase` was missing a top-level audit
-  entry (now fixed). Add a coverage-enforcing test over the command router so new
-  mutations cannot ship unaudited.
+- **GitHub and GitLab production parity still requires end-to-end proof.** The
+  provider, webhook, preview trust, and deployment surfaces exist, but both
+  providers still need a recorded real-repository run proving exact revision
+  selection, status reporting, retry behavior, and safe credential handling.
+- **Command audit entry coverage is enforced; terminal reconciliation is partial.**
+  Command mutations persist a safe intent before parsing or authorization, and a
+  router coverage test rejects new mutations that bypass the boundary. Immutable
+  command rows are protected from update and delete in PostgreSQL. Deployment-backed
+  commands carry their operation identifier and reconcile to a final result, but
+  backup, restore, and other queued operation types can still remain `accepted`.
+  Issue #208 stays open until every asynchronous operation persists the audit
+  attempt identifier and records terminal success or failure.

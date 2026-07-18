@@ -177,7 +177,10 @@ export async function applyRetentionAndQuota(
 
   try {
     if (resolved.destination.id) {
-      await checkStorageQuota(resolved.destination.id);
+      await checkStorageQuota({
+        destinationId: resolved.destination.id,
+        teamId: resolved.teamId
+      });
     }
   } catch {
     // Quota check is best-effort.

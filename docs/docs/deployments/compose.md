@@ -127,10 +127,19 @@ Preview-enabled compose services can also reconcile preview stacks directly from
 
 - GitHub pushes to non-auto-deploy branches queue branch preview deploys for services that allow branch previews.
 - GitHub branch deletion pushes queue branch preview cleanup for the matching shadow environment.
-- GitHub pull request `opened`, `synchronize`, and `reopened` events queue preview deploys.
+- GitHub pull request `opened`, `synchronize`, and `reopened` events are classified by source
+  repository and project preview policy before any preview deployment input is prepared.
 - GitHub pull request `closed` events queue preview cleanup.
-- GitLab merge request `open`, `update`, and `reopen` events queue preview deploys.
+- GitLab merge request `open`, `update`, and `reopen` events are classified by source repository
+  and project preview policy before any preview deployment input is prepared.
 - GitLab merge request `merge` and `close` events queue preview cleanup.
+
+Pull-request previews default to **manual approval**. The approval queue binds a decision to the
+provider, source repository, full immutable commit SHA, project policy revision, allowed secret
+profile, expiry, and approving human. A changed project policy invalidates prior bindings.
+Same-repository code is never trusted automatically; the only enabled policy requires a human
+approval for every commit. Fork previews are blocked; DaoFlow does not offer a fork-without-secrets
+mode until it has an isolated preview runner and a Compose capability policy.
 
 DaoFlow records each branch or pull-request preview as a durable shadow environment attached to the base service. The shadow environment stores the preview key, branch, PR number when present, env branch, stack name, primary domain, lifecycle status, cleanup state, and latest deployment pointer. Deployment history remains the audit log, but the UI, API, and CLI can list preview environments directly instead of reconstructing them from the latest deployment.
 
@@ -148,9 +157,10 @@ project from the setup wizard, the Projects page, or the CLI with:
 - Compose path, such as `compose.yaml` or `deploy/compose.yaml`
 
 For GitHub App projects, install the app into the target account, select that installation during
-project creation, enable webhook auto-deploy when branch pushes should deploy automatically, and
-configure preview behavior on the Compose service after the project exists. GitHub pull request
-events then drive preview deploy and cleanup for preview-enabled services. GitHub branch pushes that
+project creation, enable webhook auto-deploy when branch pushes should deploy automatically, choose
+the pull-request preview policy in the Project page, and configure preview behavior on the Compose
+service after the project exists. GitHub pull request events then request approval before deployment,
+or clean up a preview after closure. GitHub branch pushes that
 do not target the project's auto-deploy branch drive branch previews when the service preview mode is
 `branch` or `any`.
 

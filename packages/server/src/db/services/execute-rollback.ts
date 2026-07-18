@@ -31,6 +31,7 @@ export interface ExecuteRollbackInput {
   requestedByUserId: string;
   requestedByEmail: string;
   requestedByRole: AppRole;
+  commandAuditAttemptId?: string;
 }
 
 export interface RollbackTarget {
@@ -176,6 +177,7 @@ export async function executeRollback(input: ExecuteRollbackInput) {
     requestedByUserId: input.requestedByUserId,
     requestedByEmail: input.requestedByEmail,
     requestedByRole: input.requestedByRole,
+    commandAuditAttemptId: input.commandAuditAttemptId,
     envVarsEncrypted: target.envVarsEncrypted,
     configSnapshot,
     steps: [

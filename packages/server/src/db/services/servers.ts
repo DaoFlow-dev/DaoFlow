@@ -6,7 +6,6 @@ import { managedSshKeys } from "../schema/access-assets";
 import { environments, projects } from "../schema/projects";
 import { servers } from "../schema/servers";
 import { services } from "../schema/services";
-import { verifyServerReadiness } from "./server-readiness";
 import {
   normalizeInventoryStatus,
   normalizeServerReadinessStatus,
@@ -25,6 +24,7 @@ import { readServerSwarmTopology, withRegisteredServerTopologyMetadata } from ".
 import { writeManagedTraefikProxyConfigToMetadata } from "../../managed-traefik";
 import { createManagedSshKey } from "./access-assets";
 import { getLatestServerMetrics } from "./server-metrics";
+import { discoverServerSshHostIdentities, type SshHostKeyScanner } from "./ssh-host-identities";
 
 export interface RegisterServerInput {
   name: string;
@@ -39,6 +39,12 @@ export interface RegisterServerInput {
   requestedByUserId: string;
   requestedByEmail: string;
   requestedByRole: AppRole;
+  scanSshHostKeys?: SshHostKeyScanner;
+}
+
+function isLocalHost(host: string): boolean {
+  const normalized = host.trim().toLowerCase();
+  return normalized === "localhost" || normalized === "127.0.0.1" || normalized === "::1";
 }
 
 export async function registerServer(input: RegisterServerInput) {
@@ -90,7 +96,7 @@ export async function registerServer(input: RegisterServerInput) {
           ? encrypt(input.sshPrivateKey.trim())
           : null,
       kind: input.kind,
-      status: "pending verification",
+      status: "pending host identity approval",
       registeredByUserId: input.requestedByUserId,
       metadata: withRegisteredServerTopologyMetadata(
         {
@@ -123,9 +129,21 @@ export async function registerServer(input: RegisterServerInput) {
     }
   });
 
-  const verifiedServer = await verifyServerReadiness(server);
+  let hostIdentityScanError: string | null = null;
+  if (input.teamId && !isLocalHost(server.host)) {
+    try {
+      await discoverServerSshHostIdentities({
+        serverId,
+        teamId: input.teamId,
+        actor: input,
+        scan: input.scanSshHostKeys
+      });
+    } catch (error) {
+      hostIdentityScanError = error instanceof Error ? error.message : String(error);
+    }
+  }
 
-  return { status: "ok" as const, server: verifiedServer ?? server };
+  return { status: "ok" as const, server, hostIdentityScanError };
 }
 
 export async function listServerReadiness(teamId: string, limit = 12) {

@@ -1,5 +1,14 @@
-import { index, jsonb, pgTable, serial, text, timestamp, varchar } from "drizzle-orm/pg-core";
-import { relations } from "drizzle-orm";
+import {
+  index,
+  jsonb,
+  pgTable,
+  serial,
+  text,
+  timestamp,
+  uniqueIndex,
+  varchar
+} from "drizzle-orm/pg-core";
+import { relations, sql } from "drizzle-orm";
 import { users } from "./users";
 
 export const auditEntries = pgTable(
@@ -53,6 +62,7 @@ export const approvalRequests = pgTable(
   {
     id: varchar("id", { length: 32 }).primaryKey(),
     actionType: varchar("action_type", { length: 40 }).notNull(), // compose-release | backup-restore | deployment
+    bindingKey: varchar("binding_key", { length: 64 }),
     targetResource: varchar("target_resource", { length: 200 }).notNull(),
     reason: text("reason"),
     status: varchar("status", { length: 20 }).default("pending").notNull(), // pending | approved | rejected
@@ -72,6 +82,9 @@ export const approvalRequests = pgTable(
   (table) => [
     index("approval_requests_status_idx").on(table.status),
     index("approval_requests_action_type_idx").on(table.actionType),
+    uniqueIndex("approval_requests_pending_binding_idx")
+      .on(table.bindingKey)
+      .where(sql`${table.bindingKey} is not null and ${table.status} = 'pending'`),
     index("approval_requests_created_at_idx").on(table.createdAt)
   ]
 );

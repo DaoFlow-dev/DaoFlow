@@ -67,7 +67,27 @@ export async function verifyBackupIntegrity(
   };
 }
 
-export async function checkStorageQuota(destinationId: string): Promise<StorageUsageResult> {
+export async function checkStorageQuota(input: {
+  destinationId: string;
+  teamId: string;
+}): Promise<StorageUsageResult> {
+  const [dest] = await db
+    .select({
+      quotaBytes: backupDestinations.quotaBytes,
+      quotaWarningPercent: backupDestinations.quotaWarningPercent
+    })
+    .from(backupDestinations)
+    .where(
+      and(
+        eq(backupDestinations.id, input.destinationId),
+        eq(backupDestinations.teamId, input.teamId)
+      )
+    )
+    .limit(1);
+  if (!dest) {
+    throw new Error("Backup destination is not owned by the policy team.");
+  }
+
   const [usage] = await db
     .select({
       totalBytes: sql<string>`COALESCE(SUM(CAST(${backupRuns.sizeBytes} AS BIGINT)), 0)`
@@ -75,19 +95,10 @@ export async function checkStorageQuota(destinationId: string): Promise<StorageU
     .from(backupRuns)
     .innerJoin(backupPolicies, eq(backupRuns.policyId, backupPolicies.id))
     .where(
-      and(eq(backupPolicies.destinationId, destinationId), eq(backupRuns.status, "succeeded"))
+      and(eq(backupPolicies.destinationId, input.destinationId), eq(backupRuns.status, "succeeded"))
     );
 
   const totalBytes = parseInt(String(usage?.totalBytes ?? "0"), 10);
-  const [dest] = await db
-    .select({
-      quotaBytes: backupDestinations.quotaBytes,
-      quotaWarningPercent: backupDestinations.quotaWarningPercent
-    })
-    .from(backupDestinations)
-    .where(eq(backupDestinations.id, destinationId))
-    .limit(1);
-
   const quotaBytes = dest?.quotaBytes ? parseInt(dest.quotaBytes, 10) : null;
   const quotaWarningPercent = dest?.quotaWarningPercent ?? 80;
   const usagePercent = quotaBytes ? Math.round((totalBytes / quotaBytes) * 100) : null;
@@ -96,16 +107,16 @@ export async function checkStorageQuota(destinationId: string): Promise<StorageU
 
   if (overWarning) {
     await emitBackupEvent(
-      destinationId,
+      input.destinationId,
       overQuota ? "storage.quota.exceeded" : "storage.quota.warning",
       overQuota ? "Storage quota exceeded" : "Storage quota warning",
-      `Destination ${destinationId} is at ${usagePercent}% capacity (${totalBytes} / ${quotaBytes} bytes)`,
+      `Destination ${input.destinationId} is at ${usagePercent}% capacity (${totalBytes} / ${quotaBytes} bytes)`,
       overQuota ? "error" : "info"
     );
   }
 
   return {
-    destinationId,
+    destinationId: input.destinationId,
     totalBytes,
     quotaBytes,
     quotaWarningPercent,

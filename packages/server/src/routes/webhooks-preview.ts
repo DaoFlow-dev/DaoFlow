@@ -5,7 +5,14 @@ import {
   listEligiblePreviewWebhookServices,
   recordPreviewWebhookLifecycleEvent
 } from "../db/services/webhook-deliveries";
+import { createOrReusePreviewApprovalRequest } from "../db/services/approvals";
 import { triggerDeploy } from "../db/services/trigger-deploy";
+import {
+  buildPreviewApprovalBinding,
+  evaluatePreviewPolicy,
+  readPreviewPolicy,
+  type PreviewOrigin
+} from "../preview-trust";
 import type { WebhookTarget } from "./webhooks-types";
 import {
   PreviewWebhookDeployFailure,
@@ -26,6 +33,7 @@ export async function triggerPreviewWebhookDeploys(input: {
   eventAction: string;
   requestedByEmail: string;
   commitSha: string;
+  origin: PreviewOrigin;
   preview: {
     target: "pull-request";
     branch: string;
@@ -44,6 +52,7 @@ export async function triggerPreviewWebhookDeploys(input: {
     commitSha: input.commitSha,
     metadata: {
       eventAction: input.eventAction,
+      origin: input.origin,
       projectIds: input.matchingTargets.map(({ project }) => project.id)
     }
   });
@@ -64,6 +73,7 @@ export async function triggerPreviewWebhookDeploys(input: {
         commitSha: input.commitSha,
         metadata: {
           deliveryKey: input.deliveryKey,
+          origin: input.origin,
           source: "transport-delivery-ledger"
         }
       });
@@ -82,9 +92,15 @@ export async function triggerPreviewWebhookDeploys(input: {
   let queued = 0;
   let deduped = 0;
   let ignored = 0;
+  let approvalRequired = 0;
+  let blocked = 0;
   const failedTargets: PreviewWebhookDeployFailure[] = [];
 
-  for (const { project } of input.matchingTargets) {
+  for (const { project, installation } of input.matchingTargets) {
+    const origin =
+      input.origin.installationOwner || !installation
+        ? input.origin
+        : { ...input.origin, installationOwner: installation.accountName };
     const eligibleServices = await listEligiblePreviewWebhookServices({
       projectId: project.id,
       previewRequest: input.preview
@@ -109,6 +125,43 @@ export async function triggerPreviewWebhookDeploys(input: {
           deliveryKey: input.deliveryKey
         }
       });
+      continue;
+    }
+
+    const policy = readPreviewPolicy(project.previewPolicy);
+    const policyDecision =
+      input.preview.action === "deploy"
+        ? evaluatePreviewPolicy({ policy, origin })
+        : {
+            decision: "allowed" as const,
+            reason: "Preview cleanup does not prepare source code or environment secrets."
+          };
+
+    if (policyDecision.decision === "blocked") {
+      for (const service of eligibleServices) {
+        blocked += 1;
+        await recordPreviewWebhookLifecycleEvent({
+          providerType: input.providerType,
+          repoFullName: input.repoFullName,
+          projectId: project.id,
+          serviceId: service.id,
+          actorEmail: input.requestedByEmail,
+          previewKey,
+          previewAction: input.preview.action,
+          eventAction: input.eventAction,
+          outcome: "blocked",
+          summary: `Blocked preview ${input.preview.action} for ${service.name}.`,
+          detail: policyDecision.reason,
+          commitSha: input.commitSha,
+          metadata: {
+            deliveryKey: input.deliveryKey,
+            policy,
+            policyRevision: project.previewPolicyRevision,
+            origin,
+            decision: policyDecision.decision
+          }
+        });
+      }
       continue;
     }
 
@@ -144,10 +197,150 @@ export async function triggerPreviewWebhookDeploys(input: {
           deploymentId: latestDeployment?.id,
           metadata: {
             deliveryKey: input.deliveryKey,
-            source: "semantic-preview-dedupe"
+            source: "semantic-preview-dedupe",
+            policy,
+            policyRevision: project.previewPolicyRevision,
+            origin
           }
         });
         continue;
+      }
+
+      if (input.preview.action === "deploy") {
+        if (policyDecision.decision === "approval-required") {
+          const sourceRepository = origin.sourceRepository;
+          if (!sourceRepository || !project.gitProviderId || !project.gitInstallationId) {
+            blocked += 1;
+            await recordPreviewWebhookLifecycleEvent({
+              providerType: input.providerType,
+              repoFullName: input.repoFullName,
+              projectId: project.id,
+              serviceId: service.id,
+              actorEmail: input.requestedByEmail,
+              previewKey,
+              previewAction: input.preview.action,
+              eventAction: input.eventAction,
+              outcome: "blocked",
+              summary: `Blocked preview deploy for ${service.name}.`,
+              detail:
+                "DaoFlow could not bind an approval because the source repository, provider, or installation identity was missing.",
+              commitSha: input.commitSha,
+              metadata: {
+                deliveryKey: input.deliveryKey,
+                policy,
+                policyRevision: project.previewPolicyRevision,
+                origin,
+                decision: "blocked"
+              }
+            });
+            continue;
+          }
+
+          const approval = await createOrReusePreviewApprovalRequest({
+            actionType: "preview-deployment",
+            serviceId: service.id,
+            previewTrust: buildPreviewApprovalBinding({
+              providerType: input.providerType,
+              providerId: project.gitProviderId,
+              installationId: project.gitInstallationId,
+              sourceRepository,
+              baseRepository: input.repoFullName,
+              commitSha: input.commitSha,
+              policyRevision: project.previewPolicyRevision,
+              origin,
+              serviceId: service.id,
+              preview: input.preview
+            }),
+            reason: `Verified ${input.providerType} pull-request preview requires human approval for ${input.commitSha.slice(0, 12)}.`,
+            requestedByUserId: null,
+            requestedByEmail: input.requestedByEmail,
+            requestedByRole: "agent"
+          });
+
+          if (approval.status === "invalid" || !approval.request) {
+            failedTargets.push({
+              serviceId: service.id,
+              status: "approval_invalid",
+              message: "DaoFlow could not create the bound preview approval request."
+            });
+            await recordPreviewWebhookLifecycleEvent({
+              providerType: input.providerType,
+              repoFullName: input.repoFullName,
+              projectId: project.id,
+              serviceId: service.id,
+              actorEmail: input.requestedByEmail,
+              previewKey,
+              previewAction: input.preview.action,
+              eventAction: input.eventAction,
+              outcome: "failed",
+              summary: `Preview deploy could not request approval for ${service.name}.`,
+              detail: "DaoFlow could not create the bound preview approval request.",
+              commitSha: input.commitSha,
+              metadata: {
+                deliveryKey: input.deliveryKey,
+                policy,
+                policyRevision: project.previewPolicyRevision,
+                origin,
+                decision: "approval-request-failed"
+              }
+            });
+            continue;
+          }
+
+          if (approval.status === "created") {
+            approvalRequired += 1;
+            await recordPreviewWebhookLifecycleEvent({
+              providerType: input.providerType,
+              repoFullName: input.repoFullName,
+              projectId: project.id,
+              serviceId: service.id,
+              actorEmail: input.requestedByEmail,
+              previewKey,
+              previewAction: input.preview.action,
+              eventAction: input.eventAction,
+              outcome: "approval_required",
+              summary: `Preview deploy for ${service.name} is waiting for human approval.`,
+              detail: policyDecision.reason,
+              commitSha: input.commitSha,
+              metadata: {
+                deliveryKey: input.deliveryKey,
+                approvalRequestId: approval.request.id,
+                policy,
+                policyRevision: project.previewPolicyRevision,
+                origin,
+                decision: "approval-required"
+              }
+            });
+            continue;
+          }
+
+          if (approval.status === "pending") {
+            deduped += 1;
+            await recordPreviewWebhookLifecycleEvent({
+              providerType: input.providerType,
+              repoFullName: input.repoFullName,
+              projectId: project.id,
+              serviceId: service.id,
+              actorEmail: input.requestedByEmail,
+              previewKey,
+              previewAction: input.preview.action,
+              eventAction: input.eventAction,
+              outcome: "deduped",
+              summary: `Reused pending preview approval for ${service.name}.`,
+              detail: "The exact provider commit is already waiting for human approval.",
+              commitSha: input.commitSha,
+              metadata: {
+                deliveryKey: input.deliveryKey,
+                approvalRequestId: approval.request.id,
+                policy,
+                policyRevision: project.previewPolicyRevision,
+                origin,
+                source: "pending-preview-approval"
+              }
+            });
+            continue;
+          }
+        }
       }
 
       const result = await triggerDeploy({
@@ -178,7 +371,11 @@ export async function triggerPreviewWebhookDeploys(input: {
           commitSha: input.commitSha,
           deploymentId: result.deployment.id,
           metadata: {
-            deliveryKey: input.deliveryKey
+            deliveryKey: input.deliveryKey,
+            policy,
+            policyRevision: project.previewPolicyRevision,
+            origin,
+            decision: input.preview.action === "deploy" ? policyDecision.decision : "cleanup"
           }
         });
         continue;
@@ -208,7 +405,11 @@ export async function triggerPreviewWebhookDeploys(input: {
         metadata: {
           deliveryKey: input.deliveryKey,
           status: result.status,
-          entity: result.status === "not_found" ? result.entity : null
+          entity: result.status === "not_found" ? result.entity : null,
+          policy,
+          policyRevision: project.previewPolicyRevision,
+          origin,
+          decision: input.preview.action === "deploy" ? policyDecision.decision : "cleanup"
         }
       });
     }
@@ -218,6 +419,8 @@ export async function triggerPreviewWebhookDeploys(input: {
     queued,
     deduped,
     ignored,
+    approvalRequired,
+    blocked,
     failedTargets: failedTargets.length
   });
 
@@ -225,7 +428,7 @@ export async function triggerPreviewWebhookDeploys(input: {
     providerType: input.providerType,
     deliveryKey: input.deliveryKey,
     outcome,
-    detail: `Queued ${queued}, deduped ${deduped}, ignored ${ignored}, failed ${failedTargets.length}.`,
+    detail: `Queued ${queued}, awaiting approval ${approvalRequired}, blocked ${blocked}, deduped ${deduped}, ignored ${ignored}, failed ${failedTargets.length}.`,
     metadata: {
       eventAction: input.eventAction,
       previewKey,
@@ -234,6 +437,9 @@ export async function triggerPreviewWebhookDeploys(input: {
       queued,
       deduped,
       ignored,
+      approvalRequired,
+      blocked,
+      origin: input.origin,
       failedTargets
     }
   });
@@ -258,6 +464,8 @@ export async function triggerPreviewWebhookDeploys(input: {
     action: input.preview.action,
     previewKey,
     deployments: queued,
+    approvalRequiredTargets: approvalRequired,
+    blockedTargets: blocked,
     dedupedTargets: deduped,
     ignoredTargets: ignored,
     failedTargets: failedTargets.length,

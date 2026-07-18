@@ -187,6 +187,49 @@
       }
     },
     {
+      "name": "approveServerSshHostIdentity",
+      "summary": "approve Server Ssh Host Identity",
+      "path": "/trpc/approveServerSshHostIdentity",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin"],
+      "requiredScopes": ["server:write"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "serverId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32
+          },
+          "identityId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32
+          },
+          "algorithm": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "publicKey": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 20000
+          },
+          "fingerprint": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        },
+        "required": ["serverId", "identityId", "algorithm", "publicKey", "fingerprint"],
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "attachManagedSshKeyToServer",
       "summary": "attach Managed Ssh Key To Server",
       "path": "/trpc/attachManagedSshKeyToServer",
@@ -664,8 +707,8 @@
       "method": "GET",
       "lane": "read",
       "auth": "authenticated",
-      "requiredRoles": [],
-      "requiredScopes": [],
+      "requiredRoles": ["owner", "admin", "operator", "developer", "viewer", "agent"],
+      "requiredScopes": ["deploy:read"],
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
@@ -1620,6 +1663,10 @@
           "autoDeployBranch": {
             "type": "string",
             "maxLength": 120
+          },
+          "previewPolicy": {
+            "type": "string",
+            "enum": ["disabled", "manual-approval"]
           },
           "webhookWatchedPaths": {
             "maxItems": 50,
@@ -4217,6 +4264,49 @@
       }
     },
     {
+      "name": "rotateServerSshHostIdentity",
+      "summary": "rotate Server Ssh Host Identity",
+      "path": "/trpc/rotateServerSshHostIdentity",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin"],
+      "requiredScopes": ["server:write"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "serverId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32
+          },
+          "identityId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32
+          },
+          "algorithm": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "publicKey": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 20000
+          },
+          "fingerprint": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        },
+        "required": ["serverId", "identityId", "algorithm", "publicKey", "fingerprint"],
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "runOperationalMaintenance",
       "summary": "run Operational Maintenance",
       "path": "/trpc/runOperationalMaintenance",
@@ -4306,6 +4396,29 @@
             "maximum": 100
           }
         },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "scanServerSshHostIdentities",
+      "summary": "scan Server Ssh Host Identities",
+      "path": "/trpc/scanServerSshHostIdentities",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin"],
+      "requiredScopes": ["server:write"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "serverId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32
+          }
+        },
+        "required": ["serverId"],
         "additionalProperties": false
       }
     },
@@ -4424,6 +4537,29 @@
             "maximum": 24
           }
         },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "serverSshHostIdentities",
+      "summary": "server Ssh Host Identities",
+      "path": "/trpc/serverSshHostIdentities",
+      "method": "GET",
+      "lane": "read",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator", "developer", "viewer", "agent"],
+      "requiredScopes": ["server:read"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "serverId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32
+          }
+        },
+        "required": ["serverId"],
         "additionalProperties": false
       }
     },
@@ -5536,6 +5672,10 @@
           "autoDeployBranch": {
             "type": "string",
             "maxLength": 120
+          },
+          "previewPolicy": {
+            "type": "string",
+            "enum": ["disabled", "manual-approval"]
           },
           "webhookWatchedPaths": {
             "maxItems": 50,

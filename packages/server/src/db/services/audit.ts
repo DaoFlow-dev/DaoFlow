@@ -4,7 +4,15 @@ import { db } from "../connection";
 import { auditEntries, events } from "../schema/audit";
 import { asRecord, readString } from "./json-helpers";
 
-function getAuditStatusTone(action: string) {
+function getAuditStatusTone(action: string, outcome: string) {
+  if (["denied", "approval_denied", "validation_failed", "execution_failed"].includes(outcome)) {
+    return "failed" as const;
+  }
+
+  if (outcome === "succeeded" || outcome === "success") {
+    return "healthy" as const;
+  }
+
   if (action === "execution.complete" || action === "approval.approve") {
     return "healthy" as const;
   }
@@ -102,7 +110,7 @@ export async function listAuditTrail(limit = 12, since?: string) {
         resourceType: readString(metadata, "resourceType", resourceType),
         resourceId: readString(metadata, "resourceId", rest.join("/")),
         resourceLabel: readString(metadata, "resourceLabel", entry.targetResource),
-        statusTone: getAuditStatusTone(entry.action),
+        statusTone: getAuditStatusTone(entry.action, entry.outcome),
         detail: readString(metadata, "detail", entry.inputSummary ?? ""),
         createdAt: entry.createdAt.toISOString()
       };

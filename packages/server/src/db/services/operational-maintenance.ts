@@ -13,6 +13,10 @@ import { auditEntries, events } from "../schema/audit";
 import { cliAuthRequests } from "../schema/cli-auth";
 import { services } from "../schema/services";
 import { REQUEST_TTL_MS, cleanupExpiredCliAuthRequests } from "./cli-auth-requests";
+import {
+  countIncompleteCommandAudits,
+  reconcileIncompleteCommandAudits
+} from "./command-audit-reconciliation";
 import { listComposePreviewReconciliationForServiceId } from "./compose-preview-reconciliation";
 import {
   listDeploymentWatchdogCandidates,
@@ -145,13 +149,15 @@ function buildSummaryText(input: {
   expiredCliAuthRequests: number;
   retainedArtifacts: number;
   requestAccessLogs: number;
+  incompleteCommandAudits: number;
 }) {
   const parts = [
     `${input.stalledDeployments} stalled deployment${input.stalledDeployments === 1 ? "" : "s"}`,
     `${input.stalePreviews} stale preview${input.stalePreviews === 1 ? "" : "s"}`,
     `${input.expiredCliAuthRequests} expired CLI sign-in${input.expiredCliAuthRequests === 1 ? "" : "s"}`,
     `${input.retainedArtifacts} retained artifact${input.retainedArtifacts === 1 ? "" : "s"}`,
-    `${input.requestAccessLogs} request log${input.requestAccessLogs === 1 ? "" : "s"}`
+    `${input.requestAccessLogs} request log${input.requestAccessLogs === 1 ? "" : "s"}`,
+    `${input.incompleteCommandAudits} incomplete command audit${input.incompleteCommandAudits === 1 ? "" : "s"}`
   ];
 
   return input.dryRun
@@ -161,17 +167,24 @@ function buildSummaryText(input: {
 
 export async function getOperationalMaintenanceReport(input?: { now?: Date }) {
   const now = input?.now ?? new Date();
-  const [watchdogCandidates, previewCandidates, artifactCandidates, latestRun, expiredCliAuthRows] =
-    await Promise.all([
-      listDeploymentWatchdogCandidates({ now, limit: 20 }),
-      listPreviewCleanupCandidates(now),
-      listUploadedArtifactRetentionCandidates(now),
-      readLatestOperationalMaintenanceEntry(),
-      db
-        .select({ id: cliAuthRequests.id })
-        .from(cliAuthRequests)
-        .where(lte(cliAuthRequests.expiresAt, now))
-    ]);
+  const [
+    watchdogCandidates,
+    previewCandidates,
+    artifactCandidates,
+    latestRun,
+    expiredCliAuthRows,
+    incompleteCommandAudits
+  ] = await Promise.all([
+    listDeploymentWatchdogCandidates({ now, limit: 20 }),
+    listPreviewCleanupCandidates(now),
+    listUploadedArtifactRetentionCandidates(now),
+    readLatestOperationalMaintenanceEntry(),
+    db
+      .select({ id: cliAuthRequests.id })
+      .from(cliAuthRequests)
+      .where(lte(cliAuthRequests.expiresAt, now)),
+    countIncompleteCommandAudits({ now })
+  ]);
 
   return {
     generatedAt: now.toISOString(),
@@ -209,6 +222,9 @@ export async function getOperationalMaintenanceReport(input?: { now?: Date }) {
       },
       requestAccessLogs: {
         eligibleCount: await countPrunableRequestAccessLogs(now)
+      },
+      incompleteCommandAudits: {
+        eligibleCount: incompleteCommandAudits
       }
     },
     latestRun
@@ -226,11 +242,13 @@ export async function runOperationalMaintenanceOnce(
   const dryRun = input?.dryRun === true;
   const trigger = input?.trigger ?? "manual";
   const previewBatchLimit = resolveOperationalMaintenancePreviewBatchLimit();
-  const [watchdogCandidates, previewCandidates, artifactCandidates] = await Promise.all([
-    listDeploymentWatchdogCandidates({ now, limit: 20 }),
-    listPreviewCleanupCandidates(now, previewBatchLimit),
-    listUploadedArtifactRetentionCandidates(now)
-  ]);
+  const [watchdogCandidates, previewCandidates, artifactCandidates, incompleteCommandAudits] =
+    await Promise.all([
+      listDeploymentWatchdogCandidates({ now, limit: 20 }),
+      listPreviewCleanupCandidates(now, previewBatchLimit),
+      listUploadedArtifactRetentionCandidates(now),
+      countIncompleteCommandAudits({ now })
+    ]);
 
   const result = {
     generatedAt: now.toISOString(),
@@ -260,6 +278,10 @@ export async function runOperationalMaintenanceOnce(
     requestAccessLogs: {
       eligibleCount: 0,
       prunedCount: 0
+    },
+    incompleteCommandAudits: {
+      eligibleCount: incompleteCommandAudits,
+      reconciledCount: 0
     }
   };
 
@@ -274,13 +296,19 @@ export async function runOperationalMaintenanceOnce(
   result.requestAccessLogs.eligibleCount = requestAccessLogCandidates;
 
   if (!dryRun) {
-    const [watchdogRun, deletedCliAuthRequests, prunedArtifacts, prunedRequestAccessLogs] =
-      await Promise.all([
-        runDeploymentWatchdogOnce({ now }),
-        cleanupExpiredCliAuthRequests(now),
-        pruneUploadedArtifacts(now),
-        pruneRequestAccessLogs(now)
-      ]);
+    const [
+      watchdogRun,
+      deletedCliAuthRequests,
+      prunedArtifacts,
+      prunedRequestAccessLogs,
+      reconciledCommandAudits
+    ] = await Promise.all([
+      runDeploymentWatchdogOnce({ now }),
+      cleanupExpiredCliAuthRequests(now),
+      pruneUploadedArtifacts(now),
+      pruneRequestAccessLogs(now),
+      reconcileIncompleteCommandAudits({ now })
+    ]);
 
     result.stalledDeployments.failedCount = watchdogRun.failedCount;
     result.expiredCliAuthRequests.deletedCount = deletedCliAuthRequests;
@@ -288,6 +316,7 @@ export async function runOperationalMaintenanceOnce(
     result.retainedArtifacts.prunedRetainedArtifacts = prunedArtifacts.prunedRetainedArtifacts;
     result.retainedArtifacts.prunedIncompleteUploads = prunedArtifacts.prunedIncompleteUploads;
     result.requestAccessLogs.prunedCount = prunedRequestAccessLogs;
+    result.incompleteCommandAudits.reconciledCount = reconciledCommandAudits.reconciledCount;
 
     for (const preview of previewCandidates.candidates) {
       const queued = await triggerDeploy({
@@ -334,7 +363,10 @@ export async function runOperationalMaintenanceOnce(
       : result.retainedArtifacts.prunedCount,
     requestAccessLogs: dryRun
       ? result.requestAccessLogs.eligibleCount
-      : result.requestAccessLogs.prunedCount
+      : result.requestAccessLogs.prunedCount,
+    incompleteCommandAudits: dryRun
+      ? result.incompleteCommandAudits.eligibleCount
+      : result.incompleteCommandAudits.reconciledCount
   });
 
   const changedCount =
@@ -342,7 +374,8 @@ export async function runOperationalMaintenanceOnce(
     result.stalePreviews.queuedCount +
     result.expiredCliAuthRequests.deletedCount +
     result.retainedArtifacts.prunedCount +
-    result.requestAccessLogs.prunedCount;
+    result.requestAccessLogs.prunedCount +
+    result.incompleteCommandAudits.reconciledCount;
   const shouldRecordAudit =
     dryRun || trigger === "manual" || changedCount > 0 || result.stalePreviews.failures.length > 0;
 

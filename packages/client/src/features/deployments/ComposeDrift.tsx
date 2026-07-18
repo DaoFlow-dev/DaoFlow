@@ -12,21 +12,33 @@ interface DriftDiff {
 
 interface DriftReport {
   composeServiceId: string;
+  environmentId: string;
   projectName: string;
+  projectId: string;
   environmentName: string;
   serviceName: string;
-  targetServerName: string;
-  composeFilePath: string;
+  composeFilePath: string | null;
+  target: {
+    serverId: string | null;
+    serverName: string | null;
+    composeProjectName: string | null;
+  };
+  source: "cached-snapshot" | "unavailable";
+  authoritative: false;
+  attemptedAt: string | null;
+  observedAt: string | null;
+  maxAgeSeconds: number;
+  evidenceRefs: string[];
   status: string;
   statusLabel: string;
   statusTone: string;
   summary: string;
-  impactSummary: string;
-  desiredImageReference: string;
-  actualImageReference: string;
-  desiredReplicaCount: number;
-  actualReplicaCount: number;
-  actualContainerState: string;
+  impactSummary: string | null;
+  desiredImageReference: string | null;
+  actualImageReference: string | null;
+  desiredReplicaCount: number | null;
+  actualReplicaCount: number | null;
+  actualContainerState: string | null;
   diffs: DriftDiff[];
   recommendedActions: string[];
 }
@@ -34,9 +46,15 @@ interface DriftReport {
 interface ComposeDriftData {
   summary: {
     totalServices: number;
-    alignedServices: number;
+    cachedSnapshotServices: number;
+    unavailableServices: number;
     reviewRequired: number;
     blockedServices: number;
+  };
+  inspection: {
+    availability: "not-implemented";
+    blockers: string[];
+    limits: { minimumIntervalSeconds: number; maxConcurrentPerServer: number };
   };
   reports: DriftReport[];
 }
@@ -56,15 +74,22 @@ export function ComposeDrift({
     <section className="space-y-6">
       <div className="space-y-1">
         <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-          Planning API
+          Read API · containment mode
         </p>
         <h2 className="text-2xl font-semibold tracking-tight text-foreground">
-          Compose drift inspector
+          Compose drift snapshots
         </h2>
       </div>
 
       {session.data && composeDriftReport.data ? (
         <>
+          <p
+            className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-muted-foreground"
+            data-testid="compose-drift-containment-notice"
+          >
+            Live inspection is not implemented. Every result below is non-authoritative; no result
+            confirms current runtime alignment.
+          </p>
           <div className="grid grid-cols-4 gap-3 mb-3" data-testid="compose-drift-summary">
             <Card className="p-4">
               <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
@@ -76,10 +101,18 @@ export function ComposeDrift({
             </Card>
             <Card className="p-4">
               <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                Aligned
+                Cached snapshots
               </span>
               <strong className="mt-1 block text-2xl font-bold">
-                {composeDriftReport.data.summary.alignedServices}
+                {composeDriftReport.data.summary.cachedSnapshotServices}
+              </strong>
+            </Card>
+            <Card className="p-4">
+              <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                No snapshot
+              </span>
+              <strong className="mt-1 block text-2xl font-bold">
+                {composeDriftReport.data.summary.unavailableServices}
               </strong>
             </Card>
             <Card className="p-4">
@@ -88,14 +121,6 @@ export function ComposeDrift({
               </span>
               <strong className="mt-1 block text-2xl font-bold">
                 {composeDriftReport.data.summary.reviewRequired}
-              </strong>
-            </Card>
-            <Card className="p-4">
-              <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                Blocked
-              </span>
-              <strong className="mt-1 block text-2xl font-bold">
-                {composeDriftReport.data.summary.blockedServices}
               </strong>
             </Card>
           </div>
@@ -121,9 +146,20 @@ export function ComposeDrift({
                   </Badge>
                 </div>
                 <p className="mt-2 text-sm text-muted-foreground">
-                  {report.targetServerName} · {report.composeFilePath}
+                  {report.target.serverName ?? "Unknown server"} ·{" "}
+                  {report.composeFilePath ?? "Unknown Compose file"}
                 </p>
                 <p className="mt-2 text-sm text-muted-foreground">{report.summary}</p>
+                <p
+                  className="mt-2 text-sm font-medium text-amber-700 dark:text-amber-300"
+                  data-testid={`compose-drift-authority-${report.composeServiceId}`}
+                >
+                  Source: {report.source} · Authoritative: no
+                </p>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Observed: {report.observedAt ?? "—"} · Attempted: {report.attemptedAt ?? "—"} ·
+                  Max age: {report.maxAgeSeconds}s
+                </p>
                 <p className="mt-2 text-sm text-muted-foreground">
                   Desired image: {report.desiredImageReference} · Actual image:{" "}
                   {report.actualImageReference}
@@ -146,7 +182,9 @@ export function ComposeDrift({
                 <div className="mt-3 grid grid-cols-2 gap-3">
                   <div>
                     <h4 className="text-sm font-semibold text-foreground">Impact</h4>
-                    <p className="mt-2 text-sm text-muted-foreground">{report.impactSummary}</p>
+                    <p className="mt-2 text-sm text-muted-foreground">
+                      {report.impactSummary ?? "No impact assessment is available."}
+                    </p>
                     {report.diffs.length > 0 ? (
                       <ul className="mt-3 list-disc pl-5 text-sm text-muted-foreground space-y-1">
                         {report.diffs.map((diff) => (
@@ -171,7 +209,7 @@ export function ComposeDrift({
       ) : (
         <p className="py-10 text-center text-sm text-muted-foreground">
           {composeDriftMessage ??
-            "Sign in to compare desired Compose specs against the last observed runtime state."}
+            "Sign in to review non-authoritative cached Compose drift snapshots."}
         </p>
       )}
     </section>

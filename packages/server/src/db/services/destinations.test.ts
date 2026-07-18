@@ -2,18 +2,18 @@ import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import { db } from "../connection";
 import { backupDestinations } from "../schema/destinations";
-import { resetTestDatabase } from "../../test-db";
+import { resetTestDatabaseWithControlPlane } from "../../test-db";
 import { createDestination, updateDestination } from "./destinations";
 
 const actor = {
-  userId: "user_destination_owner",
+  userId: "user_foundation_owner",
   email: "owner@daoflow.local",
   role: "owner" as const
 };
 
 describe("destinations", () => {
   beforeEach(async () => {
-    await resetTestDatabase();
+    await resetTestDatabaseWithControlPlane();
   });
 
   it("normalizes OAuth tokens on destination creation", async () => {
@@ -23,6 +23,7 @@ describe("destinations", () => {
         provider: "gdrive",
         oauthToken: '{\n  "access_token": "token-1",\n  "refresh_token": "refresh-1"\n}'
       },
+      "team_foundation",
       actor.userId,
       actor.email,
       actor.role
@@ -46,6 +47,7 @@ describe("destinations", () => {
         provider: "gdrive",
         oauthToken: '{"access_token":"token-1"}'
       },
+      "team_foundation",
       actor.userId,
       actor.email,
       actor.role
@@ -56,6 +58,7 @@ describe("destinations", () => {
         id: destination.id,
         oauthToken: '{\n  "access_token": "token-2",\n  "refresh_token": "refresh-2"\n}'
       },
+      "team_foundation",
       actor.userId,
       actor.email,
       actor.role
@@ -79,6 +82,7 @@ describe("destinations", () => {
         provider: "gdrive",
         oauthToken: '{"access_token":"token-1"}'
       },
+      "team_foundation",
       actor.userId,
       actor.email,
       actor.role
@@ -90,6 +94,7 @@ describe("destinations", () => {
           id: destination.id,
           oauthToken: "{not-json"
         },
+        "team_foundation",
         actor.userId,
         actor.email,
         actor.role

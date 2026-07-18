@@ -11,6 +11,7 @@ import { ProjectEnvironmentsPanel } from "@/components/project/ProjectEnvironmen
 import { ProjectServicesList } from "@/components/project/ProjectServicesList";
 import { ProjectSettingsPanel } from "@/components/project/ProjectSettingsPanel";
 import { ProjectGitCard } from "@/components/project/ProjectGitCard";
+import { ProjectPreviewTrustCard } from "@/components/project/ProjectPreviewTrustCard";
 import { useProjectDetailPage } from "./project-detail/useProjectDetailPage";
 
 export default function ProjectDetailPage() {
@@ -179,6 +180,17 @@ export default function ProjectDetailPage() {
             autoDeployBranch: input.autoDeployBranch,
             repositoryCredential: input.repositoryCredential
           });
+        }}
+      />
+
+      <ProjectPreviewTrustCard
+        previewPolicy={project.previewPolicy}
+        previewPolicyRevision={project.previewPolicyRevision}
+        isSaving={page.updateProject.isPending}
+        errorMessage={page.updateProject.error?.message}
+        onSave={(previewPolicy) => {
+          page.updateProject.reset();
+          page.updateProject.mutate({ projectId: project.id, previewPolicy });
         }}
       />
 

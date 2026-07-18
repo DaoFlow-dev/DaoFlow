@@ -35,6 +35,7 @@ interface ActorContext {
   requestedByUserId: string;
   requestedByEmail: string;
   requestedByRole: AppRole;
+  commandAuditAttemptId?: string;
 }
 
 export interface CreateManagedDatabaseInput extends ActorContext {
@@ -220,6 +221,7 @@ export async function createManagedDatabase(input: CreateManagedDatabaseInput) {
     requestedByUserId: input.requestedByUserId,
     requestedByEmail: input.requestedByEmail,
     requestedByRole: input.requestedByRole,
+    commandAuditAttemptId: input.commandAuditAttemptId,
     steps: [
       { label: "Render managed database", detail: `Render ${definition.label} Compose source.` },
       { label: "Queue execution handoff", detail: "Dispatch the database stack to the worker." }

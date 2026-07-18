@@ -11,9 +11,9 @@ import {
 } from "../../service-runtime-config";
 import type { ConfigSnapshot, ComposeImageOverride } from "../../worker/step-management";
 import { extractReplayableConfigSnapshot, readComposeImageOverride } from "./deployment-source";
+import { normalizeStoredComposeDriftSnapshot } from "./compose-drift";
 import {
   asRecord,
-  readNumber,
   readRecordArray,
   readString,
   readStringArray,
@@ -69,11 +69,16 @@ export interface DeploymentLiveRuntimeDiffArtifact {
 }
 
 export interface DeploymentLiveRuntimeArtifact {
-  status: "aligned" | "drifted" | "blocked";
+  source: "cached-snapshot" | "unavailable";
+  authoritative: false;
+  attemptedAt: string | null;
+  observedAt: string | null;
+  maxAgeSeconds: number;
+  evidenceRefs: string[];
+  status: "drifted" | "blocked" | "unavailable";
   statusLabel: string;
-  statusTone: "healthy" | "running" | "failed";
+  statusTone: "running" | "failed";
   summary: string;
-  checkedAt: string | null;
   actualContainerState: string | null;
   desiredImageReference: string | null;
   actualImageReference: string | null;
@@ -88,28 +93,6 @@ export interface DeploymentStateArtifacts {
   declaredConfig: DeploymentDeclaredStateArtifact;
   effectiveDeployment: DeploymentEffectiveStateArtifact;
   liveRuntime: DeploymentLiveRuntimeArtifact | null;
-}
-
-function formatLiveRuntimeStatusLabel(status: DeploymentLiveRuntimeArtifact["status"]) {
-  if (status === "aligned") {
-    return "Aligned";
-  }
-  if (status === "blocked") {
-    return "Blocked";
-  }
-
-  return "Review required";
-}
-
-function formatLiveRuntimeStatusTone(status: DeploymentLiveRuntimeArtifact["status"]) {
-  if (status === "aligned") {
-    return "healthy" as const;
-  }
-  if (status === "blocked") {
-    return "failed" as const;
-  }
-
-  return "running" as const;
 }
 
 function readComposeEnvEvidence(snapshot: JsonRecord): ComposeEnvEvidence | null {
@@ -149,26 +132,31 @@ function readLiveRuntimeArtifact(input: {
     return null;
   }
 
-  const status = readString(report, "status", "aligned") as DeploymentLiveRuntimeArtifact["status"];
+  const snapshot = normalizeStoredComposeDriftSnapshot(report);
 
   return {
-    status,
-    statusLabel: formatLiveRuntimeStatusLabel(status),
-    statusTone: formatLiveRuntimeStatusTone(status),
-    summary: readString(report, "summary", "No live runtime summary is available."),
-    checkedAt: readString(report, "lastCheckedAt") || null,
-    actualContainerState: readString(report, "actualContainerState") || null,
-    desiredImageReference: readString(report, "desiredImageReference") || null,
-    actualImageReference: readString(report, "actualImageReference") || null,
-    desiredReplicaCount: readNumber(report, "desiredReplicaCount"),
-    actualReplicaCount: readNumber(report, "actualReplicaCount"),
-    impactSummary: readString(report, "impactSummary") || null,
-    recommendedActions: readStringArray(report, "recommendedActions"),
-    diffs: readRecordArray(report, "diffs").map((diff) => ({
-      field: readString(diff, "field"),
-      desiredValue: readString(diff, "desiredValue"),
-      actualValue: readString(diff, "actualValue"),
-      impact: readString(diff, "impact")
+    source: snapshot.source,
+    authoritative: false,
+    attemptedAt: snapshot.attemptedAt,
+    observedAt: snapshot.observedAt,
+    maxAgeSeconds: snapshot.maxAgeSeconds,
+    evidenceRefs: snapshot.evidenceRefs,
+    status: snapshot.status,
+    statusLabel: snapshot.statusLabel,
+    statusTone: snapshot.statusTone,
+    summary: snapshot.summary,
+    actualContainerState: snapshot.actualContainerState,
+    desiredImageReference: snapshot.desiredImageReference,
+    actualImageReference: snapshot.actualImageReference,
+    desiredReplicaCount: snapshot.desiredReplicaCount,
+    actualReplicaCount: snapshot.actualReplicaCount,
+    impactSummary: snapshot.impactSummary,
+    recommendedActions: snapshot.recommendedActions,
+    diffs: snapshot.diffs.map((diff) => ({
+      field: diff.field,
+      desiredValue: diff.desiredValue,
+      actualValue: diff.actualValue,
+      impact: diff.impact
     }))
   };
 }

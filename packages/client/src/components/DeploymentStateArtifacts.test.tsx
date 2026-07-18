@@ -69,11 +69,16 @@ describe("DeploymentStateArtifacts", () => {
             }
           },
           liveRuntime: {
+            source: "cached-snapshot",
+            authoritative: false,
+            attemptedAt: "2026-03-28T20:00:00.000Z",
+            observedAt: "2026-03-28T20:00:00.000Z",
+            maxAgeSeconds: 900,
+            evidenceRefs: [],
             status: "drifted",
-            statusLabel: "Review required",
+            statusLabel: "Cached drift snapshot",
             statusTone: "running",
-            summary: "Runtime image drift detected.",
-            checkedAt: "2026-03-28T20:00:00.000Z",
+            summary: "Cached snapshot only: Runtime image drift detected.",
             actualContainerState: "running-with-warnings",
             desiredImageReference: "ghcr.io/daoflow/api:sha-123",
             actualImageReference: "ghcr.io/daoflow/api:sha-122",
@@ -96,7 +101,7 @@ describe("DeploymentStateArtifacts", () => {
 
     expect(screen.getByText("Declared config")).toBeVisible();
     expect(screen.getByText("Frozen deployment input")).toBeVisible();
-    expect(screen.getByText("Last observed live state")).toBeVisible();
+    expect(screen.getByText("Stored drift snapshot")).toBeVisible();
     expect(
       within(screen.getByTestId("deployment-state-declared-dep_state_1")).getByText(
         /docker-compose\.yml, deploy\/compose\.prod\.yml/i
@@ -108,7 +113,10 @@ describe("DeploymentStateArtifacts", () => {
       )
     ).toBeVisible();
     expect(screen.getByTestId("deployment-state-live-summary-dep_state_1")).toHaveTextContent(
-      /Runtime image drift detected/i
+      /Cached snapshot only: Runtime image drift detected/i
+    );
+    expect(screen.getByTestId("deployment-state-live-authority-dep_state_1")).toHaveTextContent(
+      "Authoritative: no"
     );
     expect(
       within(screen.getByTestId("deployment-state-live-dep_state_1")).getByText(

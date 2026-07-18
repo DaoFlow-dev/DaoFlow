@@ -114,6 +114,12 @@ export async function handleGitHubWebhook(c: Context) {
     }
 
     if (event === "pull_request") {
+      if (!externalInstallationId) {
+        return c.json(
+          { ok: false, error: "GitHub pull request webhook is missing installation identity." },
+          400
+        );
+      }
       const lifecycle = readGitHubPreviewLifecycle(payload);
       if (!lifecycle) {
         return c.json({ ok: true, skipped: true, reason: "unsupported pull_request action" });
@@ -133,6 +139,10 @@ export async function handleGitHubWebhook(c: Context) {
           eventAction: lifecycle.eventAction,
           requestedByEmail: lifecycle.requestedByEmail,
           commitSha: lifecycle.commitSha,
+          origin: {
+            ...lifecycle.origin,
+            installationVerified: true
+          },
           preview: {
             target: "pull-request",
             branch: lifecycle.preview.branch,

@@ -1,5 +1,6 @@
 import { encrypt } from "../../crypto";
 import { servers } from "../../schema/servers";
+import { sshHostIdentities } from "../../schema/ssh-host-identities";
 import { projects, environments, environmentVariables } from "../../schema/projects";
 import { volumes } from "../../schema/storage";
 import { daysBefore, minutesBefore } from "./seed-helpers";
@@ -39,6 +40,25 @@ export async function seedInfrastructure(tx: SeedTransaction) {
       updatedAt: minutesBefore(1)
     })
     .onConflictDoNothing();
+
+  if (process.env.NODE_ENV === "test") {
+    await tx
+      .insert(sshHostIdentities)
+      .values({
+        id: "sshkey_foundation_test",
+        teamId: "team_foundation",
+        serverId: "srv_foundation_1",
+        algorithm: "ssh-ed25519",
+        publicKey: "AQIDBA==",
+        fingerprint: "SHA256:n2SnR+G5fxMfq7a0Rylsm28CAeefs8U1bmx36JtqgGo",
+        status: "approved",
+        approvedAt: new Date(),
+        approvedByUserId: "user_foundation_owner",
+        createdAt: new Date(),
+        updatedAt: new Date()
+      })
+      .onConflictDoNothing();
+  }
 
   await tx
     .insert(projects)

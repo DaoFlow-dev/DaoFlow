@@ -24,7 +24,12 @@ async function projectIdsForTeam(teamId: string) {
   return new Set(rows.map((row) => row.id));
 }
 
-function volumeBelongsToTeam(volume: typeof volumes.$inferSelect, allowedProjectIds: Set<string>) {
+function volumeBelongsToTeam(
+  volume: typeof volumes.$inferSelect,
+  allowedProjectIds: Set<string>,
+  allowedServerIds: Set<string>
+) {
+  if (!allowedServerIds.has(volume.serverId)) return false;
   const projectId = readString(asRecord(volume.metadata), "projectId");
   return !projectId || allowedProjectIds.has(projectId);
 }
@@ -34,11 +39,12 @@ async function loadScopedBackupRows(teamId: string) {
   const [volumeRows, policyRows, destinationRows, serverRows] = await Promise.all([
     db.select().from(volumes),
     db.select().from(backupPolicies),
-    db.select().from(backupDestinations),
-    db.select().from(servers)
+    db.select().from(backupDestinations).where(eq(backupDestinations.teamId, teamId)),
+    db.select().from(servers).where(eq(servers.teamId, teamId))
   ]);
+  const allowedServerIds = new Set(serverRows.map((server) => server.id));
   const scopedVolumes = volumeRows.filter((volume) =>
-    volumeBelongsToTeam(volume, allowedProjectIds)
+    volumeBelongsToTeam(volume, allowedProjectIds, allowedServerIds)
   );
   const scopedVolumeIds = new Set(scopedVolumes.map((volume) => volume.id));
   const scopedPolicies = policyRows.filter((policy) => scopedVolumeIds.has(policy.volumeId));

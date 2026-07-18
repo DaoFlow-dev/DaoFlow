@@ -3,9 +3,9 @@ import type { ComposeBuildPlan } from "../compose-build-plan";
 import { resolveComposeExecutionScope } from "../compose-build-plan-execution";
 import { readComposeReadinessProbeSnapshot } from "../compose-readiness";
 import {
-  listAllContainerRegistryCredentials,
-  listContainerRegistryCredentialsByImageReferences
-} from "../db/services/container-registries";
+  listContainerRegistryCredentialsForProject,
+  listContainerRegistryCredentialsForProjectImageReferences
+} from "../db/services/container-registry-credentials";
 import {
   persistDeploymentComposeEnvState,
   readDeploymentComposeState
@@ -113,9 +113,13 @@ export async function executeComposeDeployment(
   await throwIfDeploymentCancellationRequested(deployment.id);
 
   const composeImageReferences = collectComposeImageReferences(composeBuildPlan, config);
-  const pullRegistryCredentials =
-    await listContainerRegistryCredentialsByImageReferences(composeImageReferences);
-  const buildRegistryCredentials = await listAllContainerRegistryCredentials();
+  const pullRegistryCredentials = await listContainerRegistryCredentialsForProjectImageReferences(
+    deployment.projectId,
+    composeImageReferences
+  );
+  const buildRegistryCredentials = await listContainerRegistryCredentialsForProject(
+    deployment.projectId
+  );
 
   if (composeOperation === "down") {
     await transitionDeployment(deployment.id, "deploy");

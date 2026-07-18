@@ -1,4 +1,4 @@
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { db } from "../connection";
 import { teams, teamMembers } from "../schema/teams";
 import { users } from "../schema/users";
@@ -38,4 +38,34 @@ export async function resolveTeamIdForUser(userId: string): Promise<string | nul
     .limit(1);
 
   return fallbackTeam?.id ?? null;
+}
+
+/**
+ * Resolve a user's active team only when the user is actually a member.
+ * Read surfaces that expose team-owned operational data must not use the
+ * single-team fallback above, because it can select another team's data.
+ */
+export async function resolveMemberTeamIdForUser(userId: string): Promise<string | null> {
+  const [preferredMembership] = await db
+    .select({ teamId: teamMembers.teamId })
+    .from(users)
+    .innerJoin(
+      teamMembers,
+      and(eq(teamMembers.userId, users.id), eq(teamMembers.teamId, users.defaultTeamId))
+    )
+    .where(eq(users.id, userId))
+    .limit(1);
+
+  if (preferredMembership?.teamId) {
+    return preferredMembership.teamId;
+  }
+
+  const [membership] = await db
+    .select({ teamId: teamMembers.teamId })
+    .from(teamMembers)
+    .where(eq(teamMembers.userId, userId))
+    .orderBy(asc(teamMembers.createdAt))
+    .limit(1);
+
+  return membership?.teamId ?? null;
 }

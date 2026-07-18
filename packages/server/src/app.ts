@@ -5,7 +5,7 @@ import { secureHeaders } from "hono/secure-headers";
 import { trpcServer } from "@hono/trpc-server";
 import { DEFAULT_CLIENT_PORT } from "@daoflow/shared";
 import { auth } from "./auth";
-import { createContext } from "./context";
+import { createContext, type Context as TrpcContext } from "./context";
 import { createRequestId } from "./request-id";
 import { appRouter } from "./router";
 import { imagesRouter } from "./routes/images";
@@ -22,10 +22,15 @@ import { acceptPendingTeamInviteForEmail } from "./db/services/member-access";
 import { auditMfaAuthResponse } from "./mfa-auth-audit";
 import { recordRequestAccessLog } from "./db/services/request-access-logs";
 import { readRequestAccessLogAttribution } from "./request-access-log-context";
+import {
+  finalizeUnconsumedTransportCommandAudits,
+  prepareTransportCommandAudits
+} from "./trpc-command-audit-transport";
 
 type Env = {
   Variables: {
     requestId: string;
+    trpcContext: TrpcContext;
   };
 };
 
@@ -347,11 +352,28 @@ export function createApp() {
   });
 
   // ── tRPC ──────────────────────────────────────────────────
+  app.use("/trpc/*", async (c, next) => {
+    const context = await createContext(c);
+    c.set("trpcContext", context);
+    await prepareTransportCommandAudits({
+      method: c.req.method,
+      pathname: c.req.path,
+      context,
+      router: appRouter
+    });
+
+    try {
+      await next();
+    } finally {
+      await finalizeUnconsumedTransportCommandAudits(context);
+    }
+  });
+
   app.use(
     "/trpc/*",
     trpcServer({
       router: appRouter,
-      createContext: (_opts, c) => createContext(c) as unknown as Record<string, unknown>,
+      createContext: (_opts, c) => c.get("trpcContext") as unknown as Record<string, unknown>,
       onError({ error, path }) {
         console.error(
           JSON.stringify({

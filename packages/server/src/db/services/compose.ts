@@ -4,39 +4,9 @@ import { createDeploymentRecord } from "./deployments";
 import { dispatchDeploymentExecution } from "./deployment-dispatch";
 import { environments, projects } from "../schema/projects";
 import type { AppRole } from "@daoflow/shared";
-import { asRecord, readString, readNumber, readStringArray, readRecordArray } from "./json-helpers";
+import { asRecord, readNumber, readRecordArray, readString, readStringArray } from "./json-helpers";
 import { buildComposeSourceSnapshot, resolveComposeImageOverride } from "./deployment-source";
 import { prepareComposeDeploymentEnvState } from "./compose-env";
-
-export interface ComposeDriftDiffRecord {
-  id: string;
-  field: string;
-  desiredValue: string;
-  actualValue: string;
-  impact: string;
-}
-
-export interface ComposeDriftRecord {
-  composeServiceId: string;
-  environmentName: string;
-  projectName: string;
-  targetServerName: string;
-  serviceName: string;
-  composeFilePath: string;
-  status: "aligned" | "drifted" | "blocked";
-  statusLabel: string;
-  statusTone: "healthy" | "running" | "failed";
-  summary: string;
-  impactSummary: string;
-  desiredImageReference: string;
-  actualImageReference: string;
-  desiredReplicaCount: number;
-  actualReplicaCount: number;
-  actualContainerState: string;
-  lastCheckedAt: string;
-  recommendedActions: string[];
-  diffs: ComposeDriftDiffRecord[];
-}
 
 function formatReleaseTrackLabel(releaseTrack: string) {
   if (!releaseTrack) {
@@ -48,30 +18,6 @@ function formatReleaseTrackLabel(releaseTrack: string) {
 
 function getReleaseTrackTone(releaseTrack: string) {
   return releaseTrack === "stable" ? "healthy" : "running";
-}
-
-function formatComposeDriftStatusLabel(status: ComposeDriftRecord["status"]) {
-  if (status === "aligned") {
-    return "Aligned";
-  }
-
-  if (status === "blocked") {
-    return "Blocked";
-  }
-
-  return "Review required";
-}
-
-function getComposeDriftStatusTone(status: ComposeDriftRecord["status"]) {
-  if (status === "aligned") {
-    return "healthy" as const;
-  }
-
-  if (status === "blocked") {
-    return "failed" as const;
-  }
-
-  return "running" as const;
 }
 
 export async function listComposeReleaseCatalog(limit = 24) {
@@ -132,68 +78,6 @@ export async function listComposeReleaseCatalog(limit = 24) {
   };
 }
 
-export async function listComposeDriftReport(limit = 24): Promise<{
-  summary: {
-    totalServices: number;
-    alignedServices: number;
-    driftedServices: number;
-    blockedServices: number;
-    reviewRequired: number;
-  };
-  reports: ComposeDriftRecord[];
-}> {
-  const rows = await db.select().from(environments).orderBy(desc(environments.createdAt));
-  const reports = rows.flatMap((environment) => {
-    const config = asRecord(environment.config);
-    const driftReports = readRecordArray(config, "composeDriftReports");
-
-    return driftReports.map((report) => {
-      const status = readString(report, "status", "aligned") as ComposeDriftRecord["status"];
-
-      return {
-        composeServiceId: readString(report, "composeServiceId"),
-        environmentName: environment.name,
-        projectName: readString(config, "projectName"),
-        targetServerName: readString(config, "targetServerName"),
-        serviceName: readString(report, "serviceName"),
-        composeFilePath: readString(config, "composeFilePath"),
-        status,
-        statusLabel: formatComposeDriftStatusLabel(status),
-        statusTone: getComposeDriftStatusTone(status),
-        summary: readString(report, "summary"),
-        impactSummary: readString(report, "impactSummary"),
-        desiredImageReference: readString(report, "desiredImageReference"),
-        actualImageReference: readString(report, "actualImageReference"),
-        desiredReplicaCount: readNumber(report, "desiredReplicaCount", 0) ?? 0,
-        actualReplicaCount: readNumber(report, "actualReplicaCount", 0) ?? 0,
-        actualContainerState: readString(report, "actualContainerState"),
-        lastCheckedAt: readString(report, "lastCheckedAt"),
-        recommendedActions: readStringArray(report, "recommendedActions"),
-        diffs: readRecordArray(report, "diffs").map((diff) => ({
-          id: readString(diff, "id"),
-          field: readString(diff, "field"),
-          desiredValue: readString(diff, "desiredValue"),
-          actualValue: readString(diff, "actualValue"),
-          impact: readString(diff, "impact")
-        }))
-      };
-    });
-  });
-
-  const sliced = reports.slice(0, limit);
-
-  return {
-    summary: {
-      totalServices: sliced.length,
-      alignedServices: sliced.filter((report) => report.status === "aligned").length,
-      driftedServices: sliced.filter((report) => report.status === "drifted").length,
-      blockedServices: sliced.filter((report) => report.status === "blocked").length,
-      reviewRequired: sliced.filter((report) => report.status !== "aligned").length
-    },
-    reports: sliced
-  };
-}
-
 export async function queueComposeRelease(input: {
   composeServiceId: string;
   commitSha: string;
@@ -201,6 +85,7 @@ export async function queueComposeRelease(input: {
   requestedByUserId: string;
   requestedByEmail: string;
   requestedByRole: string;
+  commandAuditAttemptId?: string;
 }) {
   const catalog = await listComposeReleaseCatalog(100);
   const service = catalog.services.find((candidate) => candidate.id === input.composeServiceId);
@@ -260,6 +145,7 @@ export async function queueComposeRelease(input: {
     requestedByUserId: input.requestedByUserId,
     requestedByEmail: input.requestedByEmail,
     requestedByRole: input.requestedByRole as AppRole,
+    commandAuditAttemptId: input.commandAuditAttemptId,
     envVarsEncrypted: envState.envVarsEncrypted,
     configSnapshot,
     steps: [

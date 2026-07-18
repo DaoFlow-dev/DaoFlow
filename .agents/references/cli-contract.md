@@ -110,6 +110,16 @@ This file holds the detailed CLI contract, scope map, and agent-facing command r
 - `daoflow backup restore --yes` queues the restore and requires `backup:restore`
 - If an operator wants a human approval gate before restore execution, create a separate `requestApproval` with `approvals:create`
 
+## Compose Drift Contract
+
+- `daoflow drift` reads the caller team's Compose drift records and requires `deploy:read`.
+- This containment phase does **not** inspect a Docker host. Every report is `authoritative: false` and has `source: "cached-snapshot"` or `source: "unavailable"`; `source: "live"` is not emitted.
+- Every report includes `attemptedAt`, `observedAt`, `maxAgeSeconds`, `target`, and `evidenceRefs`. Timestamps may be `null` when no stored snapshot exists.
+- A legacy stored `aligned` value is returned as `status: "unavailable"`; an uninspected or unreachable host must never be reported as aligned.
+- Stable JSON success shape:
+  - `{ "ok": true, "data": { "inspection": { "availability": "not-implemented", "blockers": string[], "limits": { "minimumIntervalSeconds": number, "maxConcurrentPerServer": number } }, "summary": { "totalServices": number, "cachedSnapshotServices": number, "unavailableServices": number, "driftedServices": number, "blockedServices": number, "reviewRequired": number }, "reports": [{ "source": "cached-snapshot" | "unavailable", "authoritative": false, "attemptedAt": string | null, "observedAt": string | null, "maxAgeSeconds": number, "target": { "serverId": string | null, "serverName": string | null, "composeProjectName": string | null }, "evidenceRefs": string[] }] } }`
+- Live inspection remains blocked on #230 (strict SSH identity) and #233 (DaoFlow-owned resource selection). Its reserved safety profile is one concurrent check per server, at least 60 seconds between checks, normalized evidence IDs only, and no raw `docker inspect` output or secret-bearing environment values persisted.
+
 ## Volume Registry Contract
 
 - `daoflow volumes list` reads the persistent volume registry through `persistentVolumes`

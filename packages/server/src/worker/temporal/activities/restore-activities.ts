@@ -11,11 +11,11 @@
 import { eq } from "drizzle-orm";
 import { db } from "../../../db/connection";
 import { backupPolicies, backupRestores, backupRuns, volumes } from "../../../db/schema/storage";
-import { backupDestinations } from "../../../db/schema/destinations";
 import { events, auditEntries } from "../../../db/schema/audit";
 import { copyFromRemote, type DestinationConfig } from "../../rclone-executor";
 import type { BackupProvider } from "../../../db/schema/destinations";
 import { newId } from "../../../db/services/json-helpers";
+import { resolveTeamScopedDestinationForVolume } from "../../../db/services/backup-resource-team";
 import { executeRestoreArtifact } from "./restore-execution";
 
 // ── Types ────────────────────────────────────────────────────
@@ -96,14 +96,12 @@ export async function resolveRestoreContext(input: RestoreInput): Promise<Restor
 
   if (!volume) return null;
 
-  // Fetch destination
-  const [dest] = await db
-    .select()
-    .from(backupDestinations)
-    .where(eq(backupDestinations.id, policy.destinationId))
-    .limit(1);
-
-  if (!dest) return null;
+  const destinationScope = await resolveTeamScopedDestinationForVolume(
+    volume,
+    policy.destinationId
+  );
+  if (!destinationScope) return null;
+  const { destination: dest } = destinationScope;
 
   const backupType = policy.backupType ?? "volume";
   const volumeMetadata = volume.metadata;

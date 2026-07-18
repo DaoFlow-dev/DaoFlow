@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import { db } from "./db/connection";
 import { deployments } from "./db/schema/deployments";
+import { environments } from "./db/schema/projects";
 import { approvalRequests, auditEntries } from "./db/schema/audit";
 import { requestAccessLogs } from "./db/schema/request-access-logs";
 import { previewEnvironments } from "./db/schema/preview-environments";
@@ -385,7 +386,90 @@ describe("appRouter", () => {
     if (report) {
       expect(report.statusTone).toEqual(expect.any(String));
       expect(report.statusLabel).toEqual(expect.any(String));
+      expect(report.source === "cached-snapshot" || report.source === "unavailable").toBe(true);
+      expect(report.authoritative).toBe(false);
+      expect(report.status).not.toBe("aligned");
+      expect(report).toHaveProperty("attemptedAt");
+      expect(report).toHaveProperty("observedAt");
+      expect(report).toHaveProperty("maxAgeSeconds");
     }
+    expect(drift.inspection.availability).toBe("not-implemented");
+    expect(drift.summary.reviewRequired).toBe(drift.summary.totalServices);
+  });
+
+  it("requires deploy:read before returning Compose drift snapshots", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-compose-drift-scope",
+      session: makeSession("agent"),
+      auth: makeTokenAuthContext("agent", ["server:read"], "agent")
+    });
+
+    await expect(caller.composeDriftReport({})).rejects.toMatchObject({
+      code: "FORBIDDEN",
+      cause: {
+        code: "SCOPE_DENIED",
+        requiredScopes: ["deploy:read"],
+        grantedScopes: ["server:read"]
+      }
+    });
+  });
+
+  it("returns Compose drift snapshots only for the caller's team", async () => {
+    const other = await createOtherTeamFixture();
+    await db
+      .update(environments)
+      .set({
+        config: {
+          projectName: "Other team project",
+          targetServerId: "srv_foundation_1",
+          targetServerName: "foundation-vps-1",
+          composeFilePath: "/srv/other/compose.yaml",
+          composeServices: [
+            {
+              id: "compose_other_team_api",
+              serviceName: "other-team-api",
+              imageReference: "ghcr.io/example/other-team-api:latest",
+              replicaCount: 1
+            }
+          ],
+          composeDriftReports: [
+            {
+              composeServiceId: "compose_other_team_api",
+              serviceName: "other-team-api",
+              status: "aligned",
+              lastCheckedAt: "2026-07-18T10:00:00.000Z"
+            }
+          ]
+        }
+      })
+      .where(eq(environments.id, other.environmentId));
+
+    const foundationCaller = appRouter.createCaller({
+      requestId: "test-compose-drift-foundation-team",
+      session: makeSession("viewer")
+    });
+    const foundationDrift = await foundationCaller.composeDriftReport({ limit: 40 });
+    expect(foundationDrift.reports.some((report) => report.projectId === other.projectId)).toBe(
+      false
+    );
+
+    const otherTeamCaller = appRouter.createCaller({
+      requestId: "test-compose-drift-other-team",
+      session: makeCustomSession({
+        id: other.userId,
+        email: `${other.userId}@daoflow.local`,
+        name: "Other Team Admin",
+        role: "viewer"
+      })
+    });
+    const otherTeamDrift = await otherTeamCaller.composeDriftReport({ limit: 40 });
+    expect(otherTeamDrift.reports).toHaveLength(1);
+    expect(otherTeamDrift.reports[0]).toMatchObject({
+      projectId: other.projectId,
+      source: "cached-snapshot",
+      status: "unavailable",
+      authoritative: false
+    });
   });
 
   it("queues compose releases with service-scoped image override metadata", async () => {
@@ -1312,7 +1396,12 @@ describe("appRouter", () => {
     });
 
     expect(server.name).toMatch(/^edge-vps-/);
-    expect(["ready", "attention", "pending verification"]).toContain(server.status);
+    expect([
+      "ready",
+      "attention",
+      "pending verification",
+      "pending host identity approval"
+    ]).toContain(server.status);
   });
 
   it("registers a docker-swarm-manager target and returns it through server readiness", async () => {

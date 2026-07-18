@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import { createApp } from "./app";
 import { db } from "./db/connection";
+import { approvalRequests } from "./db/schema/audit";
 import { deployments } from "./db/schema/deployments";
 import { gitInstallations, gitProviders } from "./db/schema/git-providers";
 import { environments, projects } from "./db/schema/projects";
@@ -18,6 +19,7 @@ import { createService } from "./db/services/services";
 import { triggerDeploy } from "./db/services/trigger-deploy";
 import { resetTestDatabaseWithControlPlane } from "./test-db";
 import { createLocalGitRepository } from "./test-git-repo";
+import { buildPreviewApprovalBinding, classifyPreviewOrigin } from "./preview-trust";
 
 function toRequestUrl(input: string | URL | Request): string {
   if (typeof input === "string") {
@@ -505,14 +507,60 @@ describe("deploy source revalidation", () => {
       updatedByRole: "owner"
     });
 
+    const commitSha = "abcdef1234567890abcdef1234567890abcdef12";
+    const preview = {
+      target: "pull-request" as const,
+      branch: "feature/login",
+      pullRequestNumber: 42,
+      action: "deploy" as const
+    };
+    const [project] = await db
+      .select()
+      .from(projects)
+      .where(eq(projects.id, fixture.projectId))
+      .limit(1);
+    if (!project) throw new Error("Expected preview project.");
+    const binding = buildPreviewApprovalBinding({
+      providerType: "gitlab",
+      providerId,
+      installationId,
+      sourceRepository: repoFullName,
+      baseRepository: repoFullName,
+      commitSha,
+      policyRevision: project.previewPolicyRevision,
+      origin: classifyPreviewOrigin({
+        providerType: "gitlab",
+        baseRepository: repoFullName,
+        sourceRepository: repoFullName,
+        authorAssociation: "MEMBER",
+        installationOwner: "example-group",
+        installationVerified: true,
+        protectedSecretsAttached: true
+      }),
+      serviceId: fixture.serviceId,
+      preview
+    });
+    const approvalRequestId = `apr_${Date.now()}_preview`.slice(0, 32);
+    await db.insert(approvalRequests).values({
+      id: approvalRequestId,
+      actionType: "preview-deployment",
+      targetResource: `service/${fixture.serviceId}`,
+      status: "approved",
+      requestedByEmail: "gitlab-webhook",
+      requestedByRole: "agent",
+      resolvedByUserId: "user_foundation_owner",
+      resolvedByEmail: "owner@daoflow.local",
+      inputSummary: { expiresAt: binding.expiresAt, previewTrust: binding },
+      createdAt: new Date(),
+      resolvedAt: new Date()
+    });
+
     const result = await triggerDeploy({
       serviceId: fixture.serviceId,
-      commitSha: "abcdef1234567890abcdef1234567890abcdef12",
-      preview: {
-        target: "pull-request",
-        branch: "feature/login",
-        pullRequestNumber: 42
-      },
+      commitSha,
+      preview,
+      previewProviderType: "gitlab",
+      previewAuthorization: { kind: "approval", approvalRequestId },
       requestedByUserId: "user_foundation_owner",
       requestedByEmail: "owner@daoflow.local",
       requestedByRole: "owner"

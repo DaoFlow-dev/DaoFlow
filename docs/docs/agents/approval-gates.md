@@ -18,12 +18,23 @@ model, not an optional convention.
 
 ## Gated Actions
 
-| Action                 | Why It's Gated                |
-| ---------------------- | ----------------------------- |
-| Backup restore         | Could overwrite current data  |
-| Server removal         | Removes infrastructure target |
-| Production env changes | Could break production        |
-| Secret rotation        | Could invalidate integrations |
+| Action                 | Why It's Gated                                                            |
+| ---------------------- | ------------------------------------------------------------------------- |
+| Backup restore         | Could overwrite current data                                              |
+| Server removal         | Removes infrastructure target                                             |
+| Production env changes | Could break production                                                    |
+| Secret rotation        | Could invalidate integrations                                             |
+| Pull-request preview   | Executes untrusted repository code and can materialize environment values |
+
+## Pull-Request Preview Approval
+
+Provider webhooks are authenticated transport, not a trust decision. By default, an incoming
+same-repository pull request creates a pending approval instead of a deployment. A reviewer sees the
+provider, source repository, exact immutable commit SHA, policy revision, secret profile, and expiry
+in the Approval queue. Approving that request queues only the bound service and commit.
+
+Fork previews are blocked rather than downgraded to a no-secrets path. DaoFlow will not prepare
+normal environment or secret material for a blocked or pending pull-request preview.
 
 ## CLI Flow
 

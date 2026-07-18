@@ -1,5 +1,6 @@
 import {
   boolean,
+  integer,
   index,
   jsonb,
   pgTable,
@@ -39,6 +40,8 @@ export const projects = pgTable(
     defaultBranch: varchar("default_branch", { length: 80 }).default("main"),
     autoDeploy: boolean("auto_deploy").default(false).notNull(),
     autoDeployBranch: varchar("auto_deploy_branch", { length: 120 }),
+    previewPolicy: varchar("preview_policy", { length: 40 }).default("manual-approval").notNull(),
+    previewPolicyRevision: integer("preview_policy_revision").default(1).notNull(),
     createdByUserId: text("created_by_user_id").references(() => users.id, {
       onDelete: "set null"
     }),

@@ -4,7 +4,7 @@ sidebar_position: 8
 
 # daoflow server add
 
-Register a Docker target and run readiness verification immediately.
+Register a Docker target and collect untrusted SSH host-key material.
 
 ## Usage
 
@@ -68,19 +68,9 @@ daoflow server add \
       "sshPort": 22,
       "sshUser": "deploy",
       "kind": "docker-engine",
-      "status": "ready",
-      "dockerVersion": "27.5.1",
-      "composeVersion": "2.34.0"
-    },
-    "readiness": {
-      "readinessStatus": "ready",
-      "sshReachable": true,
-      "dockerReachable": true,
-      "composeReachable": true,
-      "latencyMs": 42,
-      "checkedAt": "2026-03-20T22:05:00.000Z",
-      "issues": [],
-      "recommendedActions": ["No action required."]
+      "status": "pending host identity approval",
+      "dockerVersion": null,
+      "composeVersion": null
     }
   }
 }
@@ -88,7 +78,11 @@ daoflow server add \
 
 ## Notes
 
-- Registration immediately runs the same readiness verification flow used by the dashboard.
+- Registration collects public host-key observations but does not trust them or send SSH credentials.
+- An owner or admin must approve the exact host-key algorithm, public key, and SHA-256 fingerprint
+  in the dashboard before DaoFlow can perform any remote SSH or SCP operation.
+- A changed host key blocks remote access. Rotation is an explicit owner/admin approval that records
+  the old and new fingerprints in the audit trail.
 - Raw SSH private keys are stored as managed SSH key assets and linked back to the server. Use
   `--ssh-key-id` to reuse an existing managed key instead of uploading private material again.
 - If SSH works but Docker or Compose does not, the command returns structured issues and recommended actions instead of a silent partial success.

@@ -1922,7 +1922,7 @@
     },
     {
       "path": "drift",
-      "summary": "Show config drift between desired and actual service state",
+      "summary": "Show non-authoritative cached Compose drift snapshots",
       "lane": "read",
       "requiredScopes": ["deploy:read"],
       "mutating": false,

@@ -21,7 +21,8 @@ Before deploying, you need a target server. Today, server registration happens t
 1. Navigate to **Servers** in the sidebar
 2. Click **Add Server**
 3. Enter the server name, host IP, and SSH key
-4. DaoFlow will verify SSH connectivity and detect Docker
+4. Review the discovered SSH host-key algorithm and SHA-256 fingerprint in the server's **Identity** tab
+5. As an owner or admin, approve the exact key; DaoFlow then verifies SSH connectivity and detects Docker
 
 Verify the server is connected:
 

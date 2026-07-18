@@ -8,14 +8,28 @@ import {
   listDeploymentRecords,
   listDeploymentRollbackPlans
 } from "../db/services/deployments";
-import { listComposeDriftReport, listComposeReleaseCatalog } from "../db/services/compose";
+import { listComposeReleaseCatalog } from "../db/services/compose";
+import { listComposeDriftReport } from "../db/services/compose-drift";
 import { listComposePreviewReconciliation } from "../db/services/compose-preview-reconciliation";
 import { listComposePreviewDeployments } from "../db/services/compose-previews";
 import { listExecutionQueue } from "../db/services/execution";
 import { listRollbackTargets } from "../db/services/execute-rollback";
 import { listOperationsTimeline } from "../db/services/audit";
+import { resolveMemberTeamIdForUser } from "../db/services/teams";
 import { protectedProcedure, deployReadProcedure, t } from "../trpc";
 import { limitInput, statusLimitInput } from "../schemas";
+
+async function requireDeploymentReadTeamId(userId: string) {
+  const teamId = await resolveMemberTeamIdForUser(userId);
+  if (!teamId) {
+    throw new TRPCError({
+      code: "PRECONDITION_FAILED",
+      message: "No team membership is available for this user."
+    });
+  }
+
+  return teamId;
+}
 
 export const deploymentReadRouter = t.router({
   recentDeployments: protectedProcedure
@@ -26,8 +40,10 @@ export const deploymentReadRouter = t.router({
   composeReleaseCatalog: protectedProcedure.input(limitInput(40)).query(async ({ input }) => {
     return listComposeReleaseCatalog(input.limit ?? 24);
   }),
-  composeDriftReport: protectedProcedure.input(limitInput(40)).query(async ({ input }) => {
-    return listComposeDriftReport(input.limit ?? 24);
+  composeDriftReport: deployReadProcedure.input(limitInput(40)).query(async ({ ctx, input }) => {
+    const userId = ctx.auth.principal.linkedUserId ?? ctx.session.user.id;
+    const teamId = await requireDeploymentReadTeamId(userId);
+    return listComposeDriftReport({ teamId, limit: input.limit ?? 24 });
   }),
   composePreviews: deployReadProcedure
     .input(

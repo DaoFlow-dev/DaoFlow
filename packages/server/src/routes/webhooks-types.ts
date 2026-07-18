@@ -15,7 +15,12 @@ export interface GitHubPushEvent {
   number?: number;
   repository?: { full_name?: string };
   sender?: { login?: string };
-  installation?: { id?: number };
+  installation?: {
+    id?: number;
+    account?: {
+      login?: string;
+    };
+  };
   label?: { name?: string };
   issue?: {
     id?: number;
@@ -43,7 +48,11 @@ export interface GitHubPushEvent {
     head?: {
       ref?: string;
       sha?: string;
+      repo?: {
+        full_name?: string;
+      } | null;
     };
+    author_association?: string;
     user?: {
       login?: string;
     };
@@ -60,6 +69,7 @@ export interface GitLabPushEvent {
   event_type?: string;
   object_kind?: string;
   project?: { path_with_namespace?: string; id?: number; web_url?: string };
+  source?: { path_with_namespace?: string };
   user_name?: string;
   user_username?: string;
   user?: { username?: string; name?: string };
@@ -86,6 +96,12 @@ export interface GitLabPushEvent {
     description?: string | null;
     url?: string;
     source_branch?: string;
+    source_project_id?: number;
+    target_project_id?: number;
+    source_project_path?: string;
+    source?: {
+      path_with_namespace?: string;
+    };
     note?: string;
     noteable_type?: string;
     labels?: { title?: string; name?: string }[];

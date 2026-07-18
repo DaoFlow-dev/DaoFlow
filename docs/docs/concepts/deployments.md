@@ -40,9 +40,15 @@ DaoFlow now keeps three operator-facing views of deployment truth:
 
 - **Declared config** — the repository branch, compose files, compose profiles, and target metadata DaoFlow selected before the rollout.
 - **Frozen deployment input** — the replayable snapshot DaoFlow actually queued, including Compose environment evidence, readiness gates, image overrides, and preview metadata when present.
-- **Last observed live state** — the most recent drift/runtime observation DaoFlow has for the service environment so operators can compare what was intended against what is currently running.
+- **Stored drift context** — a cached, non-authoritative record of a prior runtime observation when one exists. It is never presented as proof of what is running now.
 
 The dashboard exposes these sections directly in deployment details, and operators can copy or download the JSON artifact for debugging and recovery.
+
+## Compose Drift Containment
+
+`daoflow drift` is a read-only, team-scoped endpoint that requires `deploy:read`. In the current containment phase, DaoFlow does not connect to Docker or SSH to inspect a host. Each result therefore states whether it is a `cached-snapshot` or `unavailable`, includes `attemptedAt`, `observedAt`, `maxAgeSeconds`, and `authoritative: false`, and never reports a service as currently aligned.
+
+A cached record can still preserve a previously detected mismatch for review, but it is not current evidence. A legacy cached value that said “aligned” is returned as unavailable instead. The later live phase will require strict SSH identity verification and DaoFlow-owned resource selection before it can collect narrowly formatted runtime fields. It will persist normalized diffs and safe evidence identifiers only—never raw `docker inspect` output, environment values, or credentials.
 
 ## Deployment Sources
 

@@ -2,9 +2,9 @@ import { eq } from "drizzle-orm";
 import { db } from "../db/connection";
 import { deployments } from "../db/schema/deployments";
 import {
-  listAllContainerRegistryCredentials,
-  listContainerRegistryCredentialsByImageReferences
-} from "../db/services/container-registries";
+  listContainerRegistryCredentialsForProject,
+  listContainerRegistryCredentialsForProjectImageReferences
+} from "../db/services/container-registry-credentials";
 import {
   gitClone,
   dockerBuild,
@@ -53,7 +53,9 @@ export async function executeDockerfileDeployment(
   const buildContext = config.buildContext ?? ".";
   const tag =
     deployment.imageTag ?? `daoflow/${deployment.serviceName}:${deployment.commitSha ?? "latest"}`;
-  const registryCredentials = await listAllContainerRegistryCredentials();
+  const registryCredentials = await listContainerRegistryCredentialsForProject(
+    deployment.projectId
+  );
 
   await throwIfDeploymentCancellationRequested(deployment.id);
 
@@ -197,7 +199,10 @@ export async function executeImageDeployment(
   }
 
   await throwIfDeploymentCancellationRequested(deployment.id);
-  const registryCredentials = await listContainerRegistryCredentialsByImageReferences([tag]);
+  const registryCredentials = await listContainerRegistryCredentialsForProjectImageReferences(
+    deployment.projectId,
+    [tag]
+  );
 
   // Step 1: Pull image
   const pullStepId = await createStep(deployment.id, "Pull image", 1);

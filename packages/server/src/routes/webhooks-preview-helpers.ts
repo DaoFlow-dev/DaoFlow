@@ -62,11 +62,19 @@ export function resolvePreviewDeliveryOutcome(input: {
   queued: number;
   deduped: number;
   ignored: number;
+  approvalRequired: number;
+  blocked: number;
   failedTargets: number;
 }) {
   if (
-    (input.queued > 0 && (input.deduped > 0 || input.ignored > 0 || input.failedTargets > 0)) ||
-    (input.failedTargets > 0 && (input.deduped > 0 || input.ignored > 0))
+    (input.queued > 0 &&
+      (input.deduped > 0 ||
+        input.ignored > 0 ||
+        input.approvalRequired > 0 ||
+        input.blocked > 0 ||
+        input.failedTargets > 0)) ||
+    (input.failedTargets > 0 &&
+      (input.deduped > 0 || input.ignored > 0 || input.approvalRequired > 0 || input.blocked > 0))
   ) {
     return "mixed" as const;
   }
@@ -75,6 +83,9 @@ export function resolvePreviewDeliveryOutcome(input: {
   }
   if (input.failedTargets > 0) {
     return "failed" as const;
+  }
+  if (input.approvalRequired > 0 || input.blocked > 0) {
+    return "rejected" as const;
   }
   if (input.deduped > 0 && input.ignored === 0) {
     return "deduped" as const;

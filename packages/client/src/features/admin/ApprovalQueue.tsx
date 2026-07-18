@@ -22,6 +22,18 @@ interface ApprovalRequest {
   decidedBy: string | null;
   decidedAt: string | null;
   recommendedChecks: string[];
+  previewTrust?: {
+    providerType: "github" | "gitlab";
+    sourceRepository: string;
+    commitSha: string;
+    policy: string;
+    policyRevision: number;
+    allowedSecretProfile: string;
+    origin: {
+      repositoryRelationship: string;
+      authorAssociation: string | null;
+    };
+  } | null;
 }
 
 interface ApprovalQueueData {
@@ -173,6 +185,26 @@ export function ApprovalQueue({
                 </p>
                 <p className="mt-2 text-sm text-muted-foreground">{request.reason}</p>
                 <p className="mt-2 text-sm text-muted-foreground">{request.commandSummary}</p>
+                {request.previewTrust ? (
+                  <section
+                    className="mt-3 flex flex-col gap-1 rounded-md border border-border p-3 text-sm text-muted-foreground"
+                    data-testid={`approval-preview-binding-${request.id}`}
+                  >
+                    <p className="font-medium text-foreground">Exact preview binding</p>
+                    <p>
+                      {request.previewTrust.providerType} · {request.previewTrust.sourceRepository}
+                    </p>
+                    <p className="font-mono text-xs">{request.previewTrust.commitSha}</p>
+                    <p>
+                      Policy {request.previewTrust.policy} · revision{" "}
+                      {request.previewTrust.policyRevision}
+                    </p>
+                    <p>
+                      Origin {request.previewTrust.origin.repositoryRelationship} · secrets profile{" "}
+                      {request.previewTrust.allowedSecretProfile}
+                    </p>
+                  </section>
+                ) : null}
                 <p className="mt-2 text-sm text-muted-foreground">
                   Requested: {request.requestedAt} · Expires: {request.expiresAt}
                 </p>

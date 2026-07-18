@@ -79,7 +79,7 @@ export function DeploymentStateArtifacts({
             Runtime Transparency
           </p>
           <h4 className="text-sm font-semibold text-foreground">
-            Declared config, frozen deployment input, and last observed live state
+            Declared config, frozen deployment input, and stored drift context
           </h4>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -171,7 +171,7 @@ export function DeploymentStateArtifacts({
         >
           <div className="flex items-center gap-2">
             <RadioTower size={14} className="text-muted-foreground" />
-            <p className="text-sm font-semibold text-foreground">Last observed live state</p>
+            <p className="text-sm font-semibold text-foreground">Stored drift snapshot</p>
           </div>
           {artifacts.liveRuntime ? (
             <>
@@ -180,13 +180,21 @@ export function DeploymentStateArtifacts({
                   {artifacts.liveRuntime.statusLabel}
                 </Badge>
                 <span className="text-xs text-muted-foreground">
-                  Checked {formatDate(artifacts.liveRuntime.checkedAt)}
+                  {artifacts.liveRuntime.source === "cached-snapshot"
+                    ? "Cached snapshot"
+                    : "No live snapshot"}
                 </span>
               </div>
               <div className="space-y-1 text-sm text-muted-foreground">
                 <p data-testid={`deployment-state-live-summary-${deploymentId}`}>
                   {artifacts.liveRuntime.summary}
                 </p>
+                <p data-testid={`deployment-state-live-authority-${deploymentId}`}>
+                  Authoritative: {artifacts.liveRuntime.authoritative ? "yes" : "no"}
+                </p>
+                <p>Observed: {formatDate(artifacts.liveRuntime.observedAt)}</p>
+                <p>Attempted: {formatDate(artifacts.liveRuntime.attemptedAt)}</p>
+                <p>Snapshot max age: {artifacts.liveRuntime.maxAgeSeconds} seconds</p>
                 <p>Container state: {artifacts.liveRuntime.actualContainerState ?? "—"}</p>
                 <p>Desired image: {artifacts.liveRuntime.desiredImageReference ?? "—"}</p>
                 <p>Actual image: {artifacts.liveRuntime.actualImageReference ?? "—"}</p>
@@ -228,10 +236,10 @@ export function DeploymentStateArtifacts({
             </>
           ) : (
             <div className="space-y-2 text-sm text-muted-foreground">
-              <p>No live runtime observation is attached to this deployment yet.</p>
+              <p>No stored drift snapshot is attached to this deployment yet.</p>
               <p>
-                DaoFlow will show the last observed container state here once drift inspection data
-                is available for the service environment.
+                DaoFlow does not perform live drift inspection in this phase, so this view cannot
+                confirm runtime alignment.
               </p>
             </div>
           )}

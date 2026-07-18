@@ -6,6 +6,16 @@ sidebar_position: 3
 
 A backup run is a single execution of a backup policy.
 
+## Destination Ownership
+
+Backup destinations belong to one team. A policy can select a destination only when its volume's
+linked project or service belongs to that same team. Listing, testing, browsing, backing up,
+restoring, and retention work all resolve destination credentials through that policy team.
+
+If an older installation has backup destinations that cannot be tied to one real team, the database
+upgrade stops with a repair message instead of assigning a placeholder team. Repair the ownership
+mapping and run the upgrade again.
+
 ## Run Schema
 
 | Field          | Description                                    |

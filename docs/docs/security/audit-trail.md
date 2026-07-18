@@ -4,7 +4,7 @@ sidebar_position: 6
 
 # Audit Trail
 
-Every write operation in DaoFlow generates an immutable audit record.
+Every command-lane mutation in DaoFlow enters an enforced, append-only audit boundary before validation, authorization, or external work begins. Existing domain events remain visible alongside this command trail.
 
 ## Audit Record Schema
 
@@ -19,7 +19,7 @@ Every write operation in DaoFlow generates an immutable audit record.
 | `action`          | What happened (e.g., `deployment.created`)        |
 | `inputSummary`    | Summary of input parameters                       |
 | `permissionScope` | Scope used to authorize                           |
-| `outcome`         | `success` or `failure`                            |
+| `outcome`         | Attempt, denial, acceptance, success, or failure  |
 | `createdAt`       | Timestamp (ISO 8601)                              |
 
 ## Viewing Audit Logs
@@ -56,7 +56,16 @@ The CLI returns the same audit summary and entry feed exposed through the `audit
 - Role changes and user management
 - Backup execution and restore operations
 - Approval request creation and decisions
+- Pull-request preview origin classification, policy decisions, blocked requests, and the immutable approval binding
 - Configuration changes
+
+## Command Lifecycle
+
+Command attempts produce an intent event first. Invalid and denied commands therefore remain visible. Queued work receives a separate `accepted` event. Deployment-backed commands are then reconciled to `succeeded` or `execution_failed` from durable deployment state, and their audit events carry the deployment identifier.
+
+Terminal reconciliation is not yet complete for every asynchronous operation type. Backup, restore, and other queued work can currently remain at `accepted`; issue #208 remains open until each durable operation stores the audit attempt identifier and records its final result.
+
+If a deployment terminal outcome cannot be persisted after work may already have started, DaoFlow preserves the original command response and leaves the intent for operational maintenance to reconcile. This avoids encouraging a dangerous automatic retry.
 
 ## Retention
 
@@ -66,7 +75,7 @@ Request/access logs use their own retention window and can be pruned by operatio
 
 ## Security Rules
 
-- Audit records are append-only (never modified or deleted)
+- Immutable command audit records are protected from update and delete by PostgreSQL
 - No secrets appear in audit input summaries
 - No shell commands echoed with raw credentials
 - No silent privilege escalation without event emission

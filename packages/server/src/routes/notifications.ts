@@ -6,7 +6,7 @@
  * plus notification channel CRUD and preference management.
  */
 import { z } from "zod";
-import { t, protectedProcedure } from "../trpc";
+import { t, protectedProcedure, userWriteProcedure } from "../trpc";
 import {
   createNotificationChannel,
   deleteNotificationChannel,
@@ -25,7 +25,7 @@ import {
 } from "../db/services/notifications";
 
 export const notificationRouter = t.router({
-  subscribePush: protectedProcedure
+  subscribePush: userWriteProcedure
     .input(
       z.object({
         subscription: z.object({
@@ -41,7 +41,7 @@ export const notificationRouter = t.router({
       subscribePushSubscription(ctx.session.user.id, input.subscription)
     ),
 
-  unsubscribePush: protectedProcedure
+  unsubscribePush: userWriteProcedure
     .input(z.object({ endpoint: z.string() }))
     .mutation(async ({ ctx, input }) =>
       unsubscribePushSubscription(ctx.session.user.id, input.endpoint)
@@ -53,7 +53,7 @@ export const notificationRouter = t.router({
 
   listChannels: protectedProcedure.query(async () => listNotificationChannels()),
 
-  createChannel: protectedProcedure
+  createChannel: userWriteProcedure
     .input(
       z.object({
         name: z.string().min(1).max(100),
@@ -68,11 +68,11 @@ export const notificationRouter = t.router({
     )
     .mutation(async ({ input }) => createNotificationChannel(input)),
 
-  deleteChannel: protectedProcedure
+  deleteChannel: userWriteProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ input }) => deleteNotificationChannel(input.id)),
 
-  updateChannel: protectedProcedure
+  updateChannel: userWriteProcedure
     .input(
       z.object({
         id: z.string(),
@@ -90,11 +90,11 @@ export const notificationRouter = t.router({
       return updateNotificationChannel(id, updates);
     }),
 
-  toggleChannel: protectedProcedure
+  toggleChannel: userWriteProcedure
     .input(z.object({ id: z.string(), enabled: z.boolean() }))
     .mutation(async ({ input }) => toggleNotificationChannel(input.id, input.enabled)),
 
-  testChannel: protectedProcedure
+  testChannel: userWriteProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ input }) => sendTestNotification(input.id)),
 
@@ -102,7 +102,7 @@ export const notificationRouter = t.router({
     listUserNotificationPreferences(ctx.session.user.id)
   ),
 
-  setUserPreference: protectedProcedure
+  setUserPreference: userWriteProcedure
     .input(
       z.object({
         eventType: z.string(),
@@ -126,7 +126,7 @@ export const notificationRouter = t.router({
       })
     ),
 
-  setProjectOverride: protectedProcedure
+  setProjectOverride: userWriteProcedure
     .input(
       z.object({
         projectId: z.string(),

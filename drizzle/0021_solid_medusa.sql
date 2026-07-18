@@ -1,0 +1,2 @@
+ALTER TABLE "projects" ADD COLUMN "preview_policy" varchar(40) DEFAULT 'manual-approval' NOT NULL;--> statement-breakpoint
+ALTER TABLE "projects" ADD COLUMN "preview_policy_revision" integer DEFAULT 1 NOT NULL;

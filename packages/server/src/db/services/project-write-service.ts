@@ -90,6 +90,8 @@ export async function createProject(input: CreateProjectInput) {
       defaultBranch: input.defaultBranch ?? "main",
       autoDeploy: input.autoDeploy ?? false,
       autoDeployBranch: input.autoDeployBranch ?? null,
+      previewPolicy: input.previewPolicy ?? "manual-approval",
+      previewPolicyRevision: 1,
       createdByUserId: input.requestedByUserId,
       config: mergeProjectSourceReadiness(
         configWithWebhookAutoDeploy,
@@ -127,6 +129,16 @@ export async function createProject(input: CreateProjectInput) {
   return { status: "ok" as const, project };
 }
 
+export function shouldIncrementPreviewTrustRevision(input: {
+  previewPolicyChanged: boolean;
+  sourceFieldsTouched: boolean;
+  repositoryPreparationTouched: boolean;
+}) {
+  return (
+    input.previewPolicyChanged || input.sourceFieldsTouched || input.repositoryPreparationTouched
+  );
+}
+
 export async function updateProject(input: UpdateProjectInput) {
   const existing = input.teamId
     ? await findScopedProject(input.projectId, input.teamId)
@@ -157,6 +169,7 @@ export async function updateProject(input: UpdateProjectInput) {
     input.webhookWatchedPaths !== undefined ||
     input.autoDeploy !== undefined ||
     input.autoDeployBranch !== undefined;
+  const previewPolicyTouched = input.previewPolicy !== undefined;
   const existingConfig = asRecord(existing.config);
   const composeFiles = normalizeComposeFilePaths({
     composeFiles:
@@ -252,6 +265,20 @@ export async function updateProject(input: UpdateProjectInput) {
   if (input.autoDeployBranch !== undefined) {
     updates.autoDeployBranch = input.autoDeployBranch ?? null;
   }
+  const previewPolicyChanged =
+    input.previewPolicy !== undefined && input.previewPolicy !== existing.previewPolicy;
+  if (input.previewPolicy !== undefined) {
+    updates.previewPolicy = input.previewPolicy;
+  }
+  if (
+    shouldIncrementPreviewTrustRevision({
+      previewPolicyChanged,
+      sourceFieldsTouched,
+      repositoryPreparationTouched
+    })
+  ) {
+    updates.previewPolicyRevision = existing.previewPolicyRevision + 1;
+  }
   if (
     input.description !== undefined ||
     sourceFieldsTouched ||
@@ -294,6 +321,14 @@ export async function updateProject(input: UpdateProjectInput) {
     metadata: {
       resourceType: "project",
       resourceId: input.projectId,
+      previewPolicy:
+        previewPolicyTouched && input.previewPolicy !== existing.previewPolicy
+          ? {
+              previous: existing.previewPolicy,
+              next: input.previewPolicy,
+              revision: project.previewPolicyRevision
+            }
+          : undefined,
       repositoryCredential: sanitizeRepositoryCredentialInput(input.repositoryCredential)
     }
   });

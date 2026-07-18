@@ -1855,13 +1855,58 @@ export interface DaoFlowTRPC {
   deploymentDetails: QueryProcedure<Record<string, unknown>, { deploymentId: string }>;
   composeDriftReport: QueryProcedure<
     {
-      summary: { totalServices: number; alignedServices: number; driftedServices: number };
-      services: {
+      inspection: {
+        availability: "not-implemented";
+        blockers: string[];
+        limits: { minimumIntervalSeconds: number; maxConcurrentPerServer: number };
+        collection: { composePsFormat: "json"; inspectFields: string[] };
+        persistence: { allowed: string[]; forbidden: string[] };
+      };
+      summary: {
+        totalServices: number;
+        cachedSnapshotServices: number;
+        unavailableServices: number;
+        driftedServices: number;
+        blockedServices: number;
+        reviewRequired: number;
+      };
+      reports: {
+        composeServiceId: string;
+        environmentId: string;
+        environmentName: string;
+        projectId: string;
+        projectName: string;
         serviceName: string;
-        status: string;
+        composeFilePath: string | null;
+        target: {
+          serverId: string | null;
+          serverName: string | null;
+          composeProjectName: string | null;
+        };
+        source: "cached-snapshot" | "unavailable";
+        authoritative: false;
+        attemptedAt: string | null;
+        observedAt: string | null;
+        maxAgeSeconds: number;
+        evidenceRefs: string[];
+        status: "drifted" | "blocked" | "unavailable";
         statusLabel: string;
-        summary?: string;
-        diffs?: { field: string; expected: string | null; actual: string | null }[];
+        statusTone: "running" | "failed";
+        summary: string;
+        impactSummary: string | null;
+        desiredImageReference: string | null;
+        actualImageReference: string | null;
+        desiredReplicaCount: number | null;
+        actualReplicaCount: number | null;
+        actualContainerState: string | null;
+        recommendedActions: string[];
+        diffs: {
+          id: string;
+          field: string;
+          desiredValue: string;
+          actualValue: string;
+          impact: string;
+        }[];
       }[];
     },
     { limit?: number }

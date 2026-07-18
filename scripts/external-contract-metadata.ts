@@ -58,7 +58,6 @@ addApiGroup(
     "viewer",
     "recentDeployments",
     "composeReleaseCatalog",
-    "composeDriftReport",
     "approvalQueue",
     "deploymentDetails",
     "executionQueue",
@@ -189,7 +188,13 @@ addApiGroup(
 
 addApiGroup(
   apiProcedureAccess,
-  ["composePreviews", "composePreviewReconciliation", "rollbackTargets", "deploymentDiff"],
+  [
+    "composeDriftReport",
+    "composePreviews",
+    "composePreviewReconciliation",
+    "rollbackTargets",
+    "deploymentDiff"
+  ],
   {
     auth: "authenticated",
     requiredRoles: READ_ROLES,
@@ -267,7 +272,8 @@ addApiGroup(
     "logDrains",
     "logDrainDeliveries",
     "managedSshKeys",
-    "certificateAssets"
+    "certificateAssets",
+    "serverSshHostIdentities"
   ],
   {
     auth: "authenticated",
@@ -305,7 +311,10 @@ addApiGroup(
     "detachManagedSshKeyFromServer",
     "deleteManagedSshKey",
     "createCertificateAsset",
-    "deleteCertificateAsset"
+    "deleteCertificateAsset",
+    "scanServerSshHostIdentities",
+    "approveServerSshHostIdentity",
+    "rotateServerSshHostIdentity"
   ],
   {
     auth: "authenticated",

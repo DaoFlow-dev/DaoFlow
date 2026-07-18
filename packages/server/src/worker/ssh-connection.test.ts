@@ -1,17 +1,34 @@
-import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  lstatSync,
+  mkdtempSync,
+  mkdirSync,
+  readFileSync,
+  symlinkSync,
+  writeFileSync
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { sshHostKeyFingerprint } from "./ssh-host-key-scan";
 import type { SSHTarget } from "./ssh-connection";
 
+const publicKey = "AQIDBA==";
 const target: SSHTarget = {
   serverName: "prod-eu",
   host: "example.com",
   port: 2222,
-  user: "debian"
+  user: "debian",
+  hostIdentity: {
+    teamId: "team_foundation",
+    serverId: "srv_prod_eu",
+    algorithm: "ssh-ed25519",
+    publicKey,
+    fingerprint: sshHostKeyFingerprint(publicKey)
+  }
 };
 
-const envKeys = ["SSH_CONTROL_DIR", "SSH_KEY_DIR"] as const;
+const envKeys = ["SSH_CONTROL_DIR", "SSH_KEY_DIR", "SSH_KNOWN_HOSTS_DIR"] as const;
 const originalEnv = Object.fromEntries(envKeys.map((key) => [key, process.env[key]])) as Record<
   (typeof envKeys)[number],
   string | undefined
@@ -38,9 +55,11 @@ function createSSHFixture() {
   const rootDir = mkdtempSync(join(tmpdir(), "daoflow-ssh-connection-"));
   const controlDir = join(rootDir, "control");
   const keyDir = join(rootDir, "keys");
-  mkdirSync(controlDir, { recursive: true });
-  mkdirSync(keyDir, { recursive: true });
-  return { controlDir, keyDir };
+  const knownHostsDir = join(rootDir, "known-hosts");
+  mkdirSync(controlDir, { recursive: true, mode: 0o700 });
+  mkdirSync(keyDir, { recursive: true, mode: 0o700 });
+  mkdirSync(knownHostsDir, { recursive: true, mode: 0o700 });
+  return { rootDir, controlDir, keyDir, knownHostsDir };
 }
 
 describe("sshArgs", () => {
@@ -48,12 +67,9 @@ describe("sshArgs", () => {
     const fixture = createSSHFixture();
     process.env.SSH_CONTROL_DIR = fixture.controlDir;
     process.env.SSH_KEY_DIR = fixture.keyDir;
+    process.env.SSH_KNOWN_HOSTS_DIR = fixture.knownHostsDir;
     writeFileSync(join(fixture.keyDir, "id_ed25519"), "test-private-key");
 
-    // Reset modules so the fresh import picks up the env vars we just set.
-    // SSH_KEY_DIR / SSH_CONTROL_DIR are captured as module-level constants
-    // on first import, so stale values from a previous test file in the same
-    // worker would make the identity-file check fail.
     vi.resetModules();
     const { sshArgs } = await loadSSHConnectionModule();
     const args = sshArgs(target);
@@ -63,16 +79,29 @@ describe("sshArgs", () => {
     expect(args).toContain("-i");
     expect(args).toContain(join(fixture.keyDir, "id_ed25519"));
     expect(args).toContain("debian@example.com");
-    expect(args).toContain("StrictHostKeyChecking=accept-new");
+    const knownHostsPath = join(
+      fixture.knownHostsDir,
+      "team_foundation",
+      "srv_prod_eu.known_hosts"
+    );
+    expect(args).toContain("StrictHostKeyChecking=yes");
+    expect(args).toContain(`UserKnownHostsFile=${knownHostsPath}`);
+    expect(args).toContain(`GlobalKnownHostsFile=${knownHostsPath}`);
+    expect(args).toContain("UpdateHostKeys=no");
+    expect(readFileSync(knownHostsPath, "utf8")).toBe(
+      `[example.com]:2222 ssh-ed25519 ${publicKey}\n`
+    );
     expect(args).toContain("BatchMode=yes");
     expect(args).toContain("ServerAliveInterval=15");
-    expect(args).toContain(`ControlPath=${join(fixture.controlDir, "%h-%p-%r")}`);
+    expect(args.some((arg) => arg.startsWith(`ControlPath=${fixture.controlDir}/cm-`))).toBe(true);
+    expect(args.find((arg) => arg.startsWith("ControlPath="))).not.toContain("example.com");
   });
 
   it("omits the identity flag when no key file is available", async () => {
     const fixture = createSSHFixture();
     process.env.SSH_CONTROL_DIR = fixture.controlDir;
     process.env.SSH_KEY_DIR = fixture.keyDir;
+    process.env.SSH_KNOWN_HOSTS_DIR = fixture.knownHostsDir;
 
     const { sshArgs } = await loadSSHConnectionModule();
     const args = sshArgs(target);
@@ -84,12 +113,14 @@ describe("sshArgs", () => {
     const firstFixture = createSSHFixture();
     process.env.SSH_CONTROL_DIR = firstFixture.controlDir;
     process.env.SSH_KEY_DIR = firstFixture.keyDir;
+    process.env.SSH_KNOWN_HOSTS_DIR = firstFixture.knownHostsDir;
 
     const { sshArgs } = await loadSSHConnectionModule();
 
     const secondFixture = createSSHFixture();
     process.env.SSH_CONTROL_DIR = secondFixture.controlDir;
     process.env.SSH_KEY_DIR = secondFixture.keyDir;
+    process.env.SSH_KNOWN_HOSTS_DIR = secondFixture.knownHostsDir;
     const keyPath = join(secondFixture.keyDir, "id_ed25519");
     writeFileSync(keyPath, "test-private-key");
 
@@ -97,7 +128,9 @@ describe("sshArgs", () => {
 
     expect(args).toContain("-i");
     expect(args).toContain(keyPath);
-    expect(args).toContain(`ControlPath=${join(secondFixture.controlDir, "%h-%p-%r")}`);
+    expect(args.some((arg) => arg.startsWith(`ControlPath=${secondFixture.controlDir}/cm-`))).toBe(
+      true
+    );
   });
 });
 
@@ -106,6 +139,7 @@ describe("scpUpload", () => {
     const fixture = createSSHFixture();
     process.env.SSH_CONTROL_DIR = fixture.controlDir;
     process.env.SSH_KEY_DIR = fixture.keyDir;
+    process.env.SSH_KNOWN_HOSTS_DIR = fixture.knownHostsDir;
     writeFileSync(join(fixture.keyDir, "id_ed25519"), "test-private-key");
 
     const spawnMock = vi.fn(() => {
@@ -140,9 +174,133 @@ describe("scpUpload", () => {
     expect(args).toContain("2222");
     expect(args).toContain("-i");
     expect(args).toContain(join(fixture.keyDir, "id_ed25519"));
-    expect(args).toContain(`ControlPath=${join(fixture.controlDir, "%h-%p-%r")}`);
+    expect(args).toContain("StrictHostKeyChecking=yes");
+    expect(args).toContain("UpdateHostKeys=no");
+    expect(args.some((arg) => arg.startsWith(`ControlPath=${fixture.controlDir}/cm-`))).toBe(true);
     expect(args).toContain("/tmp/local.tgz");
     expect(args).toContain("debian@example.com:/srv/app/local.tgz");
+  });
+
+  it("fails before spawning SCP when the approved host key data is corrupted", async () => {
+    const fixture = createSSHFixture();
+    process.env.SSH_CONTROL_DIR = fixture.controlDir;
+    process.env.SSH_KEY_DIR = fixture.keyDir;
+    process.env.SSH_KNOWN_HOSTS_DIR = fixture.knownHostsDir;
+    const spawnMock = vi.fn();
+
+    vi.doMock("node:child_process", async () => {
+      const actual =
+        await vi.importActual<typeof import("node:child_process")>("node:child_process");
+      return { ...actual, spawn: spawnMock };
+    });
+
+    const { scpUpload } = await loadSSHConnectionModule();
+    await expect(
+      scpUpload(
+        {
+          ...target,
+          hostIdentity: { ...target.hostIdentity!, fingerprint: "SHA256:not-the-key" }
+        },
+        "/tmp/local.tgz",
+        "/srv/app/local.tgz",
+        () => undefined
+      )
+    ).rejects.toThrow("fingerprint does not match");
+    expect(spawnMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("host identity guard", () => {
+  it("refuses to build SSH arguments before credentials or commands can be sent", async () => {
+    const fixture = createSSHFixture();
+    process.env.SSH_CONTROL_DIR = fixture.controlDir;
+    process.env.SSH_KEY_DIR = fixture.keyDir;
+    process.env.SSH_KNOWN_HOSTS_DIR = fixture.knownHostsDir;
+
+    const { sshArgs } = await loadSSHConnectionModule();
+    expect(() => sshArgs({ ...target, hostIdentity: undefined })).toThrow("not approved");
+  });
+
+  it("rejects an insecure trust-store directory before writing a known_hosts file", async () => {
+    const fixture = createSSHFixture();
+    process.env.SSH_CONTROL_DIR = fixture.controlDir;
+    process.env.SSH_KEY_DIR = fixture.keyDir;
+    process.env.SSH_KNOWN_HOSTS_DIR = fixture.knownHostsDir;
+    chmodSync(fixture.knownHostsDir, 0o777);
+
+    const { sshArgs } = await loadSSHConnectionModule();
+    expect(() => sshArgs(target)).toThrow("permissions 700");
+  });
+
+  it("rejects an insecure or symlinked SSH control directory", async () => {
+    const fixture = createSSHFixture();
+    process.env.SSH_KEY_DIR = fixture.keyDir;
+    process.env.SSH_KNOWN_HOSTS_DIR = fixture.knownHostsDir;
+    process.env.SSH_CONTROL_DIR = fixture.controlDir;
+    chmodSync(fixture.controlDir, 0o777);
+
+    const { sshArgs } = await loadSSHConnectionModule();
+    expect(() => sshArgs(target)).toThrow("permissions 700");
+
+    const secondFixture = createSSHFixture();
+    const linkedControlDir = join(secondFixture.controlDir, "linked");
+    symlinkSync(fixture.controlDir, linkedControlDir);
+    process.env.SSH_CONTROL_DIR = linkedControlDir;
+    process.env.SSH_KNOWN_HOSTS_DIR = secondFixture.knownHostsDir;
+    expect(() => sshArgs(target)).toThrow("not a symbolic link");
+  });
+
+  it("rejects a known_hosts symlink without changing its target", async () => {
+    const fixture = createSSHFixture();
+    process.env.SSH_CONTROL_DIR = fixture.controlDir;
+    process.env.SSH_KEY_DIR = fixture.keyDir;
+    process.env.SSH_KNOWN_HOSTS_DIR = fixture.knownHostsDir;
+    const teamDir = join(fixture.knownHostsDir, "team_foundation");
+    const victimPath = join(fixture.knownHostsDir, "victim");
+    const knownHostsPath = join(teamDir, "srv_prod_eu.known_hosts");
+    mkdirSync(teamDir, { mode: 0o700 });
+    writeFileSync(victimPath, "do-not-replace", { mode: 0o600 });
+    symlinkSync(victimPath, knownHostsPath);
+
+    const { sshArgs } = await loadSSHConnectionModule();
+    expect(() => sshArgs(target)).toThrow("not a link");
+    expect(readFileSync(victimPath, "utf8")).toBe("do-not-replace");
+  });
+});
+
+describe("temporary SSH private keys", () => {
+  it("creates a private regular file inside an owner-only directory", async () => {
+    const fixture = createSSHFixture();
+    process.env.SSH_KEY_DIR = fixture.keyDir;
+
+    const { removeSSHKey, writeSSHKey } = await loadSSHConnectionModule();
+    const keyPath = writeSSHKey("prod/eu", "test-private-key");
+    const stats = lstatSync(keyPath);
+
+    expect(keyPath.startsWith(`${fixture.keyDir}/prod_eu-`)).toBe(true);
+    expect(stats.isFile()).toBe(true);
+    expect(stats.isSymbolicLink()).toBe(false);
+    expect(stats.nlink).toBe(1);
+    expect(stats.mode & 0o777).toBe(0o600);
+    expect(readFileSync(keyPath, "utf8")).toBe("test-private-key");
+
+    removeSSHKey(keyPath);
+    expect(() => lstatSync(keyPath)).toThrow();
+  });
+
+  it("rejects insecure and symlinked private-key directories", async () => {
+    const fixture = createSSHFixture();
+    process.env.SSH_KEY_DIR = fixture.keyDir;
+    chmodSync(fixture.keyDir, 0o777);
+
+    const { writeSSHKey } = await loadSSHConnectionModule();
+    expect(() => writeSSHKey("prod", "secret")).toThrow("permissions 700");
+
+    const secondFixture = createSSHFixture();
+    const linkedKeyDir = join(secondFixture.rootDir, "linked-keys");
+    symlinkSync(fixture.keyDir, linkedKeyDir);
+    process.env.SSH_KEY_DIR = linkedKeyDir;
+    expect(() => writeSSHKey("prod", "secret")).toThrow("not a symbolic link");
   });
 });
 

@@ -1,140 +1,55 @@
-/**
- * destinations.ts — Service layer for backup destination CRUD.
- *
- * Handles create, read, update, delete, and test operations for
- * backup destinations. Secrets are stored as-is for MVP; future
- * enhancement: AES-256-GCM encryption via env-configured key.
- */
-
-import { desc, eq } from "drizzle-orm";
-import { db } from "../connection";
-import { backupDestinations, type BackupProvider } from "../schema/destinations";
-import { backupPolicies } from "../schema/storage";
-import { auditEntries } from "../schema/audit";
-import { testConnection, type DestinationConfig } from "../../worker/rclone-executor";
-import { newId as id } from "./json-helpers";
 import type { AppRole } from "@daoflow/shared";
+import { and, desc, eq } from "drizzle-orm";
+import { db } from "../connection";
+import { auditEntries } from "../schema/audit";
+import { backupDestinations } from "../schema/destinations";
+import { backupPolicies } from "../schema/storage";
+import { testConnection } from "../../worker/rclone-executor";
+import { newId as id } from "./json-helpers";
+import {
+  sanitizeOauthToken,
+  toDestinationConfig,
+  toPublicDestinationView,
+  type CreateDestinationInput,
+  type UpdateDestinationInput
+} from "./destination-shared";
 
-// ── Types ────────────────────────────────────────────────────
+export type { CreateDestinationInput, UpdateDestinationInput } from "./destination-shared";
 
-type DestinationRow = typeof backupDestinations.$inferSelect;
-
-export interface CreateDestinationInput {
-  name: string;
-  provider: BackupProvider;
-  // S3
-  accessKey?: string;
-  secretAccessKey?: string;
-  bucket?: string;
-  region?: string;
-  endpoint?: string;
-  s3Provider?: string;
-  // Rclone
-  rcloneType?: string;
-  rcloneConfig?: string;
-  rcloneRemotePath?: string;
-  // OAuth
-  oauthToken?: string;
-  // Local
-  localPath?: string;
-}
-
-export interface UpdateDestinationInput extends Partial<CreateDestinationInput> {
-  id: string;
-}
-
-// ── Helpers ──────────────────────────────────────────────────
-
-function rowToConfig(row: DestinationRow): DestinationConfig {
-  return {
-    id: row.id,
-    provider: row.provider as BackupProvider,
-    accessKey: row.accessKey,
-    secretAccessKey: row.secretAccessKey,
-    bucket: row.bucket,
-    region: row.region,
-    endpoint: row.endpoint,
-    s3Provider: row.s3Provider,
-    rcloneType: row.rcloneType,
-    rcloneConfig: row.rcloneConfig,
-    rcloneRemotePath: row.rcloneRemotePath,
-    oauthToken: row.oauthToken,
-    localPath: row.localPath
-  };
-}
-
-function sanitizeOauthToken(oauthToken: string | null | undefined): string | null | undefined {
-  if (oauthToken === undefined) {
-    return undefined;
-  }
-
-  if (oauthToken === null || oauthToken.length === 0) {
-    return null;
-  }
-
-  try {
-    return JSON.stringify(JSON.parse(oauthToken));
-  } catch {
-    throw new Error("Invalid OAuth token: must be valid JSON from 'rclone authorize'.");
-  }
-}
-
-/**
- * Mask secrets for safe display — only show last 4 chars.
- */
-function maskSecret(value: string | null): string | null {
-  if (!value || value.length < 8) return value ? "****" : null;
-  return "****" + value.slice(-4);
-}
-
-function toPublicView(row: DestinationRow) {
-  return {
-    id: row.id,
-    name: row.name,
-    provider: row.provider,
-    // S3 — masked secrets
-    accessKey: maskSecret(row.accessKey),
-    bucket: row.bucket,
-    region: row.region,
-    endpoint: row.endpoint,
-    s3Provider: row.s3Provider,
-    // Rclone
-    rcloneType: row.rcloneType,
-    rcloneRemotePath: row.rcloneRemotePath,
-    // Local
-    localPath: row.localPath,
-    // Status
-    lastTestedAt: row.lastTestedAt?.toISOString() ?? null,
-    lastTestResult: row.lastTestResult,
-    createdAt: row.createdAt.toISOString(),
-    updatedAt: row.updatedAt.toISOString()
-  };
-}
-
-// ── CRUD Operations ──────────────────────────────────────────
-
-export async function listDestinations(limit = 50) {
+export async function listDestinations(teamId: string, limit = 50) {
   const rows = await db
     .select()
     .from(backupDestinations)
+    .where(eq(backupDestinations.teamId, teamId))
     .orderBy(desc(backupDestinations.createdAt))
     .limit(limit);
 
-  return rows.map(toPublicView);
+  return rows.map(toPublicDestinationView);
 }
 
-export async function getDestination(destinationId: string) {
+export async function getDestination(destinationId: string, teamId: string) {
   const [row] = await db
     .select()
     .from(backupDestinations)
-    .where(eq(backupDestinations.id, destinationId))
+    .where(and(eq(backupDestinations.id, destinationId), eq(backupDestinations.teamId, teamId)))
     .limit(1);
 
-  return row ? toPublicView(row) : null;
+  return row ? toPublicDestinationView(row) : null;
+}
+
+export async function getDestinationConfig(destinationId: string, teamId: string) {
+  const [row] = await db
+    .select()
+    .from(backupDestinations)
+    .where(and(eq(backupDestinations.id, destinationId), eq(backupDestinations.teamId, teamId)))
+    .limit(1);
+
+  return row ? toDestinationConfig(row) : null;
 }
 
 export async function createDestination(
   input: CreateDestinationInput,
+  teamId: string,
   userId: string,
   email: string,
   role: AppRole
@@ -142,11 +57,11 @@ export async function createDestination(
   const destId = id();
   const now = new Date();
   const sanitizedOauthToken = sanitizeOauthToken(input.oauthToken) ?? null;
-
   const [row] = await db
     .insert(backupDestinations)
     .values({
       id: destId,
+      teamId,
       name: input.name,
       provider: input.provider,
       accessKey: input.accessKey ?? null,
@@ -165,93 +80,81 @@ export async function createDestination(
     })
     .returning();
 
-  await db.insert(auditEntries).values({
-    actorType: "user",
-    actorId: userId,
-    actorEmail: email,
-    actorRole: role,
-    targetResource: `backup-destination/${destId}`,
+  await writeDestinationAudit({
+    userId,
+    email,
+    role,
+    destinationId: destId,
     action: "destination.create",
-    inputSummary: `Created backup destination "${input.name}" (${input.provider}).`,
-    permissionScope: "backup:run",
-    outcome: "success",
-    metadata: {
-      resourceType: "backup-destination",
-      resourceId: destId,
-      resourceLabel: input.name,
-      detail: `Provider: ${input.provider}`
-    }
+    row
   });
-
-  return toPublicView(row);
+  return toPublicDestinationView(row);
 }
 
 export async function updateDestination(
   input: UpdateDestinationInput,
+  teamId: string,
   userId: string,
   email: string,
   role: AppRole
 ) {
-  const now = new Date();
-  const updateData: Record<string, unknown> = { updatedAt: now };
-
-  if (input.name !== undefined) updateData.name = input.name;
-  if (input.provider !== undefined) updateData.provider = input.provider;
-  if (input.accessKey !== undefined) updateData.accessKey = input.accessKey;
-  if (input.secretAccessKey !== undefined) updateData.secretAccessKey = input.secretAccessKey;
-  if (input.bucket !== undefined) updateData.bucket = input.bucket;
-  if (input.region !== undefined) updateData.region = input.region;
-  if (input.endpoint !== undefined) updateData.endpoint = input.endpoint;
-  if (input.s3Provider !== undefined) updateData.s3Provider = input.s3Provider;
-  if (input.rcloneType !== undefined) updateData.rcloneType = input.rcloneType;
-  if (input.rcloneConfig !== undefined) updateData.rcloneConfig = input.rcloneConfig;
-  if (input.rcloneRemotePath !== undefined) updateData.rcloneRemotePath = input.rcloneRemotePath;
+  const updateData: Record<string, unknown> = { updatedAt: new Date() };
+  for (const key of [
+    "name",
+    "provider",
+    "accessKey",
+    "secretAccessKey",
+    "bucket",
+    "region",
+    "endpoint",
+    "s3Provider",
+    "rcloneType",
+    "rcloneConfig",
+    "rcloneRemotePath",
+    "localPath"
+  ] as const) {
+    if (input[key] !== undefined) updateData[key] = input[key];
+  }
   if (input.oauthToken !== undefined) updateData.oauthToken = sanitizeOauthToken(input.oauthToken);
-  if (input.localPath !== undefined) updateData.localPath = input.localPath;
 
   const [row] = await db
     .update(backupDestinations)
     .set(updateData)
-    .where(eq(backupDestinations.id, input.id))
+    .where(and(eq(backupDestinations.id, input.id), eq(backupDestinations.teamId, teamId)))
     .returning();
-
   if (!row) return null;
 
-  await db.insert(auditEntries).values({
-    actorType: "user",
-    actorId: userId,
-    actorEmail: email,
-    actorRole: role,
-    targetResource: `backup-destination/${input.id}`,
+  await writeDestinationAudit({
+    userId,
+    email,
+    role,
+    destinationId: input.id,
     action: "destination.update",
-    inputSummary: `Updated backup destination "${row.name}".`,
-    permissionScope: "backup:run",
-    outcome: "success",
-    metadata: {
-      resourceType: "backup-destination",
-      resourceId: input.id,
-      resourceLabel: row.name,
-      detail: `Provider: ${row.provider}`
-    }
+    row
   });
-
-  return toPublicView(row);
+  return toPublicDestinationView(row);
 }
 
 export async function deleteDestination(
   destinationId: string,
+  teamId: string,
   userId: string,
   email: string,
   role: AppRole
 ) {
-  // Check if any policies reference this destination
-  const linkedPolicies = await db
+  const [destination] = await db
+    .select({ id: backupDestinations.id })
+    .from(backupDestinations)
+    .where(and(eq(backupDestinations.id, destinationId), eq(backupDestinations.teamId, teamId)))
+    .limit(1);
+  if (!destination) return { deleted: false, error: "Destination not found." };
+
+  const [linkedPolicy] = await db
     .select({ id: backupPolicies.id })
     .from(backupPolicies)
     .where(eq(backupPolicies.destinationId, destinationId))
     .limit(1);
-
-  if (linkedPolicies.length > 0) {
+  if (linkedPolicy) {
     return {
       deleted: false,
       error: "Cannot delete: destination is used by one or more backup policies."
@@ -260,60 +163,64 @@ export async function deleteDestination(
 
   const [deleted] = await db
     .delete(backupDestinations)
-    .where(eq(backupDestinations.id, destinationId))
+    .where(and(eq(backupDestinations.id, destinationId), eq(backupDestinations.teamId, teamId)))
     .returning();
-
   if (!deleted) return { deleted: false, error: "Destination not found." };
 
+  await writeDestinationAudit({
+    userId,
+    email,
+    role,
+    destinationId,
+    action: "destination.delete",
+    row: deleted
+  });
+  return { deleted: true, error: null };
+}
+
+export async function testDestinationConnection(destinationId: string, teamId: string) {
+  const config = await getDestinationConfig(destinationId, teamId);
+  if (!config) return { success: false, error: "Destination not found." };
+
+  const result = testConnection(config);
+  await db
+    .update(backupDestinations)
+    .set({
+      lastTestedAt: new Date(),
+      lastTestResult: result.success ? "success" : "failed",
+      updatedAt: new Date()
+    })
+    .where(and(eq(backupDestinations.id, destinationId), eq(backupDestinations.teamId, teamId)));
+
+  return { success: result.success, output: result.output, error: result.error ?? null };
+}
+
+async function writeDestinationAudit(input: {
+  userId: string;
+  email: string;
+  role: AppRole;
+  destinationId: string;
+  action: "destination.create" | "destination.update" | "destination.delete";
+  row: typeof backupDestinations.$inferSelect;
+}) {
+  const verb = input.action.split(".")[1];
   await db.insert(auditEntries).values({
     actorType: "user",
-    actorId: userId,
-    actorEmail: email,
-    actorRole: role,
-    targetResource: `backup-destination/${destinationId}`,
-    action: "destination.delete",
-    inputSummary: `Deleted backup destination "${deleted.name}".`,
+    actorId: input.userId,
+    actorEmail: input.email,
+    actorRole: input.role,
+    organizationId: input.row.teamId,
+    targetResource: `backup-destination/${input.destinationId}`,
+    action: input.action,
+    inputSummary: `${verb[0]?.toUpperCase()}${verb.slice(1)}d backup destination "${input.row.name}".`,
     permissionScope: "backup:run",
     outcome: "success",
     metadata: {
       resourceType: "backup-destination",
-      resourceId: destinationId,
-      resourceLabel: deleted.name,
-      detail: `Provider: ${deleted.provider}`
+      resourceId: input.destinationId,
+      resourceLabel: input.row.name,
+      detail: `Provider: ${input.row.provider}`,
+      teamId: input.row.teamId
     }
   });
-
-  return { deleted: true, error: null };
-}
-
-// ── Test Connection ──────────────────────────────────────────
-
-export async function testDestinationConnection(destinationId: string) {
-  const [row] = await db
-    .select()
-    .from(backupDestinations)
-    .where(eq(backupDestinations.id, destinationId))
-    .limit(1);
-
-  if (!row) return { success: false, error: "Destination not found." };
-
-  const config = rowToConfig(row);
-  const result = testConnection(config);
-  const now = new Date();
-
-  // Update test result in DB
-  await db
-    .update(backupDestinations)
-    .set({
-      lastTestedAt: now,
-      lastTestResult: result.success ? "success" : "failed",
-      updatedAt: now
-    })
-    .where(eq(backupDestinations.id, destinationId));
-
-  return {
-    success: result.success,
-    output: result.output,
-    error: result.error ?? null
-  };
 }

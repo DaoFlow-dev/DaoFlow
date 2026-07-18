@@ -1,4 +1,5 @@
 import { mkdirSync } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
@@ -8,7 +9,11 @@ const testDatabaseUrl = resolveTestDatabaseUrl();
 process.env.TEST_DATABASE_URL = testDatabaseUrl;
 process.env.DATABASE_URL = testDatabaseUrl;
 process.env.NODE_ENV = "test";
-mkdirSync(path.resolve(path.dirname(fileURLToPath(import.meta.url)), "coverage/.tmp"), {
+const packageDirectory = path.dirname(fileURLToPath(import.meta.url));
+const coverageReportsDirectory = process.env.VITEST_COVERAGE_DIR
+  ? path.resolve(process.env.VITEST_COVERAGE_DIR)
+  : path.join(tmpdir(), `daoflow-server-coverage-${process.pid}`);
+mkdirSync(path.join(coverageReportsDirectory, ".tmp"), {
   recursive: true
 });
 
@@ -28,7 +33,7 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       reporter: ["text", "lcov"],
-      reportsDirectory: "./coverage",
+      reportsDirectory: coverageReportsDirectory,
       include: ["src/**/*.ts", "src/**/*.tsx"],
       exclude: ["src/**/*.test.ts", "src/**/*.test.tsx"]
     }

@@ -2,6 +2,7 @@ import type { DestinationConfig } from "../../rclone-executor";
 
 export interface BackupPolicyResolved {
   policyId: string;
+  teamId: string;
   policyName: string;
   volumeId: string;
   volumeName: string;

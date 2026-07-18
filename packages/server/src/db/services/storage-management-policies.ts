@@ -17,6 +17,7 @@ import {
   type UpdateBackupPolicyInput
 } from "./storage-management-shared";
 import { isTemporalEnabled } from "../../worker/temporal/temporal-config";
+import { resolveVolumeTeamId } from "./backup-resource-team";
 
 export async function createBackupPolicy(input: CreateBackupPolicyInput, actor: ActorContext) {
   const volume = await findVolume(input.volumeId);
@@ -36,6 +37,19 @@ export async function createBackupPolicy(input: CreateBackupPolicyInput, actor: 
   const destination = destinationId ? await findDestination(destinationId) : null;
   if (destinationId && !destination) {
     return { status: "not-found" as const, entity: "destination" };
+  }
+  const volumeTeamId = destination ? await resolveVolumeTeamId(volume) : null;
+  if (destination && !volumeTeamId) {
+    return {
+      status: "precondition-failed" as const,
+      message: "A backup destination requires a volume linked to a project or service team."
+    };
+  }
+  if (destination && destination.teamId !== volumeTeamId) {
+    return {
+      status: "precondition-failed" as const,
+      message: "The backup destination must belong to the volume's project team."
+    };
   }
 
   const schedule = trimOrNull(input.schedule);
@@ -135,6 +149,19 @@ export async function updateBackupPolicy(input: UpdateBackupPolicyInput, actor: 
   const destination = nextDestinationId ? await findDestination(nextDestinationId) : null;
   if (nextDestinationId && !destination) {
     return { status: "not-found" as const, entity: "destination" };
+  }
+  const volumeTeamId = destination ? await resolveVolumeTeamId(volume) : null;
+  if (destination && !volumeTeamId) {
+    return {
+      status: "precondition-failed" as const,
+      message: "A backup destination requires a volume linked to a project or service team."
+    };
+  }
+  if (destination && destination.teamId !== volumeTeamId) {
+    return {
+      status: "precondition-failed" as const,
+      message: "The backup destination must belong to the volume's project team."
+    };
   }
 
   const nextSchedule = input.schedule !== undefined ? trimOrNull(input.schedule) : current.schedule;

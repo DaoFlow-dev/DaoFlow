@@ -1,5 +1,6 @@
 import { index, integer, jsonb, pgTable, text, timestamp, varchar } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
+import { teams } from "./teams";
 
 /**
  * backup_destinations — First-class backup storage targets.
@@ -15,6 +16,9 @@ export const backupDestinations = pgTable(
   "backup_destinations",
   {
     id: varchar("id", { length: 32 }).primaryKey(),
+    teamId: varchar("team_id", { length: 32 })
+      .notNull()
+      .references(() => teams.id, { onDelete: "cascade" }),
     name: varchar("name", { length: 100 }).notNull(),
 
     // ── Provider type ──────────────────────────────────────
@@ -73,6 +77,7 @@ export const backupDestinations = pgTable(
     updatedAt: timestamp("updated_at").defaultNow().notNull()
   },
   (table) => [
+    index("backup_destinations_team_id_idx").on(table.teamId),
     index("backup_destinations_provider_idx").on(table.provider),
     index("backup_destinations_org_idx").on(table.organizationId)
   ]

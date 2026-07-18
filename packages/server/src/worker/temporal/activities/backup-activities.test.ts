@@ -9,6 +9,7 @@ afterEach(() => {
 function backupPolicyFixture(): BackupPolicyResolved {
   return {
     policyId: "bpol_test",
+    teamId: "team_test",
     policyName: "postgres-policy",
     volumeId: "vol_test",
     volumeName: "postgres-volume",

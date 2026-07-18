@@ -6,6 +6,8 @@ export interface ProjectDetailProject {
   defaultBranch: string | null;
   autoDeployBranch?: string | null;
   autoDeploy: boolean;
+  previewPolicy?: string | null;
+  previewPolicyRevision?: number | null;
   config?: unknown;
   environments?:
     | {

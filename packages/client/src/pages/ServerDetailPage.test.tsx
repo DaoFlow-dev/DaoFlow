@@ -15,6 +15,10 @@ const {
   refreshSwarmUseMutationMock,
   runUseMutationMock,
   scaleSwarmUseMutationMock,
+  serverIdentitiesUseQueryMock,
+  approveIdentityUseMutationMock,
+  rotateIdentityUseMutationMock,
+  scanIdentityUseMutationMock,
   nodeSwarmUseMutationMock,
   useSessionMock,
   useUtilsMock,
@@ -28,6 +32,10 @@ const {
   refreshSwarmUseMutationMock: vi.fn(),
   runUseMutationMock: vi.fn(),
   scaleSwarmUseMutationMock: vi.fn(),
+  serverIdentitiesUseQueryMock: vi.fn(),
+  approveIdentityUseMutationMock: vi.fn(),
+  rotateIdentityUseMutationMock: vi.fn(),
+  scanIdentityUseMutationMock: vi.fn(),
   nodeSwarmUseMutationMock: vi.fn(),
   useSessionMock: vi.fn(),
   useUtilsMock: vi.fn(),
@@ -50,7 +58,11 @@ vi.mock("../lib/trpc", () => ({
     planServerPatches: { useMutation: planUseMutationMock },
     refreshSwarmTopology: { useMutation: refreshSwarmUseMutationMock },
     updateSwarmNodeAvailability: { useMutation: nodeSwarmUseMutationMock },
-    updateSwarmServiceScale: { useMutation: scaleSwarmUseMutationMock }
+    updateSwarmServiceScale: { useMutation: scaleSwarmUseMutationMock },
+    serverSshHostIdentities: { useQuery: serverIdentitiesUseQueryMock },
+    scanServerSshHostIdentities: { useMutation: scanIdentityUseMutationMock },
+    approveServerSshHostIdentity: { useMutation: approveIdentityUseMutationMock },
+    rotateServerSshHostIdentity: { useMutation: rotateIdentityUseMutationMock }
   }
 }));
 
@@ -104,6 +116,26 @@ describe("ServerDetailPage", () => {
       }
     });
     logsUseQueryMock.mockReturnValue({ data: { logs: [] } });
+    serverIdentitiesUseQueryMock.mockReturnValue({
+      data: {
+        approved: null,
+        identities: [
+          {
+            id: "identity_1",
+            algorithm: "ssh-ed25519",
+            publicKey: "AQIDBA==",
+            fingerprint: "SHA256:fixture",
+            status: "observed",
+            observedAt: "2026-07-18T00:00:00.000Z",
+            lastObservedAt: "2026-07-18T00:00:00.000Z",
+            approvedAt: null,
+            supersededAt: null
+          }
+        ]
+      },
+      isLoading: false,
+      refetch: vi.fn()
+    });
     collectMutateAsync.mockResolvedValue({ status: "ok" });
     previewMutateAsync.mockResolvedValue({ status: "ok" });
     collectUseMutationMock.mockReturnValue({ isPending: false, mutateAsync: collectMutateAsync });
@@ -113,6 +145,9 @@ describe("ServerDetailPage", () => {
     refreshSwarmUseMutationMock.mockReturnValue({ isPending: false, mutateAsync: vi.fn() });
     nodeSwarmUseMutationMock.mockReturnValue({ isPending: false, mutateAsync: vi.fn() });
     scaleSwarmUseMutationMock.mockReturnValue({ isPending: false, mutateAsync: vi.fn() });
+    scanIdentityUseMutationMock.mockReturnValue({ isPending: false, mutateAsync: vi.fn() });
+    approveIdentityUseMutationMock.mockReturnValue({ isPending: false, mutateAsync: vi.fn() });
+    rotateIdentityUseMutationMock.mockReturnValue({ isPending: false, mutateAsync: vi.fn() });
   });
 
   it("renders server operations and runs resource checks", async () => {
@@ -188,5 +223,24 @@ describe("ServerDetailPage", () => {
       expect(screen.getByText("production-swarm · discovered · 1 nodes")).toBeVisible();
     });
     expect(screen.getByText("manager · leader · active · reachable")).toBeVisible();
+  });
+
+  it("shows observed host keys in the identity tab before approval", () => {
+    render(
+      <MemoryRouter initialEntries={["/servers/srv_1"]}>
+        <Routes>
+          <Route path="/servers/:id" element={<ServerDetailPage />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    fireEvent.click(screen.getByTestId("server-detail-identity-tab-srv_1"));
+    expect(screen.getByTestId("ssh-host-identity-panel-srv_1")).toBeVisible();
+    expect(screen.getByTestId("ssh-host-identity-unapproved-srv_1")).toHaveTextContent(
+      "Remote SSH and SCP operations are blocked."
+    );
+    expect(screen.getByTestId("ssh-host-identity-approve-identity_1")).toHaveTextContent(
+      "Approve exact key"
+    );
   });
 });

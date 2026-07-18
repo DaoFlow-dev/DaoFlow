@@ -7,21 +7,10 @@ import {
 } from "../db/services/backup-team-lists";
 import { listServiceBackupWorkflowForTeam } from "../db/services/service-backup-workflows";
 import { getBackupRunDetails } from "../db/services/backup-run-details";
-import { resolveTeamIdForUser } from "../db/services/teams";
 import { backupReadProcedure, t, volumesReadProcedure } from "../trpc";
 import { limitInput } from "../schemas";
 import { assertBackupRunScope } from "./backup-scope";
-
-async function requireTeamId(userId: string) {
-  const teamId = await resolveTeamIdForUser(userId);
-  if (!teamId) {
-    throw new TRPCError({
-      code: "PRECONDITION_FAILED",
-      message: "No organization is available for this user."
-    });
-  }
-  return teamId;
-}
+import { requireActorTeamId } from "./team-scope";
 
 export const backupReadRouter = t.router({
   backupOverview: backupReadProcedure
@@ -31,7 +20,7 @@ export const backupReadRouter = t.router({
       })
     )
     .query(async ({ ctx, input }) => {
-      const teamId = await requireTeamId(ctx.session.user.id);
+      const teamId = await requireActorTeamId(ctx.session.user.id);
       if (input.serviceId) {
         const workflow = await listServiceBackupWorkflowForTeam({
           serviceId: input.serviceId,
@@ -64,7 +53,7 @@ export const backupReadRouter = t.router({
       })
     )
     .query(async ({ ctx, input }) => {
-      const teamId = await requireTeamId(ctx.session.user.id);
+      const teamId = await requireActorTeamId(ctx.session.user.id);
       if (input.serviceId) {
         const workflow = await listServiceBackupWorkflowForTeam({
           serviceId: input.serviceId,
@@ -116,7 +105,7 @@ export const backupReadRouter = t.router({
       })
     )
     .query(async ({ ctx, input }) => {
-      const teamId = await requireTeamId(ctx.session.user.id);
+      const teamId = await requireActorTeamId(ctx.session.user.id);
       if (input.serviceId) {
         const workflow = await listServiceBackupWorkflowForTeam({
           serviceId: input.serviceId,
@@ -160,7 +149,7 @@ export const backupReadRouter = t.router({
       })
     )
     .query(async ({ ctx, input }) => {
-      const teamId = await requireTeamId(ctx.session.user.id);
+      const teamId = await requireActorTeamId(ctx.session.user.id);
       const workflow = await listServiceBackupWorkflowForTeam({
         serviceId: input.serviceId,
         teamId,

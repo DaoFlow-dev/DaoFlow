@@ -60,6 +60,7 @@ async function createServerFixture() {
     id,
     name: `storage-${id}`,
     host: `${id}.test`,
+    teamId: "team_foundation",
     sshPort: 22,
     kind: "docker-engine",
     status: "ready",
@@ -171,11 +172,13 @@ describe("storage-management", () => {
 
   it("creates a backup policy, starts the schedule workflow, and marks the volume protected", async () => {
     const serverId = await createServerFixture();
+    const service = await createServiceFixture(serverId);
     const volumeResult = await createVolume(
       {
         name: "redis-data",
         serverId,
-        mountPath: "/data"
+        mountPath: "/data",
+        serviceId: service.serviceId
       },
       actor
     );
@@ -189,6 +192,7 @@ describe("storage-management", () => {
         provider: "local",
         localPath: "/tmp/daoflow-backups"
       },
+      "team_foundation",
       actor.userId,
       actor.email,
       actor.role

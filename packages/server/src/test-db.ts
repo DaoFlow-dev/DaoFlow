@@ -26,7 +26,7 @@ import { resetAuthState } from "./auth";
 
 const { Client } = pg;
 const TEST_DB_PREPARE_LOCK_ID = 8_705_231;
-const MIN_EXPECTED_PUBLIC_TABLES = 43;
+const MIN_EXPECTED_PUBLIC_TABLES = 44;
 
 let prepared = false;
 let preparePromise: Promise<string> | null = null;
@@ -88,6 +88,12 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
       tableCount: number;
       users: string | null;
       teams: string | null;
+      backupDestinationsTeamId: string | null;
+      containerRegistriesTeamId: string | null;
+      backupDestinationsTeamIndex: string | null;
+      containerRegistriesTeamIndex: string | null;
+      containerRegistriesNameTeamIndex: string | null;
+      containerRegistriesHostTeamIndex: string | null;
       projects: string | null;
       environments: string | null;
       services: string | null;
@@ -105,6 +111,7 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
       logDrains: string | null;
       logDrainsTeamId: string | null;
       managedSshKeys: string | null;
+      sshHostIdentities: string | null;
       certificateAssets: string | null;
       certificateAssetsIssuer: string | null;
       approvalRequestsRequestedByRole: string | null;
@@ -119,11 +126,22 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
       apiTokensLastFailureAt: string | null;
       apiTokensLastFailureCode: string | null;
       apiTokensLastFailureIp: string | null;
+      projectsPreviewPolicy: string | null;
+      projectsPreviewPolicyRevision: string | null;
+      auditEntriesImmutableGuard: string | null;
+      auditCommandAcceptanceIndex: string | null;
+      approvalRequestsBindingKey: string | null;
     }>(`
       SELECT
         (SELECT count(*)::int FROM pg_tables WHERE schemaname = 'public') AS "tableCount",
         to_regclass('public.users') AS "users",
         to_regclass('public.teams') AS "teams",
+        (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'backup_destinations' AND column_name = 'team_id') AS "backupDestinationsTeamId",
+        (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'container_registries' AND column_name = 'team_id') AS "containerRegistriesTeamId",
+        (SELECT indexname FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'backup_destinations_team_id_idx') AS "backupDestinationsTeamIndex",
+        (SELECT indexname FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'container_registries_team_id_idx') AS "containerRegistriesTeamIndex",
+        (SELECT indexname FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'container_registries_name_team_idx') AS "containerRegistriesNameTeamIndex",
+        (SELECT indexname FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'container_registries_host_team_idx') AS "containerRegistriesHostTeamIndex",
         to_regclass('public.projects') AS "projects",
         to_regclass('public.environments') AS "environments",
         to_regclass('public.services') AS "services",
@@ -141,6 +159,7 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
         to_regclass('public.log_drains') AS "logDrains",
         (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'log_drains' AND column_name = 'team_id') AS "logDrainsTeamId",
         to_regclass('public.managed_ssh_keys') AS "managedSshKeys",
+        to_regclass('public.ssh_host_identities') AS "sshHostIdentities",
         to_regclass('public.certificate_assets') AS "certificateAssets",
         (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'certificate_assets' AND column_name = 'issuer') AS "certificateAssetsIssuer",
         (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'approval_requests' AND column_name = 'requested_by_role') AS "approvalRequestsRequestedByRole",
@@ -154,7 +173,12 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
         (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'api_tokens' AND column_name = 'last_used_user_agent') AS "apiTokensLastUsedUserAgent",
         (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'api_tokens' AND column_name = 'last_failure_at') AS "apiTokensLastFailureAt",
         (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'api_tokens' AND column_name = 'last_failure_code') AS "apiTokensLastFailureCode",
-        (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'api_tokens' AND column_name = 'last_failure_ip') AS "apiTokensLastFailureIp"
+        (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'api_tokens' AND column_name = 'last_failure_ip') AS "apiTokensLastFailureIp",
+        (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'projects' AND column_name = 'preview_policy') AS "projectsPreviewPolicy",
+        (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'projects' AND column_name = 'preview_policy_revision') AS "projectsPreviewPolicyRevision",
+        (SELECT tgname FROM pg_trigger WHERE tgname = 'audit_entries_immutable_guard' AND NOT tgisinternal) AS "auditEntriesImmutableGuard",
+        (SELECT indexname FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'audit_command_acceptance_attempt_unique') AS "auditCommandAcceptanceIndex",
+        (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'approval_requests' AND column_name = 'binding_key') AS "approvalRequestsBindingKey"
     `);
     const row = result.rows[0];
     return Boolean(
@@ -162,6 +186,12 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
       row.tableCount >= MIN_EXPECTED_PUBLIC_TABLES &&
       row.users &&
       row.teams &&
+      row.backupDestinationsTeamId &&
+      row.containerRegistriesTeamId &&
+      row.backupDestinationsTeamIndex &&
+      row.containerRegistriesTeamIndex &&
+      row.containerRegistriesNameTeamIndex &&
+      row.containerRegistriesHostTeamIndex &&
       row.projects &&
       row.environments &&
       row.services &&
@@ -179,6 +209,7 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
       row.logDrains &&
       row.logDrainsTeamId &&
       row.managedSshKeys &&
+      row.sshHostIdentities &&
       row.certificateAssets &&
       row.certificateAssetsIssuer &&
       row.approvalRequestsRequestedByRole &&
@@ -192,7 +223,12 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
       row.apiTokensLastUsedUserAgent &&
       row.apiTokensLastFailureAt &&
       row.apiTokensLastFailureCode &&
-      row.apiTokensLastFailureIp
+      row.apiTokensLastFailureIp &&
+      row.projectsPreviewPolicy &&
+      row.projectsPreviewPolicyRevision &&
+      row.auditEntriesImmutableGuard &&
+      row.auditCommandAcceptanceIndex &&
+      row.approvalRequestsBindingKey
     );
   } finally {
     await client.end();
@@ -233,6 +269,12 @@ async function readPoolSchemaState() {
     tableCount: number;
     users: string | null;
     teams: string | null;
+    backupDestinationsTeamId: string | null;
+    containerRegistriesTeamId: string | null;
+    backupDestinationsTeamIndex: string | null;
+    containerRegistriesTeamIndex: string | null;
+    containerRegistriesNameTeamIndex: string | null;
+    containerRegistriesHostTeamIndex: string | null;
     projects: string | null;
     environments: string | null;
     services: string | null;
@@ -249,6 +291,8 @@ async function readPoolSchemaState() {
     serversTeamId: string | null;
     logDrains: string | null;
     logDrainsTeamId: string | null;
+    managedSshKeys: string | null;
+    sshHostIdentities: string | null;
     approvalRequestsRequestedByRole: string | null;
     approvalRequestsInputSummary: string | null;
     requestAccessLogs: string | null;
@@ -261,12 +305,23 @@ async function readPoolSchemaState() {
     apiTokensLastFailureAt: string | null;
     apiTokensLastFailureCode: string | null;
     apiTokensLastFailureIp: string | null;
+    projectsPreviewPolicy: string | null;
+    projectsPreviewPolicyRevision: string | null;
+    auditEntriesImmutableGuard: string | null;
+    auditCommandAcceptanceIndex: string | null;
+    approvalRequestsBindingKey: string | null;
   }>(`
     SELECT
       current_database() AS "databaseName",
       (SELECT count(*)::int FROM pg_tables WHERE schemaname = 'public') AS "tableCount",
       to_regclass('public.users') AS "users",
       to_regclass('public.teams') AS "teams",
+      (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'backup_destinations' AND column_name = 'team_id') AS "backupDestinationsTeamId",
+      (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'container_registries' AND column_name = 'team_id') AS "containerRegistriesTeamId",
+      (SELECT indexname FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'backup_destinations_team_id_idx') AS "backupDestinationsTeamIndex",
+      (SELECT indexname FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'container_registries_team_id_idx') AS "containerRegistriesTeamIndex",
+      (SELECT indexname FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'container_registries_name_team_idx') AS "containerRegistriesNameTeamIndex",
+      (SELECT indexname FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'container_registries_host_team_idx') AS "containerRegistriesHostTeamIndex",
       to_regclass('public.projects') AS "projects",
       to_regclass('public.environments') AS "environments",
       to_regclass('public.services') AS "services",
@@ -283,6 +338,8 @@ async function readPoolSchemaState() {
       (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'servers' AND column_name = 'team_id') AS "serversTeamId",
       to_regclass('public.log_drains') AS "logDrains",
       (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'log_drains' AND column_name = 'team_id') AS "logDrainsTeamId",
+      to_regclass('public.managed_ssh_keys') AS "managedSshKeys",
+      to_regclass('public.ssh_host_identities') AS "sshHostIdentities",
       (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'approval_requests' AND column_name = 'requested_by_role') AS "approvalRequestsRequestedByRole",
       (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'approval_requests' AND column_name = 'input_summary') AS "approvalRequestsInputSummary",
       to_regclass('public.request_access_logs') AS "requestAccessLogs",
@@ -294,7 +351,12 @@ async function readPoolSchemaState() {
       (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'api_tokens' AND column_name = 'last_used_user_agent') AS "apiTokensLastUsedUserAgent",
       (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'api_tokens' AND column_name = 'last_failure_at') AS "apiTokensLastFailureAt",
       (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'api_tokens' AND column_name = 'last_failure_code') AS "apiTokensLastFailureCode",
-      (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'api_tokens' AND column_name = 'last_failure_ip') AS "apiTokensLastFailureIp"
+      (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'api_tokens' AND column_name = 'last_failure_ip') AS "apiTokensLastFailureIp",
+      (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'projects' AND column_name = 'preview_policy') AS "projectsPreviewPolicy",
+      (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'projects' AND column_name = 'preview_policy_revision') AS "projectsPreviewPolicyRevision",
+      (SELECT tgname FROM pg_trigger WHERE tgname = 'audit_entries_immutable_guard' AND NOT tgisinternal) AS "auditEntriesImmutableGuard",
+      (SELECT indexname FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'audit_command_acceptance_attempt_unique') AS "auditCommandAcceptanceIndex",
+      (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'approval_requests' AND column_name = 'binding_key') AS "approvalRequestsBindingKey"
   `);
 
   return result.rows[0];
@@ -315,6 +377,12 @@ async function ensurePooledTestSchemaReady(connectionString: string) {
         state.tableCount >= MIN_EXPECTED_PUBLIC_TABLES &&
         state.users &&
         state.teams &&
+        state.backupDestinationsTeamId &&
+        state.containerRegistriesTeamId &&
+        state.backupDestinationsTeamIndex &&
+        state.containerRegistriesTeamIndex &&
+        state.containerRegistriesNameTeamIndex &&
+        state.containerRegistriesHostTeamIndex &&
         state.projects &&
         state.environments &&
         state.services &&
@@ -331,6 +399,8 @@ async function ensurePooledTestSchemaReady(connectionString: string) {
         state.serversTeamId &&
         state.logDrains &&
         state.logDrainsTeamId &&
+        state.managedSshKeys &&
+        state.sshHostIdentities &&
         state.approvalRequestsRequestedByRole &&
         state.approvalRequestsInputSummary &&
         state.requestAccessLogs &&
@@ -342,7 +412,12 @@ async function ensurePooledTestSchemaReady(connectionString: string) {
         state.apiTokensLastUsedUserAgent &&
         state.apiTokensLastFailureAt &&
         state.apiTokensLastFailureCode &&
-        state.apiTokensLastFailureIp
+        state.apiTokensLastFailureIp &&
+        state.projectsPreviewPolicy &&
+        state.projectsPreviewPolicyRevision &&
+        state.auditEntriesImmutableGuard &&
+        state.auditCommandAcceptanceIndex &&
+        state.approvalRequestsBindingKey
       ) {
         return;
       }
@@ -416,15 +491,19 @@ export async function resetTestDatabaseWithControlPlane() {
   await resetTestDatabase();
 
   await withTestDatabaseLock(connectionString, async () => {
+    let seeded = false;
     for (let attempt = 0; attempt < 2; attempt += 1) {
       resetControlPlaneSeedState();
       await ensureControlPlaneReady();
       if (await isControlPlaneSeedReady(connectionString)) {
-        return;
+        seeded = true;
+        break;
       }
     }
 
-    throw new Error("Control-plane seed did not become ready after resetting the test database.");
+    if (!seeded) {
+      throw new Error("Control-plane seed did not become ready after resetting the test database.");
+    }
   });
 }
 

@@ -1,4 +1,5 @@
 import type { AppRole } from "@daoflow/shared";
+import type { PreviewPolicy } from "../../preview-trust";
 import type { RepositoryCredentialInput } from "./repository-credentials";
 
 export interface CreateProjectInput {
@@ -14,6 +15,7 @@ export interface CreateProjectInput {
   defaultBranch?: string;
   autoDeploy?: boolean;
   autoDeployBranch?: string;
+  previewPolicy?: PreviewPolicy;
   webhookWatchedPaths?: string[];
   repositorySubmodules?: boolean;
   repositoryGitLfs?: boolean;
@@ -39,6 +41,7 @@ export interface UpdateProjectInput {
   defaultBranch?: string;
   autoDeploy?: boolean;
   autoDeployBranch?: string;
+  previewPolicy?: PreviewPolicy;
   webhookWatchedPaths?: string[];
   repositorySubmodules?: boolean;
   repositoryGitLfs?: boolean;

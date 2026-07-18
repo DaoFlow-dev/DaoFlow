@@ -22,6 +22,7 @@ vi.mock("../../worker/runtime-cleanup", () => {
 import { db } from "../connection";
 import { deployments } from "../schema/deployments";
 import { servers } from "../schema/servers";
+import { sshHostIdentities } from "../schema/ssh-host-identities";
 import { resetTestDatabaseWithControlPlane } from "../../test-db";
 import { createEnvironment, createProject } from "./projects";
 import { cleanupProjectRuntime } from "./project-runtime-cleanup";
@@ -112,11 +113,25 @@ describe("cleanupProjectRuntime", () => {
       name: `swarm-${suffix()}`,
       host: `swarm-${suffix()}.test`,
       region: "us-west-2",
+      teamId: "team_foundation",
       sshPort: 22,
       kind: "docker-swarm-manager",
       status: "ready",
       metadata: {},
       registeredByUserId: actor.requestedByUserId,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    });
+    await db.insert(sshHostIdentities).values({
+      id: `sshkey${suffix()}`.slice(0, 32),
+      teamId: "team_foundation",
+      serverId: swarmServerId,
+      algorithm: "ssh-ed25519",
+      publicKey: "AQIDBA==",
+      fingerprint: "SHA256:n2SnR+G5fxMfq7a0Rylsm28CAeefs8U1bmx36JtqgGo",
+      status: "approved",
+      approvedAt: new Date(),
+      approvedByUserId: actor.requestedByUserId,
       createdAt: new Date(),
       updatedAt: new Date()
     });

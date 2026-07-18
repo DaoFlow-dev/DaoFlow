@@ -40,6 +40,7 @@ export interface CreateDeploymentInput {
   requestedByUserId?: string | null;
   requestedByEmail?: string | null;
   requestedByRole?: AppRole | null;
+  commandAuditAttemptId?: string;
   trigger?: DeploymentTrigger;
   steps: readonly { label: string; detail: string }[];
   configSnapshot?: Record<string, unknown>;
@@ -74,7 +75,8 @@ export async function createDeploymentRecord(input: CreateDeploymentInput) {
       targetServerKind: server[0].kind,
       queueName: "docker-ssh",
       workerHint: `ssh://${server[0].name}/${server[0].kind}`,
-      ...(input.configSnapshot ?? {})
+      ...(input.configSnapshot ?? {}),
+      ...(input.commandAuditAttemptId ? { commandAuditAttemptId: input.commandAuditAttemptId } : {})
     },
     envVarsEncrypted: input.envVarsEncrypted ?? null,
     status: "queued",

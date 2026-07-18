@@ -13,13 +13,13 @@ export {
   execRemote,
   testSSHConnection,
   detectDockerVersion,
-  writeSSHKey,
-  removeSSHKey,
   scpUpload,
   sshArgs,
-  shellQuote,
   type SSHTarget
 } from "./ssh-connection";
+
+export { writeSSHKey, removeSSHKey } from "./ssh-key-files";
+export { shellQuote } from "./ssh-shell";
 
 export {
   remoteDockerComposePull,

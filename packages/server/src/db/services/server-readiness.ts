@@ -10,6 +10,7 @@ import {
   writeSSHKey
 } from "../../worker/ssh-executor";
 import { resolveManagedSshPrivateKey } from "./access-assets";
+import { getApprovedSshHostIdentity, toManagedSshHostIdentity } from "./ssh-host-identities";
 
 function isLocalHost(host: string): boolean {
   const normalized = host.trim().toLowerCase();
@@ -50,63 +51,79 @@ export async function verifyServerReadiness(server: typeof servers.$inferSelect)
       issues.push("Docker Compose CLI is not available on the control-plane host.");
       recommendedActions.push("Install or enable `docker compose` on the control-plane host.");
     }
-  } else if (!server.sshPrivateKeyEncrypted && !server.sshKeyId) {
-    issues.push("No SSH private key is stored for this server.");
-    recommendedActions.push(
-      "Attach a managed SSH key or add a per-server private key before deploying."
-    );
+  } else if (!server.teamId) {
+    issues.push("This server has no team-scoped SSH host identity.");
+    recommendedActions.push("Assign the server to a team and approve its SSH host key.");
   } else {
-    const privateKey = server.sshKeyId
-      ? await resolveManagedSshPrivateKey(server.sshKeyId, server.teamId ?? undefined)
-      : null;
-
-    if (!privateKey && !server.sshPrivateKeyEncrypted) {
-      issues.push("The managed SSH key linked to this server is not available.");
-      recommendedActions.push("Attach an active managed SSH key before deploying.");
-    } else {
-      const keyPath = writeSSHKey(
-        server.name,
-        privateKey ?? decrypt(server.sshPrivateKeyEncrypted!)
+    const hostIdentity = await getApprovedSshHostIdentity(server.id, server.teamId);
+    if (!hostIdentity) {
+      issues.push(
+        "SSH host identity is not approved. DaoFlow did not send credentials or commands."
       );
+      recommendedActions.push(
+        "Review the discovered SSH host key and approve the exact algorithm and fingerprint."
+      );
+    } else if (!server.sshPrivateKeyEncrypted && !server.sshKeyId) {
+      issues.push("No SSH private key is stored for this server.");
+      recommendedActions.push(
+        "Attach a managed SSH key or add a per-server private key before deploying."
+      );
+    } else {
+      const privateKey = server.sshKeyId
+        ? await resolveManagedSshPrivateKey(server.sshKeyId, server.teamId ?? undefined)
+        : null;
 
-      try {
-        const target = {
-          serverName: server.name,
-          host: server.host,
-          port: server.sshPort,
-          user: server.sshUser ?? undefined,
-          privateKeyPath: keyPath
-        };
+      if (!privateKey && !server.sshPrivateKeyEncrypted) {
+        issues.push("The managed SSH key linked to this server is not available.");
+        recommendedActions.push("Attach an active managed SSH key before deploying.");
+      } else {
+        const keyPath = writeSSHKey(
+          server.name,
+          privateKey ?? decrypt(server.sshPrivateKeyEncrypted!)
+        );
 
-        const ssh = await testSSHConnection(target, onLog);
-        sshReachable = ssh.reachable;
-        latencyMs = ssh.latencyMs;
+        try {
+          const target = {
+            serverName: server.name,
+            host: server.host,
+            port: server.sshPort,
+            user: server.sshUser ?? undefined,
+            privateKeyPath: keyPath,
+            hostIdentity: toManagedSshHostIdentity(hostIdentity)
+          };
 
-        if (!ssh.reachable) {
-          issues.push(ssh.error ?? "SSH handshake failed.");
-          recommendedActions.push(
-            "Verify the host, port, SSH user, and private key for this server."
-          );
-        } else {
-          const versions = await detectDockerVersion(target, onLog);
-          dockerVersion = versions.docker ?? null;
-          composeVersion = versions.compose ?? null;
-          dockerReachable = Boolean(dockerVersion);
-          composeReachable = Boolean(composeVersion);
+          const ssh = await testSSHConnection(target, onLog);
+          sshReachable = ssh.reachable;
+          latencyMs = ssh.latencyMs;
 
-          if (!dockerReachable) {
-            issues.push("Docker Engine is reachable over SSH, but no server version was detected.");
+          if (!ssh.reachable) {
+            issues.push(ssh.error ?? "SSH handshake failed.");
             recommendedActions.push(
-              "Install Docker Engine and confirm the SSH user can run Docker."
+              "Verify the host, port, SSH user, and private key for this server."
             );
+          } else {
+            const versions = await detectDockerVersion(target, onLog);
+            dockerVersion = versions.docker ?? null;
+            composeVersion = versions.compose ?? null;
+            dockerReachable = Boolean(dockerVersion);
+            composeReachable = Boolean(composeVersion);
+
+            if (!dockerReachable) {
+              issues.push(
+                "Docker Engine is reachable over SSH, but no server version was detected."
+              );
+              recommendedActions.push(
+                "Install Docker Engine and confirm the SSH user can run Docker."
+              );
+            }
+            if (!composeReachable) {
+              issues.push("Docker Compose is not available for the configured SSH user.");
+              recommendedActions.push("Install the Docker Compose plugin on the target server.");
+            }
           }
-          if (!composeReachable) {
-            issues.push("Docker Compose is not available for the configured SSH user.");
-            recommendedActions.push("Install the Docker Compose plugin on the target server.");
-          }
+        } finally {
+          removeSSHKey(keyPath);
         }
-      } finally {
-        removeSSHKey(keyPath);
       }
     }
   }

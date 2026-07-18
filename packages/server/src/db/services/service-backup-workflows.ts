@@ -51,7 +51,7 @@ export async function listServiceBackupWorkflowForTeam(input: {
   const [volumeRows, policyRows, destinationRows, serverRows, userRows] = await Promise.all([
     db.select().from(volumes),
     db.select().from(backupPolicies),
-    db.select().from(backupDestinations),
+    db.select().from(backupDestinations).where(eq(backupDestinations.teamId, input.teamId)),
     db.select().from(servers),
     db.select().from(users)
   ]);
