@@ -1,5 +1,12 @@
 import { describe, expect, test } from "vitest";
-import { decrypt, encrypt, resolveEncryptionKeyMaterial } from "./crypto";
+import {
+  decrypt,
+  decryptWithKeyMaterial,
+  encrypt,
+  encryptWithKeyMaterial,
+  getEncryptionKeyId,
+  resolveEncryptionKeyMaterial
+} from "./crypto";
 
 describe("crypto configuration", () => {
   test("requires a dedicated encryption key in production", () => {
@@ -40,5 +47,15 @@ describe("crypto configuration", () => {
         process.env.ENCRYPTION_KEY = originalKey;
       }
     }
+  });
+
+  test("supports explicit key material for verified rotation", () => {
+    const oldKey = "old-encryption-key-material";
+    const newKey = "new-encryption-key-material";
+    const encrypted = encryptWithKeyMaterial("rotate-me", oldKey);
+
+    expect(decryptWithKeyMaterial(encrypted, oldKey)).toBe("rotate-me");
+    expect(() => decryptWithKeyMaterial(encrypted, newKey)).toThrow();
+    expect(getEncryptionKeyId(oldKey)).not.toBe(getEncryptionKeyId(newKey));
   });
 });

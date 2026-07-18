@@ -1,5 +1,3 @@
-import type { DestinationConfig } from "../../rclone-executor";
-
 export interface BackupPolicyResolved {
   policyId: string;
   teamId: string;
@@ -24,8 +22,8 @@ export interface BackupPolicyResolved {
   serviceName?: string;
   databaseName?: string;
   databaseUser?: string;
-  databasePassword?: string;
-  destination: DestinationConfig;
+  /** Non-secret reference; credentials are loaded only by destination activities. */
+  destinationId: string;
 }
 
 export interface BackupRunResult {

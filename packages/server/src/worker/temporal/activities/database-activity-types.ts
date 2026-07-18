@@ -1,6 +1,8 @@
 export type DatabaseEngine = "postgres" | "mysql" | "mariadb" | "mongo";
 
 export interface DatabaseDumpInput {
+  /** Volume that owns database metadata. Passwords are loaded inside this activity. */
+  volumeId: string;
   /** Container name or ID to exec into */
   containerName: string;
   /** Database engine type */
@@ -9,8 +11,6 @@ export interface DatabaseDumpInput {
   databaseName?: string;
   /** Database user (default: auto-detected from container env) */
   user?: string;
-  /** Database password (default: auto-detected from container env) */
-  password?: string;
   /** Port override (default: engine default) */
   port?: number;
   /** Custom dump options (e.g., --no-owner, --schema-only) */

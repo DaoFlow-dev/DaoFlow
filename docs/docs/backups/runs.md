@@ -16,6 +16,31 @@ If an older installation has backup destinations that cannot be tied to one real
 upgrade stops with a repair message instead of assigning a placeholder team. Repair the ownership
 mapping and run the upgrade again.
 
+## Destination Credential Rotation
+
+Backup-destination credentials are stored as encrypted envelopes. The optional
+`DAOFLOW_BACKUP_DESTINATION_ENCRYPTION_KEY` is the current destination key and
+defaults to the global `ENCRYPTION_KEY`; `ENCRYPTION_KEY` remains unchanged for
+other DaoFlow secrets.
+
+For a rotation, set the new destination key and temporarily set
+`DAOFLOW_PREVIOUS_BACKUP_DESTINATION_ENCRYPTION_KEY` to the old key. Startup or
+migration-only mode verifies every envelope, re-encrypts all rows transactionally,
+and migrates and clears legacy plaintext secrets. Mixed or undecryptable state
+blocks production startup. A failed rotation commits no partial changes; before
+commit, restore the old destination key as the current destination key and remove
+the temporary previous-key setting.
+
+After startup is healthy, verify `/ready` and test every destination:
+
+```bash
+daoflow backup destination test --id <destination-id>
+```
+
+Remove the previous key only after all connection tests pass. Recovery bundles and
+database backups preserve encrypted destination state but never contain any
+encryption key; restore requires the matching key from the external secret store.
+
 ## Run Schema
 
 | Field          | Description                                    |

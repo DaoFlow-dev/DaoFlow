@@ -1,6 +1,5 @@
 import { eq } from "drizzle-orm";
 import { db } from "../../../db/connection";
-import type { BackupProvider } from "../../../db/schema/destinations";
 import { backupPolicies, volumes } from "../../../db/schema/storage";
 import { servers } from "../../../db/schema/servers";
 import { resolveTeamScopedDestinationForVolume } from "../../../db/services/backup-resource-team";
@@ -30,7 +29,7 @@ export async function resolveBackupPolicy(policyId: string): Promise<BackupPolic
     policy.destinationId
   );
   if (!destinationScope) return null;
-  const { destination: dest, teamId } = destinationScope;
+  const { destination, teamId } = destinationScope;
 
   const volumeMeta =
     volume.metadata && typeof volume.metadata === "object"
@@ -63,23 +62,6 @@ export async function resolveBackupPolicy(policyId: string): Promise<BackupPolic
     serviceName: typeof volumeMeta.serviceName === "string" ? volumeMeta.serviceName : undefined,
     databaseName: typeof volumeMeta.databaseName === "string" ? volumeMeta.databaseName : undefined,
     databaseUser: typeof volumeMeta.databaseUser === "string" ? volumeMeta.databaseUser : undefined,
-    databasePassword:
-      typeof volumeMeta.databasePassword === "string" ? volumeMeta.databasePassword : undefined,
-    destination: {
-      id: dest.id,
-      provider: dest.provider as BackupProvider,
-      accessKey: dest.accessKey,
-      secretAccessKey: dest.secretAccessKey,
-      endpoint: dest.endpoint,
-      region: dest.region,
-      bucket: dest.bucket,
-      oauthToken: dest.oauthToken,
-      rcloneConfig: dest.rcloneConfig,
-      localPath: dest.localPath,
-      encryptionMode: dest.encryptionMode,
-      encryptionPassword: dest.encryptionPassword,
-      encryptionSalt: dest.encryptionSalt,
-      filenameEncryption: dest.filenameEncryption
-    }
+    destinationId: destination.id
   };
 }

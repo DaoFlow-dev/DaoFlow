@@ -9,14 +9,15 @@
  */
 
 import { eq } from "drizzle-orm";
+import { rmSync } from "node:fs";
 import { db } from "../../../db/connection";
 import { backupPolicies, backupRestores, backupRuns, volumes } from "../../../db/schema/storage";
 import { events, auditEntries } from "../../../db/schema/audit";
-import { copyFromRemote, type DestinationConfig } from "../../rclone-executor";
-import type { BackupProvider } from "../../../db/schema/destinations";
+import { copyFromRemote } from "../../rclone-executor";
 import { newId } from "../../../db/services/json-helpers";
 import { resolveTeamScopedDestinationForVolume } from "../../../db/services/backup-resource-team";
-import { executeRestoreArtifact } from "./restore-execution";
+import { decryptDestinationForVolumeOperation } from "./destination-operation";
+import { executeRestoreArtifact, type RestoreExecutionContext } from "./restore-execution";
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -35,7 +36,9 @@ export interface RestoreResolved {
   restoreId: string;
   runId: string;
   artifactPath: string;
-  destination: DestinationConfig;
+  /** Non-secret reference; credentials are loaded only by restore activities. */
+  destinationId: string;
+  volumeId: string;
   targetPath: string;
   downloadPath: string;
   encryptionMode: string;
@@ -46,7 +49,6 @@ export interface RestoreResolved {
   containerName?: string;
   databaseName?: string;
   databaseUser?: string;
-  databasePassword?: string;
 }
 
 export interface RestoreResult {
@@ -101,16 +103,20 @@ export async function resolveRestoreContext(input: RestoreInput): Promise<Restor
     policy.destinationId
   );
   if (!destinationScope) return null;
-  const { destination: dest } = destinationScope;
+  const { destination } = destinationScope;
 
   const backupType = policy.backupType ?? "volume";
   const volumeMetadata = volume.metadata;
+  const restoreId = input.restoreId ?? newId();
   const targetPath = input.testRestore
     ? (input.targetPath ?? `/tmp/daoflow-restore/${run.id}`)
     : (input.targetPath ?? volume.mountPath);
+  const archiveEncrypted =
+    destination.encryptionMode === "archive-7z" || destination.encryptionMode === "archive-zip";
   const downloadPath =
-    backupType === "database" || input.testRestore ? `/tmp/daoflow-restore/${run.id}` : targetPath;
-  const restoreId = input.restoreId ?? newId();
+    backupType === "database" || input.testRestore || archiveEncrypted
+      ? `/tmp/daoflow-restore/${restoreId}/download`
+      : targetPath;
   const now = new Date();
 
   if (input.restoreId) {
@@ -140,33 +146,18 @@ export async function resolveRestoreContext(input: RestoreInput): Promise<Restor
     restoreId,
     runId: run.id,
     artifactPath: run.artifactPath,
-    destination: {
-      id: dest.id,
-      provider: dest.provider as BackupProvider,
-      accessKey: dest.accessKey,
-      secretAccessKey: dest.secretAccessKey,
-      endpoint: dest.endpoint,
-      region: dest.region,
-      bucket: dest.bucket,
-      oauthToken: dest.oauthToken,
-      rcloneConfig: dest.rcloneConfig,
-      localPath: dest.localPath,
-      encryptionMode: dest.encryptionMode,
-      encryptionPassword: dest.encryptionPassword,
-      encryptionSalt: dest.encryptionSalt,
-      filenameEncryption: dest.filenameEncryption
-    },
+    destinationId: destination.id,
+    volumeId: volume.id,
     targetPath,
     downloadPath,
-    encryptionMode: dest.encryptionMode,
+    encryptionMode: destination.encryptionMode,
     backupType,
     volumeName: volume.name,
     serviceName: readMetadataString(volumeMetadata, "serviceName"),
     databaseEngine: policy.databaseEngine ?? undefined,
     containerName: readMetadataString(volumeMetadata, "containerName"),
     databaseName: readMetadataString(volumeMetadata, "databaseName"),
-    databaseUser: readMetadataString(volumeMetadata, "databaseUser"),
-    databasePassword: readMetadataString(volumeMetadata, "databasePassword")
+    databaseUser: readMetadataString(volumeMetadata, "databaseUser")
   };
 }
 
@@ -180,11 +171,13 @@ export async function downloadBackupArtifact(
   ctx: RestoreResolved
 ): Promise<{ success: boolean; localPath: string; error?: string }> {
   const localPath = ctx.downloadPath;
+  const destination = await decryptDestinationForVolumeOperation({
+    volumeId: ctx.volumeId,
+    destinationId: ctx.destinationId
+  });
 
   // Synchronous rclone call wrapped for Temporal activity compatibility
-  const result = await Promise.resolve(
-    copyFromRemote(ctx.destination, ctx.artifactPath, localPath)
-  );
+  const result = await Promise.resolve(copyFromRemote(destination, ctx.artifactPath, localPath));
 
   if (!result.success) {
     return {
@@ -204,7 +197,15 @@ export async function executeRestore(
   ctx: RestoreResolved,
   download: { localPath: string }
 ): Promise<RestoreResult> {
-  const result = await executeRestoreArtifact(ctx, download.localPath);
+  const executionContext: RestoreExecutionContext = {
+    ...ctx,
+    destination: await decryptDestinationForVolumeOperation({
+      volumeId: ctx.volumeId,
+      destinationId: ctx.destinationId
+    }),
+    databasePassword: await readDatabasePassword(ctx.volumeId)
+  };
+  const result = await executeRestoreArtifact(executionContext, download.localPath);
 
   return {
     restoreId: ctx.restoreId,
@@ -212,6 +213,28 @@ export async function executeRestore(
     bytesRestored: result.bytesRestored,
     error: result.error
   };
+}
+
+export function cleanupRestoreDownload(
+  ctx: Pick<RestoreResolved, "downloadPath" | "targetPath">
+): Promise<void> {
+  if (ctx.downloadPath !== ctx.targetPath) {
+    try {
+      rmSync(ctx.downloadPath, { recursive: true, force: true });
+    } catch {
+      console.warn(`[restore] Could not clean up download path ${ctx.downloadPath}`);
+    }
+  }
+  return Promise.resolve();
+}
+
+async function readDatabasePassword(volumeId: string): Promise<string | undefined> {
+  const [volume] = await db.select().from(volumes).where(eq(volumes.id, volumeId)).limit(1);
+  if (!volume) {
+    throw new Error("Backup volume is no longer available.");
+  }
+
+  return readMetadataString(volume.metadata, "databasePassword");
 }
 
 /**

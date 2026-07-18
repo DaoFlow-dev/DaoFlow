@@ -59,11 +59,11 @@ export async function executeBackupPayload(
       }.`
     });
     const dumpResult = await executeDatabaseDump({
+      volumeId: resolved.volumeId,
       containerName: resolved.containerName ?? resolved.volumeName,
       engine: resolved.databaseEngine as "postgres" | "mysql" | "mariadb" | "mongo",
       databaseName: resolved.databaseName,
-      user: resolved.databaseUser,
-      password: resolved.databasePassword
+      user: resolved.databaseUser
     });
 
     if (!dumpResult.success) {
@@ -154,7 +154,8 @@ export async function applyRetentionAndQuota(
       retentionWeekly: resolved.retentionWeekly ?? 4,
       retentionMonthly: resolved.retentionMonthly ?? 12,
       maxBackups: resolved.maxBackups ?? 100,
-      destination: resolved.destination
+      destinationId: resolved.destinationId,
+      volumeId: resolved.volumeId
     });
 
     if (retentionResult.deletedRuns > 0) {
@@ -176,9 +177,9 @@ export async function applyRetentionAndQuota(
   }
 
   try {
-    if (resolved.destination.id) {
+    if (resolved.destinationId) {
       await checkStorageQuota({
-        destinationId: resolved.destination.id,
+        destinationId: resolved.destinationId,
         teamId: resolved.teamId
       });
     }

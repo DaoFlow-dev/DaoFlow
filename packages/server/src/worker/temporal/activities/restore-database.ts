@@ -2,9 +2,9 @@ import { spawn } from "node:child_process";
 import { createReadStream, statSync } from "node:fs";
 import { dockerCommand, withCommandPath } from "../../command-env";
 import { processRunner } from "../../process-runner";
-import type { RestoreResolved } from "./restore-activities";
+import { redactActivitySecretValue } from "./activity-secret-redaction";
 import { findLargestFile } from "./restore-files";
-import type { RestoreExecutionResult } from "./restore-execution";
+import type { RestoreExecutionContext, RestoreExecutionResult } from "./restore-execution";
 
 interface DockerRestoreCommand {
   envArgs: string[];
@@ -14,7 +14,7 @@ interface DockerRestoreCommand {
 type DatabaseEngine = "postgres" | "mysql" | "mariadb" | "mongo";
 
 export async function executeDatabaseRestore(
-  ctx: RestoreResolved,
+  ctx: RestoreExecutionContext,
   localPath: string
 ): Promise<RestoreExecutionResult> {
   try {
@@ -52,7 +52,10 @@ export async function executeDatabaseRestore(
     return {
       success: false,
       bytesRestored: 0,
-      error: err instanceof Error ? err.message : String(err)
+      error: redactActivitySecretValue(
+        err instanceof Error ? err.message : String(err),
+        ctx.databasePassword
+      )
     };
   }
 }
@@ -64,7 +67,10 @@ function normalizeDatabaseEngine(engine: string | undefined): DatabaseEngine | n
   return null;
 }
 
-function buildRestoreCommand(ctx: RestoreResolved, engine: DatabaseEngine): DockerRestoreCommand {
+function buildRestoreCommand(
+  ctx: RestoreExecutionContext,
+  engine: DatabaseEngine
+): DockerRestoreCommand {
   switch (engine) {
     case "postgres": {
       const envArgs = ctx.databasePassword ? ["-e", `PGPASSWORD=${ctx.databasePassword}`] : [];
@@ -150,7 +156,7 @@ function runDockerDatabaseRestore(
   });
 }
 
-function resolveDatabaseContainer(ctx: RestoreResolved): string | null {
+function resolveDatabaseContainer(ctx: RestoreExecutionContext): string | null {
   if (ctx.containerName) {
     return ctx.containerName;
   }

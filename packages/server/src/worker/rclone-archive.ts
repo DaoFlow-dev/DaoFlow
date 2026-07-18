@@ -1,8 +1,12 @@
 import { randomBytes } from "node:crypto";
-import { existsSync, mkdirSync } from "node:fs";
+import { existsSync, mkdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { processRunner } from "./process-runner";
+
+function redactPassword(value: string, password: string): string {
+  return password ? value.replaceAll(password, "[redacted]") : value;
+}
 
 export interface ArchiveEncryptResult {
   archivePath: string;
@@ -18,19 +22,26 @@ export function archiveEncrypt(
 ): ArchiveEncryptResult {
   const ext = mode === "archive-7z" ? "7z" : "zip";
   const archivePath = join(tmpdir(), `daoflow-backup-${randomBytes(8).toString("hex")}.${ext}`);
+  const sourceIsDirectory = existsSync(sourcePath) && statSync(sourcePath).isDirectory();
+  const archiveInput = sourceIsDirectory ? "." : sourcePath;
+  const commandOptions = {
+    timeout: 300_000,
+    stdio: ["pipe", "pipe", "pipe"] as ["pipe", "pipe", "pipe"],
+    ...(sourceIsDirectory ? { cwd: sourcePath } : {})
+  };
 
   try {
     if (mode === "archive-7z") {
       processRunner.execFileSync(
         "7z",
-        ["a", "-t7z", `-p${password}`, "-mhe=on", "-mx=5", archivePath, sourcePath],
-        { timeout: 300_000, stdio: ["pipe", "pipe", "pipe"] }
+        ["a", "-t7z", `-p${password}`, "-mhe=on", "-mx=5", archivePath, archiveInput],
+        commandOptions
       );
     } else {
       processRunner.execFileSync(
         "7z",
-        ["a", "-tzip", `-p${password}`, "-mem=AES256", "-mx=5", archivePath, sourcePath],
-        { timeout: 300_000, stdio: ["pipe", "pipe", "pipe"] }
+        ["a", "-tzip", `-p${password}`, "-mem=AES256", "-mx=5", archivePath, archiveInput],
+        commandOptions
       );
     }
     return { archivePath, originalPath: sourcePath, success: true };
@@ -39,7 +50,7 @@ export function archiveEncrypt(
       archivePath,
       originalPath: sourcePath,
       success: false,
-      error: err instanceof Error ? err.message : String(err)
+      error: redactPassword(err instanceof Error ? err.message : String(err), password)
     };
   }
 }
@@ -64,7 +75,7 @@ export function archiveDecrypt(
       archivePath,
       originalPath: outputDir,
       success: false,
-      error: err instanceof Error ? err.message : String(err)
+      error: redactPassword(err instanceof Error ? err.message : String(err), password)
     };
   }
 }

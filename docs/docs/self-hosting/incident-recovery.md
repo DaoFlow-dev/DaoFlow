@@ -48,6 +48,48 @@ If startup fails during owner bootstrap, correct the `DAOFLOW_INITIAL_ADMIN_*` v
 
 If startup fails during migration, restore from the database backup taken before upgrade or fix the schema drift before starting the app. Do not set `DAOFLOW_ALLOW_START_WITH_MIGRATION_FAILURE=true` unless you intentionally want an emergency degraded process; `/ready` remains unavailable when migrations fail.
 
+### Destination-Key Rotation Or Migration Failure
+
+Destination-key rotation does not require changing the global `ENCRYPTION_KEY`.
+Keep that key unchanged for all other DaoFlow secrets. Set
+`DAOFLOW_BACKUP_DESTINATION_ENCRYPTION_KEY` to the new destination key and
+temporarily set `DAOFLOW_PREVIOUS_BACKUP_DESTINATION_ENCRYPTION_KEY` to the old
+destination key, then run:
+
+```bash
+docker compose run --rm -e DAOFLOW_RUN_MIGRATIONS_ONLY=true daoflow
+docker compose up -d daoflow
+curl http://127.0.0.1:3000/ready
+```
+
+Startup checks every backup-destination envelope, re-encrypts it transactionally
+with the current destination key, and migrates and clears legacy plaintext
+secrets. Mixed or undecryptable state fails closed and prevents production
+startup. If migration fails before commit, no partial rotation is persisted:
+restore the old destination key as `DAOFLOW_BACKUP_DESTINATION_ENCRYPTION_KEY`
+(or unset it if it previously inherited `ENCRYPTION_KEY`), remove the temporary
+previous-key variable, and restart. Do not change `ENCRYPTION_KEY`.
+
+After `/ready` succeeds, test every destination before removing the previous
+key:
+
+```bash
+daoflow backup destination test --id <destination-id>
+```
+
+Remove `DAOFLOW_PREVIOUS_BACKUP_DESTINATION_ENCRYPTION_KEY` and restart only
+after all destination tests pass.
+
+### Recovery Bundles And Database Backups
+
+Recovery bundles and database backups contain encrypted database state or
+ciphertext only. They must never contain `ENCRYPTION_KEY`,
+`DAOFLOW_BACKUP_DESTINATION_ENCRYPTION_KEY`, or
+`DAOFLOW_PREVIOUS_BACKUP_DESTINATION_ENCRYPTION_KEY`. Keep these keys in an
+external secret store. Restoring a bundle requires the matching external keys:
+use the old destination key for state from before a successful rotation and the
+new destination key for state from after it.
+
 ## Deployments Fail Or Stall
 
 Use the deployment ID from the dashboard or CLI response:

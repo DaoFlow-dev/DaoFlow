@@ -12,7 +12,8 @@
 import { desc, eq, and } from "drizzle-orm";
 import { db } from "../../../db/connection";
 import { backupRuns } from "../../../db/schema/storage";
-import { deleteRemote, type DestinationConfig } from "../../rclone-executor";
+import { deleteRemote } from "../../rclone-executor";
+import { decryptDestinationForVolumeOperation } from "./destination-operation";
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -24,8 +25,10 @@ export interface RetentionConfig {
   maxBackups: number;
   /** If true, only list what would be deleted without acting */
   dryRun?: boolean;
-  /** rclone destination config for deleting remote artifacts */
-  destination?: DestinationConfig;
+  /** Non-secret reference for deleting remote artifacts. */
+  destinationId?: string;
+  /** Volume used to validate and decrypt the destination inside this activity. */
+  volumeId?: string;
 }
 
 export interface RetentionResult {
@@ -58,7 +61,8 @@ export async function applyRetentionPolicy(config: RetentionConfig): Promise<Ret
     retentionMonthly,
     maxBackups,
     dryRun = false,
-    destination
+    destinationId,
+    volumeId
   } = config;
 
   const result: RetentionResult = {
@@ -112,6 +116,11 @@ export async function applyRetentionPolicy(config: RetentionConfig): Promise<Ret
   const toDelete = runs.filter((r) => !keptIds.has(r.id));
   result.keptRuns = runs.length - toDelete.length;
   result.deletedRuns = toDelete.length;
+
+  const destination =
+    !dryRun && destinationId && volumeId && toDelete.some((run) => run.artifactPath)
+      ? await decryptDestinationForVolumeOperation({ volumeId, destinationId })
+      : null;
 
   for (const run of toDelete) {
     if (run.artifactPath) {

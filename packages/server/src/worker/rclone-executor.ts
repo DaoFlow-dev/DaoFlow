@@ -11,6 +11,7 @@
 
 import type { ExecFileSyncOptions } from "node:child_process";
 import { unlinkSync } from "node:fs";
+import { redactDestinationCredentialValues } from "../db/services/destination-credentials";
 import {
   normalizeExecutableFailure,
   parseRcloneLsOutput,
@@ -32,7 +33,7 @@ export interface RcloneResult {
 const DEFAULT_TIMEOUT = "30s";
 const DEFAULT_RETRIES = "2";
 
-function runRclone(configPath: string, args: string[]): RcloneResult {
+function runRclone(dest: DestinationConfig, configPath: string, args: string[]): RcloneResult {
   const rcloneArgs = [`--config=${configPath}`, ...args];
   const opts: ExecFileSyncOptions = {
     timeout: 60_000,
@@ -42,17 +43,22 @@ function runRclone(configPath: string, args: string[]): RcloneResult {
 
   try {
     const output = processRunner.execFileSync("rclone", rcloneArgs, opts) as unknown as string;
-    return { success: true, output: output ?? "", exitCode: 0 };
+    return {
+      success: true,
+      output: redactDestinationCredentialValues(output ?? "", dest),
+      exitCode: 0
+    };
   } catch (err) {
     const error = err as { status?: number; stdout?: string; stderr?: string; message?: string };
+    const rawError =
+      normalizeExecutableFailure("rclone", err, "running backup destination operations") ??
+      error.stderr ??
+      error.message ??
+      String(err);
     return {
       success: false,
-      output: error.stdout ?? "",
-      error:
-        normalizeExecutableFailure("rclone", err, "running backup destination operations") ??
-        error.stderr ??
-        error.message ??
-        String(err),
+      output: redactDestinationCredentialValues(error.stdout ?? "", dest),
+      error: redactDestinationCredentialValues(rawError, dest),
       exitCode: error.status ?? 1
     };
   }
@@ -83,7 +89,7 @@ function withRcloneConfig<T>(dest: DestinationConfig, fn: (configPath: string) =
 export function testConnection(dest: DestinationConfig): RcloneResult {
   return withRcloneConfig(dest, (configPath) => {
     const remotePath = resolveRemotePath(dest);
-    return runRclone(configPath, [
+    return runRclone(dest, configPath, [
       "lsd",
       remotePath,
       `--timeout=${DEFAULT_TIMEOUT}`,
@@ -106,7 +112,7 @@ export function copyToRemote(
   return withRcloneConfig(dest, (configPath) => {
     const useCrypt = dest.encryptionMode === "rclone-crypt";
     const remotePath = resolveRemotePath(dest, remoteSubPath, useCrypt);
-    return runRclone(configPath, [
+    return runRclone(dest, configPath, [
       "copy",
       localPath,
       remotePath,
@@ -129,7 +135,7 @@ export function copyFromRemote(
   return withRcloneConfig(dest, (configPath) => {
     const useCrypt = dest.encryptionMode === "rclone-crypt";
     const remotePath = resolveRemotePath(dest, remoteSubPath, useCrypt);
-    return runRclone(configPath, [
+    return runRclone(dest, configPath, [
       "copy",
       remotePath,
       localPath,
@@ -148,7 +154,7 @@ export function listRemote(dest: DestinationConfig, subPath?: string): RcloneRes
   return withRcloneConfig(dest, (configPath) => {
     const useCrypt = dest.encryptionMode === "rclone-crypt";
     const remotePath = resolveRemotePath(dest, subPath, useCrypt);
-    return runRclone(configPath, [
+    return runRclone(dest, configPath, [
       "ls",
       remotePath,
       `--timeout=${DEFAULT_TIMEOUT}`,
@@ -176,7 +182,7 @@ export function listRemoteJson(
   return withRcloneConfig(dest, (configPath) => {
     const useCrypt = dest.encryptionMode === "rclone-crypt";
     const remotePath = resolveRemotePath(dest, subPath, useCrypt);
-    const result = runRclone(configPath, [
+    const result = runRclone(dest, configPath, [
       "lsjson",
       remotePath,
       `--timeout=${DEFAULT_TIMEOUT}`,
@@ -220,7 +226,7 @@ export function deleteRemote(dest: DestinationConfig, subPath: string): RcloneRe
   return withRcloneConfig(dest, (configPath) => {
     const useCrypt = dest.encryptionMode === "rclone-crypt";
     const remotePath = resolveRemotePath(dest, subPath, useCrypt);
-    return runRclone(configPath, [
+    return runRclone(dest, configPath, [
       "purge",
       remotePath,
       `--timeout=${DEFAULT_TIMEOUT}`,
@@ -241,7 +247,7 @@ export function checkRemote(
   return withRcloneConfig(dest, (configPath) => {
     const useCrypt = dest.encryptionMode === "rclone-crypt";
     const remotePath = resolveRemotePath(dest, subPath, useCrypt);
-    const result = runRclone(configPath, [
+    const result = runRclone(dest, configPath, [
       "ls",
       remotePath,
       `--timeout=${DEFAULT_TIMEOUT}`,

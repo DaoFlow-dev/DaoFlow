@@ -7,12 +7,16 @@ import { backupPolicies } from "../schema/storage";
 import { testConnection } from "../../worker/rclone-executor";
 import { newId as id } from "./json-helpers";
 import {
-  sanitizeOauthToken,
+  mergeDestinationCredentials,
   toDestinationConfig,
   toPublicDestinationView,
   type CreateDestinationInput,
   type UpdateDestinationInput
 } from "./destination-shared";
+import {
+  encryptDestinationCredentials,
+  redactDestinationCredentialValues
+} from "./destination-credentials";
 
 export type { CreateDestinationInput, UpdateDestinationInput } from "./destination-shared";
 
@@ -56,7 +60,7 @@ export async function createDestination(
 ) {
   const destId = id();
   const now = new Date();
-  const sanitizedOauthToken = sanitizeOauthToken(input.oauthToken) ?? null;
+  const encryptedCredentials = encryptDestinationCredentials(input);
   const [row] = await db
     .insert(backupDestinations)
     .values({
@@ -64,16 +68,23 @@ export async function createDestination(
       teamId,
       name: input.name,
       provider: input.provider,
-      accessKey: input.accessKey ?? null,
-      secretAccessKey: input.secretAccessKey ?? null,
+      credentialsEncrypted: encryptedCredentials.credentialsEncrypted,
+      credentialEnvelopeVersion: encryptedCredentials.credentialEnvelopeVersion,
+      credentialKeyId: encryptedCredentials.credentialKeyId,
+      accessKey: null,
+      secretAccessKey: null,
       bucket: input.bucket ?? null,
       region: input.region ?? null,
       endpoint: input.endpoint ?? null,
       s3Provider: input.s3Provider ?? null,
       rcloneType: input.rcloneType ?? null,
-      rcloneConfig: input.rcloneConfig ?? null,
+      rcloneConfig: null,
       rcloneRemotePath: input.rcloneRemotePath ?? null,
-      oauthToken: sanitizedOauthToken,
+      oauthToken: null,
+      encryptionMode: input.encryptionMode,
+      encryptionPassword: null,
+      encryptionSalt: null,
+      filenameEncryption: input.filenameEncryption,
       localPath: input.localPath ?? null,
       createdAt: now,
       updatedAt: now
@@ -98,40 +109,65 @@ export async function updateDestination(
   email: string,
   role: AppRole
 ) {
-  const updateData: Record<string, unknown> = { updatedAt: new Date() };
-  for (const key of [
-    "name",
-    "provider",
-    "accessKey",
-    "secretAccessKey",
-    "bucket",
-    "region",
-    "endpoint",
-    "s3Provider",
-    "rcloneType",
-    "rcloneConfig",
-    "rcloneRemotePath",
-    "localPath"
-  ] as const) {
-    if (input[key] !== undefined) updateData[key] = input[key];
-  }
-  if (input.oauthToken !== undefined) updateData.oauthToken = sanitizeOauthToken(input.oauthToken);
+  const row = await db.transaction(async (tx) => {
+    const [existing] = await tx
+      .select()
+      .from(backupDestinations)
+      .where(and(eq(backupDestinations.id, input.id), eq(backupDestinations.teamId, teamId)))
+      .limit(1)
+      .for("update");
+    if (!existing) return null;
 
-  const [row] = await db
-    .update(backupDestinations)
-    .set(updateData)
-    .where(and(eq(backupDestinations.id, input.id), eq(backupDestinations.teamId, teamId)))
-    .returning();
+    const encryptedCredentials = encryptDestinationCredentials(
+      mergeDestinationCredentials(existing, input)
+    );
+    const updateData: Record<string, unknown> = { updatedAt: new Date() };
+    for (const key of [
+      "name",
+      "provider",
+      "bucket",
+      "region",
+      "endpoint",
+      "s3Provider",
+      "rcloneType",
+      "rcloneRemotePath",
+      "encryptionMode",
+      "filenameEncryption",
+      "localPath"
+    ] as const) {
+      if (input[key] !== undefined) updateData[key] = input[key];
+    }
+    Object.assign(updateData, encryptedCredentials, {
+      accessKey: null,
+      secretAccessKey: null,
+      oauthToken: null,
+      rcloneConfig: null,
+      encryptionPassword: null,
+      encryptionSalt: null
+    });
+
+    const [updated] = await tx
+      .update(backupDestinations)
+      .set(updateData)
+      .where(and(eq(backupDestinations.id, input.id), eq(backupDestinations.teamId, teamId)))
+      .returning();
+    if (!updated) return null;
+
+    await writeDestinationAudit(
+      {
+        userId,
+        email,
+        role,
+        destinationId: input.id,
+        action: "destination.update",
+        row: updated
+      },
+      tx
+    );
+    return updated;
+  });
   if (!row) return null;
 
-  await writeDestinationAudit({
-    userId,
-    email,
-    role,
-    destinationId: input.id,
-    action: "destination.update",
-    row
-  });
   return toPublicDestinationView(row);
 }
 
@@ -192,19 +228,29 @@ export async function testDestinationConnection(destinationId: string, teamId: s
     })
     .where(and(eq(backupDestinations.id, destinationId), eq(backupDestinations.teamId, teamId)));
 
-  return { success: result.success, output: result.output, error: result.error ?? null };
+  return {
+    success: result.success,
+    output: redactDestinationCredentialValues(result.output, config),
+    error:
+      result.error === undefined ? null : redactDestinationCredentialValues(result.error, config)
+  };
 }
 
-async function writeDestinationAudit(input: {
-  userId: string;
-  email: string;
-  role: AppRole;
-  destinationId: string;
-  action: "destination.create" | "destination.update" | "destination.delete";
-  row: typeof backupDestinations.$inferSelect;
-}) {
+type DestinationAuditDatabase = Pick<typeof db, "insert">;
+
+async function writeDestinationAudit(
+  input: {
+    userId: string;
+    email: string;
+    role: AppRole;
+    destinationId: string;
+    action: "destination.create" | "destination.update" | "destination.delete";
+    row: typeof backupDestinations.$inferSelect;
+  },
+  database: DestinationAuditDatabase = db
+) {
   const verb = input.action.split(".")[1];
-  await db.insert(auditEntries).values({
+  await database.insert(auditEntries).values({
     actorType: "user",
     actorId: input.userId,
     actorEmail: input.email,

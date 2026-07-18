@@ -28,6 +28,10 @@ export const backupDestinationCreateInputSchema = z.object({
   rcloneConfig: z.string().optional(),
   rcloneRemotePath: z.string().optional(),
   oauthToken: z.string().optional(),
+  encryptionMode: z.enum(["none", "rclone-crypt", "archive-7z", "archive-zip"]).optional(),
+  encryptionPassword: z.string().optional(),
+  encryptionSalt: z.string().optional(),
+  filenameEncryption: z.enum(["standard", "obfuscate", "off"]).optional(),
   localPath: z.string().optional()
 });
 

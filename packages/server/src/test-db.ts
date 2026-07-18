@@ -89,6 +89,8 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
       users: string | null;
       teams: string | null;
       backupDestinationsTeamId: string | null;
+      backupDestinationsCredentialsEncrypted: string | null;
+      backupDestinationsCredentialStateCheck: string | null;
       containerRegistriesTeamId: string | null;
       backupDestinationsTeamIndex: string | null;
       containerRegistriesTeamIndex: string | null;
@@ -144,6 +146,8 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
         to_regclass('public.users') AS "users",
         to_regclass('public.teams') AS "teams",
         (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'backup_destinations' AND column_name = 'team_id') AS "backupDestinationsTeamId",
+        (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'backup_destinations' AND column_name = 'credentials_encrypted') AS "backupDestinationsCredentialsEncrypted",
+        (SELECT conname FROM pg_constraint WHERE conname = 'backup_destinations_credentials_state_check') AS "backupDestinationsCredentialStateCheck",
         (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'container_registries' AND column_name = 'team_id') AS "containerRegistriesTeamId",
         (SELECT indexname FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'backup_destinations_team_id_idx') AS "backupDestinationsTeamIndex",
         (SELECT indexname FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'container_registries_team_id_idx') AS "containerRegistriesTeamIndex",
@@ -201,6 +205,8 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
       row.users &&
       row.teams &&
       row.backupDestinationsTeamId &&
+      row.backupDestinationsCredentialsEncrypted &&
+      row.backupDestinationsCredentialStateCheck &&
       row.containerRegistriesTeamId &&
       row.backupDestinationsTeamIndex &&
       row.containerRegistriesTeamIndex &&
@@ -291,6 +297,8 @@ async function readPoolSchemaState() {
     users: string | null;
     teams: string | null;
     backupDestinationsTeamId: string | null;
+    backupDestinationsCredentialsEncrypted: string | null;
+    backupDestinationsCredentialStateCheck: string | null;
     containerRegistriesTeamId: string | null;
     backupDestinationsTeamIndex: string | null;
     containerRegistriesTeamIndex: string | null;
@@ -345,6 +353,8 @@ async function readPoolSchemaState() {
       to_regclass('public.users') AS "users",
       to_regclass('public.teams') AS "teams",
       (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'backup_destinations' AND column_name = 'team_id') AS "backupDestinationsTeamId",
+      (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'backup_destinations' AND column_name = 'credentials_encrypted') AS "backupDestinationsCredentialsEncrypted",
+      (SELECT conname FROM pg_constraint WHERE conname = 'backup_destinations_credentials_state_check') AS "backupDestinationsCredentialStateCheck",
       (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'container_registries' AND column_name = 'team_id') AS "containerRegistriesTeamId",
       (SELECT indexname FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'backup_destinations_team_id_idx') AS "backupDestinationsTeamIndex",
       (SELECT indexname FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'container_registries_team_id_idx') AS "containerRegistriesTeamIndex",
@@ -413,6 +423,8 @@ async function ensurePooledTestSchemaReady(connectionString: string) {
         state.users &&
         state.teams &&
         state.backupDestinationsTeamId &&
+        state.backupDestinationsCredentialsEncrypted &&
+        state.backupDestinationsCredentialStateCheck &&
         state.containerRegistriesTeamId &&
         state.backupDestinationsTeamIndex &&
         state.containerRegistriesTeamIndex &&

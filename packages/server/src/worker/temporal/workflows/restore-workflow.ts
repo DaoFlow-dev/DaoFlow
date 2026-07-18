@@ -20,6 +20,7 @@ const {
   resolveRestoreContext,
   downloadBackupArtifact,
   executeRestore,
+  cleanupRestoreDownload,
   markRestoreSucceeded,
   markRestoreFailed,
   markBackupVerified,
@@ -182,5 +183,11 @@ export async function restoreWorkflow(input: RestoreWorkflowInput): Promise<void
     }
 
     throw err;
+  } finally {
+    try {
+      await cleanupRestoreDownload(ctx);
+    } catch {
+      // Best-effort cleanup must not replace the restore result.
+    }
   }
 }

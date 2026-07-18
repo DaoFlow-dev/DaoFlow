@@ -2,11 +2,17 @@ import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, createWriteStream, statSync, unlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { eq } from "drizzle-orm";
+import { db } from "../../../db/connection";
+import { volumes } from "../../../db/schema/storage";
 import { dockerCommand, withCommandPath } from "../../command-env";
+import { redactActivitySecretValue } from "./activity-secret-redaction";
 import type { DatabaseDumpInput, DatabaseDumpResult } from "./database-activity-types";
 import { computeChecksumStream } from "./database-file-activities";
 
 const DUMP_DIR = join(tmpdir(), "daoflow-dumps");
+
+type DatabaseDumpExecutionInput = DatabaseDumpInput & { password?: string };
 
 function ensureDumpDir(): string {
   if (!existsSync(DUMP_DIR)) {
@@ -21,9 +27,14 @@ export async function executeDatabaseDump(input: DatabaseDumpInput): Promise<Dat
   const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
   const extension = input.engine === "mongo" ? "archive" : "sql";
   const dumpFile = join(dumpDir, `${input.containerName}-${timestamp}.${extension}`);
+  let databasePassword: string | undefined;
 
   try {
-    const { dockerArgs, envArgs } = buildDockerExecArgs(input);
+    databasePassword = await readDatabasePassword(input.volumeId);
+    const { dockerArgs, envArgs } = buildDockerExecArgs({
+      ...input,
+      password: databasePassword
+    });
     const fullArgs = ["exec", ...envArgs, input.containerName, ...dockerArgs];
 
     await new Promise<void>((resolve, reject) => {
@@ -74,12 +85,15 @@ export async function executeDatabaseDump(input: DatabaseDumpInput): Promise<Dat
       sizeBytes: 0,
       checksum: "",
       durationMs: Date.now() - startTime,
-      error: err instanceof Error ? err.message : String(err)
+      error: redactActivitySecretValue(
+        err instanceof Error ? err.message : String(err),
+        databasePassword
+      )
     };
   }
 }
 
-function buildDockerExecArgs(input: DatabaseDumpInput): {
+function buildDockerExecArgs(input: DatabaseDumpExecutionInput): {
   dockerArgs: string[];
   envArgs: string[];
 } {
@@ -166,4 +180,19 @@ function buildDockerExecArgs(input: DatabaseDumpInput): {
     default:
       throw new Error(`Unsupported database engine: ${String(engine)}`);
   }
+}
+
+async function readDatabasePassword(volumeId: string): Promise<string | undefined> {
+  const [volume] = await db.select().from(volumes).where(eq(volumes.id, volumeId)).limit(1);
+  if (!volume) {
+    throw new Error("Backup volume is no longer available.");
+  }
+
+  const metadata = volume.metadata;
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
+    return undefined;
+  }
+
+  const password = (metadata as Record<string, unknown>).databasePassword;
+  return typeof password === "string" && password.length > 0 ? password : undefined;
 }

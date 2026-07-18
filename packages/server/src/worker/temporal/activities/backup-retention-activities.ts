@@ -8,6 +8,7 @@ import type {
   IntegrityCheckResult,
   StorageUsageResult
 } from "./backup-activity-types";
+import { decryptDestinationForVolumeOperation } from "./destination-operation";
 import { emitBackupEvent } from "./backup-run-recording";
 
 export async function applyRetentionPolicy(resolved: BackupPolicyResolved): Promise<number> {
@@ -26,10 +27,15 @@ export async function applyRetentionPolicy(resolved: BackupPolicyResolved): Prom
     );
 
   let purged = 0;
+  let destination: Awaited<ReturnType<typeof decryptDestinationForVolumeOperation>> | null = null;
   for (const run of oldRuns) {
     if (run.artifactPath) {
       try {
-        deleteRemote(resolved.destination, run.artifactPath);
+        destination ??= await decryptDestinationForVolumeOperation({
+          volumeId: resolved.volumeId,
+          destinationId: resolved.destinationId
+        });
+        deleteRemote(destination, run.artifactPath);
         purged++;
       } catch (err) {
         console.warn(`[backup] Failed to purge artifact ${run.artifactPath}:`, err);
@@ -47,7 +53,11 @@ export async function verifyBackupIntegrity(
   artifactPath: string,
   runId: string
 ): Promise<IntegrityCheckResult> {
-  const check = checkRemote(resolved.destination, artifactPath);
+  const destination = await decryptDestinationForVolumeOperation({
+    volumeId: resolved.volumeId,
+    destinationId: resolved.destinationId
+  });
+  const check = checkRemote(destination, artifactPath);
 
   if (check.success) {
     await db

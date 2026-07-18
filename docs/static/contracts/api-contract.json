@@ -1015,6 +1015,20 @@
           "oauthToken": {
             "type": "string"
           },
+          "encryptionMode": {
+            "type": "string",
+            "enum": ["none", "rclone-crypt", "archive-7z", "archive-zip"]
+          },
+          "encryptionPassword": {
+            "type": "string"
+          },
+          "encryptionSalt": {
+            "type": "string"
+          },
+          "filenameEncryption": {
+            "type": "string",
+            "enum": ["standard", "obfuscate", "off"]
+          },
           "localPath": {
             "type": "string"
           }
@@ -5258,6 +5272,20 @@
           },
           "oauthToken": {
             "type": "string"
+          },
+          "encryptionMode": {
+            "type": "string",
+            "enum": ["none", "rclone-crypt", "archive-7z", "archive-zip"]
+          },
+          "encryptionPassword": {
+            "type": "string"
+          },
+          "encryptionSalt": {
+            "type": "string"
+          },
+          "filenameEncryption": {
+            "type": "string",
+            "enum": ["standard", "obfuscate", "off"]
           },
           "localPath": {
             "type": "string"

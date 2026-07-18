@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { processRunner } from "./process-runner";
-import { copyToRemote, testConnection } from "./rclone-executor";
+import { archiveDecrypt, archiveEncrypt, copyToRemote, testConnection } from "./rclone-executor";
 import {
   extractConfiguredRemoteName,
   normalizeExecutableFailure,
@@ -114,5 +114,41 @@ describe("rclone executor", () => {
     expect(result.error).toBe(
       'Executable not found in $PATH: "rclone". Install rclone in the current runtime before running backup destination operations.'
     );
+  });
+
+  it("redacts destination credentials from rclone failures", () => {
+    const error = Object.assign(new Error("rclone failed with secret-key-in-error"), {
+      status: 1,
+      stdout: "access-key-in-output",
+      stderr: "secret-key-in-error"
+    });
+    vi.spyOn(processRunner, "execFileSync").mockImplementation(() => {
+      throw error;
+    });
+
+    const result = testConnection({
+      id: "dest_redacted_rclone",
+      provider: "s3",
+      accessKey: "access-key-in-output",
+      secretAccessKey: "secret-key-in-error"
+    });
+
+    expect(`${result.output}\n${result.error}`).not.toContain("access-key-in-output");
+    expect(`${result.output}\n${result.error}`).not.toContain("secret-key-in-error");
+    expect(`${result.output}\n${result.error}`).toContain("[redacted]");
+  });
+
+  it("redacts archive passwords from encryption and restore failures", () => {
+    vi.spyOn(processRunner, "execFileSync").mockImplementation(() => {
+      throw new Error("Command failed: 7z -parchive-password-secret");
+    });
+
+    const encrypted = archiveEncrypt("/tmp/source", "archive-password-secret");
+    const decrypted = archiveDecrypt("/tmp/archive.7z", "archive-password-secret", "/tmp/output");
+
+    expect(encrypted.error).toContain("[redacted]");
+    expect(decrypted.error).toContain("[redacted]");
+    expect(encrypted.error).not.toContain("archive-password-secret");
+    expect(decrypted.error).not.toContain("archive-password-secret");
   });
 });

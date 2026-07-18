@@ -8,15 +8,40 @@ Complete reference for the `.env` file consumed by the production `docker-compos
 
 ## Required In The Generated `.env`
 
-| Variable                     | Description                                | Example                      |
-| ---------------------------- | ------------------------------------------ | ---------------------------- |
-| `BETTER_AUTH_SECRET`         | Session signing secret (at least 32 chars) | `openssl rand -hex 32`       |
-| `BETTER_AUTH_URL`            | Public URL of DaoFlow instance             | `https://deploy.example.com` |
-| `ENCRYPTION_KEY`             | Secret encryption key (at least 32 chars)  | `openssl rand -hex 32`       |
-| `POSTGRES_PASSWORD`          | DaoFlow application database password      | `openssl rand -hex 16`       |
-| `TEMPORAL_POSTGRES_PASSWORD` | Temporal database password                 | `openssl rand -hex 16`       |
+| Variable                     | Description                                                                                                 | Example                      |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------- | ---------------------------- |
+| `BETTER_AUTH_SECRET`         | Session signing secret (at least 32 chars)                                                                  | `openssl rand -hex 32`       |
+| `BETTER_AUTH_URL`            | Public URL of DaoFlow instance                                                                              | `https://deploy.example.com` |
+| `ENCRYPTION_KEY`             | Global DaoFlow secret-encryption key; keep it unchanged during destination-key rotation (at least 32 chars) | `openssl rand -hex 32`       |
+| `POSTGRES_PASSWORD`          | DaoFlow application database password                                                                       | `openssl rand -hex 16`       |
+| `TEMPORAL_POSTGRES_PASSWORD` | Temporal database password                                                                                  | `openssl rand -hex 16`       |
 
 `DATABASE_URL`, `REDIS_URL`, and most container-local defaults are constructed inside the compose stack and are not normally hand-authored in this `.env` file.
+
+## Backup-Destination Encryption Keys
+
+Backup-destination credentials use `DAOFLOW_BACKUP_DESTINATION_ENCRYPTION_KEY`
+when it is set, and otherwise use the global `ENCRYPTION_KEY`.
+
+| Variable                                             | Default          | Description                                                                        |
+| ---------------------------------------------------- | ---------------- | ---------------------------------------------------------------------------------- |
+| `DAOFLOW_BACKUP_DESTINATION_ENCRYPTION_KEY`          | `ENCRYPTION_KEY` | Current key for backup-destination credential envelopes.                           |
+| `DAOFLOW_PREVIOUS_BACKUP_DESTINATION_ENCRYPTION_KEY` | unset            | Old destination key supplied temporarily while startup rotates existing envelopes. |
+
+To rotate destination credentials, keep `ENCRYPTION_KEY` unchanged, set the new
+destination key and the temporary previous key, then run migration-only mode or
+restart the service. Startup verifies every envelope, re-encrypts all rows in a
+transaction, and clears legacy plaintext destination secrets. Any mixed or
+undecryptable state blocks production startup, and a failed rotation leaves the
+old ciphertext usable because no partial transaction is committed.
+
+After `/ready` is healthy, test every destination with
+`daoflow backup destination test --id <destination-id>`. Only then remove
+`DAOFLOW_PREVIOUS_BACKUP_DESTINATION_ENCRYPTION_KEY` and restart. If the
+rotation fails before commit, restore the old destination key as
+`DAOFLOW_BACKUP_DESTINATION_ENCRYPTION_KEY` (or unset it to fall back to
+`ENCRYPTION_KEY`) and remove the temporary previous key. Do not replace the
+global `ENCRYPTION_KEY`.
 
 ## Version And Ports
 

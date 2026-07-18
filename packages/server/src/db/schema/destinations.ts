@@ -1,5 +1,14 @@
-import { index, integer, jsonb, pgTable, text, timestamp, varchar } from "drizzle-orm/pg-core";
-import { relations } from "drizzle-orm";
+import {
+  check,
+  index,
+  integer,
+  jsonb,
+  pgTable,
+  text,
+  timestamp,
+  varchar
+} from "drizzle-orm/pg-core";
+import { relations, sql } from "drizzle-orm";
 import { teams } from "./teams";
 
 /**
@@ -10,7 +19,8 @@ import { teams } from "./teams";
  * previously scattered through the backup service.
  *
  * Design: One row = one configured remote. backupPolicies references this via FK.
- * Secrets (accessKey, secretAccessKey, oauthToken) should be encrypted at rest.
+ * Secret-bearing values are stored together in a versioned encrypted credential envelope.
+ * The legacy plaintext columns remain only while staged upgrades are supported.
  */
 export const backupDestinations = pgTable(
   "backup_destinations",
@@ -21,11 +31,19 @@ export const backupDestinations = pgTable(
       .references(() => teams.id, { onDelete: "cascade" }),
     name: varchar("name", { length: 100 }).notNull(),
 
+    // ── Credential envelope ─────────────────────────────────
+    // AES-256-GCM encrypted JSON containing every secret-bearing destination field.
+    credentialsEncrypted: text("credentials_encrypted"),
+    credentialEnvelopeVersion: integer("credential_envelope_version"),
+    // Non-secret identifier for the encryption key used to create the envelope.
+    credentialKeyId: varchar("credential_key_id", { length: 64 }),
+
     // ── Provider type ──────────────────────────────────────
     // "s3" | "local" | "gdrive" | "onedrive" | "dropbox" | "sftp" | "rclone"
     provider: varchar("provider", { length: 30 }).notNull(),
 
     // ── S3-compatible fields ───────────────────────────────
+    // Legacy plaintext credential fields. New writes must leave these null.
     accessKey: text("access_key"),
     secretAccessKey: text("secret_access_key"),
     bucket: text("bucket"),
@@ -37,12 +55,12 @@ export const backupDestinations = pgTable(
     // ── Rclone-native fields ───────────────────────────────
     // Rclone backend type (e.g. "drive", "onedrive", "dropbox", "sftp")
     rcloneType: varchar("rclone_type", { length: 30 }),
-    // Encrypted INI-style config blob for custom rclone setups
+    // Legacy plaintext config blob for custom rclone setups
     rcloneConfig: text("rclone_config"),
     // Remote path within the backend (e.g. "backups/daoflow")
     rcloneRemotePath: text("rclone_remote_path"),
 
-    // ── OAuth token (encrypted, for cloud providers) ───────
+    // ── OAuth token (legacy plaintext) ─────────────────────
     oauthToken: text("oauth_token"),
     oauthTokenExpiry: timestamp("oauth_token_expiry"),
 
@@ -52,7 +70,7 @@ export const backupDestinations = pgTable(
     // "archive-7z" = pre-upload 7z AES-256 encrypted archive
     // "archive-zip" = pre-upload zip AES encrypted archive
     encryptionMode: varchar("encryption_mode", { length: 20 }).default("none").notNull(),
-    // Password for rclone-crypt or archive encryption (encrypted at rest)
+    // Legacy plaintext password for rclone-crypt or archive encryption
     encryptionPassword: text("encryption_password"),
     // Salt/password2 for rclone-crypt (optional, stronger encryption)
     encryptionSalt: text("encryption_salt"),
@@ -79,7 +97,35 @@ export const backupDestinations = pgTable(
   (table) => [
     index("backup_destinations_team_id_idx").on(table.teamId),
     index("backup_destinations_provider_idx").on(table.provider),
-    index("backup_destinations_org_idx").on(table.organizationId)
+    index("backup_destinations_org_idx").on(table.organizationId),
+    check(
+      "backup_destinations_credentials_state_check",
+      sql`(
+        (
+          ${table.credentialsEncrypted} IS NULL
+          AND ${table.credentialEnvelopeVersion} IS NULL
+          AND ${table.credentialKeyId} IS NULL
+          AND ${table.accessKey} IS NULL
+          AND ${table.secretAccessKey} IS NULL
+          AND ${table.oauthToken} IS NULL
+          AND ${table.rcloneConfig} IS NULL
+          AND ${table.encryptionPassword} IS NULL
+          AND ${table.encryptionSalt} IS NULL
+        )
+        OR
+        (
+          ${table.credentialsEncrypted} IS NOT NULL
+          AND ${table.credentialEnvelopeVersion} IS NOT NULL
+          AND ${table.credentialKeyId} IS NOT NULL
+          AND ${table.accessKey} IS NULL
+          AND ${table.secretAccessKey} IS NULL
+          AND ${table.oauthToken} IS NULL
+          AND ${table.rcloneConfig} IS NULL
+          AND ${table.encryptionPassword} IS NULL
+          AND ${table.encryptionSalt} IS NULL
+        )
+      )`
+    )
   ]
 );
 

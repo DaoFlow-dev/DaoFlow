@@ -1,8 +1,10 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
+import { archiveEncrypt } from "../../rclone-archive";
 import { copyToRemote, listRemote } from "../../rclone-executor";
 import type { BackupPolicyResolved, BackupRunResult } from "./backup-activity-types";
+import { decryptDestinationForVolumeOperation } from "./destination-operation";
 
 function isLocalHost(host: string): boolean {
   const h = host.trim().toLowerCase();
@@ -41,7 +43,7 @@ function stageDockerVolume(volumeName: string, stagingDir: string): string {
   return stagingPath;
 }
 
-export function executeBackupCopy(
+export async function executeBackupCopy(
   resolved: BackupPolicyResolved,
   runId: string,
   sourcePath?: string
@@ -51,6 +53,7 @@ export function executeBackupCopy(
 
   let effectiveSource = sourcePath ?? resolved.mountPath;
   let stagedDir: string | null = null;
+  let encryptedArchivePath: string | null = null;
 
   if (!sourcePath && isLocalHost(resolved.serverHost) && !existsSync(resolved.mountPath)) {
     const stagingBase = join("/tmp", `daoflow-backup-${runId}`);
@@ -59,14 +62,40 @@ export function executeBackupCopy(
   }
 
   try {
-    const copyResult = copyToRemote(resolved.destination, effectiveSource, remotePath);
+    const destination = await decryptDestinationForVolumeOperation({
+      volumeId: resolved.volumeId,
+      destinationId: resolved.destinationId
+    });
+    let uploadSource = effectiveSource;
+    if (
+      destination.encryptionMode === "archive-7z" ||
+      destination.encryptionMode === "archive-zip"
+    ) {
+      if (!destination.encryptionPassword) {
+        throw new Error("Archive encryption requires a destination encryption password.");
+      }
+      const encryptedArchive = archiveEncrypt(
+        effectiveSource,
+        destination.encryptionPassword,
+        destination.encryptionMode
+      );
+      encryptedArchivePath = encryptedArchive.archivePath;
+      if (!encryptedArchive.success) {
+        throw new Error(
+          `Archive encryption failed: ${encryptedArchive.error ?? "unknown archive error"}`
+        );
+      }
+      uploadSource = encryptedArchive.archivePath;
+    }
+
+    const copyResult = copyToRemote(destination, uploadSource, remotePath);
     if (!copyResult.success) {
       throw new Error(`rclone copy failed: ${copyResult.error ?? copyResult.output}`);
     }
 
     let sizeBytes = 0;
     try {
-      const listing = listRemote(resolved.destination, remotePath);
+      const listing = listRemote(destination, remotePath);
       for (const line of listing.output.split("\n")) {
         const match = /^\s*(\d+)\s/.exec(line.trim());
         if (match) {
@@ -77,12 +106,19 @@ export function executeBackupCopy(
       console.warn(`[backup] Could not estimate backup size for run ${runId}`);
     }
 
-    return Promise.resolve({
+    return {
       runId,
       artifactPath: remotePath,
       sizeBytes
-    });
+    };
   } finally {
+    if (encryptedArchivePath) {
+      try {
+        rmSync(encryptedArchivePath, { force: true });
+      } catch {
+        console.warn(`[backup] Could not clean up encrypted archive ${encryptedArchivePath}`);
+      }
+    }
     if (stagedDir) {
       try {
         rmSync(stagedDir, { recursive: true, force: true });
