@@ -161,7 +161,7 @@ jobs:
       - name: Use baseline Bun for E2E runtime
         run: sh ./scripts/install-bun-baseline.sh
         env:
-          BUN_VERSION: 1.3.14
+          BUN_VERSION: 1.3.13
 
       - name: Start dev Compose stack
         run: sh ./scripts/ensure-dev-compose.sh
@@ -229,7 +229,7 @@ jobs:
       - name: Use baseline Bun for worker E2E runtime
         run: sh ./scripts/install-bun-baseline.sh
         env:
-          BUN_VERSION: 1.3.14
+          BUN_VERSION: 1.3.13
 
       - name: Start dev Compose stack
         run: sh ./scripts/ensure-dev-compose.sh

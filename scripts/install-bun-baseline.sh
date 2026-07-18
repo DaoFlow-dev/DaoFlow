@@ -1,7 +1,8 @@
 #!/usr/bin/env sh
 set -eu
 
-version="${BUN_VERSION:-1.3.14}"
+# Bun 1.3.14 aborts during repeated Playwright webServer runs on Linux CI.
+version="${BUN_VERSION:-1.3.13}"
 system="$(uname -s)"
 machine="$(uname -m)"
 
