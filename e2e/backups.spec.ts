@@ -79,7 +79,7 @@ test.describe("Backup and restore workflows", () => {
         status: res.status,
         body: await res.text()
       };
-    }, "brun_foundation_volume_success");
+    }, "brun_foundation_db_success");
 
     expect(response.ok).toBe(false);
     expect(response.status).toBe(500);
@@ -87,7 +87,7 @@ test.describe("Backup and restore workflows", () => {
 
     await expect(
       trpcRequest<{ id: string; backupRunId: string; status: string }>(page, "triggerTestRestore", {
-        backupRunId: "brun_foundation_volume_success"
+        backupRunId: "brun_foundation_db_success"
       })
     ).rejects.toThrow("Request to triggerTestRestore failed with status 500");
   });

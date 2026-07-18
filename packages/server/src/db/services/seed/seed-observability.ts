@@ -22,6 +22,8 @@ export async function seedObservability(tx: SeedTransaction) {
         id: "bpol_foundation_db_hourly",
         name: "control-plane-db",
         volumeId: "pvol_daoflow_postgres_prod",
+        backupType: "database",
+        databaseEngine: "postgres",
         schedule: "Hourly",
         retentionDays: 48,
         storageTarget: "s3://daoflow-backups/staging",
@@ -67,6 +69,30 @@ export async function seedObservability(tx: SeedTransaction) {
         startedAt: daysBefore(1),
         completedAt: new Date(daysBefore(1).getTime() + 5 * 60 * 1000),
         createdAt: daysBefore(1)
+      },
+      {
+        id: "brun_foundation_db_success",
+        policyId: "bpol_foundation_db_hourly",
+        status: "succeeded",
+        artifactPath: "s3://daoflow-backups/staging/control-plane-db-2026-03-12.dump",
+        sizeBytes: "52428800",
+        checksum: "a".repeat(64),
+        artifactFormat: "postgres-custom",
+        databaseEngineVersion: "17.4",
+        databaseImageReference: `postgres:17-alpine@sha256:${"b".repeat(64)}`,
+        triggeredByUserId: null,
+        logEntries: [
+          {
+            timestamp: new Date(hoursBefore(2).getTime()).toISOString(),
+            level: "info",
+            phase: "complete",
+            message: "PostgreSQL custom-format backup completed successfully."
+          }
+        ],
+        error: null,
+        startedAt: hoursBefore(2),
+        completedAt: new Date(hoursBefore(2).getTime() + 5 * 60 * 1000),
+        createdAt: hoursBefore(2)
       },
       {
         id: "brun_foundation_db_failed",
