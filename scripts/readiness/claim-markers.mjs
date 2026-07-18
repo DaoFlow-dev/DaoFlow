@@ -1,6 +1,10 @@
 const START_MARKER =
-  /^<!-- readiness-claim: id=([a-z0-9-]+) state=(verified|goal|limitation) -->$/gm;
-const END_MARKER = "<!-- /readiness-claim -->";
+  /^(<!--|\{\/\*) readiness-claim: id=([a-z0-9-]+) state=(verified|goal|limitation) (-->|\*\/\})$/gm;
+const END_MARKERS = {
+  "<!--": "<!-- /readiness-claim -->",
+  "{/*": "{/* /readiness-claim */}"
+};
+const COMMENT_PATTERNS = [/<!--[\s\S]*?-->/g, /\{\/\*[\s\S]*?\*\/\}/g];
 const ABSOLUTE_CLAIM =
   /\b(all|always|complete|deterministic|entire|entirely|every|fully|guarantee|guaranteed|immutable|never|production-ready|reliable|reliably|safe|safely|zero lock-in|no telemetry|no vendor cloud dependency)\b/i;
 
@@ -8,21 +12,44 @@ function lineNumber(content, index) {
   return content.slice(0, index).split("\n").length;
 }
 
+function findNextEndMarker(content, start) {
+  return Object.values(END_MARKERS)
+    .map((marker) => ({ marker, index: content.indexOf(marker, start) }))
+    .filter((candidate) => candidate.index !== -1)
+    .sort((left, right) => left.index - right.index)[0];
+}
+
 export function extractClaimMarkers(content, path) {
   const errors = [];
   const markers = [];
 
   for (const match of content.matchAll(START_MARKER)) {
-    const [raw, id, state] = match;
-    const start = match.index + raw.length;
-    const end = content.indexOf(END_MARKER, start);
+    const [raw, opener, id, state, closer] = match;
+    const delimitersMatch =
+      (opener === "<!--" && closer === "-->") || (opener === "{/*" && closer === "*/}");
+    if (!delimitersMatch) {
+      errors.push(`${path}:${lineNumber(content, match.index)} has mismatched claim delimiters`);
+      continue;
+    }
 
-    if (end === -1) {
+    const endMarker = END_MARKERS[opener];
+    const start = match.index + raw.length;
+    const nextEnd = findNextEndMarker(content, start);
+
+    if (!nextEnd) {
       errors.push(
         `${path}:${lineNumber(content, match.index)} has no closing readiness-claim marker`
       );
       continue;
     }
+    if (nextEnd.marker !== endMarker) {
+      errors.push(
+        `${path}:${lineNumber(content, nextEnd.index)} has a closing readiness-claim marker that does not match ${opener}`
+      );
+      continue;
+    }
+
+    const end = nextEnd.index;
 
     markers.push({
       id,
@@ -30,7 +57,7 @@ export function extractClaimMarkers(content, path) {
       body: content.slice(start, end).trim(),
       line: lineNumber(content, match.index),
       startIndex: match.index,
-      endIndex: end + END_MARKER.length
+      endIndex: end + endMarker.length
     });
   }
 
@@ -53,6 +80,11 @@ function maskRange(characters, start, end) {
 export function findUnregisteredAbsoluteClaims(content, path, markers) {
   const characters = [...content];
   for (const marker of markers) maskRange(characters, marker.startIndex, marker.endIndex);
+  for (const pattern of COMMENT_PATTERNS) {
+    for (const match of content.matchAll(pattern)) {
+      maskRange(characters, match.index, match.index + match[0].length);
+    }
+  }
 
   let inFence = false;
   const errors = [];
@@ -60,7 +92,7 @@ export function findUnregisteredAbsoluteClaims(content, path, markers) {
     const trimmed = line.trim();
     if (trimmed.startsWith("```")) {
       inFence = !inFence;
-    } else if (!inFence && !trimmed.startsWith("<!--") && ABSOLUTE_CLAIM.test(trimmed)) {
+    } else if (!inFence && ABSOLUTE_CLAIM.test(trimmed)) {
       errors.push(
         `${path}:${lineIndex + 1} absolute readiness wording must be inside a readiness-claim marker`
       );

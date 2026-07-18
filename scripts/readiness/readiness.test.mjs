@@ -9,8 +9,10 @@ import { runCommand } from "./evidence-gates.mjs";
 import { validateReadiness } from "./matrix.mjs";
 import { formatReport, generateReport, validateReportFile } from "./report.mjs";
 
-function claimMarker(id, state, text) {
-  return `<!-- readiness-claim: id=${id} state=${state} -->\n${text}\n<!-- /readiness-claim -->`;
+function claimMarker(id, state, text, syntax = "markdown") {
+  return syntax === "mdx"
+    ? `{/* readiness-claim: id=${id} state=${state} */}\n${text}\n{/* /readiness-claim */}`
+    : `<!-- readiness-claim: id=${id} state=${state} -->\n${text}\n<!-- /readiness-claim -->`;
 }
 
 function claim({
@@ -263,22 +265,6 @@ test("does not treat 'not just' as qualification for an absolute claim", async (
 
   expect((await validateReadiness(setup)).errors).toContain(
     "README.md:1 goal claim sample-claim contains unqualified absolute wording"
-  );
-});
-
-test("rejects nested claim markers", async () => {
-  const text = "**Goal:** Keep command evidence current.";
-  const setup = await fixture({
-    matrix: matrixWith([claim({ text })]),
-    readme: `<!-- readiness-claim: id=sample-claim state=goal -->\n${claimMarker(
-      "sample-claim",
-      "goal",
-      text
-    )}\n<!-- /readiness-claim -->`
-  });
-
-  expect((await validateReadiness(setup)).errors).toContain(
-    "README.md:2 has nested or overlapping readiness markers"
   );
 });
 

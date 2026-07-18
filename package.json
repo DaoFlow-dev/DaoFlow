@@ -21,7 +21,7 @@
     "contracts:check": "bun ./scripts/generate-external-contracts.ts --check",
     "templates:check": "bun ./scripts/check-app-templates.ts",
     "templates:report": "bun ./scripts/check-app-templates.ts --report",
-    "readiness:test": "bun test scripts/readiness/readiness.test.mjs scripts/readiness/repository-paths.test.mjs",
+    "readiness:test": "bun test scripts/readiness/readiness.test.mjs scripts/readiness/claim-markers.test.mjs scripts/readiness/repository-paths.test.mjs",
     "readiness:report": "bun scripts/readiness/generate-report.mjs",
     "readiness:check": "bun run readiness:test && bun scripts/readiness/check.mjs",
     "check:server-build-references": "bun --filter @daoflow/server build && bun --filter @daoflow/client typecheck",

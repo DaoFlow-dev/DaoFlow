@@ -4,10 +4,10 @@ sidebar_position: 6
 
 # Vision & Principles
 
-<!-- readiness-claim: id=production-deployment-readiness state=goal -->
+{/* readiness-claim: id=production-deployment-readiness state=goal */}
 
 **Goal:** DaoFlow aims to make self-hosted Docker Compose deployments dependable enough for a small team to operate without a dedicated platform team.
-<!-- /readiness-claim -->
+{/* /readiness-claim */}
 
 The intended product is a deployment platform: connect GitHub or GitLab, configure an application in the Web UI, deploy it to a Docker server, understand what happened, and recover with clear evidence when something fails. The CLI is intended to expose the same deployment engine for humans, CI, and constrained automation.
 
@@ -48,41 +48,41 @@ Security is an architectural priority. The following controls are targets, not a
 - Secrets should be masked unless specifically authorized
 - **Approval gates** should keep humans in the loop for dangerous operations
 
-<!-- readiness-claim: id=agent-safety-controls state=limitation -->
+{/* readiness-claim: id=agent-safety-controls state=limitation */}
 
 **Current limitation:** Agent permissions and destructive-action controls are under active verification and are not yet an unconditional production-safety guarantee.
-<!-- /readiness-claim -->
+{/* /readiness-claim */}
 
-<!-- readiness-claim: id=command-audit-completeness state=limitation -->
+{/* readiness-claim: id=command-audit-completeness state=limitation */}
 
 **Current limitation:** DaoFlow has not yet proved that every command-lane mutation creates a complete immutable audit record.
-<!-- /readiness-claim -->
+{/* /readiness-claim */}
 
-<!-- readiness-claim: id=backup-restore-assurance state=limitation -->
+{/* readiness-claim: id=backup-restore-assurance state=limitation */}
 
 **Current limitation:** Backup and restore workflows have not yet been proven through a current real-infrastructure round trip with verified data integrity.
-<!-- /readiness-claim -->
+{/* /readiness-claim */}
 
-<!-- readiness-claim: id=source-control-isolation state=limitation -->
+{/* readiness-claim: id=source-control-isolation state=limitation */}
 
 **Current limitation:** GitHub and GitLab provider, installation, callback, and checkout boundaries are not yet fully verified as team-isolated.
-<!-- /readiness-claim -->
+{/* /readiness-claim */}
 
 ### Data Ownership
 
-<!-- readiness-claim: id=operator-data-control state=goal -->
+{/* readiness-claim: id=operator-data-control state=goal */}
 
 **Goal:** Keep deployment state, backups, and operational decisions under the operator's explicit control.
-<!-- /readiness-claim -->
+{/* /readiness-claim */}
 
 The target architecture is self-hosted and Compose-first, with operator-visible backup and recovery evidence. Current evidence and limitations are published in the [production readiness report](https://github.com/DaoFlow-dev/DaoFlow/blob/main/PRODUCTION_READINESS.md).
 
 ### Transparency Through Open Source
 
-<!-- readiness-claim: id=open-source-license state=verified -->
+{/* readiness-claim: id=open-source-license state=verified */}
 
 **Verified in this repository:** DaoFlow is published under the [Apache License 2.0](https://github.com/DaoFlow-dev/DaoFlow/blob/main/LICENSE), and the repository source is available for inspection.
-<!-- /readiness-claim -->
+{/* /readiness-claim */}
 
 We believe transparency creates trust. When software has access to production infrastructure, operators need clear evidence of what the platform can and cannot do.
 
@@ -94,10 +94,10 @@ The goal is impact: make dependable self-hosted deployments accessible to everyo
 
 ### Repeatable Contract Design
 
-<!-- readiness-claim: id=deterministic-deployment-contract state=limitation -->
+{/* readiness-claim: id=deterministic-deployment-contract state=limitation */}
 
 **Current limitation:** DaoFlow has not yet independently proven deterministic deployment and recovery outcomes across the complete production lifecycle.
-<!-- /readiness-claim -->
+{/* /readiness-claim */}
 
 The target deployment contract is repeatable and evidence-backed:
 
@@ -106,10 +106,10 @@ The target deployment contract is repeatable and evidence-backed:
 - Rollback should target a specific previous deployment rather than use "best effort"
 - Exit codes should remain stable: `0` = success, `1` = error, `2` = denied, `3` = dry-run
 
-<!-- readiness-claim: id=interface-parity state=goal -->
+{/* readiness-claim: id=interface-parity state=goal */}
 
 **Goal:** Provide one evidence-backed deployment contract for the Web UI, CLI, CI, and constrained automation.
-<!-- /readiness-claim -->
+{/* /readiness-claim */}
 
 ## One Deployment Engine, Multiple Interfaces
 
