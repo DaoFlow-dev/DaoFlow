@@ -11,12 +11,7 @@ const MAX_USER_AGENT_LENGTH = 255;
 const MAX_PATH_LENGTH = 255;
 
 export type AccessLogStatusFilter =
-  | "failed-auth"
-  | "denied"
-  | "error"
-  | "slow"
-  | "webhook"
-  | "api-token";
+  "failed-auth" | "denied" | "error" | "slow" | "webhook" | "api-token";
 
 export interface RecordRequestAccessLogInput {
   requestId: string;

@@ -98,9 +98,7 @@ async function resolveApprovalPresentation(input: CreateApprovalRequestInput) {
 function enrichApproval(request: typeof approvalRequests.$inferSelect) {
   const summary = asRecord(request.inputSummary);
   const riskLevel = readString(summary, "riskLevel", "medium") as
-    | "medium"
-    | "elevated"
-    | "critical";
+    "medium" | "elevated" | "critical";
   return {
     ...request,
     requestedBy: request.requestedByEmail ?? "",
