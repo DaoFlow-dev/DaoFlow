@@ -34,9 +34,7 @@ function backupPolicyFixture(): BackupPolicyResolved {
 
 describe("executeBackupCopy", () => {
   it("uploads the explicit backup source instead of always copying the mounted volume", async () => {
-    const execFileSyncMock = vi
-      .spyOn(processRunner, "execFileSync")
-      .mockImplementation(() => "" as never);
+    const execFileSyncMock = vi.spyOn(processRunner, "execFileSync").mockImplementation(() => "");
 
     await executeBackupCopy(backupPolicyFixture(), "brun_test", "/tmp/daoflow-dumps/db.dump");
 

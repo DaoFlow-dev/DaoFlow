@@ -7,15 +7,10 @@ export const RENDERED_COMPOSE_FILE_NAME = ".daoflow.compose.rendered.yaml";
 export const FROZEN_COMPOSE_INPUT_DIR = ".daoflow.compose.inputs";
 
 export type ComposeInputManifestEntryKind =
-  | "compose-file"
-  | "repo-default-env"
-  | "compose-env"
-  | "service-env-file";
+  "compose-file" | "repo-default-env" | "compose-env" | "service-env-file";
 
 export type ComposeInputManifestProvenance =
-  | "repository-checkout"
-  | "uploaded-artifact"
-  | "daoflow-generated";
+  "repository-checkout" | "uploaded-artifact" | "daoflow-generated";
 
 export interface ComposeInputManifestEntry {
   kind: ComposeInputManifestEntryKind;

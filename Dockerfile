@@ -101,7 +101,7 @@ CMD ["bun", "packages/server/dist/index.js"]
 FROM node:22-bookworm-slim AS codex-runner
 
 ARG TARGETARCH
-ARG BUN_VERSION=1.3.13
+ARG BUN_VERSION=1.3.14
 ARG CODEX_CLI_VERSION=0.129.0
 
 ENV NODE_ENV=development

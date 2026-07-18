@@ -168,5 +168,5 @@ export function extractReplayableConfigSnapshot(snapshot: Record<string, unknown
     ([key]) => !EXECUTION_ONLY_SNAPSHOT_KEYS.has(key)
   );
 
-  return Object.fromEntries(replayableEntries) as ConfigSnapshot;
+  return Object.fromEntries(replayableEntries);
 }

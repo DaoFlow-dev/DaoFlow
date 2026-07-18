@@ -39,9 +39,9 @@ async function captureCommandExecution(
   console.error = (...args: unknown[]) => {
     errors.push(args.map((arg) => String(arg)).join(" "));
   };
-  process.exit = ((code?: number) => {
+  process.exit = (code?: number) => {
     throw new ExitSignal(code ?? 0);
-  }) as typeof process.exit;
+  };
 
   try {
     await run();

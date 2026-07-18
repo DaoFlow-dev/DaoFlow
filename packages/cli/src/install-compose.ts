@@ -53,7 +53,7 @@ function ensureMapNode(doc: Document.Parsed, key: string, currentValue: unknown)
   }
 
   doc.set(key, nextValue);
-  return nextValue as MutableYamlMap;
+  return nextValue;
 }
 
 function ensureChildMapNode(
@@ -72,7 +72,7 @@ function ensureChildMapNode(
   }
 
   parent.set(key, nextValue);
-  return nextValue as MutableYamlMap;
+  return nextValue;
 }
 
 export function buildInstallComposeContent(input: {

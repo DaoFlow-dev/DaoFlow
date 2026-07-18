@@ -96,7 +96,7 @@ async function openServiceTerminal(inputOptions: { serviceId: string; shell: "ba
         ws.close();
         return;
       }
-      ws.send(chunk);
+      ws.send(new Uint8Array(chunk));
     }
 
     ws.onopen = () => {

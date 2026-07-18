@@ -65,9 +65,7 @@ describe("rclone remote helpers", () => {
 
 describe("rclone executor", () => {
   it("targets the configured remote name when copying through custom rclone configs", () => {
-    const execFileSyncMock = vi
-      .spyOn(processRunner, "execFileSync")
-      .mockImplementation(() => "" as never);
+    const execFileSyncMock = vi.spyOn(processRunner, "execFileSync").mockImplementation(() => "");
     const result = copyToRemote(
       {
         id: "dest_custom_rclone",

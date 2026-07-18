@@ -65,14 +65,14 @@ async function uploadContextBundle(
   const api = new ApiClient();
 
   try {
-    const intake = (await api.post<{
+    const intake = await api.post<{
       ok: boolean;
       uploadId: string;
     }>("/api/v1/deploy/uploads/intake", {
       server: options.serverId,
       compose: composeContent,
       project: deriveProjectName(options.composePath, composeContent)
-    })) as { ok: boolean; uploadId: string };
+    });
 
     const response = (await api.streamUpload(
       `/api/v1/deploy/uploads/${intake.uploadId}`,

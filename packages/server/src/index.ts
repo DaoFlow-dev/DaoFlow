@@ -114,7 +114,7 @@ async function start() {
         return upgraded;
       }
 
-      return app.fetch(req, serverInstance as never);
+      return app.fetch(req, serverInstance);
     },
     websocket: serviceObservabilityWebSocket
   });

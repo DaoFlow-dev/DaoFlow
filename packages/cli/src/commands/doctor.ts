@@ -81,7 +81,7 @@ function summarizeDoctorChecks(checks: DoctorCheck[]): DoctorSummary {
 export async function collectDoctorChecks({
   ctx,
   currentContext,
-  createClientImpl = createClient as DoctorClientFactory
+  createClientImpl = createClient
 }: {
   ctx: ReturnType<typeof getCurrentContext>;
   currentContext: string;

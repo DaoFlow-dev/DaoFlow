@@ -9,19 +9,23 @@
     "db:push": "drizzle-kit push"
   },
   "dependencies": {
-    "better-auth": "^1.2.0",
-    "drizzle-orm": "^0.44.0",
-    "inngest": "^3.0.0",
-    "next": "^15.0.0",
-    "pg": "^8.16.0",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "better-auth": "^1.6.23",
+    "drizzle-orm": "^0.45.2",
+    "inngest": "^3.54.2",
+    "next": "^15.5.20",
+    "pg": "^8.22.0",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7"
   },
   "devDependencies": {
-    "@types/node": "^22.0.0",
-    "@types/pg": "^8.11.0",
-    "@types/react": "^19.0.0",
-    "drizzle-kit": "^0.31.0",
-    "typescript": "^5.7.0"
+    "@types/node": "^26.1.1",
+    "@types/pg": "^8.20.0",
+    "@types/react": "^19.2.17",
+    "drizzle-kit": "^0.31.10",
+    "eslint": "^9.39.5",
+    "typescript": "^5.9.3"
+  },
+  "overrides": {
+    "postcss": "8.5.19"
   }
 }

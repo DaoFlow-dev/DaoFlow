@@ -8,13 +8,17 @@
     "start": "PORT=3001 node .next/standalone/server.js"
   },
   "dependencies": {
-    "next": "^15.0.0",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "next": "^15.5.20",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7"
   },
   "devDependencies": {
-    "@types/node": "^25.5.0",
-    "@types/react": "^19.2.14",
-    "typescript": "^5.9.2"
+    "@types/node": "^26.1.1",
+    "@types/react": "^19.2.17",
+    "eslint": "^9.39.5",
+    "typescript": "5.9.3"
+  },
+  "overrides": {
+    "postcss": "8.5.19"
   }
 }

@@ -1,7 +1,7 @@
 #!/usr/bin/env sh
 set -eu
 
-version="${BUN_VERSION:-1.3.13}"
+version="${BUN_VERSION:-1.3.14}"
 system="$(uname -s)"
 machine="$(uname -m)"
 

@@ -191,7 +191,7 @@ export function createProgram(): Command {
         ? normalizeServicesListInvocation(argv, parseOptions?.from ?? "node")
         : argv;
     return await originalParseAsync(normalizedArgv, parseOptions);
-  } as typeof program.parseAsync;
+  };
 
   const originalParse = program.parse.bind(program);
   program.parse = function parseWithServicesNormalization(
@@ -203,7 +203,7 @@ export function createProgram(): Command {
         ? normalizeServicesListInvocation(argv, parseOptions?.from ?? "node")
         : argv;
     return originalParse(normalizedArgv, parseOptions);
-  } as typeof program.parse;
+  };
 
   return program;
 }

@@ -58,7 +58,7 @@ describe("service detail observability tabs", () => {
     cleanup();
     MockWebSocket.instances = [];
     vi.stubGlobal("fetch", fetchMock);
-    vi.stubGlobal("WebSocket", MockWebSocket as unknown as typeof WebSocket);
+    vi.stubGlobal("WebSocket", MockWebSocket);
     vi.stubGlobal("navigator", {
       clipboard: {
         writeText: vi.fn().mockResolvedValue(undefined)

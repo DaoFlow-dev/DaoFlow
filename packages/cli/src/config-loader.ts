@@ -106,10 +106,10 @@ function parseConfig(content: string, format: "jsonc" | "json" | "yaml" | "toml"
       return JSON.parse(content) as DaoflowConfig;
 
     case "yaml":
-      return yamlParser.parse(content) as unknown as DaoflowConfig;
+      return yamlParser.parse(content);
 
     case "toml":
-      return tomlParser.parse(content) as unknown as DaoflowConfig;
+      return tomlParser.parse(content);
   }
 }
 

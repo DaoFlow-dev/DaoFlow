@@ -24,7 +24,6 @@ export interface SandbankBoxLiteCodexSandbox {
   clientIdEnvKey: string;
   clientSecretEnvKey: string;
   prefix?: string;
-  pythonPath?: string;
   boxliteHome?: string;
 }
 
@@ -114,7 +113,6 @@ function createBoxLiteProvider(sandbox: SandbankBoxLiteCodexSandbox): SandbankPr
         })
       : new BoxLiteAdapter({
           mode: "local",
-          pythonPath: sandbox.pythonPath,
           boxliteHome: sandbox.boxliteHome
         });
 
@@ -163,7 +161,6 @@ export function buildSandbankBoxLiteSandboxFromRun(input: {
     clientIdEnvKey: readEnvKey(metadata.boxLiteClientIdEnvKey, "BOXLITE_CLIENT_ID"),
     clientSecretEnvKey: readEnvKey(metadata.boxLiteClientSecretEnvKey, "BOXLITE_CLIENT_SECRET"),
     prefix: readString(metadata.boxLitePrefix),
-    pythonPath: readString(metadata.boxLitePythonPath),
     boxliteHome: readString(metadata.boxLiteHome)
   };
 }

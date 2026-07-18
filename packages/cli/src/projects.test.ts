@@ -296,7 +296,7 @@ describe("projects command", () => {
         return undefined;
       }
       if ("gitProviderId" in value) {
-        return value as Record<string, unknown>;
+        return value;
       }
       for (const child of Object.values(value)) {
         const found = findCreateProjectPayload(child);

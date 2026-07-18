@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { trpc } from "@/lib/trpc";
 import { HardDrive, Plus, RotateCcw, Save, Trash2 } from "lucide-react";
-import type { ServiceRuntimeVolume, RuntimeVolumeMode } from "./runtime-config";
+import type { ServiceRuntimeVolume } from "./runtime-config";
 
 interface VolumesCardProps {
   serviceId: string;
@@ -68,7 +68,7 @@ export function VolumesCard({ serviceId, volumes, onSaved }: VolumesCardProps) {
         volume.id === id
           ? {
               ...volume,
-              mode: volume.mode === "rw" ? ("ro" as RuntimeVolumeMode) : ("rw" as RuntimeVolumeMode)
+              mode: volume.mode === "rw" ? "ro" : "rw"
             }
           : volume
       )

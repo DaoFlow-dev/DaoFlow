@@ -1,7 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { AppRole } from "@daoflow/shared";
 
 const { startOneOffBackupWorkflowMock, getBackupCronStatusMock, isTemporalEnabledMock } =
   vi.hoisted(() => ({
@@ -123,7 +122,7 @@ describe("triggerBackupRun", () => {
       fixture.policyId,
       fixture.userId,
       `${fixture.userId}@daoflow.local`,
-      "owner" as AppRole
+      "owner"
     );
 
     expect(run).toBeTruthy();

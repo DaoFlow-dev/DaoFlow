@@ -24,7 +24,7 @@ describe("previewServiceDeploy", () => {
         {
           deploymentPlan: {
             query: (input) => {
-              receivedInput = input as Record<string, unknown>;
+              receivedInput = input;
               return Promise.resolve({
                 isReady: true,
                 service: {

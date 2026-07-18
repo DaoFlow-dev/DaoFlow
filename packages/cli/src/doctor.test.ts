@@ -56,20 +56,19 @@ describe("collectDoctorChecks", () => {
     const result = await collectDoctorChecks({
       ctx: context,
       currentContext: "default",
-      createClientImpl: () =>
-        ({
-          health: {
-            query: () =>
-              Promise.resolve({
-                status: "healthy",
-                service: "daoflow",
-                timestamp: "2026-03-20T22:00:00.000Z"
-              } satisfies RouterOutputs["health"])
-          },
-          serverReadiness: {
-            query: () => Promise.reject(new Error("readiness unavailable"))
-          }
-        }) as never
+      createClientImpl: () => ({
+        health: {
+          query: () =>
+            Promise.resolve({
+              status: "healthy",
+              service: "daoflow",
+              timestamp: "2026-03-20T22:00:00.000Z"
+            } satisfies RouterOutputs["health"])
+        },
+        serverReadiness: {
+          query: () => Promise.reject(new Error("readiness unavailable"))
+        }
+      })
     });
 
     const apiConnectivityCheck = result.checks.find((check) => check.name === "API connectivity");
@@ -93,20 +92,19 @@ describe("collectDoctorChecks", () => {
     const result = await collectDoctorChecks({
       ctx: context,
       currentContext: "default",
-      createClientImpl: () =>
-        ({
-          health: {
-            query: () =>
-              Promise.resolve({
-                status: "healthy",
-                service: "daoflow",
-                timestamp: "2026-03-20T22:00:00.000Z"
-              } satisfies RouterOutputs["health"])
-          },
-          serverReadiness: {
-            query: () => Promise.resolve(createServerReadiness())
-          }
-        }) as never
+      createClientImpl: () => ({
+        health: {
+          query: () =>
+            Promise.resolve({
+              status: "healthy",
+              service: "daoflow",
+              timestamp: "2026-03-20T22:00:00.000Z"
+            } satisfies RouterOutputs["health"])
+        },
+        serverReadiness: {
+          query: () => Promise.resolve(createServerReadiness())
+        }
+      })
     });
 
     const serverCheck = result.checks.find((check) => check.name === "Server edge-1");

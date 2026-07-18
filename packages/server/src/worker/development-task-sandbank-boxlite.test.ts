@@ -136,6 +136,16 @@ describe("development task Sandbank BoxLite sandbox", () => {
     });
   });
 
+  it("ignores obsolete Python bridge metadata in local mode", () => {
+    const sandbox = buildSandbankBoxLiteSandboxFromRun({
+      runId: "run_boxlite_node_sdk",
+      metadata: { boxLitePythonPath: "/custom/python3" }
+    });
+
+    expect(sandbox.mode).toBe("local");
+    expect(sandbox).not.toHaveProperty("pythonPath");
+  });
+
   it("uses remote BoxRun settings from runner metadata", () => {
     const sandbox = buildSandbankBoxLiteSandboxFromRun({
       runId: "run_remote",

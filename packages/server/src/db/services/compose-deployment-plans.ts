@@ -17,7 +17,6 @@ import {
 import { buildComposeEnvPlanChecks, makePlanCheck as makeCheck } from "./deployment-plan-checks";
 import { resolveComposeDeploymentEnvEntries } from "./compose-env";
 import { resolveTeamIdForUser } from "./teams";
-type ScopeAction = "reuse" | "create";
 
 function sanitizeName(value: string, fallback: string): string {
   const trimmed = value.trim();
@@ -176,7 +175,7 @@ async function resolveExistingScope(input: {
     service: {
       id: service?.id ?? null,
       name: service?.name ?? input.serviceName,
-      action: (service ? "reuse" : "create") as ScopeAction,
+      action: service ? "reuse" : "create",
       currentTargetServerId: service?.targetServerId ?? null,
       currentSourceType: service?.sourceType ?? null
     }

@@ -36,7 +36,7 @@ function obscurePassword(password: string): string {
     const result = processRunner.execFileSync("rclone", ["obscure", password], {
       encoding: "utf-8",
       timeout: 10_000
-    }) as unknown as string;
+    });
     return (result ?? "").trim();
   } catch {
     return password;

@@ -78,7 +78,7 @@ Example JSON shape:
               limit,
               since,
               kind: opts.kind,
-              severity: opts.severity as "info" | "warning" | "error" | "critical" | undefined
+              severity: opts.severity
             });
 
             return ctx.success(result, {

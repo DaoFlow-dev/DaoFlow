@@ -5,7 +5,7 @@ Shared types, Zod schemas, and constants used by both server and client packages
 ## Stack
 
 - **Validation**: Zod v4
-- **Language**: TypeScript 5.9
+- **Language**: TypeScript 7
 
 ## Key files
 

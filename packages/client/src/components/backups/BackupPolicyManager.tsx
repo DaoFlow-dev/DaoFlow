@@ -150,7 +150,7 @@ export function BackupPolicyManager() {
         turnOff: policy.turnOff,
         schedule: policy.schedule,
         retentionDays: policy.retentionDays,
-        status: policy.status as PolicyDraft["status"]
+        status: policy.status
       })
     );
     setDialogOpen(true);

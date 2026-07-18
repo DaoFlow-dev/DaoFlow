@@ -36,14 +36,18 @@ function readNumber(record: Record<string, unknown>, key: string): number {
   return typeof value === "number" ? value : 0;
 }
 
-export function parseDockerJsonLines<T extends Record<string, unknown>>(lines: string[]): T[] {
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+export function parseDockerJsonLines(lines: string[]): Record<string, unknown>[] {
   return lines
     .map((line) => line.trim())
     .filter(Boolean)
     .flatMap((line) => {
       try {
         const parsed = JSON.parse(line) as unknown;
-        return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? [parsed as T] : [];
+        return isRecord(parsed) ? [parsed] : [];
       } catch {
         return [];
       }
@@ -51,7 +55,7 @@ export function parseDockerJsonLines<T extends Record<string, unknown>>(lines: s
 }
 
 export function parseDockerPsLines(lines: string[]): ServiceContainerRef[] {
-  return parseDockerJsonLines<DockerPsRecord>(lines).map((record) => ({
+  return parseDockerJsonLines(lines).map((record: DockerPsRecord) => ({
     id: readString(record, "ID"),
     name: readString(record, "Names") || readString(record, "Name"),
     state: readString(record, "State"),
@@ -105,7 +109,7 @@ function parseSizePair(raw: string): [number, number] {
 }
 
 export function parseDockerStatsLines(lines: string[]): ServiceContainerStats[] {
-  return parseDockerJsonLines<DockerStatsRecord>(lines).map((record) => {
+  return parseDockerJsonLines(lines).map((record: DockerStatsRecord) => {
     const [memoryUsageMB, memoryLimitMB] = parseSizePair(readString(record, "MemUsage"));
     const [networkRxMB, networkTxMB] = parseSizePair(readString(record, "NetIO"));
     const [blockReadMB, blockWriteMB] = parseSizePair(readString(record, "BlockIO"));
@@ -124,7 +128,7 @@ export function parseDockerStatsLines(lines: string[]): ServiceContainerStats[] 
 }
 
 export function parseDockerStateLines(lines: string[]): ServiceContainerState[] {
-  return parseDockerJsonLines<DockerStateRecord>(lines).map((record) => ({
+  return parseDockerJsonLines(lines).map((record: DockerStateRecord) => ({
     startedAt: readString(record, "StartedAt") || null,
     restartCount: readNumber(record, "RestartCount"),
     running: Boolean(record.Running)

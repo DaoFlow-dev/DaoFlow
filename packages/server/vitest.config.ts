@@ -17,6 +17,7 @@ export default defineConfig({
     include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
     exclude: ["dist/**", "node_modules/**"],
     environment: "node",
+    globalSetup: ["./src/test-run-global-setup.ts"],
     setupFiles: ["./src/test-setup.ts"],
     testTimeout: 10_000,
     // Server tests share one physical Postgres database today, so file-level

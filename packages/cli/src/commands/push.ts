@@ -118,7 +118,7 @@ export function pushCommand(): Command {
           try {
             const result = await api.streamUpload(
               `/api/v1/images/push?tag=${encodeURIComponent(tag)}&server=${encodeURIComponent(opts.server ?? "")}&service=${encodeURIComponent(opts.service ?? "")}`,
-              stream as unknown as ReadableStream,
+              stream,
               fileSize
             );
 

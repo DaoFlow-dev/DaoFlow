@@ -73,7 +73,7 @@ function buildSession(input: CustomSessionInput): NonNullable<AuthSession> {
       ipAddress: null,
       userAgent: null
     }
-  } as NonNullable<AuthSession>;
+  };
 }
 
 export function makeSession(role: string): NonNullable<AuthSession> {

@@ -48,7 +48,7 @@ describe("executeComposeDeploy", () => {
         typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
       requests.push({
         url,
-        init: (init ?? {}) as RequestInit & { duplex?: string }
+        init: init ?? {}
       });
 
       if (url.endsWith("/api/v1/deploy/uploads/intake")) {

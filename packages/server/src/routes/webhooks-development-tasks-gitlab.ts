@@ -16,8 +16,7 @@ const GITLAB_RUN_LABEL = "daoflow:run";
 const GITLAB_RUN_COMMAND = /(^|\n)\s*\/daoflow\s+run(?:\s|$)/i;
 
 type GitLabDevelopmentTaskTrigger =
-  | { kind: "label"; externalCommentId?: never }
-  | { kind: "comment"; externalCommentId: string };
+  { kind: "label"; externalCommentId?: never } | { kind: "comment"; externalCommentId: string };
 
 function readLabelName(label: { title?: string; name?: string }) {
   return (label.title ?? label.name ?? "").trim().toLowerCase();

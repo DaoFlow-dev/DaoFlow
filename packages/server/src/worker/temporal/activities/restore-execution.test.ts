@@ -38,9 +38,7 @@ describe("restore execution", () => {
     mkdirSync(downloadPath);
     writeFileSync(join(downloadPath, "backup.tar"), "archive");
 
-    const execFileSyncMock = vi
-      .spyOn(processRunner, "execFileSync")
-      .mockImplementation(() => "" as never);
+    const execFileSyncMock = vi.spyOn(processRunner, "execFileSync").mockImplementation(() => "");
 
     const result = await executeRestoreArtifact(
       restoreContext({ downloadPath, targetPath }),

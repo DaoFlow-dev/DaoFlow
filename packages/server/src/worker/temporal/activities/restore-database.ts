@@ -188,7 +188,7 @@ function firstDockerContainer(args: string[]): string | null {
       encoding: "utf-8",
       timeout: 10_000,
       env: withCommandPath(process.env)
-    }) as unknown as string;
+    });
     return (
       output
         .split("\n")

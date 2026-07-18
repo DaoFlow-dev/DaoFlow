@@ -191,8 +191,7 @@ export function buildServiceReadModel(
   const targetServerName =
     latestDeployment && typeof latestDeployment.configSnapshot === "object"
       ? ((latestDeployment.configSnapshot as Record<string, unknown>).targetServerName as
-          | string
-          | undefined)
+          string | undefined)
       : null;
   const runtimeSummary = summarizeServiceRuntime({
     latestDeployment,

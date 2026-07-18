@@ -272,7 +272,7 @@ describe("login command", () => {
         throw new Error(`Unexpected fetch ${url}`);
       }
     );
-    loginRuntime.fetch = fetchMock as unknown as typeof loginRuntime.fetch;
+    loginRuntime.fetch = fetchMock;
 
     const program = new Command().name("daoflow");
     program.addCommand(loginCommand());
@@ -369,7 +369,7 @@ describe("login command", () => {
         throw new Error(`Unexpected fetch ${url}`);
       }
     );
-    loginRuntime.fetch = fetchMock as unknown as typeof loginRuntime.fetch;
+    loginRuntime.fetch = fetchMock;
 
     const program = new Command().name("daoflow");
     program.addCommand(loginCommand());
@@ -429,7 +429,7 @@ describe("login command", () => {
 
       throw new Error(`Unexpected fetch ${url}`);
     });
-    loginRuntime.fetch = fetchMock as unknown as typeof loginRuntime.fetch;
+    loginRuntime.fetch = fetchMock;
 
     const program = new Command().name("daoflow");
     program.addCommand(loginCommand());
@@ -567,7 +567,7 @@ describe("login command", () => {
       }
     );
 
-    loginRuntime.fetch = fetchMock as unknown as typeof loginRuntime.fetch;
+    loginRuntime.fetch = fetchMock;
     loginRuntime.tryOpenBrowser = () => false;
     loginRuntime.prompt = (question: string) => {
       expect(question).toBe("Paste the one-time CLI code: ");
@@ -692,7 +692,7 @@ describe("login command", () => {
       }
     );
 
-    loginRuntime.fetch = fetchMock as unknown as typeof loginRuntime.fetch;
+    loginRuntime.fetch = fetchMock;
     loginRuntime.tryOpenBrowser = () => true;
     loginRuntime.prompt = () => {
       throw new Error("prompt should not be used when browser polling succeeds");
@@ -754,7 +754,7 @@ describe("login command", () => {
       throw new Error(`Unexpected fetch ${url}`);
     });
 
-    loginRuntime.fetch = fetchMock as unknown as typeof loginRuntime.fetch;
+    loginRuntime.fetch = fetchMock;
     loginRuntime.tryOpenBrowser = () => false;
     loginRuntime.prompt = () => {
       throw new Error("prompt should not be used in JSON mode");

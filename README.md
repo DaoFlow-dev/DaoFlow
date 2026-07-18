@@ -90,13 +90,18 @@ daoflow whoami --json
 | Database    | PostgreSQL 17            |
 | Cache/Queue | Redis 7                  |
 | Web UI      | React + Vite + shadcn/ui |
+| TypeScript  | TypeScript 7 native      |
 | Testing     | Vitest + Playwright      |
 | Packaging   | Docker multi-stage build |
 | CI          | GitHub Actions           |
 
 ## Development
 
-Requirements: **Bun 1.3.9** via the repo `packageManager` pin, **Docker** with Compose v2.
+Requirements: **Bun 1.3.14** via the repo `packageManager` pin, **Docker** with Compose v2.
+
+Type checks run on the Go-based TypeScript 7.0.2 compiler. The root install also keeps
+TypeScript 6 for ESLint's compiler API and editor language services until those tools
+support the native TypeScript 7 implementation.
 
 ```bash
 git clone https://github.com/DaoFlow-dev/DaoFlow.git

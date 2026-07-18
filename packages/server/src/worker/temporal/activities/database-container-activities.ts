@@ -4,12 +4,14 @@ import type { ContainerLifecycleResult, DatabaseEngine } from "./database-activi
 
 export function stopContainer(containerName: string): Promise<ContainerLifecycleResult> {
   try {
-    const state = (
-      execFileSync(dockerCommand, ["inspect", "--format", "{{.State.Status}}", containerName], {
+    const state = execFileSync(
+      dockerCommand,
+      ["inspect", "--format", "{{.State.Status}}", containerName],
+      {
         encoding: "utf-8",
         timeout: 10_000,
         env: withCommandPath(process.env)
-      }) as unknown as string
+      }
     ).trim();
 
     if (state === "running") {
@@ -57,12 +59,14 @@ export function startContainer(containerName: string): Promise<ContainerLifecycl
 
 export function detectDatabaseEngine(containerName: string): Promise<DatabaseEngine | null> {
   try {
-    const image = (
-      execFileSync(dockerCommand, ["inspect", "--format", "{{.Config.Image}}", containerName], {
+    const image = execFileSync(
+      dockerCommand,
+      ["inspect", "--format", "{{.Config.Image}}", containerName],
+      {
         encoding: "utf-8",
         timeout: 10_000,
         env: withCommandPath(process.env)
-      }) as unknown as string
+      }
     ).trim();
 
     const lower = image.toLowerCase();
