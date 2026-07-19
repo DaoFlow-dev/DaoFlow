@@ -241,7 +241,15 @@ addApiGroup(
 
 addApiGroup(
   apiProcedureAccess,
-  ["backupOverview", "backupRestoreQueue", "backupRunDetails", "serviceBackupWorkflow"],
+  [
+    "backupOverview",
+    "backupRestoreQueue",
+    "backupRunDetails",
+    "serviceBackupWorkflow",
+    "externalBackupObjects",
+    "externalBackupArtifacts",
+    "externalBackupArtifact"
+  ],
   {
     auth: "authenticated",
     requiredRoles: READ_ROLES,
@@ -256,6 +264,13 @@ apiProcedureAccess.persistentVolumes = {
 };
 
 apiProcedureAccess.backupRestorePlan = {
+  auth: "authenticated",
+  laneOverride: "planning",
+  requiredRoles: READ_ROLES,
+  requiredScopes: ["backup:read"]
+};
+
+apiProcedureAccess.externalArtifactRestorePlan = {
   auth: "authenticated",
   laneOverride: "planning",
   requiredRoles: READ_ROLES,
@@ -431,6 +446,22 @@ addApiGroup(
     requiredScopes: ["backup:run"]
   }
 );
+
+addApiGroup(
+  apiProcedureAccess,
+  ["registerExternalBackupArtifact", "triggerExternalArtifactTestRestore"],
+  {
+    auth: "authenticated",
+    requiredRoles: OPS_ROLES,
+    requiredScopes: ["backup:restore"]
+  }
+);
+
+apiProcedureAccess.requestExternalArtifactRestoreApproval = {
+  auth: "authenticated",
+  requiredRoles: OPS_ROLES,
+  requiredScopes: ["approvals:create", "backup:restore"]
+};
 
 addApiGroup(apiProcedureAccess, ["upsertEnvironmentVariable", "deleteEnvironmentVariable"], {
   auth: "authenticated",
@@ -990,7 +1021,32 @@ export const cliCommandMeta: Record<string, CliCommandMeta> = {
   },
   "backup verify": { lane: "command", requiredScopes: ["backup:restore"], mutating: true },
   "backup download": { lane: "read", requiredScopes: ["backup:read"], mutating: false },
+  "backup external list": {
+    lane: "read",
+    requiredScopes: ["backup:read"],
+    mutating: false
+  },
+  "backup external register": {
+    lane: "command",
+    requiredScopes: ["backup:restore"],
+    mutating: true
+  },
+  "backup external verify": {
+    lane: "command",
+    requiredScopes: ["backup:restore"],
+    mutating: true
+  },
+  "backup external restore": {
+    lane: "command",
+    requiredScopes: ["approvals:create", "backup:restore"],
+    mutating: true
+  },
   "backup destination add": { lane: "command", requiredScopes: ["backup:run"], mutating: true },
+  "backup destination files": {
+    lane: "read",
+    requiredScopes: ["backup:read"],
+    mutating: false
+  },
   "backup destination delete": {
     lane: "command",
     requiredScopes: ["backup:run"],

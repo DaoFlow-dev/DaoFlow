@@ -337,4 +337,34 @@ describe("team-scoped approval routes", () => {
       linkedOwnerTokenCaller.approveApprovalRequest({ requestId: teamARequest.id })
     ).resolves.toMatchObject({ id: teamARequest.id, status: "approved" });
   });
+
+  it("requires both approval creation and backup restore scopes for external restores", async () => {
+    const input = {
+      artifactId: "xart_missing_scope_fixture",
+      targetVolumeId: "vol_missing_scope_fixture",
+      reason: "Verify the external restore scope boundary before approval."
+    };
+    const approvalOnly = appRouter.createCaller({
+      requestId: "external-restore-approval-scope-denied",
+      session: makeSession("owner"),
+      auth: makeTokenAuthContext("owner", ["approvals:create"])
+    });
+
+    await expect(approvalOnly.requestExternalArtifactRestoreApproval(input)).rejects.toMatchObject({
+      code: "FORBIDDEN",
+      cause: expect.objectContaining({
+        code: "SCOPE_DENIED",
+        requiredScopes: ["approvals:create", "backup:restore"]
+      })
+    });
+
+    const fullyScoped = appRouter.createCaller({
+      requestId: "external-restore-approval-scope-allowed",
+      session: makeSession("owner"),
+      auth: makeTokenAuthContext("owner", ["approvals:create", "backup:restore"])
+    });
+    await expect(fullyScoped.requestExternalArtifactRestoreApproval(input)).rejects.toMatchObject({
+      code: "BAD_REQUEST"
+    });
+  });
 });

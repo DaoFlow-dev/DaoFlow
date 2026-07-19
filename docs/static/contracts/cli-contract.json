@@ -659,6 +659,21 @@
           "required": false
         },
         {
+          "flags": "--allow-external-imports",
+          "description": "Allow importing PostgreSQL archives from this S3 destination",
+          "required": false
+        },
+        {
+          "flags": "--external-import-prefix <prefix>",
+          "description": "Approved S3 object prefix for external imports",
+          "required": false
+        },
+        {
+          "flags": "--max-external-import-bytes <bytes>",
+          "description": "Maximum external import object size in bytes",
+          "required": false
+        },
+        {
           "flags": "--json",
           "description": "Output as JSON",
           "required": false
@@ -708,6 +723,37 @@
       "supportsJson": true,
       "supportsDryRun": false,
       "supportsYes": true
+    },
+    {
+      "path": "backup destination files",
+      "summary": "List objects in a destination's approved external-import prefix",
+      "lane": "read",
+      "requiredScopes": ["backup:read"],
+      "mutating": false,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--id <destination>",
+          "description": "Backup destination ID",
+          "required": true
+        },
+        {
+          "flags": "--prefix <prefix>",
+          "description": "Sub-prefix within the approved import prefix",
+          "required": false
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": false
     },
     {
       "path": "backup destination test",
@@ -781,6 +827,180 @@
       "supportsJson": true,
       "supportsDryRun": false,
       "supportsYes": false
+    },
+    {
+      "path": "backup external",
+      "summary": "Manage imported external PostgreSQL backup artifacts",
+      "lane": "local",
+      "requiredScopes": [],
+      "mutating": false,
+      "hasAction": false,
+      "hasSubcommands": true,
+      "aliases": [],
+      "arguments": [],
+      "options": [],
+      "supportsJson": false,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
+      "path": "backup external list",
+      "summary": "List registered external backup artifacts",
+      "lane": "read",
+      "requiredScopes": ["backup:read"],
+      "mutating": false,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--destination <id>",
+          "description": "Filter by backup destination ID",
+          "required": false
+        },
+        {
+          "flags": "--limit <n>",
+          "description": "Maximum artifacts to show",
+          "required": false
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
+      "path": "backup external register",
+      "summary": "Register an exact object as an external PostgreSQL backup artifact",
+      "lane": "command",
+      "requiredScopes": ["backup:restore"],
+      "mutating": true,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--destination <id>",
+          "description": "Backup destination ID",
+          "required": true
+        },
+        {
+          "flags": "--object-key <key>",
+          "description": "Exact approved-prefix object key",
+          "required": true
+        },
+        {
+          "flags": "--postgres-major <n>",
+          "description": "Expected PostgreSQL major version",
+          "required": true
+        },
+        {
+          "flags": "--dry-run",
+          "description": "Preview locally without making an API call",
+          "required": false
+        },
+        {
+          "flags": "-y, --yes",
+          "description": "Execute the registration",
+          "required": false
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": true,
+      "supportsYes": true
+    },
+    {
+      "path": "backup external restore",
+      "summary": "Request approval to restore an external artifact to a target volume",
+      "lane": "command",
+      "requiredScopes": ["approvals:create", "backup:restore"],
+      "mutating": true,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--artifact-id <id>",
+          "description": "External artifact ID",
+          "required": true
+        },
+        {
+          "flags": "--target-volume <id>",
+          "description": "Target PostgreSQL volume ID",
+          "required": true
+        },
+        {
+          "flags": "--dry-run",
+          "description": "Preview the server restore plan",
+          "required": false
+        },
+        {
+          "flags": "-y, --yes",
+          "description": "Request production restore approval",
+          "required": false
+        },
+        {
+          "flags": "--reason <text>",
+          "description": "Reason for the approval request",
+          "required": false
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": true,
+      "supportsYes": true
+    },
+    {
+      "path": "backup external verify",
+      "summary": "Queue an isolated test restore for an external artifact",
+      "lane": "command",
+      "requiredScopes": ["backup:restore"],
+      "mutating": true,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--artifact-id <id>",
+          "description": "External artifact ID",
+          "required": true
+        },
+        {
+          "flags": "--dry-run",
+          "description": "Preview locally without making an API call",
+          "required": false
+        },
+        {
+          "flags": "-y, --yes",
+          "description": "Queue the isolated verification",
+          "required": false
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": true,
+      "supportsYes": true
     },
     {
       "path": "backup list",

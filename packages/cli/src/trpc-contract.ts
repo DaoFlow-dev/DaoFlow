@@ -217,7 +217,8 @@ export interface AccessLogsOutput {
 
 export interface ApprovalQueueRequestOutput {
   id: string;
-  actionType: "compose-release" | "backup-restore" | "preview-deployment";
+  actionType:
+    "compose-release" | "backup-restore" | "preview-deployment" | "external-artifact-restore";
   targetResource: string;
   reason: string;
   status: string;
@@ -454,10 +455,90 @@ export interface BackupDestinationOutput {
   rcloneType: string | null;
   rcloneRemotePath: string | null;
   localPath: string | null;
+  externalImportEnabled?: boolean;
+  externalImportPrefix?: string | null;
+  maxExternalImportBytes?: number | string | null;
   lastTestedAt: string | null;
   lastTestResult: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface ExternalBackupObjectOutput {
+  key: string;
+  name: string;
+  size: number;
+  lastModified: string | null;
+  etag: string | null;
+  versionId: string | null;
+}
+
+export interface ExternalBackupObjectsOutput {
+  destination: {
+    id: string;
+    name: string;
+    provider: string;
+    externalImportEnabled?: boolean;
+    externalImportPrefix?: string | null;
+    maxExternalImportBytes?: number | string | null;
+  };
+  prefix: string;
+  objects: ExternalBackupObjectOutput[];
+}
+
+export type ExternalBackupArtifactStatus =
+  "registering" | "registered" | "verifying" | "verified" | "failed";
+
+export interface ExternalBackupArtifactOutput {
+  id: string;
+  destinationId: string;
+  destinationName?: string;
+  objectKey: string;
+  objectVersion: string | null;
+  objectEtag: string | null;
+  sizeBytes: number | string;
+  contentType?: string | null;
+  lastModified?: string | null;
+  sha256: string | null;
+  archiveFormat?: string | null;
+  sourcePostgresVersion?: string | null;
+  databaseEngineVersion?: string | null;
+  verifierImage?: string | null;
+  status: ExternalBackupArtifactStatus;
+  registerError?: string | null;
+  error?: string | null;
+  registeredAt?: string | null;
+  verifiedAt?: string | null;
+  latestVerification?: Record<string, unknown> | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface ExternalBackupArtifactsOutput {
+  artifacts: ExternalBackupArtifactOutput[];
+}
+
+export interface RegisterExternalBackupArtifactOutput {
+  artifact: ExternalBackupArtifactOutput;
+  workflowId: string;
+  nextAction: string;
+}
+
+export interface ExternalArtifactRestoreQueueOutput {
+  id: string;
+  artifactId: string;
+  status: string;
+}
+
+export interface ExternalArtifactRestorePlanOutput {
+  isReady?: boolean;
+  artifact?: ExternalBackupArtifactOutput | Record<string, unknown>;
+  target?: Record<string, unknown>;
+  preflightChecks?: Array<{ status: string; detail: string }>;
+  steps?: string[];
+  executeCommand?: string;
+  approvalRequest?: Record<string, unknown>;
+  [key: string]: unknown;
 }
 
 export interface QueueRestoreOutput {
@@ -1641,6 +1722,18 @@ export interface DaoFlowTRPC {
   backupRunDetails: QueryProcedure<BackupRunDetailsOutput, { runId: string }>;
   persistentVolumes: QueryProcedure<PersistentVolumeRegistryOutput, { limit?: number }>;
   backupDestinations: QueryProcedure<BackupDestinationOutput[], { limit?: number }>;
+  externalBackupObjects: QueryProcedure<
+    ExternalBackupObjectsOutput,
+    { destinationId: string; prefix?: string }
+  >;
+  externalBackupArtifacts: QueryProcedure<
+    ExternalBackupArtifactsOutput,
+    {
+      destinationId?: string;
+      limit?: number;
+    }
+  >;
+  externalBackupArtifact: QueryProcedure<ExternalBackupArtifactOutput, { artifactId: string }>;
   createVolume: MutationProcedure<
     {
       name: string;
@@ -1682,6 +1775,9 @@ export interface DaoFlowTRPC {
       rcloneRemotePath?: string;
       oauthToken?: string;
       localPath?: string;
+      externalImportEnabled?: boolean;
+      externalImportPrefix?: string;
+      maxExternalImportBytes?: number;
     },
     BackupDestinationOutput
   >;
@@ -1737,6 +1833,22 @@ export interface DaoFlowTRPC {
   triggerTestRestore: MutationProcedure<{ backupRunId: string }, QueueRestoreOutput>;
   backupRestorePlan: QueryProcedure<BackupRestorePlanOutput, { backupRunId: string }>;
   queueBackupRestore: MutationProcedure<{ backupRunId: string }, QueueRestoreOutput>;
+  registerExternalBackupArtifact: MutationProcedure<
+    { destinationId: string; objectKey: string; postgresMajor: number },
+    RegisterExternalBackupArtifactOutput
+  >;
+  triggerExternalArtifactTestRestore: MutationProcedure<
+    { artifactId: string },
+    ExternalArtifactRestoreQueueOutput
+  >;
+  externalArtifactRestorePlan: QueryProcedure<
+    ExternalArtifactRestorePlanOutput,
+    { artifactId: string; targetVolumeId: string }
+  >;
+  requestExternalArtifactRestoreApproval: MutationProcedure<
+    { artifactId: string; targetVolumeId: string; reason: string },
+    ApprovalQueueRequestOutput
+  >;
   controlPlaneRecoveryPlan: QueryProcedure<
     ControlPlaneRecoveryPlanOutput,
     { destinationId: string }

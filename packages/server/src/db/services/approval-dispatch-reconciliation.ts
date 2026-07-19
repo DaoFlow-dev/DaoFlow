@@ -27,7 +27,10 @@ async function getOperationTerminalState(
   tx: ApprovalDispatchTransaction,
   dispatch: ApprovalDispatchRow
 ) {
-  if (dispatch.actionType === "backup-restore") {
+  if (
+    dispatch.actionType === "backup-restore" ||
+    dispatch.actionType === "external-artifact-restore"
+  ) {
     const [restore] = await tx
       .select({ status: backupRestores.status, error: backupRestores.error })
       .from(backupRestores)

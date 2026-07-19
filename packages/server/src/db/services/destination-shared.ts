@@ -31,6 +31,9 @@ export interface CreateDestinationInput {
   encryptionSalt?: string | null;
   filenameEncryption?: string;
   localPath?: string;
+  externalImportEnabled?: boolean;
+  externalImportPrefix?: string | null;
+  maxExternalImportBytes?: number | string | null;
 }
 
 export interface UpdateDestinationInput extends Partial<CreateDestinationInput> {
@@ -131,6 +134,9 @@ export function toPublicDestinationView(row: DestinationRow) {
     encryptionMode: row.encryptionMode,
     filenameEncryption: row.filenameEncryption,
     localPath: row.localPath,
+    externalImportEnabled: row.externalImportEnabled,
+    externalImportPrefix: row.externalImportPrefix,
+    maxExternalImportBytes: Number(row.maxExternalImportBytes),
     lastTestedAt: row.lastTestedAt?.toISOString() ?? null,
     lastTestResult: row.lastTestResult,
     createdAt: row.createdAt.toISOString(),

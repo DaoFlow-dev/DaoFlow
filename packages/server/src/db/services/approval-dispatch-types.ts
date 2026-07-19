@@ -42,6 +42,15 @@ export type ApprovalActionPayload =
     }
   | {
       version: 1;
+      actionType: "external-artifact-restore";
+      targetResource: string;
+      actor: DispatchActor;
+      artifactId: string;
+      targetVolumeId: string;
+      snapshot: Record<string, unknown>;
+    }
+  | {
+      version: 1;
       actionType: "preview-deployment";
       targetResource: string;
       actor: DispatchActor;
@@ -79,6 +88,13 @@ function stableJson(value: unknown): string {
 
 function hasSnapshotStrings(snapshot: Record<string, unknown>, keys: readonly string[]) {
   return keys.every((key) => Boolean(readString(snapshot, key)));
+}
+
+function hasExternalArtifactIdentity(snapshot: Record<string, unknown>) {
+  return (
+    Boolean(readString(snapshot, "artifactObjectVersion")) ||
+    Boolean(readString(snapshot, "artifactObjectEtag"))
+  );
 }
 
 export function hashApprovalActionPayload(payload: ApprovalActionPayload): string {
@@ -162,6 +178,50 @@ export function buildApprovalActionPayload(input: {
         };
   }
 
+  if (input.request.actionType === "external-artifact-restore") {
+    const artifactId = readString(action, "artifactId");
+    const targetVolumeId = readString(action, "targetVolumeId");
+    return artifactId &&
+      targetVolumeId &&
+      hasSnapshotStrings(snapshot, [
+        "artifactId",
+        "artifactSha256",
+        "artifactObjectKey",
+        "artifactVerifiedAt",
+        "destinationId",
+        "destinationUpdatedAt",
+        "targetVolumeId",
+        "targetVolumeUpdatedAt",
+        "targetServerId",
+        "targetMountPath",
+        "targetServiceId",
+        "targetServiceUpdatedAt",
+        "runtimeServiceName",
+        "databaseEngine",
+        "databaseName",
+        "databaseUser",
+        "secretPolicy"
+      ]) &&
+      hasExternalArtifactIdentity(snapshot)
+      ? {
+          version: 1,
+          actionType: "external-artifact-restore",
+          targetResource: input.request.targetResource,
+          actor: input.actor,
+          artifactId,
+          targetVolumeId,
+          snapshot
+        }
+      : {
+          version: 1,
+          actionType: "invalid",
+          targetResource: input.request.targetResource,
+          actor: input.actor,
+          reason: "The approved external artifact restore binding is incomplete.",
+          snapshot
+        };
+  }
+
   if (input.request.actionType === "preview-deployment") {
     const binding = readPreviewApprovalBinding(summary.previewTrust);
     return binding &&
@@ -235,6 +295,14 @@ export function readApprovalActionPayload(value: unknown): ApprovalActionPayload
     const backupRunId = readString(payload, "backupRunId");
     return backupRunId
       ? { version: 1, actionType, targetResource, actor, backupRunId, snapshot }
+      : null;
+  }
+
+  if (actionType === "external-artifact-restore") {
+    const artifactId = readString(payload, "artifactId");
+    const targetVolumeId = readString(payload, "targetVolumeId");
+    return artifactId && targetVolumeId
+      ? { version: 1, actionType, targetResource, actor, artifactId, targetVolumeId, snapshot }
       : null;
   }
 

@@ -11,6 +11,7 @@ import {
   adminProcedure,
   approvalsCreateProcedure,
   approvalsDecideProcedure,
+  externalRestoreApprovalProcedure,
   getActorContext,
   t,
   throwOnOperationError,
@@ -110,6 +111,32 @@ export const adminAgentApprovalRouter = t.router({
         });
       }
 
+      return request;
+    }),
+
+  requestExternalArtifactRestoreApproval: externalRestoreApprovalProcedure
+    .input(
+      z.object({
+        artifactId: z.string().min(1),
+        targetVolumeId: z.string().min(1),
+        reason: z.string().min(12).max(280)
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const teamId = await requireActorTeamId(ctx.session.user.id);
+      const request = await createApprovalRequest({
+        actionType: "external-artifact-restore",
+        ...input,
+        teamId,
+        ...getActorContext(ctx)
+      });
+      if (!request) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message:
+            "Only verified external PostgreSQL artifacts and valid target volumes can be submitted for approval."
+        });
+      }
       return request;
     }),
 

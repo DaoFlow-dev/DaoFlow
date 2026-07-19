@@ -38,6 +38,7 @@ import { limitInput } from "../schemas";
 import { getStartupReadiness } from "../startup-readiness";
 import { accessAssetsReadRouter } from "./read-access-assets";
 import { backupReadRouter } from "./read-backups";
+import { externalBackupArtifactReadRouter } from "./external-backup-artifacts";
 import { developmentTaskReadRouter } from "./read-development-tasks";
 import { deploymentReadRouter } from "./read-deployments";
 import { managedOperationsReadRouter } from "./read-managed-operations";
@@ -396,6 +397,7 @@ export const readRouter = t.mergeRouters(
   coreReadRouter,
   deploymentReadRouter,
   backupReadRouter,
+  externalBackupArtifactReadRouter,
   developmentTaskReadRouter,
   accessAssetsReadRouter,
   managedOperationsReadRouter,

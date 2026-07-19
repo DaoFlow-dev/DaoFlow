@@ -9,3 +9,8 @@ export { deploymentWorkflow } from "./deploy-workflow";
 export { backupCronWorkflow } from "./backup-workflow";
 export { restoreWorkflow } from "./restore-workflow";
 export { controlPlaneRecoveryWorkflow } from "./control-plane-recovery-workflow";
+export {
+  externalArtifactImportWorkflow,
+  externalArtifactVerificationWorkflow,
+  externalArtifactRestoreWorkflow
+} from "./external-backup-artifact-workflows";

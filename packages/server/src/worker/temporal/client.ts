@@ -15,6 +15,11 @@ import {
 import type { DeploymentWorkflowInput } from "../deployment-workflow-input";
 import { TEMPORAL_ADDRESS, TEMPORAL_NAMESPACE, TEMPORAL_TASK_QUEUE } from "./temporal-config";
 import type { RestoreApproval } from "./restore-workflow-input";
+import type {
+  ExternalArtifactImportWorkflowInput,
+  ExternalArtifactRestoreWorkflowInput,
+  ExternalArtifactVerificationWorkflowInput
+} from "./external-artifact-workflow-input";
 
 let client: Client | null = null;
 export const DEPLOYMENT_WORKFLOW_EXECUTION_TIMEOUT = "7 days";
@@ -118,6 +123,18 @@ export function buildOneOffBackupWorkflowId(policyId: string, requestedRunId?: s
 
 export function buildRestoreWorkflowId(restoreId: string): string {
   return `backup-restore-${restoreId}`;
+}
+
+export function buildExternalArtifactImportWorkflowId(artifactId: string): string {
+  return `external-artifact-import-${artifactId}`;
+}
+
+export function buildExternalArtifactVerificationWorkflowId(restoreId: string): string {
+  return `external-artifact-verify-${restoreId}`;
+}
+
+export function buildExternalArtifactRestoreWorkflowId(restoreId: string): string {
+  return `external-artifact-restore-${restoreId}`;
 }
 
 /**
@@ -245,6 +262,68 @@ export async function startRestoreWorkflow(input: {
   } catch (error) {
     if (!(error instanceof WorkflowExecutionAlreadyStartedError)) throw error;
 
+    const existing = tc.workflow.getHandle(workflowId);
+    const description = await existing.describe();
+    return { workflowId, runId: description.runId };
+  }
+}
+
+export async function startExternalArtifactImportWorkflow(
+  input: ExternalArtifactImportWorkflowInput
+): Promise<{ workflowId: string; runId: string }> {
+  return startExternalArtifactWorkflow(
+    "externalArtifactImportWorkflow",
+    buildExternalArtifactImportWorkflowId(input.artifactId),
+    input,
+    WorkflowIdReusePolicy.ALLOW_DUPLICATE_FAILED_ONLY
+  );
+}
+
+export async function startExternalArtifactVerificationWorkflow(
+  input: ExternalArtifactVerificationWorkflowInput
+): Promise<{ workflowId: string; runId: string }> {
+  return startExternalArtifactWorkflow(
+    "externalArtifactVerificationWorkflow",
+    buildExternalArtifactVerificationWorkflowId(input.restoreId),
+    input
+  );
+}
+
+export async function startExternalArtifactRestoreWorkflow(
+  input: ExternalArtifactRestoreWorkflowInput
+): Promise<{ workflowId: string; runId: string }> {
+  return startExternalArtifactWorkflow(
+    "externalArtifactRestoreWorkflow",
+    buildExternalArtifactRestoreWorkflowId(input.restoreId),
+    input
+  );
+}
+
+async function startExternalArtifactWorkflow(
+  workflowType:
+    | "externalArtifactImportWorkflow"
+    | "externalArtifactVerificationWorkflow"
+    | "externalArtifactRestoreWorkflow",
+  workflowId: string,
+  input:
+    | ExternalArtifactImportWorkflowInput
+    | ExternalArtifactVerificationWorkflowInput
+    | ExternalArtifactRestoreWorkflowInput,
+  workflowIdReusePolicy: WorkflowIdReusePolicy = WorkflowIdReusePolicy.REJECT_DUPLICATE
+): Promise<{ workflowId: string; runId: string }> {
+  const tc = await getTemporalClient();
+  try {
+    const handle = await tc.workflow.start(workflowType, {
+      taskQueue: TEMPORAL_TASK_QUEUE,
+      workflowId,
+      args: [input],
+      workflowExecutionTimeout: "1h",
+      workflowIdConflictPolicy: WorkflowIdConflictPolicy.USE_EXISTING,
+      workflowIdReusePolicy
+    });
+    return { workflowId: handle.workflowId, runId: handle.firstExecutionRunId };
+  } catch (error) {
+    if (!(error instanceof WorkflowExecutionAlreadyStartedError)) throw error;
     const existing = tc.workflow.getHandle(workflowId);
     const description = await existing.describe();
     return { workflowId, runId: description.runId };

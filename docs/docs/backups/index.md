@@ -21,7 +21,7 @@ manual `backup run` or restore operations.
 | [Policies](./policies)               | Define what to backup, when, and retention rules |
 | [Runs](./runs)                       | View backup execution history                    |
 | [Restore](./restore)                 | Restore from a specific backup                   |
-| [S3 Storage](./s3-storage)           | Configure remote backup storage                  |
+| [S3 Storage](./s3-storage)           | Configure storage and approved archive imports   |
 | [Control-plane recovery](./recovery) | Create and verify DaoFlow recovery bundles       |
 
 ## Service Detail Workflow
@@ -51,6 +51,14 @@ daoflow backup list --json
 
 # Restore from a backup
 daoflow backup restore --backup-run-id bkp_run_123 --yes
+
+# Register and test an existing PostgreSQL custom archive from approved S3 storage
+daoflow backup external register \
+  --destination dest_123 \
+  --object-key database-imports/customer.dump \
+  --postgres-major 17 \
+  --yes
+daoflow backup external verify --artifact-id xba_123 --yes
 
 # Plan and run a control-plane recovery bundle
 daoflow backup recovery plan --destination dest_123 --json

@@ -19,8 +19,13 @@ import {
 import { resolveVolumeTeamId } from "./backup-resource-team";
 import { createApprovalActionDispatchIntent } from "./approval-dispatch-service";
 import { buildApprovalActionPayload, toApprovalDispatchView } from "./approval-dispatch-types";
+import {
+  buildExternalRestoreApprovalSnapshot,
+  resolveExternalArtifactRestoreTarget
+} from "./external-backup-artifacts";
 
-export type ApprovalActionType = "compose-release" | "backup-restore" | "preview-deployment";
+export type ApprovalActionType =
+  "compose-release" | "backup-restore" | "external-artifact-restore" | "preview-deployment";
 
 type ApprovalRequester = {
   teamId: string;
@@ -40,6 +45,12 @@ export type CreateApprovalRequestInput =
   | ({
       actionType: "backup-restore";
       backupRunId: string;
+      reason: string;
+    } & ApprovalRequester)
+  | ({
+      actionType: "external-artifact-restore";
+      artifactId: string;
+      targetVolumeId: string;
       reason: string;
     } & ApprovalRequester)
   | ({
@@ -164,6 +175,33 @@ async function resolveApprovalPresentation(input: CreateApprovalRequestInput) {
           allowedSecretProfile: input.previewTrust.allowedSecretProfile,
           bindingPolicyRevision: input.previewTrust.policyRevision
         }
+      }
+    } as const;
+  }
+
+  if (input.actionType === "external-artifact-restore") {
+    const target = await resolveExternalArtifactRestoreTarget({
+      artifactId: input.artifactId,
+      targetVolumeId: input.targetVolumeId,
+      teamId: input.teamId
+    });
+    if (!target || target.artifact.status !== "verified" || !target.artifact.sha256) return null;
+    const snapshot = buildExternalRestoreApprovalSnapshot(target);
+    return {
+      teamId: input.teamId,
+      targetResource: `external-backup-artifact/${target.artifact.id}`,
+      resourceLabel: `${target.destination.name}:${target.artifact.objectKey}`,
+      riskLevel: "critical",
+      commandSummary: `Restore verified external PostgreSQL artifact to ${target.runtimeServiceName}.`,
+      recommendedChecks: [
+        "Confirm the artifact checksum and isolated verification remain current.",
+        "Confirm the selected PostgreSQL target is isolated from conflicting writes."
+      ],
+      expiresAt: new Date(Date.now() + 7 * 60 * 60 * 1000).toISOString(),
+      actionPayload: {
+        artifactId: target.artifact.id,
+        targetVolumeId: target.volume.id,
+        snapshot
       }
     } as const;
   }
@@ -310,7 +348,10 @@ export async function createApprovalRequest(input: CreateApprovalRequestInput) {
     targetResource: `approval-request/${requestId}`,
     action: "approval.request",
     inputSummary: `Approval requested for ${presentation.resourceLabel}.`,
-    permissionScope: "deploy:start",
+    permissionScope:
+      input.actionType === "backup-restore" || input.actionType === "external-artifact-restore"
+        ? "backup:restore"
+        : "deploy:start",
     outcome: "success",
     metadata: {
       teamId: presentation.teamId,

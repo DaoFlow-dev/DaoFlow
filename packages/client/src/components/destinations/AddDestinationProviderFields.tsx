@@ -16,13 +16,14 @@ import {
   usesRemoteConfig
 } from "./add-destination-provider-config";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 
 interface AddDestinationProviderFieldsProps {
   form: AddDestinationFormState;
   copied: boolean;
   authorizeCommand?: string;
   onCopyAuthorizeCommand: () => void;
-  onFieldChange: (field: keyof AddDestinationFormState, value: string) => void;
+  onFieldChange: (field: keyof AddDestinationFormState, value: string | boolean) => void;
 }
 
 export function AddDestinationProviderFields({
@@ -115,6 +116,49 @@ export function AddDestinationProviderFields({
             value={form.endpoint}
             onChange={(event) => onFieldChange("endpoint", event.target.value)}
           />
+        </div>
+        <div className="space-y-3 rounded-lg border bg-muted/30 p-4">
+          <div className="flex items-start justify-between gap-4">
+            <div className="space-y-1">
+              <Label htmlFor="destination-external-import">Allow existing archive imports</Label>
+              <p className="text-xs text-muted-foreground">
+                Only PostgreSQL custom-format archives under the approved prefix can be registered.
+                This is disabled by default.
+              </p>
+            </div>
+            <Switch
+              id="destination-external-import"
+              data-testid="destination-external-import-enabled"
+              checked={form.externalImportEnabled}
+              onCheckedChange={(checked) =>
+                onFieldChange("externalImportEnabled", checked === true)
+              }
+            />
+          </div>
+          {form.externalImportEnabled ? (
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid gap-1.5">
+                <Label htmlFor="destination-external-import-prefix">Approved prefix</Label>
+                <Input
+                  id="destination-external-import-prefix"
+                  data-testid="destination-external-import-prefix"
+                  placeholder="database-imports/"
+                  value={form.externalImportPrefix}
+                  onChange={(event) => onFieldChange("externalImportPrefix", event.target.value)}
+                />
+              </div>
+              <div className="grid gap-1.5">
+                <Label htmlFor="destination-external-import-limit">Maximum bytes</Label>
+                <Input
+                  id="destination-external-import-limit"
+                  data-testid="destination-external-import-limit"
+                  inputMode="numeric"
+                  value={form.maxExternalImportBytes}
+                  onChange={(event) => onFieldChange("maxExternalImportBytes", event.target.value)}
+                />
+              </div>
+            </div>
+          ) : null}
         </div>
       </>
     );

@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { db } from "../connection";
 import { approvalActionDispatches, approvalRequests } from "../schema/audit";
 import { queueBackupRestore } from "./backup-restores";
+import { queueExternalArtifactRestore } from "./external-backup-artifacts";
 import {
   claimNextApprovalActionDispatch,
   getApprovalDispatchRetryConfig,
@@ -156,6 +157,25 @@ export async function executeApprovalActionDispatch(
     if (!restore) {
       throw new TerminalApprovalDispatchError(
         "The approved backup restore target no longer belongs to this team or is no longer restorable."
+      );
+    }
+    return;
+  }
+  if (payload.actionType === "external-artifact-restore") {
+    const restore = await queueExternalArtifactRestore({
+      artifactId: payload.artifactId,
+      targetVolumeId: payload.targetVolumeId,
+      teamId: dispatch.teamId,
+      actor: payload.actor,
+      approvalRequestId: dispatch.approvalRequestId,
+      operationId: dispatch.operationId,
+      approvalDispatchId: dispatch.id,
+      preserveDispatchRetry: true,
+      approvalSnapshot: payload.snapshot
+    });
+    if (!restore) {
+      throw new TerminalApprovalDispatchError(
+        "The approved external artifact restore target is no longer verified or available to this team."
       );
     }
     return;

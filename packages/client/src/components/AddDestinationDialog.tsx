@@ -53,9 +53,12 @@ export function AddDestinationDialog({
   const [form, setForm] = useState(createInitialAddDestinationFormState);
   const [copied, setCopied] = useState(false);
 
-  const updateField = useCallback((field: keyof AddDestinationFormState, value: string) => {
-    setForm((current) => ({ ...current, [field]: value }));
-  }, []);
+  const updateField = useCallback(
+    (field: keyof AddDestinationFormState, value: string | boolean) => {
+      setForm((current) => ({ ...current, [field]: value }));
+    },
+    []
+  );
 
   const handleProviderChange = useCallback((v: string) => {
     const key = v as ProviderKey;

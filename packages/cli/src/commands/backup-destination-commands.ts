@@ -11,6 +11,12 @@ import {
 } from "../command-helpers";
 import { createClient } from "../trpc-client";
 import { emitBackupDryRunResult, renderBackupError } from "./backup-shared";
+import { registerBackupDestinationFilesCommand } from "./backup-destination-files";
+import {
+  MAX_EXTERNAL_IMPORT_BYTES,
+  normalizeExternalObjectPrefix,
+  parsePositiveInteger
+} from "./backup-external-shared";
 
 export function registerBackupDestinationCommands(backup: Command): void {
   backup
@@ -63,6 +69,8 @@ export function registerBackupDestinationCommands(backup: Command): void {
     .command("destination")
     .description("Manage individual backup destinations");
 
+  registerBackupDestinationFilesCommand(destination);
+
   destination
     .command("add")
     .description("Add a new backup destination")
@@ -80,6 +88,12 @@ export function registerBackupDestinationCommands(backup: Command): void {
     .option("--local-path <path>", "Local filesystem path")
     .option("--rclone-config <config>", "Raw rclone config (INI format)")
     .option("--rclone-remote-path <path>", "Remote path within rclone backend")
+    .option(
+      "--allow-external-imports",
+      "Allow importing PostgreSQL archives from this S3 destination"
+    )
+    .option("--external-import-prefix <prefix>", "Approved S3 object prefix for external imports")
+    .option("--max-external-import-bytes <bytes>", "Maximum external import object size in bytes")
     .option("--json", "Output as JSON")
     .option("--dry-run", "Preview without executing")
     .option("-y, --yes", "Skip confirmation")
@@ -97,6 +111,9 @@ export function registerBackupDestinationCommands(backup: Command): void {
           localPath?: string;
           rcloneConfig?: string;
           rcloneRemotePath?: string;
+          allowExternalImports?: boolean;
+          externalImportPrefix?: string;
+          maxExternalImportBytes?: string;
           json?: boolean;
           dryRun?: boolean;
           yes?: boolean;
@@ -108,16 +125,57 @@ export function registerBackupDestinationCommands(backup: Command): void {
           json: opts.json,
           renderError: renderBackupError,
           action: async (ctx) => {
+            let provider: string;
+            let externalImportPrefix: string | undefined;
+            let maxExternalImportBytes: number | undefined;
+            try {
+              provider = normalizeCliInput(opts.provider, "Destination provider", {
+                allowPathTraversal: true
+              });
+              if (opts.allowExternalImports && provider !== "s3") {
+                throw new Error("External imports can only be enabled for an S3 destination.");
+              }
+              if (!opts.allowExternalImports && opts.externalImportPrefix) {
+                throw new Error("--external-import-prefix requires --allow-external-imports.");
+              }
+              if (!opts.allowExternalImports && opts.maxExternalImportBytes) {
+                throw new Error("--max-external-import-bytes requires --allow-external-imports.");
+              }
+              if (opts.allowExternalImports && !opts.externalImportPrefix) {
+                throw new Error("--allow-external-imports requires --external-import-prefix.");
+              }
+              externalImportPrefix = opts.externalImportPrefix
+                ? normalizeExternalObjectPrefix(opts.externalImportPrefix)
+                : undefined;
+              maxExternalImportBytes = opts.maxExternalImportBytes
+                ? parsePositiveInteger(
+                    opts.maxExternalImportBytes,
+                    "Maximum external import bytes",
+                    {
+                      max: MAX_EXTERNAL_IMPORT_BYTES
+                    }
+                  )
+                : undefined;
+            } catch (error) {
+              return ctx.fail(getErrorMessage(error), { code: "INVALID_INPUT" });
+            }
+
             if (opts.dryRun) {
-              return emitBackupDryRunResult(ctx, {
+              const preview = {
                 dryRun: true,
                 action: "destination.create",
                 name: normalizeCliInput(opts.name, "Destination name"),
-                provider: normalizeCliInput(opts.provider, "Destination provider", {
-                  allowPathTraversal: true
-                }),
-                message: `Would create backup destination "${normalizeCliInput(opts.name, "Destination name")}" (${normalizeCliInput(opts.provider, "Destination provider", { allowPathTraversal: true })})`
-              });
+                provider,
+                message: `Would create backup destination "${normalizeCliInput(opts.name, "Destination name")}" (${provider})`,
+                ...(opts.allowExternalImports
+                  ? {
+                      externalImportEnabled: true,
+                      externalImportPrefix,
+                      ...(maxExternalImportBytes !== undefined ? { maxExternalImportBytes } : {})
+                    }
+                  : {})
+              };
+              return emitBackupDryRunResult(ctx, preview);
             }
 
             ctx.requireConfirmation(
@@ -129,9 +187,8 @@ export function registerBackupDestinationCommands(backup: Command): void {
               const trpc = createClient();
               const result = await trpc.createBackupDestination.mutate({
                 name: normalizeCliInput(opts.name, "Destination name"),
-                provider: normalizeCliInput(opts.provider, "Destination provider", {
-                  allowPathTraversal: true
-                }) as "s3" | "local" | "gdrive" | "onedrive" | "dropbox" | "sftp" | "rclone",
+                provider: provider as
+                  "s3" | "local" | "gdrive" | "onedrive" | "dropbox" | "sftp" | "rclone",
                 accessKey: normalizeOptionalCliInput(opts.accessKey, "Access key", {
                   allowPathTraversal: true,
                   allowShellMetacharacters: true,
@@ -168,7 +225,14 @@ export function registerBackupDestinationCommands(backup: Command): void {
                   {
                     maxLength: 1024
                   }
-                )
+                ),
+                ...(opts.allowExternalImports
+                  ? {
+                      externalImportEnabled: true,
+                      externalImportPrefix,
+                      ...(maxExternalImportBytes !== undefined ? { maxExternalImportBytes } : {})
+                    }
+                  : {})
               });
 
               return ctx.success(result, {

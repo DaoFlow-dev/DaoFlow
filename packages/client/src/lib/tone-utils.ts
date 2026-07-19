@@ -210,7 +210,7 @@ export function getApprovalTone(status: string, riskLevel: string): StatusTone {
 }
 
 export function getBackupOperationTone(status: string): StatusTone {
-  if (status === "succeeded") {
+  if (status === "succeeded" || status === "verified") {
     return "healthy";
   }
 
@@ -218,7 +218,7 @@ export function getBackupOperationTone(status: string): StatusTone {
     return "failed";
   }
 
-  if (status === "running") {
+  if (status === "running" || status === "registering" || status === "verifying") {
     return "running";
   }
 

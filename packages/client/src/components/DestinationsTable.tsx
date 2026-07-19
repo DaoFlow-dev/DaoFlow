@@ -22,6 +22,8 @@ interface Destination {
   rcloneRemotePath?: string | null;
   lastTestResult?: string | null;
   lastTestedAt?: string | null;
+  externalImportEnabled?: boolean;
+  externalImportPrefix?: string | null;
 }
 
 interface DestinationsTableProps {
@@ -64,11 +66,18 @@ export function DestinationsTable({
                   <Badge variant="secondary">{d.provider}</Badge>
                 </TableCell>
                 <TableCell className="text-muted-foreground text-sm">
-                  {d.provider === "s3"
-                    ? `${d.bucket ?? ""}${d.region ? ` (${d.region})` : ""}`
-                    : d.provider === "local"
-                      ? (d.localPath ?? "")
-                      : (d.rcloneRemotePath ?? "—")}
+                  <div>
+                    {d.provider === "s3"
+                      ? `${d.bucket ?? ""}${d.region ? ` (${d.region})` : ""}`
+                      : d.provider === "local"
+                        ? (d.localPath ?? "")
+                        : (d.rcloneRemotePath ?? "—")}
+                  </div>
+                  {d.externalImportEnabled ? (
+                    <div className="mt-1 text-xs text-primary">
+                      Imports: /{d.externalImportPrefix}
+                    </div>
+                  ) : null}
                 </TableCell>
                 <TableCell>
                   {d.lastTestResult === "success" ? (

@@ -80,6 +80,37 @@ export function createPostgresRestoreVerifier(
   const hooks = { ...defaultPostgresRestoreVerifierHooks, ...overrides };
   return { verify: (input) => verify(input, hooks) };
 }
+
+/**
+ * Run only the same locked-down pg_restore --list preflight used by the
+ * isolated verifier. External artifact registration stores a sanitized result
+ * from this helper before the artifact can be restored anywhere.
+ */
+export async function listPostgresCustomArchive(
+  input: PostgresRestoreVerificationInput,
+  overrides: Partial<PostgresRestoreVerifierHooks> = {}
+): Promise<{ listing: string }> {
+  const hooks = { ...defaultPostgresRestoreVerifierHooks, ...overrides };
+  const startedAt = hooks.now();
+  try {
+    const valid = validatePostgresVerificationInput(input);
+    await beforePostgresVerificationDeadline(
+      hooks,
+      startedAt,
+      verificationCommand(["image", "inspect", input.verifierImage]),
+      "Verifier image inspection failed."
+    );
+    const listing = await beforePostgresVerificationDeadline(
+      hooks,
+      startedAt,
+      archiveInspectionCommand(input.verifierImage, valid.dumpPath),
+      "Custom-format archive inspection failed."
+    );
+    return { listing: listing.stdout };
+  } catch (error) {
+    throw new Error(redactError(error));
+  }
+}
 async function verify(
   input: PostgresRestoreVerificationInput,
   hooks: PostgresRestoreVerifierHooks

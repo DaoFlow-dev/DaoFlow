@@ -13,6 +13,9 @@ export interface DestinationFormData {
   rcloneConfig?: string;
   rcloneRemotePath?: string;
   oauthToken?: string;
+  externalImportEnabled?: boolean;
+  externalImportPrefix?: string;
+  maxExternalImportBytes?: number;
 }
 
 export interface AddDestinationFormState {
@@ -27,4 +30,7 @@ export interface AddDestinationFormState {
   localPath: string;
   rcloneConfig: string;
   rcloneRemotePath: string;
+  externalImportEnabled: boolean;
+  externalImportPrefix: string;
+  maxExternalImportBytes: string;
 }

@@ -68,3 +68,51 @@ s3://bucket/daoflow/
 daoflow doctor --json
 # Includes S3 connectivity check
 ```
+
+## Importing Existing PostgreSQL Archives
+
+External archive import is disabled by default. Enable it only on an S3-compatible destination and
+set a narrow approved prefix such as `database-imports/`. DaoFlow rejects keys outside that prefix,
+objects above the configured byte limit, destinations using archive or rclone encryption, and
+objects without a version ID or ETag.
+
+The destination form exposes three settings:
+
+- **Allow existing archive imports** — explicit opt-in
+- **Approved prefix** — the only object-key namespace DaoFlow may browse or import
+- **Maximum bytes** — enforced against both S3 metadata and the streamed download
+
+CLI-only setup uses the equivalent destination flags:
+
+```bash
+daoflow backup destination add \
+  --name migration-archives \
+  --provider s3 \
+  --bucket company-backups \
+  --region us-east-1 \
+  --allow-external-imports \
+  --external-import-prefix database-imports/ \
+  --max-external-import-bytes 2147483648 \
+  --yes
+```
+
+Browse only the approved namespace, then register an exact key:
+
+```bash
+daoflow backup destination files --id dest_123 --json
+
+daoflow backup external register \
+  --destination dest_123 \
+  --object-key database-imports/customer.dump \
+  --postgres-major 17 \
+  --yes \
+  --json
+```
+
+Registration runs in the worker. DaoFlow pins the S3 version ID or ETag, streams the object while
+calculating SHA-256, enforces the byte limit again, and inspects the archive with `pg_restore
+--list`. V1 accepts PostgreSQL custom-format archives only. Imported objects become first-class
+external artifacts; DaoFlow does not create a fake backup policy or backup run for them.
+
+Changing or deleting the source object does not silently retarget the artifact. Later verification
+and restore downloads reuse the pinned version or ETag and must reproduce the stored SHA-256.

@@ -16,6 +16,7 @@ import * as retentionActivities from "./activities/retention-activities";
 import * as notificationActivities from "./activities/notification-activities";
 import * as restoreActivities from "./activities/restore-activities";
 import * as controlPlaneRecoveryActivities from "./activities/control-plane-recovery-activities";
+import * as externalArtifactActivities from "./activities/external-backup-artifact-activities";
 import { resolve } from "node:path";
 import { TEMPORAL_ADDRESS, TEMPORAL_NAMESPACE, TEMPORAL_TASK_QUEUE } from "./temporal-config";
 
@@ -27,7 +28,8 @@ const activities = {
   ...retentionActivities,
   ...notificationActivities,
   ...restoreActivities,
-  ...controlPlaneRecoveryActivities
+  ...controlPlaneRecoveryActivities,
+  ...externalArtifactActivities
 };
 
 let worker: Worker | null = null;

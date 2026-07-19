@@ -63,59 +63,83 @@ This file holds the detailed CLI contract, scope map, and agent-facing command r
 
 ## Command Scope Map
 
-| Command                             | Lane                   | Required Scope(s)                                                   | Mutating |
-| ----------------------------------- | ---------------------- | ------------------------------------------------------------------- | -------- |
-| `login`                             | session                | none                                                                | yes      |
-| `whoami`                            | read                   | any valid token                                                     | no       |
-| `capabilities`                      | read                   | any valid token                                                     | no       |
-| `audit`                             | read                   | any valid token                                                     | no       |
-| `approvals`                         | read/command           | any valid token, `approvals:decide`                                 | varies   |
-| `status`                            | read                   | `server:read`                                                       | no       |
-| `server add`                        | command                | `server:write`                                                      | yes      |
-| `server capacity`                   | command                | `server:write`                                                      | yes      |
-| `server proxy`                      | command                | `server:write`                                                      | yes      |
-| `server ops`                        | read/command           | `server:read`, `server:write`                                       | varies   |
-| `tunnels`                           | read/command           | `server:read`, `server:write`                                       | varies   |
-| `log-drains`                        | read/command           | `server:read`, `server:write`                                       | varies   |
-| `access-assets`                     | read/command           | `server:read`, `server:write`                                       | varies   |
-| `maintenance`                       | read/command           | `server:write`                                                      | varies   |
-| `terminal service`                  | command                | `terminal:open`                                                     | yes      |
-| `services`                          | read/command           | `service:read`, `deploy:read`, `diagnostics:read`, `service:update` | varies   |
-| `projects`                          | read/command           | `deploy:read`, `deploy:start`, `service:update`                     | varies   |
-| `templates`                         | read/planning/command  | none, `deploy:read`, `deploy:start`                                 | varies   |
-| `logs`                              | read                   | `logs:read`                                                         | no       |
-| `plan`                              | planning               | `deploy:read`                                                       | no       |
-| `diff`                              | planning               | `deploy:read`                                                       | no       |
-| `doctor`                            | read                   | `server:read`, `logs:read`                                          | no       |
-| `install`                           | local                  | none                                                                | yes      |
-| `upgrade`                           | local                  | none                                                                | yes      |
-| `uninstall`                         | local                  | none                                                                | yes      |
-| `deploy`                            | command                | `deploy:start`                                                      | yes      |
-| `push`                              | command                | `deploy:start`                                                      | yes      |
-| `rollback`                          | command                | `deploy:rollback`                                                   | yes      |
-| `env list`                          | read                   | `env:read`                                                          | no       |
-| `env set`                           | command                | `env:write`                                                         | yes      |
-| `env delete`                        | command                | `env:write`                                                         | yes      |
-| `volumes list`                      | read                   | `volumes:read`                                                      | no       |
-| `volumes register`                  | command                | `volumes:write`                                                     | yes      |
-| `volumes update`                    | command                | `volumes:write`                                                     | yes      |
-| `volumes delete`                    | command                | `volumes:write`                                                     | yes      |
-| `backup list`                       | read                   | `backup:read`                                                       | no       |
-| `backup policy`                     | command                | `backup:run`                                                        | yes      |
-| `backup run`                        | command                | `backup:run`                                                        | yes      |
-| `backup restore`                    | command                | `backup:restore`                                                    | yes      |
-| `backup recovery plan`              | planning               | `backup:read`                                                       | no       |
-| `backup recovery run`               | command/planning       | `backup:run` / `backup:read` for `--dry-run`                        | yes      |
-| `backup recovery restore`           | local command/planning | local operator; no API scope                                        | yes      |
-| `backup recovery list`              | read                   | `backup:read`                                                       | no       |
-| `backup recovery inspect`           | read                   | `backup:read`                                                       | no       |
-| `backup recovery download-metadata` | read                   | `backup:read`                                                       | no       |
-| `notifications list`                | read                   | any valid token                                                     | no       |
-| `notifications logs`                | read                   | any valid token                                                     | no       |
+| Command                             | Lane                   | Required Scope(s)                                                                 | Mutating |
+| ----------------------------------- | ---------------------- | --------------------------------------------------------------------------------- | -------- |
+| `login`                             | session                | none                                                                              | yes      |
+| `whoami`                            | read                   | any valid token                                                                   | no       |
+| `capabilities`                      | read                   | any valid token                                                                   | no       |
+| `audit`                             | read                   | any valid token                                                                   | no       |
+| `approvals`                         | read/command           | any valid token, `approvals:decide`                                               | varies   |
+| `status`                            | read                   | `server:read`                                                                     | no       |
+| `server add`                        | command                | `server:write`                                                                    | yes      |
+| `server capacity`                   | command                | `server:write`                                                                    | yes      |
+| `server proxy`                      | command                | `server:write`                                                                    | yes      |
+| `server ops`                        | read/command           | `server:read`, `server:write`                                                     | varies   |
+| `tunnels`                           | read/command           | `server:read`, `server:write`                                                     | varies   |
+| `log-drains`                        | read/command           | `server:read`, `server:write`                                                     | varies   |
+| `access-assets`                     | read/command           | `server:read`, `server:write`                                                     | varies   |
+| `maintenance`                       | read/command           | `server:write`                                                                    | varies   |
+| `terminal service`                  | command                | `terminal:open`                                                                   | yes      |
+| `services`                          | read/command           | `service:read`, `deploy:read`, `diagnostics:read`, `service:update`               | varies   |
+| `projects`                          | read/command           | `deploy:read`, `deploy:start`, `service:update`                                   | varies   |
+| `templates`                         | read/planning/command  | none, `deploy:read`, `deploy:start`                                               | varies   |
+| `logs`                              | read                   | `logs:read`                                                                       | no       |
+| `plan`                              | planning               | `deploy:read`                                                                     | no       |
+| `diff`                              | planning               | `deploy:read`                                                                     | no       |
+| `doctor`                            | read                   | `server:read`, `logs:read`                                                        | no       |
+| `install`                           | local                  | none                                                                              | yes      |
+| `upgrade`                           | local                  | none                                                                              | yes      |
+| `uninstall`                         | local                  | none                                                                              | yes      |
+| `deploy`                            | command                | `deploy:start`                                                                    | yes      |
+| `push`                              | command                | `deploy:start`                                                                    | yes      |
+| `rollback`                          | command                | `deploy:rollback`                                                                 | yes      |
+| `env list`                          | read                   | `env:read`                                                                        | no       |
+| `env set`                           | command                | `env:write`                                                                       | yes      |
+| `env delete`                        | command                | `env:write`                                                                       | yes      |
+| `volumes list`                      | read                   | `volumes:read`                                                                    | no       |
+| `volumes register`                  | command                | `volumes:write`                                                                   | yes      |
+| `volumes update`                    | command                | `volumes:write`                                                                   | yes      |
+| `volumes delete`                    | command                | `volumes:write`                                                                   | yes      |
+| `backup list`                       | read                   | `backup:read`                                                                     | no       |
+| `backup destination files`          | read                   | `backup:read`                                                                     | no       |
+| `backup external list`              | read                   | `backup:read`                                                                     | no       |
+| `backup external register`          | command                | `backup:restore`                                                                  | yes      |
+| `backup external verify`            | command                | `backup:restore`                                                                  | yes      |
+| `backup external restore`           | planning/command       | `backup:read` for `--dry-run`; `approvals:create`, `backup:restore` for execution | yes      |
+| `backup policy`                     | command                | `backup:run`                                                                      | yes      |
+| `backup run`                        | command                | `backup:run`                                                                      | yes      |
+| `backup restore`                    | command                | `backup:restore`                                                                  | yes      |
+| `backup recovery plan`              | planning               | `backup:read`                                                                     | no       |
+| `backup recovery run`               | command/planning       | `backup:run` / `backup:read` for `--dry-run`                                      | yes      |
+| `backup recovery restore`           | local command/planning | local operator; no API scope                                                      | yes      |
+| `backup recovery list`              | read                   | `backup:read`                                                                     | no       |
+| `backup recovery inspect`           | read                   | `backup:read`                                                                     | no       |
+| `backup recovery download-metadata` | read                   | `backup:read`                                                                     | no       |
+| `notifications list`                | read                   | any valid token                                                                   | no       |
+| `notifications logs`                | read                   | any valid token                                                                   | no       |
 
 - `daoflow backup restore --dry-run` is a planning-lane preview backed by `backupRestorePlan` and requires only `backup:read`
 - `daoflow backup restore --yes` queues the restore and requires `backup:restore`
 - If an operator wants a human approval gate before restore execution, create a separate `requestApproval` with `approvals:create`
+
+## External Backup Artifact Contract
+
+- `daoflow backup destination files --id <destination> [--prefix <prefix>]` reads only objects under the destination's server-enforced approved external-import prefix through `externalBackupObjects`; the CLI never broadens that prefix locally.
+- `daoflow backup destination add --provider s3 --allow-external-imports --external-import-prefix <prefix>` enables the import boundary. Enabling imports without a prefix, using the flags for a non-S3 provider, or supplying a size limit without enabling imports fails locally before mutation.
+- `--max-external-import-bytes <bytes>` is optional when imports are enabled and is limited to a positive value no greater than `2147483648`.
+- Destination dry-runs and JSON responses never print access keys, secret keys, OAuth tokens, rclone configuration, or other credentials.
+- `daoflow backup external list [--destination <id>] [--limit <n>]` reads `externalBackupArtifacts` and visibly reports external origin, exact object key, pinned version/ETag identity, size, SHA-256 checksum, and status.
+- `daoflow backup external register --destination <id> --object-key <key> --postgres-major <n> --dry-run|--yes` validates the exact relative object key locally. Dry-run is local and exits `3`; execution calls `registerExternalBackupArtifact` and requires `backup:restore`.
+- `daoflow backup external verify --artifact-id <id> --dry-run|--yes` previews locally and exits `3`; execution calls `triggerExternalArtifactTestRestore` and requires `backup:restore`.
+- `daoflow backup external restore --artifact-id <id> --target-volume <id> --dry-run|--yes [--reason <text>]` calls `externalArtifactRestorePlan` with `backup:read` for dry-run and exits `3`. Execution calls `requestExternalArtifactRestoreApproval` with `{ artifactId, targetVolumeId, reason }` and requires both `approvals:create` and `backup:restore`.
+- External production restore execution is approval-only. The CLI must never queue or invoke a production restore directly; successful output must explicitly state that approval was requested and that a different authorized actor must approve it. If `--reason` is omitted, use a safe reason of at least 12 characters.
+- External command JSON success shapes:
+  - destination files: `{ "ok": true, "data": { "destination": { "id": string, "name": string, "provider": string }, "prefix": string, "objects": [{ "key": string, "name": string, "size": number, "lastModified": string | null, "etag": string | null, "versionId": string | null }] } }`
+  - external list: `{ "ok": true, "data": { "artifacts": [{ "id": string, "destinationId": string, "destinationName": string, "objectKey": string, "objectVersion": string | null, "objectEtag": string | null, "sizeBytes": number | string, "sha256": string | null, "status": string, "verifiedAt": string | null }] } }`
+  - register: `{ "ok": true, "data": { "artifact": object, "workflowId": string, "nextAction": string } }`
+  - verify: `{ "ok": true, "data": { "id": string, "artifactId": string, "status": string } }`
+  - restore dry-run: `{ "ok": true, "data": { "dryRun": true, "plan": object } }`
+  - restore execution: `{ "ok": true, "data": { "approvalRequested": true, "request": object, "nextAction": "A different authorized actor must approve this request before any production restore can run." } }`
 
 ## Control-plane Recovery Contract
 

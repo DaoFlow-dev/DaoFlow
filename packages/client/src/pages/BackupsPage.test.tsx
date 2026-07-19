@@ -19,6 +19,9 @@ const {
   disableBackupScheduleUseMutationMock,
   triggerBackupNowUseMutationMock,
   queueBackupRestoreUseMutationMock,
+  externalBackupArtifactsUseQueryMock,
+  triggerExternalArtifactTestRestoreUseMutationMock,
+  requestApprovalUseMutationMock,
   refetchBackupRunDetailsMock
 } = vi.hoisted(() => ({
   backupOverviewUseQueryMock: vi.fn(),
@@ -33,6 +36,9 @@ const {
   disableBackupScheduleUseMutationMock: vi.fn(),
   triggerBackupNowUseMutationMock: vi.fn(),
   queueBackupRestoreUseMutationMock: vi.fn(),
+  externalBackupArtifactsUseQueryMock: vi.fn(),
+  triggerExternalArtifactTestRestoreUseMutationMock: vi.fn(),
+  requestApprovalUseMutationMock: vi.fn(),
   refetchBackupRunDetailsMock: vi.fn()
 }));
 
@@ -83,6 +89,15 @@ vi.mock("@/lib/trpc", () => ({
     },
     queueBackupRestore: {
       useMutation: queueBackupRestoreUseMutationMock
+    },
+    externalBackupArtifacts: {
+      useQuery: externalBackupArtifactsUseQueryMock
+    },
+    triggerExternalArtifactTestRestore: {
+      useMutation: triggerExternalArtifactTestRestoreUseMutationMock
+    },
+    requestExternalArtifactRestoreApproval: {
+      useMutation: requestApprovalUseMutationMock
     },
     useUtils: () => ({
       backupOverview: { invalidate: vi.fn() },
@@ -221,6 +236,19 @@ describe("BackupsPage", () => {
         id: "restore_1"
       })
     });
+    externalBackupArtifactsUseQueryMock.mockReturnValue({
+      data: { artifacts: [] },
+      isLoading: false,
+      refetch: vi.fn()
+    });
+    triggerExternalArtifactTestRestoreUseMutationMock.mockReturnValue({
+      isPending: false,
+      mutateAsync: vi.fn()
+    });
+    requestApprovalUseMutationMock.mockReturnValue({
+      isPending: false,
+      mutateAsync: vi.fn()
+    });
   });
 
   it("opens the backup run details sheet from the runs table", () => {
@@ -295,6 +323,49 @@ describe("BackupsPage", () => {
     });
     expect(screen.getByTestId("backup-restore-feedback")).toHaveTextContent(
       "Queued restore for api."
+    );
+  });
+
+  it("queues isolated verification for a registered external archive", async () => {
+    const mutateAsync = vi.fn().mockResolvedValue({ id: "restore_external_1", status: "queued" });
+    externalBackupArtifactsUseQueryMock.mockReturnValue({
+      data: {
+        artifacts: [
+          {
+            id: "xba_1",
+            origin: "external",
+            destinationId: "dest_primary",
+            destinationName: "approved-imports",
+            objectKey: "database-imports/customer.dump",
+            objectVersion: "v1",
+            objectEtag: '"etag-1"',
+            sizeBytes: "4096",
+            sha256: "a".repeat(64),
+            artifactFormat: "postgres-custom",
+            databaseEngineVersion: "17.4",
+            status: "registered",
+            error: null,
+            registeredAt: "2026-07-19T12:00:00.000Z",
+            updatedAt: "2026-07-19T12:00:00.000Z",
+            verifiedAt: null,
+            latestVerification: null
+          }
+        ]
+      },
+      isLoading: false,
+      refetch: vi.fn()
+    });
+    triggerExternalArtifactTestRestoreUseMutationMock.mockReturnValue({
+      isPending: false,
+      mutateAsync
+    });
+
+    renderBackupsPage();
+    fireEvent.click(screen.getByTestId("external-artifact-verify-xba_1"));
+
+    await waitFor(() => expect(mutateAsync).toHaveBeenCalledWith({ artifactId: "xba_1" }));
+    expect(screen.getByTestId("external-artifact-feedback")).toHaveTextContent(
+      "Queued isolated verification restore_external_1."
     );
   });
 

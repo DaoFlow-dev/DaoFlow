@@ -3,6 +3,7 @@ import { and, desc, eq } from "drizzle-orm";
 import { db } from "../connection";
 import { auditEntries } from "../schema/audit";
 import { backupDestinations } from "../schema/destinations";
+import { externalBackupArtifacts } from "../schema/external-backup-artifacts";
 import { backupPolicies } from "../schema/storage";
 import { testConnection } from "../../worker/rclone-executor";
 import { newId as id } from "./json-helpers";
@@ -17,6 +18,7 @@ import {
   encryptDestinationCredentials,
   redactDestinationCredentialValues
 } from "./destination-credentials";
+import { normalizeExternalImportSettings } from "./external-import-settings";
 
 export type { CreateDestinationInput, UpdateDestinationInput } from "./destination-shared";
 
@@ -61,6 +63,7 @@ export async function createDestination(
   const destId = id();
   const now = new Date();
   const encryptedCredentials = encryptDestinationCredentials(input);
+  const externalImportSettings = normalizeExternalImportSettings(input);
   const [row] = await db
     .insert(backupDestinations)
     .values({
@@ -86,6 +89,7 @@ export async function createDestination(
       encryptionSalt: null,
       filenameEncryption: input.filenameEncryption,
       localPath: input.localPath ?? null,
+      ...externalImportSettings,
       createdAt: now,
       updatedAt: now
     })
@@ -121,6 +125,7 @@ export async function updateDestination(
     const encryptedCredentials = encryptDestinationCredentials(
       mergeDestinationCredentials(existing, input)
     );
+    const externalImportSettings = normalizeExternalImportSettings(input, existing);
     const updateData: Record<string, unknown> = { updatedAt: new Date() };
     for (const key of [
       "name",
@@ -133,11 +138,15 @@ export async function updateDestination(
       "rcloneRemotePath",
       "encryptionMode",
       "filenameEncryption",
-      "localPath"
+      "localPath",
+      "externalImportEnabled",
+      "externalImportPrefix",
+      "maxExternalImportBytes"
     ] as const) {
       if (input[key] !== undefined) updateData[key] = input[key];
     }
     Object.assign(updateData, encryptedCredentials, {
+      ...externalImportSettings,
       accessKey: null,
       secretAccessKey: null,
       oauthToken: null,
@@ -194,6 +203,18 @@ export async function deleteDestination(
     return {
       deleted: false,
       error: "Cannot delete: destination is used by one or more backup policies."
+    };
+  }
+
+  const [linkedArtifact] = await db
+    .select({ id: externalBackupArtifacts.id })
+    .from(externalBackupArtifacts)
+    .where(eq(externalBackupArtifacts.destinationId, destinationId))
+    .limit(1);
+  if (linkedArtifact) {
+    return {
+      deleted: false,
+      error: "Cannot delete: destination has registered external backup artifacts."
     };
   }
 

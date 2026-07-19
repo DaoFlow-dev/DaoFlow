@@ -22,6 +22,7 @@ import {
   renderBackupVerificationInfo
 } from "./backup-download";
 import { registerBackupDestinationCommands } from "./backup-destination-commands";
+import { registerBackupExternalCommands } from "./backup-external-commands";
 import { registerBackupPolicySubcommands } from "./backup-policy";
 import { registerBackupScheduleCommands } from "./backup-schedule-commands";
 import { registerControlPlaneRecoveryCommands } from "./control-plane-recovery";
@@ -42,6 +43,7 @@ export function backupCommand(): Command {
   const backup = new Command("backup").description("Manage backup policies and runs");
   registerBackupPolicySubcommands(backup);
   registerBackupDestinationCommands(backup);
+  registerBackupExternalCommands(backup);
   registerBackupScheduleCommands(backup);
   registerControlPlaneRecoveryCommands(backup);
 
