@@ -158,9 +158,15 @@ describe("remoteDockerComposeUp", () => {
 
 describe("remoteDockerComposePs", () => {
   it("reads machine-readable remote compose status for the selected service", async () => {
+    const collector = createLogCollector();
     const execRemoteImpl = vi
       .fn()
       .mockImplementationOnce((_target, _command, onLog: (line: LogLine) => void) => {
+        onLog({
+          stream: "stdout",
+          message: "[ssh] prod → docker compose ps --format json",
+          timestamp: new Date()
+        });
         onLog({
           stream: "stdout",
           message: JSON.stringify({
@@ -181,7 +187,7 @@ describe("remoteDockerComposePs", () => {
       ".daoflow.compose.rendered.yaml",
       "demo",
       "/srv/demo",
-      onLog,
+      collector.onLog,
       ".daoflow.compose.env",
       ".daoflow.compose.export.sh",
       "api",
@@ -197,6 +203,7 @@ describe("remoteDockerComposePs", () => {
     expect(options?.stdin).toContain("docker compose");
     expect(options?.stdin).toContain(" ps --format json ");
     expect(options?.stdin).toContain("api");
+    expect(collector.lines.some((line) => line.message.startsWith("[ssh] "))).toBe(true);
     expect(result).toEqual({
       exitCode: 0,
       statuses: [

@@ -72,6 +72,12 @@ Playwright E2E reuses the same `docker-compose.dev.yml` services used for local 
 bun run test:e2e
 ```
 
+For the separately provisioned remote SSH-and-Docker acceptance target, see [the real-infrastructure harness](development/real-infrastructure.md). It is opt-in and deliberately excluded from the normal E2E command:
+
+```bash
+DAOFLOW_REAL_INFRA=1 bun run test:e2e:real-infra
+```
+
 ## 5. Create a Test User
 
 Open `http://localhost:3000` in a browser and sign up with an email and password. The first user gets the `owner` role.
@@ -250,16 +256,17 @@ DaoFlow/
 
 ## Useful Commands
 
-| Command                                         | Description                              |
-| ----------------------------------------------- | ---------------------------------------- |
-| `bun install`                                   | Install all workspace dependencies       |
-| `bun run dev`                                   | Start DaoFlow server + client            |
-| `bun run dev:infra`                             | Start Postgres + Redis (Docker)          |
-| `bun run dev:temporal`                          | Start Temporal CLI dev server            |
-| `bun run dev:full`                              | Start entire stack at once               |
-| `bun run db:push`                               | Push Drizzle schema to Postgres          |
-| `bun run typecheck`                             | Type-check all packages                  |
-| `bun run lint`                                  | Run ESLint across the monorepo           |
-| `bun run test:e2e`                              | Run Playwright E2E tests                 |
-| `bun run test:e2e:worker`                       | Run worker E2E tests (requires Temporal) |
-| `docker compose -f docker-compose.dev.yml down` | Stop Docker infrastructure               |
+| Command                                            | Description                              |
+| -------------------------------------------------- | ---------------------------------------- |
+| `bun install`                                      | Install all workspace dependencies       |
+| `bun run dev`                                      | Start DaoFlow server + client            |
+| `bun run dev:infra`                                | Start Postgres + Redis (Docker)          |
+| `bun run dev:temporal`                             | Start Temporal CLI dev server            |
+| `bun run dev:full`                                 | Start entire stack at once               |
+| `bun run db:push`                                  | Push Drizzle schema to Postgres          |
+| `bun run typecheck`                                | Type-check all packages                  |
+| `bun run lint`                                     | Run ESLint across the monorepo           |
+| `bun run test:e2e`                                 | Run Playwright E2E tests                 |
+| `bun run test:e2e:worker`                          | Run worker E2E tests (requires Temporal) |
+| `DAOFLOW_REAL_INFRA=1 bun run test:e2e:real-infra` | Run opt-in remote infrastructure E2E     |
+| `docker compose -f docker-compose.dev.yml down`    | Stop Docker infrastructure               |

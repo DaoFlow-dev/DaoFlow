@@ -23,6 +23,7 @@ import { DeploymentCancellationError } from "../deployment-cancellation";
 import { buildDockerContainerName } from "../docker-identifiers";
 import { getServerForTeam } from "../db/services/team-scoped-servers";
 import { DeploymentLifecycleStatus } from "@daoflow/shared";
+import { recordDeploymentFailureEvidence } from "./deployment-failure-evidence";
 
 const DEFAULT_DEPLOY_TIMEOUT_MS = 24 * 60 * 60_000;
 const DEPLOY_TIMEOUT_MS = (() => {
@@ -35,6 +36,20 @@ class DeploymentTimeoutError extends Error {
   constructor(timeoutMs: number) {
     super(`Deployment timed out after ${timeoutMs / 1000}s`);
     this.name = "DeploymentTimeoutError";
+  }
+}
+
+async function recordSupplementaryFailureEvidence(
+  deployment: DeploymentRow,
+  error: unknown,
+  actorLabel: string
+): Promise<void> {
+  try {
+    await recordDeploymentFailureEvidence(deployment, error, actorLabel);
+  } catch {
+    console.warn(
+      `[deployment] Unable to record supplementary failure evidence for ${deployment.id}.`
+    );
   }
 }
 
@@ -206,24 +221,14 @@ export async function runDeployment(
 
     if (executionSignal.aborted && executionSignal.reason === timeoutError) {
       await transitionDeployment(deployment.id, "failed", "failed", timeoutError);
-      await emitEvent(
-        "deployment.failed",
-        deployment,
-        "Deployment failed",
-        timeoutError.message,
-        "error"
-      );
+      await flush();
+      await recordSupplementaryFailureEvidence(deployment, timeoutError, actorLabel);
       throw timeoutError;
     }
 
     await transitionDeployment(deployment.id, "failed", "failed", error);
-    await emitEvent(
-      "deployment.failed",
-      deployment,
-      "Deployment failed",
-      error instanceof Error ? error.message : String(error),
-      "error"
-    );
+    await flush();
+    await recordSupplementaryFailureEvidence(deployment, error, actorLabel);
     throw error;
   } finally {
     clearTimeout(executionTimeout);

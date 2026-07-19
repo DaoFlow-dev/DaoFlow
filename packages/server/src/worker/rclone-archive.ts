@@ -1,8 +1,10 @@
 import { randomBytes } from "node:crypto";
 import { existsSync, mkdirSync, statSync } from "node:fs";
+import { stat } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { processRunner } from "./process-runner";
+import { runCancellableLocalCommand } from "./cancellable-local-command";
 
 function redactPassword(value: string, password: string): string {
   return password ? value.replaceAll(password, "[redacted]") : value;
@@ -51,6 +53,41 @@ export function archiveEncrypt(
       originalPath: sourcePath,
       success: false,
       error: redactPassword(err instanceof Error ? err.message : String(err), password)
+    };
+  }
+}
+
+export async function archiveEncryptAsync(
+  sourcePath: string,
+  password: string,
+  mode: "archive-7z" | "archive-zip" = "archive-7z",
+  signal?: AbortSignal
+): Promise<ArchiveEncryptResult> {
+  const ext = mode === "archive-7z" ? "7z" : "zip";
+  const archivePath = join(tmpdir(), `daoflow-backup-${randomBytes(8).toString("hex")}.${ext}`);
+  const sourceIsDirectory = await stat(sourcePath)
+    .then((value) => value.isDirectory())
+    .catch(() => false);
+  const archiveInput = sourceIsDirectory ? "." : sourcePath;
+  const args =
+    mode === "archive-7z"
+      ? ["a", "-t7z", `-p${password}`, "-mhe=on", "-mx=5", archivePath, archiveInput]
+      : ["a", "-tzip", `-p${password}`, "-mem=AES256", "-mx=5", archivePath, archiveInput];
+  try {
+    await runCancellableLocalCommand("7z", args, {
+      description: "Archive encryption failed",
+      timeoutMs: 300_000,
+      signal,
+      cwd: sourceIsDirectory ? sourcePath : undefined,
+      redact: (value) => redactPassword(value, password)
+    });
+    return { archivePath, originalPath: sourcePath, success: true };
+  } catch (error) {
+    return {
+      archivePath,
+      originalPath: sourcePath,
+      success: false,
+      error: redactPassword(error instanceof Error ? error.message : String(error), password)
     };
   }
 }

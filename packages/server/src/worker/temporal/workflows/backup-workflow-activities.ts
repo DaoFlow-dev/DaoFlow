@@ -23,7 +23,8 @@ export const {
     backoffCoefficient: 2,
     initialInterval: "30s",
     maximumInterval: "5m"
-  }
+  },
+  heartbeatTimeout: "2 minutes"
 });
 
 export const { appendBackupRunLog } = proxyActivities<typeof backupLogActs>({

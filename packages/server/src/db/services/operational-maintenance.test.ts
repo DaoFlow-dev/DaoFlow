@@ -1,7 +1,6 @@
 import { mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
 import { beforeEach, afterEach, describe, expect, it } from "vitest";
 import { deriveComposePreviewMetadata } from "../../compose-preview";
@@ -9,6 +8,7 @@ import { db } from "../connection";
 import { cliAuthRequests } from "../schema/cli-auth";
 import { deployments } from "../schema/deployments";
 import { resetTestDatabaseWithControlPlane } from "../../test-db";
+import { createLocalGitRepository, type LocalGitRepositoryFixture } from "../../test-git-repo";
 import { createEnvironment, createProject } from "./projects";
 import { createService } from "./services";
 import {
@@ -20,7 +20,6 @@ import {
   runOperationalMaintenanceOnce
 } from "./operational-maintenance";
 
-const repoRoot = fileURLToPath(new URL("../../../../../", import.meta.url));
 const actor = {
   requestedByUserId: "user_foundation_owner",
   requestedByEmail: "owner@daoflow.local",
@@ -31,12 +30,12 @@ function suffix() {
   return randomUUID().replace(/-/g, "").slice(0, 8);
 }
 
-async function createMaintenanceFixture() {
+async function createMaintenanceFixture(repoUrl: string) {
   const projectResult = await createProject({
     name: `maintenance-project-${suffix()}`,
     description: "Maintenance fixture",
     teamId: "team_foundation",
-    repoUrl: repoRoot,
+    repoUrl,
     defaultBranch: "main",
     composePath: "docker-compose.dev.yml",
     ...actor
@@ -83,12 +82,25 @@ async function createMaintenanceFixture() {
 
 describe("operational maintenance", () => {
   let stagingRoot: string | null = null;
+  let repository: LocalGitRepositoryFixture | null = null;
   const originalGitWorkDir = process.env.GIT_WORK_DIR;
+
+  function requireRepositoryRoot() {
+    if (!repository) {
+      throw new Error("Maintenance repository fixture was not initialized.");
+    }
+    return repository.rootDir;
+  }
 
   beforeEach(async () => {
     await resetTestDatabaseWithControlPlane();
     stagingRoot = mkdtempSync(join(tmpdir(), "daoflow-maintenance-"));
     process.env.GIT_WORK_DIR = stagingRoot;
+    repository = createLocalGitRepository({
+      files: {
+        "docker-compose.dev.yml": "services:\n  api:\n    image: hello-world\n"
+      }
+    });
   });
 
   afterEach(() => {
@@ -96,6 +108,9 @@ describe("operational maintenance", () => {
       rmSync(stagingRoot, { recursive: true, force: true });
       stagingRoot = null;
     }
+
+    repository?.cleanup();
+    repository = null;
 
     if (originalGitWorkDir) {
       process.env.GIT_WORK_DIR = originalGitWorkDir;
@@ -105,7 +120,7 @@ describe("operational maintenance", () => {
   });
 
   it("reports stalled deployments, stale previews, expired CLI auth requests, and retained artifacts", async () => {
-    const fixture = await createMaintenanceFixture();
+    const fixture = await createMaintenanceFixture(requireRepositoryRoot());
     const now = new Date("2026-03-28T18:30:00.000Z");
     const previewMetadata = deriveComposePreviewMetadata({
       config: {
@@ -204,7 +219,7 @@ describe("operational maintenance", () => {
   });
 
   it("runs the cleanup cycle and records the last manual run", async () => {
-    const fixture = await createMaintenanceFixture();
+    const fixture = await createMaintenanceFixture(requireRepositoryRoot());
     const now = new Date("2026-03-28T18:30:00.000Z");
     const previewMetadata = deriveComposePreviewMetadata({
       config: {
@@ -302,7 +317,7 @@ describe("operational maintenance", () => {
     });
 
     expect(result.stalledDeployments.failedCount).toBe(1);
-    expect(result.stalePreviews.queuedCount).toBe(1);
+    expect(result.stalePreviews.queuedCount, JSON.stringify(result.stalePreviews)).toBe(1);
     expect(result.expiredCliAuthRequests.deletedCount).toBe(1);
     expect(result.retainedArtifacts.prunedCount).toBe(1);
 

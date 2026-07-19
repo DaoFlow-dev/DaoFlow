@@ -171,6 +171,14 @@ describe("development task worker failure comments", () => {
         return Promise.resolve(new Response(JSON.stringify({ id: 990012 }), { status: 200 }));
       });
     const codexExecution = vi.fn();
+    setDevelopmentTaskRepositoryCheckoutForTests((input) =>
+      Promise.resolve({
+        status: "ok" as const,
+        repoPath: input.repoPath,
+        branch: "main",
+        displayLabel: fixture.repoFullName
+      })
+    );
     setDevelopmentTaskCodexExecutionForTests(codexExecution);
 
     await pollDevelopmentTaskQueue();

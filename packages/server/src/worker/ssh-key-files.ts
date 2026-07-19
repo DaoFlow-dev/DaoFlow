@@ -48,7 +48,8 @@ export function writeSSHKey(serverName: string, privateKey: string): string {
       constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW,
       0o600
     );
-    writeSync(descriptor, privateKey, null, "utf8");
+    const normalizedPrivateKey = privateKey.endsWith("\n") ? privateKey : `${privateKey}\n`;
+    writeSync(descriptor, normalizedPrivateKey, null, "utf8");
     fsyncSync(descriptor);
     closeSync(descriptor);
     descriptor = null;

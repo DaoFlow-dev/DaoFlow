@@ -2,8 +2,8 @@ import { randomUUID } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { copyFromRemoteMock, decryptDestinationMock } = vi.hoisted(() => ({
-  copyFromRemoteMock: vi.fn(),
+const { copyFromRemoteAsyncMock, decryptDestinationMock } = vi.hoisted(() => ({
+  copyFromRemoteAsyncMock: vi.fn(),
   decryptDestinationMock: vi.fn()
 }));
 
@@ -12,7 +12,7 @@ vi.mock("../../rclone-executor", async () => {
     await vi.importActual<typeof import("../../rclone-executor")>("../../rclone-executor");
   return {
     ...actual,
-    copyFromRemote: copyFromRemoteMock
+    copyFromRemoteAsync: copyFromRemoteAsyncMock
   };
 });
 
@@ -141,6 +141,7 @@ function restoreContext(
     encryptionMode: "none",
     backupType: "volume",
     volumeName: "revalidation-volume",
+    sourceKind: "docker-volume",
     approval: {
       approvalRequestId: fixture.approvalRequestId,
       expectedTeamId: "team_foundation",
@@ -166,7 +167,7 @@ function restoreContext(
 describe("restore approval revalidation", () => {
   beforeEach(async () => {
     await resetTestDatabaseWithControlPlane();
-    copyFromRemoteMock.mockReset();
+    copyFromRemoteAsyncMock.mockReset();
     decryptDestinationMock.mockReset();
     decryptDestinationMock.mockResolvedValue({
       id: "dest_restore_revalidation",
@@ -177,13 +178,13 @@ describe("restore approval revalidation", () => {
 
   it("allows a restore only while the approved team still owns the target", async () => {
     const fixture = await createApprovedRestoreFixture();
-    copyFromRemoteMock.mockReturnValue({ success: true, output: "", exitCode: 0 });
+    copyFromRemoteAsyncMock.mockResolvedValue({ success: true, output: "", exitCode: 0 });
 
     await expect(downloadBackupArtifact(restoreContext(fixture))).resolves.toEqual({
       success: true,
       localPath: "/srv/revalidation-test"
     });
-    expect(copyFromRemoteMock).toHaveBeenCalledOnce();
+    expect(copyFromRemoteAsyncMock).toHaveBeenCalledOnce();
   });
 
   it("fails closed before downloading when the target changes teams after approval", async () => {
@@ -200,13 +201,13 @@ describe("restore approval revalidation", () => {
     await expect(downloadBackupArtifact(restoreContext(fixture))).rejects.toThrow(
       "Restore approval team no longer matches the restore target."
     );
-    expect(copyFromRemoteMock).not.toHaveBeenCalled();
+    expect(copyFromRemoteAsyncMock).not.toHaveBeenCalled();
   });
 
   it("rechecks decision authority after download and before destructive replay", async () => {
     const fixture = await createApprovedRestoreFixture();
     const ctx = restoreContext(fixture);
-    copyFromRemoteMock.mockReturnValue({ success: true, output: "", exitCode: 0 });
+    copyFromRemoteAsyncMock.mockResolvedValue({ success: true, output: "", exitCode: 0 });
     const download = await downloadBackupArtifact(ctx);
     decryptDestinationMock.mockClear();
     await db
@@ -236,6 +237,6 @@ describe("restore approval revalidation", () => {
     await expect(downloadBackupArtifact(ctx)).rejects.toThrow(
       "Restore approval no longer matches the immutable backup target snapshot."
     );
-    expect(copyFromRemoteMock).not.toHaveBeenCalled();
+    expect(copyFromRemoteAsyncMock).not.toHaveBeenCalled();
   });
 });

@@ -4,6 +4,7 @@ import { backupPolicies, volumes } from "../../../db/schema/storage";
 import { servers } from "../../../db/schema/servers";
 import { resolveTeamScopedDestinationForVolume } from "../../../db/services/backup-resource-team";
 import type { BackupPolicyResolved } from "./backup-activity-types";
+import { resolveVolumeSourceKind } from "./volume-source-kind";
 
 export async function resolveBackupPolicy(policyId: string): Promise<BackupPolicyResolved | null> {
   const [policy] = await db
@@ -43,6 +44,7 @@ export async function resolveBackupPolicy(policyId: string): Promise<BackupPolic
     volumeId: volume.id,
     volumeName: volume.name,
     mountPath: volume.mountPath,
+    sourceKind: resolveVolumeSourceKind(volume.metadata),
     serverId: server.id,
     serverName: server.name,
     serverHost: server.host,

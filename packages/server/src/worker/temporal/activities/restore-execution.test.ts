@@ -1,8 +1,18 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { processRunner } from "../../process-runner";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const localCommandMocks = vi.hoisted(() => ({ runCancellableLocalCommand: vi.fn() }));
+
+vi.mock("../../cancellable-local-command", () => localCommandMocks);
+
+const remoteVolumeTransferMocks = vi.hoisted(() => ({
+  restoreRemoteVolumeArchive: vi.fn()
+}));
+
+vi.mock("./remote-volume-transfer", () => remoteVolumeTransferMocks);
+
 import {
   executeRestoreArtifact,
   restoreExecutionTestHooks,
@@ -10,8 +20,14 @@ import {
 } from "./restore-execution";
 import { restoreDatabaseTestHooks } from "./restore-database";
 
+beforeEach(() => {
+  localCommandMocks.runCancellableLocalCommand.mockResolvedValue(undefined);
+});
+
 afterEach(() => {
   vi.restoreAllMocks();
+  remoteVolumeTransferMocks.restoreRemoteVolumeArchive.mockReset();
+  localCommandMocks.runCancellableLocalCommand.mockReset();
 });
 
 function restoreContext(overrides: Partial<RestoreExecutionContext> = {}): RestoreExecutionContext {
@@ -33,11 +49,50 @@ function restoreContext(overrides: Partial<RestoreExecutionContext> = {}): Resto
     encryptionMode: "none",
     backupType: "volume",
     volumeName: "postgres-volume",
+    sourceKind: "docker-volume",
     ...overrides
   };
 }
 
 describe("restore execution", () => {
+  it("restores a current remote volume through the pinned remote transfer path", async () => {
+    const root = mkdtempSync(join(tmpdir(), "daoflow-remote-restore-execution-"));
+    const downloadPath = join(root, "download");
+    mkdirSync(downloadPath);
+    const archivePath = join(downloadPath, "backup.tar");
+    writeFileSync(archivePath, "archive");
+    remoteVolumeTransferMocks.restoreRemoteVolumeArchive.mockResolvedValue({ bytesRestored: 7 });
+
+    try {
+      const result = await executeRestoreArtifact(
+        restoreContext({
+          downloadPath,
+          mode: "restore",
+          serverId: "srv_remote",
+          teamId: "team_test",
+          serverHost: "203.0.113.20",
+          mountPath: "/srv/app-data"
+        }),
+        downloadPath
+      );
+
+      expect(result).toEqual({ success: true, bytesRestored: 7 });
+      expect(remoteVolumeTransferMocks.restoreRemoteVolumeArchive).toHaveBeenCalledWith(
+        {
+          serverId: "srv_remote",
+          teamId: "team_test",
+          volumeName: "postgres-volume",
+          mountPath: "/srv/app-data",
+          sourceKind: "docker-volume"
+        },
+        "brest_test",
+        archivePath
+      );
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it("extracts a downloaded volume tarball before reporting restore success", async () => {
     const root = mkdtempSync(join(tmpdir(), "daoflow-restore-test-"));
     const downloadPath = join(root, "download");
@@ -45,18 +100,16 @@ describe("restore execution", () => {
     mkdirSync(downloadPath);
     writeFileSync(join(downloadPath, "backup.tar"), "archive");
 
-    const execFileSyncMock = vi.spyOn(processRunner, "execFileSync").mockImplementation(() => "");
-
     const result = await executeRestoreArtifact(
       restoreContext({ downloadPath, targetPath }),
       downloadPath
     );
 
     expect(result.success).toBe(true);
-    expect(execFileSyncMock).toHaveBeenCalledWith(
+    expect(localCommandMocks.runCancellableLocalCommand).toHaveBeenCalledWith(
       "tar",
       ["-xf", join(downloadPath, "backup.tar"), "-C", targetPath],
-      expect.objectContaining({ timeout: 300_000 })
+      expect.objectContaining({ timeoutMs: 300_000, signal: undefined })
     );
   });
 
@@ -87,16 +140,14 @@ describe("restore execution", () => {
     ]);
   });
 
-  it("decrypts archive-encrypted database dumps before database restore", () => {
+  it("decrypts archive-encrypted database dumps before database restore", async () => {
     const root = mkdtempSync(join(tmpdir(), "daoflow-database-archive-restore-test-"));
     const downloadPath = join(root, "download");
     mkdirSync(downloadPath);
     const archivePath = join(downloadPath, "database-backup.7z");
     writeFileSync(archivePath, "encrypted database archive");
-    const execFileSyncMock = vi.spyOn(processRunner, "execFileSync").mockImplementation(() => "");
-
     try {
-      const prepared = restoreExecutionTestHooks.prepareDatabaseRestorePath(
+      const prepared = await restoreExecutionTestHooks.prepareDatabaseRestorePath(
         restoreContext({
           backupType: "database",
           encryptionMode: "archive-7z",
@@ -110,7 +161,7 @@ describe("restore execution", () => {
       );
 
       expect(prepared).toEqual({ success: true, path: join(downloadPath, "decrypted") });
-      expect(execFileSyncMock).toHaveBeenCalledWith(
+      expect(localCommandMocks.runCancellableLocalCommand).toHaveBeenCalledWith(
         "7z",
         [
           "x",
@@ -119,8 +170,80 @@ describe("restore execution", () => {
           "-y",
           archivePath
         ],
-        expect.objectContaining({ timeout: 300_000 })
+        expect.objectContaining({ timeoutMs: 300_000, signal: undefined })
       );
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("propagates cancellation from local archive extraction", async () => {
+    const root = mkdtempSync(join(tmpdir(), "daoflow-local-restore-cancellation-"));
+    const downloadPath = join(root, "download");
+    const targetPath = join(root, "target");
+    mkdirSync(downloadPath);
+    writeFileSync(join(downloadPath, "backup.tar"), "archive");
+    const controller = new AbortController();
+    const cancellation = new Error("cancel local restore extraction");
+    controller.abort(cancellation);
+    localCommandMocks.runCancellableLocalCommand.mockRejectedValue(cancellation);
+
+    try {
+      await expect(
+        executeRestoreArtifact(
+          restoreContext({ downloadPath, targetPath }),
+          downloadPath,
+          controller.signal
+        )
+      ).rejects.toBe(cancellation);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("propagates cancellation into database replay", async () => {
+    const root = mkdtempSync(join(tmpdir(), "daoflow-database-restore-cancellation-"));
+    const dumpPath = join(root, "database.dump");
+    writeFileSync(dumpPath, "database dump");
+    const controller = new AbortController();
+    const cancellation = new Error("cancel database replay");
+    localCommandMocks.runCancellableLocalCommand.mockImplementation(
+      (_command: string, _args: string[], options: { signal?: AbortSignal }) =>
+        new Promise<void>((_resolve, reject) => {
+          options.signal?.addEventListener(
+            "abort",
+            () => {
+              const reason: unknown = options.signal?.reason;
+              reject(reason instanceof Error ? reason : cancellation);
+            },
+            { once: true }
+          );
+        })
+    );
+
+    try {
+      const operation = executeRestoreArtifact(
+        restoreContext({
+          backupType: "database",
+          databaseEngine: "postgres",
+          databaseName: "app",
+          databaseUser: "app_user",
+          containerName: "postgres",
+          databasePassword: "secret"
+        }),
+        root,
+        controller.signal
+      );
+      await vi.waitFor(() =>
+        expect(localCommandMocks.runCancellableLocalCommand).toHaveBeenCalledWith(
+          expect.any(String),
+          expect.arrayContaining(["exec", "-i", "postgres"]),
+          expect.objectContaining({ signal: controller.signal, stdinFilePath: dumpPath })
+        )
+      );
+      controller.abort(cancellation);
+
+      await expect(operation).rejects.toBe(cancellation);
     } finally {
       rmSync(root, { recursive: true, force: true });
     }

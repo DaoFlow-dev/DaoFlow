@@ -26,12 +26,15 @@ export { generateRcloneConfig, type DestinationConfig } from "./rclone-config";
 export {
   copyObjectFromRemote,
   copyObjectFromRemoteAsync,
+  copyFromRemoteAsync,
   copyObjectToRemote,
   copyObjectToRemoteAsync,
+  copyToRemoteAsync,
   DEFAULT_RCLONE_COMMAND_TIMEOUT_MS,
   getRcloneCommandTimeoutMs,
   MAX_RCLONE_COMMAND_TIMEOUT_MS,
   MIN_RCLONE_COMMAND_TIMEOUT_MS,
+  listRemoteAsync,
   type RcloneExecutionOptions,
   type RcloneResult
 } from "./rclone-recovery-executor";

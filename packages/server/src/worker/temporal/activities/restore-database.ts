@@ -1,6 +1,6 @@
-import { spawn } from "node:child_process";
-import { createReadStream, statSync } from "node:fs";
+import { statSync } from "node:fs";
 import { dockerCommand, withCommandPath } from "../../command-env";
+import { runCancellableLocalCommand } from "../../cancellable-local-command";
 import { processRunner } from "../../process-runner";
 import { redactActivitySecretValue } from "./activity-secret-redaction";
 import { findLargestFile } from "./restore-files";
@@ -15,9 +15,11 @@ type DatabaseEngine = "postgres" | "mysql" | "mariadb" | "mongo";
 
 export async function executeDatabaseRestore(
   ctx: RestoreExecutionContext,
-  localPath: string
+  localPath: string,
+  signal?: AbortSignal
 ): Promise<RestoreExecutionResult> {
   try {
+    throwIfCancelled(signal);
     const engine = normalizeDatabaseEngine(ctx.databaseEngine);
     if (!engine) {
       return {
@@ -46,9 +48,15 @@ export async function executeDatabaseRestore(
       };
     }
 
-    await runDockerDatabaseRestore(containerName, buildRestoreCommand(ctx, engine), dumpFile);
+    await runDockerDatabaseRestore(
+      containerName,
+      buildRestoreCommand(ctx, engine),
+      dumpFile,
+      signal
+    );
     return { success: true, bytesRestored: statSync(dumpFile).size };
   } catch (err) {
+    throwIfCancelled(signal);
     return {
       success: false,
       bytesRestored: 0,
@@ -118,44 +126,25 @@ function buildRestoreCommand(
 function runDockerDatabaseRestore(
   containerName: string,
   command: DockerRestoreCommand,
-  dumpFile: string
+  dumpFile: string,
+  signal?: AbortSignal
 ): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const args = ["exec", "-i", ...command.envArgs, containerName, ...command.args];
-    const input = createReadStream(dumpFile);
-    const proc = spawn(dockerCommand, args, {
-      stdio: ["pipe", "pipe", "pipe"],
-      env: withCommandPath(process.env)
-    });
-    const timeout = setTimeout(() => {
-      proc.kill("SIGTERM");
-      reject(new Error("Database restore timed out after 30 minutes"));
-    }, 1_800_000);
-    let stderr = "";
-
-    proc.stderr.on("data", (chunk: Buffer) => {
-      stderr += chunk.toString();
-    });
-    proc.on("error", (error) => {
-      clearTimeout(timeout);
-      reject(error);
-    });
-    proc.on("close", (code) => {
-      clearTimeout(timeout);
-      if (code === 0) {
-        resolve();
-        return;
-      }
-      reject(new Error(`docker exec restore exited with code ${code}: ${stderr.slice(0, 500)}`));
-    });
-
-    input.on("error", (error) => {
-      proc.kill("SIGTERM");
-      clearTimeout(timeout);
-      reject(error);
-    });
-    input.pipe(proc.stdin);
+  const args = ["exec", "-i", ...command.envArgs, containerName, ...command.args];
+  return runCancellableLocalCommand(dockerCommand, args, {
+    description: "Database restore failed",
+    timeoutMs: 1_800_000,
+    signal,
+    env: withCommandPath(process.env),
+    stdinFilePath: dumpFile
   });
+}
+
+function throwIfCancelled(signal?: AbortSignal): void {
+  if (signal?.aborted) {
+    throw signal.reason instanceof Error
+      ? signal.reason
+      : new Error("Database restore was cancelled.");
+  }
 }
 
 function resolveDatabaseContainer(ctx: RestoreExecutionContext): string | null {
