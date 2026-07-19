@@ -85,7 +85,12 @@ describe("provider feedback processor", () => {
       }
     });
 
-    const now = new Date("2026-07-19T12:00:00.000Z");
+    const [pendingFeedback] = await db
+      .select({ nextAttemptAt: providerFeedback.nextAttemptAt })
+      .from(providerFeedback)
+      .where(eq(providerFeedback.deploymentId, fixture.deploymentId));
+    if (!pendingFeedback) throw new Error("Expected queued provider feedback.");
+    const now = pendingFeedback.nextAttemptAt;
     await expect(processNextProviderFeedback({ now })).resolves.toMatchObject({
       status: "retrying"
     });
@@ -326,8 +331,13 @@ describe("provider feedback processor", () => {
   });
 
   it("rejects finalization after lease expiry and allows a fenced reclaim", async () => {
-    await queueFixtureFeedback();
-    const claimedAt = new Date("2026-07-19T12:00:00.000Z");
+    const fixture = await queueFixtureFeedback();
+    const [pendingFeedback] = await db
+      .select({ nextAttemptAt: providerFeedback.nextAttemptAt })
+      .from(providerFeedback)
+      .where(eq(providerFeedback.deploymentId, fixture.deploymentId));
+    if (!pendingFeedback) throw new Error("Expected queued provider feedback.");
+    const claimedAt = pendingFeedback.nextAttemptAt;
     const first = await claimNextProviderFeedback({
       providerKinds: ["github"],
       now: claimedAt,
