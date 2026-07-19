@@ -35,7 +35,7 @@ import {
 } from "./control-plane-recovery-safety";
 import type { ControlPlaneRecoveryExecutionResult } from "./control-plane-recovery-types";
 
-const SERVER_VERSION = "0.10.0";
+const SERVER_VERSION = "0.11.0";
 
 export {
   markControlPlaneRecoveryFailed,

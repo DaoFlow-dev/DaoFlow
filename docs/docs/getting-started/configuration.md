@@ -39,7 +39,7 @@ Most operators edit only these values:
 
 | Variable                                             | Default                       | Description                                                                                         |
 | ---------------------------------------------------- | ----------------------------- | --------------------------------------------------------------------------------------------------- |
-| `DAOFLOW_VERSION`                                    | `0.10.0` in reference Compose | Concrete image tag to run; the installer-generated `.env` pins the installed CLI release            |
+| `DAOFLOW_VERSION`                                    | `0.11.0` in reference Compose | Concrete image tag to run; the installer-generated `.env` pins the installed CLI release            |
 | `BETTER_AUTH_URL`                                    | —                             | Public origin used for sign-in and callbacks                                                        |
 | `DAOFLOW_DATABASE_NAME`                              | `daoflow`                     | Database selected by the production Compose `DATABASE_URL`; keep the default for a standard install |
 | `DAOFLOW_PORT`                                       | `3000`                        | Host port bound to the DaoFlow container                                                            |

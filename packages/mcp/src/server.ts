@@ -8,7 +8,7 @@ import { registerPlanningTools } from "./tools/planning-tools";
 import { registerCommandTools } from "./tools/command-tools";
 
 export const SERVER_NAME = "daoflow";
-export const SERVER_VERSION = "0.10.0";
+export const SERVER_VERSION = "0.11.0";
 
 const INSTRUCTIONS = [
   "DaoFlow is an agent-first, human-supervised platform for hosting Docker and Docker Compose",
