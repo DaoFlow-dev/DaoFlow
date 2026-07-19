@@ -56,6 +56,8 @@ daoflow deploy \
 
 For direct compose deploys, `--context` must include every compose-relative local input that needs bundling. DaoFlow validates local `build.context` paths, bundleable `build.additional_contexts`, file-backed build secrets, and local `env_file` assets before prompting or uploading anything. If the chosen root is too narrow, the CLI exits with `INVALID_INPUT`.
 
+You do not need to create a project first. DaoFlow derives the stack name from the Compose document, creates the project, production environment, and service on the first deployment, and reuses that scope on later deployments.
+
 ### Image Deployment
 
 ```bash

@@ -391,8 +391,7 @@ export function templatesCommand(): Command {
                 "/api/v1/deploy/compose",
                 {
                   server: serverId,
-                  compose: rendered.compose,
-                  project: rendered.projectName
+                  compose: rendered.compose
                 },
                 {
                   idempotencyKey: ctx.idempotencyKey

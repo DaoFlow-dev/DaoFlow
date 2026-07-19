@@ -216,6 +216,7 @@ describe("templates command", () => {
 
   test("templates apply requires confirmation and forwards the idempotency key", async () => {
     let receivedIdempotencyKey: string | null = null;
+    let receivedBody: Record<string, unknown> | undefined;
 
     globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
       const url =
@@ -225,6 +226,8 @@ describe("templates command", () => {
       }
 
       receivedIdempotencyKey = new Headers(init?.headers).get("x-idempotency-key");
+      if (typeof init?.body !== "string") throw new Error("Expected a JSON request body.");
+      receivedBody = JSON.parse(init.body) as Record<string, unknown>;
 
       return Promise.resolve(
         new Response(JSON.stringify({ ok: true, deploymentId: "dep_tpl_123" }), {
@@ -278,6 +281,9 @@ describe("templates command", () => {
       throw new Error("Expected the idempotency key to be forwarded.");
     }
     expect(String(receivedIdempotencyKey)).toBe("tpl-apply-1");
+    expect(receivedBody?.server).toBe("srv_123");
+    expect(receivedBody?.compose).toContain("name: redis");
+    expect(receivedBody).not.toHaveProperty("project");
     expect(JSON.parse(approved.logs[0])).toEqual({
       ok: true,
       data: {

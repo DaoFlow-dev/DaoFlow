@@ -19,6 +19,53 @@ afterEach(() => {
 });
 
 describe("executeComposeDeploy", () => {
+  test("lets the control plane create or reuse the direct Compose project", async () => {
+    const contextDir = mkdtempSync(join(tmpdir(), "daoflow-compose-exec-"));
+    tempDirs.push(contextDir);
+
+    const composePath = join(contextDir, "compose.yaml");
+    const composeContent = "services:\n  web:\n    image: nginx:alpine\n";
+    writeFileSync(composePath, composeContent, "utf8");
+
+    process.env.DAOFLOW_URL = "https://daoflow.test";
+    process.env.DAOFLOW_TOKEN = "session-token";
+
+    const originalFetch = globalThis.fetch;
+    const originalConsoleLog = console.log;
+    let requestBody: Record<string, unknown> | undefined;
+    console.log = () => {};
+    globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
+      const url =
+        typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+      expect(url).toBe("https://daoflow.test/api/v1/deploy/compose");
+      if (typeof init?.body !== "string") throw new Error("Expected a JSON request body.");
+      requestBody = JSON.parse(init.body) as Record<string, unknown>;
+      return Promise.resolve(
+        new Response(JSON.stringify({ ok: true, deploymentId: "dep_compose_123" }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" }
+        })
+      );
+    }) as typeof fetch;
+
+    try {
+      await executeComposeDeploy(composeContent, false, {
+        composePath,
+        contextPath: contextDir,
+        serverId: "srv_123",
+        json: true
+      });
+    } finally {
+      globalThis.fetch = originalFetch;
+      console.log = originalConsoleLog;
+    }
+
+    expect(requestBody).toEqual({
+      server: "srv_123",
+      compose: composeContent
+    });
+  });
+
   test("uses intake plus streamed upload for direct compose context deployments", async () => {
     const contextDir = mkdtempSync(join(tmpdir(), "daoflow-compose-exec-"));
     tempDirs.push(contextDir);
@@ -103,15 +150,13 @@ describe("executeComposeDeploy", () => {
     const intakeBody = JSON.parse(requests[0]?.init.body as string) as {
       server: string;
       compose: string;
-      project: string;
     };
 
     expect(requests[0]?.init.method).toBe("POST");
     expect(requests[1]?.init.method).toBe("POST");
     expect(intakeBody).toEqual({
       server: "srv_123",
-      compose: composeContent,
-      project: "upload-stack"
+      compose: composeContent
     });
     expect(intakeHeaders["Content-Type"]).toBe("application/json");
     expect(intakeHeaders.Cookie).toBe(

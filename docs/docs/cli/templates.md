@@ -86,6 +86,8 @@ daoflow templates apply n8n \
 
 This queues a normal direct Compose deployment and requires `deploy:start`.
 
+The rendered Compose project name is authoritative: the first apply creates that project and later applies reuse it. A separate `projects create` step is not required.
+
 `apply` keeps the usual DaoFlow write guardrails:
 
 - `--yes` is required

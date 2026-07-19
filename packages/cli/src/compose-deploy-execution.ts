@@ -1,5 +1,4 @@
 import { createReadStream, statSync, unlinkSync } from "node:fs";
-import { basename } from "node:path";
 import { ApiClient } from "./api-client";
 import { emitJsonSuccess } from "./command-helpers";
 import { analyzeComposeInputs } from "./compose-input-analysis";
@@ -36,8 +35,7 @@ async function executeRemoteComposeDeploy(
     deploymentId: string;
   }>("/api/v1/deploy/compose", {
     server: options.serverId,
-    compose: composeContent,
-    project: deriveProjectName(options.composePath, composeContent)
+    compose: composeContent
   });
   renderQueuedDeployment(response.deploymentId, options);
 }
@@ -64,8 +62,7 @@ async function uploadContextBundle(
       uploadId: string;
     }>("/api/v1/deploy/uploads/intake", {
       server: options.serverId,
-      compose: composeContent,
-      project: deriveProjectName(options.composePath, composeContent)
+      compose: composeContent
     });
 
     const response = (await api.streamUpload(
@@ -85,16 +82,6 @@ async function uploadContextBundle(
       /* best-effort */
     }
   }
-}
-
-function deriveProjectName(composePath: string, composeContent: string): string {
-  const namedMatch = composeContent.match(/^\s*name\s*:\s*["']?([^"'#\n]+)["']?\s*$/m);
-  if (namedMatch?.[1]) {
-    return namedMatch[1].trim();
-  }
-
-  const fileName = basename(composePath).replace(/\.(ya?ml)$/i, "");
-  return fileName || "uploaded-compose";
 }
 
 function renderQueuedDeployment(deploymentId: string, options: ComposeDeployCoreOptions): void {
