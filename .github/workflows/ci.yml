@@ -213,14 +213,7 @@ jobs:
         run: bunx playwright install --with-deps chromium
 
       - name: Run E2E tests
-        run: |
-          set -euxo pipefail
-          if [[ -n "$E2E_SPECS" ]]; then
-            read -ra specs <<< "$E2E_SPECS"
-            bun run "$E2E_SCRIPT" -- "${specs[@]}" 2>&1 | tee e2e-ci.log
-          else
-            bun run "$E2E_SCRIPT" 2>&1 | tee e2e-ci.log
-          fi
+        run: bash ./scripts/run-e2e-ci.sh
         env:
           E2E_SCRIPT: ${{ matrix.script }}
           E2E_SPECS: ${{ matrix.specs }}
@@ -295,10 +288,10 @@ jobs:
         run: bunx playwright install --with-deps chromium
 
       - name: Run worker E2E tests
-        run: |
-          set -euxo pipefail
-          bun run test:e2e:worker 2>&1 | tee e2e-worker-ci.log
+        run: bash ./scripts/run-e2e-ci.sh
         env:
+          E2E_SCRIPT: test:e2e:worker
+          E2E_LOG_FILE: e2e-worker-ci.log
           DATABASE_URL: postgresql://daoflow:daoflow_dev@localhost:5432/daoflow_e2e_worker
           PLAYWRIGHT_WORKER_DATABASE_URL: postgresql://daoflow:daoflow_dev@localhost:5432/daoflow_e2e_worker
           REDIS_URL: redis://localhost:6379
