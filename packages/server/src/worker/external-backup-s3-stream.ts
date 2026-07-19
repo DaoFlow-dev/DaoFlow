@@ -15,8 +15,8 @@ export async function sendS3Metadata<T>(
   const timeout = setTimeout(() => controller.abort(), S3_METADATA_TIMEOUT_MS);
   try {
     return await run(controller.signal);
-  } catch {
-    throw new ExternalS3Error(message);
+  } catch (error) {
+    throw new ExternalS3Error(message, { cause: error });
   } finally {
     clearTimeout(timeout);
   }

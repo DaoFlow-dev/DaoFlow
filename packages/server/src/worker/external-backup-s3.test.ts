@@ -144,11 +144,21 @@ describe("external S3 adapter", () => {
           });
         })
     );
-    const expectation = expect(adapter.headObject("approved/postgres/db.dump")).rejects.toThrow(
-      "External backup object could not be read."
+    const request = adapter.headObject("approved/postgres/db.dump").then(
+      () => {
+        throw new Error("Expected the metadata request to fail.");
+      },
+      (caught: unknown) => caught
     );
     await vi.advanceTimersByTimeAsync(15_000);
-    await expectation;
+    const error = await request;
+    expect(error).toBeInstanceOf(ExternalS3Error);
+    if (!(error instanceof ExternalS3Error)) throw new Error("Expected ExternalS3Error.");
+    expect(error.message).toBe("External backup object could not be read.");
+    expect(error.cause).toEqual(
+      expect.objectContaining({ message: "https://access-key:secret-key@bad-endpoint" })
+    );
+    expect(String(error)).not.toContain("secret-key");
     expect(aborted).toBe(true);
   });
 });

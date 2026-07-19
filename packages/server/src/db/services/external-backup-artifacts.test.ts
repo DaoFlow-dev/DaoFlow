@@ -263,6 +263,7 @@ describe("external backup artifact persistence and approvals", () => {
     });
     if (!target) throw new Error("Expected managed target.");
     const snapshot = buildExternalRestoreApprovalSnapshot(target);
+    const reorderedSnapshot = Object.fromEntries(Object.entries(snapshot).reverse());
     expect(snapshot.artifactObjectVersion).toBe("");
     expect(snapshot.artifactObjectEtag).toBe('"etag-only"');
     await db.insert(approvalRequests).values({
@@ -288,7 +289,7 @@ describe("external backup artifact persistence and approvals", () => {
         approvalRequestId: "apr_external_artifact",
         approvalDispatchId: "apd_external_artifact",
         operationId: "brest_external_artifact",
-        approvalSnapshot: { ...snapshot },
+        approvalSnapshot: reorderedSnapshot,
         preserveDispatchRetry: true
       })
     ).resolves.toMatchObject({ id: "brest_external_artifact", status: "queued" });

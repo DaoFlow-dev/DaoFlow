@@ -254,14 +254,18 @@ const SUPPORTED_TOC_ENTRY_TYPES = new Set([
   "VIEW"
 ]);
 
+const ALL_TOC_ENTRY_TYPES_SORTED = [...UNSAFE_TOC_ENTRY_TYPES, ...SUPPORTED_TOC_ENTRY_TYPES].sort(
+  (left, right) => right.length - left.length
+);
+
 function extractTocEntryTypes(listing: string): string[] {
   const entries: string[] = [];
   for (const line of listing.split("\n")) {
     if (!/^\d+;/.test(line)) continue;
     const body = line.replace(/^\d+;\s*\d+\s+\d+\s+/, "");
-    const type = [...UNSAFE_TOC_ENTRY_TYPES, ...SUPPORTED_TOC_ENTRY_TYPES]
-      .sort((left, right) => right.length - left.length)
-      .find((candidate) => body === candidate || body.startsWith(`${candidate} `));
+    const type = ALL_TOC_ENTRY_TYPES_SORTED.find(
+      (candidate) => body === candidate || body.startsWith(`${candidate} `)
+    );
     if (!type) throw new Error("External artifact contains an unrecognized archive entry type.");
     entries.push(type);
   }

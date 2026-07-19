@@ -272,5 +272,8 @@ function externalRestoreSnapshotMatches(
   snapshot: ExternalArtifactRestoreApprovalSnapshot,
   target: ResolvedExternalRestoreTarget
 ) {
-  return JSON.stringify(snapshot) === JSON.stringify(buildExternalRestoreApprovalSnapshot(target));
+  const current = buildExternalRestoreApprovalSnapshot(target);
+  return (Object.keys(current) as Array<keyof ExternalArtifactRestoreApprovalSnapshot>).every(
+    (key) => snapshot[key] === current[key]
+  );
 }

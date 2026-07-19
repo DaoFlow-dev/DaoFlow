@@ -36,8 +36,8 @@ export type ExternalS3OperationHooks = {
 };
 
 export class ExternalS3Error extends Error {
-  constructor(message: string) {
-    super(message);
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options);
     this.name = "ExternalS3Error";
   }
 }
