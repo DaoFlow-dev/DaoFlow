@@ -94,6 +94,8 @@ export async function claimProviderFeedbackPreviewComment(
       .update(providerFeedbackPreviewComments)
       .set({
         providerId: input.providerId,
+        externalCommentId:
+          current.providerId === input.providerId ? current.externalCommentId : null,
         leaseToken,
         leaseExpiresAt,
         updatedAt: now

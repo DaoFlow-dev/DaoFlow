@@ -104,7 +104,7 @@ describe("GitHub provider preview comments", () => {
     ).toHaveLength(1);
   });
 
-  it("keeps one identity when a project changes GitHub Apps", async () => {
+  it("clears the remote comment ID when a project changes providers", async () => {
     const identity = await createCommentIdentity();
     const first = await claimProviderFeedbackPreviewComment(identity);
     expect(first).not.toBeNull();
@@ -120,7 +120,7 @@ describe("GitHub provider preview comments", () => {
       ...identity,
       providerId: "replacement-github-provider"
     });
-    expect(second).toMatchObject({ id: first!.id, externalCommentId: "301" });
+    expect(second).toMatchObject({ id: first!.id, externalCommentId: null });
     await expect(
       releaseProviderFeedbackPreviewComment({
         commentId: second!.id,

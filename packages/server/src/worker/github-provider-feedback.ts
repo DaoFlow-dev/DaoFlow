@@ -293,7 +293,7 @@ export const githubProviderFeedbackAdapter: ProviderFeedbackAdapter = {
             environmentUrl
           })
         : undefined;
-    const externalCommentId = input.externalIds.externalCommentId ?? currentCommentId;
+    const externalCommentId = currentCommentId ?? input.externalIds.externalCommentId;
 
     return {
       externalDeploymentId,

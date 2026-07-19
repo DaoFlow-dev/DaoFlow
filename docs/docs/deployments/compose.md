@@ -197,6 +197,24 @@ approves them. See GitHub's
 [deployment status API](https://docs.github.com/en/rest/deployments/statuses). GitHub Enterprise uses
 the API base URL configured on the DaoFlow provider.
 
+### GitLab commit status and merge-request notes
+
+DaoFlow publishes one stable commit-status context for every GitLab-backed deployment. Pushes and
+branch previews receive that status only; merge-request previews receive the same status plus one
+durable merge-request note. The note is updated as deployment work is queued, running, completed,
+failed, canceled, or cleaned up instead of posting a new note for every transition or retry.
+
+Each status and note links back to the exact DaoFlow deployment record and its logs. A preview link
+appears only after a successful preview deployment when DaoFlow can verify that the exact route is
+active. Cleanup, blocked previews, failed deployments, and missing or inactive routes omit that
+link.
+
+GitLab feedback uses the OAuth or API-token credentials described below. Deploy tokens remain
+clone-only: DaoFlow records a safe provider-feedback warning and does not call GitLab when an
+API-capable credential is missing. For self-hosted GitLab, DaoFlow sends API traffic to the optional
+internal GitLab URL while the configured public URL continues to identify the GitLab instance to
+users and webhooks. DaoFlow does not create GitLab Deployment API records for this integration.
+
 For GitLab.com, register a GitLab provider with the GitLab OAuth app client ID, client secret, and
 webhook secret. The OAuth callback URL is:
 

@@ -3918,11 +3918,11 @@
         "type": "object",
         "properties": {
           "states": {
-            "maxItems": 4,
+            "maxItems": 5,
             "type": "array",
             "items": {
               "type": "string",
-              "enum": ["pending", "retrying", "delivered", "dead-letter"]
+              "enum": ["pending", "retrying", "delivered", "skipped", "dead-letter"]
             }
           },
           "limit": {

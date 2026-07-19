@@ -31,6 +31,7 @@ export {
   stopProviderFeedbackMonitor
 } from "./provider-feedback-monitor";
 export { registerGitHubProviderFeedbackAdapter } from "./github-provider-feedback";
+export { registerGitLabProviderFeedbackAdapter } from "./gitlab-provider-feedback";
 export {
   startServiceScheduleMonitor,
   stopServiceScheduleMonitor
