@@ -46,7 +46,7 @@ docker compose run --rm -e DAOFLOW_RUN_MIGRATIONS_ONLY=true daoflow
 
 If startup fails during owner bootstrap, correct the `DAOFLOW_INITIAL_ADMIN_*` values and restart `daoflow`.
 
-If startup fails during migration, restore from the database backup taken before upgrade or fix the schema drift before starting the app. Do not set `DAOFLOW_ALLOW_START_WITH_MIGRATION_FAILURE=true` unless you intentionally want an emergency degraded process; `/ready` remains unavailable when migrations fail.
+If startup fails during migration, restore from the database backup taken before upgrade or fix the schema drift before starting the app. Do not set `DAOFLOW_ALLOW_START_WITH_MIGRATION_FAILURE=true` unless you intentionally want an emergency degraded process; it cannot bypass lineage mismatches or a recorded failed migration, and `/ready` remains unavailable when a bypass is allowed. After repairing a recorded failure, run migration-only mode once with `DAOFLOW_RETRY_FAILED_MIGRATION=true`, then remove that setting.
 
 ### Destination-Key Rotation Or Migration Failure
 

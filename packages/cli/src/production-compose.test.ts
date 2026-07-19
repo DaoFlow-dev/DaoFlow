@@ -86,7 +86,9 @@ describe("production docker-compose.yml", () => {
     expect(asRecord(daoflow.environment).CORS_ORIGIN).toBe("${CORS_ORIGIN:-}");
     expect(asRecord(daoflow.environment).DEPLOY_TIMEOUT_MS).toBe("${DEPLOY_TIMEOUT_MS:-86400000}");
     expect(daoflow.healthcheck).toBeDefined();
-    expect(asRecord(asRecord(services.postgres).environment).POSTGRES_DB).toBe("daoflow");
+    expect(asRecord(asRecord(services.postgres).environment).POSTGRES_DB).toBe(
+      "${DAOFLOW_DATABASE_NAME:-daoflow}"
+    );
     expect(asRecord(asRecord(services.postgres).environment).POSTGRES_PASSWORD).toBe(
       "${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}"
     );

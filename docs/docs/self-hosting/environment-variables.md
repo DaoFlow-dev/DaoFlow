@@ -17,7 +17,16 @@ Complete reference for the `.env` file consumed by the production `docker-compos
 | `DAOFLOW_DATABASE_NAME`           | Database selected by the production `DATABASE_URL`; defaults to `daoflow`                                   | `daoflow`                    |
 | `POSTGRES_PASSWORD`               | DaoFlow application database password                                                                       | `openssl rand -hex 16`       |
 
-`DATABASE_URL`, `REDIS_URL`, and most container-local defaults are constructed inside the compose stack and are not normally hand-authored in this `.env` file. The Postgres service still initially creates `daoflow`; changing `DAOFLOW_DATABASE_NAME` selects a different application database and does not create that database by itself.
+`DATABASE_URL`, `REDIS_URL`, and most container-local defaults are constructed inside the compose stack and are not normally hand-authored in this `.env` file. On a new Postgres volume, the service creates `DAOFLOW_DATABASE_NAME` (default `daoflow`). Changing this value after the volume has already been initialized selects a different application database but does not create or rename that database by itself.
+
+## Migration Recovery Controls
+
+| Variable                                     | Default | Description                                                                                                                                                                  |
+| -------------------------------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DAOFLOW_ALLOW_START_WITH_MIGRATION_FAILURE` | `false` | Emergency degraded-start bypass for ordinary execution failures. It never bypasses migration-lineage mismatches or a recorded failed migration.                              |
+| `DAOFLOW_RETRY_FAILED_MIGRATION`             | `false` | Explicitly clears the matching failed-migration marker and retries once. Use only in migration-only mode after repairing the underlying problem, then remove it immediately. |
+
+DaoFlow records only the failed migration timestamp, hash, stable reason, and failure time. It does not store the database URL, raw SQL, or the original error text in this recovery marker.
 
 For an offline clean-install restore, use a separate external secrets file with mode `600`. It
 must contain `BETTER_AUTH_SECRET`, `ENCRYPTION_KEY`, `DAOFLOW_RECOVERY_ENCRYPTION_KEY`, any
