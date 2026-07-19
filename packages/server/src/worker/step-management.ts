@@ -15,6 +15,7 @@ import type { ComposeInputManifest } from "../compose-inputs";
 import type { ComposePreviewMetadata } from "../compose-preview";
 import type { ComposeReadinessProbeSnapshot } from "../compose-readiness";
 import type { ServiceRuntimeConfig } from "../service-runtime-config";
+import { safeDeploymentFailureMessage } from "./deployment-failure-evidence";
 
 export type DeploymentRow = typeof deployments.$inferSelect;
 
@@ -121,10 +122,7 @@ export async function transitionDeployment(
   }
 
   if (error) {
-    update.error =
-      error instanceof Error
-        ? { message: error.message, stack: error.stack }
-        : { message: typeof error === "string" ? error : JSON.stringify(error) };
+    update.error = { message: safeDeploymentFailureMessage(error) };
   }
 
   await db.update(deployments).set(update).where(eq(deployments.id, id));
@@ -138,20 +136,24 @@ export async function emitEvent(
   summary: string,
   detail: string,
   severity: "info" | "warning" | "error" = "info"
-): Promise<void> {
-  await db.insert(events).values({
-    kind,
-    resourceType: "deployment",
-    resourceId: deployment.id,
-    summary,
-    detail,
-    severity,
-    metadata: {
-      serviceName: deployment.serviceName,
-      actorLabel: "execution-worker"
-    },
-    createdAt: new Date()
-  });
+): Promise<number | null> {
+  const [event] = await db
+    .insert(events)
+    .values({
+      kind,
+      resourceType: "deployment",
+      resourceId: deployment.id,
+      summary,
+      detail,
+      severity,
+      metadata: {
+        serviceName: deployment.serviceName,
+        actorLabel: "execution-worker"
+      },
+      createdAt: new Date()
+    })
+    .returning({ id: events.id });
+  return event?.id ?? null;
 }
 
 /* ──────────────────────── Config Snapshot ──────────────────────── */

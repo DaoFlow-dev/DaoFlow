@@ -23,6 +23,7 @@ import { DeploymentCancellationError } from "../deployment-cancellation";
 import { buildDockerContainerName } from "../docker-identifiers";
 import { getServerForTeam } from "../db/services/team-scoped-servers";
 import { DeploymentLifecycleStatus } from "@daoflow/shared";
+import { recordDeploymentFailureEvidence } from "./deployment-failure-evidence";
 
 const DEFAULT_DEPLOY_TIMEOUT_MS = 24 * 60 * 60_000;
 const DEPLOY_TIMEOUT_MS = (() => {
@@ -206,24 +207,14 @@ export async function runDeployment(
 
     if (executionSignal.aborted && executionSignal.reason === timeoutError) {
       await transitionDeployment(deployment.id, "failed", "failed", timeoutError);
-      await emitEvent(
-        "deployment.failed",
-        deployment,
-        "Deployment failed",
-        timeoutError.message,
-        "error"
-      );
+      await flush();
+      await recordDeploymentFailureEvidence(deployment, timeoutError, actorLabel);
       throw timeoutError;
     }
 
     await transitionDeployment(deployment.id, "failed", "failed", error);
-    await emitEvent(
-      "deployment.failed",
-      deployment,
-      "Deployment failed",
-      error instanceof Error ? error.message : String(error),
-      "error"
-    );
+    await flush();
+    await recordDeploymentFailureEvidence(deployment, error, actorLabel);
     throw error;
   } finally {
     clearTimeout(executionTimeout);

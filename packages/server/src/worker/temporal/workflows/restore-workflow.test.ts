@@ -134,4 +134,32 @@ describe("restore workflow compatibility", () => {
       expect.stringContaining("checksum")
     );
   });
+
+  it("preserves both restore and sensitive-staging cleanup failures", async () => {
+    patchedMock.mockReturnValue(true);
+    activities.executeRestore.mockResolvedValue({
+      restoreId: legacyContext.restoreId,
+      success: false,
+      bytesRestored: 0,
+      error: "archive replay failed"
+    });
+    activities.cleanupRestoreDownload.mockRejectedValue(new Error("download cleanup failed"));
+
+    await expect(
+      restoreWorkflow({
+        restoreId: legacyContext.restoreId,
+        backupRunId: legacyContext.runId,
+        triggeredBy: "system",
+        mode: "restore"
+      })
+    ).rejects.toThrow(
+      "Operation: Restore execution failed: archive replay failed Cleanup: download cleanup failed"
+    );
+    expect(activities.markRestoreFailed).toHaveBeenCalledWith(
+      legacyContext.restoreId,
+      expect.stringContaining("download cleanup failed"),
+      undefined
+    );
+    expect(activities.markRestoreSucceeded).not.toHaveBeenCalled();
+  });
 });

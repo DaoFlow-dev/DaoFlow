@@ -11,13 +11,14 @@ import { createHash } from "node:crypto";
 import { existsSync, lstatSync, mkdirSync } from "node:fs";
 import { isAbsolute, join } from "node:path";
 import type { OnLog } from "./docker-executor";
-import { scpCommand, sshCommand, withCommandPath } from "./command-env";
+import { sshCommand, withCommandPath } from "./command-env";
 import { materializeManagedKnownHosts, type ManagedSshHostIdentity } from "./ssh-known-hosts";
 
 export { removeSSHKey, writeSSHKey } from "./ssh-key-files";
 export { shellQuote } from "./ssh-shell";
 
 const SSH_CONNECT_TIMEOUT = 10; // seconds
+export const MAX_REMOTE_COMMAND_TIMEOUT_MS = 600_000;
 
 function getSSHControlDir(): string {
   return process.env.SSH_CONTROL_DIR ?? "/tmp/daoflow-ssh";
@@ -44,6 +45,9 @@ export interface SSHTarget {
 export interface ExecRemoteOptions {
   preview?: string;
   stdin?: string;
+  /** A request can lower the ceiling, but remote commands never exceed ten minutes. */
+  timeoutMs?: number;
+  /** Lets callers stop an in-flight remote command when their activity is cancelled. */
   signal?: AbortSignal;
 }
 
@@ -140,6 +144,11 @@ function buildSSHTransportArgs(
   return { ...identity, args };
 }
 
+/** Shared SCP transport options with the same host-key pinning as SSH commands. */
+export function scpTransportArgs(target: SSHTarget): SSHResolvedIdentity & { args: string[] } {
+  return buildSSHTransportArgs(target, { portFlag: "-P" });
+}
+
 /**
  * Build SSH command arguments for a given target.
  * Includes connection multiplexing, strict host key checking options,
@@ -164,8 +173,14 @@ export function execRemote(
   options?: ExecRemoteOptions
 ): Promise<{ exitCode: number; signal: string | null }> {
   return new Promise((resolve, reject) => {
+    if (options?.signal?.aborted) {
+      reject(new Error("Remote command was cancelled before it started."));
+      return;
+    }
+
     const args = [...sshArgs(target), remoteCommand];
     const preview = options?.preview ?? remoteCommand;
+    const timeoutMs = resolveBoundedTimeout(options?.timeoutMs);
 
     onLog({
       stream: "stdout",
@@ -177,12 +192,57 @@ export function execRemote(
     try {
       child = spawn(sshCommand, args, {
         stdio: [options?.stdin === undefined ? "ignore" : "pipe", "pipe", "pipe"],
-        env: withCommandPath(process.env),
-        signal: options?.signal
+        env: withCommandPath(process.env)
       });
     } catch (err) {
       reject(err instanceof Error ? err : new Error(String(err)));
       return;
+    }
+
+    let settled = false;
+    let forceKillTimer: NodeJS.Timeout | undefined;
+    const timeoutTimer =
+      timeoutMs === undefined
+        ? undefined
+        : setTimeout(() => {
+            settleFailure(new Error(`Remote command timed out after ${timeoutMs}ms.`));
+            terminateChild(child);
+          }, timeoutMs);
+    timeoutTimer?.unref?.();
+
+    const abort = () => {
+      settleFailure(new Error("Remote command was cancelled."));
+      terminateChild(child);
+    };
+    options?.signal?.addEventListener("abort", abort, { once: true });
+
+    function settleCleanup(): void {
+      if (timeoutTimer) clearTimeout(timeoutTimer);
+      if (forceKillTimer) clearTimeout(forceKillTimer);
+      options?.signal?.removeEventListener("abort", abort);
+    }
+
+    function settleFailure(error: Error): void {
+      if (settled) return;
+      settled = true;
+      settleCleanup();
+      reject(error);
+    }
+
+    function terminateChild(process: ChildProcess): void {
+      try {
+        process.kill("SIGTERM");
+      } catch {
+        // The process may have exited between the timeout and termination attempt.
+      }
+      forceKillTimer = setTimeout(() => {
+        try {
+          process.kill("SIGKILL");
+        } catch {
+          // The process has already exited.
+        }
+      }, 5_000);
+      forceKillTimer.unref?.();
     }
 
     const processStream = (stream: "stdout" | "stderr", data: Buffer) => {
@@ -203,121 +263,22 @@ export function execRemote(
     }
 
     child.on("close", (code, signal) => {
+      if (settled) return;
+      settled = true;
+      settleCleanup();
       resolve({ exitCode: code ?? 1, signal: signal ?? null });
     });
 
     child.on("error", (err) => {
-      reject(err);
+      settleFailure(err);
     });
   });
 }
 
-/**
- * Test SSH connectivity to a server.
- * Returns detailed diagnostics for the server status page.
- */
-export async function testSSHConnection(
-  target: SSHTarget,
-  onLog: OnLog
-): Promise<{
-  reachable: boolean;
-  latencyMs: number;
-  error?: string;
-}> {
-  const start = Date.now();
-  try {
-    const result = await execRemote(target, "echo daoflow-ping", onLog);
-    const latencyMs = Date.now() - start;
-    return {
-      reachable: result.exitCode === 0,
-      latencyMs,
-      error: result.exitCode !== 0 ? `SSH exited with code ${result.exitCode}` : undefined
-    };
-  } catch (err) {
-    return {
-      reachable: false,
-      latencyMs: Date.now() - start,
-      error: err instanceof Error ? err.message : String(err)
-    };
+function resolveBoundedTimeout(timeoutMs: number | undefined): number | undefined {
+  if (timeoutMs === undefined) return undefined;
+  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+    throw new Error("Remote command timeout must be a positive finite number.");
   }
-}
-
-/**
- * Detect Docker version on a remote server.
- */
-export async function detectDockerVersion(
-  target: SSHTarget,
-  onLog: OnLog
-): Promise<{ docker?: string; compose?: string }> {
-  const versions: { docker?: string; compose?: string } = {};
-
-  // Docker version
-  await execRemote(target, "docker version --format '{{.Server.Version}}'", (line) => {
-    onLog(line);
-    if (line.stream === "stdout" && line.message.match(/^\d+\.\d+/)) {
-      versions.docker = line.message.trim();
-    }
-  });
-
-  // Compose version
-  await execRemote(target, "docker compose version --short", (line) => {
-    onLog(line);
-    if (line.stream === "stdout" && line.message.match(/^\d+\.\d+/)) {
-      versions.compose = line.message.trim();
-    }
-  });
-
-  return versions;
-}
-
-/**
- * Upload a file to a remote server via SCP.
- * Uses the same SSH key and connection options as execRemote.
- */
-export function scpUpload(
-  target: SSHTarget,
-  localPath: string,
-  remotePath: string,
-  onLog: OnLog,
-  signal?: AbortSignal
-): Promise<{ exitCode: number; signal: string | null }> {
-  return new Promise((resolve, reject) => {
-    const transport = buildSSHTransportArgs(target, {
-      portFlag: "-P"
-    });
-    const args = [...transport.args, localPath, `${transport.destination}:${remotePath}`];
-
-    onLog({
-      stream: "stdout",
-      message: `[scp] ${target.serverName} → ${localPath} → ${remotePath}`,
-      timestamp: new Date()
-    });
-
-    let child: ChildProcess;
-    try {
-      child = spawn(scpCommand, args, {
-        stdio: ["ignore", "pipe", "pipe"],
-        env: withCommandPath(process.env),
-        signal
-      });
-    } catch (err) {
-      reject(err instanceof Error ? err : new Error(String(err)));
-      return;
-    }
-
-    child.stderr?.on("data", (data: Buffer) => {
-      const text = data.toString("utf-8").trimEnd();
-      if (text.length > 0) {
-        onLog({ stream: "stderr", message: text, timestamp: new Date() });
-      }
-    });
-
-    child.on("close", (code, signal) => {
-      resolve({ exitCode: code ?? 1, signal: signal ?? null });
-    });
-
-    child.on("error", (err) => {
-      reject(err);
-    });
-  });
+  return Math.min(Math.floor(timeoutMs), MAX_REMOTE_COMMAND_TIMEOUT_MS);
 }

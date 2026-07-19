@@ -51,6 +51,17 @@ function recoveryArgs(source: string, destination: string): string[] {
   ];
 }
 
+function copyArgs(source: string, destination: string): string[] {
+  return [
+    "copy",
+    source,
+    destination,
+    `--timeout=${REMOTE_TIMEOUT}`,
+    `--retries=${REMOTE_RETRIES}`,
+    "--progress=false"
+  ];
+}
+
 function runRclone(dest: DestinationConfig, configPath: string, args: string[]): RcloneResult {
   const options: ExecFileSyncOptions = {
     timeout: getRcloneCommandTimeoutMs(),
@@ -76,20 +87,24 @@ function runRcloneAsync(
   options: RcloneExecutionOptions
 ): Promise<RcloneResult> {
   if (options.cancellationSignal?.aborted) {
-    return Promise.resolve(cancelledResult(dest));
+    return Promise.reject(cancellationReason(options.cancellationSignal));
   }
   const execOptions: ExecFileOptions = {
     timeout: getRcloneCommandTimeoutMs(),
     encoding: "utf-8",
     signal: options.cancellationSignal
   };
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     try {
       execFile(
         "rclone",
         [`--config=${configPath}`, ...args],
         execOptions,
         (error, stdout, stderr) => {
+          if (options.cancellationSignal?.aborted) {
+            reject(cancellationReason(options.cancellationSignal));
+            return;
+          }
           resolve(
             error
               ? rcloneFailure(dest, error, String(stdout ?? ""), String(stderr ?? ""))
@@ -98,6 +113,10 @@ function runRcloneAsync(
         }
       );
     } catch (error) {
+      if (options.cancellationSignal?.aborted) {
+        reject(cancellationReason(options.cancellationSignal));
+        return;
+      }
       resolve(rcloneFailure(dest, error));
     }
   });
@@ -111,7 +130,7 @@ function rcloneFailure(
 ): RcloneResult {
   const error = failure as { status?: number; stdout?: string; stderr?: string; message?: string };
   const rawError =
-    normalizeExecutableFailure("rclone", failure, "transferring a recovery object") ??
+    normalizeExecutableFailure("rclone", failure, "transferring backup data") ??
     (stderr || error.stderr || error.message || String(failure));
   return {
     success: false,
@@ -127,13 +146,10 @@ function safeOutput(output: unknown, dest: DestinationConfig): string {
   return redactDestinationCredentialValues(text, dest);
 }
 
-function cancelledResult(dest: DestinationConfig): RcloneResult {
-  return {
-    success: false,
-    output: "",
-    error: redactDestinationCredentialValues("Rclone operation was cancelled.", dest),
-    exitCode: 1
-  };
+function cancellationReason(signal: AbortSignal): Error {
+  return signal.reason instanceof Error
+    ? signal.reason
+    : new Error("Rclone operation was cancelled.");
 }
 
 function cleanupConfig(configPath: string): void {
@@ -220,6 +236,64 @@ export async function copyObjectFromRemoteAsync(
       dest,
       configPath,
       recoveryArgs(resolveRemotePath(dest, remoteObjectPath, false), localPath),
+      options
+    )
+  );
+}
+
+export async function copyToRemoteAsync(
+  dest: DestinationConfig,
+  localPath: string,
+  remoteSubPath: string,
+  options: RcloneExecutionOptions = {}
+): Promise<RcloneResult> {
+  return withConfigAsync(dest, (configPath) =>
+    runRcloneAsync(
+      dest,
+      configPath,
+      copyArgs(
+        localPath,
+        resolveRemotePath(dest, remoteSubPath, dest.encryptionMode === "rclone-crypt")
+      ),
+      options
+    )
+  );
+}
+
+export async function copyFromRemoteAsync(
+  dest: DestinationConfig,
+  remoteSubPath: string,
+  localPath: string,
+  options: RcloneExecutionOptions = {}
+): Promise<RcloneResult> {
+  return withConfigAsync(dest, (configPath) =>
+    runRcloneAsync(
+      dest,
+      configPath,
+      copyArgs(
+        resolveRemotePath(dest, remoteSubPath, dest.encryptionMode === "rclone-crypt"),
+        localPath
+      ),
+      options
+    )
+  );
+}
+
+export async function listRemoteAsync(
+  dest: DestinationConfig,
+  subPath: string,
+  options: RcloneExecutionOptions = {}
+): Promise<RcloneResult> {
+  return withConfigAsync(dest, (configPath) =>
+    runRcloneAsync(
+      dest,
+      configPath,
+      [
+        "ls",
+        resolveRemotePath(dest, subPath, dest.encryptionMode === "rclone-crypt"),
+        `--timeout=${REMOTE_TIMEOUT}`,
+        `--retries=${REMOTE_RETRIES}`
+      ],
       options
     )
   );

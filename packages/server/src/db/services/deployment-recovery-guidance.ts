@@ -6,6 +6,8 @@ type DeploymentRow = typeof deployments.$inferSelect;
 export interface DeploymentRecoveryGuidanceEvidence {
   kind: string;
   id: string;
+  eventId: number | null;
+  logId: number | null;
   title: string;
   detail: string;
 }
@@ -16,6 +18,7 @@ export interface DeploymentRecoveryGuidance {
   suspectedRootCause: string | null;
   safeActions: string[];
   evidence: DeploymentRecoveryGuidanceEvidence[];
+  evidenceIds: string[];
 }
 
 export function buildDeploymentRecoveryGuidance(
@@ -27,6 +30,8 @@ export function buildDeploymentRecoveryGuidance(
   const evidence = readRecordArray(insight, "evidence").map((item) => ({
     kind: readString(item, "kind"),
     id: readString(item, "id"),
+    eventId: typeof item.eventId === "number" ? item.eventId : null,
+    logId: typeof item.logId === "number" ? item.logId : null,
     title: readString(item, "title"),
     detail: readString(item, "detail")
   }));
@@ -54,6 +59,10 @@ export function buildDeploymentRecoveryGuidance(
     summary: summary ?? "Deployment failed and needs operator attention.",
     suspectedRootCause,
     safeActions,
-    evidence
+    evidence,
+    evidenceIds: evidence.flatMap((item) => [
+      ...(item.eventId === null ? [] : [`event:${item.eventId}`]),
+      ...(item.logId === null ? [] : [`deployment-log:${item.logId}`])
+    ])
   };
 }

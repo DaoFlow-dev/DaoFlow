@@ -17,6 +17,8 @@ import {
   copyObjectFromRemote,
   copyObjectToRemoteAsync,
   copyObjectToRemote,
+  copyFromRemoteAsync,
+  copyToRemoteAsync,
   copyToRemote,
   getRcloneCommandTimeoutMs,
   testConnection
@@ -47,6 +49,19 @@ describe("rclone remote helpers", () => {
         rcloneRemotePath: "backups/daoflow"
       })
     ).toBe("remote:backups/daoflow");
+  });
+
+  it("keeps S3 operations inside the configured destination prefix", () => {
+    expect(
+      resolveRemotePath(
+        {
+          provider: "s3",
+          bucket: "realinfra",
+          rcloneRemotePath: "real-infra/ri123456789012"
+        },
+        "nightly/2026-07-18"
+      )
+    ).toBe("daoflow:realinfra/real-infra/ri123456789012/nightly/2026-07-18");
   });
 
   it("keeps encrypted remotes rooted at the crypt overlay", () => {
@@ -121,8 +136,18 @@ describe("rclone executor", () => {
         cancellationSignal: controller.signal
       })
     ).resolves.toMatchObject({ success: true });
+    await expect(
+      copyToRemoteAsync(destination, "/tmp/backup", "nightly", {
+        cancellationSignal: controller.signal
+      })
+    ).resolves.toMatchObject({ success: true });
+    await expect(
+      copyFromRemoteAsync(destination, "nightly", "/tmp/restore", {
+        cancellationSignal: controller.signal
+      })
+    ).resolves.toMatchObject({ success: true });
 
-    expect(execFileMock).toHaveBeenCalledTimes(2);
+    expect(execFileMock).toHaveBeenCalledTimes(4);
     const firstCall = execFileMock.mock.calls[0];
     expect(firstCall?.[0]).toBe("rclone");
     expect(firstCall?.[2]).toMatchObject({
@@ -131,9 +156,10 @@ describe("rclone executor", () => {
     });
   });
 
-  it("does not start a recovery transfer after cancellation", async () => {
+  it("rethrows cancellation without starting a recovery transfer", async () => {
     const controller = new AbortController();
-    controller.abort(new Error("operator cancelled recovery"));
+    const cancellation = new Error("operator cancelled recovery");
+    controller.abort(cancellation);
 
     await expect(
       copyObjectToRemoteAsync(
@@ -146,8 +172,79 @@ describe("rclone executor", () => {
         "recovery/bundle.dfr",
         { cancellationSignal: controller.signal }
       )
-    ).resolves.toMatchObject({ success: false, error: "Rclone operation was cancelled." });
+    ).rejects.toBe(cancellation);
     expect(execFileMock).not.toHaveBeenCalled();
+  });
+
+  it("rethrows cancellation when rclone reports an abort", async () => {
+    const controller = new AbortController();
+    const cancellation = new Error("operator cancelled active recovery");
+    let callback: ((error: Error | null, stdout: string, stderr: string) => void) | undefined;
+    execFileMock.mockImplementation(
+      (
+        _file: string,
+        _args: readonly string[],
+        _options: object,
+        result: (error: Error | null, stdout: string, stderr: string) => void
+      ) => {
+        callback = result;
+        return undefined;
+      }
+    );
+
+    const operation = copyObjectFromRemoteAsync(
+      {
+        id: "dest_cancelled_active_recovery",
+        provider: "s3",
+        bucket: "backups",
+        accessKey: "access-key-in-output",
+        secretAccessKey: "secret-key-in-error"
+      },
+      "recovery/manifest.json",
+      "/tmp/manifest.json",
+      { cancellationSignal: controller.signal }
+    );
+    controller.abort(cancellation);
+    expect(callback).toBeTypeOf("function");
+    if (!callback) throw new Error("Expected rclone callback.");
+    callback(Object.assign(new Error("rclone was aborted"), { code: "ABORT_ERR" }), "", "");
+
+    await expect(operation).rejects.toBe(cancellation);
+  });
+
+  it("returns a sanitized result for non-cancellation async rclone failures", async () => {
+    execFileMock.mockImplementation(
+      (
+        _file: string,
+        _args: readonly string[],
+        _options: object,
+        callback: (error: Error | null, stdout: string, stderr: string) => void
+      ) => {
+        callback(
+          Object.assign(new Error("rclone failed with secret-key-in-error"), { status: 1 }),
+          "access-key-in-output",
+          "secret-key-in-error"
+        );
+        return undefined;
+      }
+    );
+
+    const result = await copyObjectToRemoteAsync(
+      {
+        id: "dest_async_redacted_rclone",
+        provider: "s3",
+        bucket: "backups",
+        accessKey: "access-key-in-output",
+        secretAccessKey: "secret-key-in-error"
+      },
+      "/tmp/recovery-bundle",
+      "recovery/bundle.dfr"
+    );
+
+    expect(result.success).toBe(false);
+    expect(`${result.output}\n${result.error}`).not.toContain("access-key-in-output");
+    expect(`${result.output}\n${result.error}`).not.toContain("secret-key-in-error");
+    expect(`${result.output}\n${result.error}`).toContain("[redacted]");
   });
 
   it("rejects unsafe rclone command timeout settings", () => {

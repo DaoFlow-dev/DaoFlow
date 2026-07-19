@@ -40,6 +40,8 @@
     "test:e2e:main": "sh ./scripts/run-e2e-main.sh",
     "test:e2e:bootstrap": "sh ./scripts/run-e2e-bootstrap.sh",
     "test:e2e:cli": "sh ./scripts/run-e2e-cli.sh",
+    "test:e2e:real-infra": "sh ./scripts/run-e2e-real-infra.sh",
+    "test:e2e:real-infra:unit": "bun test e2e/fixtures/real-infra/*.test.ts",
     "test:e2e:worker": "./node_modules/.bin/playwright test --config playwright.worker.config.ts",
     "verify": "bun run format:check && bun run lint && bun run typecheck && bun run contracts:check && bun run readiness:check && bun run test:unit",
     "db:generate": "drizzle-kit generate",

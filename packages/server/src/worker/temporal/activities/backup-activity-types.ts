@@ -1,3 +1,5 @@
+import type { VolumeSourceKind } from "./volume-source-kind";
+
 export interface BackupPolicyResolved {
   policyId: string;
   teamId: string;
@@ -5,6 +7,7 @@ export interface BackupPolicyResolved {
   volumeId: string;
   volumeName: string;
   mountPath: string;
+  sourceKind: VolumeSourceKind;
   serverId: string;
   serverName: string;
   serverHost: string;

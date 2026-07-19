@@ -161,6 +161,7 @@ describe("Temporal backup secret boundaries", () => {
         id: "vol_test",
         name: "postgres-data",
         mountPath: "/var/lib/postgresql/data",
+        serverId: "srv_test",
         metadata: {
           containerName: "postgres",
           databaseName: "app",
@@ -169,6 +170,7 @@ describe("Temporal backup secret boundaries", () => {
         }
       }
     ]);
+    mockSelectRows([{ id: "srv_test", teamId: "team_test", host: "127.0.0.1" }]);
     mockRestoreUpdate();
     mocks.resolveTeamScopedDestinationForVolume.mockResolvedValue({
       teamId: "team_test",
@@ -190,7 +192,10 @@ describe("Temporal backup secret boundaries", () => {
       restoreId: "brest_test",
       runId: "brun_test",
       volumeId: "vol_test",
-      destinationId: "dest_test"
+      destinationId: "dest_test",
+      serverId: "srv_test",
+      teamId: "team_test",
+      mountPath: "/var/lib/postgresql/data"
     });
     expect(workflowPayload).not.toHaveProperty("destination");
     expect(workflowPayload).not.toHaveProperty("databasePassword");
@@ -198,6 +203,67 @@ describe("Temporal backup secret boundaries", () => {
     expect(JSON.stringify(workflowPayload)).not.toContain(databasePassword);
     expect(workflowPayload?.downloadPath).toBe("/tmp/daoflow-restore/brest_test/download");
     expect(workflowPayload?.downloadPath).not.toBe(workflowPayload?.targetPath);
+  });
+
+  it("uses worker-local staging for remote volume restores without changing local volume paths", async () => {
+    const resolve = async (host: string, restoreId: string) => {
+      mockSelectRows([
+        {
+          id: `brun_${restoreId}`,
+          policyId: `bpol_${restoreId}`,
+          artifactPath: "nightly/volume.tar",
+          status: "succeeded"
+        }
+      ]);
+      mockSelectRows([
+        {
+          id: `bpol_${restoreId}`,
+          volumeId: `vol_${restoreId}`,
+          destinationId: "dest_test",
+          backupType: "volume"
+        }
+      ]);
+      mockSelectRows([
+        {
+          id: `vol_${restoreId}`,
+          name: "app-data",
+          mountPath: "/srv/app-data",
+          serverId: `srv_${restoreId}`,
+          metadata: {}
+        }
+      ]);
+      mockSelectRows([{ id: `srv_${restoreId}`, teamId: "team_test", host }]);
+      mockRestoreUpdate();
+      mocks.resolveTeamScopedDestinationForVolume.mockResolvedValue({
+        teamId: "team_test",
+        destination: { id: "dest_test", encryptionMode: "none" }
+      });
+
+      return resolveRestoreContext({
+        restoreId,
+        backupRunId: `brun_${restoreId}`,
+        triggeredBy: "user_test"
+      });
+    };
+
+    const remote = await resolve("203.0.113.20", "brest_remote");
+    expect(remote).toMatchObject({
+      serverId: "srv_brest_remote",
+      teamId: "team_test",
+      serverHost: "203.0.113.20",
+      targetPath: "/srv/app-data",
+      downloadPath: "/tmp/daoflow-restore/brest_remote/download"
+    });
+
+    mocks.select.mockReset();
+    mocks.update.mockReset();
+    mocks.resolveTeamScopedDestinationForVolume.mockReset();
+
+    const local = await resolve("127.0.0.1", "brest_local");
+    expect(local).toMatchObject({
+      targetPath: "/srv/app-data",
+      downloadPath: "/srv/app-data"
+    });
   });
 
   it("keeps live database identifiers and credentials out of verification workflow history", async () => {
@@ -228,6 +294,7 @@ describe("Temporal backup secret boundaries", () => {
         id: "vol_verify",
         name: "postgres-data",
         mountPath: "/var/lib/postgresql/data",
+        serverId: "srv_verify",
         metadata: {
           containerName: "live-postgres",
           databaseName: "production",
@@ -236,6 +303,7 @@ describe("Temporal backup secret boundaries", () => {
         }
       }
     ]);
+    mockSelectRows([{ id: "srv_verify", teamId: "team_test", host: "127.0.0.1" }]);
     mockRestoreUpdate();
     mocks.resolveTeamScopedDestinationForVolume.mockResolvedValue({
       teamId: "team_test",
@@ -280,6 +348,7 @@ describe("Temporal backup secret boundaries", () => {
       encryptionMode: "none",
       backupType: "database",
       volumeName: "postgres-data",
+      sourceKind: "docker-volume" as const,
       databaseEngine: "postgres",
       checksum: "a".repeat(64),
       artifactFormat: "postgres-custom",
@@ -320,5 +389,11 @@ describe("Temporal backup secret boundaries", () => {
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
+  });
+
+  it("reports staged restore cleanup failures", async () => {
+    await expect(
+      cleanupRestoreDownload({ downloadPath: "/dev/null/restore-download", targetPath: "/target" })
+    ).rejects.toThrow();
   });
 });
