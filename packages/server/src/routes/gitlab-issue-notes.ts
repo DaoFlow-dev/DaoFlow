@@ -1,13 +1,13 @@
 import { gitInstallations, gitProviders } from "../db/schema/git-providers";
-import { resolveGitLabInstallationAccessToken } from "../db/services/gitlab-installation-auth";
-import { buildGitLabApiBaseUrl } from "../db/services/project-source-provider-validation-shared";
+import { resolveGitLabInstallationApiAccess } from "../db/services/gitlab-installation-auth";
+import { resolveGitLabApiBaseUrl } from "../db/services/gitlab-urls";
 
 function encodeProjectPath(repoFullName: string) {
   return encodeURIComponent(repoFullName);
 }
 
 async function writeGitLabIssueNote(input: {
-  accessToken: string;
+  headers: Record<string, string>;
   url: string;
   method: "POST" | "PUT";
   body: string;
@@ -16,9 +16,9 @@ async function writeGitLabIssueNote(input: {
     method: input.method,
     headers: {
       Accept: "application/json",
-      Authorization: `Bearer ${input.accessToken}`,
       "Content-Type": "application/json",
-      "User-Agent": "DaoFlow"
+      "User-Agent": "DaoFlow",
+      ...input.headers
     },
     body: JSON.stringify({ body: input.body })
   });
@@ -38,15 +38,18 @@ export async function sendGitLabIssueNote(input: {
   body: string;
   existingCommentId?: string | null;
 }) {
-  const accessToken = await resolveGitLabInstallationAccessToken({
+  const apiAccess = await resolveGitLabInstallationApiAccess({
     provider: input.provider,
     installation: input.installation
   });
-  if (!accessToken) {
-    throw new Error("GitLab issue note requires an installation access token.");
+  if (apiAccess.status === "capability_unavailable") {
+    throw new Error("GitLab deploy-token credentials cannot publish issue notes.");
+  }
+  if (apiAccess.status !== "ok") {
+    throw new Error("GitLab issue note requires usable API credentials.");
   }
 
-  const apiBaseUrl = buildGitLabApiBaseUrl(input.provider.baseUrl);
+  const apiBaseUrl = resolveGitLabApiBaseUrl(input.provider);
   const projectPath = encodeProjectPath(input.repoFullName);
   const createUrl = `${apiBaseUrl}/projects/${projectPath}/issues/${input.issueNumber}/notes`;
   const updateUrl = input.existingCommentId
@@ -57,7 +60,7 @@ export async function sendGitLabIssueNote(input: {
 
   if (!updateUrl) {
     const comment = await writeGitLabIssueNote({
-      accessToken,
+      headers: apiAccess.headers,
       url: createUrl,
       method: "POST",
       body: input.body
@@ -67,7 +70,7 @@ export async function sendGitLabIssueNote(input: {
 
   try {
     const comment = await writeGitLabIssueNote({
-      accessToken,
+      headers: apiAccess.headers,
       url: updateUrl,
       method: "PUT",
       body: input.body
@@ -80,7 +83,7 @@ export async function sendGitLabIssueNote(input: {
   }
 
   const comment = await writeGitLabIssueNote({
-    accessToken,
+    headers: apiAccess.headers,
     url: createUrl,
     method: "POST",
     body: input.body

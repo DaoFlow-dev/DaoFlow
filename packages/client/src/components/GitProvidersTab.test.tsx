@@ -8,6 +8,7 @@ import GitProvidersTab from "./GitProvidersTab";
 
 const {
   gitProvidersUseQueryMock,
+  gitInstallationsUseQueryMock,
   webhookDeliveriesUseQueryMock,
   registerGitProviderUseMutationMock,
   deleteGitProviderUseMutationMock,
@@ -15,6 +16,7 @@ const {
   startGitProviderSetupUseMutationMock
 } = vi.hoisted(() => ({
   gitProvidersUseQueryMock: vi.fn(),
+  gitInstallationsUseQueryMock: vi.fn(),
   webhookDeliveriesUseQueryMock: vi.fn(),
   registerGitProviderUseMutationMock: vi.fn(),
   deleteGitProviderUseMutationMock: vi.fn(),
@@ -34,6 +36,9 @@ vi.mock("@/lib/trpc", () => ({
   trpc: {
     gitProviders: {
       useQuery: gitProvidersUseQueryMock
+    },
+    gitInstallations: {
+      useQuery: gitInstallationsUseQueryMock
     },
     webhookDeliveries: {
       useQuery: webhookDeliveriesUseQueryMock
@@ -62,6 +67,10 @@ describe("GitProvidersTab", () => {
     refetchMock.mockReset();
     registerGitProviderMutateMock.mockReset();
     gitProvidersUseQueryMock.mockReturnValue({
+      data: [],
+      refetch: refetchMock
+    });
+    gitInstallationsUseQueryMock.mockReturnValue({
       data: [],
       refetch: refetchMock
     });
@@ -155,7 +164,9 @@ describe("GitProvidersTab", () => {
       clientId: "gitlab-client-id",
       clientSecret: "gitlab-client-secret",
       webhookSecret: "gitlab-webhook-secret",
-      baseUrl: "https://gitlab.example.com"
+      baseUrl: "https://gitlab.example.com",
+      internalBaseUrl: undefined,
+      gitlabCredential: { kind: "oauth" }
     });
   });
 

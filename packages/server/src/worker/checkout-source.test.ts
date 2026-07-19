@@ -4,14 +4,29 @@ import { db } from "../db/connection";
 import { gitInstallations, gitProviders } from "../db/schema/git-providers";
 import { projects, repositoryCredentials } from "../db/schema/projects";
 import { teams } from "../db/schema/teams";
+import { users } from "../db/schema/users";
 import { encodeGitInstallationPermissions } from "../db/services/git-providers";
+import { createGitLabCredentialStorage } from "../db/services/gitlab-credentials";
 import { encrypt } from "../db/crypto";
-import { resetTestDatabaseWithControlPlane } from "../test-db";
+import { resetTestDatabase } from "../test-db";
 import { resolveCheckoutSpec } from "./checkout-source";
 
 describe("resolveCheckoutSpec", () => {
   beforeEach(async () => {
-    await resetTestDatabaseWithControlPlane();
+    await resetTestDatabase();
+    await db.insert(users).values({
+      id: "user_foundation_owner",
+      email: "owner@daoflow.local",
+      name: "Foundation Owner",
+      role: "owner",
+      updatedAt: new Date()
+    });
+    await db.insert(teams).values({
+      id: "team_foundation",
+      name: "Foundation",
+      slug: "foundation",
+      updatedAt: new Date()
+    });
   });
 
   afterEach(() => {
@@ -155,7 +170,7 @@ describe("resolveCheckoutSpec", () => {
     });
   });
 
-  it("resolves encrypted GitLab installation tokens into header-based checkout", async () => {
+  it("uses GitLab OAuth Basic auth for encrypted installation tokens", async () => {
     const providerId = `gitprov_${Date.now()}`.slice(0, 32);
     const installationId = `gitinst_${Date.now()}`.slice(0, 32);
 
@@ -195,13 +210,110 @@ describe("resolveCheckoutSpec", () => {
       repoUrl: "https://gitlab.example.com/example-group/platform.git",
       branch: "release",
       displayLabel: "example-group/platform",
-      gitConfig: [{ key: "http.extraHeader", value: "Authorization: Bearer glpat-encrypted" }],
+      gitConfig: [
+        {
+          key: "http.extraHeader",
+          value: `Authorization: Basic ${Buffer.from("oauth2:glpat-encrypted").toString("base64")}`
+        }
+      ],
       repositoryPreparation: {
         submodules: false,
         gitLfs: false
       },
       requiresLocalMaterialization: true
     });
+  });
+
+  it("uses deploy-token Basic auth and the internal GitLab URL without API calls", async () => {
+    const providerId = `gitprov_deploy_${Date.now()}`.slice(0, 32);
+    const installationId = `gitinst_deploy_${Date.now()}`.slice(0, 32);
+    const fetchMock = vi.spyOn(globalThis, "fetch");
+
+    await db.insert(gitProviders).values({
+      id: providerId,
+      teamId: "team_foundation",
+      type: "gitlab",
+      name: `GitLab Deploy ${Date.now()}`,
+      baseUrl: "https://gitlab.public.example.com/gitlab",
+      internalBaseUrl: "https://gitlab.internal.example.com/gitlab",
+      status: "active",
+      updatedAt: new Date()
+    });
+    await db.insert(gitInstallations).values({
+      id: installationId,
+      teamId: "team_foundation",
+      providerId,
+      installationId: "deploy-1",
+      accountName: "deploy-user",
+      accountType: "deploy_token",
+      repositorySelection: "all",
+      ...createGitLabCredentialStorage({
+        kind: "deploy_token",
+        username: "deploy-user",
+        token: "deploy-token"
+      }),
+      status: "active",
+      updatedAt: new Date()
+    });
+
+    const spec = await resolveCheckoutSpec({
+      teamId: "team_foundation",
+      gitProviderId: providerId,
+      gitInstallationId: installationId,
+      repoFullName: "example-group/platform",
+      branch: "main"
+    });
+
+    expect(spec?.repoUrl).toBe(
+      "https://gitlab.internal.example.com/gitlab/example-group/platform.git"
+    );
+    expect(spec?.gitConfig).toEqual([
+      {
+        key: "http.extraHeader",
+        value: `Authorization: Basic ${Buffer.from("deploy-user:deploy-token").toString("base64")}`
+      }
+    ]);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("uses oauth2 Basic auth for GitLab API-token checkouts", async () => {
+    const providerId = `gitprov_api_${Date.now()}`.slice(0, 32);
+    const installationId = `gitinst_api_${Date.now()}`.slice(0, 32);
+    await db.insert(gitProviders).values({
+      id: providerId,
+      teamId: "team_foundation",
+      type: "gitlab",
+      name: `GitLab API ${Date.now()}`,
+      status: "active",
+      updatedAt: new Date()
+    });
+    await db.insert(gitInstallations).values({
+      id: installationId,
+      teamId: "team_foundation",
+      providerId,
+      installationId: "api-1",
+      accountName: "api-user",
+      accountType: "user",
+      repositorySelection: "all",
+      ...createGitLabCredentialStorage({ kind: "api_token", token: "api-token" }),
+      status: "active",
+      updatedAt: new Date()
+    });
+
+    const spec = await resolveCheckoutSpec({
+      teamId: "team_foundation",
+      gitProviderId: providerId,
+      gitInstallationId: installationId,
+      repoFullName: "example-group/platform",
+      branch: "main"
+    });
+
+    expect(spec?.gitConfig).toEqual([
+      {
+        key: "http.extraHeader",
+        value: `Authorization: Basic ${Buffer.from("oauth2:api-token").toString("base64")}`
+      }
+    ]);
   });
 
   it("rejects legacy plain-text GitLab installation tokens", async () => {

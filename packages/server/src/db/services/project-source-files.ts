@@ -1,14 +1,15 @@
-import { existsSync, readFileSync } from "node:fs";
-import { isAbsolute, join, relative } from "node:path";
+import { readFileSync } from "node:fs";
 import { createSign } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { db } from "../connection";
 import { gitProviders } from "../schema/git-providers";
 import { decrypt } from "../crypto";
 import { getGitInstallation } from "./git-providers";
-import { resolveGitLabInstallationAccessToken } from "./gitlab-installation-auth";
+import { resolveGitLabInstallationApiAccess } from "./gitlab-installation-auth";
+import { resolveGitLabApiBaseUrl } from "./gitlab-urls";
 import { asRecord } from "./json-helpers";
 import { materializeProjectSourceInspection } from "./project-source-checkout-inspection";
+import { resolveProjectSourceWorkspaceFile } from "./project-source-workspace-files";
 
 type ProjectSourceFileProject = {
   id?: string;
@@ -53,15 +54,6 @@ function buildGitHubApiBaseUrl(baseUrl: string | null): string {
 
   const normalized = trimTrailingSlash(baseUrl);
   return normalized.includes("/api/") ? normalized : `${normalized}/api/v3`;
-}
-
-function buildGitLabApiBaseUrl(baseUrl: string | null): string {
-  if (!baseUrl) {
-    return "https://gitlab.com/api/v4";
-  }
-
-  const normalized = trimTrailingSlash(baseUrl);
-  return normalized.includes("/api/") ? normalized : `${normalized}/api/v4`;
 }
 
 function createGitHubAppJwt(appId: string, privateKeyPem: string): string {
@@ -141,52 +133,53 @@ async function fetchGitHubInstallationToken(input: {
   return { status: "ok", token: payload.token };
 }
 
+async function readMaterializedProjectSourceFile(input: {
+  project: ProjectSourceFileProject;
+  branch: string;
+  path: string;
+}): Promise<ProjectSourceFileResult> {
+  const inspection = await materializeProjectSourceInspection({
+    project: {
+      id: input.project.id,
+      teamId: input.project.teamId,
+      repoUrl: input.project.repoUrl,
+      repoFullName: input.project.repoFullName,
+      gitProviderId: input.project.gitProviderId,
+      gitInstallationId: input.project.gitInstallationId,
+      repositoryPreparation: asRecord(asRecord(input.project.config).repositoryPreparation)
+    },
+    branch: input.branch
+  });
+
+  if (inspection.status !== "ok") return inspection;
+
+  try {
+    const file = resolveProjectSourceWorkspaceFile(inspection.workDir, input.path);
+    if (file.status === "unsafe") {
+      return {
+        status: "not_found",
+        reason: `Repository file path ${input.path} escapes the repository.`
+      };
+    }
+    if (file.status === "missing") {
+      return {
+        status: "not_found",
+        reason: `Repository file ${input.path} was not found in ${input.project.repoFullName ?? input.project.repoUrl}@${input.branch}.`
+      };
+    }
+    return { status: "ok", content: readFileSync(file.path, "utf8") };
+  } finally {
+    inspection.cleanup();
+  }
+}
+
 export async function fetchProjectRepositoryTextFile(input: {
   project: ProjectSourceFileProject;
   branch: string;
   path: string;
 }): Promise<ProjectSourceFileResult> {
   if (input.project.repoUrl && !input.project.gitProviderId && !input.project.gitInstallationId) {
-    const inspection = await materializeProjectSourceInspection({
-      project: {
-        id: input.project.id,
-        teamId: input.project.teamId,
-        repoUrl: input.project.repoUrl,
-        repoFullName: input.project.repoFullName,
-        repositoryPreparation: asRecord(asRecord(input.project.config).repositoryPreparation)
-      },
-      branch: input.branch
-    });
-
-    if (inspection.status !== "ok") {
-      return inspection;
-    }
-
-    try {
-      const filePath = join(inspection.workDir, input.path);
-      const relativePath = relative(inspection.workDir, filePath);
-
-      if (relativePath.startsWith("..") || isAbsolute(relativePath)) {
-        return {
-          status: "not_found",
-          reason: `Repository file path ${input.path} escapes the repository.`
-        };
-      }
-
-      if (!existsSync(filePath)) {
-        return {
-          status: "not_found",
-          reason: `Repository file ${input.path} was not found in ${input.project.repoUrl}@${input.branch}.`
-        };
-      }
-
-      return {
-        status: "ok",
-        content: readFileSync(filePath, "utf8")
-      };
-    } finally {
-      inspection.cleanup();
-    }
+    return readMaterializedProjectSourceFile(input);
   }
 
   if (
@@ -288,22 +281,27 @@ export async function fetchProjectRepositoryTextFile(input: {
   }
 
   if (providerRow.type === "gitlab") {
-    const accessToken = await resolveGitLabInstallationAccessToken({
+    const apiAccess = await resolveGitLabInstallationApiAccess({
       provider: providerRow,
       installation
     });
-    if (!accessToken) {
+    if (apiAccess.status === "capability_unavailable") {
+      return readMaterializedProjectSourceFile(input);
+    }
+    if (apiAccess.status !== "ok") {
       return {
         status: "not_available",
-        reason: `GitLab installation ${input.project.gitInstallationId} does not have a usable access token.`
+        reason: `GitLab installation ${input.project.gitInstallationId} does not have usable API credentials.`
       };
     }
 
     const response = await fetchWithTimeout(
-      `${buildGitLabApiBaseUrl(providerRow.baseUrl)}/projects/${encodeURIComponent(input.project.repoFullName)}/repository/files/${encodeURIComponent(input.path)}?ref=${encodeURIComponent(input.branch)}`,
+      `${resolveGitLabApiBaseUrl(providerRow)}/projects/${encodeURIComponent(input.project.repoFullName)}/repository/files/${encodeURIComponent(input.path)}?ref=${encodeURIComponent(input.branch)}`,
       {
         headers: {
-          Authorization: `Bearer ${accessToken}`
+          Accept: "application/json",
+          "User-Agent": "DaoFlow",
+          ...apiAccess.headers
         }
       }
     ).catch((error: unknown) => {

@@ -4,7 +4,8 @@ import { gitProviders } from "../db/schema/git-providers";
 import { projects } from "../db/schema/projects";
 import { getGitInstallation, readGitInstallationAccessToken } from "../db/services/git-providers";
 import { fetchGitHubInstallationAccessToken } from "../db/services/github-app-auth";
-import { resolveGitLabInstallationAccessToken } from "../db/services/gitlab-installation-auth";
+import { resolveGitLabInstallationCredential } from "../db/services/gitlab-installation-auth";
+import { resolveGitLabCloneBaseUrl } from "../db/services/gitlab-urls";
 import { resolveActiveProjectRepositoryCredential } from "../db/services/repository-credentials";
 import {
   hasRepositoryPreparation,
@@ -44,8 +45,11 @@ function buildGitHubRepoUrl(baseUrl: string | null, repoFullName: string): strin
   return `${trimTrailingSlash(baseUrl ?? "https://github.com")}/${repoFullName}.git`;
 }
 
-function buildGitLabRepoUrl(baseUrl: string | null, repoFullName: string): string {
-  return `${trimTrailingSlash(baseUrl ?? "https://gitlab.com")}/${repoFullName}.git`;
+function buildGitLabRepoUrl(
+  provider: Pick<typeof gitProviders.$inferSelect, "baseUrl" | "internalBaseUrl">,
+  repoFullName: string
+): string {
+  return `${trimTrailingSlash(resolveGitLabCloneBaseUrl(provider))}/${repoFullName}.git`;
 }
 
 async function resolveProviderCheckoutTeamId(config: ConfigSnapshot): Promise<string> {
@@ -152,17 +156,26 @@ async function resolveGitLabCheckoutSpec(
     throw new Error(`Git installation ${installationId} not found for provider ${providerId}.`);
   }
 
-  const accessToken = await resolveGitLabInstallationAccessToken({ provider, installation });
-  if (!accessToken) {
-    throw new Error(`GitLab installation ${installationId} does not have a usable access token.`);
+  const credential = await resolveGitLabInstallationCredential({ provider, installation });
+  if (!credential) {
+    throw new Error(
+      `GitLab installation ${installationId} does not have a usable access token or checkout credential.`
+    );
   }
+
+  const authorization =
+    credential.kind === "oauth"
+      ? `Authorization: Basic ${toBase64(`oauth2:${credential.accessToken}`)}`
+      : credential.kind === "api_token"
+        ? `Authorization: Basic ${toBase64(`oauth2:${credential.token}`)}`
+        : `Authorization: Basic ${toBase64(`${credential.username}:${credential.token}`)}`;
 
   const repositoryPreparation = readRepositoryPreparationConfig(config.repositoryPreparation);
   return {
-    repoUrl: buildGitLabRepoUrl(provider.baseUrl, repoFullName),
+    repoUrl: buildGitLabRepoUrl(provider, repoFullName),
     branch: config.branch ?? "main",
     displayLabel: repoFullName,
-    gitConfig: [authorizationHeader(`Authorization: Bearer ${accessToken}`)],
+    gitConfig: [authorizationHeader(authorization)],
     repositoryPreparation,
     requiresLocalMaterialization: true
   };

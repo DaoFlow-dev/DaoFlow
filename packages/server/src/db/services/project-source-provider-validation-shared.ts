@@ -1,4 +1,5 @@
 import { gitProviders } from "../schema/git-providers";
+export { buildGitLabApiBaseUrl } from "./gitlab-urls";
 import type {
   ProjectSourceReadiness,
   ProjectSourceValidationResult,
@@ -14,6 +15,7 @@ export type GitProviderValidationRecord = Pick<
   | "type"
   | "name"
   | "baseUrl"
+  | "internalBaseUrl"
   | "appId"
   | "clientId"
   | "clientSecretEncrypted"
@@ -37,15 +39,6 @@ export function buildGitHubApiBaseUrl(baseUrl: string | null): string {
 
   const normalized = trimTrailingSlash(baseUrl);
   return normalized.includes("/api/") ? normalized : `${normalized}/api/v3`;
-}
-
-export function buildGitLabApiBaseUrl(baseUrl: string | null): string {
-  if (!baseUrl) {
-    return "https://gitlab.com/api/v4";
-  }
-
-  const normalized = trimTrailingSlash(baseUrl);
-  return normalized.includes("/api/") ? normalized : `${normalized}/api/v4`;
 }
 
 export function getProviderValidationTimeoutMs(): number {

@@ -1,9 +1,7 @@
 import { fetchGitHubInstallationAccessToken } from "../db/services/github-app-auth";
-import { resolveGitLabInstallationAccessToken } from "../db/services/gitlab-installation-auth";
-import {
-  buildGitHubApiBaseUrl,
-  buildGitLabApiBaseUrl
-} from "../db/services/project-source-provider-validation-shared";
+import { resolveGitLabInstallationApiAccess } from "../db/services/gitlab-installation-auth";
+import { buildGitHubApiBaseUrl } from "../db/services/project-source-provider-validation-shared";
+import { resolveGitLabApiBaseUrl } from "../db/services/gitlab-urls";
 import type { WebhookTarget } from "./webhooks-types";
 
 const ALLOWED_GITHUB_PERMISSIONS = new Set(["admin", "maintain", "write"]);
@@ -107,15 +105,18 @@ export async function authorizeGitLabDevelopmentTaskActor(input: {
     return { ok: false, reason: "missing_actor_or_installation" };
   }
 
-  const accessToken = await resolveGitLabInstallationAccessToken({
+  const apiAccess = await resolveGitLabInstallationApiAccess({
     provider: input.target.provider,
     installation: input.target.installation
   });
-  if (!accessToken) {
+  if (apiAccess.status === "capability_unavailable") {
+    return { ok: false, reason: "api_capability_unavailable" };
+  }
+  if (apiAccess.status !== "ok") {
     return { ok: false, reason: "missing_installation_access_token" };
   }
 
-  const apiBaseUrl = buildGitLabApiBaseUrl(input.target.provider.baseUrl);
+  const apiBaseUrl = resolveGitLabApiBaseUrl(input.target.provider);
   const response = await fetch(
     `${apiBaseUrl}/projects/${encodeGitLabProjectPath(input.repoFullName)}/members/all?query=${encodeURIComponent(
       actorUsername
@@ -123,8 +124,8 @@ export async function authorizeGitLabDevelopmentTaskActor(input: {
     {
       headers: {
         Accept: "application/json",
-        Authorization: `Bearer ${accessToken}`,
-        "User-Agent": "DaoFlow"
+        "User-Agent": "DaoFlow",
+        ...apiAccess.headers
       },
       signal: AbortSignal.timeout(10_000)
     }

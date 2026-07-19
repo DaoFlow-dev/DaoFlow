@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 import { testDatabaseSchemaTestHooks } from "./test-db";
 
 const currentSchema = {
+  gitProvidersInternalBaseUrl: "internal_base_url",
+  gitInstallationsCredentialEncrypted: "credential_encrypted",
+  gitProviderSetupStatesCodeVerifierEncrypted: "code_verifier_encrypted",
   notificationChannelsTeamId: "team_id",
   serverMetricsDockerDiskUsedPercent: "docker_disk_used_percent",
   serverMetricsDockerDiskTotalGb: "docker_disk_total_gb",
@@ -19,6 +22,9 @@ describe("test database schema readiness", () => {
   });
 
   it.each([
+    "gitProvidersInternalBaseUrl",
+    "gitInstallationsCredentialEncrypted",
+    "gitProviderSetupStatesCodeVerifierEncrypted",
     "notificationChannelsTeamId",
     "serverMetricsDockerDiskUsedPercent",
     "serverMetricsDockerDiskTotalGb",

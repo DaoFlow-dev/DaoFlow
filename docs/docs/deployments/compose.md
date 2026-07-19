@@ -219,6 +219,38 @@ OAuth application and webhook inside the self-hosted GitLab instance. DaoFlow us
 URL when exchanging OAuth codes, validating source access, and matching webhook project URLs, so the
 same `group/project` path can exist safely on GitLab.com and a self-hosted GitLab host.
 
+### GitLab credential modes, scopes, and routing
+
+Choose the GitLab credential that matches the integration you need:
+
+- **OAuth (recommended):** create a GitLab OAuth application and provide its client ID and secret.
+  Request the `api` and `read_repository` scopes for repository checkout, deployment feedback, and
+  other provider API calls.
+  DaoFlow uses PKCE and one-time callback state during authorization, stores the refresh token
+  securely, and refreshes the access token before it expires. See GitLab's
+  [OAuth provider documentation](https://docs.gitlab.com/integration/oauth_provider/) and
+  [OAuth API documentation](https://docs.gitlab.com/api/oauth2/).
+- **Project or group API token:** create a project or group access token and grant `api`. Add
+  `read_repository` when the token will also be used for HTTPS cloning. This mode supports GitLab
+  API operations and deployment or merge-request feedback. See GitLab's
+  [project access token](https://docs.gitlab.com/user/project/settings/project_access_tokens/) and
+  [group access token](https://docs.gitlab.com/user/group/settings/group_access_tokens/) guides.
+- **Deploy token:** create a project or group deploy token with `read_repository`. DaoFlow uses it
+  for repository cloning only; it cannot call the GitLab API or publish feedback. Set an expiry date
+  and rotate the token before it expires. See GitLab's
+  [deploy token documentation](https://docs.gitlab.com/user/project/deploy_tokens/).
+
+The **Public GitLab URL** is the externally reachable GitLab root used for OAuth authorization,
+public webhook/source URL matching, and browser links. For a self-hosted instance, the optional
+**Internal GitLab URL** lets the DaoFlow server use a private route for GitLab API and clone traffic
+while keeping the public URL in the provider configuration. Leave the internal URL empty to use the
+public URL for both paths. The internal address must resolve from the DaoFlow server and have a
+trusted TLS certificate; DaoFlow does not disable TLS verification. Use an explicitly configured CA
+trust chain when a private certificate authority is required.
+
+Credential mode, intended scopes, expiry, and Clone/API/Feedback capabilities are visible on the
+provider card. Secret values are not displayed after registration.
+
 Preview config can also carry a retention window through `staleAfterHours`. When set, DaoFlow can compare the latest preview deployment state against observed tunnel-route hostnames and queue Compose preview cleanup for terminal preview stacks that outlive the configured window.
 
 On the service detail page, the Environment tab now shows preview lifecycle state as a first-class operator surface:

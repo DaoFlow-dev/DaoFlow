@@ -1,48 +1,47 @@
+import type { AppRole } from "@daoflow/shared";
 import { decrypt } from "../crypto";
+import { createGitInstallation, getGitProvider } from "./git-providers";
 import {
-  createGitInstallation,
-  encodeGitInstallationPermissions,
-  getGitProvider
-} from "./git-providers";
-import { consumeGitProviderSetupState } from "./git-provider-setup-states";
+  resolveGitLabRedirectUri,
+  resolveGitProviderCallbackOrigin
+} from "./git-provider-callback-urls";
+import { createGitLabCredentialStorage } from "./gitlab-credentials";
+import {
+  resolveGitLabApiBaseUrl,
+  resolveGitLabInternalBaseUrl,
+  resolveGitLabPublicBaseUrl
+} from "./gitlab-urls";
+import {
+  consumeGitProviderSetupState,
+  readGitProviderSetupStateCodeVerifier
+} from "./git-provider-setup-states";
 import { isUserMemberOfTeam } from "./teams";
 import { resolveGitLabTokenExpiresAt } from "./gitlab-installation-auth";
-import type { AppRole } from "@daoflow/shared";
 
-const DEFAULT_APP_BASE_URL = "http://localhost:3000";
-const GITLAB_CALLBACK_PATH = "/settings/git/callback";
-
-function trimTrailingSlash(value: string): string {
-  return value.replace(/\/+$/, "");
-}
-
-export function resolveGitProviderCallbackOrigin(): string {
-  const configured = trimTrailingSlash(
-    process.env.APP_BASE_URL || process.env.BETTER_AUTH_URL || DEFAULT_APP_BASE_URL
-  );
-  return new URL(configured).origin;
-}
-
-export function resolveGitLabRedirectUri(): string {
-  return new URL(GITLAB_CALLBACK_PATH, `${resolveGitProviderCallbackOrigin()}/`).toString();
-}
+export { resolveGitProviderCallbackOrigin } from "./git-provider-callback-urls";
 
 export function resolveGitLabBaseUrl(baseUrl?: string | null): string {
-  return trimTrailingSlash(baseUrl || "https://gitlab.com");
+  return resolveGitLabPublicBaseUrl({ baseUrl: baseUrl ?? null });
 }
 
 export function buildGitLabAuthorizationUrl(input: {
   clientId: string;
   baseUrl: string | null;
   state: string;
+  codeChallenge: string;
 }): string {
-  const authorizeUrl = new URL("oauth/authorize", `${resolveGitLabBaseUrl(input.baseUrl)}/`);
+  const authorizeUrl = new URL(
+    "oauth/authorize",
+    `${resolveGitLabPublicBaseUrl({ baseUrl: input.baseUrl })}/`
+  );
   authorizeUrl.search = new URLSearchParams({
     client_id: input.clientId,
     redirect_uri: resolveGitLabRedirectUri(),
     response_type: "code",
     state: input.state,
-    scope: "api"
+    scope: "api read_repository",
+    code_challenge: input.codeChallenge,
+    code_challenge_method: "S256"
   }).toString();
   return authorizeUrl.toString();
 }
@@ -52,11 +51,21 @@ function requireGitLabOAuthConfig(provider: {
   clientSecretEncrypted?: string | null;
 }) {
   const clientId = provider.clientId?.trim();
-  if (!clientId || !provider.clientSecretEncrypted) {
-    return null;
-  }
-
+  if (!clientId || !provider.clientSecretEncrypted) return null;
   return { clientId, clientSecret: decrypt(provider.clientSecretEncrypted) };
+}
+
+function auditCredentialMetadata(provider: {
+  baseUrl: string | null;
+  internalBaseUrl: string | null;
+}) {
+  return {
+    credentialKind: "oauth",
+    credentialScopes: ["api", "read_repository"],
+    credentialExpiresAt: null,
+    publicHost: new URL(resolveGitLabPublicBaseUrl(provider)).host,
+    internalHost: new URL(resolveGitLabInternalBaseUrl(provider)).host
+  };
 }
 
 export async function completeGitLabOAuthSetup(input: {
@@ -74,40 +83,42 @@ export async function completeGitLabOAuthSetup(input: {
     initiatedByUserId: input.initiatedByUserId
   });
 
-  if (!setup?.providerId) {
-    return { status: "not_found" as const };
-  }
-  if (!(await isUserMemberOfTeam(input.initiatedByUserId, setup.teamId))) {
+  if (!setup?.providerId || !(await isUserMemberOfTeam(input.initiatedByUserId, setup.teamId))) {
     return { status: "not_found" as const };
   }
 
   const provider = await getGitProvider(setup.providerId, setup.teamId);
-  if (!provider || provider.type !== "gitlab") {
+  if (
+    !provider ||
+    provider.type !== "gitlab" ||
+    !setup.providerPublicBaseUrl ||
+    resolveGitLabPublicBaseUrl(provider) !== setup.providerPublicBaseUrl
+  ) {
     return { status: "not_found" as const };
   }
 
   const oauthConfig = requireGitLabOAuthConfig(provider);
-  if (!oauthConfig) {
+  const codeVerifier = readGitProviderSetupStateCodeVerifier(setup);
+  if (!oauthConfig || !codeVerifier) {
     return { status: "invalid_provider" as const };
   }
 
-  const gitlabBaseUrl = resolveGitLabBaseUrl(provider.baseUrl);
   const tokenRequest = new URLSearchParams({
     client_id: oauthConfig.clientId,
     client_secret: oauthConfig.clientSecret,
     code: input.code,
     grant_type: "authorization_code",
-    redirect_uri: resolveGitLabRedirectUri()
+    redirect_uri: resolveGitLabRedirectUri(),
+    code_verifier: codeVerifier
   });
-  const tokenResponse = await fetch(`${gitlabBaseUrl}/oauth/token`, {
+  const tokenResponse = await fetch(`${resolveGitLabInternalBaseUrl(provider)}/oauth/token`, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: tokenRequest.toString()
+    body: tokenRequest.toString(),
+    signal: AbortSignal.timeout(10_000)
   });
 
-  if (!tokenResponse.ok) {
-    return { status: "exchange_failed" as const, detail: await tokenResponse.text() };
-  }
+  if (!tokenResponse.ok) return { status: "exchange_failed" as const };
 
   const tokenData = (await tokenResponse.json()) as {
     access_token?: string;
@@ -117,23 +128,17 @@ export async function completeGitLabOAuthSetup(input: {
     created_at?: number;
   };
   if (!tokenData.access_token || !tokenData.refresh_token) {
-    return {
-      status: "exchange_failed" as const,
-      detail: "GitLab did not return a complete access and refresh token pair."
-    };
+    return { status: "exchange_failed" as const };
   }
 
-  const userResponse = await fetch(`${gitlabBaseUrl}/api/v4/user`, {
-    headers: { Authorization: `Bearer ${tokenData.access_token}` }
+  const userResponse = await fetch(`${resolveGitLabApiBaseUrl(provider)}/user`, {
+    headers: { Authorization: `Bearer ${tokenData.access_token}`, Accept: "application/json" },
+    signal: AbortSignal.timeout(10_000)
   });
-  if (!userResponse.ok) {
-    return { status: "exchange_failed" as const, detail: await userResponse.text() };
-  }
+  if (!userResponse.ok) return { status: "exchange_failed" as const };
 
   const userData = (await userResponse.json()) as { username?: string; id?: number | string };
-  if (!userData.id || !userData.username) {
-    return { status: "exchange_failed" as const, detail: "GitLab user lookup was incomplete." };
-  }
+  if (!userData.id || !userData.username) return { status: "exchange_failed" as const };
 
   return createGitInstallation({
     teamId: setup.teamId,
@@ -141,7 +146,8 @@ export async function completeGitLabOAuthSetup(input: {
     installationId: String(userData.id),
     accountName: userData.username,
     accountType: "user",
-    permissions: encodeGitInstallationPermissions({
+    credentialStorage: createGitLabCredentialStorage({
+      kind: "oauth",
       accessToken: tokenData.access_token,
       refreshToken: tokenData.refresh_token,
       tokenType: tokenData.token_type,
@@ -150,6 +156,7 @@ export async function completeGitLabOAuthSetup(input: {
     installedByUserId: input.initiatedByUserId,
     requestedByUserId: input.initiatedByUserId,
     requestedByEmail: input.requestedByEmail,
-    requestedByRole: input.requestedByRole
+    requestedByRole: input.requestedByRole,
+    auditMetadata: auditCredentialMetadata(provider)
   });
 }
