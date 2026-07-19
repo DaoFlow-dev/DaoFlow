@@ -4,8 +4,8 @@ import { constants } from "node:os";
 const MAX_NATIVE_RESTARTS = 2;
 const RESTART_DELAY_MS = 750;
 const SHUTDOWN_GRACE_PERIOD_MS = 5_000;
-const NATIVE_RUNTIME_SIGNALS = new Set<NodeJS.Signals>(["SIGABRT", "SIGSEGV"]);
-const NATIVE_RUNTIME_EXIT_CODES = new Set([134, 139]);
+const NATIVE_RUNTIME_SIGNALS = new Set<NodeJS.Signals>(["SIGABRT", "SIGILL", "SIGSEGV"]);
+const NATIVE_RUNTIME_EXIT_CODES = new Set([132, 134, 139]);
 
 export type ServerExit = {
   code: number | null;
