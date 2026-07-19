@@ -109,6 +109,7 @@ export async function queueComposeRelease(input: {
   if (!service) return null;
 
   const expectedEnvironmentId = readString(input.approvalSnapshot ?? {}, "environmentId");
+  const expectedProjectId = readString(input.approvalSnapshot ?? {}, "projectId");
   const expectedTargetServerId = readString(input.approvalSnapshot ?? {}, "targetServerId");
   const expectedComposeFilePath = readString(input.approvalSnapshot ?? {}, "composeFilePath");
   const expectedPolicyRevision = readNumber(
@@ -139,23 +140,26 @@ export async function queueComposeRelease(input: {
   if (!project) return null;
   if (
     project.teamId !== teamId ||
+    (expectedProjectId && project.id !== expectedProjectId) ||
     (expectedPolicyRevision !== null && project.previewPolicyRevision !== expectedPolicyRevision)
   ) {
     return null;
   }
 
-  const sourceValidation = await revalidateProjectSourceForExecution({
-    project,
-    environment
-  });
-  if (
-    sourceValidation.status === "invalid_source" ||
-    sourceValidation.status === "provider_unavailable"
-  ) {
-    if (sourceValidation.status === "provider_unavailable") {
-      throw new ComposeReleaseProviderUnavailableError(sourceValidation.message);
+  if (input.approvalSnapshot) {
+    const sourceValidation = await revalidateProjectSourceForExecution({
+      project,
+      environment
+    });
+    if (
+      sourceValidation.status === "invalid_source" ||
+      sourceValidation.status === "provider_unavailable"
+    ) {
+      if (sourceValidation.status === "provider_unavailable") {
+        throw new ComposeReleaseProviderUnavailableError(sourceValidation.message);
+      }
+      return null;
     }
-    return null;
   }
 
   const envState = await prepareComposeDeploymentEnvState({
@@ -185,6 +189,8 @@ export async function queueComposeRelease(input: {
   });
   if (composeImageOverride) {
     configSnapshot.composeImageOverride = composeImageOverride;
+  } else if (input.approvalSnapshot) {
+    return null;
   }
 
   const deployment = await createDeploymentRecord({

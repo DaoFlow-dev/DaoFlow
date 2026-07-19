@@ -79,7 +79,7 @@ describe("ApprovalQueue", () => {
                 dispatchAttempts: 5,
                 dispatchError: "Restore target no longer belongs to this team.",
                 dispatchNextAttemptAt: null,
-                dispatchedAt: "2026-07-18T12:31:00.000Z",
+                dispatchedAt: null,
                 dispatchCompletedAt: "2026-07-18T12:32:00.000Z"
               }
             ]

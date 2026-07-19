@@ -29,7 +29,7 @@ export type ApprovalActionPayload =
       actor: DispatchActor;
       composeServiceId: string;
       commitSha: string;
-      imageTag: string | null;
+      imageTag: string;
       snapshot: Record<string, unknown>;
     }
   | {
@@ -96,9 +96,10 @@ export function buildApprovalActionPayload(input: {
   if (input.request.actionType === "compose-release") {
     const composeServiceId = readString(action, "composeServiceId");
     const commitSha = readString(action, "commitSha");
-    const imageTag = readString(action, "imageTag") || null;
+    const imageTag = readString(action, "imageTag").trim();
     return composeServiceId &&
       commitSha &&
+      imageTag &&
       hasSnapshotStrings(snapshot, [
         "projectId",
         "environmentId",
@@ -135,7 +136,9 @@ export function buildApprovalActionPayload(input: {
         "backupPolicyId",
         "backupPolicyUpdatedAt",
         "backupDestinationId",
+        "backupDestinationUpdatedAt",
         "volumeId",
+        "volumeUpdatedAt",
         "volumeMountPath",
         "targetServerId",
         "restoreDestination",
@@ -213,8 +216,8 @@ export function readApprovalActionPayload(value: unknown): ApprovalActionPayload
   if (actionType === "compose-release") {
     const composeServiceId = readString(payload, "composeServiceId");
     const commitSha = readString(payload, "commitSha");
-    const imageTag = readString(payload, "imageTag") || null;
-    return composeServiceId && commitSha
+    const imageTag = readString(payload, "imageTag").trim();
+    return composeServiceId && commitSha && imageTag
       ? {
           version: 1,
           actionType,
@@ -277,7 +280,10 @@ export function toApprovalDispatchView(dispatch: ApprovalDispatchRow | null | un
     operationId: dispatch.operationId,
     dispatchAttempts: readNumber({ attempts: dispatch.attemptCount }, "attempts", 0) ?? 0,
     dispatchError: dispatch.lastError,
-    dispatchNextAttemptAt: dispatch.nextAttemptAt?.toISOString() ?? null,
+    dispatchNextAttemptAt:
+      dispatch.status === "pending" || dispatch.status === "retrying"
+        ? (dispatch.nextAttemptAt?.toISOString() ?? null)
+        : null,
     dispatchedAt: dispatch.dispatchedAt?.toISOString() ?? null,
     dispatchCompletedAt: dispatch.completedAt?.toISOString() ?? null
   };

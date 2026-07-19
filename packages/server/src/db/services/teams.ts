@@ -53,3 +53,16 @@ export async function isUserMemberOfTeam(userId: string, teamId: string): Promis
 
   return Boolean(membership);
 }
+
+export async function resolveMemberRoleForTeam(
+  userId: string,
+  teamId: string
+): Promise<string | null> {
+  const [membership] = await db
+    .select({ role: teamMembers.role })
+    .from(teamMembers)
+    .where(and(eq(teamMembers.userId, userId), eq(teamMembers.teamId, teamId)))
+    .limit(1);
+
+  return membership?.role ?? null;
+}

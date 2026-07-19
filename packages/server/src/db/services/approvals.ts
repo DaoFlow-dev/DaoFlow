@@ -4,6 +4,7 @@ import { listComposeReleaseCatalog } from "./compose";
 import { approvalActionDispatches, approvalRequests, auditEntries } from "../schema/audit";
 import { services } from "../schema/services";
 import { environments, projects } from "../schema/projects";
+import { backupDestinations } from "../schema/destinations";
 import { backupPolicies, backupRuns, volumes } from "../schema/storage";
 import type { AppRole } from "@daoflow/shared";
 import { newId as id, asRecord, readString, readStringArray } from "./json-helpers";
@@ -69,6 +70,8 @@ async function resolveApprovalPresentation(input: CreateApprovalRequestInput) {
     const catalog = await listComposeReleaseCatalog(100, input.teamId);
     const service = catalog.services.find((candidate) => candidate.id === input.composeServiceId);
     if (!service) return null;
+    const effectiveImageTag = (input.imageTag ?? service.imageReference).trim();
+    if (!effectiveImageTag) return null;
     const [target] = await db
       .select({ teamId: projects.teamId, project: projects, environment: environments })
       .from(environments)
@@ -82,7 +85,7 @@ async function resolveApprovalPresentation(input: CreateApprovalRequestInput) {
       targetResource: `compose-service/${input.composeServiceId}`,
       resourceLabel: `${service.serviceName}@${service.environmentName}`,
       riskLevel: "elevated",
-      commandSummary: `Release ${input.imageTag ?? service.imageReference} for ${service.serviceName} on ${service.targetServerName} using commit ${input.commitSha}.`,
+      commandSummary: `Release ${effectiveImageTag} for ${service.serviceName} on ${service.targetServerName} using commit ${input.commitSha}.`,
       recommendedChecks: [
         "Confirm the target service dependencies are healthy before dispatching the release.",
         "Verify the Compose diff still matches the intended release track."
@@ -91,7 +94,7 @@ async function resolveApprovalPresentation(input: CreateApprovalRequestInput) {
       actionPayload: {
         composeServiceId: input.composeServiceId,
         commitSha: input.commitSha,
-        imageTag: input.imageTag ?? null,
+        imageTag: effectiveImageTag,
         snapshot: {
           projectId: target.project.id,
           environmentId: service.environmentId,
@@ -127,6 +130,9 @@ async function resolveApprovalPresentation(input: CreateApprovalRequestInput) {
       .where(eq(environments.id, service.environmentId))
       .limit(1);
     if (!environment) return null;
+    const effectiveTargetServerId =
+      service.targetServerId ?? readString(asRecord(environment.config), "targetServerId");
+    if (!effectiveTargetServerId) return null;
 
     const preview = input.previewTrust.preview;
     if (preview.target !== "pull-request" || preview.action !== "deploy") {
@@ -150,7 +156,7 @@ async function resolveApprovalPresentation(input: CreateApprovalRequestInput) {
         snapshot: {
           projectId: row.project.id,
           environmentId: environment.id,
-          targetServerId: service.targetServerId,
+          targetServerId: effectiveTargetServerId,
           projectPreviewPolicy: row.project.previewPolicy,
           projectPreviewPolicyRevision: row.project.previewPolicyRevision,
           projectRepository: row.project.repoFullName,
@@ -175,6 +181,18 @@ async function resolveApprovalPresentation(input: CreateApprovalRequestInput) {
     .where(eq(backupPolicies.id, run.policyId))
     .limit(1);
   if (!policy) return null;
+  if (!policy.destinationId) return null;
+  const [backupDestination] = await db
+    .select()
+    .from(backupDestinations)
+    .where(
+      and(
+        eq(backupDestinations.id, policy.destinationId),
+        eq(backupDestinations.teamId, input.teamId)
+      )
+    )
+    .limit(1);
+  if (!backupDestination) return null;
   const [volume] = await db.select().from(volumes).where(eq(volumes.id, policy.volumeId)).limit(1);
   if (!volume) return null;
   const teamId = await resolveVolumeTeamId(volume);
@@ -205,8 +223,10 @@ async function resolveApprovalPresentation(input: CreateApprovalRequestInput) {
         artifactChecksum: run.checksum,
         backupPolicyId: policy.id,
         backupPolicyUpdatedAt: policy.updatedAt.toISOString(),
-        backupDestinationId: policy.destinationId,
+        backupDestinationId: backupDestination.id,
+        backupDestinationUpdatedAt: backupDestination.updatedAt.toISOString(),
         volumeId: volume.id,
+        volumeUpdatedAt: volume.updatedAt.toISOString(),
         volumeMountPath: volume.mountPath,
         targetServerId: volume.serverId,
         restoreDestination: volume.mountPath,

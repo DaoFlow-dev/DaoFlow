@@ -11,7 +11,8 @@ Approval gates add a human-in-the-loop for high-risk operations, ensuring agents
 1. Agent previews or prepares a risky action (e.g., backup restore)
 2. The agent or UI creates a `requestApproval` record instead of executing immediately
 3. A different human with `approvals:decide` scope reviews and approves/rejects
-4. If approved, the action executes automatically
+4. If approved, DaoFlow saves a durable execution intent in the same database transaction
+5. A background monitor submits the intent and safely retries temporary dispatch failures
 
 The requester cannot approve their own pending request. Approval handoff is part of the safety
 model, not an optional convention.
@@ -52,10 +53,17 @@ daoflow approvals list --limit 10 --json
 daoflow approvals approve --request apr_xyz789 --yes --json
 daoflow approvals reject --request apr_xyz789 --yes --json
 
-# Once approved, an operator or agent with restore scope can queue the restore
-# when the gated flow expects a separate restore execution step.
-daoflow backup restore --backup-run-id bkp_run_123 --yes --json
+# Approval now schedules the bound operation automatically. Follow its durable
+# dispatch state in the approval queue instead of issuing the restore again.
+daoflow approvals list --limit 10 --json
 ```
+
+Approved operations move through `pending`, `retrying`, `dispatched`, and then either
+`succeeded` or `terminal-failure`. The queue includes the stable operation ID, attempt count,
+next retry time, and the last error. An owner or admin can retry a terminal dispatch failure from
+the dashboard when the operation was never successfully submitted. If the submitted deployment or
+restore itself fails, create a new request after correcting the cause; DaoFlow does not replay a
+completed operation under the old approval.
 
 ## API Flow
 

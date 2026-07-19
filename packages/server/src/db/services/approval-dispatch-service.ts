@@ -11,7 +11,7 @@ import {
   type ClaimedApprovalDispatch
 } from "./approval-dispatch-claim";
 import { queueComposeRelease } from "./compose";
-import { resolveMemberTeamForUser } from "./teams";
+import { resolveMemberRoleForTeam } from "./teams";
 import { triggerDeploy } from "./trigger-deploy";
 import { hashApprovalActionPayload, type ApprovalActionPayload } from "./approval-dispatch-types";
 
@@ -71,11 +71,8 @@ async function ensureApprovalStillExecutable(
   ) {
     throw new TerminalApprovalDispatchError("The durable approval payload integrity check failed.");
   }
-  const actorMembership = await resolveMemberTeamForUser(payload.actor.userId);
-  if (
-    actorMembership?.teamId !== dispatch.teamId ||
-    (actorMembership?.role !== "owner" && actorMembership?.role !== "admin")
-  ) {
+  const actorRole = await resolveMemberRoleForTeam(payload.actor.userId, dispatch.teamId);
+  if (actorRole !== "owner" && actorRole !== "admin") {
     throw new TerminalApprovalDispatchError(
       "The approving actor no longer has decision authority for this team."
     );

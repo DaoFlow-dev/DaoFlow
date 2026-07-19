@@ -269,7 +269,9 @@ export async function retryApprovalActionDispatch(input: {
       .limit(1)
       .for("update");
     if (!dispatch) return { status: "not-found" as const };
-    if (dispatch.status !== "terminal-failure") return { status: "invalid-state" as const };
+    if (dispatch.status !== "terminal-failure" || dispatch.dispatchedAt !== null) {
+      return { status: "invalid-state" as const };
+    }
     const [updated] = await tx
       .update(approvalActionDispatches)
       .set({

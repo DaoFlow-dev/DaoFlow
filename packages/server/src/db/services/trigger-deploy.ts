@@ -232,6 +232,8 @@ export async function triggerDeploy(input: TriggerDeployInput) {
     return { status: "no_server" as const };
   }
   const approvalSnapshot = input.approvalSnapshot ?? {};
+  const expectedProjectId =
+    typeof approvalSnapshot.projectId === "string" ? approvalSnapshot.projectId : "";
   const expectedEnvironmentId =
     typeof approvalSnapshot.environmentId === "string" ? approvalSnapshot.environmentId : "";
   const expectedTargetServerId =
@@ -241,6 +243,7 @@ export async function triggerDeploy(input: TriggerDeployInput) {
       ? approvalSnapshot.projectPreviewPolicyRevision
       : null;
   if (
+    (expectedProjectId && expectedProjectId !== project.id) ||
     (expectedEnvironmentId && expectedEnvironmentId !== env.id) ||
     (expectedTargetServerId && expectedTargetServerId !== targetServerId) ||
     (expectedPolicyRevision !== null && expectedPolicyRevision !== project.previewPolicyRevision)

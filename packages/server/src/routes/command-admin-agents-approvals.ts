@@ -82,7 +82,7 @@ export const adminAgentApprovalRouter = t.router({
           actionType: z.literal("compose-release"),
           composeServiceId: z.string().min(1),
           commitSha: z.string().regex(/^[a-f0-9]{7,40}$/i),
-          imageTag: z.string().min(1).max(160).optional(),
+          imageTag: z.string().trim().min(1).max(160).optional(),
           reason: z.string().min(12).max(280)
         }),
         z.object({

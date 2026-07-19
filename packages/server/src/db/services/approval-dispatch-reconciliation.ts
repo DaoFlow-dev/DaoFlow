@@ -1,9 +1,10 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
 import { db } from "../connection";
 import { approvalActionDispatches, auditEntries } from "../schema/audit";
 import { deployments } from "../schema/deployments";
 import { backupRestores } from "../schema/storage";
 import type { ApprovalDispatchStatus } from "./approval-dispatch-types";
+import { DeploymentConclusion, DeploymentLifecycleStatus } from "@daoflow/shared";
 
 type ApprovalDispatchTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 type ApprovalDispatchRow = typeof approvalActionDispatches.$inferSelect;
@@ -49,14 +50,17 @@ async function getOperationTerminalState(
     .limit(1);
   if (!deployment)
     return { status: "failed" as const, detail: "The linked deployment operation is missing." };
-  if (deployment.status === "completed" && deployment.conclusion === "succeeded") {
+  if (
+    deployment.status === DeploymentLifecycleStatus.Completed &&
+    deployment.conclusion === DeploymentConclusion.Succeeded
+  ) {
     return { status: "succeeded" as const, detail: "Deployment completed successfully." };
   }
   if (
-    deployment.status === "failed" ||
-    deployment.conclusion === "failed" ||
-    deployment.conclusion === "canceled" ||
-    deployment.conclusion === "skipped"
+    deployment.status === DeploymentLifecycleStatus.Failed ||
+    deployment.conclusion === DeploymentConclusion.Failed ||
+    deployment.conclusion === DeploymentConclusion.Cancelled ||
+    deployment.conclusion === DeploymentConclusion.Skipped
   ) {
     return { status: "failed" as const, detail: "Deployment reached a terminal failure state." };
   }
@@ -133,7 +137,7 @@ export async function reconcileApprovalActionDispatches(input?: { limit?: number
     .from(approvalActionDispatches)
     .where(eq(approvalActionDispatches.status, "dispatched"))
     .orderBy(
-      asc(approvalActionDispatches.lastReconciledAt),
+      sql`${approvalActionDispatches.lastReconciledAt} asc nulls first`,
       asc(approvalActionDispatches.dispatchedAt)
     )
     .limit(input?.limit ?? 32);

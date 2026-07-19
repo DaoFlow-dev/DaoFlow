@@ -4,11 +4,14 @@ import { db } from "../connection";
 import { approvalActionDispatches, approvalRequests, auditEntries } from "../schema/audit";
 import { deployments } from "../schema/deployments";
 import { environments, projects } from "../schema/projects";
+import { teamMembers, teams } from "../schema/teams";
+import { users } from "../schema/users";
 import { resetTestDatabaseWithControlPlane } from "../../test-db";
 import {
   claimNextApprovalActionDispatch,
   processNextApprovalActionDispatch,
-  reconcileApprovalActionDispatches
+  reconcileApprovalActionDispatches,
+  retryApprovalActionDispatch
 } from "./approval-dispatch-service";
 import { approveApprovalRequest, listApprovalQueue } from "./approvals";
 import { createDeploymentRecord } from "./deployments";
@@ -21,7 +24,7 @@ const approver = {
 
 let requestCounter = 0;
 
-async function createPendingComposeApproval() {
+async function createPendingComposeApproval(input?: { imageTag: string | null }) {
   requestCounter += 1;
   const requestId = `apr_dispatch_${requestCounter}`;
   const now = new Date();
@@ -45,7 +48,7 @@ async function createPendingComposeApproval() {
       actionPayload: {
         composeServiceId: `service_${requestCounter}`,
         commitSha: "abcdef1234567890",
-        imageTag: "example/service:stable",
+        imageTag: input ? input.imageTag : "example/service:stable",
         snapshot: {
           projectId: "proj_fixture",
           environmentId: "env_fixture",
@@ -122,6 +125,20 @@ describe("approval action dispatch service", () => {
     expect(decisionAudit).toEqual([]);
   });
 
+  it("invalidates legacy Compose approvals without an exact frozen image", async () => {
+    for (const imageTag of [null, "   "]) {
+      const requestId = await createPendingComposeApproval({ imageTag });
+
+      await expect(approveFixture(requestId)).resolves.toEqual({ status: "invalid-payload" });
+      const dispatches = await db
+        .select()
+        .from(approvalActionDispatches)
+        .where(eq(approvalActionDispatches.approvalRequestId, requestId));
+
+      expect(dispatches).toEqual([]);
+    }
+  });
+
   it("reclaims a lease after a crash and replays the same operation ID without duplicate submission", async () => {
     const requestId = await createPendingComposeApproval();
     const approved = await approveFixture(requestId);
@@ -174,6 +191,80 @@ describe("approval action dispatch service", () => {
         attemptCount: 2,
         lastError: "Temporal endpoint is temporarily unavailable."
       }
+    });
+  });
+
+  it("fails closed when the approving actor loses organization decision authority", async () => {
+    const requestId = await createPendingComposeApproval();
+    await approveFixture(requestId);
+    await db
+      .update(teamMembers)
+      .set({ role: "member" })
+      .where(
+        and(eq(teamMembers.userId, approver.userId), eq(teamMembers.teamId, "team_foundation"))
+      );
+
+    const result = await processNextApprovalActionDispatch();
+
+    expect(result).toMatchObject({
+      status: "terminal-failure",
+      dispatch: {
+        lastError: "The approving actor no longer has decision authority for this team."
+      }
+    });
+  });
+
+  it("keeps executing for the approved team when the actor changes their active team", async () => {
+    const requestId = await createPendingComposeApproval();
+    await approveFixture(requestId);
+    const otherTeamId = "team_dispatch_other";
+    await db.insert(teams).values({
+      id: otherTeamId,
+      name: "Dispatch Other Team",
+      slug: "dispatch-other-team",
+      status: "active",
+      createdAt: new Date(),
+      updatedAt: new Date()
+    });
+    await db.insert(teamMembers).values({
+      teamId: otherTeamId,
+      userId: approver.userId,
+      role: "owner"
+    });
+    await db.update(users).set({ defaultTeamId: otherTeamId }).where(eq(users.id, approver.userId));
+
+    const result = await processNextApprovalActionDispatch();
+
+    expect(result).toMatchObject({
+      status: "terminal-failure",
+      dispatch: {
+        lastError: "The approved Compose release target is no longer available to this team."
+      }
+    });
+  });
+
+  it("does not requeue a completed submission and hides a next-attempt time", async () => {
+    const requestId = await createPendingComposeApproval();
+    await approveFixture(requestId);
+    const now = new Date();
+    await db
+      .update(approvalActionDispatches)
+      .set({ status: "terminal-failure", dispatchedAt: now, completedAt: now })
+      .where(eq(approvalActionDispatches.approvalRequestId, requestId));
+
+    const retry = await retryApprovalActionDispatch({
+      requestId,
+      teamId: "team_foundation",
+      userId: approver.userId,
+      email: approver.email,
+      role: approver.role
+    });
+    const queue = await listApprovalQueue("team_foundation");
+
+    expect(retry).toEqual({ status: "invalid-state" });
+    expect(queue.requests.find((request) => request.id === requestId)).toMatchObject({
+      dispatchStatus: "terminal-failure",
+      dispatchNextAttemptAt: null
     });
   });
 
@@ -262,5 +353,55 @@ describe("approval action dispatch service", () => {
     expect(first?.id).toBe(input.deploymentId);
     expect(replay?.id).toBe(input.deploymentId);
     expect(records).toEqual([{ id: input.deploymentId }]);
+  });
+
+  it("reconciles a new dispatch before older rows beyond the batch limit", async () => {
+    const [seedDeployment] = await db.select({ id: deployments.id }).from(deployments).limit(1);
+    expect(seedDeployment).toBeDefined();
+    if (!seedDeployment) return;
+    await db
+      .update(deployments)
+      .set({ status: "completed", conclusion: "succeeded" })
+      .where(eq(deployments.id, seedDeployment.id));
+
+    const now = new Date();
+    const requests = Array.from({ length: 33 }, (_, index) => ({
+      id: `apr_fair_${index}`,
+      teamId: "team_foundation",
+      actionType: "compose-release",
+      targetResource: `compose-service/fair-${index}`,
+      status: "approved",
+      inputSummary: {},
+      createdAt: new Date(now.getTime() - (33 - index) * 1_000)
+    }));
+    await db.insert(approvalRequests).values(requests);
+    await db.insert(approvalActionDispatches).values(
+      requests.map((request, index) => ({
+        id: `adsp_fair_${index}`,
+        approvalRequestId: request.id,
+        teamId: "team_foundation",
+        actionType: "compose-release",
+        idempotencyKey: `approval:${request.id}`,
+        operationId: index === 32 ? seedDeployment.id : `op_missing_${index}`,
+        payloadVersion: 1,
+        payloadHash: "a".repeat(64),
+        actionPayload: {},
+        status: "dispatched",
+        attemptCount: 1,
+        nextAttemptAt: now,
+        dispatchedAt: request.createdAt,
+        lastReconciledAt: index === 32 ? null : request.createdAt,
+        createdAt: request.createdAt,
+        updatedAt: request.createdAt
+      }))
+    );
+
+    await reconcileApprovalActionDispatches({ limit: 32, now });
+    const [newDispatch] = await db
+      .select({ status: approvalActionDispatches.status })
+      .from(approvalActionDispatches)
+      .where(eq(approvalActionDispatches.id, "adsp_fair_32"));
+
+    expect(newDispatch?.status).toBe("succeeded");
   });
 });

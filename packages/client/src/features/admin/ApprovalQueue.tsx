@@ -283,7 +283,9 @@ export function ApprovalQueue({
                         {request.dispatchError}
                       </p>
                     ) : null}
-                    {canOperateExecutionJobs && request.dispatchStatus === "terminal-failure" ? (
+                    {canOperateExecutionJobs &&
+                    request.dispatchStatus === "terminal-failure" &&
+                    !request.dispatchedAt ? (
                       <Button
                         className="mt-3"
                         disabled={approvalMutationPending}
