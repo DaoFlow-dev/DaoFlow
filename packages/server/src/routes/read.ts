@@ -41,6 +41,7 @@ import { backupReadRouter } from "./read-backups";
 import { developmentTaskReadRouter } from "./read-development-tasks";
 import { deploymentReadRouter } from "./read-deployments";
 import { managedOperationsReadRouter } from "./read-managed-operations";
+import { providerFeedbackReadRouter } from "./read-provider-feedback";
 import { serverOperationsReadRouter } from "./read-server-operations";
 import { serverMetricsReadRouter } from "./read-server-metrics";
 import { serverSshHostIdentityReadRouter } from "./read-server-ssh-host-identities";
@@ -374,6 +375,7 @@ export const readRouter = t.mergeRouters(
   developmentTaskReadRouter,
   accessAssetsReadRouter,
   managedOperationsReadRouter,
+  providerFeedbackReadRouter,
   serverOperationsReadRouter,
   serverMetricsReadRouter,
   serverSshHostIdentityReadRouter,

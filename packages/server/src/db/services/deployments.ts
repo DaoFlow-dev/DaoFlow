@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { db } from "../connection";
 import { auditEntries, events } from "../schema/audit";
 import { deploymentLogs, deployments, deploymentSteps } from "../schema/deployments";
@@ -16,6 +16,7 @@ import {
   writeDeploymentCancellationSnapshot
 } from "../../deployment-cancellation";
 import { getDeploymentRecord } from "./deployment-queries";
+import { queueProviderFeedbackIntent } from "./provider-feedback-intents";
 import {
   consumeDeploymentQueueReservation,
   countDeploymentQueueOccupancyForServer,
@@ -183,6 +184,11 @@ export async function createDeploymentRecord(input: CreateDeploymentInput) {
       requestedByRole: input.requestedByRole ?? null,
       updatedAt: now
     });
+    await queueProviderFeedbackIntent(tx, {
+      deploymentId,
+      transition: DeploymentLifecycleStatus.Queued,
+      now
+    });
 
     await tx.insert(deploymentSteps).values(
       input.steps.map((step, index) => ({
@@ -291,17 +297,47 @@ export async function cancelDeployment(input: CancelDeploymentInput) {
   });
 
   if (currentStatus === DeploymentHealthStatus.Queued) {
-    await db
-      .update(deployments)
-      .set({
-        status: DeploymentLifecycleStatus.Failed,
-        conclusion: DeploymentConclusion.Cancelled,
-        error: { reason: "Cancelled by user", cancelledBy: input.cancelledByEmail },
-        configSnapshot: cancellationSnapshot,
-        concludedAt: now,
-        updatedAt: now
-      })
-      .where(eq(deployments.id, input.deploymentId));
+    const cancelled = await db.transaction(async (tx) => {
+      const [updated] = await tx
+        .update(deployments)
+        .set({
+          status: DeploymentLifecycleStatus.Failed,
+          conclusion: DeploymentConclusion.Cancelled,
+          error: { reason: "Cancelled by user", cancelledBy: input.cancelledByEmail },
+          configSnapshot: cancellationSnapshot,
+          concludedAt: now,
+          updatedAt: now
+        })
+        .where(
+          and(
+            eq(deployments.id, input.deploymentId),
+            inArray(deployments.status, [
+              DeploymentLifecycleStatus.Queued,
+              DeploymentLifecycleStatus.Waiting
+            ])
+          )
+        )
+        .returning({ id: deployments.id });
+      if (!updated) return false;
+      await queueProviderFeedbackIntent(tx, {
+        deploymentId: updated.id,
+        transition: "cancelled",
+        now
+      });
+      return true;
+    });
+    if (!cancelled) {
+      const [latest] = await db
+        .select({ status: deployments.status, conclusion: deployments.conclusion })
+        .from(deployments)
+        .where(eq(deployments.id, input.deploymentId))
+        .limit(1);
+      if (!latest) return { status: "not-found" as const };
+      return {
+        status: "invalid-state" as const,
+        currentStatus: normalizeDeploymentStatus(latest.status, latest.conclusion)
+      };
+    }
   } else {
     await db
       .update(deployments)

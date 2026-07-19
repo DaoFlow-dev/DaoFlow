@@ -177,11 +177,17 @@ describe("deployment build capacity", () => {
 
   it("keeps its lease while a timed-out caller leaves the build command running", async () => {
     const deploymentId = await createLeaseDeployment("timeout");
+    const started = createDeferred();
     const release = createDeferred();
     const build = withDeploymentBuildLease({
       ...leaseOptions(deploymentId),
-      run: async () => release.promise
+      run: async () => {
+        started.resolve();
+        return release.promise;
+      }
     });
+
+    await started.promise;
 
     const outerResult = await Promise.race([
       build.then(() => "completed"),

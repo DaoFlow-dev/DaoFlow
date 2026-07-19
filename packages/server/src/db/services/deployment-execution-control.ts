@@ -8,6 +8,7 @@ import {
   DeploymentCancellationError,
   readDeploymentCancellationSnapshot
 } from "../../deployment-cancellation";
+import { queueProviderFeedbackIntent } from "./provider-feedback-intents";
 
 const ACTIVE_DEPLOYMENT_STATUSES = [
   DeploymentLifecycleStatus.Waiting,
@@ -94,32 +95,41 @@ export async function claimNextQueuedDeploymentForExecution(
   actor: DeploymentExecutionActor
 ): Promise<DeploymentRow | null> {
   const now = new Date();
-  const [job] = await db
-    .update(deployments)
-    .set({
-      status: rawSql`case when ${deployments.sourceType} = 'image' then ${DeploymentLifecycleStatus.Prepare} else ${DeploymentLifecycleStatus.Waiting} end`,
-      updatedAt: now
-    })
-    .where(
-      and(
-        eq(deployments.status, DeploymentLifecycleStatus.Queued),
-        eq(
-          deployments.id,
-          rawSql`
-            (
-              SELECT candidate.id
-              FROM ${deployments} AS candidate
-              WHERE candidate.status = ${DeploymentLifecycleStatus.Queued}
-                AND ${activeDeploymentConflictSql("candidate", "active")}
-              ORDER BY candidate.created_at ASC
-              LIMIT 1
-              FOR UPDATE SKIP LOCKED
-            )
-          `
+  const job = await db.transaction(async (tx) => {
+    const [claimed] = await tx
+      .update(deployments)
+      .set({
+        status: rawSql`case when ${deployments.sourceType} = 'image' then ${DeploymentLifecycleStatus.Prepare} else ${DeploymentLifecycleStatus.Waiting} end`,
+        updatedAt: now
+      })
+      .where(
+        and(
+          eq(deployments.status, DeploymentLifecycleStatus.Queued),
+          eq(
+            deployments.id,
+            rawSql`
+              (
+                SELECT candidate.id
+                FROM ${deployments} AS candidate
+                WHERE candidate.status = ${DeploymentLifecycleStatus.Queued}
+                  AND ${activeDeploymentConflictSql("candidate", "active")}
+                ORDER BY candidate.created_at ASC
+                LIMIT 1
+                FOR UPDATE SKIP LOCKED
+              )
+            `
+          )
         )
       )
-    )
-    .returning();
+      .returning();
+    if (!claimed) return null;
+    await queueProviderFeedbackIntent(tx, {
+      deploymentId: claimed.id,
+      transition: claimed.status,
+      now
+    });
+    return claimed;
+  });
 
   if (!job) {
     return null;
@@ -162,18 +172,27 @@ export async function claimDeploymentForExecution(
       : DeploymentLifecycleStatus.Waiting;
   const buildQueueOrderCondition =
     existing.sourceType === "image" ? rawSql`true` : olderQueuedBuildCandidateSql("deployments");
-  const [claimed] = await db
-    .update(deployments)
-    .set({ status: claimedStatus, updatedAt: now })
-    .where(
-      and(
-        eq(deployments.id, deploymentId),
-        eq(deployments.status, DeploymentLifecycleStatus.Queued),
-        activeDeploymentConflictSql("deployments", "active"),
-        buildQueueOrderCondition
+  const claimed = await db.transaction(async (tx) => {
+    const [updated] = await tx
+      .update(deployments)
+      .set({ status: claimedStatus, updatedAt: now })
+      .where(
+        and(
+          eq(deployments.id, deploymentId),
+          eq(deployments.status, DeploymentLifecycleStatus.Queued),
+          activeDeploymentConflictSql("deployments", "active"),
+          buildQueueOrderCondition
+        )
       )
-    )
-    .returning();
+      .returning();
+    if (!updated) return null;
+    await queueProviderFeedbackIntent(tx, {
+      deploymentId: updated.id,
+      transition: updated.status,
+      now
+    });
+    return updated;
+  });
 
   if (claimed) {
     await recordExecutionClaimAudit(claimed, actor);

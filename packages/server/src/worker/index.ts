@@ -27,6 +27,10 @@ export {
   stopApprovalActionDispatchMonitor
 } from "./approval-action-dispatch-monitor";
 export {
+  startProviderFeedbackMonitor,
+  stopProviderFeedbackMonitor
+} from "./provider-feedback-monitor";
+export {
   startServiceScheduleMonitor,
   stopServiceScheduleMonitor
 } from "./service-schedule-monitor";

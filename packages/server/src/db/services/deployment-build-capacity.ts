@@ -3,6 +3,7 @@ import { DeploymentConclusion, DeploymentLifecycleStatus } from "@daoflow/shared
 import { db } from "../connection";
 import { deploymentBuildLeases, deployments } from "../schema/deployments";
 import { lockTargetServerForDeploymentCapacity } from "./deployment-capacity";
+import { queueProviderFeedbackIntent } from "./provider-feedback-intents";
 
 export const DEFAULT_BUILD_LEASE_DURATION_MS = 120_000;
 
@@ -71,7 +72,7 @@ export async function tryAcquireDeploymentBuildLease(input: {
       .map((lease) => lease.deploymentId)
       .filter((deploymentId) => deploymentId !== input.deploymentId);
     if (abandonedDeploymentIds.length > 0) {
-      await tx
+      const abandonedDeployments = await tx
         .update(deployments)
         .set({
           status: DeploymentLifecycleStatus.Failed,
@@ -92,7 +93,15 @@ export async function tryAcquireDeploymentBuildLease(input: {
               DeploymentLifecycleStatus.Deploy
             ])
           )
-        );
+        )
+        .returning({ id: deployments.id });
+      for (const deployment of abandonedDeployments) {
+        await queueProviderFeedbackIntent(tx, {
+          deploymentId: deployment.id,
+          transition: DeploymentLifecycleStatus.Failed,
+          now
+        });
+      }
     }
 
     const [existingLease] = await tx
