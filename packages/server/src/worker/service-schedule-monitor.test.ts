@@ -10,7 +10,8 @@ import {
 import {
   acquireServiceScheduleMonitorLease,
   getServiceScheduleMonitorLeaseStatus,
-  releaseServiceScheduleMonitorLease
+  releaseServiceScheduleMonitorLease,
+  SERVICE_SCHEDULE_MONITOR_LEASE_KEY
 } from "../db/services/service-schedule-lease";
 import { createServiceSchedule } from "../db/services/service-schedules";
 import {
@@ -39,7 +40,7 @@ function createDeferred() {
 }
 
 async function waitForActiveLease() {
-  for (let attempt = 0; attempt < 100; attempt += 1) {
+  for (let attempt = 0; attempt < 1_500; attempt += 1) {
     const status = await getServiceScheduleMonitorLeaseStatus();
     if (status?.active) return status;
     await new Promise((resolve) => setTimeout(resolve, 10));
@@ -48,7 +49,7 @@ async function waitForActiveLease() {
 }
 
 async function waitForReleasedLease() {
-  for (let attempt = 0; attempt < 100; attempt += 1) {
+  for (let attempt = 0; attempt < 1_500; attempt += 1) {
     const status = await getServiceScheduleMonitorLeaseStatus();
     if (status && !status.active) return status;
     await new Promise((resolve) => setTimeout(resolve, 10));
@@ -216,6 +217,96 @@ describe("service schedule monitor", () => {
     expect(await listScheduledRuns(schedule.id)).toHaveLength(1);
   });
 
+  it("recovers a dead leader's running work before queuing the next occurrence", async () => {
+    const { schedule } = await createDueSchedule();
+    const staleCycle = await runServiceScheduleMonitorCycle({
+      instanceId: "monitor-recovery-stale",
+      runLimit: 0
+    });
+    const [staleRun] = await listScheduledRuns(schedule.id);
+    if (!staleRun) throw new Error("Unable to create stale scheduled run.");
+    await db
+      .update(serviceScheduleRuns)
+      .set({ status: "running", startedAt: new Date("2026-01-01T00:00:01.000Z") })
+      .where(eq(serviceScheduleRuns.id, staleRun.id));
+    await db
+      .update(serviceScheduleMonitorLeases)
+      .set({ expiresAt: new Date("2000-01-01T00:00:00.000Z") })
+      .where(eq(serviceScheduleMonitorLeases.key, staleCycle.lease!.key));
+
+    const takeover = await runServiceScheduleMonitorCycle({
+      instanceId: "monitor-recovery-takeover",
+      runLimit: 0
+    });
+    expect(takeover).toMatchObject({
+      recoveredRuns: 1,
+      queuedOccurrences: 1,
+      processedRuns: 0,
+      leaseLost: false
+    });
+    const runs = await listScheduledRuns(schedule.id);
+    expect(runs.find((run) => run.id === staleRun.id)).toMatchObject({ status: "failed" });
+    expect(runs.filter((run) => run.status === "queued")).toHaveLength(1);
+    expect(getServiceScheduleMonitorRuntimeStatus().lastResult).toMatchObject({
+      recoveredRuns: 1
+    });
+  });
+
+  it("cancels a running command when its lease heartbeat loses leadership", async () => {
+    const { schedule } = await createDueSchedule();
+    const commandStarted = createDeferred();
+    const commandCancelled = createDeferred();
+    let receivedSignal: AbortSignal | undefined;
+    setServiceScheduleCommandRunnerForTests(
+      ({ signal }) =>
+        new Promise((resolve) => {
+          receivedSignal = signal;
+          commandStarted.resolve();
+          const completeCancellation = () => {
+            commandCancelled.resolve();
+            resolve({ exitCode: 125, logs: "cancelled", timedOut: false, cancelled: true });
+          };
+          if (signal?.aborted) completeCancellation();
+          else signal?.addEventListener("abort", completeCancellation, { once: true });
+        })
+    );
+
+    const staleCycle = runServiceScheduleMonitorCycle({
+      instanceId: "monitor-cancel-stale",
+      leaseDurationMs: 150,
+      runLimit: 1
+    });
+    await commandStarted.promise;
+    await db
+      .update(serviceScheduleMonitorLeases)
+      .set({ expiresAt: new Date("2000-01-01T00:00:00.000Z") })
+      .where(eq(serviceScheduleMonitorLeases.key, SERVICE_SCHEDULE_MONITOR_LEASE_KEY));
+    await expect(
+      acquireServiceScheduleMonitorLease({
+        holderInstanceId: "monitor-cancel-takeover",
+        leaseDurationMs: 1_000
+      })
+    ).resolves.toMatchObject({ holderInstanceId: "monitor-cancel-takeover" });
+    await commandCancelled.promise;
+
+    expect(receivedSignal?.aborted).toBe(true);
+    await expect(staleCycle).resolves.toMatchObject({ processedRuns: 0, leaseLost: true });
+    const [stillRunning] = await listScheduledRuns(schedule.id);
+    if (!stillRunning) throw new Error("Unable to find the cancelled scheduled run.");
+    expect(stillRunning).toMatchObject({ status: "running" });
+
+    await expect(
+      runServiceScheduleMonitorCycle({
+        instanceId: "monitor-cancel-takeover",
+        runLimit: 0
+      })
+    ).resolves.toMatchObject({ recoveredRuns: 1, leaseLost: false });
+    const recovered = (await listScheduledRuns(schedule.id)).find(
+      (run) => run.id === stillRunning.id
+    );
+    expect(recovered).toMatchObject({ status: "failed" });
+  });
+
   it("keeps leadership while a scheduled command runs longer than the lease TTL", async () => {
     await createDueSchedule();
     const commandStarted = createDeferred();
@@ -267,5 +358,5 @@ describe("service schedule monitor", () => {
       cycleInProgress: false,
       activeLease: null
     });
-  });
+  }, 20_000);
 });

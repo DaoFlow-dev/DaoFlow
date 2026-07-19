@@ -36,6 +36,7 @@ import {
 } from "../trpc";
 import { limitInput } from "../schemas";
 import { getStartupReadiness } from "../startup-readiness";
+import { getServiceScheduleMonitorRuntimeStatus } from "../worker/service-schedule-monitor";
 import { accessAssetsReadRouter } from "./read-access-assets";
 import { backupReadRouter } from "./read-backups";
 import { developmentTaskReadRouter } from "./read-development-tasks";
@@ -76,13 +77,20 @@ async function requireViewerTeamId(userId: string) {
 const coreReadRouter = t.router({
   health: t.procedure.query(() => {
     const readiness = getStartupReadiness();
+    const scheduler = getServiceScheduleMonitorRuntimeStatus();
 
     return {
       status: "healthy" as const,
       ready: readiness.ready,
       readinessStatus: readiness.status,
       service: "daoflow-control-plane",
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      scheduler: {
+        running: scheduler.running,
+        cycleInProgress: scheduler.cycleInProgress,
+        leaseHeld: Boolean(scheduler.activeLease),
+        lastCycleFinishedAt: scheduler.lastCycleFinishedAt
+      }
     };
   }),
   platformOverview: t.procedure.query(() => ({

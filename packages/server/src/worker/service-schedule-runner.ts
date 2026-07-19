@@ -1,12 +1,12 @@
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "../db/connection";
 import { environments, projects } from "../db/schema/projects";
 import { serviceScheduleRuns, serviceSchedules } from "../db/schema/service-schedules";
 import { services } from "../db/schema/services";
 import { resolveServiceRuntime } from "../db/services/service-runtime";
-import { computeNextRunAt } from "../db/services/service-schedule-cron";
 import {
   isCurrentServiceScheduleMonitorLease,
+  SERVICE_SCHEDULE_MONITOR_LEASE_KEY,
   type ServiceScheduleMonitorLease
 } from "../db/services/service-schedule-lease";
 import { pruneServiceScheduleRuns } from "../db/services/service-schedule-occurrences";
@@ -31,23 +31,6 @@ export function resetServiceScheduleCommandRunnerForTests(): void {
   scheduleCommandRunner = runServiceCommand;
 }
 
-function computeFollowingRunAt(input: {
-  cronExpression: string;
-  timezone: string;
-  previousNextRunAt: Date | null;
-  now: Date;
-}) {
-  let cursor = computeNextRunAt(
-    input.cronExpression,
-    input.previousNextRunAt ?? input.now,
-    input.timezone
-  );
-  while (cursor <= input.now) {
-    cursor = computeNextRunAt(input.cronExpression, cursor, input.timezone);
-  }
-  return cursor;
-}
-
 export async function completeServiceScheduleRun(input: {
   runId: string;
   status: "succeeded" | "failed";
@@ -64,6 +47,29 @@ export async function completeServiceScheduleRun(input: {
   if (!row) return null;
 
   const now = new Date();
+  const completionConditions = [
+    eq(serviceScheduleRuns.id, input.runId),
+    inArray(serviceScheduleRuns.status, ["queued", "running"])
+  ];
+  if (row.run.triggerKind === "scheduled") {
+    if (row.run.leaseGeneration === null || row.run.leaseHolderInstanceId === null) {
+      return null;
+    }
+    completionConditions.push(
+      eq(serviceScheduleRuns.leaseGeneration, row.run.leaseGeneration),
+      eq(serviceScheduleRuns.leaseHolderInstanceId, row.run.leaseHolderInstanceId),
+      sql`
+        EXISTS (
+          SELECT 1
+          FROM service_schedule_monitor_leases
+          WHERE lease_key = ${SERVICE_SCHEDULE_MONITOR_LEASE_KEY}
+            AND holder_instance_id = ${row.run.leaseHolderInstanceId}
+            AND generation = ${row.run.leaseGeneration}
+            AND expires_at > clock_timestamp()
+        )
+      `
+    );
+  }
   const [run] = await db
     .update(serviceScheduleRuns)
     .set({
@@ -75,7 +81,7 @@ export async function completeServiceScheduleRun(input: {
       finishedAt: now,
       updatedAt: now
     })
-    .where(eq(serviceScheduleRuns.id, input.runId))
+    .where(and(...completionConditions))
     .returning();
   if (!run) return null;
 
@@ -85,15 +91,6 @@ export async function completeServiceScheduleRun(input: {
       row.run.triggerKind === "manual"
         ? {
             lastRunAt: now,
-            nextRunAt:
-              row.schedule.status === "active"
-                ? computeFollowingRunAt({
-                    cronExpression: row.schedule.cronExpression,
-                    timezone: row.schedule.timezone,
-                    previousNextRunAt: row.schedule.nextRunAt,
-                    now
-                  })
-                : null,
             updatedAt: now
           }
         : { lastRunAt: now, updatedAt: now }
@@ -114,9 +111,13 @@ export async function pollServiceScheduleRuns(
     limit?: number;
     concurrency?: number;
     lease?: ServiceScheduleRunnerLease;
+    signal?: AbortSignal;
   } = {}
 ) {
-  if (input.lease && !(await isCurrentServiceScheduleMonitorLease(input.lease))) {
+  if (
+    input.signal?.aborted ||
+    (input.lease && !(await isCurrentServiceScheduleMonitorLease(input.lease)))
+  ) {
     return { processed: 0, leaseLost: true };
   }
 
@@ -138,13 +139,17 @@ export async function pollServiceScheduleRuns(
     (runId) =>
       executeServiceScheduleRun(runId, {
         lease: input.lease,
+        signal: input.signal,
         triggerKind: "scheduled"
       })
   );
 
   return {
     processed: results.filter(Boolean).length,
-    leaseLost: Boolean(input.lease && !(await isCurrentServiceScheduleMonitorLease(input.lease)))
+    leaseLost: Boolean(
+      input.signal?.aborted ||
+      (input.lease && !(await isCurrentServiceScheduleMonitorLease(input.lease)))
+    )
   };
 }
 
@@ -152,9 +157,11 @@ export async function executeServiceScheduleRun(
   runId: string,
   input: {
     lease?: ServiceScheduleRunnerLease;
+    signal?: AbortSignal;
     triggerKind: "manual" | "scheduled";
   }
 ) {
+  if (input.signal?.aborted) return null;
   const claimConditions = [
     eq(serviceScheduleRuns.id, runId),
     eq(serviceScheduleRuns.status, "queued"),
@@ -178,7 +185,13 @@ export async function executeServiceScheduleRun(
       status: "running",
       startedAt: new Date(),
       updatedAt: new Date(),
-      ...(input.lease ? { runnerInstanceId: input.lease.holderInstanceId } : {})
+      ...(input.lease
+        ? {
+            leaseGeneration: input.lease.generation,
+            leaseHolderInstanceId: input.lease.holderInstanceId,
+            runnerInstanceId: input.lease.holderInstanceId
+          }
+        : {})
     })
     .where(and(...claimConditions))
     .returning();
@@ -222,7 +235,8 @@ export async function executeServiceScheduleRun(
   try {
     commandResult = await scheduleCommandRunner({
       runtime: runtimeResult.runtime,
-      command: claimed.command
+      command: claimed.command,
+      signal: input.signal
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -238,7 +252,8 @@ export async function executeServiceScheduleRun(
     });
   }
 
-  const succeeded = commandResult.exitCode === 0;
+  const cancelled = Boolean(commandResult.cancelled);
+  const succeeded = commandResult.exitCode === 0 && !cancelled;
   return completeServiceScheduleRun({
     runId,
     status: succeeded ? "succeeded" : "failed",
@@ -253,9 +268,14 @@ export async function executeServiceScheduleRun(
       command: claimed.command,
       runtimeKind: runtimeResult.runtime.kind,
       exitCode: commandResult.exitCode,
-      timedOut: commandResult.timedOut
+      timedOut: commandResult.timedOut,
+      cancelled
     },
-    error: succeeded ? null : `Schedule command exited with code ${commandResult.exitCode}.`
+    error: succeeded
+      ? null
+      : cancelled
+        ? "Schedule command was cancelled after monitor lease loss."
+        : `Schedule command exited with code ${commandResult.exitCode}.`
   });
 }
 

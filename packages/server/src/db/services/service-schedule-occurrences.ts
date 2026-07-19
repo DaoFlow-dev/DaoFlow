@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, lte, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
 import { db } from "../connection";
 import { auditEntries } from "../schema/audit";
 import { projects } from "../schema/projects";
@@ -20,6 +20,111 @@ type MonitorLeaseReference = Pick<
   ServiceScheduleMonitorLease,
   "key" | "holderInstanceId" | "generation"
 >;
+
+export async function recoverStaleServiceScheduleRuns(input: {
+  actor: ServiceScheduleActor;
+  lease: MonitorLeaseReference;
+  limit?: number;
+}): Promise<number> {
+  return db.transaction(async (tx) => {
+    const [lease] = await tx
+      .select()
+      .from(serviceScheduleMonitorLeases)
+      .where(eq(serviceScheduleMonitorLeases.key, input.lease.key))
+      .limit(1)
+      .for("update");
+    const clock = await tx.execute<{ now: Date | string }>(sql`SELECT clock_timestamp() AS now`);
+    const nowValue = clock.rows[0]?.now;
+    const databaseNow = nowValue instanceof Date ? nowValue : new Date(String(nowValue));
+    if (
+      !lease ||
+      lease.holderInstanceId !== input.lease.holderInstanceId ||
+      lease.generation !== input.lease.generation ||
+      lease.expiresAt.getTime() <= databaseNow.getTime()
+    ) {
+      return 0;
+    }
+
+    const staleRuns = await tx
+      .select({ run: serviceScheduleRuns, schedule: serviceSchedules })
+      .from(serviceScheduleRuns)
+      .innerJoin(serviceSchedules, eq(serviceSchedules.id, serviceScheduleRuns.scheduleId))
+      .where(
+        and(
+          eq(serviceScheduleRuns.triggerKind, "scheduled"),
+          eq(serviceScheduleRuns.status, "running"),
+          or(
+            isNull(serviceScheduleRuns.leaseGeneration),
+            isNull(serviceScheduleRuns.leaseHolderInstanceId),
+            lt(serviceScheduleRuns.leaseGeneration, input.lease.generation)
+          )
+        )
+      )
+      .orderBy(asc(serviceScheduleRuns.createdAt))
+      .limit(input.limit ?? 20)
+      .for("update", { skipLocked: true });
+
+    let recovered = 0;
+    for (const row of staleRuns) {
+      const [run] = await tx
+        .update(serviceScheduleRuns)
+        .set({
+          status: "failed",
+          logs: [
+            "Service schedule run was recovered after monitor lease takeover.",
+            "Execution outcome is unknown because the prior leader lost its lease.",
+            "Command output and diagnostics are [redacted]."
+          ].join("\n"),
+          result: {
+            outcome: "failed",
+            reason: "monitor_lease_lost",
+            recovery: {
+              previousLeaseGeneration: row.run.leaseGeneration,
+              currentLeaseGeneration: input.lease.generation,
+              diagnostic: "[redacted]"
+            }
+          },
+          error: "Monitor lease was taken over; execution diagnostics are [redacted].",
+          finishedAt: databaseNow,
+          updatedAt: databaseNow
+        })
+        .where(
+          and(
+            eq(serviceScheduleRuns.id, row.run.id),
+            eq(serviceScheduleRuns.status, "running"),
+            or(
+              isNull(serviceScheduleRuns.leaseGeneration),
+              isNull(serviceScheduleRuns.leaseHolderInstanceId),
+              lt(serviceScheduleRuns.leaseGeneration, input.lease.generation)
+            )
+          )
+        )
+        .returning();
+      if (!run) continue;
+
+      await tx
+        .update(serviceSchedules)
+        .set({ lastRunAt: databaseNow, updatedAt: databaseNow })
+        .where(eq(serviceSchedules.id, row.schedule.id));
+      await tx.insert(auditEntries).values(
+        buildServiceScheduleAuditEntry({
+          schedule: row.schedule,
+          actor: input.actor,
+          action: "service_schedule.run_recovered",
+          summary: [
+            `Recovered scheduled run ${run.id} after monitor lease takeover.`,
+            "Command output and diagnostics are [redacted]."
+          ].join(" "),
+          outcome: "failure",
+          runId: run.id
+        })
+      );
+      recovered += 1;
+    }
+
+    return recovered;
+  });
+}
 
 export async function createDueServiceScheduleRuns(input: {
   teamId?: string;

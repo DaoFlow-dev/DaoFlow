@@ -7,6 +7,7 @@ import {
   type ServiceScheduleMonitorLease
 } from "../db/services/service-schedule-lease";
 import { newId } from "../db/services/json-helpers";
+import { recoverStaleServiceScheduleRuns } from "../db/services/service-schedule-occurrences";
 import { createDueServiceScheduleRuns } from "../db/services/service-schedules";
 import { pollServiceScheduleRuns } from "./service-schedule-runner";
 import { startServiceScheduleLeaseHeartbeat } from "./service-schedule-lease-heartbeat";
@@ -24,6 +25,7 @@ export interface ServiceScheduleMonitorCycleResult {
   lease: Pick<ServiceScheduleMonitorLease, "key" | "holderInstanceId" | "generation"> | null;
   queuedOccurrences: number;
   skippedOccurrences: number;
+  recoveredRuns: number;
   processedRuns: number;
   leaseLost: boolean;
 }
@@ -183,6 +185,7 @@ export async function runServiceScheduleMonitorCycle(
         lease: null,
         queuedOccurrences: 0,
         skippedOccurrences: 0,
+        recoveredRuns: 0,
         processedRuns: 0,
         leaseLost: false
       };
@@ -202,6 +205,7 @@ export async function runServiceScheduleMonitorCycle(
         lease: leaseReference(lease),
         queuedOccurrences: 0,
         skippedOccurrences: 0,
+        recoveredRuns: 0,
         processedRuns: 0,
         leaseLost: true
       };
@@ -209,24 +213,42 @@ export async function runServiceScheduleMonitorCycle(
       return result;
     }
 
-    const created = await createDueServiceScheduleRuns({
-      actor: scheduleActor(),
-      lease,
-      limit: options.dueLimit
-    });
+    const commandAbortController = new AbortController();
+    const abortCommands = () => commandAbortController.abort();
+    void heartbeat.waitForLoss().then(abortCommands);
+    options.signal?.addEventListener("abort", abortCommands, { once: true });
+
+    let recoveredRuns = 0;
+    let created: Awaited<ReturnType<typeof createDueServiceScheduleRuns>> = [];
+    let leaseStillCurrent = false;
+    let runner = { processed: 0, leaseLost: true };
+    try {
+      recoveredRuns = await recoverStaleServiceScheduleRuns({
+        actor: scheduleActor(),
+        lease: heartbeat.currentLease()
+      });
+      created = await createDueServiceScheduleRuns({
+        actor: scheduleActor(),
+        lease: heartbeat.currentLease(),
+        limit: options.dueLimit
+      });
+      leaseStillCurrent =
+        !heartbeat.lostLease() &&
+        (await isCurrentServiceScheduleMonitorLease(heartbeat.currentLease()));
+      runner =
+        !options.signal?.aborted && leaseStillCurrent
+          ? await pollServiceScheduleRuns({
+              lease: heartbeat.currentLease(),
+              limit: options.runLimit,
+              concurrency: options.runConcurrency,
+              signal: commandAbortController.signal
+            })
+          : { processed: 0, leaseLost: !leaseStillCurrent };
+    } finally {
+      options.signal?.removeEventListener("abort", abortCommands);
+    }
     const queuedOccurrences = created.filter((run) => run.status === "queued").length;
     const skippedOccurrences = created.filter((run) => run.status === "skipped").length;
-    const leaseStillCurrent =
-      !heartbeat.lostLease() &&
-      (await isCurrentServiceScheduleMonitorLease(heartbeat.currentLease()));
-    const runner =
-      !options.signal?.aborted && leaseStillCurrent
-        ? await pollServiceScheduleRuns({
-            lease: heartbeat.currentLease(),
-            limit: options.runLimit,
-            concurrency: options.runConcurrency
-          })
-        : { processed: 0, leaseLost: true };
     const heartbeatKeptLease = await heartbeat.stop();
     heartbeat = null;
     const finalLeaseCurrent =
@@ -236,6 +258,7 @@ export async function runServiceScheduleMonitorCycle(
       lease: leaseReference(lease),
       queuedOccurrences,
       skippedOccurrences,
+      recoveredRuns,
       processedRuns: runner.processed,
       leaseLost: !leaseStillCurrent || runner.leaseLost || !finalLeaseCurrent
     };

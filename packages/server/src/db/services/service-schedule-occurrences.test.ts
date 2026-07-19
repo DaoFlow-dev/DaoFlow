@@ -19,6 +19,7 @@ import {
   createServiceSchedule,
   createServiceScheduleRun
 } from "./service-schedules";
+import { recoverStaleServiceScheduleRuns } from "./service-schedule-occurrences";
 import {
   completeServiceScheduleRun,
   executeServiceScheduleRun,
@@ -291,6 +292,169 @@ describe("service schedule occurrences", () => {
     expect(queuedManual).toMatchObject({ status: "queued", runnerInstanceId: null });
   });
 
+  it("recovers a running occurrence from a dead leader before queuing a later occurrence", async () => {
+    const { schedule } = await createScheduleFixture();
+    await forceNextRunAt(schedule.id, new Date("2026-01-01T00:00:00.000Z"));
+    const staleLease = await acquireServiceScheduleMonitorLease({
+      holderInstanceId: "monitor-recovery-stale"
+    });
+    expect(staleLease).not.toBeNull();
+    const [firstOccurrence] = await createDueServiceScheduleRuns({
+      actor: monitorActor,
+      lease: staleLease!,
+      now: new Date("2026-01-01T01:00:00.000Z")
+    });
+    if (!firstOccurrence) throw new Error("Unable to create the first scheduled occurrence.");
+    await db
+      .update(serviceScheduleRuns)
+      .set({ status: "running", startedAt: new Date("2026-01-01T00:00:01.000Z") })
+      .where(eq(serviceScheduleRuns.id, firstOccurrence.id));
+
+    await db
+      .update(serviceScheduleMonitorLeases)
+      .set({ expiresAt: new Date("2000-01-01T00:00:00.000Z") })
+      .where(eq(serviceScheduleMonitorLeases.key, SERVICE_SCHEDULE_MONITOR_LEASE_KEY));
+    const takeoverLease = await acquireServiceScheduleMonitorLease({
+      holderInstanceId: "monitor-recovery-takeover"
+    });
+    expect(takeoverLease?.generation).toBe(staleLease!.generation + 1);
+
+    await expect(
+      recoverStaleServiceScheduleRuns({ actor: monitorActor, lease: takeoverLease! })
+    ).resolves.toBe(1);
+    const [recovered] = await db
+      .select()
+      .from(serviceScheduleRuns)
+      .where(eq(serviceScheduleRuns.id, firstOccurrence.id));
+    expect(recovered).toMatchObject({
+      status: "failed",
+      error: expect.stringContaining("[redacted]"),
+      result: {
+        outcome: "failed",
+        reason: "monitor_lease_lost",
+        recovery: expect.objectContaining({
+          previousLeaseGeneration: staleLease!.generation,
+          currentLeaseGeneration: takeoverLease!.generation,
+          diagnostic: "[redacted]"
+        })
+      }
+    });
+    expect(recovered?.logs).toContain("[redacted]");
+    expect(recovered?.logs).not.toContain(schedule.command);
+
+    const [audit] = await db
+      .select()
+      .from(auditEntries)
+      .where(eq(auditEntries.action, "service_schedule.run_recovered"));
+    expect(audit).toMatchObject({
+      outcome: "failure",
+      inputSummary: expect.stringContaining("[redacted]")
+    });
+
+    const laterOccurrences = await createDueServiceScheduleRuns({
+      actor: monitorActor,
+      lease: takeoverLease!,
+      now: new Date("2026-01-01T01:00:00.000Z")
+    });
+    expect(laterOccurrences).toHaveLength(1);
+    expect(laterOccurrences[0]).toMatchObject({ status: "queued" });
+  });
+
+  it("recovers a legacy running occurrence that has no lease metadata", async () => {
+    const { schedule } = await createScheduleFixture();
+    await forceNextRunAt(schedule.id, new Date("2026-01-01T00:00:00.000Z"));
+    const lease = await acquireServiceScheduleMonitorLease({
+      holderInstanceId: "monitor-legacy-recovery"
+    });
+    expect(lease).not.toBeNull();
+    const [occurrence] = await createDueServiceScheduleRuns({
+      actor: monitorActor,
+      lease: lease!,
+      now: new Date("2026-01-01T01:00:00.000Z")
+    });
+    if (!occurrence) throw new Error("Unable to create the legacy scheduled occurrence.");
+    await db
+      .update(serviceScheduleRuns)
+      .set({
+        status: "running",
+        leaseGeneration: null,
+        leaseHolderInstanceId: null,
+        runnerInstanceId: null
+      })
+      .where(eq(serviceScheduleRuns.id, occurrence.id));
+
+    await expect(
+      recoverStaleServiceScheduleRuns({ actor: monitorActor, lease: lease! })
+    ).resolves.toBe(1);
+    const [recovered] = await db
+      .select()
+      .from(serviceScheduleRuns)
+      .where(eq(serviceScheduleRuns.id, occurrence.id));
+    expect(recovered).toMatchObject({
+      status: "failed",
+      result: expect.objectContaining({ reason: "monitor_lease_lost" })
+    });
+  });
+
+  it("fences stale scheduled completion after expiry and after recovery", async () => {
+    const { schedule } = await createScheduleFixture();
+    await forceNextRunAt(schedule.id, new Date("2026-01-01T00:00:00.000Z"));
+    const staleLease = await acquireServiceScheduleMonitorLease({
+      holderInstanceId: "monitor-completion-stale"
+    });
+    expect(staleLease).not.toBeNull();
+    const [occurrence] = await createDueServiceScheduleRuns({
+      actor: monitorActor,
+      lease: staleLease!,
+      now: new Date("2026-01-01T01:00:00.000Z")
+    });
+    if (!occurrence) throw new Error("Unable to create the scheduled occurrence.");
+    await db
+      .update(serviceScheduleRuns)
+      .set({ status: "running", startedAt: new Date("2026-01-01T00:00:01.000Z") })
+      .where(eq(serviceScheduleRuns.id, occurrence.id));
+
+    await db
+      .update(serviceScheduleMonitorLeases)
+      .set({ expiresAt: new Date("2000-01-01T00:00:00.000Z") })
+      .where(eq(serviceScheduleMonitorLeases.key, SERVICE_SCHEDULE_MONITOR_LEASE_KEY));
+    await expect(
+      completeServiceScheduleRun({
+        runId: occurrence.id,
+        status: "succeeded",
+        logs: "stale completion after expiry"
+      })
+    ).resolves.toBeNull();
+
+    const [afterExpiredCompletion] = await db
+      .select()
+      .from(serviceScheduleRuns)
+      .where(eq(serviceScheduleRuns.id, occurrence.id));
+    expect(afterExpiredCompletion).toMatchObject({ status: "running" });
+
+    const takeoverLease = await acquireServiceScheduleMonitorLease({
+      holderInstanceId: "monitor-completion-takeover"
+    });
+    await recoverStaleServiceScheduleRuns({ actor: monitorActor, lease: takeoverLease! });
+    await expect(
+      completeServiceScheduleRun({
+        runId: occurrence.id,
+        status: "succeeded",
+        logs: "stale completion after recovery"
+      })
+    ).resolves.toBeNull();
+
+    const [recovered] = await db
+      .select()
+      .from(serviceScheduleRuns)
+      .where(eq(serviceScheduleRuns.id, occurrence.id));
+    expect(recovered).toMatchObject({
+      status: "failed",
+      error: expect.stringContaining("[redacted]")
+    });
+    expect(recovered?.logs).not.toContain("stale completion");
+  });
+
   it("allows lease takeover while a stale occurrence claim waits on the schedule lock", async () => {
     const { schedule } = await createScheduleFixture();
     const scheduledFor = new Date("2026-01-01T00:00:00.000Z");
@@ -382,6 +546,31 @@ describe("service schedule occurrences", () => {
         })
       ])
     );
+  });
+
+  it("does not move the next scheduled occurrence when a manual run completes", async () => {
+    const { schedule } = await createScheduleFixture();
+    const scheduledFor = new Date("2030-01-01T00:00:00.000Z");
+    await forceNextRunAt(schedule.id, scheduledFor);
+    const manual = await createServiceScheduleRun({
+      scheduleId: schedule.id,
+      teamId: "team_foundation",
+      triggerKind: "manual",
+      actor: ownerActor
+    });
+    if (manual.status !== "ok") throw new Error("Unable to queue manual test run.");
+
+    await completeServiceScheduleRun({
+      runId: manual.run.id,
+      status: "succeeded",
+      logs: "manual run completed"
+    });
+
+    const [completedSchedule] = await db
+      .select()
+      .from(serviceSchedules)
+      .where(eq(serviceSchedules.id, schedule.id));
+    expect(completedSchedule?.nextRunAt?.toISOString()).toBe(scheduledFor.toISOString());
   });
 
   it("keeps an older manual run queued while a leased scheduler claims a due occurrence", async () => {
