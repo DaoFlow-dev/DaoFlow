@@ -1,4 +1,5 @@
 import {
+  integer,
   index,
   jsonb,
   pgTable,
@@ -8,7 +9,7 @@ import {
   uniqueIndex,
   varchar
 } from "drizzle-orm/pg-core";
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 import { projects, environments } from "./projects";
 import { servers } from "./servers";
 import { users } from "./users";
@@ -67,6 +68,9 @@ export const serviceVariables = pgTable(
     source: varchar("source", { length: 20 }).default("inline").notNull(),
     secretRef: text("secret_ref"),
     branchPattern: varchar("branch_pattern", { length: 120 }).default("").notNull(),
+    revision: integer("revision")
+      .default(sql`nextval('environment_variable_revision_seq')`)
+      .notNull(),
     updatedByUserId: text("updated_by_user_id").references(() => users.id),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull()

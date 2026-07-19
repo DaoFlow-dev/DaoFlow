@@ -185,6 +185,49 @@ export async function resolveSecretReference(
   }
 }
 
+export type OnePasswordSecretReferenceResolver = (
+  serviceAccountToken: string,
+  secretRef: string
+) => Promise<string>;
+
+/**
+ * Resolves references for one team without persisting returned values. Callers
+ * must retain the values only in encrypted runtime state and never in logs,
+ * audits, or plain deployment evidence.
+ */
+export async function resolveTeamOnePasswordSecretReferences(input: {
+  teamId: string;
+  references: Array<{ id: string; secretRef: string }>;
+  resolveReference?: OnePasswordSecretReferenceResolver;
+}): Promise<Map<string, string>> {
+  if (input.references.length === 0) {
+    return new Map();
+  }
+
+  const [provider] = await db
+    .select()
+    .from(secretProviders)
+    .where(and(eq(secretProviders.teamId, input.teamId), eq(secretProviders.type, "1password")))
+    .limit(1);
+
+  if (!provider) {
+    throw new Error("No 1Password provider is configured for this team.");
+  }
+
+  const config = JSON.parse(decrypt(provider.configEncrypted)) as {
+    serviceAccountToken: string;
+  };
+  const resolveReference = input.resolveReference ?? resolveSecretReference;
+  const resolved = await Promise.all(
+    input.references.map(async (reference): Promise<readonly [string, string]> => [
+      reference.id,
+      await resolveReference(config.serviceAccountToken, reference.secretRef)
+    ])
+  );
+
+  return new Map(resolved);
+}
+
 /**
  * Test whether a service account token is valid by attempting to
  * create a client. Returns { ok, error? }.

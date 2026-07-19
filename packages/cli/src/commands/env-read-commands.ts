@@ -69,22 +69,36 @@ function registerEnvListCommand(cmd: Command): void {
   cmd
     .command("list")
     .description("List environment variables")
+    .option("--project-id <id>", "Project ID; list project defaults only")
     .option("--env-id <id>", "Environment ID")
     .option("--preview-env <id>", "Resolve variables against a preview environment ID")
     .option("--json", "Output as JSON")
     .action(
-      async (opts: { envId?: string; previewEnv?: string; json?: boolean }, command: Command) => {
+      async (
+        opts: { projectId?: string; envId?: string; previewEnv?: string; json?: boolean },
+        command: Command
+      ) => {
         await runCommandAction({
           command,
           json: opts.json,
           action: async (ctx) => {
             const trpc = createClient();
+            const projectId = normalizeOptionalCliInput(opts.projectId, "Project ID");
             const environmentId = normalizeOptionalCliInput(opts.envId, "Environment ID");
             const previewEnvironmentId = normalizeOptionalCliInput(
               opts.previewEnv,
               "Preview environment ID"
             );
+            if (projectId && (environmentId || previewEnvironmentId)) {
+              ctx.fail(
+                "Project defaults cannot be combined with environment or preview selectors.",
+                {
+                  code: "INVALID_INPUT"
+                }
+              );
+            }
             const data = await trpc.environmentVariables.query({
+              projectId,
               environmentId,
               previewEnvironmentId
             });
@@ -92,15 +106,17 @@ function registerEnvListCommand(cmd: Command): void {
             return ctx.success(data, {
               human: () => {
                 console.log(
-                  chalk.bold(`\n  Environment Variables (${data.summary.totalVariables})\n`)
+                  chalk.bold(
+                    `\n  ${projectId ? "Project Defaults" : "Environment Variables"} (${data.summary.totalVariables})\n`
+                  )
                 );
                 for (const v of data.variables) {
                   const maskedSecret = v.isSecret && v.displayValue === "[secret]";
                   const value = maskedSecret
                     ? chalk.red("***secret***")
                     : chalk.dim(v.displayValue);
-                  const cat = chalk.dim(`[${v.category}]`);
-                  console.log(`  ${chalk.cyan(v.key)} = ${value}  ${cat}`);
+                  const details = chalk.dim(`[${v.category}] ${v.scopeLabel} r${v.revision}`);
+                  console.log(`  ${chalk.cyan(v.key)} = ${value}  ${details}`);
                 }
                 console.log();
               }

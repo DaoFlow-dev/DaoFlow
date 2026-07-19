@@ -149,6 +149,7 @@ export default function ProjectDetailPage() {
 
       {page.showSettings ? (
         <ProjectSettingsPanel
+          projectId={project.id}
           editName={page.editName}
           onEditName={page.setEditName}
           editDesc={page.editDesc}

@@ -1,15 +1,18 @@
 import { matchesComposeEnvBranchPattern } from "../../compose-env";
 
-export type EnvironmentVariableScope = "environment" | "service";
+export type EnvironmentVariableScope = "project" | "environment" | "service";
 export type EnvironmentVariableCategory = "runtime" | "build";
 export type EnvironmentVariableSource = "inline" | "1password";
+export type EnvironmentVariableOrigin =
+  "project" | "environment" | "service" | "preview-environment" | "preview-service";
 
 export interface LayeredEnvironmentVariableRecord {
   id: string;
   scope: EnvironmentVariableScope;
-  environmentId: string;
-  environmentName: string;
+  projectId: string;
   projectName: string;
+  environmentId: string | null;
+  environmentName: string | null;
   serviceId: string | null;
   serviceName: string | null;
   key: string;
@@ -19,6 +22,7 @@ export interface LayeredEnvironmentVariableRecord {
   source: EnvironmentVariableSource;
   secretRef: string | null;
   branchPattern: string;
+  revision: number;
   updatedByEmail: string;
   updatedAt: string;
 }
@@ -26,10 +30,12 @@ export interface LayeredEnvironmentVariableRecord {
 export interface EnvironmentVariableInventoryRecord {
   id: string;
   scope: EnvironmentVariableScope;
+  origin: EnvironmentVariableOrigin;
   scopeLabel: string;
-  environmentId: string;
-  environmentName: string;
+  projectId: string;
   projectName: string;
+  environmentId: string | null;
+  environmentName: string | null;
   serviceId: string | null;
   serviceName: string | null;
   key: string;
@@ -39,6 +45,7 @@ export interface EnvironmentVariableInventoryRecord {
   source: EnvironmentVariableSource;
   secretRef: string | null;
   branchPattern: string | null;
+  revision: number;
   statusTone: string;
   statusLabel: string;
   originSummary: string;
@@ -54,11 +61,18 @@ export interface ResolvedEnvironmentVariableRecord {
   source: EnvironmentVariableSource;
   secretRef: string | null;
   scope: EnvironmentVariableScope;
+  origin: EnvironmentVariableOrigin;
   scopeLabel: string;
+  projectId: string;
+  projectName: string;
+  environmentId: string | null;
+  environmentName: string | null;
   serviceId: string | null;
   serviceName: string | null;
   branchPattern: string | null;
+  revision: number;
   originSummary: string;
+  overriddenOrigins: EnvironmentVariableOrigin[];
 }
 
 function compareResolutionSpecificity(
@@ -90,6 +104,20 @@ export function isPreviewScopedBranchPattern(value: string): boolean {
   return value.length > 0;
 }
 
+export function getEnvironmentVariableOrigin(
+  record: Pick<LayeredEnvironmentVariableRecord, "scope" | "branchPattern">
+): EnvironmentVariableOrigin {
+  if (record.scope === "project") {
+    return "project";
+  }
+
+  if (isPreviewScopedBranchPattern(record.branchPattern)) {
+    return record.scope === "service" ? "preview-service" : "preview-environment";
+  }
+
+  return record.scope;
+}
+
 function getEnvironmentVariableStatusTone(isSecret: boolean) {
   return isSecret ? "failed" : "queued";
 }
@@ -109,11 +137,15 @@ export function describeEnvironmentVariableOrigin(input: {
   scope: EnvironmentVariableScope;
   branchPattern: string;
 }) {
-  if (isPreviewScopedBranchPattern(input.branchPattern)) {
-    return input.scope === "service" ? "Service preview override" : "Environment preview override";
-  }
-
-  return input.scope === "service" ? "Service override" : "Shared environment value";
+  const origin = getEnvironmentVariableOrigin(input);
+  const labels: Record<EnvironmentVariableOrigin, string> = {
+    project: "Project default",
+    environment: "Shared environment value",
+    service: "Service override",
+    "preview-environment": "Environment preview override",
+    "preview-service": "Service preview override"
+  };
+  return labels[origin];
 }
 
 export function describeEnvironmentVariableScope(input: {
@@ -121,6 +153,11 @@ export function describeEnvironmentVariableScope(input: {
   branchPattern: string;
 }) {
   return describeEnvironmentVariableOrigin(input);
+}
+
+function scopeRank(scope: EnvironmentVariableScope) {
+  if (scope === "project") return 0;
+  return scope === "environment" ? 1 : 2;
 }
 
 export function sortLayeredEnvironmentVariables(
@@ -132,7 +169,7 @@ export function sortLayeredEnvironmentVariables(
       return keyCompare;
     }
 
-    const scopeCompare = left.scope === right.scope ? 0 : left.scope === "environment" ? -1 : 1;
+    const scopeCompare = scopeRank(left.scope) - scopeRank(right.scope);
     if (scopeCompare !== 0) {
       return scopeCompare;
     }
@@ -150,13 +187,16 @@ export function toEnvironmentVariableInventoryRecord(
   record: LayeredEnvironmentVariableRecord,
   canRevealSecrets: boolean
 ): EnvironmentVariableInventoryRecord {
+  const origin = getEnvironmentVariableOrigin(record);
   return {
     id: record.id,
     scope: record.scope,
+    origin,
     scopeLabel: describeEnvironmentVariableScope(record),
+    projectId: record.projectId,
+    projectName: record.projectName,
     environmentId: record.environmentId,
     environmentName: record.environmentName,
-    projectName: record.projectName,
     serviceId: record.serviceId,
     serviceName: record.serviceName,
     key: record.key,
@@ -166,6 +206,7 @@ export function toEnvironmentVariableInventoryRecord(
     source: record.source,
     secretRef: record.secretRef,
     branchPattern: readBranchPattern(record.branchPattern),
+    revision: record.revision,
     statusTone: getEnvironmentVariableStatusTone(record.isSecret),
     statusLabel: getEnvironmentVariableStatusLabel(record.isSecret, record.category),
     originSummary: describeEnvironmentVariableOrigin(record),
@@ -196,16 +237,17 @@ function sortLayeredEnvironmentVariablesForResolution(
   });
 }
 
-export function resolveEffectiveEnvironmentVariableRecords(input: {
+function getResolutionLayers(input: {
   records: LayeredEnvironmentVariableRecord[];
   branch?: string | null;
 }) {
   const branch = input.branch?.trim() ?? "";
-  const baseEnvironment = input.records.filter(
+  const project = input.records.filter((record) => record.scope === "project");
+  const environment = input.records.filter(
     (record) =>
       record.scope === "environment" && !isPreviewScopedBranchPattern(record.branchPattern)
   );
-  const baseService = input.records.filter(
+  const service = input.records.filter(
     (record) => record.scope === "service" && !isPreviewScopedBranchPattern(record.branchPattern)
   );
   const previewEnvironment = branch
@@ -225,11 +267,19 @@ export function resolveEffectiveEnvironmentVariableRecords(input: {
       )
     : [];
 
+  return [project, environment, service, previewEnvironment, previewService].map(
+    sortLayeredEnvironmentVariablesForResolution
+  );
+}
+
+export function resolveEffectiveEnvironmentVariableRecords(input: {
+  records: LayeredEnvironmentVariableRecord[];
+  branch?: string | null;
+}) {
   const resolved = new Map<string, LayeredEnvironmentVariableRecord>();
-  applyResolvedRecord(resolved, sortLayeredEnvironmentVariablesForResolution(baseEnvironment));
-  applyResolvedRecord(resolved, sortLayeredEnvironmentVariablesForResolution(baseService));
-  applyResolvedRecord(resolved, sortLayeredEnvironmentVariablesForResolution(previewEnvironment));
-  applyResolvedRecord(resolved, sortLayeredEnvironmentVariablesForResolution(previewService));
+  for (const layer of getResolutionLayers(input)) {
+    applyResolvedRecord(resolved, layer);
+  }
 
   return [...resolved.values()].sort((left, right) => left.key.localeCompare(right.key));
 }
@@ -239,21 +289,38 @@ export function resolveEffectiveEnvironmentVariables(input: {
   branch?: string | null;
   canRevealSecrets: boolean;
 }): ResolvedEnvironmentVariableRecord[] {
-  return resolveEffectiveEnvironmentVariableRecords({
-    records: input.records,
-    branch: input.branch
-  }).map((record) => ({
-    key: record.key,
-    displayValue: record.isSecret && !input.canRevealSecrets ? "[secret]" : record.value,
-    isSecret: record.isSecret,
-    category: record.category,
-    source: record.source,
-    secretRef: record.secretRef,
-    scope: record.scope,
-    scopeLabel: describeEnvironmentVariableScope(record),
-    serviceId: record.serviceId,
-    serviceName: record.serviceName,
-    branchPattern: readBranchPattern(record.branchPattern),
-    originSummary: describeEnvironmentVariableOrigin(record)
-  }));
+  const resolutionLayers = getResolutionLayers(input);
+  const candidates = resolutionLayers.flat();
+  return resolveEffectiveEnvironmentVariableRecords(input).map((record) => {
+    const origin = getEnvironmentVariableOrigin(record);
+    const overriddenOrigins = Array.from(
+      new Set(
+        candidates
+          .filter((candidate) => candidate.key === record.key && candidate.id !== record.id)
+          .map(getEnvironmentVariableOrigin)
+      )
+    );
+
+    return {
+      key: record.key,
+      displayValue: record.isSecret && !input.canRevealSecrets ? "[secret]" : record.value,
+      isSecret: record.isSecret,
+      category: record.category,
+      source: record.source,
+      secretRef: record.secretRef,
+      scope: record.scope,
+      origin,
+      scopeLabel: describeEnvironmentVariableScope(record),
+      projectId: record.projectId,
+      projectName: record.projectName,
+      environmentId: record.environmentId,
+      environmentName: record.environmentName,
+      serviceId: record.serviceId,
+      serviceName: record.serviceName,
+      branchPattern: readBranchPattern(record.branchPattern),
+      revision: record.revision,
+      originSummary: describeEnvironmentVariableOrigin(record),
+      overriddenOrigins
+    };
+  });
 }

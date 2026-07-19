@@ -319,6 +319,17 @@ describe("deploy source revalidation", () => {
       .where(eq(environments.id, fixture.environmentId));
 
     await upsertEnvironmentVariable({
+      projectId: fixture.projectId,
+      scope: "project",
+      key: "PROJECT_SNAPSHOT_SECRET",
+      value: "project-snapshot-secret",
+      isSecret: true,
+      category: "runtime",
+      updatedByUserId: "user_foundation_owner",
+      updatedByEmail: "owner@daoflow.local",
+      updatedByRole: "owner"
+    });
+    await upsertEnvironmentVariable({
       environmentId: fixture.environmentId,
       key: "PREVIEW_FLAG",
       value: "enabled",
@@ -361,21 +372,52 @@ describe("deploy source revalidation", () => {
       branch: "main",
       fileName: ".daoflow.compose.env",
       counts: {
-        total: 1,
-        environmentVariables: 1,
-        runtime: 1
+        total: 2,
+        environmentVariables: 2,
+        runtime: 2
       }
     });
-    expect(readDeploymentComposeEnvEntries(result.deployment.envVarsEncrypted)).toEqual([
-      {
-        key: "PREVIEW_FLAG",
-        value: "enabled",
-        category: "runtime",
-        isSecret: false,
-        source: "inline",
-        branchPattern: "main"
-      }
-    ]);
+    const composeEnv = asRecord(asRecord(result.deployment.configSnapshot).composeEnv);
+    const composeEvidenceEntries = Array.isArray(composeEnv.entries)
+      ? composeEnv.entries.map(asRecord)
+      : [];
+    const projectEvidence = composeEvidenceEntries.find(
+      (entry) => entry.key === "PROJECT_SNAPSHOT_SECRET"
+    );
+    const previewEvidence = composeEvidenceEntries.find((entry) => entry.key === "PREVIEW_FLAG");
+    expect(projectEvidence).toMatchObject({
+      displayValue: "[secret]",
+      origin: "project"
+    });
+    expect(projectEvidence?.revision).toMatch(/^\d+$/);
+    expect(previewEvidence).toMatchObject({ origin: "preview-environment" });
+    expect(previewEvidence?.revision).toMatch(/^\d+$/);
+
+    const deploymentEnvEntries = readDeploymentComposeEnvEntries(
+      result.deployment.envVarsEncrypted
+    );
+    const previewEntry = deploymentEnvEntries.find((entry) => entry.key === "PREVIEW_FLAG");
+    const projectEntry = deploymentEnvEntries.find(
+      (entry) => entry.key === "PROJECT_SNAPSHOT_SECRET"
+    );
+    expect(previewEntry).toMatchObject({
+      value: "enabled",
+      category: "runtime",
+      isSecret: false,
+      source: "inline",
+      branchPattern: "main",
+      origin: "preview-environment"
+    });
+    expect(previewEntry?.revision).toMatch(/^\d+$/);
+    expect(projectEntry).toMatchObject({
+      value: "project-snapshot-secret",
+      category: "runtime",
+      isSecret: true,
+      source: "inline",
+      branchPattern: null,
+      origin: "project"
+    });
+    expect(projectEntry?.revision).toMatch(/^\d+$/);
     expect(result.deployment.steps.map((step) => step.detail)).toEqual(
       expect.arrayContaining([
         "Resolved compose source inputs, deployment env state, and replayable config snapshot.",

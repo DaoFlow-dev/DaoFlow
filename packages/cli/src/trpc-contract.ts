@@ -806,15 +806,25 @@ export interface EnableBackupScheduleOutput {
 export interface EnvironmentVariablesOutput {
   summary: {
     totalVariables: number;
+    projectDefaults: number;
     secretVariables: number;
     runtimeVariables: number;
     buildVariables: number;
+    serviceOverrides: number;
+    previewOverrides: number;
+    resolvedVariables: number;
   };
   variables: Array<{
     id: string;
-    environmentId: string;
-    environmentName: string;
+    scope: "project" | "environment" | "service";
+    origin: "project" | "environment" | "service" | "preview-environment" | "preview-service";
+    scopeLabel: string;
+    projectId: string;
     projectName: string;
+    environmentId: string | null;
+    environmentName: string | null;
+    serviceId: string | null;
+    serviceName: string | null;
     key: string;
     displayValue: string;
     isSecret: boolean;
@@ -822,23 +832,69 @@ export interface EnvironmentVariablesOutput {
     branchPattern: string | null;
     source: string;
     secretRef: string | null;
+    revision: number;
+    originSummary: string;
     updatedByEmail: string;
     updatedAt: string;
   }>;
+  resolvedVariables: Array<{
+    key: string;
+    displayValue: string;
+    isSecret: boolean;
+    category: "runtime" | "build";
+    source: "inline" | "1password";
+    secretRef: string | null;
+    scope: "project" | "environment" | "service";
+    origin: "project" | "environment" | "service" | "preview-environment" | "preview-service";
+    scopeLabel: string;
+    projectId: string;
+    projectName: string;
+    environmentId: string | null;
+    environmentName: string | null;
+    serviceId: string | null;
+    serviceName: string | null;
+    branchPattern: string | null;
+    revision: number;
+    originSummary: string;
+    overriddenOrigins: string[];
+  }>;
+  previewEnvironment: {
+    id: string;
+    previewKey: string;
+    branch: string;
+    envBranch: string;
+    status: string;
+  } | null;
 }
 
 export interface UpsertEnvironmentVariableOutput {
   key: string;
-  environmentId: string;
-  environmentName: string;
+  projectId: string;
+  projectName: string;
+  environmentId: string | null;
+  environmentName: string | null;
+  serviceId: string | null;
+  serviceName: string | null;
   category: "runtime" | "build";
+  scope: "project" | "environment" | "service";
+  origin: string;
+  branchPattern: string | null;
+  revision: number;
   status: "created" | "updated";
 }
 
 export interface DeleteEnvironmentVariableOutput {
   key: string;
-  environmentId: string;
-  environmentName: string;
+  projectId: string;
+  projectName: string;
+  environmentId: string | null;
+  environmentName: string | null;
+  serviceId: string | null;
+  serviceName: string | null;
+  scope: "project" | "environment" | "service";
+  origin: string;
+  branchPattern: string | null;
+  revision: number;
   status: "deleted";
 }
 
@@ -1704,6 +1760,7 @@ export interface DaoFlowTRPC {
   environmentVariables: QueryProcedure<
     EnvironmentVariablesOutput,
     {
+      projectId?: string;
       environmentId?: string;
       serviceId?: string;
       branch?: string;
@@ -1713,7 +1770,10 @@ export interface DaoFlowTRPC {
   >;
   upsertEnvironmentVariable: MutationProcedure<
     {
-      environmentId: string;
+      projectId?: string;
+      environmentId?: string;
+      serviceId?: string;
+      scope?: "project" | "environment" | "service";
       key: string;
       value: string;
       isSecret: boolean;
@@ -1725,7 +1785,14 @@ export interface DaoFlowTRPC {
     UpsertEnvironmentVariableOutput
   >;
   deleteEnvironmentVariable: MutationProcedure<
-    { environmentId: string; key: string },
+    {
+      projectId?: string;
+      environmentId?: string;
+      serviceId?: string;
+      scope?: "project" | "environment" | "service";
+      key: string;
+      branchPattern?: string | null;
+    },
     DeleteEnvironmentVariableOutput
   >;
   resolveEnvironmentSecrets: QueryProcedure<

@@ -22,7 +22,16 @@ export interface ComposeEnvPlanPreview {
       isSecret: boolean;
       source: "inline" | "1password" | "repo-default";
       branchPattern: string | null;
-      origin: "repo-default" | "environment-variable";
+      origin:
+        | "repo-default"
+        | "project"
+        | "environment"
+        | "service"
+        | "preview-environment"
+        | "preview-service"
+        | "preview-generated"
+        | "legacy-environment-variable";
+      revision?: string;
       overrodeRepoDefault: boolean;
     }>;
   };
@@ -59,6 +68,7 @@ function formatInterpolationStatus(status: ComposeEnvPlanPreview["interpolation"
 function formatComposeEnvEntry(entry: ComposeEnvPlanPreview["composeEnv"]["entries"][number]) {
   const metadata = [
     `origin=${entry.origin}`,
+    `revision=${entry.revision ?? "legacy"}`,
     `source=${entry.source}`,
     `category=${entry.category}`
   ];

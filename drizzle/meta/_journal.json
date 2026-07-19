@@ -309,6 +309,13 @@
       "when": 1784458390293,
       "tag": "0043_charming_sentinels",
       "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1784469525900,
+      "tag": "0044_project_shared_environment_variables",
+      "breakpoints": true
     }
   ]
 }

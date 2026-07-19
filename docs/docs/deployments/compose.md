@@ -108,7 +108,23 @@ Execution semantics are deterministic:
 
 ## Environment Variable Injection
 
-DaoFlow injects environment variables from the project's environment configuration into the Compose file using `docker compose --env-file`:
+DaoFlow resolves environment values into the Compose file using `docker compose --env-file`. The
+order is fixed so a more-specific value wins:
+
+```text
+repository defaults < project < environment < service < preview environment < preview service
+```
+
+Set a project default once when every environment should inherit it:
+
+```bash
+daoflow env set --project-id proj_123 \
+  --key APP_PUBLIC_ORIGIN \
+  --value https://app.example.com \
+  --yes
+```
+
+An environment can still override that default when needed:
 
 ```bash
 daoflow env set --env-id env_prod_123 \
@@ -118,6 +134,15 @@ daoflow env set --env-id env_prod_123 \
 ```
 
 These are then available in your `compose.yaml` via `${DATABASE_URL}`.
+
+`daoflow env list --project-id proj_123 --json` shows project defaults. Environment and service
+inventory show the effective origin and revision for each resolved key. Deleting an override reveals
+the inherited value; it never copies or changes the shared default. Project secrets are encrypted at
+rest and stay masked unless the caller is allowed to read secrets.
+
+Every new deployment stores the winning origin and a stable revision with its encrypted environment
+snapshot. Deployment evidence keeps secret values redacted; repository defaults use a deterministic
+content-derived revision rather than a timestamp.
 
 For git-backed Compose deployments, DaoFlow also generates a redacted shell export file so remote SSH execution sees the same resolved build/runtime environment surface as local execution. This is what allows Compose `build:` services and environment-backed BuildKit secret references to behave consistently on the target host without leaking secret values into logs or persisted plan artifacts.
 

@@ -2,8 +2,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Loader2, Save, Settings2, Trash2 } from "lucide-react";
+import { ProjectEnvironmentDefaultsPanel } from "./ProjectEnvironmentDefaultsPanel";
 
 interface ProjectSettingsPanelProps {
+  projectId: string;
   editName: string;
   onEditName: (v: string) => void;
   editDesc: string;
@@ -17,6 +19,7 @@ interface ProjectSettingsPanelProps {
 }
 
 export function ProjectSettingsPanel({
+  projectId,
   editName,
   onEditName,
   editDesc,
@@ -86,6 +89,9 @@ export function ProjectSettingsPanel({
           </Button>
         </div>
         {errorMessage && <p className="text-sm text-destructive">{errorMessage}</p>}
+      </CardContent>
+      <CardContent className="pt-0">
+        <ProjectEnvironmentDefaultsPanel projectId={projectId} />
       </CardContent>
     </Card>
   );

@@ -1,13 +1,27 @@
+import { createHash } from "node:crypto";
+
 export const COMPOSE_ENV_FILE_NAME = ".daoflow.compose.env";
 export const COMPOSE_ENV_EXPORT_FILE_NAME = ".daoflow.compose.export.sh";
 
 export const COMPOSE_ENV_PRECEDENCE = [
   "repo-defaults",
-  "environment-variables"
+  "project-defaults",
+  "environment-variables",
+  "service-overrides",
+  "preview-environment-overrides",
+  "preview-service-overrides"
 ] as const satisfies readonly string[];
 
 export type ComposeEnvVariableCategory = "runtime" | "build";
-export type ComposeEnvEntryOrigin = "repo-default" | "environment-variable";
+export type ComposeEnvEntryOrigin =
+  | "repo-default"
+  | "project"
+  | "environment"
+  | "service"
+  | "preview-environment"
+  | "preview-service"
+  | "preview-generated"
+  | "legacy-environment-variable";
 export type ComposeEnvEntrySource = "inline" | "1password" | "repo-default";
 
 export interface ComposeEnvPayloadEntry {
@@ -17,6 +31,8 @@ export interface ComposeEnvPayloadEntry {
   isSecret: boolean;
   source: "inline" | "1password";
   branchPattern: string | null;
+  origin?: ComposeEnvEntryOrigin;
+  revision?: string;
 }
 
 export interface ComposeEnvMaterializedEntry {
@@ -27,6 +43,7 @@ export interface ComposeEnvMaterializedEntry {
   source: ComposeEnvEntrySource;
   branchPattern: string | null;
   origin: ComposeEnvEntryOrigin;
+  revision: string;
   overrodeRepoDefault: boolean;
 }
 
@@ -38,6 +55,7 @@ export interface ComposeEnvEvidenceEntry {
   source: ComposeEnvEntrySource;
   branchPattern: string | null;
   origin: ComposeEnvEntryOrigin;
+  revision: string;
   overrodeRepoDefault: boolean;
 }
 
@@ -65,6 +83,17 @@ export interface ComposeEnvRenderableEntry {
   origin?: ComposeEnvEntryOrigin;
 }
 
+const COMPOSE_ENV_ENTRY_ORIGINS = new Set<ComposeEnvEntryOrigin>([
+  "repo-default",
+  "project",
+  "environment",
+  "service",
+  "preview-environment",
+  "preview-service",
+  "preview-generated",
+  "legacy-environment-variable"
+]);
+
 interface ParsedComposeEnvFile {
   entries: Array<{ key: string; value: string }>;
   warnings: string[];
@@ -75,6 +104,66 @@ const VALID_ENV_KEY_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 function escapeRegex(value: string): string {
   return value.replace(/[|\\{}()[\]^$+?.]/g, "\\$&");
+}
+
+export function createComposeEnvContentRevision(input: {
+  origin: ComposeEnvEntryOrigin;
+  key: string;
+  value: string;
+}): string {
+  return `sha256:${createHash("sha256")
+    .update(input.origin)
+    .update("\u0000")
+    .update(input.key)
+    .update("\u0000")
+    .update(input.value)
+    .digest("hex")}`;
+}
+
+function createComposeEnvLegacyRevision(input: {
+  origin: ComposeEnvEntryOrigin;
+  key: string;
+  category: ComposeEnvVariableCategory | "default";
+  source: ComposeEnvEntrySource;
+  branchPattern: string | null;
+  isSecret: boolean;
+}): string {
+  return `legacy:sha256:${createHash("sha256")
+    .update(input.origin)
+    .update("\u0000")
+    .update(input.key)
+    .update("\u0000")
+    .update(input.category)
+    .update("\u0000")
+    .update(input.source)
+    .update("\u0000")
+    .update(input.branchPattern ?? "")
+    .update("\u0000")
+    .update(input.isSecret ? "secret" : "plain")
+    .digest("hex")}`;
+}
+
+function normalizePayloadProvenance(
+  entry: ComposeEnvPayloadEntry,
+  fallbackOrigin: ComposeEnvEntryOrigin = "legacy-environment-variable"
+) {
+  const candidateOrigin = entry.origin ?? fallbackOrigin;
+  const origin = COMPOSE_ENV_ENTRY_ORIGINS.has(candidateOrigin) ? candidateOrigin : fallbackOrigin;
+  return {
+    origin,
+    revision:
+      entry.revision ??
+      (origin === "preview-generated"
+        ? createComposeEnvContentRevision({ origin, key: entry.key, value: entry.value })
+        : createComposeEnvLegacyRevision({
+            origin,
+            key: entry.key,
+            category: entry.category,
+            source: entry.source,
+            branchPattern: entry.branchPattern,
+            isSecret: entry.isSecret
+          }))
+  };
 }
 
 function unescapeDoubleQuotedEnvValue(value: string): string {
@@ -112,9 +201,7 @@ export function renderComposeEnvFile(entries: ComposeEnvRenderableEntry[]): stri
       .map((entry) => {
         const key = assertValidEnvKey(entry.key);
         const value =
-          entry.origin === "environment-variable"
-            ? escapeComposeInterpolation(entry.value)
-            : entry.value;
+          entry.origin !== "repo-default" ? escapeComposeInterpolation(entry.value) : entry.value;
         return `${key}=${formatEnvValue(value)}`;
       })
       .join("\n") + "\n"
@@ -143,6 +230,7 @@ function toEvidenceEntry(entry: ComposeEnvMaterializedEntry): ComposeEnvEvidence
     source: entry.source,
     branchPattern: entry.branchPattern,
     origin: entry.origin,
+    revision: entry.revision,
     overrodeRepoDefault: entry.overrodeRepoDefault
   };
 }
@@ -181,8 +269,7 @@ function buildEvidence(
     counts: {
       total: sortedEntries.length,
       repoDefaults: sortedEntries.filter((entry) => entry.origin === "repo-default").length,
-      environmentVariables: sortedEntries.filter((entry) => entry.origin === "environment-variable")
-        .length,
+      environmentVariables: sortedEntries.filter((entry) => entry.origin !== "repo-default").length,
       runtime: sortedEntries.filter((entry) => entry.category === "runtime").length,
       build: sortedEntries.filter((entry) => entry.category === "build").length,
       secrets: sortedEntries.filter((entry) => entry.isSecret).length,
@@ -258,14 +345,16 @@ export function buildQueuedComposeEnvEvidence(
   branch: string,
   entries: ComposeEnvPayloadEntry[]
 ): ComposeEnvEvidence {
-  const materializedEntries = entries.map(
-    (entry) =>
-      ({
-        ...entry,
-        origin: "environment-variable",
-        overrodeRepoDefault: false
-      }) satisfies ComposeEnvMaterializedEntry
-  );
+  const materializedEntries = entries.map((entry) => {
+    const provenance = normalizePayloadProvenance(entry);
+    return {
+      ...entry,
+      ...provenance,
+      origin: provenance.origin,
+      revision: provenance.revision,
+      overrodeRepoDefault: false
+    } satisfies ComposeEnvMaterializedEntry;
+  });
 
   return buildEvidence("queued", branch, materializedEntries, buildWarnings(entries, false));
 }
@@ -302,15 +391,21 @@ export function buildComposeEnvArtifact(input: {
       source: "repo-default",
       branchPattern: null,
       origin: "repo-default",
+      revision: createComposeEnvContentRevision({
+        origin: "repo-default",
+        key: repoDefault.key,
+        value: repoDefault.value
+      }),
       overrodeRepoDefault: false
     });
   }
 
   for (const entry of input.deploymentEntries) {
     const previous = resolvedEntries.get(entry.key);
+    const provenance = normalizePayloadProvenance(entry);
     resolvedEntries.set(entry.key, {
       ...entry,
-      origin: "environment-variable",
+      ...provenance,
       overrodeRepoDefault: previous?.origin === "repo-default"
     });
   }

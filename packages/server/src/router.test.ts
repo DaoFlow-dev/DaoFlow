@@ -1222,6 +1222,106 @@ describe("appRouter", () => {
     });
   });
 
+  it("creates project defaults through env:write and returns masked provenance", async () => {
+    const key = `PROJECT_SCOPE_${Date.now().toString(36).toUpperCase()}`;
+    const writer = appRouter.createCaller({
+      requestId: "test-project-envvar-write",
+      session: makeSession("owner"),
+      auth: makeTokenAuthContext("owner", ["env:write"])
+    });
+    const reader = appRouter.createCaller({
+      requestId: "test-project-envvar-read",
+      session: makeSession("owner"),
+      auth: makeTokenAuthContext("owner", ["env:read"])
+    });
+    const deniedWriter = appRouter.createCaller({
+      requestId: "test-project-envvar-denied",
+      session: makeSession("owner"),
+      auth: makeTokenAuthContext("owner", ["env:read"])
+    });
+
+    const created = await writer.upsertEnvironmentVariable({
+      projectId: "proj_daoflow_control_plane",
+      scope: "project",
+      key,
+      value: "project-route-secret",
+      isSecret: true,
+      category: "runtime"
+    });
+    expect(created).toMatchObject({
+      projectId: "proj_daoflow_control_plane",
+      scope: "project",
+      origin: "project"
+    });
+    expect(Number.isInteger(created.revision)).toBe(true);
+    expect(created.revision).toBeGreaterThan(0);
+
+    const inventory = await reader.environmentVariables({
+      projectId: "proj_daoflow_control_plane"
+    });
+    expect(inventory.variables.find((variable) => variable.key === key)).toMatchObject({
+      displayValue: "[secret]",
+      origin: "project",
+      revision: created.revision
+    });
+    await expect(
+      deniedWriter.upsertEnvironmentVariable({
+        projectId: "proj_daoflow_control_plane",
+        scope: "project",
+        key: `${key}_DENIED`,
+        value: "blocked",
+        isSecret: false,
+        category: "runtime"
+      })
+    ).rejects.toMatchObject({
+      code: "FORBIDDEN",
+      cause: { code: "SCOPE_DENIED", requiredScopes: ["env:write"] }
+    });
+  });
+
+  it("rejects ambiguous environment-variable targets before reading or mutating", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "test-envvar-target-validation",
+      session: makeSession("owner")
+    });
+    const readEnvironmentVariables = caller.environmentVariables as unknown as (
+      input: Record<string, unknown>
+    ) => Promise<unknown>;
+    const writeEnvironmentVariable = caller.upsertEnvironmentVariable as unknown as (
+      input: Record<string, unknown>
+    ) => Promise<unknown>;
+
+    await expect(
+      readEnvironmentVariables({
+        projectId: "proj_daoflow_control_plane",
+        environmentId: "env_daoflow_staging"
+      })
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" } satisfies Partial<TRPCError>);
+
+    await expect(
+      writeEnvironmentVariable({
+        projectId: "proj_daoflow_control_plane",
+        scope: "project",
+        key: "INVALID_PROJECT_PREVIEW",
+        value: "blocked",
+        isSecret: false,
+        category: "runtime",
+        branchPattern: "preview/*"
+      })
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" } satisfies Partial<TRPCError>);
+
+    await expect(
+      writeEnvironmentVariable({
+        serviceId: "svc_daoflow_web",
+        scope: "service",
+        key: "INVALID_SERVICE_TARGET",
+        value: "blocked",
+        isSecret: false,
+        category: "runtime"
+      })
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" } satisfies Partial<TRPCError>);
+  });
+
   it("returns resolved service overrides when a service-scoped inventory view is requested", async () => {
     const serviceResult = await createService({
       name: `envvar-route-service-${Date.now()}`,
@@ -2710,6 +2810,17 @@ describe("appRouter", () => {
       updatedByEmail: `${fixture.userId}@daoflow.local`,
       updatedByRole: "owner"
     });
+    await upsertEnvironmentVariable({
+      projectId: fixture.projectId,
+      scope: "project",
+      key: "TEAM_SCOPED_PROJECT_SECRET",
+      value: "other-team-project-secret",
+      isSecret: true,
+      category: "runtime",
+      updatedByUserId: fixture.userId,
+      updatedByEmail: `${fixture.userId}@daoflow.local`,
+      updatedByRole: "owner"
+    });
 
     const caller = appRouter.createCaller({
       requestId: "test-envvar-team-scope",
@@ -2718,6 +2829,8 @@ describe("appRouter", () => {
 
     const response = await caller.environmentVariables({ environmentId: fixture.environmentId });
     expect(response.variables).toHaveLength(0);
+    const projectResponse = await caller.environmentVariables({ projectId: fixture.projectId });
+    expect(projectResponse.variables).toHaveLength(0);
 
     await expect(
       caller.upsertEnvironmentVariable({
@@ -2733,6 +2846,23 @@ describe("appRouter", () => {
       caller.deleteEnvironmentVariable({
         environmentId: fixture.environmentId,
         key: "TEAM_SCOPED_SECRET"
+      })
+    ).rejects.toMatchObject({ code: "NOT_FOUND" } satisfies Partial<TRPCError>);
+    await expect(
+      caller.upsertEnvironmentVariable({
+        projectId: fixture.projectId,
+        scope: "project",
+        key: "TEAM_SCOPED_PROJECT_SECRET",
+        value: "attempted-cross-team-write",
+        isSecret: true,
+        category: "runtime"
+      })
+    ).rejects.toMatchObject({ code: "NOT_FOUND" } satisfies Partial<TRPCError>);
+    await expect(
+      caller.deleteEnvironmentVariable({
+        projectId: fixture.projectId,
+        scope: "project",
+        key: "TEAM_SCOPED_PROJECT_SECRET"
       })
     ).rejects.toMatchObject({ code: "NOT_FOUND" } satisfies Partial<TRPCError>);
   });

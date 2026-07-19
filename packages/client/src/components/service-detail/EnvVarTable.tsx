@@ -9,13 +9,14 @@ interface EnvVar {
   id: string;
   key: string;
   value: string;
-  scope: "environment" | "service";
+  scope: "project" | "environment" | "service";
   scopeLabel: string;
   originSummary: string;
   branchPattern: string | null;
   isSecret: boolean;
   source: "inline" | "1password";
   category: "runtime" | "build";
+  revision: number;
 }
 
 interface EnvVarTableProps {
@@ -218,6 +219,7 @@ export function EnvVarTable({
                         <span className="font-mono text-sm font-medium">{variable.key}</span>
                         <Badge variant="outline">{variable.category}</Badge>
                         <Badge variant="outline">{variable.scopeLabel}</Badge>
+                        <Badge variant="outline">r{variable.revision}</Badge>
                         {variable.isSecret ? <Badge variant="outline">Secret</Badge> : null}
                         {variable.source === "1password" ? (
                           <Badge variant="outline">1Password</Badge>
@@ -357,8 +359,8 @@ export function EnvVarTable({
                           className="text-xs text-muted-foreground"
                           data-testid={`service-envvar-shared-note-${variable.id}`}
                         >
-                          Shared environment values are read here so you can see inheritance. Add a
-                          service override above if this service needs different behavior.
+                          Inherited project and environment values are read-only here. Add a service
+                          override above if this service needs different behavior.
                         </p>
                       )}
                     </div>

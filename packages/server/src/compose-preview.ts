@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { ComposeEnvPayloadEntry } from "./compose-env";
+import { createComposeEnvContentRevision, type ComposeEnvPayloadEntry } from "./compose-env";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -331,7 +331,15 @@ export function buildComposePreviewEnvEntries(
     });
   }
 
-  return entries;
+  return entries.map((entry) => ({
+    ...entry,
+    origin: "preview-generated",
+    revision: createComposeEnvContentRevision({
+      origin: "preview-generated",
+      key: entry.key,
+      value: entry.value
+    })
+  }));
 }
 
 export function readComposePreviewMetadata(value: unknown): ComposePreviewMetadata | null {

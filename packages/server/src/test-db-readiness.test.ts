@@ -2,6 +2,10 @@ import { describe, expect, it } from "vitest";
 import { testDatabaseSchemaTestHooks } from "./test-db";
 
 const currentSchema = {
+  environmentVariablesRevision: "revision",
+  projectVariables: "project_variables",
+  projectVariablesRevision: "revision",
+  serviceVariablesRevision: "revision",
   gitProvidersInternalBaseUrl: "internal_base_url",
   gitInstallationsCredentialEncrypted: "credential_encrypted",
   gitProviderSetupStatesCodeVerifierEncrypted: "code_verifier_encrypted",
@@ -22,6 +26,10 @@ describe("test database schema readiness", () => {
   });
 
   it.each([
+    "environmentVariablesRevision",
+    "projectVariables",
+    "projectVariablesRevision",
+    "serviceVariablesRevision",
     "gitProvidersInternalBaseUrl",
     "gitInstallationsCredentialEncrypted",
     "gitProviderSetupStatesCodeVerifierEncrypted",

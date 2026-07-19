@@ -1,12 +1,24 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "../connection";
-import { environmentVariables, environments, projects } from "../schema/projects";
+import { environmentVariables, environments, projects, projectVariables } from "../schema/projects";
 import { serviceVariables, services } from "../schema/services";
 import { readBranchPattern } from "./envvar-layering";
 import { resolveTeamIdForUser } from "./teams";
 
 export type EnvironmentVariableRow = typeof environmentVariables.$inferSelect;
+export type ProjectVariableRow = typeof projectVariables.$inferSelect;
 export type ServiceVariableRow = typeof serviceVariables.$inferSelect;
+
+interface ScopedProjectRecord {
+  scope: "project";
+  teamId: string;
+  projectId: string;
+  projectName: string;
+  environmentId: null;
+  environmentName: null;
+  serviceId: null;
+  serviceName: null;
+}
 
 interface ScopedEnvironmentRecord {
   scope: "environment";
@@ -30,7 +42,31 @@ interface ScopedServiceRecord {
   serviceName: string;
 }
 
-export type ScopedVariableTarget = ScopedEnvironmentRecord | ScopedServiceRecord;
+export type ScopedVariableTarget =
+  ScopedProjectRecord | ScopedEnvironmentRecord | ScopedServiceRecord;
+
+async function getScopedProjectRecord(projectId: string, teamId: string) {
+  const [project] = await db
+    .select()
+    .from(projects)
+    .where(and(eq(projects.id, projectId), eq(projects.teamId, teamId)))
+    .limit(1);
+
+  if (!project) {
+    return null;
+  }
+
+  return {
+    scope: "project" as const,
+    teamId,
+    projectId: project.id,
+    projectName: project.name,
+    environmentId: null,
+    environmentName: null,
+    serviceId: null,
+    serviceName: null
+  } satisfies ScopedProjectRecord;
+}
 
 async function getScopedEnvironmentRecord(environmentId: string, teamId: string) {
   const [row] = await db
@@ -89,9 +125,10 @@ async function getScopedServiceRecord(serviceId: string, teamId: string) {
 }
 
 export async function resolveScopedVariableTarget(input: {
-  environmentId: string;
+  projectId?: string | null;
+  environmentId?: string | null;
   serviceId?: string | null;
-  scope: "environment" | "service";
+  scope: "project" | "environment" | "service";
   actorUserId: string;
   teamId?: string;
 }) {
@@ -100,8 +137,12 @@ export async function resolveScopedVariableTarget(input: {
     return null;
   }
 
+  if (input.scope === "project") {
+    return input.projectId ? getScopedProjectRecord(input.projectId, teamId) : null;
+  }
+
   if (input.scope === "service") {
-    if (!input.serviceId) {
+    if (!input.serviceId || !input.environmentId) {
       return null;
     }
 
@@ -113,12 +154,13 @@ export async function resolveScopedVariableTarget(input: {
     return service;
   }
 
-  return getScopedEnvironmentRecord(input.environmentId, teamId);
+  return input.environmentId ? getScopedEnvironmentRecord(input.environmentId, teamId) : null;
 }
 
 export function buildVariableTargetResource(input: {
-  scope: "environment" | "service";
-  environmentId: string;
+  scope: "project" | "environment" | "service";
+  projectId: string;
+  environmentId: string | null;
   serviceId: string | null;
   key: string;
   branchPattern: string;
@@ -128,6 +170,10 @@ export function buildVariableTargetResource(input: {
       ? `${input.key}@${encodeURIComponent(input.branchPattern)}`
       : input.key;
 
+  if (input.scope === "project") {
+    return `env-var/project/${input.projectId}/${selector}`;
+  }
+
   if (input.scope === "service" && input.serviceId) {
     return `env-var/service/${input.serviceId}/${selector}`;
   }
@@ -136,6 +182,10 @@ export function buildVariableTargetResource(input: {
 }
 
 export function buildVariableTargetLabel(target: ScopedVariableTarget) {
+  if (target.scope === "project") {
+    return target.projectName;
+  }
+
   return target.scope === "service"
     ? `${target.environmentName} / ${target.serviceName}`
     : target.environmentName;
@@ -147,10 +197,13 @@ export function buildVariableResourceMetadata(input: {
   branchPattern: string;
 }) {
   const branchPattern = readBranchPattern(input.branchPattern);
-  const resourceId =
-    input.target.scope === "service" && input.target.serviceId
-      ? `${input.target.serviceId}/${input.key}${branchPattern ? `@${branchPattern}` : ""}`
-      : `${input.target.environmentId}/${input.key}${branchPattern ? `@${branchPattern}` : ""}`;
+  const targetId =
+    input.target.scope === "project"
+      ? input.target.projectId
+      : input.target.scope === "service"
+        ? input.target.serviceId
+        : input.target.environmentId;
+  const resourceId = `${targetId}/${input.key}${branchPattern ? `@${branchPattern}` : ""}`;
 
   return {
     resourceType: "env-var",
@@ -172,6 +225,21 @@ export async function findExistingScopedVariable(input: {
   key: string;
   branchPattern: string;
 }) {
+  if (input.target.scope === "project") {
+    const [row] = await db
+      .select()
+      .from(projectVariables)
+      .where(
+        and(
+          eq(projectVariables.projectId, input.target.projectId),
+          eq(projectVariables.key, input.key)
+        )
+      )
+      .limit(1);
+
+    return row ?? null;
+  }
+
   if (input.target.scope === "service" && input.target.serviceId) {
     const [row] = await db
       .select()
