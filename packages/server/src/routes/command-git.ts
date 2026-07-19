@@ -3,8 +3,10 @@ import { z } from "zod";
 import {
   deleteGitProvider,
   getGitProvider,
-  registerGitProvider
+  registerGitProvider,
+  updateGitProviderCa
 } from "../db/services/git-providers";
+import { GitProviderCaTrustError } from "../db/services/git-provider-ca-trust";
 import {
   buildGitLabAuthorizationUrl,
   completeGitLabOAuthSetup,
@@ -38,6 +40,7 @@ export const gitRouter = t.router({
           webhookSecret: z.string().max(128).optional(),
           baseUrl: z.string().max(255).optional(),
           internalBaseUrl: z.string().max(255).optional(),
+          caCertificateId: z.string().min(1).max(32).optional(),
           gitlabCredential: z
             .discriminatedUnion("kind", [
               z.object({ kind: z.literal("oauth") }),
@@ -86,6 +89,9 @@ export const gitRouter = t.router({
         });
         return result.summary;
       } catch (error) {
+        if (error instanceof GitProviderCaTrustError) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: error.message });
+        }
         if (error instanceof GitLabCredentialValidationError) {
           throw new TRPCError({
             code: "BAD_REQUEST",
@@ -93,6 +99,31 @@ export const gitRouter = t.router({
           });
         }
         if (error instanceof Error && error.message.startsWith("GitLab")) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: error.message });
+        }
+        throw error;
+      }
+    }),
+
+  updateGitProviderCa: adminProcedure
+    .input(
+      z.object({
+        providerId: z.string().min(1).max(32),
+        caCertificateId: z.string().min(1).max(32).nullable()
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const teamId = await requireActorTeamId(ctx.session.user.id);
+      try {
+        const result = await updateGitProviderCa({
+          ...input,
+          teamId,
+          ...getActorContext(ctx)
+        });
+        if (result.status === "not_found") throw notFound();
+        return result.summary;
+      } catch (error) {
+        if (error instanceof GitProviderCaTrustError) {
           throw new TRPCError({ code: "BAD_REQUEST", message: error.message });
         }
         throw error;

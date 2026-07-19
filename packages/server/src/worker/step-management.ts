@@ -16,6 +16,7 @@ import type { ComposeInputManifest } from "../compose-inputs";
 import type { ComposePreviewMetadata } from "../compose-preview";
 import type { ComposeReadinessProbeSnapshot } from "../compose-readiness";
 import type { ServiceRuntimeConfig } from "../service-runtime-config";
+import { safeDeploymentFailureMessage } from "./deployment-failure-evidence";
 
 export type DeploymentRow = typeof deployments.$inferSelect;
 
@@ -114,7 +115,7 @@ export async function transitionDeployment(
     deploymentId: id,
     status,
     conclusion,
-    error
+    error: error ? safeDeploymentFailureMessage(error) : undefined
   });
 }
 
@@ -126,20 +127,24 @@ export async function emitEvent(
   summary: string,
   detail: string,
   severity: "info" | "warning" | "error" = "info"
-): Promise<void> {
-  await db.insert(events).values({
-    kind,
-    resourceType: "deployment",
-    resourceId: deployment.id,
-    summary,
-    detail,
-    severity,
-    metadata: {
-      serviceName: deployment.serviceName,
-      actorLabel: "execution-worker"
-    },
-    createdAt: new Date()
-  });
+): Promise<number | null> {
+  const [event] = await db
+    .insert(events)
+    .values({
+      kind,
+      resourceType: "deployment",
+      resourceId: deployment.id,
+      summary,
+      detail,
+      severity,
+      metadata: {
+        serviceName: deployment.serviceName,
+        actorLabel: "execution-worker"
+      },
+      createdAt: new Date()
+    })
+    .returning({ id: events.id });
+  return event?.id ?? null;
 }
 
 /* ──────────────────────── Config Snapshot ──────────────────────── */

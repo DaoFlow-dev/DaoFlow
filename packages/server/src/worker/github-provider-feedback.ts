@@ -3,6 +3,7 @@ import { db } from "../db/connection";
 import { gitInstallations, gitProviders } from "../db/schema/git-providers";
 import { projects } from "../db/schema/projects";
 import { fetchGitHubInstallationAccessToken } from "../db/services/github-app-auth";
+import { resolveGitProviderCaForProvider } from "../db/services/git-provider-ca-trust";
 import { buildGitHubApiBaseUrl } from "../db/services/project-source-provider-validation-shared";
 import type { ProviderFeedbackContext } from "../db/services/provider-feedback-types";
 import {
@@ -146,9 +147,11 @@ async function githubClient(input: ProviderFeedbackAdapterInput, target: LinkedG
       provider: target.provider,
       installation: target.installation
     });
+    const ca = await resolveGitProviderCaForProvider(target.provider);
     return {
       apiBaseUrl: buildGitHubApiBaseUrl(target.provider.baseUrl),
       accessToken,
+      ca,
       signal: input.signal
     } satisfies GitHubProviderFeedbackClient;
   } catch {

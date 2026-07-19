@@ -4,6 +4,7 @@ import "@testing-library/jest-dom/vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useState } from "react";
+import { clickSelectOption } from "@/test/select-option";
 import { GitLabProviderDialog } from "./GitLabProviderDialog";
 import {
   buildGitLabProviderPayload,
@@ -11,6 +12,7 @@ import {
   isGitLabProviderFormValid,
   type GitLabProviderFormState
 } from "./gitlab-provider-form";
+import type { CertificateAssetSummary } from "./git-provider-certificate";
 
 const {
   registerGitProviderUseMutationMock,
@@ -32,14 +34,23 @@ vi.mock("@/lib/trpc", () => ({
 
 let mutationOptions: { onSuccess?: () => void } = {};
 
-function DialogHarness() {
+function DialogHarness({
+  certificateAssets = []
+}: {
+  certificateAssets?: CertificateAssetSummary[];
+}) {
   const [open, setOpen] = useState(true);
   return (
     <>
       <button type="button" onClick={() => setOpen(true)} data-testid="reopen-gitlab-dialog">
         Reopen
       </button>
-      <GitLabProviderDialog open={open} onOpenChange={setOpen} onRegistered={vi.fn()} />
+      <GitLabProviderDialog
+        open={open}
+        onOpenChange={setOpen}
+        onRegistered={vi.fn()}
+        certificateAssets={certificateAssets}
+      />
     </>
   );
 }
@@ -210,6 +221,39 @@ describe("GitLab provider credentials", () => {
 
     expect(screen.getByTestId("git-provider-registration-error")).toHaveTextContent(
       "GitLab API token could not be validated."
+    );
+  });
+
+  it("includes the selected CA certificate when registering", () => {
+    render(
+      <DialogHarness
+        certificateAssets={[
+          {
+            id: "certificate_gitlab",
+            name: "GitLab CA",
+            fingerprint: "sha256:gitlab",
+            expiresAt: "2030-01-01T00:00:00.000Z",
+            status: "active"
+          }
+        ]}
+      />
+    );
+
+    fireEvent.change(screen.getByTestId("git-provider-name-input"), {
+      target: { value: "GitLab" }
+    });
+    fireEvent.change(screen.getByTestId("git-provider-client-id-input"), {
+      target: { value: "client-id" }
+    });
+    fireEvent.change(screen.getByTestId("git-provider-client-secret-input"), {
+      target: { value: "client-secret" }
+    });
+    fireEvent.click(screen.getByTestId("git-provider-ca-select"));
+    clickSelectOption("GitLab CA · active");
+    fireEvent.click(screen.getByTestId("git-provider-register-button"));
+
+    expect(registerGitProviderMutateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ caCertificateId: "certificate_gitlab" })
     );
   });
 });

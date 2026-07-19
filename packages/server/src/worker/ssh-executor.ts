@@ -9,14 +9,16 @@
  * All existing imports from "./ssh-executor" continue to work without changes.
  */
 
+export { execRemote, sshArgs, type SSHTarget } from "./ssh-connection";
+
+export { detectDockerVersion, testSSHConnection } from "./ssh-diagnostics";
+
 export {
-  execRemote,
-  testSSHConnection,
-  detectDockerVersion,
+  scpDownload,
   scpUpload,
-  sshArgs,
-  type SSHTarget
-} from "./ssh-connection";
+  type ScpTransferOptions,
+  type ScpTransferResult
+} from "./ssh-file-transfer";
 
 export { writeSSHKey, removeSSHKey } from "./ssh-key-files";
 export { shellQuote } from "./ssh-shell";

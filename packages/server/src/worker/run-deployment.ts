@@ -25,6 +25,7 @@ import { buildDockerContainerName } from "../docker-identifiers";
 import { getServerForTeam } from "../db/services/team-scoped-servers";
 import { DeploymentLifecycleStatus } from "@daoflow/shared";
 import { assertDockerOwnershipIdentity, type DockerOwnershipIdentity } from "../docker-ownership";
+import { recordDeploymentFailureEvidence } from "./deployment-failure-evidence";
 
 const DEFAULT_DEPLOY_TIMEOUT_MS = 24 * 60 * 60_000;
 const DEPLOY_TIMEOUT_MS = (() => {
@@ -37,6 +38,20 @@ class DeploymentTimeoutError extends Error {
   constructor(timeoutMs: number) {
     super(`Deployment timed out after ${timeoutMs / 1000}s`);
     this.name = "DeploymentTimeoutError";
+  }
+}
+
+async function recordSupplementaryFailureEvidence(
+  deployment: DeploymentRow,
+  error: unknown,
+  actorLabel: string
+): Promise<void> {
+  try {
+    await recordDeploymentFailureEvidence(deployment, error, actorLabel);
+  } catch {
+    console.warn(
+      `[deployment] Unable to record supplementary failure evidence for ${deployment.id}.`
+    );
   }
 }
 
@@ -92,20 +107,7 @@ export async function runDeployment(
   signal?: AbortSignal,
   timeoutMs = DEPLOY_TIMEOUT_MS
 ): Promise<"succeeded" | "cancelled"> {
-  const config = readConfig(deployment);
   const { onLog, flush } = createLogStreamer(deployment.id, actorLabel);
-
-  const projectName = config.projectName ?? deployment.serviceName.replace(/[^a-zA-Z0-9_-]/g, "_");
-  const composeProjectName = config.stackName ?? projectName;
-  const containerName = buildDockerContainerName(projectName, deployment.serviceName);
-  const ownership = await resolveDeploymentOwnership(deployment);
-  const server = await getServerForTeam(deployment.targetServerId, ownership.teamId);
-
-  if (!server) {
-    throw new Error(`Target server ${deployment.targetServerId} not found`);
-  }
-
-  const target = await resolveExecutionTarget(server, deployment.id, ownership.teamId);
   const executionController = new AbortController();
   const abortFromCaller = () => executionController.abort(signal?.reason);
   if (signal?.aborted) {
@@ -126,6 +128,19 @@ export async function runDeployment(
   }, DEPLOYMENT_PROGRESS_HEARTBEAT_MS);
 
   try {
+    const config = readConfig(deployment);
+    const projectName =
+      config.projectName ?? deployment.serviceName.replace(/[^a-zA-Z0-9_-]/g, "_");
+    const composeProjectName = config.stackName ?? projectName;
+    const containerName = buildDockerContainerName(projectName, deployment.serviceName);
+    const ownership = await resolveDeploymentOwnership(deployment);
+    const server = await getServerForTeam(deployment.targetServerId, ownership.teamId);
+
+    if (!server) {
+      throw new Error(`Target server ${deployment.targetServerId} not found`);
+    }
+
+    const target = await resolveExecutionTarget(server, deployment.id, ownership.teamId);
     throwIfExecutionAborted(executionSignal);
     await throwIfDeploymentCancellationRequested(deployment.id);
     if (deployment.status !== DeploymentLifecycleStatus.Waiting) {
@@ -248,24 +263,14 @@ export async function runDeployment(
 
     if (executionSignal.aborted && executionSignal.reason === timeoutError) {
       await transitionDeployment(deployment.id, "failed", "failed", timeoutError);
-      await emitEvent(
-        "deployment.failed",
-        deployment,
-        "Deployment failed",
-        timeoutError.message,
-        "error"
-      );
+      await flush();
+      await recordSupplementaryFailureEvidence(deployment, timeoutError, actorLabel);
       throw timeoutError;
     }
 
     await transitionDeployment(deployment.id, "failed", "failed", error);
-    await emitEvent(
-      "deployment.failed",
-      deployment,
-      "Deployment failed",
-      error instanceof Error ? error.message : String(error),
-      "error"
-    );
+    await flush();
+    await recordSupplementaryFailureEvidence(deployment, error, actorLabel);
     throw error;
   } finally {
     clearTimeout(executionTimeout);

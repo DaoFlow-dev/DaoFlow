@@ -1,4 +1,5 @@
 import { gitProviders } from "../schema/git-providers";
+import { fetchWithGitProviderCa } from "./git-provider-ca-trust";
 export { buildGitLabApiBaseUrl } from "./gitlab-urls";
 import type {
   ProjectSourceReadiness,
@@ -12,6 +13,7 @@ export type GitProviderValidationRecord = Pick<
   typeof gitProviders.$inferSelect,
   | "id"
   | "teamId"
+  | "caCertificateId"
   | "type"
   | "name"
   | "baseUrl"
@@ -152,13 +154,14 @@ function transientProviderMessage(input: {
 }
 
 export async function fetchWithProviderTimeout(
+  provider: Pick<GitProviderValidationRecord, "teamId" | "caCertificateId">,
   providerType: ProviderValidationProviderType,
   operation: string,
   url: string,
   init: RequestInit
 ): Promise<Response | ProjectSourceValidationResult> {
   try {
-    const response = await fetch(url, {
+    const response = await fetchWithGitProviderCa(provider, url, {
       ...init,
       signal: AbortSignal.timeout(getProviderValidationTimeoutMs())
     });

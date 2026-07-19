@@ -179,7 +179,7 @@ describe("control-plane environment variables", () => {
     expect(deletedDiff?.redactedDiff?.after).toBeNull();
   });
 
-  it("layers shared environment values, service overrides, and preview overrides", async () => {
+  it("layers project defaults, environment values, service overrides, and preview overrides", async () => {
     const teamId = await resolveTeamIdForUser("user_developer");
     if (!teamId) {
       throw new Error("Failed to resolve foundation team.");
@@ -207,6 +207,20 @@ describe("control-plane environment variables", () => {
       updatedByRole: "developer" as const
     };
 
+    const projectDefault = await upsertEnvironmentVariable({
+      ...actor,
+      projectId: "proj_daoflow_control_plane",
+      scope: "project",
+      key,
+      value: "project",
+      isSecret: false,
+      category: "runtime"
+    });
+    expect(projectDefault).toMatchObject({
+      scope: "project",
+      origin: "project"
+    });
+    expect(Number.isInteger(projectDefault?.revision)).toBe(true);
     await upsertEnvironmentVariable({
       ...actor,
       environmentId: "env_daoflow_staging",
@@ -260,18 +274,26 @@ describe("control-plane environment variables", () => {
       canRevealSecrets: true
     });
 
+    expect(baseInventory.summary.projectDefaults).toBeGreaterThanOrEqual(1);
     expect(baseInventory.summary.serviceOverrides).toBe(2);
     expect(baseInventory.summary.previewOverrides).toBeGreaterThanOrEqual(2);
-    expect(baseInventory.resolvedVariables.find((variable) => variable.key === key)).toMatchObject({
+    const baseVariable = baseInventory.resolvedVariables.find((variable) => variable.key === key);
+    expect(baseVariable).toMatchObject({
       displayValue: "service",
       scope: "service",
+      origin: "service",
       originSummary: "Service override"
     });
+    expect(Number.isInteger(baseVariable?.revision)).toBe(true);
+    expect(baseVariable?.overriddenOrigins).toEqual(
+      expect.arrayContaining(["project", "environment"])
+    );
     expect(
       previewInventory.resolvedVariables.find((variable) => variable.key === key)
     ).toMatchObject({
       displayValue: "service-preview",
       scope: "service",
+      origin: "preview-service",
       originSummary: "Service preview override"
     });
 
@@ -281,12 +303,123 @@ describe("control-plane environment variables", () => {
       branch: "preview/pr-42"
     });
 
-    expect(deploymentEntries.find((entry) => entry.key === key)).toMatchObject({
+    const deploymentEntry = deploymentEntries.find((entry) => entry.key === key);
+    expect(deploymentEntry).toMatchObject({
       value: "service-preview",
       category: "runtime",
       isSecret: false,
       source: "inline",
-      branchPattern: "preview/*"
+      branchPattern: "preview/*",
+      origin: "preview-service"
+    });
+    expect(deploymentEntry?.revision).toMatch(/^\d+$/);
+
+    await deleteEnvironmentVariable({
+      teamId,
+      environmentId: "env_daoflow_staging",
+      serviceId: serviceResult.service.id,
+      scope: "service",
+      key,
+      deletedByUserId: "user_developer",
+      deletedByEmail: "developer@daoflow.local",
+      deletedByRole: "developer"
+    });
+    const afterServiceDelete = await listEnvironmentVariableInventory({
+      teamId,
+      environmentId: "env_daoflow_staging",
+      serviceId: serviceResult.service.id,
+      canRevealSecrets: true
+    });
+    expect(
+      afterServiceDelete.resolvedVariables.find((variable) => variable.key === key)
+    ).toMatchObject({
+      displayValue: "shared",
+      origin: "environment"
+    });
+
+    await deleteEnvironmentVariable({
+      teamId,
+      environmentId: "env_daoflow_staging",
+      key,
+      deletedByUserId: "user_developer",
+      deletedByEmail: "developer@daoflow.local",
+      deletedByRole: "developer"
+    });
+    const afterEnvironmentDelete = await listEnvironmentVariableInventory({
+      teamId,
+      environmentId: "env_daoflow_staging",
+      serviceId: serviceResult.service.id,
+      canRevealSecrets: true
+    });
+    expect(
+      afterEnvironmentDelete.resolvedVariables.find((variable) => variable.key === key)
+    ).toMatchObject({
+      displayValue: "project",
+      origin: "project"
+    });
+    expect(
+      Number.isInteger(
+        afterEnvironmentDelete.resolvedVariables.find((variable) => variable.key === key)?.revision
+      )
+    ).toBe(true);
+  });
+
+  it("masks project secret defaults and records redacted project audits", async () => {
+    const teamId = await resolveTeamIdForUser("user_developer");
+    if (!teamId) throw new Error("Failed to resolve foundation team.");
+    const key = `PROJECT_SECRET_${randomUUID().replace(/-/g, "").slice(0, 10)}`;
+
+    const created = await upsertEnvironmentVariable({
+      teamId,
+      projectId: "proj_daoflow_control_plane",
+      scope: "project",
+      key,
+      value: "project-secret",
+      isSecret: true,
+      category: "runtime",
+      updatedByUserId: "user_developer",
+      updatedByEmail: "developer@daoflow.local",
+      updatedByRole: "developer"
+    });
+    const updated = await upsertEnvironmentVariable({
+      teamId,
+      projectId: "proj_daoflow_control_plane",
+      scope: "project",
+      key,
+      value: "rotated-project-secret",
+      isSecret: true,
+      category: "runtime",
+      updatedByUserId: "user_developer",
+      updatedByEmail: "developer@daoflow.local",
+      updatedByRole: "developer"
+    });
+    if (!created || !updated) {
+      throw new Error("Expected project environment variable mutations to succeed.");
+    }
+    expect(created.revision).toEqual(expect.any(Number));
+    expect(updated.revision).toBeGreaterThan(created.revision);
+
+    const inventory = await listEnvironmentVariableInventory({
+      teamId,
+      projectId: "proj_daoflow_control_plane"
+    });
+    expect(inventory.variables.find((variable) => variable.key === key)).toMatchObject({
+      displayValue: "[secret]",
+      origin: "project",
+      revision: updated.revision
+    });
+
+    const [audit] = await db
+      .select()
+      .from(auditEntries)
+      .where(eq(auditEntries.targetResource, `env-var/project/proj_daoflow_control_plane/${key}`))
+      .orderBy(desc(auditEntries.id))
+      .limit(1);
+    expect(JSON.stringify(audit?.metadata)).not.toContain("rotated-project-secret");
+    expect(audit?.metadata).toMatchObject({
+      redactedDiff: {
+        after: { value: "[secret]", origin: "project", revision: updated.revision }
+      }
     });
   });
 });

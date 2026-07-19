@@ -4,6 +4,7 @@ import {
   integer,
   index,
   jsonb,
+  pgSequence,
   pgTable,
   serial,
   text,
@@ -11,7 +12,7 @@ import {
   uniqueIndex,
   varchar
 } from "drizzle-orm/pg-core";
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 import { teams } from "./teams";
 import { users } from "./users";
 import { gitProviders, gitInstallations } from "./git-providers";
@@ -109,6 +110,8 @@ export const repositoryCredentials = pgTable(
   ]
 );
 
+export const environmentVariableRevisionSequence = pgSequence("environment_variable_revision_seq");
+
 export const environmentVariables = pgTable(
   "environment_variables",
   {
@@ -123,6 +126,9 @@ export const environmentVariables = pgTable(
     source: varchar("source", { length: 20 }).default("inline").notNull(), // inline | 1password
     secretRef: text("secret_ref"), // op://vault/item/field URI when source is "1password"
     branchPattern: varchar("branch_pattern", { length: 120 }).default("").notNull(),
+    revision: integer("revision")
+      .default(sql`nextval('environment_variable_revision_seq')`)
+      .notNull(),
     updatedByUserId: text("updated_by_user_id").references(() => users.id),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull()
@@ -137,6 +143,32 @@ export const environmentVariables = pgTable(
   ]
 );
 
+export const projectVariables = pgTable(
+  "project_variables",
+  {
+    id: serial("id").primaryKey(),
+    projectId: varchar("project_id", { length: 32 })
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    key: varchar("key", { length: 80 }).notNull(),
+    valueEncrypted: text("value_encrypted").notNull(),
+    isSecret: varchar("is_secret", { length: 5 }).default("false").notNull(),
+    category: varchar("category", { length: 20 }).default("runtime").notNull(),
+    source: varchar("source", { length: 20 }).default("inline").notNull(),
+    secretRef: text("secret_ref"),
+    revision: integer("revision")
+      .default(sql`nextval('environment_variable_revision_seq')`)
+      .notNull(),
+    updatedByUserId: text("updated_by_user_id").references(() => users.id),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull()
+  },
+  (table) => [
+    index("project_vars_project_id_idx").on(table.projectId),
+    uniqueIndex("project_vars_project_key_idx").on(table.projectId, table.key)
+  ]
+);
+
 export const projectsRelations = relations(projects, ({ one, many }) => ({
   team: one(teams, {
     fields: [projects.teamId],
@@ -146,7 +178,8 @@ export const projectsRelations = relations(projects, ({ one, many }) => ({
     fields: [projects.createdByUserId],
     references: [users.id]
   }),
-  environments: many(environments)
+  environments: many(environments),
+  variables: many(projectVariables)
 }));
 
 export const environmentsRelations = relations(environments, ({ one, many }) => ({
@@ -164,6 +197,17 @@ export const environmentVariablesRelations = relations(environmentVariables, ({ 
   }),
   updatedByUser: one(users, {
     fields: [environmentVariables.updatedByUserId],
+    references: [users.id]
+  })
+}));
+
+export const projectVariablesRelations = relations(projectVariables, ({ one }) => ({
+  project: one(projects, {
+    fields: [projectVariables.projectId],
+    references: [projects.id]
+  }),
+  updatedByUser: one(users, {
+    fields: [projectVariables.updatedByUserId],
     references: [users.id]
   })
 }));

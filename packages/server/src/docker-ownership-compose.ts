@@ -64,7 +64,7 @@ function serviceUsesImplicitDefaultNetwork(service: ComposeNode): boolean {
 
 function applyOwnershipToResources(
   doc: ComposeNode,
-  resourceKey: "networks" | "volumes",
+  resourceKey: "networks" | "volumes" | "configs" | "secrets",
   ownership: ReturnType<typeof buildDockerOwnershipLabels>
 ): void {
   if (!isComposeNode(doc[resourceKey])) {
@@ -110,6 +110,8 @@ export function applyDockerOwnershipToComposeDoc(
 
   applyOwnershipToResources(doc, "networks", ownership);
   applyOwnershipToResources(doc, "volumes", ownership);
+  applyOwnershipToResources(doc, "configs", ownership);
+  applyOwnershipToResources(doc, "secrets", ownership);
 
   if (!usesImplicitDefaultNetwork) {
     return;

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -258,6 +258,75 @@ describe("gitClone", () => {
     } finally {
       cleanupStagingDir(deploymentId);
     }
+  });
+
+  it("scopes a provider CA to clone, pinned checkout, submodules, and Git LFS then removes it", async () => {
+    const collector = createLogCollector();
+    const deploymentId = "provider-ca-checkout";
+    const configPaths = new Set<string>();
+    const caPaths = new Set<string>();
+    const execRunner = vi.fn(
+      (
+        _command: string,
+        _args: string[],
+        _cwd: string,
+        _onLog: unknown,
+        env?: Record<string, string>
+      ) => {
+        const configPath = env?.GIT_CONFIG_GLOBAL;
+        expect(configPath).toBeTypeOf("string");
+        configPaths.add(configPath as string);
+        const config = readFileSync(configPath as string, "utf8");
+        const caPath = config.match(/sslCAInfo = (.+)/)?.[1];
+        expect(caPath).toBeTypeOf("string");
+        caPaths.add(caPath as string);
+        expect(existsSync(caPath as string)).toBe(true);
+        return Promise.resolve({ exitCode: 0, signal: null });
+      }
+    );
+
+    try {
+      const result = await gitClone(
+        "https://git.example.test/team/repository.git",
+        "main",
+        deploymentId,
+        collector.onLog,
+        {
+          caCertificatePem: "-----BEGIN CERTIFICATE-----\nca\n-----END CERTIFICATE-----",
+          commitSha: "abcdef1234567890abcdef1234567890abcdef12",
+          repositoryPreparation: { submodules: true, gitLfs: true }
+        },
+        execRunner
+      );
+
+      expect(result).toMatchObject({ exitCode: 0 });
+      expect(execRunner).toHaveBeenCalledTimes(8);
+      expect(configPaths).toHaveLength(1);
+      expect(caPaths).toHaveLength(1);
+      for (const caPath of caPaths) {
+        expect(existsSync(caPath)).toBe(false);
+        expect(existsSync(join(caPath, ".."))).toBe(false);
+      }
+    } finally {
+      cleanupStagingDir(deploymentId);
+    }
+  });
+
+  it("rejects a custom CA for an SSH repository before running Git", async () => {
+    const collector = createLogCollector();
+    const execRunner = vi.fn();
+
+    await expect(
+      gitClone(
+        "git@git.example.test:team/repository.git",
+        "main",
+        "provider-ca-ssh-rejection",
+        collector.onLog,
+        { caCertificatePem: "-----BEGIN CERTIFICATE-----\nca\n-----END CERTIFICATE-----" },
+        execRunner
+      )
+    ).rejects.toThrow("only be used with an HTTPS repository URL");
+    expect(execRunner).not.toHaveBeenCalled();
   });
 
   it("writes SSH deploy keys only as temporary clone files and removes them during cleanup", async () => {

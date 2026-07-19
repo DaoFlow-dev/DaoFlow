@@ -20,26 +20,72 @@ const environmentVariableKeySchema = z
   .regex(/^[A-Z_][A-Z0-9_]*$/)
   .max(80);
 
-const upsertEnvironmentVariableInputSchema = z.object({
-  environmentId: z.string().min(1),
-  serviceId: z.string().min(1).optional(),
-  scope: z.enum(["environment", "service"]).optional(),
+const upsertVariableFields = {
   key: environmentVariableKeySchema,
   value: z.string().min(1).max(4000),
   isSecret: z.boolean(),
   category: z.enum(["runtime", "build"]),
   source: z.enum(["inline", "1password"]).optional(),
-  secretRef: z.string().max(500).nullable().optional(),
-  branchPattern: z.string().max(120).optional()
-});
+  secretRef: z.string().max(500).nullable().optional()
+} as const;
 
-const deleteEnvironmentVariableInputSchema = z.object({
-  environmentId: z.string().min(1),
-  serviceId: z.string().min(1).optional(),
-  scope: z.enum(["environment", "service"]).optional(),
-  key: environmentVariableKeySchema,
-  branchPattern: z.string().max(120).nullable().optional()
-});
+const deleteVariableFields = {
+  key: environmentVariableKeySchema
+} as const;
+
+const upsertEnvironmentVariableInputSchema = z.union([
+  z
+    .object({
+      ...upsertVariableFields,
+      projectId: z.string().min(1),
+      scope: z.literal("project").optional()
+    })
+    .strict(),
+  z
+    .object({
+      ...upsertVariableFields,
+      environmentId: z.string().min(1),
+      scope: z.literal("environment").optional(),
+      branchPattern: z.string().max(120).optional()
+    })
+    .strict(),
+  z
+    .object({
+      ...upsertVariableFields,
+      environmentId: z.string().min(1),
+      serviceId: z.string().min(1),
+      scope: z.literal("service").optional(),
+      branchPattern: z.string().max(120).optional()
+    })
+    .strict()
+]);
+
+const deleteEnvironmentVariableInputSchema = z.union([
+  z
+    .object({
+      ...deleteVariableFields,
+      projectId: z.string().min(1),
+      scope: z.literal("project").optional()
+    })
+    .strict(),
+  z
+    .object({
+      ...deleteVariableFields,
+      environmentId: z.string().min(1),
+      scope: z.literal("environment").optional(),
+      branchPattern: z.string().max(120).nullable().optional()
+    })
+    .strict(),
+  z
+    .object({
+      ...deleteVariableFields,
+      environmentId: z.string().min(1),
+      serviceId: z.string().min(1),
+      scope: z.literal("service").optional(),
+      branchPattern: z.string().max(120).nullable().optional()
+    })
+    .strict()
+]);
 
 async function requireViewerTeamId(userId: string) {
   const teamId = await resolveTeamIdForUser(userId);
@@ -66,7 +112,7 @@ export const deployEnvironmentCommandRouter = t.router({
       if (!variable) {
         throw new TRPCError({
           code: "NOT_FOUND",
-          message: "Environment record not found."
+          message: "Environment variable target not found."
         });
       }
 
@@ -100,7 +146,7 @@ export const deployEnvironmentCommandRouter = t.router({
       if (!result) {
         throw new TRPCError({
           code: "NOT_FOUND",
-          message: `Environment variable '${input.key}' not found in environment '${input.environmentId}'.`
+          message: `Environment variable '${input.key}' was not found in the requested scope.`
         });
       }
 

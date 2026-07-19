@@ -128,7 +128,23 @@ Execution semantics are deterministic:
 
 ## Environment Variable Injection
 
-DaoFlow injects environment variables from the project's environment configuration into the Compose file using `docker compose --env-file`:
+DaoFlow resolves environment values into the Compose file using `docker compose --env-file`. The
+order is fixed so a more-specific value wins:
+
+```text
+repository defaults < project < environment < service < preview environment < preview service
+```
+
+Set a project default once when every environment should inherit it:
+
+```bash
+daoflow env set --project-id proj_123 \
+  --key APP_PUBLIC_ORIGIN \
+  --value https://app.example.com \
+  --yes
+```
+
+An environment can still override that default when needed:
 
 ```bash
 daoflow env set --env-id env_prod_123 \
@@ -138,6 +154,15 @@ daoflow env set --env-id env_prod_123 \
 ```
 
 These are then available in your `compose.yaml` via `${DATABASE_URL}`.
+
+`daoflow env list --project-id proj_123 --json` shows project defaults. Environment and service
+inventory show the effective origin and revision for each resolved key. Deleting an override reveals
+the inherited value; it never copies or changes the shared default. Project secrets are encrypted at
+rest and stay masked unless the caller is allowed to read secrets.
+
+Every new deployment stores the winning origin and a stable revision with its encrypted environment
+snapshot. Deployment evidence keeps secret values redacted; repository defaults use a deterministic
+content-derived revision rather than a timestamp.
 
 For git-backed Compose deployments, DaoFlow also generates a redacted shell export file so remote SSH execution sees the same resolved build/runtime environment surface as local execution. This is what allows Compose `build:` services and environment-backed BuildKit secret references to behave consistently on the target host without leaking secret values into logs or persisted plan artifacts.
 
@@ -257,6 +282,13 @@ OAuth application and webhook inside the self-hosted GitLab instance. DaoFlow us
 URL when exchanging OAuth codes, validating source access, and matching webhook project URLs, so the
 same `group/project` path can exist safely on GitLab.com and a self-hosted GitLab host.
 
+If a self-hosted GitLab or GitHub Enterprise host uses a private certificate authority, first upload
+the CA certificate as a team certificate asset, then select it while registering the Git provider or
+from the provider card. DaoFlow applies that CA only to the selected provider's API, OAuth, feedback,
+clone, fetch, submodule, Git LFS, and branch-push traffic. The provider fails closed if the certificate
+is unavailable, inactive, expired, malformed, or not a CA certificate. DaoFlow does not disable TLS
+verification or change the process-wide or host-wide trust store.
+
 ### GitLab credential modes, scopes, and routing
 
 Choose the GitLab credential that matches the integration you need:
@@ -283,8 +315,9 @@ public webhook/source URL matching, and browser links. For a self-hosted instanc
 **Internal GitLab URL** lets the DaoFlow server use a private route for GitLab API and clone traffic
 while keeping the public URL in the provider configuration. Leave the internal URL empty to use the
 public URL for both paths. The internal address must resolve from the DaoFlow server and have a
-trusted TLS certificate; DaoFlow does not disable TLS verification. Use an explicitly configured CA
-trust chain when a private certificate authority is required.
+trusted TLS certificate; DaoFlow does not disable TLS verification. Select a team-owned CA certificate
+on the provider when a private certificate authority is required. The provider card shows the selected
+certificate fingerprint and warns when its expiry is unknown or approaching.
 
 Credential mode, intended scopes, expiry, and Clone/API/Feedback capabilities are visible on the
 provider card. Secret values are not displayed after registration.

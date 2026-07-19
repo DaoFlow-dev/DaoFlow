@@ -19,7 +19,11 @@ export async function executePostgresRestoreVerification(
 
   try {
     assertTrustedVerificationMetadata(ctx);
-    const prepared = prepareDatabaseRestorePath({ ...ctx, destination }, localPath);
+    const prepared = await prepareDatabaseRestorePath(
+      { ...ctx, destination },
+      localPath,
+      activityContext.cancellationSignal
+    );
     if (!prepared.success) throw new Error(prepared.error);
     const dumpPath = findLargestFile(prepared.path);
     if (!dumpPath) throw new Error("No PostgreSQL custom-format dump was downloaded.");

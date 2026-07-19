@@ -5,6 +5,10 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ProjectSettingsPanel } from "./ProjectSettingsPanel";
 
+vi.mock("./ProjectEnvironmentDefaultsPanel", () => ({
+  ProjectEnvironmentDefaultsPanel: () => <div data-testid="project-defaults-stub" />
+}));
+
 describe("ProjectSettingsPanel", () => {
   afterEach(() => {
     cleanup();
@@ -13,6 +17,7 @@ describe("ProjectSettingsPanel", () => {
   it("renders a saving state on the save action", () => {
     render(
       <ProjectSettingsPanel
+        projectId="proj_demo"
         editName="Demo"
         onEditName={vi.fn()}
         editDesc="Demo project"
@@ -33,6 +38,7 @@ describe("ProjectSettingsPanel", () => {
 
     render(
       <ProjectSettingsPanel
+        projectId="proj_demo"
         editName="Demo"
         onEditName={vi.fn()}
         editDesc="Demo project"

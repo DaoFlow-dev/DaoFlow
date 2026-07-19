@@ -17,6 +17,7 @@ const {
   executeImageDeploymentMock,
   executeNixpacksDeploymentMock,
   executeBuildpackDeploymentMock,
+  recordDeploymentFailureEvidenceMock,
   resolveExecutionTargetMock,
   withPreparedExecutionTargetMock
 } = vi.hoisted(() => ({
@@ -38,6 +39,7 @@ const {
   executeImageDeploymentMock: vi.fn(),
   executeNixpacksDeploymentMock: vi.fn(),
   executeBuildpackDeploymentMock: vi.fn(),
+  recordDeploymentFailureEvidenceMock: vi.fn(),
   cleanupStagingDirMock: vi.fn()
 }));
 
@@ -60,6 +62,10 @@ vi.mock("./deploy-strategies", () => ({
 
 vi.mock("./docker-executor", () => ({
   cleanupStagingDir: cleanupStagingDirMock
+}));
+vi.mock("./deployment-failure-evidence", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./deployment-failure-evidence")>()),
+  recordDeploymentFailureEvidence: recordDeploymentFailureEvidenceMock
 }));
 
 async function createDeploymentRecordFixture(sourceType: "compose" | "image" = "compose") {
@@ -140,6 +146,7 @@ async function createDeploymentRecordFixture(sourceType: "compose" | "image" = "
 describe("runDeployment", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
+    recordDeploymentFailureEvidenceMock.mockResolvedValue(undefined);
     await resetTestDatabaseWithControlPlane();
   });
 
@@ -289,6 +296,22 @@ describe("runDeployment", () => {
     expect(executeImageDeploymentMock).not.toHaveBeenCalled();
     expect(executeNixpacksDeploymentMock).not.toHaveBeenCalled();
     expect(executeBuildpackDeploymentMock).not.toHaveBeenCalled();
+
+    const [updated] = await db
+      .select()
+      .from(deployments)
+      .where(eq(deployments.id, deployment.id))
+      .limit(1);
+    expect(updated).toMatchObject({ status: "failed", conclusion: "failed" });
+    expect(recordDeploymentFailureEvidenceMock).toHaveBeenCalledWith(
+      expect.objectContaining({ id: deployment.id }),
+      expect.objectContaining({
+        message: expect.stringContaining(
+          "does not resolve to exactly one matching project, environment, and service"
+        )
+      }),
+      "test-worker"
+    );
   });
 
   it("uses the immutable deployment service after mutable service fields change", async () => {
@@ -304,5 +327,24 @@ describe("runDeployment", () => {
 
     expect(executeComposeDeploymentMock).toHaveBeenCalledOnce();
     expect(executeImageDeploymentMock).not.toHaveBeenCalled();
+  });
+
+  it("preserves the deployment failure when supplementary evidence persistence fails", async () => {
+    const deployment = await createDeploymentRecordFixture();
+    const failure = new Error("compose deployment failed");
+    executeComposeDeploymentMock.mockRejectedValueOnce(failure);
+    recordDeploymentFailureEvidenceMock.mockRejectedValueOnce(
+      new Error("failure evidence store unavailable")
+    );
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+
+    const { runDeployment } = await import("./run-deployment");
+
+    await expect(runDeployment(deployment, "test-worker")).rejects.toBe(failure);
+    expect(recordDeploymentFailureEvidenceMock).toHaveBeenCalledWith(
+      deployment,
+      failure,
+      "test-worker"
+    );
   });
 });

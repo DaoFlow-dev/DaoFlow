@@ -84,7 +84,7 @@ bad line
         key: "DATABASE_URL",
         displayValue: "[secret]",
         source: "inline",
-        origin: "environment-variable"
+        origin: "legacy-environment-variable"
       }),
       expect.objectContaining({
         key: "FROM_REPO",
@@ -98,6 +98,7 @@ bad line
         overrodeRepoDefault: true
       })
     ]);
+    expect(artifact.composeEnv.entries[0]?.revision).toMatch(/^legacy:sha256:[a-f0-9]{64}$/);
   });
 
   it("escapes compose interpolation tokens for DaoFlow-managed env values", () => {
@@ -224,6 +225,7 @@ bad line
         source: "repo-default",
         branchPattern: null,
         origin: "repo-default",
+        revision: "sha256:fixture",
         overrodeRepoDefault: false
       }
     ]);
@@ -239,6 +241,7 @@ bad line
           source: "repo-default",
           branchPattern: null,
           origin: "repo-default",
+          revision: "sha256:fixture",
           overrodeRepoDefault: false
         }
       ]
@@ -275,7 +278,8 @@ bad line
       }
     });
 
-    expect(readDeploymentComposeState(encrypted)).toEqual({
+    const state = readDeploymentComposeState(encrypted);
+    expect(state).toMatchObject({
       envState: {
         kind: "queued",
         entries: [
@@ -285,7 +289,8 @@ bad line
             category: "runtime",
             isSecret: false,
             source: "inline",
-            branchPattern: null
+            branchPattern: null,
+            origin: "legacy-environment-variable"
           }
         ]
       },
@@ -306,5 +311,6 @@ bad line
         managedServiceLoggingOwnership: { version: 1, serviceName: "api" }
       }
     });
+    expect(state.envState.entries[0]?.revision).toMatch(/^legacy:sha256:[a-f0-9]{64}$/);
   });
 });

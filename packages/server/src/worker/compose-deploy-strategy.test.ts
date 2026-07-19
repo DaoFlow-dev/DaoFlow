@@ -29,6 +29,7 @@ describe("executeComposeDeployment", () => {
     const {
       executeComposeDeployment,
       persistDeploymentComposeEnvState,
+      assertComposeRuntimeOwnership,
       dockerComposePull,
       dockerComposeBuild,
       dockerComposeUp,
@@ -58,6 +59,14 @@ describe("executeComposeDeployment", () => {
     );
 
     expect(dockerComposePull).not.toHaveBeenCalled();
+    expect(assertComposeRuntimeOwnership).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: "compose",
+        runtimeName: "demo",
+        ownershipScopes: [ownership],
+        target: { mode: "local" }
+      })
+    );
     expect(dockerComposeBuild).toHaveBeenCalledWith(
       ".daoflow.compose.inputs/compose-01__deploy__compose.yaml.yaml",
       "demo",
@@ -98,6 +107,48 @@ describe("executeComposeDeployment", () => {
     };
     expect(persistedState.deploymentId).toBe("dep_build_only");
     expect(persistedState.composeBuildPlan?.strategy).toBe("build-only");
+  });
+
+  it("stops before compose commands when runtime ownership preflight rejects a collision", async () => {
+    const {
+      executeComposeDeployment,
+      assertComposeRuntimeOwnership,
+      dockerComposeBuild,
+      dockerComposePull,
+      dockerComposeUp
+    } = await loadHarness({
+      buildPlan: createBuildPlan({
+        strategy: "build-only",
+        services: [createLocalBuildService("api")]
+      })
+    });
+    assertComposeRuntimeOwnership.mockRejectedValueOnce(
+      new Error(
+        'Compose project "demo" has an unowned container (external-api); refusing to modify it.'
+      )
+    );
+
+    await expect(
+      executeComposeDeployment(
+        {
+          id: "dep_ownership_collision",
+          serviceName: "api",
+          envVarsEncrypted: null
+        } as never,
+        {
+          deploymentSource: "git-repository",
+          composeFilePath: "deploy/compose.yaml"
+        },
+        "demo",
+        ownership,
+        () => undefined,
+        { mode: "local" }
+      )
+    ).rejects.toThrow('Compose project "demo" has an unowned container');
+
+    expect(dockerComposePull).not.toHaveBeenCalled();
+    expect(dockerComposeBuild).not.toHaveBeenCalled();
+    expect(dockerComposeUp).not.toHaveBeenCalled();
   });
 
   it("pulls then builds before start for mixed compose stacks", async () => {
@@ -312,14 +363,29 @@ describe("executeComposeDeployment", () => {
     );
   });
 
-  it("runs docker compose down for preview cleanup deployments", async () => {
-    const { executeComposeDeployment, dockerComposePull, dockerComposeBuild, dockerComposeDown } =
-      await loadHarness({
-        buildPlan: createBuildPlan({
-          strategy: "pull-only",
-          services: []
-        })
-      });
+  it("removes only the verified Compose resources for preview cleanup", async () => {
+    const {
+      executeComposeDeployment,
+      assertComposeRuntimeOwnership,
+      cleanupComposeProjectRuntime,
+      dockerComposePull,
+      dockerComposeBuild,
+      dockerComposeDown
+    } = await loadHarness({
+      buildPlan: createBuildPlan({
+        strategy: "pull-only",
+        services: []
+      })
+    });
+    const verifiedResources = {
+      containers: ["container-verified"],
+      networks: ["network-verified"],
+      volumes: ["volume-verified"],
+      services: [],
+      configs: [],
+      secrets: []
+    };
+    assertComposeRuntimeOwnership.mockResolvedValueOnce(verifiedResources);
 
     await executeComposeDeployment(
       {
@@ -340,18 +406,21 @@ describe("executeComposeDeployment", () => {
 
     expect(dockerComposePull).not.toHaveBeenCalled();
     expect(dockerComposeBuild).not.toHaveBeenCalled();
-    expect(dockerComposeDown).toHaveBeenCalledWith(
-      ".daoflow.compose.inputs/compose-01__deploy__compose.yaml.yaml",
+    expect(dockerComposeDown).not.toHaveBeenCalled();
+    expect(cleanupComposeProjectRuntime).toHaveBeenCalledWith(
+      { mode: "local" },
       "demo-pr-42",
-      "/tmp/daoflow-build",
+      [ownership],
       expect.any(Function),
-      ".daoflow.compose.env"
+      expect.any(Function),
+      verifiedResources
     );
   });
 
   it("deploys Swarm manager targets with docker stack deploy semantics", async () => {
     const {
       executeComposeDeployment,
+      assertComposeRuntimeOwnership,
       dockerComposeUp,
       dockerStackDeploy,
       dockerStackServices,
@@ -380,6 +449,14 @@ describe("executeComposeDeployment", () => {
     );
 
     expect(dockerComposeUp).not.toHaveBeenCalled();
+    expect(assertComposeRuntimeOwnership).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: "swarm",
+        runtimeName: "demo-stack",
+        ownershipScopes: [ownership],
+        target: { mode: "local", serverKind: "docker-swarm-manager" }
+      })
+    );
     expect(dockerStackDeploy).toHaveBeenCalledWith(
       ".daoflow.compose.inputs/compose-01__deploy__compose.yaml.yaml",
       "demo-stack",
@@ -400,13 +477,28 @@ describe("executeComposeDeployment", () => {
     );
   });
 
-  it("removes preview stacks with docker stack rm on Swarm manager targets", async () => {
-    const { executeComposeDeployment, dockerComposeDown, dockerStackRemove } = await loadHarness({
+  it("removes only verified preview stack resources on Swarm manager targets", async () => {
+    const {
+      executeComposeDeployment,
+      assertComposeRuntimeOwnership,
+      cleanupSwarmStackRuntime,
+      dockerComposeDown,
+      dockerStackRemove
+    } = await loadHarness({
       buildPlan: createBuildPlan({
         strategy: "pull-only",
         services: []
       })
     });
+    const verifiedResources = {
+      containers: [],
+      networks: ["network-verified"],
+      volumes: [],
+      services: ["service-verified"],
+      configs: ["config-verified"],
+      secrets: ["secret-verified"]
+    };
+    assertComposeRuntimeOwnership.mockResolvedValueOnce(verifiedResources);
 
     await executeComposeDeployment(
       {
@@ -426,10 +518,14 @@ describe("executeComposeDeployment", () => {
     );
 
     expect(dockerComposeDown).not.toHaveBeenCalled();
-    expect(dockerStackRemove).toHaveBeenCalledWith(
+    expect(dockerStackRemove).not.toHaveBeenCalled();
+    expect(cleanupSwarmStackRuntime).toHaveBeenCalledWith(
+      { mode: "local", serverKind: "docker-swarm-manager" },
       "demo-stack-pr-42",
-      "/tmp/daoflow-build",
-      expect.any(Function)
+      [ownership],
+      expect.any(Function),
+      expect.any(Function),
+      verifiedResources
     );
   });
 });

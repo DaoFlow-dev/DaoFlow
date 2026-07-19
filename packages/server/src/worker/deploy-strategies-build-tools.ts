@@ -38,7 +38,6 @@ async function cloneBuildSource(input: {
     await markStepFailed(cloneStepId, `No repository URL provided for ${input.label} deployment`);
     throw new Error(`${input.label} deployment requires a repository URL`);
   }
-
   const result = await gitClone(
     checkout.repoUrl,
     checkout.branch,
@@ -47,6 +46,7 @@ async function cloneBuildSource(input: {
     {
       displayLabel: checkout.displayLabel,
       gitConfig: checkout.gitConfig,
+      caCertificatePem: checkout.caCertificatePem,
       sshPrivateKey: checkout.sshPrivateKey,
       repositoryPreparation: checkout.repositoryPreparation,
       commitSha: input.deployment.commitSha ?? undefined,

@@ -41,6 +41,10 @@ const mocks = vi.hoisted(() => ({
   persistDeploymentComposeEnvState: vi.fn(),
   readComposeReadinessProbeSnapshot: vi.fn(),
   prepareComposeWorkspace: vi.fn(),
+  assertComposeRuntimeOwnership: vi.fn(),
+  cleanupComposeProjectRuntime: vi.fn(),
+  cleanupSwarmStackRuntime: vi.fn(),
+  executeDockerTargetCommand: vi.fn(),
   execStreaming: vi.fn(),
   dockerComposePull: vi.fn(),
   dockerComposeBuild: vi.fn(),
@@ -102,6 +106,16 @@ vi.mock("../compose-readiness", async (importOriginal) => {
 
 vi.mock("./compose-workspace", () => ({
   prepareComposeWorkspace: mocks.prepareComposeWorkspace
+}));
+
+vi.mock("./compose-runtime-ownership", () => ({
+  assertComposeRuntimeOwnership: mocks.assertComposeRuntimeOwnership
+}));
+
+vi.mock("./runtime-cleanup", () => ({
+  cleanupComposeProjectRuntime: mocks.cleanupComposeProjectRuntime,
+  cleanupSwarmStackRuntime: mocks.cleanupSwarmStackRuntime,
+  executeDockerTargetCommand: mocks.executeDockerTargetCommand
 }));
 
 vi.mock("./docker-executor", () => ({
@@ -270,6 +284,9 @@ export function createBuildPlan(input: {
 interface ComposeDeployStrategyHarness {
   executeComposeDeployment: typeof import("./compose-deploy-strategy").executeComposeDeployment;
   persistDeploymentComposeEnvState: Mock;
+  assertComposeRuntimeOwnership: Mock;
+  cleanupComposeProjectRuntime: Mock;
+  cleanupSwarmStackRuntime: Mock;
   dockerComposeBuild: Mock;
   dockerComposeDown: Mock;
   dockerComposePs: Mock;
@@ -346,6 +363,9 @@ export async function loadHarness(input: {
   return {
     executeComposeDeployment,
     persistDeploymentComposeEnvState: mocks.persistDeploymentComposeEnvState,
+    assertComposeRuntimeOwnership: mocks.assertComposeRuntimeOwnership,
+    cleanupComposeProjectRuntime: mocks.cleanupComposeProjectRuntime,
+    cleanupSwarmStackRuntime: mocks.cleanupSwarmStackRuntime,
     dockerComposeBuild: mocks.dockerComposeBuild,
     dockerComposeDown: mocks.dockerComposeDown,
     dockerComposePs: mocks.dockerComposePs,
@@ -379,6 +399,20 @@ export function resetComposeDeployStrategyHarness() {
 
     return createComposeWorkspace(mockState.buildPlan);
   });
+  mocks.assertComposeRuntimeOwnership.mockResolvedValue({
+    containers: [],
+    networks: [],
+    volumes: [],
+    services: [],
+    configs: [],
+    secrets: []
+  });
+  mocks.cleanupComposeProjectRuntime.mockResolvedValue({
+    removedContainers: 0,
+    removedNetworks: 0,
+    removedVolumes: 0
+  });
+  mocks.cleanupSwarmStackRuntime.mockResolvedValue(undefined);
   mocks.execStreaming.mockResolvedValue({ exitCode: 0 });
   mocks.dockerComposePull.mockResolvedValue({ exitCode: 0 });
   mocks.dockerComposeBuild.mockResolvedValue({ exitCode: 0 });

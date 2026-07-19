@@ -207,22 +207,45 @@ const coreReadRouter = t.router({
     .query(async ({ input }) => listRequestAccessLogs(input)),
   environmentVariables: envReadProcedure
     .input(
-      z.object({
-        environmentId: z.string().min(1).optional(),
-        serviceId: z.string().min(1).optional(),
-        branch: z.string().min(1).max(255).optional(),
-        previewEnvironmentId: z.string().min(1).optional(),
-        limit: z.number().int().min(1).max(100).optional()
-      })
+      z.union([
+        z
+          .object({
+            projectId: z.string().min(1),
+            limit: z.number().int().min(1).max(100).optional()
+          })
+          .strict(),
+        z
+          .object({
+            environmentId: z.string().min(1),
+            serviceId: z.string().min(1).optional(),
+            branch: z.string().min(1).max(255).optional(),
+            limit: z.number().int().min(1).max(100).optional()
+          })
+          .strict(),
+        z
+          .object({
+            previewEnvironmentId: z.string().min(1),
+            limit: z.number().int().min(1).max(100).optional()
+          })
+          .strict(),
+        z
+          .object({
+            branch: z.string().min(1).max(255).optional(),
+            limit: z.number().int().min(1).max(100).optional()
+          })
+          .strict()
+      ])
     )
     .query(async ({ ctx, input }) => {
       const teamId = await requireViewerTeamId(ctx.session.user.id);
       return listEnvironmentVariableInventory({
         teamId,
-        environmentId: input.environmentId,
-        serviceId: input.serviceId,
-        branch: input.branch,
-        previewEnvironmentId: input.previewEnvironmentId,
+        projectId: "projectId" in input ? input.projectId : undefined,
+        environmentId: "environmentId" in input ? input.environmentId : undefined,
+        serviceId: "serviceId" in input ? input.serviceId : undefined,
+        branch: "branch" in input ? input.branch : undefined,
+        previewEnvironmentId:
+          "previewEnvironmentId" in input ? input.previewEnvironmentId : undefined,
         limit: input.limit ?? 50,
         canRevealSecrets: ctx.auth.capabilities.includes("secrets:read")
       });

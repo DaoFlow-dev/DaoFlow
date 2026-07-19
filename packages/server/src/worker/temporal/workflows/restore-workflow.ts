@@ -12,7 +12,7 @@
  * 6. Dispatch notifications
  */
 
-import { patched, proxyActivities } from "@temporalio/workflow";
+import { CancellationScope, patched, proxyActivities } from "@temporalio/workflow";
 import type * as restoreActs from "../activities/restore-activities";
 import type * as notificationActs from "../activities/notification-activities";
 import type { RestoreWorkflowInput } from "../restore-workflow-input";
@@ -88,6 +88,7 @@ export async function restoreWorkflow(input: RestoreWorkflowInput): Promise<void
   }
 
   let verificationResult: Awaited<ReturnType<typeof executeRestore>>["verificationResult"];
+  let cleanupAttempted = false;
 
   try {
     // Emit started event
@@ -152,6 +153,9 @@ export async function restoreWorkflow(input: RestoreWorkflowInput): Promise<void
       throw new Error(`Restore execution failed: ${restore.error}`);
     }
 
+    cleanupAttempted = true;
+    await CancellationScope.nonCancellable(() => cleanupRestoreDownload(ctx));
+
     // Phase 3: Mark success
     if (usesExplicitRestoreMode) {
       await markRestoreSucceeded(ctx.restoreId, verificationResult);
@@ -213,26 +217,37 @@ export async function restoreWorkflow(input: RestoreWorkflowInput): Promise<void
       // Best-effort
     }
   } catch (err) {
-    const errorMsg = err instanceof Error ? err.message : "Unknown restore error";
-
-    if (usesExplicitRestoreMode) {
-      await markRestoreFailed(ctx.restoreId, errorMsg, verificationResult);
-    } else {
-      await markRestoreFailed(ctx.restoreId, errorMsg);
+    let failure = err;
+    if (!cleanupAttempted) {
+      cleanupAttempted = true;
+      try {
+        await CancellationScope.nonCancellable(() => cleanupRestoreDownload(ctx));
+      } catch (cleanupError) {
+        failure = combineRestoreAndCleanupErrors(err, cleanupError);
+      }
     }
+    const errorMsg = failure instanceof Error ? failure.message : "Unknown restore error";
 
-    await emitRestoreEvent(ctx.restoreId, "restore.failed", "Restore failed", errorMsg, "error");
+    await CancellationScope.nonCancellable(async () => {
+      if (usesExplicitRestoreMode) {
+        await markRestoreFailed(ctx.restoreId, errorMsg, verificationResult);
+      } else {
+        await markRestoreFailed(ctx.restoreId, errorMsg);
+      }
 
-    if (usesExplicitRestoreMode) {
-      await auditRestoreAction(
-        ctx.restoreId,
-        mode === "verification" ? "backup.verify.failed" : "restore.failed",
-        errorMsg,
-        "failure"
-      );
-    } else {
-      await auditRestoreAction(ctx.restoreId, "restore.failed", errorMsg, "failure");
-    }
+      await emitRestoreEvent(ctx.restoreId, "restore.failed", "Restore failed", errorMsg, "error");
+
+      if (usesExplicitRestoreMode) {
+        await auditRestoreAction(
+          ctx.restoreId,
+          mode === "verification" ? "backup.verify.failed" : "restore.failed",
+          errorMsg,
+          "failure"
+        );
+      } else {
+        await auditRestoreAction(ctx.restoreId, "restore.failed", errorMsg, "failure");
+      }
+    });
 
     // Dispatch "failed" notification
     try {
@@ -248,12 +263,19 @@ export async function restoreWorkflow(input: RestoreWorkflowInput): Promise<void
       // Best-effort
     }
 
-    throw err;
-  } finally {
-    try {
-      await cleanupRestoreDownload(ctx);
-    } catch {
-      // Best-effort cleanup must not replace the restore result.
-    }
+    throw failure;
   }
+}
+
+function combineRestoreAndCleanupErrors(operationError: unknown, cleanupError: unknown): Error {
+  const operation = asWorkflowError(operationError, "Restore operation failed.");
+  const cleanup = asWorkflowError(cleanupError, "Restore staging cleanup failed.");
+  return new AggregateError(
+    [operation, cleanup],
+    `Restore operation and staging cleanup both failed. Operation: ${operation.message} Cleanup: ${cleanup.message}`
+  );
+}
+
+function asWorkflowError(error: unknown, fallback: string): Error {
+  return error instanceof Error ? error : new Error(fallback);
 }

@@ -7,7 +7,6 @@ import {
   type ServiceScheduleMonitorLease
 } from "../db/services/service-schedule-lease";
 import { newId } from "../db/services/json-helpers";
-import { recoverStaleServiceScheduleRuns } from "../db/services/service-schedule-occurrences";
 import { createDueServiceScheduleRuns } from "../db/services/service-schedules";
 import { pollServiceScheduleRuns } from "./service-schedule-runner";
 import { startServiceScheduleLeaseHeartbeat } from "./service-schedule-lease-heartbeat";
@@ -218,15 +217,13 @@ export async function runServiceScheduleMonitorCycle(
     void heartbeat.waitForLoss().then(abortCommands);
     options.signal?.addEventListener("abort", abortCommands, { once: true });
 
-    let recoveredRuns = 0;
+    // A lease takeover cannot prove that the prior Docker command stopped.
+    // Keep stale running rows fenced so due-occurrence handling skips instead of overlapping them.
+    const recoveredRuns = 0;
     let created: Awaited<ReturnType<typeof createDueServiceScheduleRuns>> = [];
     let leaseStillCurrent = false;
     let runner = { processed: 0, leaseLost: true };
     try {
-      recoveredRuns = await recoverStaleServiceScheduleRuns({
-        actor: scheduleActor(),
-        lease: heartbeat.currentLease()
-      });
       created = await createDueServiceScheduleRuns({
         actor: scheduleActor(),
         lease: heartbeat.currentLease(),

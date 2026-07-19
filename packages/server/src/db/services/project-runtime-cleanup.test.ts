@@ -263,21 +263,58 @@ describe("cleanupProjectRuntime", () => {
     expect(cleanupComposeProjectRuntimeMock).toHaveBeenCalledWith(
       expect.objectContaining({ mode: "remote" }),
       "demo",
+      expect.arrayContaining([
+        expect.objectContaining({
+          teamId: "team_foundation",
+          projectId: fixture.project.id,
+          environmentId: fixture.environment.id,
+          serviceId: "svc_cleanup_api"
+        }),
+        expect.objectContaining({
+          teamId: "team_foundation",
+          projectId: fixture.project.id,
+          environmentId: fixture.environment.id,
+          serviceId: "svc_cleanup_worker"
+        })
+      ]),
       expect.any(Function)
     );
     expect(cleanupComposeProjectRuntimeMock).toHaveBeenCalledWith(
       expect.objectContaining({ mode: "remote" }),
       "demo-pr-42",
+      expect.arrayContaining([
+        expect.objectContaining({
+          teamId: "team_foundation",
+          projectId: fixture.project.id,
+          environmentId: fixture.environment.id,
+          serviceId: "svc_cleanup_api"
+        })
+      ]),
       expect.any(Function)
     );
     expect(cleanupSwarmStackRuntimeMock).toHaveBeenCalledWith(
       expect.objectContaining({ mode: "remote", serverKind: "docker-swarm-manager" }),
       "demo-swarm",
+      expect.arrayContaining([
+        expect.objectContaining({
+          teamId: "team_foundation",
+          projectId: fixture.project.id,
+          environmentId: fixture.environment.id,
+          serviceId: "svc_cleanup_api"
+        })
+      ]),
       expect.any(Function)
     );
     expect(cleanupContainerRuntimeMock).toHaveBeenCalledWith(
       expect.objectContaining({ mode: "remote" }),
       expect.stringContaining("-jobs"),
+      expect.arrayContaining([
+        expect.objectContaining({
+          teamId: "team_foundation",
+          projectId: fixture.project.id,
+          environmentId: fixture.environment.id
+        })
+      ]),
       expect.any(Function)
     );
   });

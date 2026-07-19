@@ -1,5 +1,5 @@
 {
-  "id": "cd16745b-1152-41ef-8a72-1e6534c9ee5e",
+  "id": "5968e83a-3eb2-40eb-8030-7bbbbab77542",
   "prevId": "ab3bdb54-e66f-43f1-b3b2-17ac9fb279f0",
   "version": "7",
   "dialect": "postgresql",
@@ -842,7 +842,13 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
+      "uniqueConstraints": {
+        "certificate_assets_id_team_id_unique": {
+          "name": "certificate_assets_id_team_id_unique",
+          "nullsNotDistinct": false,
+          "columns": ["id", "team_id"]
+        }
+      },
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -2676,12 +2682,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "service_id": {
-          "name": "service_id",
-          "type": "varchar(32)",
-          "primaryKey": false,
-          "notNull": false
-        },
         "service_name": {
           "name": "service_name",
           "type": "varchar(80)",
@@ -2838,21 +2838,6 @@
           "columns": [
             {
               "expression": "target_server_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "deployments_service_id_idx": {
-          "name": "deployments_service_id_idx",
-          "columns": [
-            {
-              "expression": "service_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"

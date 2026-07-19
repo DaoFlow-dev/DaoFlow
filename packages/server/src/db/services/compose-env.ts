@@ -2,11 +2,13 @@ import { asc, eq } from "drizzle-orm";
 import { db } from "../connection";
 import { decrypt, encrypt } from "../crypto";
 import { deployments } from "../schema/deployments";
-import { environmentVariables } from "../schema/projects";
+import { environmentVariables, environments, projects, projectVariables } from "../schema/projects";
 import { serviceVariables } from "../schema/services";
 import {
   buildMaterializedComposeEnvEvidence,
   buildQueuedComposeEnvEvidence,
+  createComposeEnvContentRevision,
+  type ComposeEnvEntryOrigin,
   type ComposeEnvVariableCategory,
   type ComposeEnvEvidence,
   type ComposeEnvMaterializedEntry,
@@ -22,11 +24,66 @@ import {
   normalizeStoredBranchPattern,
   readBranchPattern,
   resolveEffectiveEnvironmentVariableRecords,
+  getEnvironmentVariableOrigin,
   type LayeredEnvironmentVariableRecord
 } from "./envvar-layering";
+import {
+  resolveTeamOnePasswordSecretReferences,
+  type OnePasswordSecretReferenceResolver
+} from "./onepassword";
 
 function normalizeComposeEnvCategory(value: string): ComposeEnvVariableCategory {
   return value === "build" ? "build" : "runtime";
+}
+
+function readComposeEnvOrigin(value: unknown): ComposeEnvEntryOrigin {
+  return value === "repo-default" ||
+    value === "project" ||
+    value === "environment" ||
+    value === "service" ||
+    value === "preview-environment" ||
+    value === "preview-service" ||
+    value === "preview-generated" ||
+    value === "legacy-environment-variable"
+    ? value
+    : "legacy-environment-variable";
+}
+
+function readComposeEnvRevision(input: {
+  value: unknown;
+  origin: ComposeEnvEntryOrigin;
+  key: string;
+  entryValue: string;
+  category: ComposeEnvVariableCategory | "default";
+  source: "inline" | "1password" | "repo-default";
+  branchPattern: string | null;
+  isSecret: boolean;
+}) {
+  if (typeof input.value === "string" && input.value.length > 0) {
+    return input.value;
+  }
+
+  if (input.origin === "repo-default") {
+    return createComposeEnvContentRevision({
+      origin: input.origin,
+      key: input.key,
+      value: input.entryValue
+    });
+  }
+
+  const metadata = [
+    input.origin,
+    input.key,
+    input.category,
+    input.source,
+    input.branchPattern ?? "",
+    input.isSecret ? "secret" : "plain"
+  ].join("\u0000");
+  return createComposeEnvContentRevision({
+    origin: "legacy-environment-variable",
+    key: input.key,
+    value: metadata
+  }).replace("sha256:", "legacy:sha256:");
 }
 
 export type DeploymentComposeEnvState =
@@ -172,7 +229,21 @@ export async function resolveComposeDeploymentEnvEntries(input: {
   serviceId?: string | null;
   branch: string;
   additionalEntries?: ComposeEnvPayloadEntry[];
+  resolveOnePasswordSecretReference?: OnePasswordSecretReferenceResolver;
 }): Promise<ComposeEnvPayloadEntry[]> {
+  const [environment] = await db
+    .select({ id: environments.id, projectId: environments.projectId, teamId: projects.teamId })
+    .from(environments)
+    .innerJoin(projects, eq(projects.id, environments.projectId))
+    .where(eq(environments.id, input.environmentId))
+    .limit(1);
+  const projectRows = environment
+    ? await db
+        .select()
+        .from(projectVariables)
+        .where(eq(projectVariables.projectId, environment.projectId))
+        .orderBy(asc(projectVariables.key))
+    : [];
   const environmentRows = await db
     .select()
     .from(environmentVariables)
@@ -187,11 +258,35 @@ export async function resolveComposeDeploymentEnvEntries(input: {
     : [];
 
   const layeredRecords = [
+    ...projectRows.map(
+      (row) =>
+        ({
+          id: `projvar_${row.id}`,
+          scope: "project",
+          projectId: row.projectId,
+          projectName: "",
+          environmentId: null,
+          environmentName: null,
+          serviceId: null,
+          serviceName: null,
+          key: row.key,
+          value: decrypt(row.valueEncrypted),
+          isSecret: row.isSecret === "true" || row.source === "1password",
+          category: normalizeComposeEnvCategory(row.category),
+          source: row.source === "1password" ? "1password" : "inline",
+          secretRef: row.secretRef,
+          branchPattern: "",
+          revision: row.revision,
+          updatedByEmail: "",
+          updatedAt: row.updatedAt.toISOString()
+        }) satisfies LayeredEnvironmentVariableRecord
+    ),
     ...environmentRows.map(
       (row) =>
         ({
           id: `envvar_${row.id}`,
           scope: "environment",
+          projectId: environment?.projectId ?? "",
           environmentId: row.environmentId,
           environmentName: "",
           projectName: "",
@@ -199,11 +294,12 @@ export async function resolveComposeDeploymentEnvEntries(input: {
           serviceName: null,
           key: row.key,
           value: decrypt(row.valueEncrypted),
-          isSecret: row.isSecret === "true",
+          isSecret: row.isSecret === "true" || row.source === "1password",
           category: normalizeComposeEnvCategory(row.category),
           source: row.source === "1password" ? "1password" : "inline",
           secretRef: row.secretRef,
           branchPattern: normalizeStoredBranchPattern(row.branchPattern),
+          revision: row.revision,
           updatedByEmail: "",
           updatedAt: row.updatedAt.toISOString()
         }) satisfies LayeredEnvironmentVariableRecord
@@ -213,6 +309,7 @@ export async function resolveComposeDeploymentEnvEntries(input: {
         ({
           id: `svcvar_${row.id}`,
           scope: "service",
+          projectId: environment?.projectId ?? "",
           environmentId: input.environmentId,
           environmentName: "",
           projectName: "",
@@ -220,28 +317,59 @@ export async function resolveComposeDeploymentEnvEntries(input: {
           serviceName: null,
           key: row.key,
           value: decrypt(row.valueEncrypted),
-          isSecret: row.isSecret === "true",
+          isSecret: row.isSecret === "true" || row.source === "1password",
           category: normalizeComposeEnvCategory(row.category),
           source: row.source === "1password" ? "1password" : "inline",
           secretRef: row.secretRef,
           branchPattern: normalizeStoredBranchPattern(row.branchPattern),
+          revision: row.revision,
           updatedByEmail: "",
           updatedAt: row.updatedAt.toISOString()
         }) satisfies LayeredEnvironmentVariableRecord
     )
   ];
 
-  const resolved: ComposeEnvPayloadEntry[] = resolveEffectiveEnvironmentVariableRecords({
+  const resolvedRecords = resolveEffectiveEnvironmentVariableRecords({
     records: layeredRecords,
     branch: input.branch
-  }).map((record) => ({
-    key: record.key,
-    value: record.value,
-    category: record.category,
-    isSecret: record.isSecret,
-    source: record.source,
-    branchPattern: readBranchPattern(record.branchPattern)
-  }));
+  });
+  const onePasswordReferences = resolvedRecords
+    .filter((record) => record.source === "1password")
+    .map((record) => {
+      if (!record.secretRef) {
+        throw new Error(
+          `1Password environment variable ${record.key} is missing a secret reference.`
+        );
+      }
+
+      return { id: record.id, secretRef: record.secretRef };
+    });
+  if (onePasswordReferences.length > 0 && !environment) {
+    throw new Error("Environment variable target not found.");
+  }
+  const resolvedOnePasswordValues = await resolveTeamOnePasswordSecretReferences({
+    teamId: environment?.teamId ?? "",
+    references: onePasswordReferences,
+    resolveReference: input.resolveOnePasswordSecretReference
+  });
+  const resolved: ComposeEnvPayloadEntry[] = resolvedRecords.map((record) => {
+    const value =
+      record.source === "1password" ? resolvedOnePasswordValues.get(record.id) : record.value;
+    if (value === undefined) {
+      throw new Error(`1Password environment variable ${record.key} could not be resolved.`);
+    }
+
+    return {
+      key: record.key,
+      value,
+      category: record.category,
+      isSecret: record.isSecret || record.source === "1password",
+      source: record.source,
+      branchPattern: readBranchPattern(record.branchPattern),
+      origin: getEnvironmentVariableOrigin(record),
+      revision: String(record.revision)
+    };
+  });
 
   if (!input.additionalEntries?.length) {
     return resolved;
@@ -260,6 +388,7 @@ export async function prepareComposeDeploymentEnvState(input: {
   serviceId?: string | null;
   branch: string;
   additionalEntries?: ComposeEnvPayloadEntry[];
+  resolveOnePasswordSecretReference?: OnePasswordSecretReferenceResolver;
 }): Promise<{
   envVarsEncrypted: string;
   composeEnv: ComposeEnvEvidence;
@@ -267,7 +396,7 @@ export async function prepareComposeDeploymentEnvState(input: {
   const entries = await resolveComposeDeploymentEnvEntries(input);
 
   return {
-    envVarsEncrypted: encrypt(JSON.stringify(entries)),
+    envVarsEncrypted: encryptComposeDeploymentState({ envEntries: entries }),
     composeEnv: buildQueuedComposeEnvEvidence(input.branch, entries)
   };
 }
@@ -332,33 +461,49 @@ export function readDeploymentComposeState(
     const value = typeof record.value === "string" ? record.value : null;
     const isSecret = record.isSecret === true;
     const branchPattern = typeof record.branchPattern === "string" ? record.branchPattern : null;
+    const origin = readComposeEnvOrigin(record.origin);
 
     if (!key || value === null) {
       continue;
     }
 
+    const category =
+      record.category === "build" || record.category === "runtime"
+        ? record.category
+        : record.category === "default"
+          ? "default"
+          : "runtime";
+    const source =
+      record.source === "1password"
+        ? "1password"
+        : record.source === "repo-default"
+          ? "repo-default"
+          : "inline";
+    const revision = readComposeEnvRevision({
+      value: record.revision,
+      origin,
+      key,
+      entryValue: value,
+      category,
+      source,
+      branchPattern,
+      isSecret
+    });
+
     if (
       record.category === "default" ||
       record.source === "repo-default" ||
-      record.origin === "repo-default" ||
-      record.origin === "environment-variable"
+      typeof record.overrodeRepoDefault === "boolean"
     ) {
       materializedEntries.push({
         key,
         value,
-        category:
-          record.category === "build" || record.category === "runtime"
-            ? record.category
-            : "default",
+        category,
         isSecret,
-        source:
-          record.source === "1password"
-            ? "1password"
-            : record.source === "repo-default"
-              ? "repo-default"
-              : "inline",
+        source,
         branchPattern,
-        origin: record.origin === "repo-default" ? "repo-default" : "environment-variable",
+        origin: record.origin === "repo-default" ? "repo-default" : origin,
+        revision,
         overrodeRepoDefault: record.overrodeRepoDefault === true
       });
       continue;
@@ -367,12 +512,12 @@ export function readDeploymentComposeState(
     queuedEntries.push({
       key,
       value,
-      category: normalizeComposeEnvCategory(
-        typeof record.category === "string" ? record.category : "runtime"
-      ),
+      category: normalizeComposeEnvCategory(category),
       isSecret,
-      source: record.source === "1password" ? "1password" : "inline",
-      branchPattern
+      source: source === "1password" ? "1password" : "inline",
+      branchPattern,
+      origin,
+      revision
     });
   }
 
@@ -415,7 +560,9 @@ export function readDeploymentComposeEnvEntries(
     category: entry.category === "build" ? "build" : "runtime",
     isSecret: entry.isSecret,
     source: entry.source === "1password" ? "1password" : "inline",
-    branchPattern: entry.branchPattern
+    branchPattern: entry.branchPattern,
+    origin: entry.origin,
+    revision: entry.revision
   }));
 }
 

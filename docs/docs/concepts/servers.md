@@ -254,7 +254,8 @@ The Settings operations tab includes reusable access assets:
 - managed SSH keys with encrypted private key material, safe fingerprints, default SSH user
   metadata, rotation timestamps, and attach/delete actions
 - custom certificate assets with encrypted certificate, private key, and CA chain material plus
-  safe subject, issuer, expiration, domain, and fingerprint metadata
+  safe subject, issuer, expiration, domain, and fingerprint metadata; CA certificates can be bound
+  to one team's self-hosted Git provider without changing global TLS trust
 
 Read surfaces never return private keys, certificate bodies, or encrypted blobs. Write paths create
 audit entries for create, rotate, attach, and delete actions. Managed SSH key rotation does not

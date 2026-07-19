@@ -1,4 +1,8 @@
 import {
+  fetchWithResolvedGitProviderCa,
+  type ResolvedGitProviderCa
+} from "../db/services/git-provider-ca-trust";
+import {
   ProviderFeedbackDeliveryError,
   ProviderFeedbackSkippedError
 } from "./provider-feedback-processor";
@@ -9,6 +13,7 @@ const MAX_NOTE_RECOVERY_PAGES = 20;
 export interface GitLabProviderFeedbackClient {
   apiBaseUrl: string;
   headers: Record<string, string>;
+  ca: ResolvedGitProviderCa | null;
   signal: AbortSignal;
 }
 
@@ -79,7 +84,7 @@ async function requestGitLab(
 
   let response: Response;
   try {
-    response = await fetch(gitLabUrl(input, path), {
+    response = await fetchWithResolvedGitProviderCa(input.ca, gitLabUrl(input, path), {
       ...init,
       signal: boundedSignal(input.signal),
       headers

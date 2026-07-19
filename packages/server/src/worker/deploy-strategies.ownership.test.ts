@@ -34,6 +34,7 @@ vi.mock("./checkout-source", () => ({
     branch: "main",
     displayLabel: "org/repo",
     gitConfig: [],
+    caCertificatePem: "-----BEGIN CERTIFICATE-----\nfixture-ca\n-----END CERTIFICATE-----",
     repositoryPreparation: { submodules: false, gitLfs: false }
   }))
 }));
@@ -142,6 +143,31 @@ describe("direct deployment ownership propagation", () => {
       expect.objectContaining({ "io.daoflow.deployment-id": "deployment_123" }),
       onLog,
       undefined
+    );
+    const expectedCa = "-----BEGIN CERTIFICATE-----\nfixture-ca\n-----END CERTIFICATE-----";
+    expect(mocks.gitClone).toHaveBeenNthCalledWith(
+      1,
+      "https://example.com/org/repo.git",
+      "main",
+      "deployment_123",
+      onLog,
+      expect.objectContaining({ caCertificatePem: expectedCa })
+    );
+    expect(mocks.gitClone).toHaveBeenNthCalledWith(
+      2,
+      "https://example.com/org/repo.git",
+      "main",
+      "deployment_123",
+      onLog,
+      expect.objectContaining({ caCertificatePem: expectedCa })
+    );
+    expect(mocks.gitClone).toHaveBeenNthCalledWith(
+      3,
+      "https://example.com/org/repo.git",
+      "main",
+      "deployment_123",
+      onLog,
+      expect.objectContaining({ caCertificatePem: expectedCa })
     );
     expect(mocks.execStreaming).toHaveBeenCalledWith(
       "nixpacks",

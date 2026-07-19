@@ -1,3 +1,7 @@
+import {
+  fetchWithResolvedGitProviderCa,
+  type ResolvedGitProviderCa
+} from "../db/services/git-provider-ca-trust";
 import { ProviderFeedbackDeliveryError } from "./provider-feedback-processor";
 
 const GITHUB_ACCEPT = "application/vnd.github+json";
@@ -6,6 +10,7 @@ const MAX_COMMENT_RECOVERY_PAGES = 20;
 export interface GitHubProviderFeedbackClient {
   apiBaseUrl: string;
   accessToken: string;
+  ca: ResolvedGitProviderCa | null;
   signal: AbortSignal;
 }
 
@@ -62,7 +67,7 @@ async function requestGitHub(
 ) {
   let response: Response;
   try {
-    response = await fetch(githubUrl(input, path), {
+    response = await fetchWithResolvedGitProviderCa(input.ca, githubUrl(input, path), {
       ...init,
       signal: input.signal,
       headers: {

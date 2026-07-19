@@ -190,6 +190,20 @@ describe("inspectDockerOwnedResources", () => {
     expect(engineExecute.mock.calls.some((call) => call[1]?.[0] === "service")).toBe(false);
   });
 
+  it("salvages valid inspected resources from a failed batch and reports missing entries", async () => {
+    const execute = executorFor([
+      result([listLine("container-1", "web"), listLine("container-2", "api")]),
+      result([inspectLine("container-1-full", "/web", { "io.daoflow.managed": "true" })], 17)
+    ]);
+
+    const snapshot = await inspectDockerOwnedResources(localTarget, vi.fn(), execute);
+
+    expect(snapshot.containers).toEqual([
+      { id: "container-1-full", name: "web", labels: { "io.daoflow.managed": "true" } }
+    ]);
+    expect(snapshot.issues).toEqual([{ resourceType: "container", code: "missing-inspection" }]);
+  });
+
   it("reports malformed output, invalid labels, and command failures without exposing raw data", async () => {
     const secret = "PASSWORD=do-not-return";
     const execute = executorFor([

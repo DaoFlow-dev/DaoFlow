@@ -30,6 +30,27 @@ function namedVolumeFromDeclaration(declaration: string): string | null {
   return source;
 }
 
+function validateCreatedVolumeOwnership(
+  name: string,
+  volume: { exists: boolean; labels: Record<string, string> },
+  ownership: DockerOwnershipIdentity
+): void {
+  if (!volume.exists) {
+    throw new Error(`Docker volume "${name}" was not found after successful creation.`);
+  }
+
+  const parsed = readDockerOwnershipIdentity(volume.labels);
+  if (parsed.status === "unmanaged") {
+    throw new Error(`Docker volume "${name}" was created without DaoFlow ownership labels.`);
+  }
+  if (parsed.status === "invalid") {
+    throw new Error(`Docker volume "${name}" cannot be safely used: ${parsed.reason}`);
+  }
+  if (!matchesDockerOwnership(parsed.identity, ownership, { includeDeploymentId: false })) {
+    throw new Error(`Docker volume "${name}" belongs to another DaoFlow deployment scope.`);
+  }
+}
+
 export function collectNamedDirectDockerVolumes(declarations: readonly string[]): string[] {
   return [
     ...new Set(
@@ -47,12 +68,13 @@ export async function ensureDirectDockerVolumeOwnership(input: {
 }): Promise<void> {
   const names = collectNamedDirectDockerVolumes(input.declarations);
   const labels = buildDockerOwnershipLabels(input.ownership);
+  const inspectVolume = (name: string) =>
+    input.target.mode === "remote"
+      ? inspectRemoteDockerVolume(input.target.ssh, name, input.onLog, input.signal)
+      : inspectDockerVolume(name, input.onLog, input.signal);
 
   for (const name of names) {
-    const volume =
-      input.target.mode === "remote"
-        ? await inspectRemoteDockerVolume(input.target.ssh, name, input.onLog, input.signal)
-        : await inspectDockerVolume(name, input.onLog, input.signal);
+    const volume = await inspectVolume(name);
 
     if (!volume.exists) {
       const created =
@@ -68,6 +90,7 @@ export async function ensureDirectDockerVolumeOwnership(input: {
       if (created.exitCode !== 0) {
         throw new Error(`Unable to create Docker volume "${name}" for this deployment.`);
       }
+      validateCreatedVolumeOwnership(name, await inspectVolume(name), input.ownership);
       continue;
     }
 

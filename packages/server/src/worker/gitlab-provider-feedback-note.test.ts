@@ -56,6 +56,7 @@ function noteInput(identity: Awaited<ReturnType<typeof createNoteIdentity>>) {
     client: {
       apiBaseUrl: "https://gitlab.example.test/api/v4",
       headers: { "PRIVATE-TOKEN": "glpat-preview" },
+      ca: null,
       signal: new AbortController().signal
     },
     ...identity,

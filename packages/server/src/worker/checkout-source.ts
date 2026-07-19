@@ -5,51 +5,31 @@ import { projects } from "../db/schema/projects";
 import { getGitInstallation, readGitInstallationAccessToken } from "../db/services/git-providers";
 import { fetchGitHubInstallationAccessToken } from "../db/services/github-app-auth";
 import { resolveGitLabInstallationCredential } from "../db/services/gitlab-installation-auth";
-import { resolveGitLabCloneBaseUrl } from "../db/services/gitlab-urls";
 import { resolveActiveProjectRepositoryCredential } from "../db/services/repository-credentials";
 import {
   hasRepositoryPreparation,
   readRepositoryPreparationConfig,
   type RepositoryPreparationConfig
 } from "../repository-preparation";
+import {
+  authorizationHeader,
+  buildGitHubRepoUrl,
+  buildGitLabRepoUrl,
+  resolveProviderCaCheckoutContext,
+  toBase64,
+  type GitConfigEntry
+} from "./git-provider-checkout-context";
 import type { ConfigSnapshot } from "./step-management";
-
-type GitConfigEntry = {
-  key: string;
-  value: string;
-};
 
 export interface CheckoutSpec {
   repoUrl: string;
   branch: string;
   displayLabel: string;
   gitConfig: GitConfigEntry[];
+  caCertificatePem?: string;
   sshPrivateKey?: string;
   repositoryPreparation: RepositoryPreparationConfig;
   requiresLocalMaterialization: boolean;
-}
-
-function trimTrailingSlash(value: string): string {
-  return value.replace(/\/$/, "");
-}
-
-function toBase64(value: string): string {
-  return Buffer.from(value, "utf8").toString("base64");
-}
-
-function authorizationHeader(value: string) {
-  return { key: "http.extraHeader", value };
-}
-
-function buildGitHubRepoUrl(baseUrl: string | null, repoFullName: string): string {
-  return `${trimTrailingSlash(baseUrl ?? "https://github.com")}/${repoFullName}.git`;
-}
-
-function buildGitLabRepoUrl(
-  provider: Pick<typeof gitProviders.$inferSelect, "baseUrl" | "internalBaseUrl">,
-  repoFullName: string
-): string {
-  return `${trimTrailingSlash(resolveGitLabCloneBaseUrl(provider))}/${repoFullName}.git`;
 }
 
 async function resolveProviderCheckoutTeamId(config: ConfigSnapshot): Promise<string> {
@@ -113,16 +93,21 @@ async function resolveGitHubCheckoutSpec(
     throw new Error(`Git installation ${installationId} not found for provider ${providerId}.`);
   }
 
-  const accessToken = await fetchGitHubInstallationAccessToken({ provider, installation });
+  const repoUrl = buildGitHubRepoUrl(provider.baseUrl, repoFullName);
+  const [providerCa, accessToken] = await Promise.all([
+    resolveProviderCaCheckoutContext(provider, repoUrl),
+    fetchGitHubInstallationAccessToken({ provider, installation })
+  ]);
   const repositoryPreparation = readRepositoryPreparationConfig(config.repositoryPreparation);
 
   return {
-    repoUrl: buildGitHubRepoUrl(provider.baseUrl, repoFullName),
+    repoUrl,
     branch: config.branch ?? "main",
     displayLabel: repoFullName,
     gitConfig: [
       authorizationHeader(`AUTHORIZATION: basic ${toBase64(`x-access-token:${accessToken}`)}`)
     ],
+    ...providerCa,
     repositoryPreparation,
     requiresLocalMaterialization: true
   };
@@ -156,7 +141,11 @@ async function resolveGitLabCheckoutSpec(
     throw new Error(`Git installation ${installationId} not found for provider ${providerId}.`);
   }
 
-  const credential = await resolveGitLabInstallationCredential({ provider, installation });
+  const repoUrl = buildGitLabRepoUrl(provider, repoFullName);
+  const [providerCa, credential] = await Promise.all([
+    resolveProviderCaCheckoutContext(provider, repoUrl),
+    resolveGitLabInstallationCredential({ provider, installation })
+  ]);
   if (!credential) {
     throw new Error(
       `GitLab installation ${installationId} does not have a usable access token or checkout credential.`
@@ -172,10 +161,11 @@ async function resolveGitLabCheckoutSpec(
 
   const repositoryPreparation = readRepositoryPreparationConfig(config.repositoryPreparation);
   return {
-    repoUrl: buildGitLabRepoUrl(provider, repoFullName),
+    repoUrl,
     branch: config.branch ?? "main",
     displayLabel: repoFullName,
     gitConfig: [authorizationHeader(authorization)],
+    ...providerCa,
     repositoryPreparation,
     requiresLocalMaterialization: true
   };
@@ -224,6 +214,7 @@ async function resolveGenericOAuthCheckoutSpec(
       : baseUrl
         ? `${baseUrl}/${repoFullName}.git`
         : `https://${providerType}.com/${repoFullName}.git`;
+  const providerCa = await resolveProviderCaCheckoutContext(provider, repoUrl);
   const repositoryPreparation = readRepositoryPreparationConfig(config.repositoryPreparation);
 
   return {
@@ -231,6 +222,7 @@ async function resolveGenericOAuthCheckoutSpec(
     branch: config.branch ?? "main",
     displayLabel: repoFullName,
     gitConfig: [authorizationHeader(`Authorization: Bearer ${accessToken}`)],
+    ...providerCa,
     repositoryPreparation,
     requiresLocalMaterialization: true
   };

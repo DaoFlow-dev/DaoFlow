@@ -35,6 +35,7 @@ const originalEnv = Object.fromEntries(envKeys.map((key) => [key, process.env[ke
 >;
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.resetModules();
   vi.doUnmock("node:child_process");
   for (const key of envKeys) {
@@ -49,6 +50,10 @@ afterEach(() => {
 
 async function loadSSHConnectionModule() {
   return import("./ssh-connection");
+}
+
+async function loadSSHFileTransferModule() {
+  return import("./ssh-file-transfer");
 }
 
 function createSSHFixture() {
@@ -134,7 +139,7 @@ describe("sshArgs", () => {
   });
 });
 
-describe("scpUpload", () => {
+describe("SCP file transfer", () => {
   it("reuses the same transport contract with SCP-specific port handling", async () => {
     const fixture = createSSHFixture();
     process.env.SSH_CONTROL_DIR = fixture.controlDir;
@@ -165,7 +170,7 @@ describe("scpUpload", () => {
       };
     });
 
-    const { scpUpload } = await loadSSHConnectionModule();
+    const { scpUpload } = await loadSSHFileTransferModule();
     await scpUpload(target, "/tmp/local.tgz", "/srv/app/local.tgz", () => undefined);
 
     expect(spawnMock).toHaveBeenCalledTimes(1);
@@ -194,7 +199,7 @@ describe("scpUpload", () => {
       return { ...actual, spawn: spawnMock };
     });
 
-    const { scpUpload } = await loadSSHConnectionModule();
+    const { scpUpload } = await loadSSHFileTransferModule();
     await expect(
       scpUpload(
         {
@@ -207,6 +212,183 @@ describe("scpUpload", () => {
       )
     ).rejects.toThrow("fingerprint does not match");
     expect(spawnMock).not.toHaveBeenCalled();
+  });
+
+  it("downloads through the same pinned transport and never exceeds the transfer ceiling", async () => {
+    const fixture = createSSHFixture();
+    process.env.SSH_CONTROL_DIR = fixture.controlDir;
+    process.env.SSH_KEY_DIR = fixture.keyDir;
+    process.env.SSH_KNOWN_HOSTS_DIR = fixture.knownHostsDir;
+    writeFileSync(join(fixture.keyDir, "id_ed25519"), "test-private-key");
+
+    const spawnMock = vi.fn(() => {
+      const listeners = new Map<string, (...args: unknown[]) => void>();
+      return {
+        stdout: { on: vi.fn() },
+        stderr: { on: vi.fn() },
+        on: vi.fn((event: string, handler: (...args: unknown[]) => void) => {
+          listeners.set(event, handler);
+          if (event === "close") {
+            queueMicrotask(() => handler(0, null));
+          }
+        })
+      };
+    });
+    vi.doMock("node:child_process", async () => {
+      const actual =
+        await vi.importActual<typeof import("node:child_process")>("node:child_process");
+      return { ...actual, spawn: spawnMock };
+    });
+
+    const { MAX_SCP_TRANSFER_TIMEOUT_MS, scpDownload } = await loadSSHFileTransferModule();
+    await scpDownload(target, "/srv/app/backup.tar", "/tmp/backup.tar", () => undefined, {
+      timeoutMs: MAX_SCP_TRANSFER_TIMEOUT_MS + 1
+    });
+
+    const [, args] = spawnMock.mock.calls[0] as unknown as [string, string[]];
+    expect(args).toContain("StrictHostKeyChecking=yes");
+    expect(args).toContain("debian@example.com:/srv/app/backup.tar");
+    expect(args).toContain("/tmp/backup.tar");
+  });
+
+  it("terminates a stuck download when its bounded timeout expires", async () => {
+    const fixture = createSSHFixture();
+    process.env.SSH_CONTROL_DIR = fixture.controlDir;
+    process.env.SSH_KEY_DIR = fixture.keyDir;
+    process.env.SSH_KNOWN_HOSTS_DIR = fixture.knownHostsDir;
+    const kill = vi.fn();
+    const spawnMock = vi.fn(() => ({
+      stdout: { on: vi.fn() },
+      stderr: { on: vi.fn() },
+      kill,
+      on: vi.fn()
+    }));
+    vi.doMock("node:child_process", async () => {
+      const actual =
+        await vi.importActual<typeof import("node:child_process")>("node:child_process");
+      return { ...actual, spawn: spawnMock };
+    });
+
+    const { scpDownload } = await loadSSHFileTransferModule();
+    await expect(
+      scpDownload(target, "/srv/app/backup.tar", "/tmp/backup.tar", () => undefined, {
+        timeoutMs: 1
+      })
+    ).rejects.toThrow("timed out after 1ms");
+    expect(kill).toHaveBeenCalledWith("SIGTERM");
+  });
+
+  it("terminates a transfer when the caller cancels it", async () => {
+    const fixture = createSSHFixture();
+    process.env.SSH_CONTROL_DIR = fixture.controlDir;
+    process.env.SSH_KEY_DIR = fixture.keyDir;
+    process.env.SSH_KNOWN_HOSTS_DIR = fixture.knownHostsDir;
+    const kill = vi.fn();
+    const spawnMock = vi.fn(() => ({
+      stdout: { on: vi.fn() },
+      stderr: { on: vi.fn() },
+      kill,
+      on: vi.fn()
+    }));
+    vi.doMock("node:child_process", async () => {
+      const actual =
+        await vi.importActual<typeof import("node:child_process")>("node:child_process");
+      return { ...actual, spawn: spawnMock };
+    });
+
+    const controller = new AbortController();
+    const { scpDownload } = await loadSSHFileTransferModule();
+    const download = scpDownload(
+      target,
+      "/srv/app/backup.tar",
+      "/tmp/backup.tar",
+      () => undefined,
+      { signal: controller.signal }
+    );
+
+    controller.abort();
+    await expect(download).rejects.toThrow("SCP transfer was cancelled.");
+    expect(kill).toHaveBeenCalledWith("SIGTERM");
+  });
+
+  it("clears a pending forced-kill timer after the transfer process exits", async () => {
+    const fixture = createSSHFixture();
+    process.env.SSH_CONTROL_DIR = fixture.controlDir;
+    process.env.SSH_KEY_DIR = fixture.keyDir;
+    process.env.SSH_KNOWN_HOSTS_DIR = fixture.knownHostsDir;
+    vi.useFakeTimers();
+    const listeners = new Map<string, (...args: unknown[]) => void>();
+    const kill = vi.fn();
+    const spawnMock = vi.fn(() => ({
+      stdout: { on: vi.fn() },
+      stderr: { on: vi.fn() },
+      kill,
+      on: vi.fn((event: string, handler: (...args: unknown[]) => void) => {
+        listeners.set(event, handler);
+      })
+    }));
+    vi.doMock("node:child_process", async () => {
+      const actual =
+        await vi.importActual<typeof import("node:child_process")>("node:child_process");
+      return { ...actual, spawn: spawnMock };
+    });
+
+    const { scpDownload } = await loadSSHFileTransferModule();
+    const transfer = scpDownload(
+      target,
+      "/srv/app/backup.tar",
+      "/tmp/backup.tar",
+      () => undefined,
+      {
+        timeoutMs: 1
+      }
+    );
+    const timedOut = expect(transfer).rejects.toThrow("timed out after 1ms");
+
+    await vi.advanceTimersByTimeAsync(1);
+    await timedOut;
+    expect(kill).toHaveBeenCalledWith("SIGTERM");
+    listeners.get("close")?.(null, "SIGTERM");
+
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(kill).not.toHaveBeenCalledWith("SIGKILL");
+  });
+});
+
+describe("SSH command execution", () => {
+  it("clears a pending forced-kill timer after the command process exits", async () => {
+    const fixture = createSSHFixture();
+    process.env.SSH_CONTROL_DIR = fixture.controlDir;
+    process.env.SSH_KEY_DIR = fixture.keyDir;
+    process.env.SSH_KNOWN_HOSTS_DIR = fixture.knownHostsDir;
+    vi.useFakeTimers();
+    const listeners = new Map<string, (...args: unknown[]) => void>();
+    const kill = vi.fn();
+    const spawnMock = vi.fn(() => ({
+      stdout: { on: vi.fn() },
+      stderr: { on: vi.fn() },
+      kill,
+      on: vi.fn((event: string, handler: (...args: unknown[]) => void) => {
+        listeners.set(event, handler);
+      })
+    }));
+    vi.doMock("node:child_process", async () => {
+      const actual =
+        await vi.importActual<typeof import("node:child_process")>("node:child_process");
+      return { ...actual, spawn: spawnMock };
+    });
+
+    const { execRemote } = await loadSSHConnectionModule();
+    const command = execRemote(target, "true", () => undefined, { timeoutMs: 1 });
+    const timedOut = expect(command).rejects.toThrow("timed out after 1ms");
+
+    await vi.advanceTimersByTimeAsync(1);
+    await timedOut;
+    expect(kill).toHaveBeenCalledWith("SIGTERM");
+    listeners.get("close")?.(null, "SIGTERM");
+
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(kill).not.toHaveBeenCalledWith("SIGKILL");
   });
 });
 
@@ -282,7 +464,7 @@ describe("temporary SSH private keys", () => {
     expect(stats.isSymbolicLink()).toBe(false);
     expect(stats.nlink).toBe(1);
     expect(stats.mode & 0o777).toBe(0o600);
-    expect(readFileSync(keyPath, "utf8")).toBe("test-private-key");
+    expect(readFileSync(keyPath, "utf8")).toBe("test-private-key\n");
 
     removeSSHKey(keyPath);
     expect(() => lstatSync(keyPath)).toThrow();

@@ -9,6 +9,7 @@ interface EnvSetResult {
   key: string;
   source: "1password" | "inline";
   file?: string;
+  project?: string;
   environment?: string;
   secretRef?: string | null;
 }
@@ -17,7 +18,8 @@ export function registerEnvSetCommand(cmd: Command): void {
   cmd
     .command("set")
     .description("Set an environment variable in DaoFlow or a local .env file")
-    .option("--env-id <id>", "Environment ID (required unless --local)")
+    .option("--project-id <id>", "Project ID for a shared project default")
+    .option("--env-id <id>", "Environment ID (required unless --local or --project-id)")
     .requiredOption("--key <key>", "Variable key")
     .option("--value <value>", "Variable value (required unless --secret-ref is used)")
     .option("--secret-ref <uri>", "1Password secret reference (op://vault/item/field)")
@@ -31,6 +33,7 @@ export function registerEnvSetCommand(cmd: Command): void {
       async (
         opts: {
           envId?: string;
+          projectId?: string;
           key: string;
           value?: string;
           secretRef?: string;
@@ -51,10 +54,18 @@ export function registerEnvSetCommand(cmd: Command): void {
               ctx.fail("Either --value or --secret-ref is required.", { code: "INVALID_INPUT" });
             }
 
-            if (!opts.local && !opts.envId) {
-              ctx.fail("Environment ID is required unless --local is used.", {
+            if (!opts.local && !opts.envId && !opts.projectId) {
+              ctx.fail("Environment ID or project ID is required unless --local is used.", {
                 code: "INVALID_INPUT"
               });
+            }
+            if (!opts.local && opts.envId && opts.projectId) {
+              ctx.fail("Choose either --env-id or --project-id, not both.", {
+                code: "INVALID_INPUT"
+              });
+            }
+            if (opts.local && opts.projectId) {
+              ctx.fail("--project-id cannot be used with --local.", { code: "INVALID_INPUT" });
             }
 
             const key = normalizeCliInput(opts.key, "Environment key");
@@ -66,6 +77,9 @@ export function registerEnvSetCommand(cmd: Command): void {
             const environmentId = opts.local
               ? undefined
               : normalizeOptionalCliInput(opts.envId, "Environment ID");
+            const projectId = opts.local
+              ? undefined
+              : normalizeOptionalCliInput(opts.projectId, "Project ID");
             const filePath = normalizeCliInput(opts.file, "Environment file path", {
               allowPathTraversal: true,
               maxLength: 1024
@@ -106,14 +120,17 @@ export function registerEnvSetCommand(cmd: Command): void {
             }
 
             const source = secretRef ? ` (1Password: ${secretRef})` : "";
+            const targetLabel = projectId ? `project ${projectId}` : `environment ${environmentId}`;
             ctx.requireConfirmation(
               opts.yes === true,
-              `Set ${key} in environment ${environmentId}${source}. Pass --yes to confirm.`
+              `Set ${key} in ${targetLabel}${source}. Pass --yes to confirm.`
             );
 
             const trpc = createClient();
             await trpc.upsertEnvironmentVariable.mutate({
-              environmentId: environmentId!,
+              ...(projectId
+                ? { projectId, scope: "project" as const }
+                : { environmentId: environmentId! }),
               key,
               value: secretRef ? `[1password:${secretRef}]` : value!,
               isSecret: opts.secret ?? !!secretRef,
@@ -125,6 +142,7 @@ export function registerEnvSetCommand(cmd: Command): void {
             return ctx.success(
               {
                 key,
+                project: projectId,
                 environment: environmentId!,
                 source: secretRef ? "1password" : "inline",
                 secretRef: secretRef ?? null
@@ -134,12 +152,10 @@ export function registerEnvSetCommand(cmd: Command): void {
                 human: () => {
                   if (secretRef) {
                     console.log(
-                      chalk.green(
-                        `✓ Set ${key} → ${chalk.cyan(secretRef)} in environment ${environmentId}`
-                      )
+                      chalk.green(`✓ Set ${key} → ${chalk.cyan(secretRef)} in ${targetLabel}`)
                     );
                   } else {
-                    console.log(chalk.green(`✓ Set ${key} in environment ${environmentId!}`));
+                    console.log(chalk.green(`✓ Set ${key} in ${targetLabel}`));
                   }
                 }
               }
@@ -154,41 +170,54 @@ export function registerEnvDeleteCommand(cmd: Command): void {
   cmd
     .command("delete")
     .description("Delete an environment variable")
-    .requiredOption("--env-id <id>", "Environment ID")
+    .option("--project-id <id>", "Project ID for a shared project default")
+    .option("--env-id <id>", "Environment ID")
     .requiredOption("--key <key>", "Variable key to delete")
     .option("--json", "Output as JSON")
     .option("-y, --yes", "Skip confirmation")
     .action(
       async (
-        opts: { envId: string; key: string; json?: boolean; yes?: boolean },
+        opts: { projectId?: string; envId?: string; key: string; json?: boolean; yes?: boolean },
         command: Command
       ) => {
         await runCommandAction({
           command,
           json: opts.json,
           action: async (ctx) => {
-            const environmentId = normalizeCliInput(opts.envId, "Environment ID");
+            if (!opts.envId && !opts.projectId) {
+              ctx.fail("Environment ID or project ID is required.", { code: "INVALID_INPUT" });
+            }
+            if (opts.envId && opts.projectId) {
+              ctx.fail("Choose either --env-id or --project-id, not both.", {
+                code: "INVALID_INPUT"
+              });
+            }
+            const environmentId = normalizeOptionalCliInput(opts.envId, "Environment ID");
+            const projectId = normalizeOptionalCliInput(opts.projectId, "Project ID");
             const key = normalizeCliInput(opts.key, "Environment key");
+            const targetLabel = projectId ? `project ${projectId}` : `environment ${environmentId}`;
             ctx.requireConfirmation(
               opts.yes === true,
-              `Destructive: delete ${key} from environment ${environmentId}. Pass --yes.`,
+              `Destructive: delete ${key} from ${targetLabel}. Pass --yes.`,
               {
-                humanMessage: `Destructive: delete ${key} from environment ${environmentId}. Pass --yes.`
+                humanMessage: `Destructive: delete ${key} from ${targetLabel}. Pass --yes.`
               }
             );
 
             const trpc = createClient();
             await trpc.deleteEnvironmentVariable.mutate({
-              environmentId,
+              ...(projectId
+                ? { projectId, scope: "project" as const }
+                : { environmentId: environmentId! }),
               key
             });
 
             return ctx.success(
-              { deleted: key, environment: environmentId },
+              { deleted: key, project: projectId, environment: environmentId },
               {
                 quiet: () => key,
                 human: () => {
-                  console.log(chalk.green(`✓ Deleted ${key} from environment ${environmentId}`));
+                  console.log(chalk.green(`✓ Deleted ${key} from ${targetLabel}`));
                 }
               }
             );

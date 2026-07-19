@@ -2504,39 +2504,94 @@
       "requiredScopes": ["env:write"],
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "type": "object",
-        "properties": {
-          "environmentId": {
-            "type": "string",
-            "minLength": 1
-          },
-          "serviceId": {
-            "type": "string",
-            "minLength": 1
-          },
-          "scope": {
-            "type": "string",
-            "enum": ["environment", "service"]
-          },
-          "key": {
-            "type": "string",
-            "maxLength": 80,
-            "pattern": "^[A-Z_][A-Z0-9_]*$"
-          },
-          "branchPattern": {
-            "anyOf": [
-              {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "key": {
                 "type": "string",
-                "maxLength": 120
+                "maxLength": 80,
+                "pattern": "^[A-Z_][A-Z0-9_]*$"
               },
-              {
-                "type": "null"
+              "projectId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "scope": {
+                "type": "string",
+                "const": "project"
               }
-            ]
+            },
+            "required": ["key", "projectId"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "key": {
+                "type": "string",
+                "maxLength": 80,
+                "pattern": "^[A-Z_][A-Z0-9_]*$"
+              },
+              "environmentId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "scope": {
+                "type": "string",
+                "const": "environment"
+              },
+              "branchPattern": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 120
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["key", "environmentId"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "key": {
+                "type": "string",
+                "maxLength": 80,
+                "pattern": "^[A-Z_][A-Z0-9_]*$"
+              },
+              "environmentId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "serviceId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "scope": {
+                "type": "string",
+                "const": "service"
+              },
+              "branchPattern": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 120
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["key", "environmentId", "serviceId"],
+            "additionalProperties": false
           }
-        },
-        "required": ["environmentId", "key"],
-        "additionalProperties": false
+        ]
       }
     },
     {
@@ -3143,32 +3198,81 @@
       "requiredScopes": [],
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "type": "object",
-        "properties": {
-          "environmentId": {
-            "type": "string",
-            "minLength": 1
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "projectId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "limit": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100
+              }
+            },
+            "required": ["projectId"],
+            "additionalProperties": false
           },
-          "serviceId": {
-            "type": "string",
-            "minLength": 1
+          {
+            "type": "object",
+            "properties": {
+              "environmentId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "serviceId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "branch": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 255
+              },
+              "limit": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100
+              }
+            },
+            "required": ["environmentId"],
+            "additionalProperties": false
           },
-          "branch": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 255
+          {
+            "type": "object",
+            "properties": {
+              "previewEnvironmentId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "limit": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100
+              }
+            },
+            "required": ["previewEnvironmentId"],
+            "additionalProperties": false
           },
-          "previewEnvironmentId": {
-            "type": "string",
-            "minLength": 1
-          },
-          "limit": {
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 100
+          {
+            "type": "object",
+            "properties": {
+              "branch": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 255
+              },
+              "limit": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100
+              }
+            },
+            "additionalProperties": false
           }
-        },
-        "additionalProperties": false
+        ]
       }
     },
     {
@@ -4150,6 +4254,11 @@
           "internalBaseUrl": {
             "type": "string",
             "maxLength": 255
+          },
+          "caCertificateId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32
           },
           "gitlabCredential": {
             "oneOf": [
@@ -6039,6 +6148,41 @@
       }
     },
     {
+      "name": "updateGitProviderCa",
+      "summary": "update Git Provider Ca",
+      "path": "/trpc/updateGitProviderCa",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin"],
+      "requiredScopes": [],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "providerId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32
+          },
+          "caCertificateId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 32
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": ["providerId", "caCertificateId"],
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "updateManagedTunnel",
       "summary": "update Managed Tunnel",
       "path": "/trpc/updateManagedTunnel",
@@ -6999,59 +7143,161 @@
       "requiredScopes": ["env:write"],
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "type": "object",
-        "properties": {
-          "environmentId": {
-            "type": "string",
-            "minLength": 1
-          },
-          "serviceId": {
-            "type": "string",
-            "minLength": 1
-          },
-          "scope": {
-            "type": "string",
-            "enum": ["environment", "service"]
-          },
-          "key": {
-            "type": "string",
-            "maxLength": 80,
-            "pattern": "^[A-Z_][A-Z0-9_]*$"
-          },
-          "value": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 4000
-          },
-          "isSecret": {
-            "type": "boolean"
-          },
-          "category": {
-            "type": "string",
-            "enum": ["runtime", "build"]
-          },
-          "source": {
-            "type": "string",
-            "enum": ["inline", "1password"]
-          },
-          "secretRef": {
-            "anyOf": [
-              {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "key": {
                 "type": "string",
-                "maxLength": 500
+                "maxLength": 80,
+                "pattern": "^[A-Z_][A-Z0-9_]*$"
               },
-              {
-                "type": "null"
+              "value": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4000
+              },
+              "isSecret": {
+                "type": "boolean"
+              },
+              "category": {
+                "type": "string",
+                "enum": ["runtime", "build"]
+              },
+              "source": {
+                "type": "string",
+                "enum": ["inline", "1password"]
+              },
+              "secretRef": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 500
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "projectId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "scope": {
+                "type": "string",
+                "const": "project"
               }
-            ]
+            },
+            "required": ["key", "value", "isSecret", "category", "projectId"],
+            "additionalProperties": false
           },
-          "branchPattern": {
-            "type": "string",
-            "maxLength": 120
+          {
+            "type": "object",
+            "properties": {
+              "key": {
+                "type": "string",
+                "maxLength": 80,
+                "pattern": "^[A-Z_][A-Z0-9_]*$"
+              },
+              "value": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4000
+              },
+              "isSecret": {
+                "type": "boolean"
+              },
+              "category": {
+                "type": "string",
+                "enum": ["runtime", "build"]
+              },
+              "source": {
+                "type": "string",
+                "enum": ["inline", "1password"]
+              },
+              "secretRef": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 500
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "environmentId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "scope": {
+                "type": "string",
+                "const": "environment"
+              },
+              "branchPattern": {
+                "type": "string",
+                "maxLength": 120
+              }
+            },
+            "required": ["key", "value", "isSecret", "category", "environmentId"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "key": {
+                "type": "string",
+                "maxLength": 80,
+                "pattern": "^[A-Z_][A-Z0-9_]*$"
+              },
+              "value": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4000
+              },
+              "isSecret": {
+                "type": "boolean"
+              },
+              "category": {
+                "type": "string",
+                "enum": ["runtime", "build"]
+              },
+              "source": {
+                "type": "string",
+                "enum": ["inline", "1password"]
+              },
+              "secretRef": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 500
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "environmentId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "serviceId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "scope": {
+                "type": "string",
+                "const": "service"
+              },
+              "branchPattern": {
+                "type": "string",
+                "maxLength": 120
+              }
+            },
+            "required": ["key", "value", "isSecret", "category", "environmentId", "serviceId"],
+            "additionalProperties": false
           }
-        },
-        "required": ["environmentId", "key", "value", "isSecret", "category"],
-        "additionalProperties": false
+        ]
       }
     },
     {

@@ -24,11 +24,22 @@ const ownership = {
   deploymentId: "deployment_123"
 };
 
+const matchingLabels = {
+  "io.daoflow.managed": "true",
+  "io.daoflow.team-id": "team_123",
+  "io.daoflow.project-id": "project_123",
+  "io.daoflow.environment-id": "environment_123",
+  "io.daoflow.service-id": "service_123",
+  "io.daoflow.deployment-id": "deployment_123"
+};
+
 describe("direct Docker volume ownership", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
     mocks.inspectDockerVolume.mockResolvedValue({ exists: false, labels: {} });
     mocks.createDockerVolume.mockResolvedValue({ exitCode: 0 });
+    mocks.inspectRemoteDockerVolume.mockResolvedValue({ exists: false, labels: {} });
+    mocks.createRemoteDockerVolume.mockResolvedValue({ exitCode: 0 });
   });
 
   it("identifies named volumes while leaving bind mounts alone and rejecting anonymous mounts", async () => {
@@ -43,6 +54,9 @@ describe("direct Docker volume ownership", () => {
 
   it("creates missing named volumes with the complete ownership labels", async () => {
     const { ensureDirectDockerVolumeOwnership } = await import("./direct-volume-ownership");
+    mocks.inspectDockerVolume
+      .mockResolvedValueOnce({ exists: false, labels: {} })
+      .mockResolvedValueOnce({ exists: true, labels: matchingLabels });
 
     await ensureDirectDockerVolumeOwnership({
       target: { mode: "local" },
@@ -60,6 +74,86 @@ describe("direct Docker volume ownership", () => {
       expect.any(Function),
       undefined
     );
+    expect(mocks.inspectDockerVolume).toHaveBeenCalledTimes(2);
+  });
+
+  it("fails closed when a created volume is missing on re-inspection", async () => {
+    const { ensureDirectDockerVolumeOwnership } = await import("./direct-volume-ownership");
+    mocks.inspectDockerVolume
+      .mockResolvedValueOnce({ exists: false, labels: {} })
+      .mockResolvedValueOnce({ exists: false, labels: {} });
+
+    await expect(
+      ensureDirectDockerVolumeOwnership({
+        target: { mode: "local" },
+        declarations: ["data:/var/lib/data"],
+        ownership,
+        onLog: () => undefined
+      })
+    ).rejects.toThrow("was not found after successful creation");
+  });
+
+  it("fails closed when a created volume is unlabeled on re-inspection", async () => {
+    const { ensureDirectDockerVolumeOwnership } = await import("./direct-volume-ownership");
+    mocks.inspectDockerVolume
+      .mockResolvedValueOnce({ exists: false, labels: {} })
+      .mockResolvedValueOnce({ exists: true, labels: {} });
+
+    await expect(
+      ensureDirectDockerVolumeOwnership({
+        target: { mode: "local" },
+        declarations: ["data:/var/lib/data"],
+        ownership,
+        onLog: () => undefined
+      })
+    ).rejects.toThrow("was created without DaoFlow ownership labels");
+  });
+
+  it("fails closed when a created volume has mismatched ownership on re-inspection", async () => {
+    const { ensureDirectDockerVolumeOwnership } = await import("./direct-volume-ownership");
+    mocks.inspectDockerVolume
+      .mockResolvedValueOnce({ exists: false, labels: {} })
+      .mockResolvedValueOnce({
+        exists: true,
+        labels: { ...matchingLabels, "io.daoflow.service-id": "other_service" }
+      });
+
+    await expect(
+      ensureDirectDockerVolumeOwnership({
+        target: { mode: "local" },
+        declarations: ["data:/var/lib/data"],
+        ownership,
+        onLog: () => undefined
+      })
+    ).rejects.toThrow("another DaoFlow deployment scope");
+  });
+
+  it("re-inspects remote volumes after create and accepts matching ownership", async () => {
+    const { ensureDirectDockerVolumeOwnership } = await import("./direct-volume-ownership");
+    const target = {
+      mode: "remote" as const,
+      ssh: { serverName: "qa", host: "qa.example", port: 22 },
+      remoteWorkDir: "/tmp/work"
+    };
+    mocks.inspectRemoteDockerVolume
+      .mockResolvedValueOnce({ exists: false, labels: {} })
+      .mockResolvedValueOnce({ exists: true, labels: matchingLabels });
+
+    await ensureDirectDockerVolumeOwnership({
+      target,
+      declarations: ["data:/var/lib/data"],
+      ownership,
+      onLog: () => undefined
+    });
+
+    expect(mocks.createRemoteDockerVolume).toHaveBeenCalledWith(
+      target.ssh,
+      "data",
+      expect.objectContaining({ "io.daoflow.deployment-id": "deployment_123" }),
+      expect.any(Function),
+      undefined
+    );
+    expect(mocks.inspectRemoteDockerVolume).toHaveBeenCalledTimes(2);
   });
 
   it("does not adopt existing unlabeled volumes and accepts the same scope from an older deployment", async () => {

@@ -1,8 +1,18 @@
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ExternalLink, GitBranch, Trash2 } from "lucide-react";
 import { getInventoryBadgeVariant } from "../../lib/tone-utils";
+import {
+  GitProviderCertificateDetails,
+  GitProviderCertificateSelect
+} from "./GitProviderCertificate";
+import {
+  getCertificateAsset,
+  getGitProviderErrorMessage,
+  type CertificateAssetSummary
+} from "./git-provider-certificate";
 import {
   GitProviderInstallationSummary,
   type GitProviderInstallationSummaryData
@@ -19,19 +29,33 @@ interface GitProviderSummaryData {
   clientId: string | null;
   baseUrl: string | null;
   internalBaseUrl?: string | null;
+  caCertificateId?: string | null;
 }
 
 export function GitProviderCard({
   provider,
   installations,
-  onDeleted
+  certificateAssets,
+  onChanged
 }: {
   provider: GitProviderSummaryData;
   installations: GitProviderInstallationSummaryData[];
-  onDeleted: () => void;
+  certificateAssets: CertificateAssetSummary[];
+  onChanged: () => void;
 }) {
+  const [certificateError, setCertificateError] = useState<string | null>(null);
   const deleteMutation = trpc.deleteGitProvider.useMutation({
-    onSuccess: onDeleted
+    onSuccess: onChanged
+  });
+  const updateCaMutation = trpc.updateGitProviderCa.useMutation({
+    onSuccess: () => {
+      setCertificateError(null);
+      onChanged();
+    },
+    onError: (error) =>
+      setCertificateError(
+        getGitProviderErrorMessage(error, "Unable to update the provider CA certificate.")
+      )
   });
   const startSetup = trpc.startGitProviderSetup.useMutation({
     onSuccess: ({ authorizationUrl }) => {
@@ -46,6 +70,12 @@ export function GitProviderCard({
   const canStartSetup =
     (provider.type === "github" && Boolean(provider.appId)) ||
     (provider.type === "gitlab" && Boolean(provider.clientId) && !hasNonOAuthInstallation);
+  const selectedCertificate = getCertificateAsset(certificateAssets, provider.caCertificateId);
+
+  function handleCertificateChange(caCertificateId: string | null) {
+    setCertificateError(null);
+    updateCaMutation.mutate({ providerId: provider.id, caCertificateId });
+  }
 
   return (
     <Card data-testid={`git-provider-card-${provider.id}`}>
@@ -87,6 +117,30 @@ export function GitProviderCard({
             ? `App ID: ${provider.appId ?? "—"}`
             : `Client ID: ${provider.clientId ?? "—"}`}
         </p>
+        <div className="space-y-2" data-testid={`git-provider-ca-${provider.id}`}>
+          <GitProviderCertificateSelect
+            certificateAssets={certificateAssets}
+            value={provider.caCertificateId ?? null}
+            onChange={handleCertificateChange}
+            id={`git-provider-ca-select-${provider.id}`}
+            testId={`git-provider-ca-select-${provider.id}`}
+            disabled={updateCaMutation.isPending}
+          />
+          <GitProviderCertificateDetails
+            certificate={selectedCertificate}
+            unavailable={Boolean(provider.caCertificateId && !selectedCertificate)}
+            testId={`git-provider-ca-details-${provider.id}`}
+          />
+          {certificateError ? (
+            <p
+              role="alert"
+              className="text-sm text-destructive"
+              data-testid={`git-provider-ca-error-${provider.id}`}
+            >
+              {certificateError}
+            </p>
+          ) : null}
+        </div>
         <div
           className="space-y-1 text-xs text-muted-foreground"
           data-testid={`git-provider-routes-${provider.id}`}

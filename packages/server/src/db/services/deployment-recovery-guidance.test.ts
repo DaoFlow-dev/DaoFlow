@@ -53,6 +53,8 @@ describe("buildDeploymentRecoveryGuidance", () => {
               {
                 kind: "watchdog",
                 id: "deployment-watchdog-timeout",
+                eventId: 42,
+                logId: 84,
                 title: "Progress heartbeat timed out",
                 detail: "The last recorded deployment heartbeat timed out."
               }
@@ -75,10 +77,13 @@ describe("buildDeploymentRecoveryGuidance", () => {
       {
         kind: "watchdog",
         id: "deployment-watchdog-timeout",
+        eventId: 42,
+        logId: 84,
         title: "Progress heartbeat timed out",
         detail: "The last recorded deployment heartbeat timed out."
       }
     ]);
+    expect(guidance?.evidenceIds).toEqual(["event:42", "deployment-log:84"]);
   });
 
   it("returns null when the deployment has no structured recovery fields", () => {

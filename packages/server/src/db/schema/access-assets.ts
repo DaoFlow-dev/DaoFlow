@@ -1,4 +1,13 @@
-import { index, jsonb, pgTable, text, timestamp, uniqueIndex, varchar } from "drizzle-orm/pg-core";
+import {
+  index,
+  jsonb,
+  pgTable,
+  text,
+  timestamp,
+  unique,
+  uniqueIndex,
+  varchar
+} from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { teams } from "./teams";
 import { users } from "./users";
@@ -59,6 +68,7 @@ export const certificateAssets = pgTable(
   (table) => [
     uniqueIndex("certificate_assets_team_name_idx").on(table.teamId, table.name),
     uniqueIndex("certificate_assets_team_fingerprint_idx").on(table.teamId, table.fingerprint),
+    unique("certificate_assets_id_team_id_unique").on(table.id, table.teamId),
     index("certificate_assets_team_idx").on(table.teamId),
     index("certificate_assets_status_idx").on(table.status),
     index("certificate_assets_expires_at_idx").on(table.expiresAt)

@@ -24,13 +24,14 @@ interface LayeredEnvVar {
   id: string;
   key: string;
   value: string;
-  scope: "environment" | "service";
+  scope: "project" | "environment" | "service";
   scopeLabel: string;
   originSummary: string;
   branchPattern: string | null;
   isSecret: boolean;
   source: "inline" | "1password";
   category: "runtime" | "build";
+  revision: number;
 }
 
 interface ResolvedEnvVar {
@@ -39,10 +40,11 @@ interface ResolvedEnvVar {
   isSecret: boolean;
   source: "inline" | "1password";
   category: "runtime" | "build";
-  scope: "environment" | "service";
+  scope: "project" | "environment" | "service";
   scopeLabel: string;
   branchPattern: string | null;
   originSummary: string;
+  revision: number;
 }
 
 function normalizeCategory(category: string): "runtime" | "build" {
@@ -86,7 +88,8 @@ export default function EnvironmentTab({
       branchPattern: variable.branchPattern,
       isSecret: variable.isSecret,
       source: variable.source,
-      category: normalizeCategory(variable.category)
+      category: normalizeCategory(variable.category),
+      revision: variable.revision
     })) ?? [];
   const resolvedVars: ResolvedEnvVar[] =
     envQuery.data?.resolvedVariables.map((variable) => ({
@@ -98,7 +101,8 @@ export default function EnvironmentTab({
       scope: variable.scope,
       scopeLabel: variable.scopeLabel,
       branchPattern: variable.branchPattern,
-      originSummary: variable.originSummary
+      originSummary: variable.originSummary,
+      revision: variable.revision
     })) ?? [];
 
   const filteredVars =
@@ -226,8 +230,8 @@ export default function EnvironmentTab({
           <div className="space-y-1">
             <p className="text-sm font-medium text-foreground">Inheritance model</p>
             <p className="text-sm text-muted-foreground">
-              Shared environment values are the base layer. Service overrides win for this service,
-              and preview-scoped entries win only when the branch pattern matches the preview.
+              Project defaults are the base layer, followed by environment and service overrides.
+              Preview-scoped entries win only when the branch pattern matches the preview.
             </p>
           </div>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -310,6 +314,7 @@ export default function EnvironmentTab({
                       <span className="font-mono text-sm font-medium">{variable.key}</span>
                       <Badge variant="outline">{variable.category}</Badge>
                       <Badge variant="outline">{variable.scopeLabel}</Badge>
+                      <Badge variant="outline">r{variable.revision}</Badge>
                       {variable.isSecret ? <Badge variant="outline">Secret</Badge> : null}
                       {variable.source === "1password" ? (
                         <Badge variant="outline">1Password</Badge>

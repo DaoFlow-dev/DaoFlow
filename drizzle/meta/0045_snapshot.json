@@ -1,6 +1,6 @@
 {
-  "id": "37cea3f4-88cc-4590-b64e-1cba363741d0",
-  "prevId": "5de2629f-4db0-466e-9ca3-c331f41771dd",
+  "id": "fdd5eda9-c0d1-4173-a699-5353280895d8",
+  "prevId": "aeb5f7a9-0fde-4b59-bdd1-fb34879d7c6c",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -842,7 +842,13 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
+      "uniqueConstraints": {
+        "certificate_assets_id_team_id_unique": {
+          "name": "certificate_assets_id_team_id_unique",
+          "nullsNotDistinct": false,
+          "columns": ["id", "team_id"]
+        }
+      },
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -1101,6 +1107,13 @@
           "notNull": true,
           "default": "''"
         },
+        "revision": {
+          "name": "revision",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "nextval('environment_variable_revision_seq')"
+        },
         "updated_by_user_id": {
           "name": "updated_by_user_id",
           "type": "text",
@@ -1295,6 +1308,153 @@
           "columnsFrom": ["project_id"],
           "columnsTo": ["id"],
           "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.project_variables": {
+      "name": "project_variables",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "varchar(32)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "key": {
+          "name": "key",
+          "type": "varchar(80)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "value_encrypted": {
+          "name": "value_encrypted",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "is_secret": {
+          "name": "is_secret",
+          "type": "varchar(5)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'false'"
+        },
+        "category": {
+          "name": "category",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'runtime'"
+        },
+        "source": {
+          "name": "source",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'inline'"
+        },
+        "secret_ref": {
+          "name": "secret_ref",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "revision": {
+          "name": "revision",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "nextval('environment_variable_revision_seq')"
+        },
+        "updated_by_user_id": {
+          "name": "updated_by_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "project_vars_project_id_idx": {
+          "name": "project_vars_project_id_idx",
+          "columns": [
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "project_vars_project_key_idx": {
+          "name": "project_vars_project_key_idx",
+          "columns": [
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "key",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "project_variables_project_id_projects_id_fk": {
+          "name": "project_variables_project_id_projects_id_fk",
+          "tableFrom": "project_variables",
+          "tableTo": "projects",
+          "columnsFrom": ["project_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "project_variables_updated_by_user_id_users_id_fk": {
+          "name": "project_variables_updated_by_user_id_users_id_fk",
+          "tableFrom": "project_variables",
+          "tableTo": "users",
+          "columnsFrom": ["updated_by_user_id"],
+          "columnsTo": ["id"],
+          "onDelete": "no action",
           "onUpdate": "no action"
         }
       },
@@ -2680,7 +2840,7 @@
           "name": "service_id",
           "type": "varchar(32)",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "service_name": {
           "name": "service_name",
@@ -5837,6 +5997,13 @@
           "notNull": true,
           "default": "''"
         },
+        "revision": {
+          "name": "revision",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "nextval('environment_variable_revision_seq')"
+        },
         "updated_by_user_id": {
           "name": "updated_by_user_id",
           "type": "text",
@@ -7516,6 +7683,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "ca_certificate_id": {
+          "name": "ca_certificate_id",
+          "type": "varchar(32)",
+          "primaryKey": false,
+          "notNull": false
+        },
         "status": {
           "name": "status",
           "type": "varchar(20)",
@@ -7620,6 +7793,15 @@
           "columnsFrom": ["team_id"],
           "columnsTo": ["id"],
           "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "git_providers_ca_certificate_id_team_id_certificate_assets_id_team_id_fk": {
+          "name": "git_providers_ca_certificate_id_team_id_certificate_assets_id_team_id_fk",
+          "tableFrom": "git_providers",
+          "tableTo": "certificate_assets",
+          "columnsFrom": ["ca_certificate_id", "team_id"],
+          "columnsTo": ["id", "team_id"],
+          "onDelete": "restrict",
           "onUpdate": "no action"
         }
       },
@@ -12456,7 +12638,18 @@
   },
   "enums": {},
   "schemas": {},
-  "sequences": {},
+  "sequences": {
+    "public.environment_variable_revision_seq": {
+      "name": "environment_variable_revision_seq",
+      "schema": "public",
+      "increment": "1",
+      "startWith": "1",
+      "minValue": "1",
+      "maxValue": "9223372036854775807",
+      "cache": "1",
+      "cycle": false
+    }
+  },
   "roles": {},
   "policies": {},
   "views": {},

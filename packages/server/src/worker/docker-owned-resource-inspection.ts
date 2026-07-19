@@ -238,15 +238,6 @@ async function collectResource(
     return [];
   }
 
-  if (inspectResult.exitCode !== 0) {
-    issues.push({
-      resourceType: spec.type,
-      code: "command-failed",
-      exitCode: inspectResult.exitCode
-    });
-    return [];
-  }
-
   const inspected = parseInspectLines(spec.type, inspectResult.stdout, issues);
   const resources = inspected.flatMap((entry) => {
     const listedEntry = listed.find((candidate) => idMatches(candidate.id, entry.id));
@@ -263,6 +254,14 @@ async function collectResource(
     if (!inspected.some((entry) => idMatches(listedEntry.id, entry.id))) {
       issues.push({ resourceType: spec.type, code: "missing-inspection" });
     }
+  }
+
+  if (inspectResult.exitCode !== 0 && resources.length === 0) {
+    issues.push({
+      resourceType: spec.type,
+      code: "command-failed",
+      exitCode: inspectResult.exitCode
+    });
   }
 
   return sortResources(resources);

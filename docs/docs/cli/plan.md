@@ -87,7 +87,14 @@ Service plan:
       "branch": "main",
       "matchedBranchOverrideCount": 1,
       "composeEnv": {
-        "precedence": ["repo-defaults", "environment-variables"],
+        "precedence": [
+          "repo-defaults",
+          "project-defaults",
+          "environment-variables",
+          "service-overrides",
+          "preview-environment-overrides",
+          "preview-service-overrides"
+        ],
         "counts": {
           "total": 3,
           "repoDefaults": 1,
@@ -106,7 +113,8 @@ Service plan:
             "isSecret": true,
             "source": "inline",
             "branchPattern": "main",
-            "origin": "environment-variable",
+            "origin": "environment",
+            "revision": "1",
             "overrodeRepoDefault": false
           }
         ]
@@ -203,7 +211,14 @@ Compose plan:
       "branch": "main",
       "matchedBranchOverrideCount": 0,
       "composeEnv": {
-        "precedence": ["repo-defaults", "environment-variables"],
+        "precedence": [
+          "repo-defaults",
+          "project-defaults",
+          "environment-variables",
+          "service-overrides",
+          "preview-environment-overrides",
+          "preview-service-overrides"
+        ],
         "counts": {
           "total": 1,
           "repoDefaults": 1,
@@ -223,6 +238,7 @@ Compose plan:
             "source": "repo-default",
             "branchPattern": null,
             "origin": "repo-default",
+            "revision": "sha256:content-derived",
             "overrodeRepoDefault": false
           }
         ]

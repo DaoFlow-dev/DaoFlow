@@ -5,6 +5,7 @@ import { db } from "../connection";
 import { gitProviders } from "../schema/git-providers";
 import { decrypt } from "../crypto";
 import { getGitInstallation } from "./git-providers";
+import { fetchWithGitProviderCa } from "./git-provider-ca-trust";
 import { resolveGitLabInstallationApiAccess } from "./gitlab-installation-auth";
 import { resolveGitLabApiBaseUrl } from "./gitlab-urls";
 import { asRecord } from "./json-helpers";
@@ -79,8 +80,12 @@ function createGitHubAppJwt(appId: string, privateKeyPem: string): string {
   return `${signingInput}.${signature}`;
 }
 
-async function fetchWithTimeout(url: string, init: RequestInit): Promise<Response> {
-  return fetch(url, {
+async function fetchWithTimeout(
+  provider: Pick<typeof gitProviders.$inferSelect, "teamId" | "caCertificateId">,
+  url: string,
+  init: RequestInit
+): Promise<Response> {
+  return fetchWithGitProviderCa(provider, url, {
     ...init,
     signal: AbortSignal.timeout(PROJECT_SOURCE_FILE_TIMEOUT_MS)
   });
@@ -89,7 +94,7 @@ async function fetchWithTimeout(url: string, init: RequestInit): Promise<Respons
 async function fetchGitHubInstallationToken(input: {
   provider: Pick<
     typeof gitProviders.$inferSelect,
-    "appId" | "baseUrl" | "name" | "privateKeyEncrypted"
+    "appId" | "baseUrl" | "name" | "privateKeyEncrypted" | "teamId" | "caCertificateId"
   >;
   installationId: string;
 }): Promise<{ status: "ok"; token: string } | { status: "not_available"; reason: string }> {
@@ -102,6 +107,7 @@ async function fetchGitHubInstallationToken(input: {
 
   const jwt = createGitHubAppJwt(input.provider.appId, decrypt(input.provider.privateKeyEncrypted));
   const response = await fetchWithTimeout(
+    input.provider,
     `${buildGitHubApiBaseUrl(input.provider.baseUrl)}/app/installations/${input.installationId}/access_tokens`,
     {
       method: "POST",
@@ -238,6 +244,7 @@ export async function fetchProjectRepositoryTextFile(input: {
 
     const repoPath = encodeGitHubRepoPath(input.project.repoFullName);
     const response = await fetchWithTimeout(
+      providerRow,
       `${buildGitHubApiBaseUrl(providerRow.baseUrl)}/repos/${repoPath}/contents/${encodeURIComponent(input.path)}?ref=${encodeURIComponent(input.branch)}`,
       {
         headers: {
@@ -296,6 +303,7 @@ export async function fetchProjectRepositoryTextFile(input: {
     }
 
     const response = await fetchWithTimeout(
+      providerRow,
       `${resolveGitLabApiBaseUrl(providerRow)}/projects/${encodeURIComponent(input.project.repoFullName)}/repository/files/${encodeURIComponent(input.path)}?ref=${encodeURIComponent(input.branch)}`,
       {
         headers: {

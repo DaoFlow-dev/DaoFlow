@@ -38,9 +38,9 @@ export default function BuildValuePanel({ serviceId, vars, resolvedVars }: Build
       <CardContent className="space-y-4">
         <div className="space-y-1">
           <p className="text-sm text-muted-foreground">
-            Build values follow the same layering model as runtime values: shared environment
-            defaults first, then service overrides, then preview-only overrides when the branch
-            pattern matches.
+            Build values follow the same layering model as runtime values: project defaults, then
+            environment and service overrides, then preview-only overrides when the branch pattern
+            matches.
           </p>
           <p className="text-sm text-muted-foreground">
             Use the override form above and choose the <span className="font-medium">build</span>{" "}

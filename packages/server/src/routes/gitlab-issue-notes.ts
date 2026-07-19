@@ -1,5 +1,6 @@
 import { gitInstallations, gitProviders } from "../db/schema/git-providers";
 import { resolveGitLabInstallationApiAccess } from "../db/services/gitlab-installation-auth";
+import { fetchWithGitProviderCa } from "../db/services/git-provider-ca-trust";
 import { resolveGitLabApiBaseUrl } from "../db/services/gitlab-urls";
 
 function encodeProjectPath(repoFullName: string) {
@@ -7,12 +8,13 @@ function encodeProjectPath(repoFullName: string) {
 }
 
 async function writeGitLabIssueNote(input: {
+  provider: Pick<typeof gitProviders.$inferSelect, "teamId" | "caCertificateId">;
   headers: Record<string, string>;
   url: string;
   method: "POST" | "PUT";
   body: string;
 }) {
-  const response = await fetch(input.url, {
+  const response = await fetchWithGitProviderCa(input.provider, input.url, {
     method: input.method,
     headers: {
       Accept: "application/json",
@@ -60,6 +62,7 @@ export async function sendGitLabIssueNote(input: {
 
   if (!updateUrl) {
     const comment = await writeGitLabIssueNote({
+      provider: input.provider,
       headers: apiAccess.headers,
       url: createUrl,
       method: "POST",
@@ -70,6 +73,7 @@ export async function sendGitLabIssueNote(input: {
 
   try {
     const comment = await writeGitLabIssueNote({
+      provider: input.provider,
       headers: apiAccess.headers,
       url: updateUrl,
       method: "PUT",
@@ -83,6 +87,7 @@ export async function sendGitLabIssueNote(input: {
   }
 
   const comment = await writeGitLabIssueNote({
+    provider: input.provider,
     headers: apiAccess.headers,
     url: createUrl,
     method: "POST",

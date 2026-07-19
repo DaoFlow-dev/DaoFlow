@@ -15,6 +15,7 @@ import {
   consumeGitProviderSetupState,
   readGitProviderSetupStateCodeVerifier
 } from "./git-provider-setup-states";
+import { fetchWithGitProviderCa } from "./git-provider-ca-trust";
 import { isUserMemberOfTeam } from "./teams";
 import { resolveGitLabTokenExpiresAt } from "./gitlab-installation-auth";
 
@@ -111,12 +112,16 @@ export async function completeGitLabOAuthSetup(input: {
     redirect_uri: resolveGitLabRedirectUri(),
     code_verifier: codeVerifier
   });
-  const tokenResponse = await fetch(`${resolveGitLabInternalBaseUrl(provider)}/oauth/token`, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: tokenRequest.toString(),
-    signal: AbortSignal.timeout(10_000)
-  });
+  const tokenResponse = await fetchWithGitProviderCa(
+    provider,
+    `${resolveGitLabInternalBaseUrl(provider)}/oauth/token`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: tokenRequest.toString(),
+      signal: AbortSignal.timeout(10_000)
+    }
+  );
 
   if (!tokenResponse.ok) return { status: "exchange_failed" as const };
 
@@ -131,10 +136,14 @@ export async function completeGitLabOAuthSetup(input: {
     return { status: "exchange_failed" as const };
   }
 
-  const userResponse = await fetch(`${resolveGitLabApiBaseUrl(provider)}/user`, {
-    headers: { Authorization: `Bearer ${tokenData.access_token}`, Accept: "application/json" },
-    signal: AbortSignal.timeout(10_000)
-  });
+  const userResponse = await fetchWithGitProviderCa(
+    provider,
+    `${resolveGitLabApiBaseUrl(provider)}/user`,
+    {
+      headers: { Authorization: `Bearer ${tokenData.access_token}`, Accept: "application/json" },
+      signal: AbortSignal.timeout(10_000)
+    }
+  );
   if (!userResponse.ok) return { status: "exchange_failed" as const };
 
   const userData = (await userResponse.json()) as { username?: string; id?: number | string };

@@ -13,8 +13,14 @@ import { createGitLabCredentialStorage } from "./gitlab-credentials";
 import {
   resolveGitLabInstallationAccessToken,
   resolveGitLabInstallationApiAccess,
-  resolveGitLabInstallationCredential
+  resolveGitLabInstallationCredential,
+  validateGitLabApiToken
 } from "./gitlab-installation-auth";
+
+function requestTls(init: unknown): unknown {
+  if (!init || typeof init !== "object" || !("tls" in init)) return undefined;
+  return init.tls;
+}
 
 describe("GitLab installation OAuth credentials", () => {
   beforeEach(async () => {
@@ -29,6 +35,57 @@ describe("GitLab installation OAuth credentials", () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+  });
+
+  it("uses a resolved CA only for the API token validation request", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((_url, init) => {
+      expect(requestTls(init)).toEqual({ ca: "test-ca-pem" });
+      return Promise.resolve(
+        new Response(JSON.stringify({ id: 42, username: "private-gitlab-user" }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" }
+        })
+      );
+    });
+
+    await expect(
+      validateGitLabApiToken({
+        baseUrl: "https://gitlab.private.test",
+        token: "glpat-test",
+        ca: {
+          certificateId: "cert_private_ca",
+          name: "Private GitLab CA",
+          fingerprint: "sha256:test",
+          expiresAt: new Date("2030-01-01T00:00:00.000Z"),
+          pem: "test-ca-pem"
+        }
+      })
+    ).resolves.toEqual({ id: "42", username: "private-gitlab-user" });
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("https://gitlab.private.test/api/v4/user");
+  });
+
+  it("keeps default fetch trust for API token validation without a CA", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((_url, init) => {
+      expect(requestTls(init)).toBeUndefined();
+      return Promise.resolve(
+        new Response(JSON.stringify({ id: "43", username: "public-gitlab-user" }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" }
+        })
+      );
+    });
+
+    await expect(
+      validateGitLabApiToken({
+        baseUrl: "https://gitlab.com",
+        token: "glpat-test",
+        ca: null
+      })
+    ).resolves.toEqual({ id: "43", username: "public-gitlab-user" });
+
+    expect(fetchMock).toHaveBeenCalledOnce();
   });
 
   it("refreshes an expired token pair once across concurrent checkout requests", async () => {

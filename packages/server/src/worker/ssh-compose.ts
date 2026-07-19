@@ -197,7 +197,7 @@ export async function remoteDockerComposePs(
     target,
     execution.remoteCommand,
     (line) => {
-      if (line.stream === "stdout") {
+      if (line.stream === "stdout" && !line.message.startsWith("[ssh] ")) {
         stdoutLines.push(line.message);
         return;
       }

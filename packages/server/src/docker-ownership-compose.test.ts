@@ -72,16 +72,32 @@ volumes:
   data: {}
   shared:
     external: true
+configs:
+  app_config:
+    file: ./app.conf
+  shared_config:
+    external: true
+secrets:
+  app_secret:
+    file: ./app.secret
+  shared_secret:
+    external: true
 `) as Record<string, unknown>;
 
     applyDockerOwnershipToComposeDoc(doc, identity);
     const networks = doc.networks as Record<string, Record<string, unknown>>;
     const volumes = doc.volumes as Record<string, Record<string, unknown>>;
+    const configs = doc.configs as Record<string, Record<string, unknown>>;
+    const secrets = doc.secrets as Record<string, Record<string, unknown>>;
     expect(networks.private.labels).toEqual(ownership);
     expect(networks.default.labels).toEqual(ownership);
     expect(networks.proxy.labels).toBeUndefined();
     expect(volumes.data.labels).toEqual(ownership);
     expect(volumes.shared.labels).toBeUndefined();
+    expect(configs.app_config.labels).toEqual(ownership);
+    expect(configs.shared_config.labels).toBeUndefined();
+    expect(secrets.app_secret.labels).toEqual(ownership);
+    expect(secrets.shared_secret.labels).toBeUndefined();
   });
 
   it.each(["[]", "{}"])(

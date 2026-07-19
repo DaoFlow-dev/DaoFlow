@@ -74,6 +74,7 @@ export async function materializeProjectSourceInspection(input: {
     const cloneResult = await gitClone(checkout.repoUrl, checkout.branch, inspectionId, noopLog, {
       displayLabel: checkout.displayLabel,
       gitConfig: checkout.gitConfig,
+      caCertificatePem: checkout.caCertificatePem,
       sshPrivateKey: checkout.sshPrivateKey,
       repositoryPreparation: checkout.repositoryPreparation
     });

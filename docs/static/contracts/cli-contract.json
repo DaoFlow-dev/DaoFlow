@@ -2189,9 +2189,14 @@
       "arguments": [],
       "options": [
         {
+          "flags": "--project-id <id>",
+          "description": "Project ID for a shared project default",
+          "required": false
+        },
+        {
           "flags": "--env-id <id>",
           "description": "Environment ID",
-          "required": true
+          "required": false
         },
         {
           "flags": "--key <key>",
@@ -2224,6 +2229,11 @@
       "aliases": [],
       "arguments": [],
       "options": [
+        {
+          "flags": "--project-id <id>",
+          "description": "Project ID; list project defaults only",
+          "required": false
+        },
         {
           "flags": "--env-id <id>",
           "description": "Environment ID",
@@ -2359,8 +2369,13 @@
       "arguments": [],
       "options": [
         {
+          "flags": "--project-id <id>",
+          "description": "Project ID for a shared project default",
+          "required": false
+        },
+        {
           "flags": "--env-id <id>",
-          "description": "Environment ID (required unless --local)",
+          "description": "Environment ID (required unless --local or --project-id)",
           "required": false
         },
         {

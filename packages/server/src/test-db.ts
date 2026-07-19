@@ -26,9 +26,10 @@ import { resetAuthState } from "./auth";
 
 const { Client } = pg;
 const TEST_DB_PREPARE_LOCK_ID = 8_705_231;
-const MIN_EXPECTED_PUBLIC_TABLES = 48;
+const MIN_EXPECTED_PUBLIC_TABLES = 49;
 
 interface LatestTestSchemaState {
+  environmentVariablesRevision: string | null;
   gitProvidersInternalBaseUrl: string | null;
   gitInstallationsCredentialEncrypted: string | null;
   gitProviderSetupStatesCodeVerifierEncrypted: string | null;
@@ -41,10 +42,14 @@ interface LatestTestSchemaState {
   serverMetricOutbox: string | null;
   serverMetricPolicies: string | null;
   serverMetricStates: string | null;
+  projectVariables: string | null;
+  projectVariablesRevision: string | null;
+  serviceVariablesRevision: string | null;
 }
 
 function hasLatestTestSchema(state: LatestTestSchemaState | undefined): boolean {
   return Boolean(
+    state?.environmentVariablesRevision &&
     state?.gitProvidersInternalBaseUrl &&
     state.gitInstallationsCredentialEncrypted &&
     state.gitProviderSetupStatesCodeVerifierEncrypted &&
@@ -56,7 +61,10 @@ function hasLatestTestSchema(state: LatestTestSchemaState | undefined): boolean 
     state.serverMetricDeliveryCooldowns &&
     state.serverMetricOutbox &&
     state.serverMetricPolicies &&
-    state.serverMetricStates
+    state.serverMetricStates &&
+    state.projectVariables &&
+    state.projectVariablesRevision &&
+    state.serviceVariablesRevision
   );
 }
 
@@ -146,7 +154,11 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
       deploymentBuildLeases: string | null;
       deploymentQueueReservations: string | null;
       deploymentBuildLeaseOwnerToken: string | null;
+      environmentVariablesRevision: string | null;
+      projectVariables: string | null;
+      projectVariablesRevision: string | null;
       serviceVariables: string | null;
+      serviceVariablesRevision: string | null;
       gitProviders: string | null;
       providerFeedback: string | null;
       providerFeedbackSequence: string | null;
@@ -229,7 +241,11 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
         to_regclass('public.deployment_build_leases') AS "deploymentBuildLeases",
         to_regclass('public.deployment_queue_reservations') AS "deploymentQueueReservations",
         (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'deployment_build_leases' AND column_name = 'owner_token') AS "deploymentBuildLeaseOwnerToken",
+        (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'environment_variables' AND column_name = 'revision') AS "environmentVariablesRevision",
+        to_regclass('public.project_variables') AS "projectVariables",
+        (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'project_variables' AND column_name = 'revision') AS "projectVariablesRevision",
         to_regclass('public.service_variables') AS "serviceVariables",
+        (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'service_variables' AND column_name = 'revision') AS "serviceVariablesRevision",
         to_regclass('public.git_providers') AS "gitProviders",
         to_regclass('public.provider_feedback') AS "providerFeedback",
         (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'provider_feedback' AND column_name = 'sequence') AS "providerFeedbackSequence",
@@ -424,7 +440,11 @@ async function readPoolSchemaState() {
     deploymentBuildLeases: string | null;
     deploymentQueueReservations: string | null;
     deploymentBuildLeaseOwnerToken: string | null;
+    environmentVariablesRevision: string | null;
+    projectVariables: string | null;
+    projectVariablesRevision: string | null;
     serviceVariables: string | null;
+    serviceVariablesRevision: string | null;
     gitProviders: string | null;
     providerFeedback: string | null;
     providerFeedbackSequence: string | null;
@@ -506,7 +526,11 @@ async function readPoolSchemaState() {
       to_regclass('public.deployment_build_leases') AS "deploymentBuildLeases",
       to_regclass('public.deployment_queue_reservations') AS "deploymentQueueReservations",
       (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'deployment_build_leases' AND column_name = 'owner_token') AS "deploymentBuildLeaseOwnerToken",
+      (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'environment_variables' AND column_name = 'revision') AS "environmentVariablesRevision",
+      to_regclass('public.project_variables') AS "projectVariables",
+      (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'project_variables' AND column_name = 'revision') AS "projectVariablesRevision",
       to_regclass('public.service_variables') AS "serviceVariables",
+      (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'service_variables' AND column_name = 'revision') AS "serviceVariablesRevision",
       to_regclass('public.git_providers') AS "gitProviders",
       to_regclass('public.provider_feedback') AS "providerFeedback",
       (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'provider_feedback' AND column_name = 'sequence') AS "providerFeedbackSequence",
@@ -602,7 +626,11 @@ async function ensurePooledTestSchemaReady(connectionString: string) {
         state.deploymentBuildLeases &&
         state.deploymentQueueReservations &&
         state.deploymentBuildLeaseOwnerToken &&
+        state.environmentVariablesRevision &&
+        state.projectVariables &&
+        state.projectVariablesRevision &&
         state.serviceVariables &&
+        state.serviceVariablesRevision &&
         state.gitProviders &&
         state.providerFeedback &&
         state.providerFeedbackSequence &&

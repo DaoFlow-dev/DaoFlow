@@ -12,6 +12,7 @@ export interface GitLabProviderFormState {
   webhookSecret: string;
   baseUrl: string;
   internalBaseUrl: string;
+  caCertificateId: string | null;
 }
 
 export const INITIAL_GITLAB_PROVIDER_FORM: GitLabProviderFormState = {
@@ -25,7 +26,8 @@ export const INITIAL_GITLAB_PROVIDER_FORM: GitLabProviderFormState = {
   expiresAt: "",
   webhookSecret: "",
   baseUrl: "",
-  internalBaseUrl: ""
+  internalBaseUrl: "",
+  caCertificateId: null
 };
 
 interface GitLabOAuthCredentialInput {
@@ -56,6 +58,7 @@ export interface GitLabProviderRegistrationPayload {
   webhookSecret?: string;
   baseUrl?: string;
   internalBaseUrl?: string;
+  caCertificateId?: string;
   gitlabCredential: GitLabCredentialInput;
 }
 
@@ -101,7 +104,8 @@ export function buildGitLabProviderPayload(
       form.credentialMode === "oauth" ? form.clientSecret.trim() || undefined : undefined,
     webhookSecret: form.webhookSecret.trim() || undefined,
     baseUrl: form.baseUrl.trim() || undefined,
-    internalBaseUrl: form.internalBaseUrl.trim() || undefined
+    internalBaseUrl: form.internalBaseUrl.trim() || undefined,
+    ...(form.caCertificateId ? { caCertificateId: form.caCertificateId } : {})
   };
 
   if (form.credentialMode === "oauth") {

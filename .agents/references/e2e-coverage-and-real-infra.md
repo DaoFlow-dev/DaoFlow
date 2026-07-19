@@ -67,25 +67,25 @@ SSH target rather than a code seam: bring up an SSH-reachable Docker host (a
 sibling container running `sshd` + Docker, or a throwaway VPS) and register it as
 a `remote` server.
 
-## Proposed real-infra harness (opt-in, not in default CI gate)
+## Real-infra harness (opt-in, not in the default CI gate)
 
-A new Playwright project, **skipped unless `DAOFLOW_REAL_INFRA=1`**, that runs the
-full lifecycle against a real remote-style target:
+`DAOFLOW_REAL_INFRA=1 bun run test:e2e:real-infra` now runs the remote acceptance
+lane against an operator-provisioned disposable SSH-and-Docker target. It is a
+dedicated serial Playwright project, excluded from `bun run test:e2e`, with no
+retries, screenshots, video, or traces.
 
-1. Provision an SSH-reachable Docker host (compose sidecar `sshd`+`dind`, or a
-   tagged ephemeral VPS).
-2. Register it as a `remote` server; assert SSH connectivity check passes.
-3. Deploy a real compose stack; assert the container is actually running
-   (`docker compose ps` over SSH), not just a DB row.
-4. Inject a failure (bad image tag); assert structured failure analysis and that
-   `daoflow diagnose` cites real log/event IDs.
-5. Roll back to the prior deployment record; assert the previous container is
-   restored.
-6. Register a volume, run a backup to MinIO (S3-compatible), restore it, and
-   verify data integrity.
-7. Run the concurrency stress (roadmap #173) against real Docker.
+Before mutation it requires every target secret, authenticates over an exact
+pinned SSH host key, and verifies an operator-created remote marker path and
+nonce. Each run uses a unique token for its server, project, environment,
+service, Compose project, volume, policy, workspace, and S3 prefix.
 
-This harness is intentionally **out of the required PR gate** (it needs real
-infra and is slow). It should run nightly and pre-release. Until it exists and is
-green, treat remote deploy, rollback, and backup/restore as **unverified against
-real infrastructure**.
+The lifecycle covers remote Compose deployment and HTTP verification, sentinel
+backup and restore through S3-compatible storage, a deliberately failed image
+deployment with persisted event/log evidence IDs, rollback to the known-good
+release, audit assertions, and token-scoped cleanup. Cleanup rechecks the marker,
+never prunes globally, and asserts zero owned remote resources and S3 objects.
+
+The protected nightly/manual workflow is `.github/workflows/real-infra.yml`; it
+does not run on pull requests and always uploads only the redacted harness
+artifacts. See `docs/docs/development/real-infrastructure.md` for operation and
+secret requirements.

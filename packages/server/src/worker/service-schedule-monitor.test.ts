@@ -39,15 +39,6 @@ function createDeferred() {
   return { promise, resolve };
 }
 
-async function waitForActiveLease() {
-  for (let attempt = 0; attempt < 1_500; attempt += 1) {
-    const status = await getServiceScheduleMonitorLeaseStatus();
-    if (status?.active) return status;
-    await new Promise((resolve) => setTimeout(resolve, 10));
-  }
-  return getServiceScheduleMonitorLeaseStatus();
-}
-
 async function waitForReleasedLease() {
   for (let attempt = 0; attempt < 1_500; attempt += 1) {
     const status = await getServiceScheduleMonitorLeaseStatus();
@@ -217,7 +208,7 @@ describe("service schedule monitor", () => {
     expect(await listScheduledRuns(schedule.id)).toHaveLength(1);
   });
 
-  it("recovers a dead leader's running work before queuing the next occurrence", async () => {
+  it("keeps a dead leader's running work fenced and skips the next occurrence", async () => {
     const { schedule } = await createDueSchedule();
     const staleCycle = await runServiceScheduleMonitorCycle({
       instanceId: "monitor-recovery-stale",
@@ -239,16 +230,18 @@ describe("service schedule monitor", () => {
       runLimit: 0
     });
     expect(takeover).toMatchObject({
-      recoveredRuns: 1,
-      queuedOccurrences: 1,
+      recoveredRuns: 0,
+      queuedOccurrences: 0,
+      skippedOccurrences: 1,
       processedRuns: 0,
       leaseLost: false
     });
     const runs = await listScheduledRuns(schedule.id);
-    expect(runs.find((run) => run.id === staleRun.id)).toMatchObject({ status: "failed" });
-    expect(runs.filter((run) => run.status === "queued")).toHaveLength(1);
+    expect(runs.find((run) => run.id === staleRun.id)).toMatchObject({ status: "running" });
+    expect(runs.filter((run) => run.status === "queued")).toHaveLength(0);
+    expect(runs.filter((run) => run.status === "skipped")).toHaveLength(1);
     expect(getServiceScheduleMonitorRuntimeStatus().lastResult).toMatchObject({
-      recoveredRuns: 1
+      recoveredRuns: 0
     });
   });
 
@@ -300,11 +293,9 @@ describe("service schedule monitor", () => {
         instanceId: "monitor-cancel-takeover",
         runLimit: 0
       })
-    ).resolves.toMatchObject({ recoveredRuns: 1, leaseLost: false });
-    const recovered = (await listScheduledRuns(schedule.id)).find(
-      (run) => run.id === stillRunning.id
-    );
-    expect(recovered).toMatchObject({ status: "failed" });
+    ).resolves.toMatchObject({ recoveredRuns: 0, skippedOccurrences: 1, leaseLost: false });
+    const fenced = (await listScheduledRuns(schedule.id)).find((run) => run.id === stillRunning.id);
+    expect(fenced).toMatchObject({ status: "running" });
   });
 
   it("keeps leadership while a scheduled command runs longer than the lease TTL", async () => {
@@ -344,15 +335,25 @@ describe("service schedule monitor", () => {
   });
 
   it("releases its active generation on graceful stop", async () => {
-    startServiceScheduleMonitor({ pollIntervalMs: 1_000 });
-    expect(await waitForActiveLease()).toMatchObject({
+    const instanceId = getServiceScheduleMonitorInstanceId();
+    await expect(
+      runServiceScheduleMonitorCycle({ instanceId, runLimit: 0 })
+    ).resolves.toMatchObject({
+      lease: { holderInstanceId: instanceId },
+      leaseLost: false
+    });
+    expect(await getServiceScheduleMonitorLeaseStatus()).toMatchObject({
       active: true,
-      holderInstanceId: getServiceScheduleMonitorInstanceId()
+      holderInstanceId: instanceId
     });
 
+    startServiceScheduleMonitor({ pollIntervalMs: 1_000 });
     await stopServiceScheduleMonitor();
 
-    expect(await waitForReleasedLease()).toMatchObject({ active: false, expiresInMs: 0 });
+    expect(await getServiceScheduleMonitorLeaseStatus()).toMatchObject({
+      active: false,
+      expiresInMs: 0
+    });
     expect(getServiceScheduleMonitorRuntimeStatus()).toMatchObject({
       running: false,
       cycleInProgress: false,

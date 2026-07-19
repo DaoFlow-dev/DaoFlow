@@ -22,12 +22,13 @@ import {
   ProviderFeedbackSkippedError
 } from "./provider-feedback-processor";
 
-async function queueFixtureFeedback() {
+async function queueFixtureFeedback(now?: Date) {
   const fixture = await createProviderFeedbackFixture();
   await db.transaction((tx) =>
     queueProviderFeedbackIntent(tx, {
       deploymentId: fixture.deploymentId,
-      transition: "queued"
+      transition: "queued",
+      now
     })
   );
   return fixture;
@@ -67,7 +68,8 @@ describe("provider feedback processor", () => {
   });
 
   it("retries a provider outage without changing the deployment result", async () => {
-    const fixture = await queueFixtureFeedback();
+    const now = new Date("2026-07-19T12:00:00.000Z");
+    const fixture = await queueFixtureFeedback(now);
     await transitionDeploymentWithFeedback({
       deploymentId: fixture.deploymentId,
       status: "completed",
@@ -85,12 +87,6 @@ describe("provider feedback processor", () => {
       }
     });
 
-    const [pendingFeedback] = await db
-      .select({ nextAttemptAt: providerFeedback.nextAttemptAt })
-      .from(providerFeedback)
-      .where(eq(providerFeedback.deploymentId, fixture.deploymentId));
-    if (!pendingFeedback) throw new Error("Expected queued provider feedback.");
-    const now = pendingFeedback.nextAttemptAt;
     await expect(processNextProviderFeedback({ now })).resolves.toMatchObject({
       status: "retrying"
     });
@@ -331,13 +327,8 @@ describe("provider feedback processor", () => {
   });
 
   it("rejects finalization after lease expiry and allows a fenced reclaim", async () => {
-    const fixture = await queueFixtureFeedback();
-    const [pendingFeedback] = await db
-      .select({ nextAttemptAt: providerFeedback.nextAttemptAt })
-      .from(providerFeedback)
-      .where(eq(providerFeedback.deploymentId, fixture.deploymentId));
-    if (!pendingFeedback) throw new Error("Expected queued provider feedback.");
-    const claimedAt = pendingFeedback.nextAttemptAt;
+    const claimedAt = new Date("2026-07-19T12:00:00.000Z");
+    await queueFixtureFeedback(claimedAt);
     const first = await claimNextProviderFeedback({
       providerKinds: ["github"],
       now: claimedAt,

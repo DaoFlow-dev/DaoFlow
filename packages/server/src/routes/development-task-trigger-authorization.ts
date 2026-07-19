@@ -1,4 +1,5 @@
 import { fetchGitHubInstallationAccessToken } from "../db/services/github-app-auth";
+import { fetchWithGitProviderCa } from "../db/services/git-provider-ca-trust";
 import { resolveGitLabInstallationApiAccess } from "../db/services/gitlab-installation-auth";
 import { buildGitHubApiBaseUrl } from "../db/services/project-source-provider-validation-shared";
 import { resolveGitLabApiBaseUrl } from "../db/services/gitlab-urls";
@@ -71,7 +72,8 @@ export async function authorizeGitHubDevelopmentTaskActor(input: {
     provider: input.target.provider,
     installation: input.target.installation
   });
-  const response = await fetch(
+  const response = await fetchWithGitProviderCa(
+    input.target.provider,
     `${buildGitHubApiBaseUrl(input.target.provider.baseUrl)}/repos/${input.repoFullName}/collaborators/${encodeURIComponent(
       actorLogin
     )}/permission`,
@@ -117,7 +119,8 @@ export async function authorizeGitLabDevelopmentTaskActor(input: {
   }
 
   const apiBaseUrl = resolveGitLabApiBaseUrl(input.target.provider);
-  const response = await fetch(
+  const response = await fetchWithGitProviderCa(
+    input.target.provider,
     `${apiBaseUrl}/projects/${encodeGitLabProjectPath(input.repoFullName)}/members/all?query=${encodeURIComponent(
       actorUsername
     )}`,

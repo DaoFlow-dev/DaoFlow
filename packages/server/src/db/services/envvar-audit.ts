@@ -15,15 +15,21 @@ export function buildEnvironmentVariableSnapshot(input: {
   source: "inline" | "1password";
   secretRef: string | null;
   branchPattern: string | null;
+  origin: "project" | "environment" | "service" | "preview-environment" | "preview-service";
+  revision: number;
 }) {
+  const isSecret = input.isSecret || input.source === "1password";
+
   return {
     key: input.key,
-    value: input.isSecret ? "[secret]" : input.value,
-    isSecret: input.isSecret,
+    value: isSecret ? "[secret]" : input.value,
+    isSecret,
     category: input.category,
     source: input.source,
     secretRef: input.secretRef,
-    branchPattern: input.branchPattern
+    branchPattern: input.branchPattern,
+    origin: input.origin,
+    revision: input.revision
   };
 }
 

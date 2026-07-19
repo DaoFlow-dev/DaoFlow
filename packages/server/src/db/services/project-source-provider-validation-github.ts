@@ -109,6 +109,7 @@ export async function validateGitHubSource(
   };
 
   const tokenResponse = await fetchWithProviderTimeout(
+    provider,
     "github",
     "installation token exchange",
     `${buildGitHubApiBaseUrl(provider.baseUrl)}/app/installations/${installation.installationId}/access_tokens`,
@@ -156,6 +157,7 @@ export async function validateGitHubSource(
   };
 
   const repositoryResponse = await fetchWithProviderTimeout(
+    provider,
     "github",
     "repository access",
     `${buildGitHubApiBaseUrl(provider.baseUrl)}/repos/${repoPath}`,
@@ -180,6 +182,7 @@ export async function validateGitHubSource(
   }
 
   const branchResponse = await fetchWithProviderTimeout(
+    provider,
     "github",
     "branch access",
     `${buildGitHubApiBaseUrl(provider.baseUrl)}/repos/${repoPath}/branches/${encodeURIComponent(source.defaultBranch)}`,
@@ -205,6 +208,7 @@ export async function validateGitHubSource(
 
   for (const composeFile of source.composeFiles) {
     const composeResponse = await fetchWithProviderTimeout(
+      provider,
       "github",
       "compose file access",
       `${buildGitHubApiBaseUrl(provider.baseUrl)}/repos/${repoPath}/contents/${encodeURIComponent(composeFile)}?ref=${encodeURIComponent(source.defaultBranch)}`,

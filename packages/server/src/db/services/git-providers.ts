@@ -21,8 +21,10 @@ import { toGitInstallationSummary, toGitProviderSummary } from "./git-provider-s
 export { encodeGitInstallationPermissions } from "./git-installation-legacy-credentials";
 export {
   registerGitProvider,
+  updateGitProviderCa,
   type RegisterGitLabCredential,
-  type RegisterGitProviderInput
+  type RegisterGitProviderInput,
+  type UpdateGitProviderCaInput
 } from "./git-provider-registration";
 export type { GitInstallationSummary, GitProviderSummary } from "./git-provider-summaries";
 
