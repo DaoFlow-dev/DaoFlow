@@ -172,7 +172,10 @@ describe("install command", () => {
         temporalPostgresPassword: "temporal-existing-secret",
         authSecret: "auth-existing-secret",
         encryptionKey: "enc-existing-secret",
-        recoveryEncryptionKey: "recovery-existing-secret"
+        recoveryEncryptionKey: "recovery-existing-secret",
+        preservedEnv: {
+          DAOFLOW_DATABASE_NAME: "existing_control_plane"
+        }
       })}
 SMTP_HOST=smtp.example.com
 DEPLOY_TIMEOUT_MS=900000
@@ -210,6 +213,7 @@ DEPLOY_TIMEOUT_MS=900000
     expect(envFile.BETTER_AUTH_SECRET).toBe("auth-existing-secret");
     expect(envFile.ENCRYPTION_KEY).toBe("enc-existing-secret");
     expect(envFile.DAOFLOW_RECOVERY_ENCRYPTION_KEY).toBe("recovery-existing-secret");
+    expect(envFile.DAOFLOW_DATABASE_NAME).toBe("existing_control_plane");
     expect(envFile.SMTP_HOST).toBe("smtp.example.com");
     expect(envFile.DEPLOY_TIMEOUT_MS).toBe("900000");
   });

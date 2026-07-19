@@ -80,6 +80,19 @@ export interface ServerReadinessOutput {
   }>;
 }
 
+export interface InfrastructureInventoryOutput {
+  summary: {
+    totalServers: number;
+    totalProjects: number;
+    totalEnvironments: number;
+    totalServices: number;
+    healthyServers: number;
+  };
+  servers: Array<{ id: string }>;
+  projects: Array<{ id: string }>;
+  environments: Array<{ id: string; projectId: string }>;
+}
+
 export interface ServerOperationRecord {
   id: string;
   serverId: string;
@@ -293,6 +306,7 @@ export interface RouterOutputs {
   viewer: ViewerOutput;
   health: HealthOutput;
   serverReadiness: ServerReadinessOutput;
+  infrastructureInventory: InfrastructureInventoryOutput;
   serverOperationsHub: ServerOperationsHubOutput;
   auditTrail: AuditTrailOutput;
   accessLogs: AccessLogsOutput;
@@ -1428,6 +1442,7 @@ export interface DaoFlowTRPC {
   health: QueryProcedure<HealthOutput>;
   approvalQueue: QueryProcedure<ApprovalQueueOutput, { limit?: number }>;
   serverReadiness: QueryProcedure<ServerReadinessOutput, { limit?: number }>;
+  infrastructureInventory: QueryProcedure<InfrastructureInventoryOutput>;
   operationalMaintenanceReport: QueryProcedure<OperationalMaintenanceReportOutput>;
   runOperationalMaintenance: MutationProcedure<
     { dryRun?: boolean },

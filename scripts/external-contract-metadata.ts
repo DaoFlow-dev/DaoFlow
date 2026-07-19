@@ -928,6 +928,7 @@ export const cliCommandMeta: Record<string, CliCommandMeta> = {
   },
   "backup recovery plan": { lane: "planning", requiredScopes: ["backup:read"], mutating: false },
   "backup recovery run": { lane: "command", requiredScopes: ["backup:run"], mutating: true },
+  "backup recovery restore": { lane: "local", requiredScopes: [], mutating: true },
   "backup recovery list": { lane: "read", requiredScopes: ["backup:read"], mutating: false },
   "backup recovery inspect": { lane: "read", requiredScopes: ["backup:read"], mutating: false },
   "backup recovery download-metadata": {

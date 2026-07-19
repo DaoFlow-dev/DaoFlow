@@ -19,7 +19,7 @@ services:
       - daoflow-staging:/app/staging
       - daoflow-ssh:/app/.ssh
     environment:
-      DATABASE_URL: postgresql://daoflow:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/daoflow
+      DATABASE_URL: postgresql://daoflow:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/${DAOFLOW_DATABASE_NAME:-daoflow}
       REDIS_URL: redis://redis:6379
       CORS_ORIGIN: ${CORS_ORIGIN:-}
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?Set BETTER_AUTH_SECRET in .env}

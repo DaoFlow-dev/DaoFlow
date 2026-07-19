@@ -1191,6 +1191,67 @@
       "supportsYes": false
     },
     {
+      "path": "backup recovery restore",
+      "summary": "Restore a verified recovery bundle into a clean installation",
+      "lane": "local",
+      "requiredScopes": [],
+      "mutating": true,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--dir <path>",
+          "description": "Clean DaoFlow installation directory",
+          "required": false
+        },
+        {
+          "flags": "--bundle <path>",
+          "description": "Local encrypted recovery bundle (.dfr)",
+          "required": true
+        },
+        {
+          "flags": "--manifest <path>",
+          "description": "Local signed recovery manifest (prefer latest.json)",
+          "required": true
+        },
+        {
+          "flags": "--external-secrets <path>",
+          "description": "Owner-only recovery secrets file",
+          "required": true
+        },
+        {
+          "flags": "--database-name <name>",
+          "description": "New PostgreSQL database name",
+          "required": false
+        },
+        {
+          "flags": "--dry-run",
+          "description": "Validate inputs and print the exact recovery plan",
+          "required": false
+        },
+        {
+          "flags": "--confirm <plan-hash>",
+          "description": "Exact SHA-256 hash returned by --dry-run",
+          "required": false
+        },
+        {
+          "flags": "-y, --yes",
+          "description": "Confirm the offline restore and switchover",
+          "required": false
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": true,
+      "supportsYes": true
+    },
+    {
       "path": "backup recovery run",
       "summary": "Create and verify a control-plane recovery bundle",
       "lane": "command",

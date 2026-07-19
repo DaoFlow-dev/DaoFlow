@@ -9,6 +9,7 @@ import {
   renderRecoveryList,
   safePayload
 } from "./control-plane-recovery-output";
+import { registerControlPlaneRecoveryRestoreCommand } from "./control-plane-recovery-restore";
 
 function parseLimit(rawLimit: string): number {
   const limit = Number.parseInt(rawLimit, 10);
@@ -28,6 +29,7 @@ export function registerControlPlaneRecoveryCommands(backup: Command): void {
 Required scopes:
   plan, list, inspect, download-metadata: backup:read
   run: backup:run
+  restore: local offline command; no API scope
 
 Examples:
   daoflow backup recovery plan --destination dest_123 --json
@@ -36,8 +38,11 @@ Examples:
   daoflow backup recovery list --json
   daoflow backup recovery inspect --bundle rb_123 --json
   daoflow backup recovery download-metadata --bundle rb_123 --json
+  daoflow backup recovery restore --bundle ./bundle.dfr --manifest ./latest.json --external-secrets /secure/recovery.env --dry-run --json
 `
     );
+
+  registerControlPlaneRecoveryRestoreCommand(recovery);
 
   recovery
     .command("plan")

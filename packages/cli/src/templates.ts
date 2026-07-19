@@ -156,6 +156,7 @@ export function generateEnvFile(opts: {
   const authSecret = opts.authSecret ?? secureHex(32);
   const encKey = opts.encryptionKey ?? secureHex(16); // 32 hex chars
   const recoveryKey = opts.recoveryEncryptionKey ?? secureHex(32); // 64 hex chars
+  const databaseName = opts.preservedEnv?.DAOFLOW_DATABASE_NAME?.trim() || "daoflow";
 
   const scheme = opts.scheme ?? (opts.domain === "localhost" ? "http" : "https");
   const usesManagedHttpsEdge = opts.exposureMode === "traefik" || opts.cloudflareTunnelEnabled;
@@ -176,6 +177,7 @@ export function generateEnvFile(opts: {
     "CLOUDFLARE_TUNNEL_TOKEN",
     "DAOFLOW_INITIAL_ADMIN_EMAIL",
     "DAOFLOW_INITIAL_ADMIN_PASSWORD",
+    "DAOFLOW_DATABASE_NAME",
     "POSTGRES_PASSWORD",
     "TEMPORAL_POSTGRES_PASSWORD",
     "BETTER_AUTH_SECRET",
@@ -212,7 +214,8 @@ ${opts.exposureMode === "traefik" || opts.cloudflareTunnelEnabled ? `${envLine("
 ${envLine("DAOFLOW_INITIAL_ADMIN_EMAIL", opts.initialAdminEmail)}
 ${envLine("DAOFLOW_INITIAL_ADMIN_PASSWORD", opts.initialAdminPassword)}
 
-# -- Database (auto-generated password) -------------------------------------
+# -- Database ---------------------------------------------------------------
+${envLine("DAOFLOW_DATABASE_NAME", databaseName)}
 ${envLine("POSTGRES_PASSWORD", pgPass)}
 
 # -- Temporal Database (auto-generated password) ----------------------------

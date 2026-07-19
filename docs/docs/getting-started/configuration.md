@@ -29,25 +29,26 @@ The generated production `.env` file is intentionally smaller than the runtime e
 
 Most operators edit only these values:
 
-| Variable                                             | Default                      | Description                                                                              |
-| ---------------------------------------------------- | ---------------------------- | ---------------------------------------------------------------------------------------- |
-| `DAOFLOW_VERSION`                                    | `0.9.1` in reference Compose | Concrete image tag to run; the installer-generated `.env` pins the installed CLI release |
-| `BETTER_AUTH_URL`                                    | —                            | Public origin used for sign-in and callbacks                                             |
-| `DAOFLOW_PORT`                                       | `3000`                       | Host port bound to the DaoFlow container                                                 |
-| `BETTER_AUTH_SECRET`                                 | —                            | Production session signing secret                                                        |
-| `ENCRYPTION_KEY`                                     | —                            | Global DaoFlow secret-encryption key; keep it unchanged during destination-key rotation  |
-| `DAOFLOW_BACKUP_DESTINATION_ENCRYPTION_KEY`          | unset                        | Current backup-destination key; falls back to `ENCRYPTION_KEY`                           |
-| `DAOFLOW_PREVIOUS_BACKUP_DESTINATION_ENCRYPTION_KEY` | unset                        | Temporary old backup-destination key used only during rotation                           |
-| `DAOFLOW_RECOVERY_ENCRYPTION_KEY`                    | unset                        | Dedicated recovery-bundle encryption key; store it outside the control-plane database    |
-| `DAOFLOW_PREVIOUS_RECOVERY_ENCRYPTION_KEY`           | unset                        | Temporary previous recovery key during a controlled key rotation                         |
-| `DAOFLOW_RCLONE_COMMAND_TIMEOUT_MS`                  | `1800000`                    | Maximum time for one recovery-object transfer                                            |
-| `DAOFLOW_CONTROL_PLANE_RECOVERY_VERIFIER_STORAGE_MB` | `4096`                       | Storage and memory ceiling for each isolated recovery verifier                           |
-| `POSTGRES_PASSWORD`                                  | —                            | Password for the DaoFlow application database                                            |
-| `TEMPORAL_POSTGRES_PASSWORD`                         | —                            | Password for Temporal's Postgres database                                                |
-| `DEPLOY_TIMEOUT_MS`                                  | `600000`                     | Timeout for a single deployment execution                                                |
-| `DAOFLOW_ENABLE_TEMPORAL`                            | `false`                      | Enables durable Temporal-backed orchestration                                            |
-| `TEMPORAL_NAMESPACE`                                 | `daoflow`                    | Temporal namespace when Temporal mode is enabled                                         |
-| `TEMPORAL_TASK_QUEUE`                                | `daoflow-deployments`        | Temporal task queue name                                                                 |
+| Variable                                             | Default                      | Description                                                                                         |
+| ---------------------------------------------------- | ---------------------------- | --------------------------------------------------------------------------------------------------- |
+| `DAOFLOW_VERSION`                                    | `0.9.1` in reference Compose | Concrete image tag to run; the installer-generated `.env` pins the installed CLI release            |
+| `BETTER_AUTH_URL`                                    | —                            | Public origin used for sign-in and callbacks                                                        |
+| `DAOFLOW_DATABASE_NAME`                              | `daoflow`                    | Database selected by the production Compose `DATABASE_URL`; keep the default for a standard install |
+| `DAOFLOW_PORT`                                       | `3000`                       | Host port bound to the DaoFlow container                                                            |
+| `BETTER_AUTH_SECRET`                                 | —                            | Production session signing secret                                                                   |
+| `ENCRYPTION_KEY`                                     | —                            | Global DaoFlow secret-encryption key; keep it unchanged during destination-key rotation             |
+| `DAOFLOW_BACKUP_DESTINATION_ENCRYPTION_KEY`          | unset                        | Current backup-destination key; falls back to `ENCRYPTION_KEY`                                      |
+| `DAOFLOW_PREVIOUS_BACKUP_DESTINATION_ENCRYPTION_KEY` | unset                        | Temporary old backup-destination key used only during rotation                                      |
+| `DAOFLOW_RECOVERY_ENCRYPTION_KEY`                    | unset                        | Dedicated recovery-bundle encryption key; store it outside the control-plane database               |
+| `DAOFLOW_PREVIOUS_RECOVERY_ENCRYPTION_KEY`           | unset                        | Temporary previous recovery key during a controlled key rotation                                    |
+| `DAOFLOW_RCLONE_COMMAND_TIMEOUT_MS`                  | `1800000`                    | Maximum time for one recovery-object transfer                                                       |
+| `DAOFLOW_CONTROL_PLANE_RECOVERY_VERIFIER_STORAGE_MB` | `4096`                       | Storage and memory ceiling for each isolated recovery verifier                                      |
+| `POSTGRES_PASSWORD`                                  | —                            | Password for the DaoFlow application database                                                       |
+| `TEMPORAL_POSTGRES_PASSWORD`                         | —                            | Password for Temporal's Postgres database                                                           |
+| `DEPLOY_TIMEOUT_MS`                                  | `600000`                     | Timeout for a single deployment execution                                                           |
+| `DAOFLOW_ENABLE_TEMPORAL`                            | `false`                      | Enables durable Temporal-backed orchestration                                                       |
+| `TEMPORAL_NAMESPACE`                                 | `daoflow`                    | Temporal namespace when Temporal mode is enabled                                                    |
+| `TEMPORAL_TASK_QUEUE`                                | `daoflow-deployments`        | Temporal task queue name                                                                            |
 
 ### Rotating Backup-Destination Credentials
 
@@ -102,6 +103,21 @@ The environment-created owner is also assigned an owner organization membership 
 organization before localhost server registration. On restart, DaoFlow repairs an older
 environment-created owner that is missing organization membership, while preserving any valid
 default organization that is already configured.
+
+### Offline clean-install restore
+
+The offline restore contract uses `daoflow backup recovery restore` with a local bundle, signed
+manifest, external secrets file, and a new `--database-name`. Start with `--dry-run --json`, then
+run the exact returned plan with `--confirm <exact-plan-hash> --yes --json`. The full command
+options are `--dir`, `--bundle`, `--manifest`, `--external-secrets`, `--database-name`,
+`--dry-run`, `--confirm`, `--yes`, and `--json`.
+
+Set the external secrets file to mode `600`. It needs `BETTER_AUTH_SECRET`, `ENCRYPTION_KEY`,
+`DAOFLOW_RECOVERY_ENCRYPTION_KEY`, any manifest-required optional key,
+`DAOFLOW_RECOVERY_VERIFY_EMAIL`, and `DAOFLOW_RECOVERY_VERIFY_PASSWORD`. The restore targets a
+new database, retains the original database and configuration, and rolls the configuration back
+automatically if post-start verification fails. Clean up only a failed target database before a
+retry. See [Control-plane Recovery Bundles](/docs/backups/recovery) for the operator sequence.
 
 For the full production variable reference, including SMTP and advanced worker settings, see [Self-Hosting Environment Variables](/docs/self-hosting/environment-variables).
 

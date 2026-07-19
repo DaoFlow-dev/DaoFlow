@@ -14,9 +14,16 @@ Complete reference for the `.env` file consumed by the production `docker-compos
 | `BETTER_AUTH_URL`                 | Public URL of DaoFlow instance                                                                              | `https://deploy.example.com` |
 | `ENCRYPTION_KEY`                  | Global DaoFlow secret-encryption key; keep it unchanged during destination-key rotation (at least 32 chars) | `openssl rand -hex 32`       |
 | `DAOFLOW_RECOVERY_ENCRYPTION_KEY` | Dedicated key for encrypted control-plane recovery bundles; store it outside DaoFlow (at least 32 chars)    | `openssl rand -hex 32`       |
+| `DAOFLOW_DATABASE_NAME`           | Database selected by the production `DATABASE_URL`; defaults to `daoflow`                                   | `daoflow`                    |
 | `POSTGRES_PASSWORD`               | DaoFlow application database password                                                                       | `openssl rand -hex 16`       |
 
-`DATABASE_URL`, `REDIS_URL`, and most container-local defaults are constructed inside the compose stack and are not normally hand-authored in this `.env` file.
+`DATABASE_URL`, `REDIS_URL`, and most container-local defaults are constructed inside the compose stack and are not normally hand-authored in this `.env` file. The Postgres service still initially creates `daoflow`; changing `DAOFLOW_DATABASE_NAME` selects a different application database and does not create that database by itself.
+
+For an offline clean-install restore, use a separate external secrets file with mode `600`. It
+must contain `BETTER_AUTH_SECRET`, `ENCRYPTION_KEY`, `DAOFLOW_RECOVERY_ENCRYPTION_KEY`, any
+manifest-required optional key, `DAOFLOW_RECOVERY_VERIFY_EMAIL`, and
+`DAOFLOW_RECOVERY_VERIFY_PASSWORD`. See [Control-plane Recovery Bundles](/docs/backups/recovery)
+for the dry-run, plan-hash confirmation, and failed-target cleanup contract.
 
 ## Backup-Destination Encryption Keys
 

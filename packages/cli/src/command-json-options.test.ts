@@ -290,15 +290,20 @@ describe("CLI JSON option coverage", () => {
     const recovery = getSubcommand(backupCommand(), "recovery");
     const plan = getSubcommand(recovery, "plan");
     const run = getSubcommand(recovery, "run");
+    const restore = getSubcommand(recovery, "restore");
     const list = getSubcommand(recovery, "list");
     const inspect = getSubcommand(recovery, "inspect");
     const metadata = getSubcommand(recovery, "download-metadata");
 
-    for (const command of [plan, run, list, inspect, metadata]) {
+    for (const command of [plan, run, restore, list, inspect, metadata]) {
       expect(hasLongOption(command, "--json")).toBe(true);
     }
     expect(hasLongOption(run, "--dry-run")).toBe(true);
     expect(hasLongOption(run, "--yes")).toBe(true);
+    expect(hasLongOption(restore, "--dry-run")).toBe(true);
+    expect(hasLongOption(restore, "--yes")).toBe(true);
+    expect(hasLongOption(restore, "--confirm")).toBe(true);
+    expect(hasLongOption(restore, "--external-secrets")).toBe(true);
     expect(hasLongOption(plan, "--destination")).toBe(true);
     expect(hasLongOption(run, "--destination")).toBe(true);
     expect(hasLongOption(inspect, "--bundle")).toBe(true);
@@ -309,12 +314,19 @@ describe("CLI JSON option coverage", () => {
     const recovery = getSubcommand(backupCommand(), "recovery");
     const planHelp = renderHelp(getSubcommand(recovery, "plan"));
     const runHelp = renderHelp(getSubcommand(recovery, "run"));
+    const restoreHelp = renderHelp(getSubcommand(recovery, "restore"));
 
     expect(planHelp).toContain("backup:read");
     expect(planHelp).toContain("daoflow backup recovery plan --destination dest_123 --json");
     expect(runHelp).toContain("backup:run");
     expect(runHelp).toContain("--dry-run");
     expect(runHelp).toContain("--yes");
+    expect(restoreHelp).toContain("no running DaoFlow API");
+    expect(restoreHelp).toContain("--confirm");
+    expect(restoreHelp).toContain("Example JSON shapes:");
+    expect(restoreHelp).toContain("PLAN_HASH_MISMATCH");
+    expect(restoreHelp).toContain('"error":');
+    expect(restoreHelp).not.toContain('"message":');
   });
 
   test("volumes list and register declare --json", () => {

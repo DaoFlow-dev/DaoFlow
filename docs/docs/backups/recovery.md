@@ -77,6 +77,56 @@ Live clean-install restoration is intentionally separate from bundle creation an
 Follow the live restore procedure tracked for the disaster-recovery workstream before writing into
 any production database.
 
+## Offline clean-install restore
+
+When the original control plane is unavailable, the clean-install restore contract uses three local
+inputs: the recovery bundle, its signed manifest, and an external secrets file. Create the secrets
+file outside the bundle and restrict it before use:
+
+```bash
+chmod 600 /secure/daoflow-recovery.env
+```
+
+The file must provide `BETTER_AUTH_SECRET`, `ENCRYPTION_KEY`,
+`DAOFLOW_RECOVERY_ENCRYPTION_KEY`, any optional key required by the manifest,
+`DAOFLOW_RECOVERY_VERIFY_EMAIL`, and `DAOFLOW_RECOVERY_VERIFY_PASSWORD`. Keep the file external
+to the bundle and do not copy its values into incident notes or command output.
+
+Use the intended restore command path. First create a read-only plan and record the plan hash it
+returns:
+
+```bash
+daoflow backup recovery restore \
+  --dir /srv/daoflow-recovery \
+  --bundle ./bundle.dfr \
+  --manifest ./latest.json \
+  --external-secrets /secure/daoflow-recovery.env \
+  --database-name daoflow_recovery_20260718 \
+  --dry-run \
+  --json
+```
+
+Execute only the exact plan that was reviewed, supplying its returned hash to `--confirm` together
+with `--yes`:
+
+```bash
+daoflow backup recovery restore \
+  --dir /srv/daoflow-recovery \
+  --bundle ./bundle.dfr \
+  --manifest ./latest.json \
+  --external-secrets /secure/daoflow-recovery.env \
+  --database-name daoflow_recovery_20260718 \
+  --confirm <exact-plan-hash-from-dry-run> \
+  --yes \
+  --json
+```
+
+The target must be a new database. The original database and original configuration remain in
+place. If post-start verification fails, the configuration is rolled back automatically. Before a
+retry, identify and clean up only the failed target database named by `--database-name`; never
+delete the original database or configuration. Keep the bundle, signed manifest, and failure
+details until the recovery is complete.
+
 ## Permissions
 
 All recovery operations are owner-only on the server. Read operations require `backup:read` and a

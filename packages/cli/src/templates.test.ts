@@ -65,6 +65,7 @@ describe("generateEnvFile", () => {
     );
 
     expect(lean).toMatchObject({
+      DAOFLOW_DATABASE_NAME: "daoflow",
       DAOFLOW_WORKFLOW_PROFILE: "lean",
       COMPOSE_PROFILES: "",
       DAOFLOW_ENABLE_TEMPORAL: "false"
@@ -75,6 +76,26 @@ describe("generateEnvFile", () => {
       DAOFLOW_ENABLE_TEMPORAL: "true"
     });
     expect(temporal.TEMPORAL_POSTGRES_PASSWORD).not.toBe("");
+  });
+
+  it("manages the database name while preserving it for existing installs", () => {
+    const defaultContent = generateEnvFile({
+      version: "0.7.0",
+      domain: "localhost",
+      port: 3000
+    });
+    const existingContent = generateEnvFile({
+      version: "0.7.0",
+      domain: "localhost",
+      port: 3000,
+      preservedEnv: {
+        DAOFLOW_DATABASE_NAME: "existing_control_plane"
+      }
+    });
+
+    expect(parseEnvFile(defaultContent).DAOFLOW_DATABASE_NAME).toBe("daoflow");
+    expect(parseEnvFile(existingContent).DAOFLOW_DATABASE_NAME).toBe("existing_control_plane");
+    expect(existingContent.match(/^DAOFLOW_DATABASE_NAME=/gm)).toHaveLength(1);
   });
 
   it("quotes generated and preserved values that would otherwise corrupt dotenv parsing", () => {

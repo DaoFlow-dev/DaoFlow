@@ -113,6 +113,51 @@ be found even when the original DaoFlow database catalog is lost. Live restore
 into a clean installation is a separate approval-gated procedure; do not write a
 bundle into a production database as an incident shortcut.
 
+### Offline clean-install restore
+
+The offline restore contract takes a local bundle, its signed manifest, and an external secrets
+file. Set the file mode before using it:
+
+```bash
+chmod 600 /secure/daoflow-recovery.env
+```
+
+The file needs `BETTER_AUTH_SECRET`, `ENCRYPTION_KEY`, `DAOFLOW_RECOVERY_ENCRYPTION_KEY`, any
+manifest-required optional key, `DAOFLOW_RECOVERY_VERIFY_EMAIL`, and
+`DAOFLOW_RECOVERY_VERIFY_PASSWORD`.
+
+Plan against a new database and capture the returned plan hash:
+
+```bash
+daoflow backup recovery restore \
+  --dir /srv/daoflow-recovery \
+  --bundle ./bundle.dfr \
+  --manifest ./latest.json \
+  --external-secrets /secure/daoflow-recovery.env \
+  --database-name daoflow_recovery_20260718 \
+  --dry-run \
+  --json
+```
+
+Run only that exact plan by passing its hash to `--confirm` and including `--yes`:
+
+```bash
+daoflow backup recovery restore \
+  --dir /srv/daoflow-recovery \
+  --bundle ./bundle.dfr \
+  --manifest ./latest.json \
+  --external-secrets /secure/daoflow-recovery.env \
+  --database-name daoflow_recovery_20260718 \
+  --confirm <exact-plan-hash-from-dry-run> \
+  --yes \
+  --json
+```
+
+This flow uses a new database only and retains the original database and configuration. A
+post-start verification failure rolls the configuration back automatically. If the target fails,
+record the failure and clean up only that failed target database before retrying; retain the
+original database, configuration, bundle, signed manifest, and external secrets file.
+
 ## Deployments Fail Or Stall
 
 Use the deployment ID from the dashboard or CLI response:
