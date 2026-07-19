@@ -107,6 +107,23 @@ function parseFrozenEnvFilePayloads(value: unknown): FrozenComposeEnvFilePayload
   });
 }
 
+function parseFrozenManagedServiceLoggingOwnership(
+  value: unknown
+): FrozenComposeInputsPayload["managedServiceLoggingOwnership"] {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+  const record = value as Record<string, unknown>;
+  if (
+    record.version !== 1 ||
+    typeof record.serviceName !== "string" ||
+    !record.serviceName.trim()
+  ) {
+    return undefined;
+  }
+  return { version: 1, serviceName: record.serviceName };
+}
+
 function parseFrozenComposeInputsPayload(value: unknown): FrozenComposeInputsPayload | undefined {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return undefined;
@@ -123,9 +140,14 @@ function parseFrozenComposeInputsPayload(value: unknown): FrozenComposeInputsPay
     return undefined;
   }
 
+  const managedServiceLoggingOwnership = parseFrozenManagedServiceLoggingOwnership(
+    record.managedServiceLoggingOwnership
+  );
+
   return {
     composeFile,
-    envFiles: parseFrozenEnvFilePayloads(record.envFiles)
+    envFiles: parseFrozenEnvFilePayloads(record.envFiles),
+    ...(managedServiceLoggingOwnership ? { managedServiceLoggingOwnership } : {})
   };
 }
 
@@ -138,7 +160,10 @@ function normalizeFrozenInputsForSerialization(
 
   return {
     composeFile: frozenInputs.composeFile,
-    envFiles: frozenInputs.envFiles
+    envFiles: frozenInputs.envFiles,
+    ...(frozenInputs.managedServiceLoggingOwnership
+      ? { managedServiceLoggingOwnership: frozenInputs.managedServiceLoggingOwnership }
+      : {})
   };
 }
 

@@ -3,14 +3,21 @@ import { z } from "zod";
 import {
   deleteGitProvider,
   getGitProvider,
-  registerGitProvider
+  registerGitProvider,
+  updateGitProviderCa
 } from "../db/services/git-providers";
+import { GitProviderCaTrustError } from "../db/services/git-provider-ca-trust";
 import {
   buildGitLabAuthorizationUrl,
   completeGitLabOAuthSetup,
   resolveGitProviderCallbackOrigin
 } from "../db/services/git-provider-callbacks";
-import { createGitProviderSetupState } from "../db/services/git-provider-setup-states";
+import {
+  createGitLabPkcePair,
+  createGitProviderSetupState
+} from "../db/services/git-provider-setup-states";
+import { GitLabCredentialValidationError } from "../db/services/gitlab-installation-auth";
+import { resolveGitLabPublicBaseUrl } from "../db/services/gitlab-urls";
 import { buildGitHubWebBaseUrl, fetchGitHubAppSlug } from "../db/services/github-app-auth";
 import { adminProcedure, getActorContext, t } from "../trpc";
 import { requireActorTeamId } from "./team-scope";
@@ -22,25 +29,105 @@ function notFound() {
 export const gitRouter = t.router({
   registerGitProvider: adminProcedure
     .input(
+      z
+        .object({
+          type: z.enum(["github", "gitlab"]),
+          name: z.string().min(1).max(100),
+          appId: z.string().max(40).optional(),
+          clientId: z.string().max(80).optional(),
+          clientSecret: z.string().optional(),
+          privateKey: z.string().optional(),
+          webhookSecret: z.string().max(128).optional(),
+          baseUrl: z.string().max(255).optional(),
+          internalBaseUrl: z.string().max(255).optional(),
+          caCertificateId: z.string().min(1).max(32).optional(),
+          gitlabCredential: z
+            .discriminatedUnion("kind", [
+              z.object({ kind: z.literal("oauth") }),
+              z.object({
+                kind: z.literal("api_token"),
+                token: z.string().min(1),
+                expiresAt: z.string().datetime({ offset: true }).optional()
+              }),
+              z.object({
+                kind: z.literal("deploy_token"),
+                username: z.string().min(1).max(100),
+                token: z.string().min(1),
+                expiresAt: z.string().datetime({ offset: true }).optional()
+              })
+            ])
+            .optional()
+        })
+        .superRefine((input, ctx) => {
+          if (input.type !== "gitlab" && input.gitlabCredential) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              path: ["gitlabCredential"],
+              message: "GitLab credentials can only be registered with GitLab providers."
+            });
+          }
+          if (
+            input.type === "gitlab" &&
+            input.gitlabCredential?.kind === "oauth" &&
+            (!input.clientId?.trim() || !input.clientSecret?.trim())
+          ) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              path: ["gitlabCredential"],
+              message: "GitLab OAuth registration requires a client ID and client secret."
+            });
+          }
+        })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const teamId = await requireActorTeamId(ctx.session.user.id);
+      try {
+        const result = await registerGitProvider({
+          ...input,
+          teamId,
+          ...getActorContext(ctx)
+        });
+        return result.summary;
+      } catch (error) {
+        if (error instanceof GitProviderCaTrustError) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: error.message });
+        }
+        if (error instanceof GitLabCredentialValidationError) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "GitLab API token could not be validated."
+          });
+        }
+        if (error instanceof Error && error.message.startsWith("GitLab")) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: error.message });
+        }
+        throw error;
+      }
+    }),
+
+  updateGitProviderCa: adminProcedure
+    .input(
       z.object({
-        type: z.enum(["github", "gitlab"]),
-        name: z.string().min(1).max(100),
-        appId: z.string().max(40).optional(),
-        clientId: z.string().max(80).optional(),
-        clientSecret: z.string().optional(),
-        privateKey: z.string().optional(),
-        webhookSecret: z.string().max(128).optional(),
-        baseUrl: z.string().max(255).optional()
+        providerId: z.string().min(1).max(32),
+        caCertificateId: z.string().min(1).max(32).nullable()
       })
     )
     .mutation(async ({ ctx, input }) => {
       const teamId = await requireActorTeamId(ctx.session.user.id);
-      const result = await registerGitProvider({
-        ...input,
-        teamId,
-        ...getActorContext(ctx)
-      });
-      return result.summary;
+      try {
+        const result = await updateGitProviderCa({
+          ...input,
+          teamId,
+          ...getActorContext(ctx)
+        });
+        if (result.status === "not_found") throw notFound();
+        return result.summary;
+      } catch (error) {
+        if (error instanceof GitProviderCaTrustError) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: error.message });
+        }
+        throw error;
+      }
     }),
 
   deleteGitProvider: adminProcedure
@@ -116,12 +203,15 @@ export const gitRouter = t.router({
         });
       }
 
+      const pkce = createGitLabPkcePair();
       const setup = await createGitProviderSetupState({
         teamId,
         providerId: provider.id,
         providerType: "gitlab",
         action: "gitlab_oauth",
         callbackOrigin: resolveGitProviderCallbackOrigin(),
+        providerPublicBaseUrl: resolveGitLabPublicBaseUrl(provider),
+        codeVerifier: pkce.verifier,
         initiatedByUserId: ctx.session.user.id
       });
 
@@ -129,7 +219,8 @@ export const gitRouter = t.router({
         authorizationUrl: buildGitLabAuthorizationUrl({
           clientId: provider.clientId,
           baseUrl: provider.baseUrl,
-          state: setup.id
+          state: setup.id,
+          codeChallenge: pkce.challenge
         })
       };
     }),

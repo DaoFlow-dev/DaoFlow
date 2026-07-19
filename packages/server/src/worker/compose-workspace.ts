@@ -12,6 +12,7 @@ import { remoteEnsureDir, remoteExtractArchive, scpUpload } from "./ssh-executor
 import type { ConfigSnapshot } from "./step-management";
 import { resolveCheckoutSpec } from "./checkout-source";
 import { restoreUploadedArtifacts } from "./uploaded-artifacts";
+import { readServiceRuntimeConfig } from "../service-runtime-config";
 import {
   COMPOSE_ENV_EXPORT_FILE_NAME,
   COMPOSE_ENV_FILE_NAME,
@@ -61,6 +62,22 @@ function materializeComposeArtifacts(
     composeBuildPlan: artifacts.composeBuildPlan,
     composeEnv: artifacts.composeEnv,
     composeInputs: artifacts.composeInputs
+  };
+}
+
+function resolveManagedServiceLogging(config: ConfigSnapshot) {
+  if (config.composeOperation === "down") {
+    return undefined;
+  }
+
+  const serviceName = config.composeServiceName?.trim();
+  if (!serviceName) {
+    return undefined;
+  }
+
+  return {
+    serviceName,
+    logging: readServiceRuntimeConfig(config.runtimeConfig)?.logging ?? null
   };
 }
 
@@ -117,6 +134,7 @@ export async function prepareComposeWorkspace(
     const localClone = await gitClone(checkout.repoUrl, checkout.branch, deploymentId, onLog, {
       displayLabel: checkout.displayLabel,
       gitConfig: checkout.gitConfig,
+      caCertificatePem: checkout.caCertificatePem,
       sshPrivateKey: checkout.sshPrivateKey,
       repositoryPreparation: checkout.repositoryPreparation,
       commitSha: pinnedCommitSha,
@@ -138,7 +156,8 @@ export async function prepareComposeWorkspace(
       existingComposeBuildPlan: config.composeBuildPlan,
       existingComposeEnv: config.composeEnv,
       existingComposeInputs: config.composeInputs,
-      managedTraefikRouting: config.managedTraefikRouting
+      managedTraefikRouting: config.managedTraefikRouting,
+      managedServiceLogging: resolveManagedServiceLogging(config)
     });
 
     if (target.mode === "remote") {
@@ -236,7 +255,8 @@ export async function prepareComposeWorkspace(
     existingComposeBuildPlan: config.composeBuildPlan,
     existingComposeEnv: config.composeEnv,
     existingComposeInputs: config.composeInputs,
-    managedTraefikRouting: config.managedTraefikRouting
+    managedTraefikRouting: config.managedTraefikRouting,
+    managedServiceLogging: resolveManagedServiceLogging(config)
   });
 
   if (target.mode === "local") {

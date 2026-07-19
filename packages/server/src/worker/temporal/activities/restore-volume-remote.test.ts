@@ -14,7 +14,7 @@ vi.mock("node:child_process", async (importOriginal) => ({
 }));
 vi.mock("./remote-volume-transfer", () => ({ restoreRemoteVolumeArchive: vi.fn() }));
 
-import { prepareRemoteVolumeArchive } from "./restore-volume-remote";
+import { prepareRemoteVolumeArchive, restoreVolumeRemoteTestHooks } from "./restore-volume-remote";
 import type { RestoreExecutionContext } from "./restore-execution";
 
 afterEach(() => vi.clearAllMocks());
@@ -126,5 +126,23 @@ describe("prepareRemoteVolumeArchive", () => {
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
+  });
+
+  it("preserves a frozen cancellation reason when plaintext cleanup also fails", () => {
+    const originalCause = new Error("workflow cancellation cause");
+    const cancellation = Object.freeze(new Error("restore cancellation", { cause: originalCause }));
+    const controller = new AbortController();
+    controller.abort(cancellation);
+
+    const result = restoreVolumeRemoteTestHooks.cancellationWithCleanup(controller.signal, [
+      "Could not remove plaintext restore staging"
+    ]);
+
+    expect(result).not.toBe(cancellation);
+    expect(result.message).toContain("restore cancellation Cleanup also failed");
+    expect(cancellation.message).toBe("restore cancellation");
+    expect(cancellation.cause).toBe(originalCause);
+    expect(result.cause).toBeInstanceOf(AggregateError);
+    expect((result.cause as AggregateError).errors).toContain(cancellation);
   });
 });

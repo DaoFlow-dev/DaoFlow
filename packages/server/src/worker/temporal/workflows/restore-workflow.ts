@@ -12,7 +12,7 @@
  * 6. Dispatch notifications
  */
 
-import { patched, proxyActivities } from "@temporalio/workflow";
+import { CancellationScope, patched, proxyActivities } from "@temporalio/workflow";
 import type * as restoreActs from "../activities/restore-activities";
 import type * as notificationActs from "../activities/notification-activities";
 import type { RestoreWorkflowInput } from "../restore-workflow-input";
@@ -128,6 +128,7 @@ export async function restoreWorkflow(input: RestoreWorkflowInput): Promise<void
     try {
       const notification = await buildBackupNotification({
         eventType: "restore.started",
+        teamId: ctx.teamId,
         policyName: `restore-${backupRunId}`,
         status: "started"
       });
@@ -153,7 +154,7 @@ export async function restoreWorkflow(input: RestoreWorkflowInput): Promise<void
     }
 
     cleanupAttempted = true;
-    await cleanupRestoreDownload(ctx);
+    await CancellationScope.nonCancellable(() => cleanupRestoreDownload(ctx));
 
     // Phase 3: Mark success
     if (usesExplicitRestoreMode) {
@@ -207,6 +208,7 @@ export async function restoreWorkflow(input: RestoreWorkflowInput): Promise<void
     try {
       const notification = await buildBackupNotification({
         eventType: "restore.succeeded",
+        teamId: ctx.teamId,
         policyName: `restore-${backupRunId}`,
         status: "succeeded"
       });
@@ -219,36 +221,39 @@ export async function restoreWorkflow(input: RestoreWorkflowInput): Promise<void
     if (!cleanupAttempted) {
       cleanupAttempted = true;
       try {
-        await cleanupRestoreDownload(ctx);
+        await CancellationScope.nonCancellable(() => cleanupRestoreDownload(ctx));
       } catch (cleanupError) {
         failure = combineRestoreAndCleanupErrors(err, cleanupError);
       }
     }
     const errorMsg = failure instanceof Error ? failure.message : "Unknown restore error";
 
-    if (usesExplicitRestoreMode) {
-      await markRestoreFailed(ctx.restoreId, errorMsg, verificationResult);
-    } else {
-      await markRestoreFailed(ctx.restoreId, errorMsg);
-    }
+    await CancellationScope.nonCancellable(async () => {
+      if (usesExplicitRestoreMode) {
+        await markRestoreFailed(ctx.restoreId, errorMsg, verificationResult);
+      } else {
+        await markRestoreFailed(ctx.restoreId, errorMsg);
+      }
 
-    await emitRestoreEvent(ctx.restoreId, "restore.failed", "Restore failed", errorMsg, "error");
+      await emitRestoreEvent(ctx.restoreId, "restore.failed", "Restore failed", errorMsg, "error");
 
-    if (usesExplicitRestoreMode) {
-      await auditRestoreAction(
-        ctx.restoreId,
-        mode === "verification" ? "backup.verify.failed" : "restore.failed",
-        errorMsg,
-        "failure"
-      );
-    } else {
-      await auditRestoreAction(ctx.restoreId, "restore.failed", errorMsg, "failure");
-    }
+      if (usesExplicitRestoreMode) {
+        await auditRestoreAction(
+          ctx.restoreId,
+          mode === "verification" ? "backup.verify.failed" : "restore.failed",
+          errorMsg,
+          "failure"
+        );
+      } else {
+        await auditRestoreAction(ctx.restoreId, "restore.failed", errorMsg, "failure");
+      }
+    });
 
     // Dispatch "failed" notification
     try {
       const notification = await buildBackupNotification({
         eventType: "restore.failed",
+        teamId: ctx.teamId,
         policyName: `restore-${backupRunId}`,
         status: "failed",
         error: errorMsg

@@ -8,18 +8,39 @@ fi
 
 if [ "${DAOFLOW_REAL_INFRA_RUN_TOKEN:-}" = "" ]; then
   DAOFLOW_REAL_INFRA_RUN_TOKEN="ri$(od -An -N10 -tx1 /dev/urandom | tr -d ' \n')"
-  export DAOFLOW_REAL_INFRA_RUN_TOKEN
 fi
 
+case "$DAOFLOW_REAL_INFRA_RUN_TOKEN" in
+  ri*) ;;
+  *)
+    printf '%s\n' 'DAOFLOW_REAL_INFRA_RUN_TOKEN must match ^ri[a-z0-9]{12,40}$.' >&2
+    exit 1
+    ;;
+esac
+run_token_suffix=${DAOFLOW_REAL_INFRA_RUN_TOKEN#ri}
+case "$run_token_suffix" in
+  '' | *[!a-z0-9]*)
+    printf '%s\n' 'DAOFLOW_REAL_INFRA_RUN_TOKEN must match ^ri[a-z0-9]{12,40}$.' >&2
+    exit 1
+    ;;
+esac
+run_token_length=${#DAOFLOW_REAL_INFRA_RUN_TOKEN}
+if [ "$run_token_length" -lt 14 ] || [ "$run_token_length" -gt 42 ]; then
+  printf '%s\n' 'DAOFLOW_REAL_INFRA_RUN_TOKEN must match ^ri[a-z0-9]{12,40}$.' >&2
+  exit 1
+fi
+
+readonly DAOFLOW_REAL_INFRA_RUN_TOKEN
+export DAOFLOW_REAL_INFRA_RUN_TOKEN
+local_state_root="/tmp/dfri/$DAOFLOW_REAL_INFRA_RUN_TOKEN"
+readonly local_state_root
 export DAOFLOW_REAL_INFRA_ARTIFACT_DIR="${DAOFLOW_REAL_INFRA_ARTIFACT_DIR:-test-results/real-infra/$DAOFLOW_REAL_INFRA_RUN_TOKEN}"
 export DAOFLOW_REAL_INFRA_WORKSPACE_ROOT="/tmp/daoflow-real-infra/$DAOFLOW_REAL_INFRA_RUN_TOKEN"
-export DAOFLOW_REAL_INFRA_LOCAL_STATE_ROOT="/tmp/dfri/$DAOFLOW_REAL_INFRA_RUN_TOKEN"
+export DAOFLOW_REAL_INFRA_LOCAL_STATE_ROOT="$local_state_root"
 
 finish() {
   bun ./e2e/fixtures/real-infra/finalize-artifacts.ts >/dev/null 2>&1 || true
-  case "$DAOFLOW_REAL_INFRA_LOCAL_STATE_ROOT" in
-    /tmp/dfri/ri*) rm -rf -- "$DAOFLOW_REAL_INFRA_LOCAL_STATE_ROOT" ;;
-  esac
+  rm -rf -- "$local_state_root"
 }
 trap finish EXIT
 

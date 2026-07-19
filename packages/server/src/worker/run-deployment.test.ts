@@ -13,6 +13,7 @@ const {
   createLogStreamerMock,
   executeComposeDeploymentMock,
   executeImageDeploymentMock,
+  recordDeploymentFailureEvidenceMock,
   resolveExecutionTargetMock,
   withPreparedExecutionTargetMock
 } = vi.hoisted(() => ({
@@ -31,6 +32,7 @@ const {
   ),
   executeComposeDeploymentMock: vi.fn(),
   executeImageDeploymentMock: vi.fn(),
+  recordDeploymentFailureEvidenceMock: vi.fn(),
   cleanupStagingDirMock: vi.fn()
 }));
 
@@ -51,6 +53,10 @@ vi.mock("./deploy-strategies", () => ({
 
 vi.mock("./docker-executor", () => ({
   cleanupStagingDir: cleanupStagingDirMock
+}));
+vi.mock("./deployment-failure-evidence", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./deployment-failure-evidence")>()),
+  recordDeploymentFailureEvidence: recordDeploymentFailureEvidenceMock
 }));
 
 async function createDeploymentRecordFixture(sourceType: "compose" | "image" = "compose") {
@@ -130,6 +136,7 @@ async function createDeploymentRecordFixture(sourceType: "compose" | "image" = "
 describe("runDeployment", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
+    recordDeploymentFailureEvidenceMock.mockResolvedValue(undefined);
     await resetTestDatabaseWithControlPlane();
   });
 
@@ -252,5 +259,24 @@ describe("runDeployment", () => {
     expect(updated?.status).toBe("failed");
     expect(updated?.conclusion).toBe("failed");
     expect(cleanupStagingDirMock).toHaveBeenCalledWith(deployment.id);
+  });
+
+  it("preserves the deployment failure when supplementary evidence persistence fails", async () => {
+    const deployment = await createDeploymentRecordFixture();
+    const failure = new Error("compose deployment failed");
+    executeComposeDeploymentMock.mockRejectedValueOnce(failure);
+    recordDeploymentFailureEvidenceMock.mockRejectedValueOnce(
+      new Error("failure evidence store unavailable")
+    );
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+
+    const { runDeployment } = await import("./run-deployment");
+
+    await expect(runDeployment(deployment, "test-worker")).rejects.toBe(failure);
+    expect(recordDeploymentFailureEvidenceMock).toHaveBeenCalledWith(
+      deployment,
+      failure,
+      "test-worker"
+    );
   });
 });

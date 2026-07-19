@@ -100,6 +100,15 @@ DaoFlow monitors server readiness with recurring checks:
 Readiness checks run at a configurable interval using `SERVER_READINESS_POLL_INTERVAL_MS`
 (default: `60000`) only after a remote server has an approved host identity.
 
+Server metrics are collected separately under each server's monitoring policy. DaoFlow stores recent
+CPU, memory, root-disk, Docker-disk, and network samples, evaluates warning and hard thresholds, and
+sends rate-limited transition and recovery notifications. Monitoring is read-only: it never cleans,
+restarts, cancels, or patches a server automatically.
+
+```bash
+daoflow server-metrics --server srv_abc123 --monitoring --since 24h --json
+```
+
 ### Checking Server Health
 
 ```bash
@@ -239,7 +248,8 @@ The Settings operations tab includes reusable access assets:
 - managed SSH keys with encrypted private key material, safe fingerprints, default SSH user
   metadata, rotation timestamps, and attach/delete actions
 - custom certificate assets with encrypted certificate, private key, and CA chain material plus
-  safe subject, issuer, expiration, domain, and fingerprint metadata
+  safe subject, issuer, expiration, domain, and fingerprint metadata; CA certificates can be bound
+  to one team's self-hosted Git provider without changing global TLS trust
 
 Read surfaces never return private keys, certificate bodies, or encrypted blobs. Write paths create
 audit entries for create, rotate, attach, and delete actions. Managed SSH key rotation does not

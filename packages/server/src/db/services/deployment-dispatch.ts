@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import { db } from "../connection";
 import { deployments } from "../schema/deployments";
+import { transitionDeploymentWithFeedback } from "./deployment-transition-feedback";
 import { startDeploymentWorkflow } from "../../worker/temporal/client";
 import { isTemporalEnabled } from "../../worker/temporal/temporal-config";
 
@@ -53,19 +54,13 @@ export async function dispatchDeploymentExecution(
     }
 
     const now = new Date();
-    await db
-      .update(deployments)
-      .set({
-        status: "failed",
-        conclusion: "failed",
-        concludedAt: now,
-        error:
-          error instanceof Error
-            ? { message: error.message, stack: error.stack }
-            : { message: String(error) },
-        updatedAt: now
-      })
-      .where(eq(deployments.id, deployment.id));
+    await transitionDeploymentWithFeedback({
+      deploymentId: deployment.id,
+      status: "failed",
+      conclusion: "failed",
+      error,
+      now
+    });
     throw error;
   }
 }

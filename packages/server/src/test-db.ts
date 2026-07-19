@@ -28,6 +28,42 @@ const { Client } = pg;
 const TEST_DB_PREPARE_LOCK_ID = 8_705_231;
 const MIN_EXPECTED_PUBLIC_TABLES = 48;
 
+interface LatestTestSchemaState {
+  gitProvidersInternalBaseUrl: string | null;
+  gitInstallationsCredentialEncrypted: string | null;
+  gitProviderSetupStatesCodeVerifierEncrypted: string | null;
+  notificationChannelsTeamId: string | null;
+  serverMetricsDockerDiskUsedPercent: string | null;
+  serverMetricsDockerDiskTotalGb: string | null;
+  serverMetricsServerCollectedIndex: string | null;
+  serverMetricAlerts: string | null;
+  serverMetricDeliveryCooldowns: string | null;
+  serverMetricOutbox: string | null;
+  serverMetricPolicies: string | null;
+  serverMetricStates: string | null;
+}
+
+function hasLatestTestSchema(state: LatestTestSchemaState | undefined): boolean {
+  return Boolean(
+    state?.gitProvidersInternalBaseUrl &&
+    state.gitInstallationsCredentialEncrypted &&
+    state.gitProviderSetupStatesCodeVerifierEncrypted &&
+    state.notificationChannelsTeamId &&
+    state.serverMetricsDockerDiskUsedPercent &&
+    state.serverMetricsDockerDiskTotalGb &&
+    state.serverMetricsServerCollectedIndex &&
+    state.serverMetricAlerts &&
+    state.serverMetricDeliveryCooldowns &&
+    state.serverMetricOutbox &&
+    state.serverMetricPolicies &&
+    state.serverMetricStates
+  );
+}
+
+export const testDatabaseSchemaTestHooks = {
+  hasLatestTestSchema
+};
+
 let prepared = false;
 let preparePromise: Promise<string> | null = null;
 
@@ -111,9 +147,15 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
       deploymentBuildLeaseOwnerToken: string | null;
       serviceVariables: string | null;
       gitProviders: string | null;
+      providerFeedback: string | null;
+      providerFeedbackSequence: string | null;
+      providerFeedbackTargets: string | null;
       gitProviderSetupStates: string | null;
       gitProvidersTeamId: string | null;
+      gitProvidersInternalBaseUrl: string | null;
       gitInstallationsTeamId: string | null;
+      gitInstallationsCredentialEncrypted: string | null;
+      gitProviderSetupStatesCodeVerifierEncrypted: string | null;
       repositoryCredentials: string | null;
       cliAuthRequests: string | null;
       developmentTasks: string | null;
@@ -150,6 +192,15 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
       environmentsExecutionScopeGuard: string | null;
       deploymentsExecutionScopeGuard: string | null;
       gitProviderSetupScopeConstraint: string | null;
+      notificationChannelsTeamId: string | null;
+      serverMetricsDockerDiskUsedPercent: string | null;
+      serverMetricsDockerDiskTotalGb: string | null;
+      serverMetricsServerCollectedIndex: string | null;
+      serverMetricAlerts: string | null;
+      serverMetricDeliveryCooldowns: string | null;
+      serverMetricOutbox: string | null;
+      serverMetricPolicies: string | null;
+      serverMetricStates: string | null;
     }>(`
       SELECT
         (SELECT count(*)::int FROM pg_tables WHERE schemaname = 'public') AS "tableCount",
@@ -178,9 +229,15 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
         (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'deployment_build_leases' AND column_name = 'owner_token') AS "deploymentBuildLeaseOwnerToken",
         to_regclass('public.service_variables') AS "serviceVariables",
         to_regclass('public.git_providers') AS "gitProviders",
+        to_regclass('public.provider_feedback') AS "providerFeedback",
+        (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'provider_feedback' AND column_name = 'sequence') AS "providerFeedbackSequence",
+        to_regclass('public.provider_feedback_targets') AS "providerFeedbackTargets",
         to_regclass('public.git_provider_setup_states') AS "gitProviderSetupStates",
         (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'git_providers' AND column_name = 'team_id') AS "gitProvidersTeamId",
+        (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'git_providers' AND column_name = 'internal_base_url') AS "gitProvidersInternalBaseUrl",
         (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'git_installations' AND column_name = 'team_id') AS "gitInstallationsTeamId",
+        (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'git_installations' AND column_name = 'credential_encrypted') AS "gitInstallationsCredentialEncrypted",
+        (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'git_provider_setup_states' AND column_name = 'code_verifier_encrypted') AS "gitProviderSetupStatesCodeVerifierEncrypted",
         to_regclass('public.repository_credentials') AS "repositoryCredentials",
         to_regclass('public.cli_auth_requests') AS "cliAuthRequests",
         to_regclass('public.development_tasks') AS "developmentTasks"
@@ -216,7 +273,16 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
         (SELECT tgname FROM pg_trigger WHERE tgname = 'services_execution_scope_guard' AND NOT tgisinternal) AS "servicesExecutionScopeGuard",
         (SELECT tgname FROM pg_trigger WHERE tgname = 'environments_execution_scope_guard' AND NOT tgisinternal) AS "environmentsExecutionScopeGuard",
         (SELECT tgname FROM pg_trigger WHERE tgname = 'deployments_execution_scope_guard' AND NOT tgisinternal) AS "deploymentsExecutionScopeGuard",
-        (SELECT conname FROM pg_constraint WHERE conname = 'git_provider_setup_states_provider_id_team_id_git_providers_id_team_id_fk') AS "gitProviderSetupScopeConstraint"
+        (SELECT conname FROM pg_constraint WHERE conname = 'git_provider_setup_states_provider_id_team_id_git_providers_id_team_id_fk') AS "gitProviderSetupScopeConstraint",
+        (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'notification_channels' AND column_name = 'team_id' AND is_nullable = 'NO') AS "notificationChannelsTeamId",
+        (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'server_metrics' AND column_name = 'docker_disk_used_percent') AS "serverMetricsDockerDiskUsedPercent",
+        (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'server_metrics' AND column_name = 'docker_disk_total_gb') AS "serverMetricsDockerDiskTotalGb",
+        (SELECT indexname FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'server_metrics_server_collected_idx') AS "serverMetricsServerCollectedIndex",
+        to_regclass('public.server_metric_alerts') AS "serverMetricAlerts",
+        to_regclass('public.server_metric_delivery_cooldowns') AS "serverMetricDeliveryCooldowns",
+        to_regclass('public.server_metric_outbox') AS "serverMetricOutbox",
+        to_regclass('public.server_metric_policies') AS "serverMetricPolicies",
+        to_regclass('public.server_metric_states') AS "serverMetricStates"
     `);
     const row = result.rows[0];
     return Boolean(
@@ -247,9 +313,15 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
       row.deploymentBuildLeaseOwnerToken &&
       row.serviceVariables &&
       row.gitProviders &&
+      row.providerFeedback &&
+      row.providerFeedbackSequence &&
+      row.providerFeedbackTargets &&
       row.gitProviderSetupStates &&
       row.gitProvidersTeamId &&
+      row.gitProvidersInternalBaseUrl &&
       row.gitInstallationsTeamId &&
+      row.gitInstallationsCredentialEncrypted &&
+      row.gitProviderSetupStatesCodeVerifierEncrypted &&
       row.repositoryCredentials &&
       row.cliAuthRequests &&
       row.developmentTasks &&
@@ -285,7 +357,8 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
       row.servicesExecutionScopeGuard &&
       row.environmentsExecutionScopeGuard &&
       row.deploymentsExecutionScopeGuard &&
-      row.gitProviderSetupScopeConstraint
+      row.gitProviderSetupScopeConstraint &&
+      hasLatestTestSchema(row)
     );
   } finally {
     await client.end();
@@ -349,9 +422,15 @@ async function readPoolSchemaState() {
     deploymentBuildLeaseOwnerToken: string | null;
     serviceVariables: string | null;
     gitProviders: string | null;
+    providerFeedback: string | null;
+    providerFeedbackSequence: string | null;
+    providerFeedbackTargets: string | null;
     gitProviderSetupStates: string | null;
     gitProvidersTeamId: string | null;
+    gitProvidersInternalBaseUrl: string | null;
     gitInstallationsTeamId: string | null;
+    gitInstallationsCredentialEncrypted: string | null;
+    gitProviderSetupStatesCodeVerifierEncrypted: string | null;
     repositoryCredentials: string | null;
     cliAuthRequests: string | null;
     developmentTasks: string | null;
@@ -386,6 +465,15 @@ async function readPoolSchemaState() {
     environmentsExecutionScopeGuard: string | null;
     deploymentsExecutionScopeGuard: string | null;
     gitProviderSetupScopeConstraint: string | null;
+    notificationChannelsTeamId: string | null;
+    serverMetricsDockerDiskUsedPercent: string | null;
+    serverMetricsDockerDiskTotalGb: string | null;
+    serverMetricsServerCollectedIndex: string | null;
+    serverMetricAlerts: string | null;
+    serverMetricDeliveryCooldowns: string | null;
+    serverMetricOutbox: string | null;
+    serverMetricPolicies: string | null;
+    serverMetricStates: string | null;
   }>(`
     SELECT
       current_database() AS "databaseName",
@@ -415,9 +503,15 @@ async function readPoolSchemaState() {
       (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'deployment_build_leases' AND column_name = 'owner_token') AS "deploymentBuildLeaseOwnerToken",
       to_regclass('public.service_variables') AS "serviceVariables",
       to_regclass('public.git_providers') AS "gitProviders",
+      to_regclass('public.provider_feedback') AS "providerFeedback",
+      (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'provider_feedback' AND column_name = 'sequence') AS "providerFeedbackSequence",
+      to_regclass('public.provider_feedback_targets') AS "providerFeedbackTargets",
       to_regclass('public.git_provider_setup_states') AS "gitProviderSetupStates",
       (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'git_providers' AND column_name = 'team_id') AS "gitProvidersTeamId",
+      (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'git_providers' AND column_name = 'internal_base_url') AS "gitProvidersInternalBaseUrl",
       (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'git_installations' AND column_name = 'team_id') AS "gitInstallationsTeamId",
+      (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'git_installations' AND column_name = 'credential_encrypted') AS "gitInstallationsCredentialEncrypted",
+      (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'git_provider_setup_states' AND column_name = 'code_verifier_encrypted') AS "gitProviderSetupStatesCodeVerifierEncrypted",
       to_regclass('public.repository_credentials') AS "repositoryCredentials",
       to_regclass('public.cli_auth_requests') AS "cliAuthRequests",
       to_regclass('public.development_tasks') AS "developmentTasks"
@@ -451,7 +545,16 @@ async function readPoolSchemaState() {
       (SELECT tgname FROM pg_trigger WHERE tgname = 'services_execution_scope_guard' AND NOT tgisinternal) AS "servicesExecutionScopeGuard",
       (SELECT tgname FROM pg_trigger WHERE tgname = 'environments_execution_scope_guard' AND NOT tgisinternal) AS "environmentsExecutionScopeGuard",
       (SELECT tgname FROM pg_trigger WHERE tgname = 'deployments_execution_scope_guard' AND NOT tgisinternal) AS "deploymentsExecutionScopeGuard",
-      (SELECT conname FROM pg_constraint WHERE conname = 'git_provider_setup_states_provider_id_team_id_git_providers_id_team_id_fk') AS "gitProviderSetupScopeConstraint"
+      (SELECT conname FROM pg_constraint WHERE conname = 'git_provider_setup_states_provider_id_team_id_git_providers_id_team_id_fk') AS "gitProviderSetupScopeConstraint",
+      (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'notification_channels' AND column_name = 'team_id' AND is_nullable = 'NO') AS "notificationChannelsTeamId",
+      (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'server_metrics' AND column_name = 'docker_disk_used_percent') AS "serverMetricsDockerDiskUsedPercent",
+      (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'server_metrics' AND column_name = 'docker_disk_total_gb') AS "serverMetricsDockerDiskTotalGb",
+      (SELECT indexname FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'server_metrics_server_collected_idx') AS "serverMetricsServerCollectedIndex",
+      to_regclass('public.server_metric_alerts') AS "serverMetricAlerts",
+      to_regclass('public.server_metric_delivery_cooldowns') AS "serverMetricDeliveryCooldowns",
+      to_regclass('public.server_metric_outbox') AS "serverMetricOutbox",
+      to_regclass('public.server_metric_policies') AS "serverMetricPolicies",
+      to_regclass('public.server_metric_states') AS "serverMetricStates"
   `);
 
   return result.rows[0];
@@ -495,9 +598,15 @@ async function ensurePooledTestSchemaReady(connectionString: string) {
         state.deploymentBuildLeaseOwnerToken &&
         state.serviceVariables &&
         state.gitProviders &&
+        state.providerFeedback &&
+        state.providerFeedbackSequence &&
+        state.providerFeedbackTargets &&
         state.gitProviderSetupStates &&
         state.gitProvidersTeamId &&
+        state.gitProvidersInternalBaseUrl &&
         state.gitInstallationsTeamId &&
+        state.gitInstallationsCredentialEncrypted &&
+        state.gitProviderSetupStatesCodeVerifierEncrypted &&
         state.repositoryCredentials &&
         state.cliAuthRequests &&
         state.developmentTasks &&
@@ -531,7 +640,8 @@ async function ensurePooledTestSchemaReady(connectionString: string) {
         state.servicesExecutionScopeGuard &&
         state.environmentsExecutionScopeGuard &&
         state.deploymentsExecutionScopeGuard &&
-        state.gitProviderSetupScopeConstraint
+        state.gitProviderSetupScopeConstraint &&
+        hasLatestTestSchema(state)
       ) {
         return;
       }

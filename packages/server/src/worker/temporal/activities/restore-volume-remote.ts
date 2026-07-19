@@ -259,9 +259,9 @@ function cancellationWithCleanup(signal: AbortSignal, cleanupErrors: string[]): 
   const cancellation = cancellationReason(signal);
   if (cleanupErrors.length === 0) return cancellation;
   const cleanup = new Error(cleanupErrors.join(" "));
-  cancellation.message = `${cancellation.message} Cleanup also failed: ${cleanup.message}`;
-  cancellation.cause = cancellation.cause
-    ? new AggregateError([cancellation.cause, cleanup], "Cancellation and cleanup failures.")
-    : cleanup;
-  return cancellation;
+  return new Error(`${cancellation.message} Cleanup also failed: ${cleanup.message}`, {
+    cause: new AggregateError([cancellation, cleanup], "Cancellation and cleanup failures.")
+  });
 }
+
+export const restoreVolumeRemoteTestHooks = { cancellationWithCleanup };

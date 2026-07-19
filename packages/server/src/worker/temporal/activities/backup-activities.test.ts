@@ -251,4 +251,22 @@ describe("executeBackupCopy", () => {
       rmSync(sourceDirectory, { recursive: true, force: true });
     }
   });
+
+  it("preserves a frozen cancellation reason when sensitive cleanup also fails", () => {
+    const originalCause = new Error("workflow cancellation cause");
+    const cancellation = Object.freeze(new Error("backup cancellation", { cause: originalCause }));
+    const controller = new AbortController();
+    controller.abort(cancellation);
+
+    const result = backupCopyActivityTestHooks.cancellationWithCleanup(controller.signal, [
+      new Error("could not remove staging")
+    ]);
+
+    expect(result).not.toBe(cancellation);
+    expect(result.message).toContain("backup cancellation Cleanup also failed");
+    expect(cancellation.message).toBe("backup cancellation");
+    expect(cancellation.cause).toBe(originalCause);
+    expect(result.cause).toBeInstanceOf(AggregateError);
+    expect((result.cause as AggregateError).errors).toContain(cancellation);
+  });
 });

@@ -9,11 +9,6 @@ import { listDestinations, getDestination } from "../db/services/destinations";
 import { listEnvironmentVariableInventory } from "../db/services/envvars";
 import { listInfrastructureInventory, listServerReadiness } from "../db/services/servers";
 import { getOperationalMaintenanceReport } from "../db/services/operational-maintenance";
-import {
-  getLatestServerMetrics,
-  listServerMetricsHistory,
-  listAllServersLatestMetrics
-} from "../db/services/server-metrics";
 import { listProjects, getProject, listEnvironments } from "../db/services/projects";
 import { listRequestAccessLogs } from "../db/services/request-access-logs";
 import { getServiceDomainState } from "../db/services/service-domains";
@@ -46,9 +41,12 @@ import { backupReadRouter } from "./read-backups";
 import { developmentTaskReadRouter } from "./read-development-tasks";
 import { deploymentReadRouter } from "./read-deployments";
 import { managedOperationsReadRouter } from "./read-managed-operations";
+import { providerFeedbackReadRouter } from "./read-provider-feedback";
 import { serverOperationsReadRouter } from "./read-server-operations";
+import { serverMetricsReadRouter } from "./read-server-metrics";
 import { serverSshHostIdentityReadRouter } from "./read-server-ssh-host-identities";
 import { serviceSchedulesReadRouter } from "./read-service-schedules";
+import { serviceLoggingReadRouter } from "./read-service-logging";
 import { serviceAccessActor } from "./service-scope";
 import { requireActorTeamId } from "./team-scope";
 
@@ -368,28 +366,7 @@ const coreReadRouter = t.router({
         throw new TRPCError({ code: "NOT_FOUND", message: "Backup run not found." });
       }
       return result;
-    }),
-  serverMetrics: protectedProcedure
-    .input(
-      z.object({
-        serverId: z.string().min(1),
-        limit: z.number().int().min(1).max(500).optional(),
-        since: z
-          .string()
-          .regex(auditSinceWindowPattern, { message: auditSinceWindowError })
-          .optional()
-      })
-    )
-    .query(async ({ input }) => {
-      if (input.limit || input.since) {
-        return listServerMetricsHistory(input.serverId, input.limit ?? 60, input.since);
-      }
-      const latest = await getLatestServerMetrics(input.serverId);
-      return latest ? [latest] : [];
-    }),
-  serverMetricsOverview: protectedProcedure.query(async () => {
-    return listAllServersLatestMetrics();
-  })
+    })
 });
 
 export const readRouter = t.mergeRouters(
@@ -399,7 +376,10 @@ export const readRouter = t.mergeRouters(
   developmentTaskReadRouter,
   accessAssetsReadRouter,
   managedOperationsReadRouter,
+  providerFeedbackReadRouter,
   serverOperationsReadRouter,
+  serverMetricsReadRouter,
   serverSshHostIdentityReadRouter,
-  serviceSchedulesReadRouter
+  serviceSchedulesReadRouter,
+  serviceLoggingReadRouter
 );

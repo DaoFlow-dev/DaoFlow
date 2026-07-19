@@ -2,6 +2,7 @@ import { defineConfig, devices } from "@playwright/test";
 import {
   createPlaywrightServerCommand,
   playwrightBaseUrl,
+  playwrightServerGracefulShutdown,
   playwrightServerPort
 } from "./playwright.shared";
 
@@ -56,6 +57,7 @@ export default defineConfig({
       PORT: playwrightServerPort
       // NOTE: DISABLE_WORKER is intentionally NOT set
     },
+    gracefulShutdown: playwrightServerGracefulShutdown,
     url: playwrightReadinessUrl,
     reuseExistingServer: false,
     timeout: 120_000

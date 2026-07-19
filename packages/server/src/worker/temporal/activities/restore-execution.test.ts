@@ -34,6 +34,7 @@ function restoreContext(overrides: Partial<RestoreExecutionContext> = {}): Resto
   return {
     restoreId: "brest_test",
     runId: "brun_test",
+    teamId: "team_foundation",
     artifactPath: "postgres-policy/2026-05-07",
     destinationId: "dest_test",
     volumeId: "vol_test",

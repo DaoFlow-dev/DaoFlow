@@ -10,24 +10,25 @@ import { gitProviders, gitInstallations } from "../schema/git-providers";
 import { auditEntries } from "../schema/audit";
 import type { AppRole } from "@daoflow/shared";
 import { newId as id } from "./json-helpers";
-import { decrypt, encrypt } from "../crypto";
+import {
+  readGitLabCredential,
+  readGitLabCredentialScopes,
+  type GitLabCredentialStorage
+} from "./gitlab-credentials";
+import { readLegacyGitInstallationOAuthCredentials } from "./git-installation-legacy-credentials";
+import { toGitInstallationSummary, toGitProviderSummary } from "./git-provider-summaries";
+
+export { encodeGitInstallationPermissions } from "./git-installation-legacy-credentials";
+export {
+  registerGitProvider,
+  updateGitProviderCa,
+  type RegisterGitLabCredential,
+  type RegisterGitProviderInput,
+  type UpdateGitProviderCaInput
+} from "./git-provider-registration";
+export type { GitInstallationSummary, GitProviderSummary } from "./git-provider-summaries";
 
 /* ──────────────────────── Interfaces ──────────────────────── */
-
-export interface RegisterGitProviderInput {
-  teamId: string;
-  type: "github" | "gitlab";
-  name: string;
-  appId?: string;
-  clientId?: string;
-  clientSecret?: string;
-  privateKey?: string;
-  webhookSecret?: string;
-  baseUrl?: string;
-  requestedByUserId: string;
-  requestedByEmail: string;
-  requestedByRole: AppRole;
-}
 
 export interface CreateInstallationInput {
   teamId: string;
@@ -37,165 +38,53 @@ export interface CreateInstallationInput {
   accountType?: string;
   repositorySelection?: string;
   permissions?: string;
+  credentialStorage?: GitLabCredentialStorage;
+  auditMetadata?: Record<string, unknown>;
   installedByUserId?: string;
   requestedByUserId: string;
   requestedByEmail: string;
   requestedByRole: AppRole;
 }
 
-export interface GitProviderSummary {
-  id: string;
-  type: string;
-  name: string;
-  status: string;
-  appId: string | null;
-  clientId: string | null;
-  baseUrl: string | null;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-export interface GitInstallationSummary {
-  id: string;
-  providerId: string;
-  installationId: string;
-  accountName: string;
-  accountType: string;
-  repositorySelection: string;
-  status: string;
-  installedByUserId: string | null;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-type StoredInstallationPermissions = {
-  accessTokenEncrypted: string;
-  refreshTokenEncrypted?: string;
-  tokenType?: string;
-  expiresAt?: string;
-};
-
-function toGitProviderSummary(row: typeof gitProviders.$inferSelect): GitProviderSummary {
-  return {
-    id: row.id,
-    type: row.type,
-    name: row.name,
-    status: row.status,
-    appId: row.appId,
-    clientId: row.clientId,
-    baseUrl: row.baseUrl,
-    createdAt: row.createdAt,
-    updatedAt: row.updatedAt
-  };
-}
-
-function toGitInstallationSummary(
-  row: typeof gitInstallations.$inferSelect
-): GitInstallationSummary {
-  return {
-    id: row.id,
-    providerId: row.providerId,
-    installationId: row.installationId,
-    accountName: row.accountName,
-    accountType: row.accountType,
-    repositorySelection: row.repositorySelection,
-    status: row.status,
-    installedByUserId: row.installedByUserId,
-    createdAt: row.createdAt,
-    updatedAt: row.updatedAt
-  };
-}
-
-export function encodeGitInstallationPermissions(input: {
-  accessToken: string;
-  refreshToken?: string;
-  tokenType?: string;
-  expiresAt?: string;
-}) {
-  return JSON.stringify({
-    accessTokenEncrypted: encrypt(input.accessToken),
-    ...(input.refreshToken ? { refreshTokenEncrypted: encrypt(input.refreshToken) } : {}),
-    tokenType: input.tokenType ?? "bearer",
-    ...(input.expiresAt ? { expiresAt: input.expiresAt } : {})
-  } satisfies StoredInstallationPermissions);
-}
-
 export function readGitInstallationOAuthCredentials(
-  installation: Pick<typeof gitInstallations.$inferSelect, "permissions">
+  installation: Pick<
+    typeof gitInstallations.$inferSelect,
+    | "permissions"
+    | "credentialKind"
+    | "credentialScopes"
+    | "credentialExpiresAt"
+    | "credentialEncrypted"
+    | "credentialEnvelopeVersion"
+  >
 ): {
   accessToken: string;
   refreshToken: string | null;
   tokenType: string;
   expiresAt: string | null;
 } | null {
-  if (!installation.permissions) return null;
-
-  try {
-    const parsed = JSON.parse(installation.permissions) as StoredInstallationPermissions;
-    if (typeof parsed.accessTokenEncrypted !== "string") return null;
+  const credential = readGitLabCredential(installation);
+  if (credential?.kind === "oauth") {
     return {
-      accessToken: decrypt(parsed.accessTokenEncrypted),
-      refreshToken:
-        typeof parsed.refreshTokenEncrypted === "string"
-          ? decrypt(parsed.refreshTokenEncrypted)
-          : null,
-      tokenType: parsed.tokenType ?? "bearer",
-      expiresAt: typeof parsed.expiresAt === "string" ? parsed.expiresAt : null
+      accessToken: credential.accessToken,
+      refreshToken: credential.refreshToken,
+      tokenType: credential.tokenType,
+      expiresAt: credential.expiresAt
     };
-  } catch {
-    return null;
   }
+
+  return readLegacyGitInstallationOAuthCredentials(installation);
 }
 
 export function readGitInstallationAccessToken(
-  installation: Pick<typeof gitInstallations.$inferSelect, "permissions">
+  installation: Parameters<typeof readGitInstallationOAuthCredentials>[0]
 ): string | null {
-  return readGitInstallationOAuthCredentials(installation)?.accessToken ?? null;
+  const credential = readGitLabCredential(installation);
+  if (credential?.kind === "api_token") return credential.token;
+  if (credential?.kind === "oauth") return credential.accessToken;
+  return readLegacyGitInstallationOAuthCredentials(installation)?.accessToken ?? null;
 }
 
 /* ──────────────────────── Git Providers ──────────────────────── */
-
-export async function registerGitProvider(input: RegisterGitProviderInput) {
-  const providerId = id();
-
-  const [provider] = await db
-    .insert(gitProviders)
-    .values({
-      id: providerId,
-      teamId: input.teamId,
-      type: input.type,
-      name: input.name,
-      appId: input.appId ?? null,
-      clientId: input.clientId ?? null,
-      clientSecretEncrypted: input.clientSecret ? encrypt(input.clientSecret) : null,
-      privateKeyEncrypted: input.privateKey ? encrypt(input.privateKey) : null,
-      webhookSecret: input.webhookSecret ?? null,
-      baseUrl: input.baseUrl ?? null,
-      status: "active",
-      updatedAt: new Date()
-    })
-    .returning();
-
-  await db.insert(auditEntries).values({
-    actorType: "user",
-    actorId: input.requestedByUserId,
-    actorEmail: input.requestedByEmail,
-    actorRole: input.requestedByRole,
-    targetResource: `git_provider/${providerId}`,
-    action: "git_provider.register",
-    inputSummary: `Registered ${input.type} provider "${input.name}"`,
-    permissionScope: "server:write",
-    outcome: "success",
-    metadata: {
-      resourceType: "git_provider",
-      resourceId: providerId,
-      teamId: input.teamId,
-      providerType: input.type
-    }
-  });
-
-  return { status: "ok" as const, provider, summary: toGitProviderSummary(provider) };
-}
 
 export async function listGitProviders(teamId: string) {
   return db
@@ -283,6 +172,7 @@ export async function createGitInstallation(input: CreateInstallationInput) {
       accountType: input.accountType ?? "organization",
       repositorySelection: input.repositorySelection ?? "all",
       permissions: input.permissions ?? null,
+      ...(input.credentialStorage ?? {}),
       installedByUserId: input.installedByUserId ?? null,
       status: "active",
       updatedAt: now
@@ -303,6 +193,24 @@ export async function createGitInstallation(input: CreateInstallationInput) {
           input.permissions !== undefined
             ? input.permissions
             : sql`${gitInstallations.permissions}`,
+        credentialKind: input.credentialStorage
+          ? input.credentialStorage.credentialKind
+          : sql`${gitInstallations.credentialKind}`,
+        credentialScopes: input.credentialStorage
+          ? input.credentialStorage.credentialScopes
+          : sql`${gitInstallations.credentialScopes}`,
+        credentialExpiresAt: input.credentialStorage
+          ? input.credentialStorage.credentialExpiresAt
+          : sql`${gitInstallations.credentialExpiresAt}`,
+        credentialEncrypted: input.credentialStorage
+          ? input.credentialStorage.credentialEncrypted
+          : sql`${gitInstallations.credentialEncrypted}`,
+        credentialEnvelopeVersion: input.credentialStorage
+          ? input.credentialStorage.credentialEnvelopeVersion
+          : sql`${gitInstallations.credentialEnvelopeVersion}`,
+        credentialKeyId: input.credentialStorage
+          ? input.credentialStorage.credentialKeyId
+          : sql`${gitInstallations.credentialKeyId}`,
         installedByUserId:
           input.installedByUserId !== undefined
             ? input.installedByUserId
@@ -339,7 +247,15 @@ export async function createGitInstallation(input: CreateInstallationInput) {
       resourceId: installation.id,
       teamId: input.teamId,
       providerId: input.providerId,
-      externalInstallationId: input.installationId
+      externalInstallationId: input.installationId,
+      ...(input.credentialStorage
+        ? {
+            credentialKind: input.credentialStorage.credentialKind,
+            credentialScopes: readGitLabCredentialScopes(input.credentialStorage.credentialScopes),
+            credentialExpiresAt: input.credentialStorage.credentialExpiresAt?.toISOString() ?? null
+          }
+        : {}),
+      ...(input.auditMetadata ?? {})
     }
   });
 

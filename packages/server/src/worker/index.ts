@@ -27,9 +27,21 @@ export {
   stopApprovalActionDispatchMonitor
 } from "./approval-action-dispatch-monitor";
 export {
+  startProviderFeedbackMonitor,
+  stopProviderFeedbackMonitor
+} from "./provider-feedback-monitor";
+export { registerGitHubProviderFeedbackAdapter } from "./github-provider-feedback";
+export { registerGitLabProviderFeedbackAdapter } from "./gitlab-provider-feedback";
+export {
   startServiceScheduleMonitor,
   stopServiceScheduleMonitor
 } from "./service-schedule-monitor";
+export {
+  startServerMetricsMonitor,
+  stopServerMetricsMonitor,
+  runServerMetricsMonitorCycle,
+  setServerMetricTransitionHandler
+} from "./server-metrics-monitor";
 export {
   completeServiceScheduleRun,
   executeServiceScheduleRun,

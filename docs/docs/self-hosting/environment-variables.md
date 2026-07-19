@@ -17,7 +17,16 @@ Complete reference for the `.env` file consumed by the production `docker-compos
 | `DAOFLOW_DATABASE_NAME`           | Database selected by the production `DATABASE_URL`; defaults to `daoflow`                                   | `daoflow`                    |
 | `POSTGRES_PASSWORD`               | DaoFlow application database password                                                                       | `openssl rand -hex 16`       |
 
-`DATABASE_URL`, `REDIS_URL`, and most container-local defaults are constructed inside the compose stack and are not normally hand-authored in this `.env` file. The Postgres service still initially creates `daoflow`; changing `DAOFLOW_DATABASE_NAME` selects a different application database and does not create that database by itself.
+`DATABASE_URL`, `REDIS_URL`, and most container-local defaults are constructed inside the compose stack and are not normally hand-authored in this `.env` file. On a new Postgres volume, the service creates `DAOFLOW_DATABASE_NAME` (default `daoflow`). Changing this value after the volume has already been initialized selects a different application database but does not create or rename that database by itself.
+
+## Migration Recovery Controls
+
+| Variable                                     | Default | Description                                                                                                                                                                  |
+| -------------------------------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DAOFLOW_ALLOW_START_WITH_MIGRATION_FAILURE` | `false` | Emergency degraded-start bypass for ordinary execution failures. It never bypasses migration-lineage mismatches or a recorded failed migration.                              |
+| `DAOFLOW_RETRY_FAILED_MIGRATION`             | `false` | Explicitly clears the matching failed-migration marker and retries once. Use only in migration-only mode after repairing the underlying problem, then remove it immediately. |
+
+DaoFlow records only the failed migration timestamp, hash, stable reason, and failure time. It does not store the database URL, raw SQL, or the original error text in this recovery marker.
 
 For an offline clean-install restore, use a separate external secrets file with mode `600`. It
 must contain `BETTER_AUTH_SECRET`, `ENCRYPTION_KEY`, `DAOFLOW_RECOVERY_ENCRYPTION_KEY`, any
@@ -71,7 +80,7 @@ when a transfer exceeds its timeout or the isolated verifier exceeds its limit.
 
 | Variable                   | Lean value  | Temporal value | Description                                                                                                                          |
 | -------------------------- | ----------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `DAOFLOW_VERSION`          | `0.10.0`    | `0.10.0`       | DaoFlow image tag used by the repository production Compose file                                                                     |
+| `DAOFLOW_VERSION`          | `0.11.0`    | `0.11.0`       | DaoFlow image tag used by the repository production Compose file                                                                     |
 | `DAOFLOW_WORKFLOW_PROFILE` | `lean`      | `temporal`     | Installer-selected workflow profile; lean is the default                                                                             |
 | `COMPOSE_PROFILES`         | empty       | `temporal`     | Active Compose profiles; the temporal profile adds the Temporal services                                                             |
 | `DAOFLOW_ENABLE_TEMPORAL`  | `false`     | `true`         | Selects legacy or Temporal-backed workflow execution                                                                                 |
@@ -109,6 +118,10 @@ profile values in `.env`.
 | `DAOFLOW_APPROVAL_DISPATCH_MAX_ATTEMPTS`    | `12`                                  | Positive attempt limit before submission reaches terminal failure           |
 | `DAOFLOW_APPROVAL_DISPATCH_RETRY_BASE_MS`   | `1000`                                | Positive initial full-jitter retry window in milliseconds                   |
 | `DAOFLOW_APPROVAL_DISPATCH_RETRY_MAX_MS`    | `300000`                              | Positive maximum full-jitter retry window in milliseconds                   |
+| `PROVIDER_FEEDBACK_POLL_INTERVAL_MS`        | `5000`                                | Provider-feedback poll interval; values below 1000 use the default          |
+| `DAOFLOW_PROVIDER_FEEDBACK_MAX_ATTEMPTS`    | `12`                                  | Positive delivery-attempt limit before feedback is dead-lettered            |
+| `DAOFLOW_PROVIDER_FEEDBACK_RETRY_BASE_MS`   | `1000`                                | Positive initial bounded exponential retry delay in milliseconds            |
+| `DAOFLOW_PROVIDER_FEEDBACK_RETRY_MAX_MS`    | `300000`                              | Positive maximum provider-feedback retry delay in milliseconds              |
 
 On an existing install, rerunning the installer without `--workflow-profile` preserves the current
 choice and infers older installs from their existing Temporal settings. Switching from temporal to
@@ -141,10 +154,12 @@ Lean can omit `TEMPORAL_POSTGRES_PASSWORD`; the temporal profile requires a non-
 
 These are usually set inside the compose file rather than in your `.env`, but they are part of the runtime contract:
 
-| Variable                            | Default                 | Description                                              |
-| ----------------------------------- | ----------------------- | -------------------------------------------------------- |
-| `PORT`                              | `3000`                  | Internal HTTP port inside the DaoFlow container          |
-| `NODE_ENV`                          | `production` in compose | Runtime mode                                             |
-| `GIT_WORK_DIR`                      | `/app/staging`          | Frozen deploy artifact workspace                         |
-| `SSH_KEY_DIR`                       | `/app/.ssh`             | SSH key storage for managed targets                      |
-| `SERVER_READINESS_POLL_INTERVAL_MS` | `60000`                 | Interval for recurring persisted server readiness checks |
+| Variable                                  | Default                 | Description                                                          |
+| ----------------------------------------- | ----------------------- | -------------------------------------------------------------------- |
+| `PORT`                                    | `3000`                  | Internal HTTP port inside the DaoFlow container                      |
+| `NODE_ENV`                                | `production` in compose | Runtime mode                                                         |
+| `GIT_WORK_DIR`                            | `/app/staging`          | Frozen deploy artifact workspace                                     |
+| `SSH_KEY_DIR`                             | `/app/.ssh`             | SSH key storage for managed targets                                  |
+| `SERVER_READINESS_POLL_INTERVAL_MS`       | `60000`                 | Interval for recurring persisted server readiness checks             |
+| `SERVER_METRICS_MONITOR_POLL_INTERVAL_MS` | `15000`                 | Poll interval for selecting servers whose metric policy is due       |
+| `SERVER_METRICS_MONITOR_CONCURRENCY`      | `4`                     | Maximum concurrent read-only server metric collections, from 1 to 16 |

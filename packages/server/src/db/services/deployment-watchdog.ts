@@ -4,6 +4,7 @@ import { db } from "../connection";
 import { auditEntries, events } from "../schema/audit";
 import { deploymentBuildLeases, deploymentLogs, deployments } from "../schema/deployments";
 import { asRecord, readStringArray } from "./json-helpers";
+import { queueProviderFeedbackIntent } from "./provider-feedback-intents";
 
 const ACTIVE_DEPLOYMENT_STATUSES = [
   DeploymentLifecycleStatus.Waiting,
@@ -207,6 +208,11 @@ async function markDeploymentFailedByWatchdog(input: {
     if (!updated) {
       return null;
     }
+    await queueProviderFeedbackIntent(tx, {
+      deploymentId: updated.id,
+      transition: DeploymentLifecycleStatus.Failed,
+      now: input.now
+    });
 
     const [logRow] = await tx
       .insert(deploymentLogs)

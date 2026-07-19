@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const patchedMock = vi.hoisted(() => vi.fn());
+const nonCancellableMock = vi.hoisted(() => vi.fn((callback: () => unknown) => callback()));
 const activities = vi.hoisted(() => ({
   resolveRestoreContext: vi.fn(),
   downloadBackupArtifact: vi.fn(),
@@ -16,6 +17,7 @@ const activities = vi.hoisted(() => ({
 }));
 
 vi.mock("@temporalio/workflow", () => ({
+  CancellationScope: { nonCancellable: nonCancellableMock },
   patched: patchedMock,
   proxyActivities: () => activities
 }));
@@ -25,6 +27,7 @@ import { restoreWorkflow } from "./restore-workflow";
 const legacyContext = {
   restoreId: "brest_legacy",
   runId: "brun_legacy",
+  teamId: "team_foundation",
   artifactPath: "backups/legacy.dump",
   destinationId: "dest_legacy",
   volumeId: "vol_legacy",
@@ -161,5 +164,34 @@ describe("restore workflow compatibility", () => {
       undefined
     );
     expect(activities.markRestoreSucceeded).not.toHaveBeenCalled();
+  });
+
+  it("runs download cleanup and failure bookkeeping in a non-cancellable scope", async () => {
+    patchedMock.mockReturnValue(true);
+    activities.executeRestore.mockRejectedValue(new Error("workflow cancellation"));
+
+    await expect(
+      restoreWorkflow({
+        restoreId: legacyContext.restoreId,
+        backupRunId: legacyContext.runId,
+        triggeredBy: "system",
+        mode: "restore"
+      })
+    ).rejects.toThrow("workflow cancellation");
+
+    expect(activities.cleanupRestoreDownload).toHaveBeenCalledWith(legacyContext);
+    expect(activities.markRestoreFailed).toHaveBeenCalledWith(
+      legacyContext.restoreId,
+      "workflow cancellation",
+      undefined
+    );
+    expect(activities.emitRestoreEvent).toHaveBeenCalledWith(
+      legacyContext.restoreId,
+      "restore.failed",
+      "Restore failed",
+      "workflow cancellation",
+      "error"
+    );
+    expect(nonCancellableMock).toHaveBeenCalledTimes(2);
   });
 });

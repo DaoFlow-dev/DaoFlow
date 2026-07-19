@@ -15,6 +15,7 @@ import { maintenanceCommand } from "./commands/maintenance";
 import { notificationsCommand } from "./commands/notifications";
 import { planCommand } from "./commands/plan";
 import { serverCommand } from "./commands/server";
+import { servicesCommand } from "./commands/services";
 import { backupCommand } from "./commands/backup";
 import { terminalCommand } from "./commands/terminal";
 import { tunnelsCommand } from "./commands/tunnels";
@@ -136,6 +137,23 @@ describe("CLI JSON option coverage", () => {
   test("terminal service declares --json", () => {
     const terminal = terminalCommand();
     expect(hasLongOption(getSubcommand(terminal, "service"), "--json")).toBe(true);
+  });
+
+  test("service logging commands declare --json and document access", () => {
+    const services = servicesCommand();
+    const logging = getSubcommand(services, "logging");
+    const show = getSubcommand(logging, "show");
+    const set = getSubcommand(logging, "set");
+    const clear = getSubcommand(logging, "clear");
+
+    for (const command of [show, set, clear]) {
+      expect(hasLongOption(command, "--json")).toBe(true);
+      expect(renderHelp(command)).toContain("Required scope");
+      expect(renderHelp(command)).toContain("Example JSON shape:");
+    }
+    expect(renderHelp(show)).toContain("diagnostics:read");
+    expect(renderHelp(set)).toContain("deploy:read");
+    expect(renderHelp(set)).toContain("service:update");
   });
 
   test("notifications list and logs declare --json", () => {

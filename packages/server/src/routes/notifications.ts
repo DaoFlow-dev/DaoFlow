@@ -23,6 +23,7 @@ import {
   unsubscribePushSubscription,
   updateNotificationChannel
 } from "../db/services/notifications";
+import { requireActorTeamId } from "./command-admin-shared";
 
 export const notificationRouter = t.router({
   subscribePush: userWriteProcedure
@@ -51,7 +52,10 @@ export const notificationRouter = t.router({
     listPushSubscriptionsForUser(ctx.session.user.id)
   ),
 
-  listChannels: protectedProcedure.query(async () => listNotificationChannels()),
+  listChannels: protectedProcedure.query(async ({ ctx }) => {
+    const teamId = await requireActorTeamId(ctx.session.user.id);
+    return listNotificationChannels(teamId);
+  }),
 
   createChannel: userWriteProcedure
     .input(
@@ -66,11 +70,17 @@ export const notificationRouter = t.router({
         enabled: z.boolean().default(true)
       })
     )
-    .mutation(async ({ input }) => createNotificationChannel(input)),
+    .mutation(async ({ ctx, input }) => {
+      const teamId = await requireActorTeamId(ctx.session.user.id);
+      return createNotificationChannel({ ...input, teamId });
+    }),
 
   deleteChannel: userWriteProcedure
     .input(z.object({ id: z.string() }))
-    .mutation(async ({ input }) => deleteNotificationChannel(input.id)),
+    .mutation(async ({ ctx, input }) => {
+      const teamId = await requireActorTeamId(ctx.session.user.id);
+      return deleteNotificationChannel(input.id, teamId);
+    }),
 
   updateChannel: userWriteProcedure
     .input(
@@ -85,18 +95,25 @@ export const notificationRouter = t.router({
         enabled: z.boolean().optional()
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
+      const teamId = await requireActorTeamId(ctx.session.user.id);
       const { id, ...updates } = input;
-      return updateNotificationChannel(id, updates);
+      return updateNotificationChannel(id, teamId, updates);
     }),
 
   toggleChannel: userWriteProcedure
     .input(z.object({ id: z.string(), enabled: z.boolean() }))
-    .mutation(async ({ input }) => toggleNotificationChannel(input.id, input.enabled)),
+    .mutation(async ({ ctx, input }) => {
+      const teamId = await requireActorTeamId(ctx.session.user.id);
+      return toggleNotificationChannel(input.id, teamId, input.enabled);
+    }),
 
   testChannel: userWriteProcedure
     .input(z.object({ id: z.string() }))
-    .mutation(async ({ input }) => sendTestNotification(input.id)),
+    .mutation(async ({ ctx, input }) => {
+      const teamId = await requireActorTeamId(ctx.session.user.id);
+      return sendTestNotification(input.id, teamId);
+    }),
 
   getUserPreferences: protectedProcedure.query(async ({ ctx }) =>
     listUserNotificationPreferences(ctx.session.user.id)
@@ -144,5 +161,8 @@ export const notificationRouter = t.router({
 
   listDeliveryLogs: protectedProcedure
     .input(z.object({ limit: z.number().int().min(1).max(100).default(20) }))
-    .query(async ({ input }) => listNotificationDeliveryLogs(input.limit))
+    .query(async ({ ctx, input }) => {
+      const teamId = await requireActorTeamId(ctx.session.user.id);
+      return listNotificationDeliveryLogs(teamId, input.limit);
+    })
 });

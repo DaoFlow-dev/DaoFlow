@@ -51,7 +51,18 @@ If you want to run migrations as an explicit preflight without starting the web 
 docker compose run --rm -e DAOFLOW_RUN_MIGRATIONS_ONLY=true daoflow
 ```
 
-Use `DAOFLOW_ALLOW_START_WITH_MIGRATION_FAILURE=true` only as an emergency operator bypass. With that flag set, the process may continue after migration failure, but `/ready` stays unavailable and the container healthcheck remains unhealthy.
+Use `DAOFLOW_ALLOW_START_WITH_MIGRATION_FAILURE=true` only as an emergency operator bypass for an ordinary migration execution failure. It never bypasses a migration-lineage mismatch or a previously recorded failed migration. With that flag set, the process may continue in the limited cases where bypass is allowed, but `/ready` stays unavailable and the container healthcheck remains unhealthy.
+
+When DaoFlow reports a previously failed migration, first repair the underlying database or migration problem. Then run one explicit retry as a migration-only preflight:
+
+```bash
+docker compose run --rm \
+  -e DAOFLOW_RUN_MIGRATIONS_ONLY=true \
+  -e DAOFLOW_RETRY_FAILED_MIGRATION=true \
+  daoflow
+```
+
+Do not leave `DAOFLOW_RETRY_FAILED_MIGRATION` enabled. If the retry fails, DaoFlow records the failure again and blocks later restarts before repeating the same schema change.
 
 ## Checking Status And Version
 

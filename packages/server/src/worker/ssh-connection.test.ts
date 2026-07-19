@@ -310,6 +310,86 @@ describe("SCP file transfer", () => {
     await expect(download).rejects.toThrow("SCP transfer was cancelled.");
     expect(kill).toHaveBeenCalledWith("SIGTERM");
   });
+
+  it("clears a pending forced-kill timer after the transfer process exits", async () => {
+    const fixture = createSSHFixture();
+    process.env.SSH_CONTROL_DIR = fixture.controlDir;
+    process.env.SSH_KEY_DIR = fixture.keyDir;
+    process.env.SSH_KNOWN_HOSTS_DIR = fixture.knownHostsDir;
+    vi.useFakeTimers();
+    const listeners = new Map<string, (...args: unknown[]) => void>();
+    const kill = vi.fn();
+    const spawnMock = vi.fn(() => ({
+      stdout: { on: vi.fn() },
+      stderr: { on: vi.fn() },
+      kill,
+      on: vi.fn((event: string, handler: (...args: unknown[]) => void) => {
+        listeners.set(event, handler);
+      })
+    }));
+    vi.doMock("node:child_process", async () => {
+      const actual =
+        await vi.importActual<typeof import("node:child_process")>("node:child_process");
+      return { ...actual, spawn: spawnMock };
+    });
+
+    const { scpDownload } = await loadSSHFileTransferModule();
+    const transfer = scpDownload(
+      target,
+      "/srv/app/backup.tar",
+      "/tmp/backup.tar",
+      () => undefined,
+      {
+        timeoutMs: 1
+      }
+    );
+    const timedOut = expect(transfer).rejects.toThrow("timed out after 1ms");
+
+    await vi.advanceTimersByTimeAsync(1);
+    await timedOut;
+    expect(kill).toHaveBeenCalledWith("SIGTERM");
+    listeners.get("close")?.(null, "SIGTERM");
+
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(kill).not.toHaveBeenCalledWith("SIGKILL");
+  });
+});
+
+describe("SSH command execution", () => {
+  it("clears a pending forced-kill timer after the command process exits", async () => {
+    const fixture = createSSHFixture();
+    process.env.SSH_CONTROL_DIR = fixture.controlDir;
+    process.env.SSH_KEY_DIR = fixture.keyDir;
+    process.env.SSH_KNOWN_HOSTS_DIR = fixture.knownHostsDir;
+    vi.useFakeTimers();
+    const listeners = new Map<string, (...args: unknown[]) => void>();
+    const kill = vi.fn();
+    const spawnMock = vi.fn(() => ({
+      stdout: { on: vi.fn() },
+      stderr: { on: vi.fn() },
+      kill,
+      on: vi.fn((event: string, handler: (...args: unknown[]) => void) => {
+        listeners.set(event, handler);
+      })
+    }));
+    vi.doMock("node:child_process", async () => {
+      const actual =
+        await vi.importActual<typeof import("node:child_process")>("node:child_process");
+      return { ...actual, spawn: spawnMock };
+    });
+
+    const { execRemote } = await loadSSHConnectionModule();
+    const command = execRemote(target, "true", () => undefined, { timeoutMs: 1 });
+    const timedOut = expect(command).rejects.toThrow("timed out after 1ms");
+
+    await vi.advanceTimersByTimeAsync(1);
+    await timedOut;
+    expect(kill).toHaveBeenCalledWith("SIGTERM");
+    listeners.get("close")?.(null, "SIGTERM");
+
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(kill).not.toHaveBeenCalledWith("SIGKILL");
+  });
 });
 
 describe("host identity guard", () => {

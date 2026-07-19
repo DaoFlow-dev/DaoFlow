@@ -5,6 +5,7 @@ import { join, resolve } from "node:path";
 import type { RealInfraConfig } from "./config";
 
 const PRECHECK_TIMEOUT_MS = 30_000;
+const TERM_GRACE_TIMEOUT_MS = 5_000;
 const knownHostsScript = resolve("e2e/fixtures/real-infra/known-hosts.ts");
 
 export function shellQuote(value: string) {
@@ -99,16 +100,65 @@ async function run(command: string, args: string[], timeoutMs: number, capture =
       stdio: ["ignore", capture ? "pipe" : "ignore", "ignore"]
     });
     let output = "";
+    let settled = false;
+    let childExited = false;
+    let forceKillTimer: ReturnType<typeof setTimeout> | undefined;
     child.stdout?.on("data", (chunk: Buffer) => {
       output += chunk.toString("utf8");
     });
-    const timer = setTimeout(() => child.kill("SIGTERM"), Math.min(timeoutMs, 600_000));
-    child.once("error", () => {
+
+    const timer = setTimeout(
+      () => {
+        settleFailure(new Error(`Pinned SSH command timed out after ${timeoutMs}ms.`), false);
+        terminateChild();
+      },
+      Math.min(timeoutMs, 600_000)
+    );
+    timer.unref?.();
+
+    function clearForceKillTimer() {
+      if (!forceKillTimer) return;
+      clearTimeout(forceKillTimer);
+      forceKillTimer = undefined;
+    }
+
+    function settleFailure(error: Error, clearForceKill = true) {
+      if (settled) return;
+      settled = true;
       clearTimeout(timer);
-      reject(new Error("Pinned SSH command could not start."));
+      if (clearForceKill) clearForceKillTimer();
+      reject(error);
+    }
+
+    function terminateChild() {
+      if (childExited || forceKillTimer) return;
+      try {
+        child.kill("SIGTERM");
+      } catch {
+        // The process may have exited between timeout handling and termination.
+      }
+      if (childExited) return;
+      forceKillTimer = setTimeout(() => {
+        forceKillTimer = undefined;
+        if (childExited) return;
+        try {
+          child.kill("SIGKILL");
+        } catch {
+          // The process may already have exited.
+        }
+      }, TERM_GRACE_TIMEOUT_MS);
+      forceKillTimer.unref?.();
+    }
+
+    child.once("error", () => {
+      settleFailure(new Error("Pinned SSH command could not start."));
     });
     child.once("close", (code) => {
+      childExited = true;
+      clearForceKillTimer();
       clearTimeout(timer);
+      if (settled) return;
+      settled = true;
       if (code === 0) resolve(output);
       else reject(new Error(`${command} failed with exit code ${code ?? 1}.`));
     });

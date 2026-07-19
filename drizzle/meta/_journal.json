@@ -267,6 +267,48 @@
       "when": 1784430241103,
       "tag": "0037_blushing_supreme_intelligence",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1784441223656,
+      "tag": "0038_ambiguous_riptide",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1784445724188,
+      "tag": "0039_greedy_darkhawk",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1784448287791,
+      "tag": "0040_rich_namorita",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1784451423160,
+      "tag": "0041_previous_agent_zero",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1784458380026,
+      "tag": "0042_futuristic_puff_adder",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1784458390293,
+      "tag": "0043_charming_sentinels",
+      "breakpoints": true
     }
   ]
 }

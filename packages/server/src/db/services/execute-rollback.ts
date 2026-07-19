@@ -200,6 +200,7 @@ export async function executeRollback(input: ExecuteRollbackInput) {
   try {
     const notification = await buildDeployNotification({
       eventType: "deploy.rollback",
+      teamId: project[0].teamId,
       status: "rollback",
       deploymentId: deployment.id,
       projectName: readString(snapshot, "projectName", project[0].name),

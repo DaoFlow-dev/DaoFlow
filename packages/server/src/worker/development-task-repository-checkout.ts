@@ -3,6 +3,7 @@ import path from "node:path";
 import type { projects } from "../db/schema/projects";
 import type { developmentTaskRuns, developmentTasks } from "../db/schema/development-tasks";
 import { execStreaming, type OnLog } from "./docker-exec-shared";
+import { appendGitProviderCaConfig, withGitProviderCaFile } from "./git-ca-file";
 import { prepareClonedRepository } from "./git-repository-preparation";
 import { requireManagedSshGitCredential, strictGitSshCommand } from "./git-ssh-trust";
 import { resolveCheckoutSpec } from "./checkout-source";
@@ -116,93 +117,94 @@ export async function checkoutDevelopmentTaskRepository(input: {
     };
   }
 
-  requireManagedSshGitCredential(checkout.repoUrl, checkout.sshPrivateKey);
-
   const execRunner = input.execRunner ?? execStreaming;
-  const gitConfigPath = await writeGitConfigFile(
-    input.artifactsPath,
-    input.run.id,
-    checkout.gitConfig
-  );
-  const gitSshKeyPath = await writeGitSshKeyFile(
-    input.artifactsPath,
-    input.run.id,
-    checkout.sshPrivateKey
-  );
-  const envOverrides = {
-    ...(gitConfigPath ? { GIT_CONFIG_GLOBAL: gitConfigPath } : {}),
-    ...(gitSshKeyPath
-      ? {
-          GIT_SSH_COMMAND: strictGitSshCommand(gitSshKeyPath)
-        }
-      : {})
-  };
-
-  try {
-    input.onLog({
-      stream: "stdout",
-      message: `Checking out ${checkout.displayLabel} (branch: ${checkout.branch})`,
-      timestamp: new Date()
-    });
-
-    const clone = await execRunner(
-      "git",
-      [
-        "clone",
-        "--depth",
-        "1",
-        "--branch",
-        checkout.branch,
-        "--single-branch",
-        "--",
-        checkout.repoUrl,
-        "."
-      ],
-      input.repoPath,
-      input.onLog,
-      Object.keys(envOverrides).length > 0 ? envOverrides : undefined
+  return withGitProviderCaFile(checkout.repoUrl, checkout.caCertificatePem, async (caFilePath) => {
+    requireManagedSshGitCredential(checkout.repoUrl, checkout.sshPrivateKey);
+    const gitConfigPath = await writeGitConfigFile(
+      input.artifactsPath,
+      input.run.id,
+      appendGitProviderCaConfig(checkout.gitConfig, caFilePath)
     );
-    if (clone.exitCode !== 0) {
-      return {
-        status: "failed",
-        repoPath: input.repoPath,
-        branch: checkout.branch,
-        displayLabel: checkout.displayLabel,
-        errorMessage: `git clone failed with exit code ${clone.exitCode}`
-      };
-    }
-
-    const preparation = await prepareClonedRepository(
-      input.repoPath,
-      input.onLog,
-      {
-        repositoryPreparation: checkout.repositoryPreparation,
-        gitConfigPath
-      },
-      execRunner
+    const gitSshKeyPath = await writeGitSshKeyFile(
+      input.artifactsPath,
+      input.run.id,
+      checkout.sshPrivateKey
     );
-    if (preparation.exitCode !== 0) {
-      return {
-        status: "failed",
-        repoPath: input.repoPath,
-        branch: checkout.branch,
-        displayLabel: checkout.displayLabel,
-        errorMessage: preparation.errorMessage
-      };
-    }
-
-    return {
-      status: "ok",
-      repoPath: input.repoPath,
-      branch: checkout.branch,
-      displayLabel: checkout.displayLabel
+    const envOverrides = {
+      ...(gitConfigPath ? { GIT_CONFIG_GLOBAL: gitConfigPath } : {}),
+      ...(gitSshKeyPath
+        ? {
+            GIT_SSH_COMMAND: strictGitSshCommand(gitSshKeyPath)
+          }
+        : {})
     };
-  } finally {
-    if (gitConfigPath) {
-      await rm(gitConfigPath, { force: true });
+
+    try {
+      input.onLog({
+        stream: "stdout",
+        message: `Checking out ${checkout.displayLabel} (branch: ${checkout.branch})`,
+        timestamp: new Date()
+      });
+
+      const clone = await execRunner(
+        "git",
+        [
+          "clone",
+          "--depth",
+          "1",
+          "--branch",
+          checkout.branch,
+          "--single-branch",
+          "--",
+          checkout.repoUrl,
+          "."
+        ],
+        input.repoPath,
+        input.onLog,
+        Object.keys(envOverrides).length > 0 ? envOverrides : undefined
+      );
+      if (clone.exitCode !== 0) {
+        return {
+          status: "failed",
+          repoPath: input.repoPath,
+          branch: checkout.branch,
+          displayLabel: checkout.displayLabel,
+          errorMessage: `git clone failed with exit code ${clone.exitCode}`
+        };
+      }
+
+      const preparation = await prepareClonedRepository(
+        input.repoPath,
+        input.onLog,
+        {
+          repositoryPreparation: checkout.repositoryPreparation,
+          gitConfigPath
+        },
+        execRunner
+      );
+      if (preparation.exitCode !== 0) {
+        return {
+          status: "failed",
+          repoPath: input.repoPath,
+          branch: checkout.branch,
+          displayLabel: checkout.displayLabel,
+          errorMessage: preparation.errorMessage
+        };
+      }
+
+      return {
+        status: "ok",
+        repoPath: input.repoPath,
+        branch: checkout.branch,
+        displayLabel: checkout.displayLabel
+      };
+    } finally {
+      if (gitConfigPath) {
+        await rm(gitConfigPath, { force: true });
+      }
+      if (gitSshKeyPath) {
+        await rm(gitSshKeyPath, { force: true });
+      }
     }
-    if (gitSshKeyPath) {
-      await rm(gitSshKeyPath, { force: true });
-    }
-  }
+  });
 }

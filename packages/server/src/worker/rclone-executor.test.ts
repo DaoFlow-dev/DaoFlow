@@ -51,7 +51,7 @@ describe("rclone remote helpers", () => {
     ).toBe("remote:backups/daoflow");
   });
 
-  it("keeps S3 operations inside the configured destination prefix", () => {
+  it("keeps legacy S3 operations rooted at the configured bucket", () => {
     expect(
       resolveRemotePath(
         {
@@ -61,7 +61,7 @@ describe("rclone remote helpers", () => {
         },
         "nightly/2026-07-18"
       )
-    ).toBe("daoflow:realinfra/real-infra/ri123456789012/nightly/2026-07-18");
+    ).toBe("daoflow:realinfra/nightly/2026-07-18");
   });
 
   it("keeps encrypted remotes rooted at the crypt overlay", () => {

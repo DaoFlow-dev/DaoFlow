@@ -8,6 +8,7 @@ import {
   developmentTasks
 } from "../db/schema/development-tasks";
 import { fetchGitHubInstallationAccessToken } from "../db/services/github-app-auth";
+import { fetchWithGitProviderCa } from "../db/services/git-provider-ca-trust";
 import {
   recordDevelopmentTaskComment,
   recordDevelopmentTaskEvent
@@ -75,12 +76,13 @@ async function deleteStatusCommentRecord(commentId: string) {
 }
 
 async function writeGitHubIssueComment(input: {
+  provider: Pick<typeof gitProviders.$inferSelect, "teamId" | "caCertificateId">;
   accessToken: string;
   url: string;
   method: "PATCH" | "POST";
   body: string;
 }) {
-  const response = await fetch(input.url, {
+  const response = await fetchWithGitProviderCa(input.provider, input.url, {
     method: input.method,
     headers: {
       Accept: "application/vnd.github+json",
@@ -119,6 +121,7 @@ async function sendGitHubIssueComment(input: {
 
   if (!updateUrl) {
     const comment = await writeGitHubIssueComment({
+      provider: input.provider,
       accessToken,
       url: createUrl,
       method: "POST",
@@ -129,6 +132,7 @@ async function sendGitHubIssueComment(input: {
 
   try {
     const comment = await writeGitHubIssueComment({
+      provider: input.provider,
       accessToken,
       url: updateUrl,
       method: "PATCH",
@@ -142,6 +146,7 @@ async function sendGitHubIssueComment(input: {
   }
 
   const comment = await writeGitHubIssueComment({
+    provider: input.provider,
     accessToken,
     url: createUrl,
     method: "POST",

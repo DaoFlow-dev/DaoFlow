@@ -15,17 +15,28 @@ import {
 } from "@/components/ui/dialog";
 import { Github } from "lucide-react";
 import { buildGitHubManifest } from "./git-provider-utils";
+import {
+  GitProviderCertificateDetails,
+  GitProviderCertificateSelect
+} from "./GitProviderCertificate";
+import {
+  getCertificateAsset,
+  getGitProviderErrorMessage,
+  type CertificateAssetSummary
+} from "./git-provider-certificate";
 
 export interface GitHubProviderDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onRegistered: () => void;
+  certificateAssets?: CertificateAssetSummary[];
 }
 
 export function GitHubProviderDialog({
   open,
   onOpenChange,
-  onRegistered
+  onRegistered,
+  certificateAssets = []
 }: GitHubProviderDialogProps) {
   const [isOrganization, setIsOrganization] = useState(false);
   const [orgName, setOrgName] = useState("");
@@ -65,6 +76,7 @@ export function GitHubProviderDialog({
           onRegistered();
           setShowManualForm(false);
         }}
+        certificateAssets={certificateAssets}
       />
     );
   }
@@ -150,7 +162,8 @@ export function GitHubProviderDialog({
 function ManualGitHubProviderDialog({
   open,
   onOpenChange,
-  onRegistered
+  onRegistered,
+  certificateAssets = []
 }: GitHubProviderDialogProps) {
   const [name, setName] = useState("");
   const [appId, setAppId] = useState("");
@@ -159,6 +172,7 @@ function ManualGitHubProviderDialog({
   const [privateKey, setPrivateKey] = useState("");
   const [webhookSecret, setWebhookSecret] = useState("");
   const [baseUrl, setBaseUrl] = useState("");
+  const [caCertificateId, setCaCertificateId] = useState<string | null>(null);
 
   const register = trpc.registerGitProvider.useMutation({
     onSuccess: () => {
@@ -171,6 +185,7 @@ function ManualGitHubProviderDialog({
       setPrivateKey("");
       setWebhookSecret("");
       setBaseUrl("");
+      setCaCertificateId(null);
     }
   });
 
@@ -184,7 +199,8 @@ function ManualGitHubProviderDialog({
       clientSecret: clientSecret.trim() || undefined,
       privateKey: privateKey.trim() || undefined,
       webhookSecret: webhookSecret.trim() || undefined,
-      baseUrl: baseUrl.trim() || undefined
+      baseUrl: baseUrl.trim() || undefined,
+      ...(caCertificateId ? { caCertificateId } : {})
     });
   }
 
@@ -194,6 +210,7 @@ function ManualGitHubProviderDialog({
     Boolean(clientId.trim()) &&
     Boolean(clientSecret.trim()) &&
     Boolean(privateKey.trim());
+  const selectedCertificate = getCertificateAsset(certificateAssets, caCertificateId);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -283,6 +300,32 @@ function ManualGitHubProviderDialog({
             />
             <p className="text-xs text-muted-foreground mt-1">Leave empty for github.com</p>
           </div>
+          <div className="space-y-2" data-testid="git-provider-ca-registration">
+            <GitProviderCertificateSelect
+              certificateAssets={certificateAssets}
+              value={caCertificateId}
+              onChange={setCaCertificateId}
+              id="gp-ca-certificate"
+              testId="git-provider-ca-select"
+              disabled={register.isPending}
+            />
+            <GitProviderCertificateDetails
+              certificate={selectedCertificate}
+              testId="git-provider-ca-details"
+            />
+          </div>
+          {register.error ? (
+            <p
+              role="alert"
+              className="text-sm text-destructive"
+              data-testid="git-provider-registration-error"
+            >
+              {getGitProviderErrorMessage(
+                register.error,
+                "Unable to register the GitHub provider."
+              )}
+            </p>
+          ) : null}
           <DialogFooter>
             <Button
               type="button"

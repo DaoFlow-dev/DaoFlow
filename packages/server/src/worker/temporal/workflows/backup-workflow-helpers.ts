@@ -32,6 +32,7 @@ export async function dispatchBackupStarted(resolved: BackupPolicyResolved): Pro
   try {
     const notification = await buildBackupNotification({
       eventType: "backup.started",
+      teamId: resolved.teamId,
       policyName: resolved.policyName,
       projectName: resolved.projectName,
       environmentName: resolved.environmentName,
@@ -202,6 +203,7 @@ export async function dispatchBackupSucceeded(
   try {
     const notification = await buildBackupNotification({
       eventType: "backup.succeeded",
+      teamId: resolved.teamId,
       policyName: resolved.policyName,
       projectName: resolved.projectName,
       environmentName: resolved.environmentName,
@@ -224,6 +226,7 @@ export async function dispatchBackupFailed(
   try {
     const notification = await buildBackupNotification({
       eventType: "backup.failed",
+      teamId: resolved.teamId,
       policyName: resolved?.policyName ?? policyId,
       projectName: resolved?.projectName,
       environmentName: resolved?.environmentName,

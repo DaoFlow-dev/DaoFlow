@@ -2,6 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AlertTriangle, Wrench } from "lucide-react";
 import { ResourceLimitsCard } from "./ResourceLimitsCard";
 import { RestartPolicyCard } from "./RestartPolicyCard";
+import { LoggingRotationCard } from "./LoggingRotationCard";
 import { HealthCheckCard } from "./HealthCheckCard";
 import { VolumesCard } from "./VolumesCard";
 import { NetworksCard } from "./NetworksCard";
@@ -67,6 +68,11 @@ export default function AdvancedTab({
       <ResourceLimitsCard
         serviceId={serviceId}
         resources={runtimeConfig?.resources ?? null}
+        onSaved={onConfigSaved}
+      />
+      <LoggingRotationCard
+        serviceId={serviceId}
+        logging={runtimeConfig?.logging ?? null}
         onSaved={onConfigSaved}
       />
       <RestartPolicyCard

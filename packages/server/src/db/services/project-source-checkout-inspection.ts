@@ -37,7 +37,13 @@ export async function materializeProjectSourceInspection(input: {
   branch: string;
 }): Promise<ProjectSourceInspectionResult> {
   const repoUrl = input.project.repoUrl?.trim();
-  if (!repoUrl) {
+  const hasProviderSource = Boolean(
+    input.project.teamId &&
+    input.project.repoFullName &&
+    input.project.gitProviderId &&
+    input.project.gitInstallationId
+  );
+  if (!repoUrl && !hasProviderSource) {
     return {
       status: "not_available",
       reason: "Project source does not define a usable repoUrl."
@@ -50,7 +56,7 @@ export async function materializeProjectSourceInspection(input: {
     const checkout = await resolveCheckoutSpec({
       projectId: input.project.id ?? undefined,
       teamId: input.project.teamId ?? undefined,
-      repoUrl,
+      repoUrl: repoUrl ?? undefined,
       repoFullName: input.project.repoFullName ?? undefined,
       gitProviderId: input.project.gitProviderId ?? undefined,
       gitInstallationId: input.project.gitInstallationId ?? undefined,
@@ -68,6 +74,7 @@ export async function materializeProjectSourceInspection(input: {
     const cloneResult = await gitClone(checkout.repoUrl, checkout.branch, inspectionId, noopLog, {
       displayLabel: checkout.displayLabel,
       gitConfig: checkout.gitConfig,
+      caCertificatePem: checkout.caCertificatePem,
       sshPrivateKey: checkout.sshPrivateKey,
       repositoryPreparation: checkout.repositoryPreparation
     });

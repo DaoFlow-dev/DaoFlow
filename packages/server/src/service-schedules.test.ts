@@ -161,6 +161,7 @@ describe("service schedules", () => {
 
     await db.insert(notificationChannels).values({
       id: "notif_schedule_failed",
+      teamId: "team_foundation",
       name: "Schedule failure webhook",
       channelType: "generic_webhook",
       webhookUrl: "http://127.0.0.1:9/notifications",

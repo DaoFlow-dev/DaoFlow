@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import {
   Activity,
   ArrowLeft,
+  ChartNoAxesCombined,
   Gauge,
   HardDrive,
   History,
@@ -20,6 +21,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { HostTerminalTab } from "@/components/server-detail/HostTerminalTab";
 import { ServerCapacityPanel } from "@/components/server-detail/ServerCapacityPanel";
 import { ServerHostIdentityPanel } from "@/components/server-detail/ServerHostIdentityPanel";
+import { ServerMetricsPanel } from "@/components/server-detail/ServerMetricsPanel";
 import {
   CleanupPanel,
   HistoryPanel,
@@ -59,6 +61,8 @@ export default function ServerDetailPage() {
   const caps = viewer.data?.authz.capabilities ?? [];
   const canWriteServer = caps.includes("server:write");
   const canConfigureCapacity =
+    canWriteServer && ["owner", "admin"].includes(viewer.data?.authz.role ?? "");
+  const canConfigureMetrics =
     canWriteServer && ["owner", "admin"].includes(viewer.data?.authz.role ?? "");
   const canOpenTerminal = caps.includes("terminal:open");
   const isSwarmManager = data?.server.kind === "docker-swarm-manager";
@@ -144,6 +148,14 @@ export default function ServerDetailPage() {
             <Gauge size={14} />
             Capacity
           </TabsTrigger>
+          <TabsTrigger
+            value="metrics"
+            className="gap-1.5"
+            data-testid={`server-detail-metrics-tab-${data.server.id}`}
+          >
+            <ChartNoAxesCombined size={14} />
+            Metrics
+          </TabsTrigger>
           <TabsTrigger value="cleanup" className="gap-1.5">
             <HardDrive size={14} />
             Cleanup
@@ -197,6 +209,14 @@ export default function ServerDetailPage() {
             maxQueuedDeployments={data.server.maxQueuedDeployments ?? 20}
             canManage={canConfigureCapacity}
             onSaved={() => refreshHub("Server capacity updated.")}
+          />
+        </TabsContent>
+
+        <TabsContent value="metrics" className="mt-4">
+          <ServerMetricsPanel
+            serverId={data.server.id}
+            canManage={canConfigureMetrics}
+            onSaved={() => refreshHub("Metrics policy updated.")}
           />
         </TabsContent>
 

@@ -9,6 +9,7 @@ import { asRecord, readString } from "./json-helpers";
 import { buildDeployNotification } from "../../worker/temporal/activities/notification-builders";
 import { dispatchNotification } from "../../worker/temporal/activities/notification-activities";
 import { syncPreviewEnvironmentDeploymentStatus } from "./preview-environments";
+import { transitionDeploymentWithFeedback } from "./deployment-transition-feedback";
 
 export type ExecutionJobStatus = "pending" | "dispatched" | "completed" | "failed";
 
@@ -130,25 +131,23 @@ async function mutateDeploymentStatus(
   const conclusion =
     newStatus === "completed" ? "succeeded" : newStatus === "failed" ? "failed" : null;
 
-  await db
-    .update(deployments)
-    .set({
-      status: newStatus,
-      conclusion: conclusion ?? deployment.conclusion,
-      concludedAt:
-        newStatus === "completed" || newStatus === "failed" ? now : deployment.concludedAt,
-      updatedAt: now
-    })
-    .where(eq(deployments.id, jobId));
-
-  const [updatedDeploymentForPreview] = await db
-    .select()
-    .from(deployments)
-    .where(eq(deployments.id, jobId))
-    .limit(1);
-  if (updatedDeploymentForPreview) {
-    await syncPreviewEnvironmentDeploymentStatus(updatedDeploymentForPreview);
+  const transitioned = await transitionDeploymentWithFeedback({
+    deploymentId: jobId,
+    status: newStatus,
+    conclusion: conclusion ?? undefined,
+    now
+  });
+  if (!transitioned) {
+    const [current] = await db
+      .select({ status: deployments.status })
+      .from(deployments)
+      .where(eq(deployments.id, jobId))
+      .limit(1);
+    if (!current) return { status: "not-found" as const };
+    return { status: "invalid-state" as const, currentStatus: current.status };
   }
+
+  await syncPreviewEnvironmentDeploymentStatus(transitioned);
 
   await db.insert(auditEntries).values({
     actorType: "user",
@@ -244,6 +243,7 @@ async function mutateDeploymentStatus(
           : newStatus === "completed"
             ? "deploy.succeeded"
             : "deploy.failed",
+      teamId,
       status:
         newStatus === "deploy" ? "started" : newStatus === "completed" ? "succeeded" : "failed",
       deploymentId: jobId,

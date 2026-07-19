@@ -62,7 +62,7 @@ export function resolveRemotePath(
   const remoteName = resolveConfiguredRemoteName(dest);
   const base =
     dest.provider === "s3"
-      ? joinRemotePath(`${remoteName}:${dest.bucket ?? ""}`, dest.rcloneRemotePath ?? undefined)
+      ? `${remoteName}:${dest.bucket ?? ""}`
       : dest.provider === "local"
         ? `${remoteName}:${dest.localPath ?? DEFAULT_LOCAL_RCLONE_PATH}`
         : `${remoteName}:${dest.rcloneRemotePath ?? ""}`;

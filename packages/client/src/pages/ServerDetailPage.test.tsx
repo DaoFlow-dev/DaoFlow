@@ -21,6 +21,8 @@ const {
   scanIdentityUseMutationMock,
   nodeSwarmUseMutationMock,
   configureServerCapacityUseMutationMock,
+  configureServerMetricPolicyUseMutationMock,
+  serverMetricMonitoringUseQueryMock,
   useSessionMock,
   useUtilsMock,
   viewerUseQueryMock
@@ -39,6 +41,8 @@ const {
   scanIdentityUseMutationMock: vi.fn(),
   nodeSwarmUseMutationMock: vi.fn(),
   configureServerCapacityUseMutationMock: vi.fn(),
+  configureServerMetricPolicyUseMutationMock: vi.fn(),
+  serverMetricMonitoringUseQueryMock: vi.fn(),
   useSessionMock: vi.fn(),
   useUtilsMock: vi.fn(),
   viewerUseQueryMock: vi.fn()
@@ -62,6 +66,8 @@ vi.mock("../lib/trpc", () => ({
     updateSwarmNodeAvailability: { useMutation: nodeSwarmUseMutationMock },
     updateSwarmServiceScale: { useMutation: scaleSwarmUseMutationMock },
     configureServerCapacity: { useMutation: configureServerCapacityUseMutationMock },
+    configureServerMetricPolicy: { useMutation: configureServerMetricPolicyUseMutationMock },
+    serverMetricMonitoring: { useQuery: serverMetricMonitoringUseQueryMock },
     serverSshHostIdentities: { useQuery: serverIdentitiesUseQueryMock },
     scanServerSshHostIdentities: { useMutation: scanIdentityUseMutationMock },
     approveServerSshHostIdentity: { useMutation: approveIdentityUseMutationMock },
@@ -74,6 +80,7 @@ describe("ServerDetailPage", () => {
   const collectMutateAsync = vi.fn();
   const previewMutateAsync = vi.fn();
   const configureServerCapacityMutateAsync = vi.fn();
+  const configureServerMetricPolicyMutateAsync = vi.fn();
 
   afterEach(() => {
     cleanup();
@@ -88,6 +95,7 @@ describe("ServerDetailPage", () => {
     });
     hubRefetch.mockResolvedValue({});
     configureServerCapacityMutateAsync.mockClear();
+    configureServerMetricPolicyMutateAsync.mockClear();
     hubUseQueryMock.mockReturnValue({
       isLoading: false,
       refetch: hubRefetch,
@@ -123,6 +131,52 @@ describe("ServerDetailPage", () => {
       }
     });
     logsUseQueryMock.mockReturnValue({ data: { logs: [] } });
+    serverMetricMonitoringUseQueryMock.mockReturnValue({
+      data: {
+        serverId: "srv_1",
+        policy: {
+          sampleIntervalSeconds: 60,
+          retentionDays: 7,
+          cpuWarnPercent: 70,
+          cpuHardPercent: 90,
+          memoryWarnPercent: 75,
+          memoryHardPercent: 90,
+          diskWarnPercent: 80,
+          diskHardPercent: 95,
+          dockerDiskWarnPercent: 80,
+          dockerDiskHardPercent: 95,
+          cooldownMinutes: 15
+        },
+        state: {
+          status: "healthy",
+          metric: null,
+          measuredValue: null,
+          threshold: null,
+          changedAt: null,
+          lastAlertedAt: null,
+          error: null
+        },
+        latest: {
+          id: "metric_1",
+          serverId: "srv_1",
+          cpuPercent: 12.5,
+          memoryUsedPercent: 38,
+          memoryUsedGB: 6.08,
+          memoryTotalGB: 16,
+          diskUsedPercent: 55,
+          diskTotalGB: 100,
+          dockerDiskUsedPercent: 42,
+          dockerDiskTotalGB: 80,
+          networkInMB: 100,
+          networkOutMB: 25,
+          collectedAt: new Date().toISOString()
+        },
+        history: []
+      },
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn()
+    });
     serverIdentitiesUseQueryMock.mockReturnValue({
       data: {
         approved: null,
@@ -160,6 +214,23 @@ describe("ServerDetailPage", () => {
     configureServerCapacityUseMutationMock.mockReturnValue({
       isPending: false,
       mutateAsync: configureServerCapacityMutateAsync
+    });
+    configureServerMetricPolicyMutateAsync.mockResolvedValue({
+      sampleIntervalSeconds: 60,
+      retentionDays: 7,
+      cpuWarnPercent: 70,
+      cpuHardPercent: 90,
+      memoryWarnPercent: 75,
+      memoryHardPercent: 90,
+      diskWarnPercent: 80,
+      diskHardPercent: 95,
+      dockerDiskWarnPercent: 80,
+      dockerDiskHardPercent: 95,
+      cooldownMinutes: 15
+    });
+    configureServerMetricPolicyUseMutationMock.mockReturnValue({
+      isPending: false,
+      mutateAsync: configureServerMetricPolicyMutateAsync
     });
     scanIdentityUseMutationMock.mockReturnValue({ isPending: false, mutateAsync: vi.fn() });
     approveIdentityUseMutationMock.mockReturnValue({ isPending: false, mutateAsync: vi.fn() });
@@ -201,6 +272,41 @@ describe("ServerDetailPage", () => {
     expect(screen.getByTestId("server-capacity-build-slot-explanation-srv_1")).toHaveTextContent(
       "Image-only and runtime-only deployments do not use build slots"
     );
+  });
+
+  it("opens the persistent metrics panel from the Metrics tab", () => {
+    render(
+      <MemoryRouter initialEntries={["/servers/srv_1"]}>
+        <Routes>
+          <Route path="/servers/:id" element={<ServerDetailPage />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    fireEvent.click(screen.getByTestId("server-detail-metrics-tab-srv_1"));
+
+    expect(screen.getByTestId("server-metrics-panel-srv_1")).toBeVisible();
+    expect(screen.getByTestId("server-metrics-status-srv_1")).toHaveTextContent("Healthy");
+  });
+
+  it("keeps metrics policy read-only for operators even with server write access", () => {
+    viewerUseQueryMock.mockReturnValue({
+      data: { authz: { role: "operator", capabilities: ["server:read", "server:write"] } },
+      isLoading: false
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/servers/srv_1"]}>
+        <Routes>
+          <Route path="/servers/:id" element={<ServerDetailPage />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    fireEvent.click(screen.getByTestId("server-detail-metrics-tab-srv_1"));
+
+    expect(screen.getByTestId("server-metrics-read-only-srv_1")).toBeVisible();
+    expect(screen.queryByTestId("server-metrics-save-srv_1")).not.toBeInTheDocument();
   });
 
   it("saves changed server capacity with the expected payload", async () => {

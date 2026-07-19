@@ -25,6 +25,10 @@ DaoFlow is configured through environment variables and a CLI config file.
 | `DAOFLOW_APPROVAL_DISPATCH_MAX_ATTEMPTS`             | Maximum automatic submission attempts                                |
 | `DAOFLOW_APPROVAL_DISPATCH_RETRY_BASE_MS`            | Initial approved-operation retry window in milliseconds              |
 | `DAOFLOW_APPROVAL_DISPATCH_RETRY_MAX_MS`             | Maximum approved-operation retry window in milliseconds              |
+| `PROVIDER_FEEDBACK_POLL_INTERVAL_MS`                 | Provider-feedback monitor interval in milliseconds                   |
+| `DAOFLOW_PROVIDER_FEEDBACK_MAX_ATTEMPTS`             | Maximum feedback-delivery attempts before dead-lettering             |
+| `DAOFLOW_PROVIDER_FEEDBACK_RETRY_BASE_MS`            | Initial provider-feedback retry delay in milliseconds                |
+| `DAOFLOW_PROVIDER_FEEDBACK_RETRY_MAX_MS`             | Maximum provider-feedback retry delay in milliseconds                |
 | `DAOFLOW_CONTROL_PLANE_RECOVERY_VERIFIER_STORAGE_MB` | Isolated recovery verifier limit in megabytes                        |
 
 ### Production `.env`
@@ -35,7 +39,7 @@ Most operators edit only these values:
 
 | Variable                                             | Default                       | Description                                                                                         |
 | ---------------------------------------------------- | ----------------------------- | --------------------------------------------------------------------------------------------------- |
-| `DAOFLOW_VERSION`                                    | `0.10.0` in reference Compose | Concrete image tag to run; the installer-generated `.env` pins the installed CLI release            |
+| `DAOFLOW_VERSION`                                    | `0.11.0` in reference Compose | Concrete image tag to run; the installer-generated `.env` pins the installed CLI release            |
 | `BETTER_AUTH_URL`                                    | —                             | Public origin used for sign-in and callbacks                                                        |
 | `DAOFLOW_DATABASE_NAME`                              | `daoflow`                     | Database selected by the production Compose `DATABASE_URL`; keep the default for a standard install |
 | `DAOFLOW_PORT`                                       | `3000`                        | Host port bound to the DaoFlow container                                                            |
@@ -50,6 +54,12 @@ Most operators edit only these values:
 | `DAOFLOW_APPROVAL_DISPATCH_MAX_ATTEMPTS`             | `12`                          | Automatic submission attempts before a dispatch reaches terminal failure                            |
 | `DAOFLOW_APPROVAL_DISPATCH_RETRY_BASE_MS`            | `1000`                        | Initial full-jitter retry window for a temporary submission failure                                 |
 | `DAOFLOW_APPROVAL_DISPATCH_RETRY_MAX_MS`             | `300000`                      | Maximum full-jitter retry window for a temporary submission failure                                 |
+| `SERVER_METRICS_MONITOR_POLL_INTERVAL_MS`            | `15000`                       | Poll interval for selecting servers whose metric policy is due                                      |
+| `SERVER_METRICS_MONITOR_CONCURRENCY`                 | `4`                           | Maximum concurrent read-only server metric collections, from 1 to 16                                |
+| `PROVIDER_FEEDBACK_POLL_INTERVAL_MS`                 | `5000`                        | Poll interval for provider-feedback delivery; stays idle until an adapter is installed              |
+| `DAOFLOW_PROVIDER_FEEDBACK_MAX_ATTEMPTS`             | `12`                          | Automatic feedback-delivery attempts before an item is dead-lettered                                |
+| `DAOFLOW_PROVIDER_FEEDBACK_RETRY_BASE_MS`            | `1000`                        | Initial bounded exponential retry delay for a temporary provider failure                            |
+| `DAOFLOW_PROVIDER_FEEDBACK_RETRY_MAX_MS`             | `300000`                      | Maximum provider-feedback retry delay                                                               |
 | `DAOFLOW_CONTROL_PLANE_RECOVERY_VERIFIER_STORAGE_MB` | `4096`                        | Storage and memory ceiling for each isolated recovery verifier                                      |
 | `POSTGRES_PASSWORD`                                  | —                             | Password for the DaoFlow application database                                                       |
 | `TEMPORAL_POSTGRES_PASSWORD`                         | —                             | Password for Temporal's Postgres database                                                           |

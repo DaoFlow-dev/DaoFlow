@@ -1,9 +1,8 @@
 import { fetchGitHubInstallationAccessToken } from "../db/services/github-app-auth";
-import { resolveGitLabInstallationAccessToken } from "../db/services/gitlab-installation-auth";
-import {
-  buildGitHubApiBaseUrl,
-  buildGitLabApiBaseUrl
-} from "../db/services/project-source-provider-validation-shared";
+import { fetchWithGitProviderCa } from "../db/services/git-provider-ca-trust";
+import { resolveGitLabInstallationApiAccess } from "../db/services/gitlab-installation-auth";
+import { buildGitHubApiBaseUrl } from "../db/services/project-source-provider-validation-shared";
+import { resolveGitLabApiBaseUrl } from "../db/services/gitlab-urls";
 import type { WebhookTarget } from "./webhooks-types";
 
 const ALLOWED_GITHUB_PERMISSIONS = new Set(["admin", "maintain", "write"]);
@@ -73,7 +72,8 @@ export async function authorizeGitHubDevelopmentTaskActor(input: {
     provider: input.target.provider,
     installation: input.target.installation
   });
-  const response = await fetch(
+  const response = await fetchWithGitProviderCa(
+    input.target.provider,
     `${buildGitHubApiBaseUrl(input.target.provider.baseUrl)}/repos/${input.repoFullName}/collaborators/${encodeURIComponent(
       actorLogin
     )}/permission`,
@@ -107,24 +107,28 @@ export async function authorizeGitLabDevelopmentTaskActor(input: {
     return { ok: false, reason: "missing_actor_or_installation" };
   }
 
-  const accessToken = await resolveGitLabInstallationAccessToken({
+  const apiAccess = await resolveGitLabInstallationApiAccess({
     provider: input.target.provider,
     installation: input.target.installation
   });
-  if (!accessToken) {
+  if (apiAccess.status === "capability_unavailable") {
+    return { ok: false, reason: "api_capability_unavailable" };
+  }
+  if (apiAccess.status !== "ok") {
     return { ok: false, reason: "missing_installation_access_token" };
   }
 
-  const apiBaseUrl = buildGitLabApiBaseUrl(input.target.provider.baseUrl);
-  const response = await fetch(
+  const apiBaseUrl = resolveGitLabApiBaseUrl(input.target.provider);
+  const response = await fetchWithGitProviderCa(
+    input.target.provider,
     `${apiBaseUrl}/projects/${encodeGitLabProjectPath(input.repoFullName)}/members/all?query=${encodeURIComponent(
       actorUsername
     )}`,
     {
       headers: {
         Accept: "application/json",
-        Authorization: `Bearer ${accessToken}`,
-        "User-Agent": "DaoFlow"
+        "User-Agent": "DaoFlow",
+        ...apiAccess.headers
       },
       signal: AbortSignal.timeout(10_000)
     }

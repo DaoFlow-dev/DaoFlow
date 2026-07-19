@@ -11,6 +11,7 @@ import { execStreaming, type OnLog } from "./docker-exec-shared";
 import type { RepositoryPreparationConfig } from "../repository-preparation";
 import { checkoutPinnedGitCommit, prepareClonedRepository } from "./git-repository-preparation";
 import { requireManagedSshGitCredential, strictGitSshCommand } from "./git-ssh-trust";
+import { appendGitProviderCaConfig, withGitProviderCaFile } from "./git-ca-file";
 
 const STAGING_DIR = process.env.GIT_WORK_DIR ?? "/tmp/daoflow-staging";
 
@@ -19,6 +20,7 @@ type ExecRunner = typeof execStreaming;
 export interface GitCloneOptions {
   displayLabel?: string;
   gitConfig?: Array<{ key: string; value: string }>;
+  caCertificatePem?: string;
   sshPrivateKey?: string;
   repositoryPreparation?: RepositoryPreparationConfig;
   commitSha?: string;
@@ -112,94 +114,99 @@ export async function gitClone(
   options?: GitCloneOptions,
   execRunner: ExecRunner = execStreaming
 ): Promise<{ exitCode: number; workDir: string; errorMessage?: string }> {
-  requireManagedSshGitCredential(repoUrl, options?.sshPrivateKey);
-  const workDir = ensureStagingDir(deploymentId);
-  const displayLabel = options?.displayLabel ?? repoUrl;
-  const gitConfigPath = writeGitConfigFile(deploymentId, options?.gitConfig ?? []);
-  const gitSshKeyPath = writeGitSshKeyFile(deploymentId, options?.sshPrivateKey);
-  const commitSha = options?.commitSha?.trim();
-  const gitEnv = {
-    ...(gitConfigPath ? { GIT_CONFIG_GLOBAL: gitConfigPath } : {}),
-    ...(gitSshKeyPath
-      ? {
-          GIT_SSH_COMMAND: strictGitSshCommand(gitSshKeyPath)
-        }
-      : {})
-  };
-
-  onLog({
-    stream: "stdout",
-    message: `Cloning ${displayLabel} (branch: ${branch}) into ${workDir}`,
-    timestamp: new Date()
-  });
-
-  const cloneArgs = [
-    "clone",
-    "--depth",
-    "1",
-    "--branch",
-    branch,
-    "--single-branch",
-    "--",
-    repoUrl,
-    "."
-  ];
-  const result = options?.signal
-    ? await execRunner(
-        "git",
-        cloneArgs,
-        workDir,
-        onLog,
-        Object.keys(gitEnv).length > 0 ? gitEnv : undefined,
-        { signal: options.signal }
-      )
-    : await execRunner(
-        "git",
-        cloneArgs,
-        workDir,
-        onLog,
-        Object.keys(gitEnv).length > 0 ? gitEnv : undefined
-      );
-
-  if (result.exitCode !== 0) {
-    return {
-      exitCode: result.exitCode,
-      workDir,
-      errorMessage: `git clone failed with exit code ${result.exitCode}`
-    };
-  }
-
-  if (commitSha) {
-    const pinnedCheckout = await checkoutPinnedGitCommit(
-      workDir,
-      commitSha,
-      onLog,
-      { gitConfigPath, signal: options?.signal },
-      execRunner
+  return withGitProviderCaFile(repoUrl, options?.caCertificatePem, async (caFilePath) => {
+    requireManagedSshGitCredential(repoUrl, options?.sshPrivateKey);
+    const workDir = ensureStagingDir(deploymentId);
+    const displayLabel = options?.displayLabel ?? repoUrl;
+    const gitConfigPath = writeGitConfigFile(
+      deploymentId,
+      appendGitProviderCaConfig(options?.gitConfig ?? [], caFilePath)
     );
-    if (pinnedCheckout.exitCode !== 0) {
+    const gitSshKeyPath = writeGitSshKeyFile(deploymentId, options?.sshPrivateKey);
+    const commitSha = options?.commitSha?.trim();
+    const gitEnv = {
+      ...(gitConfigPath ? { GIT_CONFIG_GLOBAL: gitConfigPath } : {}),
+      ...(gitSshKeyPath
+        ? {
+            GIT_SSH_COMMAND: strictGitSshCommand(gitSshKeyPath)
+          }
+        : {})
+    };
+
+    onLog({
+      stream: "stdout",
+      message: `Cloning ${displayLabel} (branch: ${branch}) into ${workDir}`,
+      timestamp: new Date()
+    });
+
+    const cloneArgs = [
+      "clone",
+      "--depth",
+      "1",
+      "--branch",
+      branch,
+      "--single-branch",
+      "--",
+      repoUrl,
+      "."
+    ];
+    const result = options?.signal
+      ? await execRunner(
+          "git",
+          cloneArgs,
+          workDir,
+          onLog,
+          Object.keys(gitEnv).length > 0 ? gitEnv : undefined,
+          { signal: options.signal }
+        )
+      : await execRunner(
+          "git",
+          cloneArgs,
+          workDir,
+          onLog,
+          Object.keys(gitEnv).length > 0 ? gitEnv : undefined
+        );
+
+    if (result.exitCode !== 0) {
       return {
-        exitCode: pinnedCheckout.exitCode,
+        exitCode: result.exitCode,
         workDir,
-        errorMessage: pinnedCheckout.errorMessage
+        errorMessage: `git clone failed with exit code ${result.exitCode}`
       };
     }
-  }
 
-  const preparation = await prepareClonedRepository(
-    workDir,
-    onLog,
-    {
-      repositoryPreparation: options?.repositoryPreparation,
-      gitConfigPath,
-      signal: options?.signal
-    },
-    execRunner
-  );
+    if (commitSha) {
+      const pinnedCheckout = await checkoutPinnedGitCommit(
+        workDir,
+        commitSha,
+        onLog,
+        { gitConfigPath, signal: options?.signal },
+        execRunner
+      );
+      if (pinnedCheckout.exitCode !== 0) {
+        return {
+          exitCode: pinnedCheckout.exitCode,
+          workDir,
+          errorMessage: pinnedCheckout.errorMessage
+        };
+      }
+    }
 
-  return {
-    exitCode: preparation.exitCode,
-    workDir,
-    errorMessage: preparation.errorMessage
-  };
+    const preparation = await prepareClonedRepository(
+      workDir,
+      onLog,
+      {
+        repositoryPreparation: options?.repositoryPreparation,
+        gitConfigPath,
+        signal: options?.signal
+      },
+      execRunner
+    );
+
+    return {
+      exitCode: preparation.exitCode,
+      workDir,
+      errorMessage: preparation.errorMessage
+    };
+  });
 }

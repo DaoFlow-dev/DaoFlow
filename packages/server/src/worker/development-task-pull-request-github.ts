@@ -1,6 +1,7 @@
 import type { gitInstallations, gitProviders } from "../db/schema/git-providers";
 import type { developmentTaskRuns, developmentTasks } from "../db/schema/development-tasks";
 import { fetchGitHubInstallationAccessToken } from "../db/services/github-app-auth";
+import { fetchWithGitProviderCa } from "../db/services/git-provider-ca-trust";
 import { buildGitHubApiBaseUrl } from "../db/services/project-source-provider-validation-shared";
 
 function encodeRepoPath(repoFullName: string) {
@@ -57,7 +58,8 @@ export async function createGitHubDevelopmentTaskPullRequest(input: {
     provider: input.provider,
     installation: input.installation
   });
-  const response = await fetch(
+  const response = await fetchWithGitProviderCa(
+    input.provider,
     `${buildGitHubApiBaseUrl(input.provider.baseUrl)}/repos/${encodeRepoPath(input.task.repoFullName)}/pulls`,
     {
       method: "POST",

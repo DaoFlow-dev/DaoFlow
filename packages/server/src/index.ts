@@ -19,6 +19,13 @@ import {
   stopDevelopmentTaskWatchdogMonitor,
   startApprovalActionDispatchMonitor,
   stopApprovalActionDispatchMonitor,
+  startServerMetricsMonitor,
+  stopServerMetricsMonitor,
+  setServerMetricTransitionHandler,
+  startProviderFeedbackMonitor,
+  stopProviderFeedbackMonitor,
+  registerGitHubProviderFeedbackAdapter,
+  registerGitLabProviderFeedbackAdapter,
   startTemporalWorker,
   stopTemporalWorker,
   closeTemporalClient
@@ -43,6 +50,7 @@ import { ensureInitialOwnerFromEnv } from "./bootstrap-initial-owner";
 import { ensureLocalhostServer } from "./bootstrap-localhost-server";
 import { runStartupMigrations } from "./startup-migrations";
 import { markStartupCheck } from "./startup-readiness";
+import { deliverServerMetricTransitionNotification } from "./worker/server-metric-notification-handler";
 
 const port = Number(process.env.PORT ?? DEFAULT_SERVER_PORT);
 const isProduction = process.env.NODE_ENV === "production";
@@ -79,6 +87,8 @@ async function start() {
 
   const app = createApp();
   let legacyWorkerStarted = false;
+  const unregisterGitHubProviderFeedbackAdapter = registerGitHubProviderFeedbackAdapter();
+  const unregisterGitLabProviderFeedbackAdapter = registerGitLabProviderFeedbackAdapter();
 
   if (isProduction) {
     const clientDistDir = path.resolve(__dirname, "../../client/dist");
@@ -192,17 +202,29 @@ async function start() {
   startDeploymentWatchdogMonitor();
   startDevelopmentTaskWatchdogMonitor();
   startApprovalActionDispatchMonitor();
+  startProviderFeedbackMonitor();
   startOperationalMaintenanceMonitor();
   startServiceScheduleMonitor();
+  setServerMetricTransitionHandler(async (event) => {
+    await deliverServerMetricTransitionNotification(event);
+  });
+  void startServerMetricsMonitor();
 
-  const shutdown = (signal: string) => {
+  let shuttingDown = false;
+  const shutdown = async (signal: string) => {
+    if (shuttingDown) return;
+    shuttingDown = true;
     console.log(`Received ${signal}; shutting down DaoFlow control plane.`);
     stopServerReadinessMonitor();
     stopDeploymentWatchdogMonitor();
     stopDevelopmentTaskWatchdogMonitor();
     stopApprovalActionDispatchMonitor();
+    stopProviderFeedbackMonitor();
+    unregisterGitLabProviderFeedbackAdapter();
+    unregisterGitHubProviderFeedbackAdapter();
     stopOperationalMaintenanceMonitor();
     stopServiceScheduleMonitor();
+    await stopServerMetricsMonitor();
     if (shouldStartDevelopmentTaskWorker()) {
       stopDevelopmentTaskWorker();
     }
@@ -215,12 +237,12 @@ async function start() {
     } else {
       stopWorker();
     }
-    void server.stop();
+    await server.stop();
     process.exit(0);
   };
 
-  process.on("SIGINT", () => shutdown("SIGINT"));
-  process.on("SIGTERM", () => shutdown("SIGTERM"));
+  process.on("SIGINT", () => void shutdown("SIGINT"));
+  process.on("SIGTERM", () => void shutdown("SIGTERM"));
 }
 
 // Log unhandled rejections for CI visibility (don't exit — let Bun handle it)

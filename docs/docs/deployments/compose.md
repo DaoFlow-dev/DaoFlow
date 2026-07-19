@@ -164,6 +164,57 @@ or clean up a preview after closure. GitHub branch pushes that
 do not target the project's auto-deploy branch drive branch previews when the service preview mode is
 `branch` or `any`.
 
+### GitHub deployment status and preview comments
+
+DaoFlow GitHub Apps request `deployments: write` so linked branch and pull-request deployments are
+visible from the GitHub commit and pull request. DaoFlow creates one GitHub Deployment for each
+DaoFlow deployment, publishes queued, running, success, failure, cancellation, and preview-cleanup
+state, and keeps one status comment per project pull request instead of posting a new comment for
+every retry or commit.
+
+The GitHub status links back to the exact DaoFlow deployment and its logs. A public environment or
+preview link is included only after the deployment succeeds and DaoFlow observes the configured
+route as active. Blocked previews, pending approvals, failed deployments, missing routes, and stale
+or inactive routes do not publish an environment URL.
+
+Apps created after this feature is installed request the permission during setup. Existing GitHub App
+installations must approve the requested permission update before delivery can succeed:
+
+1. As the GitHub App owner, open **Developer settings → GitHub Apps → your DaoFlow App →
+   Permissions & events**.
+2. Set **Deployments** to **Read and write**, keep **Pull requests** at **Read and write**, and save
+   the App changes.
+3. As the target account or organization owner, open the installed App and approve the pending
+   permission request.
+4. Trigger a new deployment after the installation has the new permission. Any earlier blocked
+   feedback remains visible in DaoFlow's provider-feedback history for audit purposes.
+
+GitHub does not activate newly requested permissions for an existing installation until an owner
+approves them. See GitHub's
+[permission-update guide](https://docs.github.com/en/apps/using-github-apps/approving-updated-permissions-for-a-github-app),
+[App registration guide](https://docs.github.com/en/apps/maintaining-github-apps/modifying-a-github-app-registration),
+[Deployments API](https://docs.github.com/en/rest/deployments/deployments), and
+[deployment status API](https://docs.github.com/en/rest/deployments/statuses). GitHub Enterprise uses
+the API base URL configured on the DaoFlow provider.
+
+### GitLab commit status and merge-request notes
+
+DaoFlow publishes one stable commit-status context for every GitLab-backed deployment. Pushes and
+branch previews receive that status only; merge-request previews receive the same status plus one
+durable merge-request note. The note is updated as deployment work is queued, running, completed,
+failed, canceled, or cleaned up instead of posting a new note for every transition or retry.
+
+Each status and note links back to the exact DaoFlow deployment record and its logs. A preview link
+appears only after a successful preview deployment when DaoFlow can verify that the exact route is
+active. Cleanup, blocked previews, failed deployments, and missing or inactive routes omit that
+link.
+
+GitLab feedback uses the OAuth or API-token credentials described below. Deploy tokens remain
+clone-only: DaoFlow records a safe provider-feedback warning and does not call GitLab when an
+API-capable credential is missing. For self-hosted GitLab, DaoFlow sends API traffic to the optional
+internal GitLab URL while the configured public URL continues to identify the GitLab instance to
+users and webhooks. DaoFlow does not create GitLab Deployment API records for this integration.
+
 For GitLab.com, register a GitLab provider with the GitLab OAuth app client ID, client secret, and
 webhook secret. The OAuth callback URL is:
 
@@ -185,6 +236,46 @@ For self-hosted GitLab, set the provider base URL to the root GitLab URL, for ex
 OAuth application and webhook inside the self-hosted GitLab instance. DaoFlow uses the provider base
 URL when exchanging OAuth codes, validating source access, and matching webhook project URLs, so the
 same `group/project` path can exist safely on GitLab.com and a self-hosted GitLab host.
+
+If a self-hosted GitLab or GitHub Enterprise host uses a private certificate authority, first upload
+the CA certificate as a team certificate asset, then select it while registering the Git provider or
+from the provider card. DaoFlow applies that CA only to the selected provider's API, OAuth, feedback,
+clone, fetch, submodule, Git LFS, and branch-push traffic. The provider fails closed if the certificate
+is unavailable, inactive, expired, malformed, or not a CA certificate. DaoFlow does not disable TLS
+verification or change the process-wide or host-wide trust store.
+
+### GitLab credential modes, scopes, and routing
+
+Choose the GitLab credential that matches the integration you need:
+
+- **OAuth (recommended):** create a GitLab OAuth application and provide its client ID and secret.
+  Request the `api` and `read_repository` scopes for repository checkout, deployment feedback, and
+  other provider API calls.
+  DaoFlow uses PKCE and one-time callback state during authorization, stores the refresh token
+  securely, and refreshes the access token before it expires. See GitLab's
+  [OAuth provider documentation](https://docs.gitlab.com/integration/oauth_provider/) and
+  [OAuth API documentation](https://docs.gitlab.com/api/oauth2/).
+- **Project or group API token:** create a project or group access token and grant `api`. Add
+  `read_repository` when the token will also be used for HTTPS cloning. This mode supports GitLab
+  API operations and deployment or merge-request feedback. See GitLab's
+  [project access token](https://docs.gitlab.com/user/project/settings/project_access_tokens/) and
+  [group access token](https://docs.gitlab.com/user/group/settings/group_access_tokens/) guides.
+- **Deploy token:** create a project or group deploy token with `read_repository`. DaoFlow uses it
+  for repository cloning only; it cannot call the GitLab API or publish feedback. Set an expiry date
+  and rotate the token before it expires. See GitLab's
+  [deploy token documentation](https://docs.gitlab.com/user/project/deploy_tokens/).
+
+The **Public GitLab URL** is the externally reachable GitLab root used for OAuth authorization,
+public webhook/source URL matching, and browser links. For a self-hosted instance, the optional
+**Internal GitLab URL** lets the DaoFlow server use a private route for GitLab API and clone traffic
+while keeping the public URL in the provider configuration. Leave the internal URL empty to use the
+public URL for both paths. The internal address must resolve from the DaoFlow server and have a
+trusted TLS certificate; DaoFlow does not disable TLS verification. Select a team-owned CA certificate
+on the provider when a private certificate authority is required. The provider card shows the selected
+certificate fingerprint and warns when its expiry is unknown or approaching.
+
+Credential mode, intended scopes, expiry, and Clone/API/Feedback capabilities are visible on the
+provider card. Secret values are not displayed after registration.
 
 Preview config can also carry a retention window through `staleAfterHours`. When set, DaoFlow can compare the latest preview deployment state against observed tunnel-route hostnames and queue Compose preview cleanup for terminal preview stacks that outlive the configured window.
 

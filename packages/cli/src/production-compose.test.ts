@@ -69,7 +69,7 @@ describe("production docker-compose.yml", () => {
     expect(images.filter((image) => image.endsWith(":latest"))).toEqual([]);
     expect(images).not.toContain("temporalio/auto-setup:latest");
     expect(images).not.toContain("ghcr.io/daoflow-dev/daoflow:${DAOFLOW_VERSION:-latest}");
-    expect(daoflow.image).toBe("ghcr.io/daoflow-dev/daoflow:${DAOFLOW_VERSION:-0.10.0}");
+    expect(daoflow.image).toBe("ghcr.io/daoflow-dev/daoflow:${DAOFLOW_VERSION:-0.11.0}");
     expect(daoflow.ports).toEqual(["${DAOFLOW_BIND:-127.0.0.1}:${DAOFLOW_PORT:-3000}:3000"]);
     expect(asRecord(daoflow.environment).DATABASE_URL).toBe(
       "postgresql://daoflow:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/${DAOFLOW_DATABASE_NAME:-daoflow}"
@@ -86,7 +86,9 @@ describe("production docker-compose.yml", () => {
     expect(asRecord(daoflow.environment).CORS_ORIGIN).toBe("${CORS_ORIGIN:-}");
     expect(asRecord(daoflow.environment).DEPLOY_TIMEOUT_MS).toBe("${DEPLOY_TIMEOUT_MS:-86400000}");
     expect(daoflow.healthcheck).toBeDefined();
-    expect(asRecord(asRecord(services.postgres).environment).POSTGRES_DB).toBe("daoflow");
+    expect(asRecord(asRecord(services.postgres).environment).POSTGRES_DB).toBe(
+      "${DAOFLOW_DATABASE_NAME:-daoflow}"
+    );
     expect(asRecord(asRecord(services.postgres).environment).POSTGRES_PASSWORD).toBe(
       "${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}"
     );

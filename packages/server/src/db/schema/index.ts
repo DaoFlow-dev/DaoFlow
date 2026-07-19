@@ -17,6 +17,7 @@ export * from "./services";
 export * from "./service-schedules";
 export * from "./preview-environments";
 export * from "./git-providers";
+export * from "./provider-feedback";
 export * from "./webhook-deliveries";
 export * from "./development-tasks";
 export * from "./notifications";

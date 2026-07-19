@@ -948,6 +948,97 @@
       }
     },
     {
+      "name": "configureServerMetricPolicy",
+      "summary": "configure Server Metric Policy",
+      "path": "/trpc/configureServerMetricPolicy",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin"],
+      "requiredScopes": ["server:write"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "serverId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32
+          },
+          "sampleIntervalSeconds": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 86400
+          },
+          "retentionDays": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 3650
+          },
+          "cpuWarnPercent": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "cpuHardPercent": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "memoryWarnPercent": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "memoryHardPercent": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "diskWarnPercent": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "diskHardPercent": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "dockerDiskWarnPercent": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "dockerDiskHardPercent": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "cooldownMinutes": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1440
+          }
+        },
+        "required": [
+          "serverId",
+          "sampleIntervalSeconds",
+          "retentionDays",
+          "cpuWarnPercent",
+          "cpuHardPercent",
+          "memoryWarnPercent",
+          "memoryHardPercent",
+          "diskWarnPercent",
+          "diskHardPercent",
+          "dockerDiskWarnPercent",
+          "dockerDiskHardPercent",
+          "cooldownMinutes"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "containerRegistries",
       "summary": "container Registries",
       "path": "/trpc/containerRegistries",
@@ -3653,6 +3744,68 @@
       }
     },
     {
+      "name": "previewServiceLoggingConfig",
+      "summary": "preview Service Logging Config",
+      "path": "/trpc/previewServiceLoggingConfig",
+      "method": "GET",
+      "lane": "read",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator", "developer", "viewer", "agent"],
+      "requiredScopes": ["deploy:read"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "serviceId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "logging": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "managed": {
+                    "default": true,
+                    "type": "boolean",
+                    "const": true
+                  },
+                  "driver": {
+                    "default": "json-file",
+                    "type": "string",
+                    "const": "json-file"
+                  },
+                  "maxSizeMb": {
+                    "default": 10,
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 1024
+                  },
+                  "maxFiles": {
+                    "default": 3,
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 20
+                  },
+                  "allowSourceOverride": {
+                    "default": false,
+                    "type": "boolean"
+                  }
+                },
+                "required": ["managed", "driver", "maxSizeMb", "maxFiles", "allowSourceOverride"],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": ["serviceId", "logging"],
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "principalInventory",
       "summary": "principal Inventory",
       "path": "/trpc/principalInventory",
@@ -3748,6 +3901,36 @@
           }
         },
         "required": ["projectId"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "providerFeedback",
+      "summary": "provider Feedback",
+      "path": "/trpc/providerFeedback",
+      "method": "GET",
+      "lane": "read",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator", "developer", "viewer", "agent"],
+      "requiredScopes": ["deploy:read"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "states": {
+            "maxItems": 5,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": ["pending", "retrying", "delivered", "skipped", "dead-letter"]
+            }
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          }
+        },
         "additionalProperties": false
       }
     },
@@ -3963,6 +4146,75 @@
           "baseUrl": {
             "type": "string",
             "maxLength": 255
+          },
+          "internalBaseUrl": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "caCertificateId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32
+          },
+          "gitlabCredential": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "oauth"
+                  }
+                },
+                "required": ["kind"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "api_token"
+                  },
+                  "token": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "expiresAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                  }
+                },
+                "required": ["kind", "token"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "deploy_token"
+                  },
+                  "username": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 100
+                  },
+                  "token": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "expiresAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                  }
+                },
+                "required": ["kind", "username", "token"],
+                "additionalProperties": false
+              }
+            ]
           }
         },
         "required": ["type", "name"],
@@ -4532,21 +4784,54 @@
       }
     },
     {
-      "name": "serverMetrics",
-      "summary": "server Metrics",
-      "path": "/trpc/serverMetrics",
+      "name": "serverMetricMonitoring",
+      "summary": "server Metric Monitoring",
+      "path": "/trpc/serverMetricMonitoring",
       "method": "GET",
       "lane": "read",
       "auth": "authenticated",
-      "requiredRoles": [],
-      "requiredScopes": [],
+      "requiredRoles": ["owner", "admin", "operator", "developer", "viewer", "agent"],
+      "requiredScopes": ["server:read"],
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
         "properties": {
           "serverId": {
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "maxLength": 32
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 500
+          },
+          "since": {
+            "type": "string",
+            "pattern": "^([1-9]\\d*)([mhdw])$"
+          }
+        },
+        "required": ["serverId"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "serverMetrics",
+      "summary": "server Metrics",
+      "path": "/trpc/serverMetrics",
+      "method": "GET",
+      "lane": "read",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator", "developer", "viewer", "agent"],
+      "requiredScopes": ["server:read"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "serverId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32
           },
           "limit": {
             "type": "integer",
@@ -4569,8 +4854,8 @@
       "method": "GET",
       "lane": "read",
       "auth": "authenticated",
-      "requiredRoles": [],
-      "requiredScopes": [],
+      "requiredRoles": ["owner", "admin", "operator", "developer", "viewer", "agent"],
+      "requiredScopes": ["server:read"],
       "inputSchema": null
     },
     {
@@ -4730,6 +5015,28 @@
       "auth": "authenticated",
       "requiredRoles": [],
       "requiredScopes": [],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "serviceId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["serviceId"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "serviceLoggingState",
+      "summary": "service Logging State",
+      "path": "/trpc/serviceLoggingState",
+      "method": "GET",
+      "lane": "read",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator", "developer", "viewer", "agent"],
+      "requiredScopes": ["diagnostics:read"],
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
@@ -5726,6 +6033,41 @@
       }
     },
     {
+      "name": "updateGitProviderCa",
+      "summary": "update Git Provider Ca",
+      "path": "/trpc/updateGitProviderCa",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin"],
+      "requiredScopes": [],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "providerId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32
+          },
+          "caCertificateId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 32
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": ["providerId", "caCertificateId"],
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "updateManagedTunnel",
       "summary": "update Managed Tunnel",
       "path": "/trpc/updateManagedTunnel",
@@ -6498,6 +6840,46 @@
                     ]
                   }
                 },
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "logging": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "managed": {
+                    "default": true,
+                    "type": "boolean",
+                    "const": true
+                  },
+                  "driver": {
+                    "default": "json-file",
+                    "type": "string",
+                    "const": "json-file"
+                  },
+                  "maxSizeMb": {
+                    "default": 10,
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 1024
+                  },
+                  "maxFiles": {
+                    "default": 3,
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 20
+                  },
+                  "allowSourceOverride": {
+                    "default": false,
+                    "type": "boolean"
+                  }
+                },
+                "required": ["managed", "driver", "maxSizeMb", "maxFiles", "allowSourceOverride"],
                 "additionalProperties": false
               },
               {

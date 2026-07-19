@@ -200,42 +200,53 @@ export function execRemote(
     }
 
     let settled = false;
+    let childExited = false;
     let forceKillTimer: NodeJS.Timeout | undefined;
     const timeoutTimer =
       timeoutMs === undefined
         ? undefined
         : setTimeout(() => {
-            settleFailure(new Error(`Remote command timed out after ${timeoutMs}ms.`));
+            settleFailure(new Error(`Remote command timed out after ${timeoutMs}ms.`), false);
             terminateChild(child);
           }, timeoutMs);
     timeoutTimer?.unref?.();
 
     const abort = () => {
-      settleFailure(new Error("Remote command was cancelled."));
+      settleFailure(new Error("Remote command was cancelled."), false);
       terminateChild(child);
     };
     options?.signal?.addEventListener("abort", abort, { once: true });
 
-    function settleCleanup(): void {
+    function clearForceKillTimer(): void {
+      if (!forceKillTimer) return;
+      clearTimeout(forceKillTimer);
+      forceKillTimer = undefined;
+    }
+
+    function settleCleanup(clearForceKill = true): void {
       if (timeoutTimer) clearTimeout(timeoutTimer);
-      if (forceKillTimer) clearTimeout(forceKillTimer);
+      if (clearForceKill) clearForceKillTimer();
       options?.signal?.removeEventListener("abort", abort);
     }
 
-    function settleFailure(error: Error): void {
+    function settleFailure(error: Error, clearForceKill = true): void {
       if (settled) return;
       settled = true;
-      settleCleanup();
+      settleCleanup(clearForceKill);
       reject(error);
     }
 
     function terminateChild(process: ChildProcess): void {
+      if (childExited || forceKillTimer) return;
       try {
         process.kill("SIGTERM");
       } catch {
         // The process may have exited between the timeout and termination attempt.
       }
+      if (childExited) return;
       forceKillTimer = setTimeout(() => {
+        forceKillTimer = undefined;
+        if (childExited) return;
         try {
           process.kill("SIGKILL");
         } catch {
@@ -263,6 +274,8 @@ export function execRemote(
     }
 
     child.on("close", (code, signal) => {
+      childExited = true;
+      clearForceKillTimer();
       if (settled) return;
       settled = true;
       settleCleanup();

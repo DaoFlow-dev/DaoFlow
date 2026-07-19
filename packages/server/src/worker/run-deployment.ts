@@ -39,6 +39,20 @@ class DeploymentTimeoutError extends Error {
   }
 }
 
+async function recordSupplementaryFailureEvidence(
+  deployment: DeploymentRow,
+  error: unknown,
+  actorLabel: string
+): Promise<void> {
+  try {
+    await recordDeploymentFailureEvidence(deployment, error, actorLabel);
+  } catch {
+    console.warn(
+      `[deployment] Unable to record supplementary failure evidence for ${deployment.id}.`
+    );
+  }
+}
+
 function throwIfExecutionAborted(signal?: AbortSignal): void {
   signal?.throwIfAborted();
 }
@@ -208,13 +222,13 @@ export async function runDeployment(
     if (executionSignal.aborted && executionSignal.reason === timeoutError) {
       await transitionDeployment(deployment.id, "failed", "failed", timeoutError);
       await flush();
-      await recordDeploymentFailureEvidence(deployment, timeoutError, actorLabel);
+      await recordSupplementaryFailureEvidence(deployment, timeoutError, actorLabel);
       throw timeoutError;
     }
 
     await transitionDeployment(deployment.id, "failed", "failed", error);
     await flush();
-    await recordDeploymentFailureEvidence(deployment, error, actorLabel);
+    await recordSupplementaryFailureEvidence(deployment, error, actorLabel);
     throw error;
   } finally {
     clearTimeout(executionTimeout);

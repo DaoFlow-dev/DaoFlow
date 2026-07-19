@@ -209,13 +209,12 @@ function cancellationReason(signal?: AbortSignal): Error {
 function cancellationWithCleanup(signal: AbortSignal, cleanupErrors: Error[]): Error {
   const cancellation = cancellationReason(signal);
   const cleanup = new AggregateError(cleanupErrors, "Sensitive backup staging cleanup failed.");
-  cancellation.message = `${cancellation.message} Cleanup also failed: ${cleanupErrors
-    .map((error) => error.message)
-    .join("; ")}`;
-  cancellation.cause = cancellation.cause
-    ? new AggregateError([cancellation.cause, cleanup], "Cancellation and cleanup failures.")
-    : cleanup;
-  return cancellation;
+  return new Error(
+    `${cancellation.message} Cleanup also failed: ${cleanupErrors.map((error) => error.message).join("; ")}`,
+    {
+      cause: new AggregateError([cancellation, cleanup], "Cancellation and cleanup failures.")
+    }
+  );
 }
 
-export const backupCopyActivityTestHooks = { stageDockerVolume };
+export const backupCopyActivityTestHooks = { cancellationWithCleanup, stageDockerVolume };

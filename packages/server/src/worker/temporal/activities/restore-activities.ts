@@ -52,12 +52,12 @@ export type RestoreInput = RestoreWorkflowInput;
 export interface RestoreResolved {
   restoreId: string;
   runId: string;
+  teamId: string;
   artifactPath: string;
   /** Non-secret reference; credentials are loaded only by restore activities. */
   destinationId: string;
   volumeId: string;
   /** Non-secret server and volume routing context for remote volume restore. */
-  teamId?: string;
   serverId?: string;
   serverHost?: string;
   mountPath?: string;
@@ -125,7 +125,7 @@ export async function resolveRestoreContext(input: RestoreInput): Promise<Restor
     policy.destinationId
   );
   if (!destinationScope) return null;
-  const { destination, teamId } = destinationScope;
+  const { teamId, destination } = destinationScope;
 
   const [server] = await db.select().from(servers).where(eq(servers.id, volume.serverId)).limit(1);
   if (!server || server.teamId !== teamId) return null;
@@ -187,10 +187,10 @@ export async function resolveRestoreContext(input: RestoreInput): Promise<Restor
   return {
     restoreId,
     runId: run.id,
+    teamId,
     artifactPath: run.artifactPath,
     destinationId: destination.id,
     volumeId: volume.id,
-    teamId,
     serverId: volume.serverId,
     serverHost: server.host,
     mountPath: volume.mountPath,

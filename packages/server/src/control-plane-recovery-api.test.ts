@@ -136,7 +136,7 @@ describe("control-plane recovery API", () => {
 
   it("blocks recovery safely when migration metadata is unavailable", async () => {
     delete process.env.DAOFLOW_SCHEMA_VERSION;
-
+    vi.spyOn(db, "execute").mockRejectedValueOnce(new Error("migration journal unavailable"));
     const plan = await caller("owner", "recovery-plan-untracked").controlPlaneRecoveryPlan({
       destinationId
     });

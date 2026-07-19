@@ -5,9 +5,10 @@ import { useSession } from "@/lib/auth-client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { GitBranch, Plus, Trash2, ExternalLink, Github, Webhook } from "lucide-react";
+import { GitBranch, Plus, Github, Webhook } from "lucide-react";
 import { getInventoryBadgeVariant } from "../lib/tone-utils";
 import { GitHubProviderDialog } from "./git-providers/GitHubProviderDialog";
+import { GitProviderCard } from "./git-providers/GitProviderCard";
 import { GitLabProviderDialog } from "./git-providers/GitLabProviderDialog";
 
 export default function GitProvidersTab() {
@@ -16,6 +17,10 @@ export default function GitProvidersTab() {
   const [searchParams, setSearchParams] = useSearchParams();
   const session = useSession();
   const providers = trpc.gitProviders.useQuery(undefined, { enabled: Boolean(session.data) });
+  const installations = trpc.gitInstallations.useQuery({}, { enabled: Boolean(session.data) });
+  const certificateAssets = trpc.certificateAssets.useQuery(undefined, {
+    enabled: Boolean(session.data)
+  });
   const webhookDeliveries = trpc.webhookDeliveries.useQuery(
     { limit: 20 },
     { enabled: Boolean(session.data) }
@@ -91,20 +96,39 @@ export default function GitProvidersTab() {
         </Card>
       )}
 
+      {certificateAssets.error ? (
+        <p
+          role="alert"
+          className="text-sm text-destructive"
+          data-testid="git-provider-ca-assets-error"
+        >
+          Certificate assets are unavailable right now. You can continue without a custom CA.
+        </p>
+      ) : null}
+
       {providers.data?.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center text-muted-foreground">
             <GitBranch size={32} className="mx-auto mb-3 opacity-40" />
             <p>No git providers configured.</p>
             <p className="text-xs mt-1">
-              Add a GitHub App or GitLab OAuth app to enable source-code integration.
+              Add a GitHub App or a GitLab credential to enable source-code integration.
             </p>
           </CardContent>
         </Card>
       ) : (
         <div className="space-y-2">
           {providers.data?.map((p) => (
-            <ProviderCard key={p.id} provider={p} onDeleted={() => void providers.refetch()} />
+            <GitProviderCard
+              key={p.id}
+              provider={p}
+              installations={installations.data ?? []}
+              certificateAssets={certificateAssets.data ?? []}
+              onChanged={() => {
+                void providers.refetch();
+                void installations.refetch();
+              }}
+            />
           ))}
         </div>
       )}
@@ -114,12 +138,20 @@ export default function GitProvidersTab() {
       <GitHubProviderDialog
         open={showGitHubDialog}
         onOpenChange={setShowGitHubDialog}
-        onRegistered={() => void providers.refetch()}
+        certificateAssets={certificateAssets.data ?? []}
+        onRegistered={() => {
+          void providers.refetch();
+          void installations.refetch();
+        }}
       />
       <GitLabProviderDialog
         open={showGitLabDialog}
         onOpenChange={setShowGitLabDialog}
-        onRegistered={() => void providers.refetch()}
+        certificateAssets={certificateAssets.data ?? []}
+        onRegistered={() => {
+          void providers.refetch();
+          void installations.refetch();
+        }}
       />
     </div>
   );
@@ -212,84 +244,6 @@ function WebhookDeliveryHistory({
             ))}
           </div>
         )}
-      </CardContent>
-    </Card>
-  );
-}
-
-function ProviderCard({
-  provider,
-  onDeleted
-}: {
-  provider: {
-    id: string;
-    type: string;
-    name: string;
-    status: string;
-    appId: string | null;
-    clientId: string | null;
-    baseUrl: string | null;
-  };
-  onDeleted: () => void;
-}) {
-  const deleteMutation = trpc.deleteGitProvider.useMutation({
-    onSuccess: onDeleted
-  });
-  const startSetup = trpc.startGitProviderSetup.useMutation({
-    onSuccess: ({ authorizationUrl }) => {
-      window.location.assign(authorizationUrl);
-    }
-  });
-  const canStartSetup =
-    (provider.type === "github" && Boolean(provider.appId)) ||
-    (provider.type === "gitlab" && Boolean(provider.clientId));
-
-  return (
-    <Card>
-      <CardHeader className="pb-2">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-base flex items-center gap-2">
-            <GitBranch size={16} />
-            {provider.name}
-          </CardTitle>
-          <div className="flex items-center gap-2">
-            <Badge variant="secondary">{provider.type}</Badge>
-            <Badge variant={getInventoryBadgeVariant(provider.status)}>{provider.status}</Badge>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => deleteMutation.mutate({ providerId: provider.id })}
-              disabled={deleteMutation.isPending}
-              data-testid={`git-provider-delete-${provider.id}`}
-            >
-              <Trash2 size={14} />
-            </Button>
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent className="flex items-center justify-between">
-        <p className="text-xs text-muted-foreground">
-          {provider.type === "github"
-            ? `App ID: ${provider.appId ?? "—"}`
-            : `Client ID: ${provider.clientId ?? "—"}`}
-          {provider.baseUrl ? ` · ${provider.baseUrl}` : ""}
-        </p>
-        {canStartSetup ? (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => startSetup.mutate({ providerId: provider.id })}
-            disabled={startSetup.isPending}
-            data-testid={
-              provider.type === "github"
-                ? `git-provider-install-${provider.id}`
-                : `git-provider-connect-${provider.id}`
-            }
-          >
-            <ExternalLink size={12} className="mr-1" />
-            {provider.type === "github" ? "Install on GitHub" : "Connect GitLab"}
-          </Button>
-        ) : null}
       </CardContent>
     </Card>
   );

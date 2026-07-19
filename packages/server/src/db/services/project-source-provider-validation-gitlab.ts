@@ -1,11 +1,12 @@
 import { getGitInstallation } from "./git-providers";
-import { resolveGitLabInstallationAccessToken } from "./gitlab-installation-auth";
+import { resolveGitLabInstallationApiAccess } from "./gitlab-installation-auth";
+import { resolveGitLabApiBaseUrl } from "./gitlab-urls";
+import { validateGitLabDeployTokenSource } from "./project-source-provider-validation-gitlab-deploy";
 import type {
   ProjectSourceValidationResult,
   ProviderLinkedProjectSource
 } from "./project-source-readiness";
 import {
-  buildGitLabApiBaseUrl,
   fetchWithProviderTimeout,
   invalidResult,
   readyResult,
@@ -48,11 +49,14 @@ export async function validateGitLabSource(
     );
   }
 
-  const accessToken = await resolveGitLabInstallationAccessToken({
+  const apiAccess = await resolveGitLabInstallationApiAccess({
     provider,
     installation
   });
-  if (!accessToken) {
+  if (apiAccess.status === "capability_unavailable") {
+    return validateGitLabDeployTokenSource(source);
+  }
+  if (apiAccess.status !== "ok") {
     return invalidResult(
       source,
       "gitlab",
@@ -65,14 +69,13 @@ export async function validateGitLabSource(
     );
   }
 
-  const headers = {
-    Authorization: `Bearer ${accessToken}`
-  };
+  const headers = apiAccess.headers;
 
   const projectResponse = await fetchWithProviderTimeout(
+    provider,
     "gitlab",
     "repository access",
-    `${buildGitLabApiBaseUrl(provider.baseUrl)}/projects/${encodeURIComponent(source.repoFullName)}`,
+    `${resolveGitLabApiBaseUrl(provider)}/projects/${encodeURIComponent(source.repoFullName)}`,
     {
       headers
     }
@@ -109,9 +112,10 @@ export async function validateGitLabSource(
 
   const projectId = String(projectData.id);
   const branchResponse = await fetchWithProviderTimeout(
+    provider,
     "gitlab",
     "branch access",
-    `${buildGitLabApiBaseUrl(provider.baseUrl)}/projects/${encodeURIComponent(projectId)}/repository/branches/${encodeURIComponent(source.defaultBranch)}`,
+    `${resolveGitLabApiBaseUrl(provider)}/projects/${encodeURIComponent(projectId)}/repository/branches/${encodeURIComponent(source.defaultBranch)}`,
     {
       headers
     }
@@ -134,9 +138,10 @@ export async function validateGitLabSource(
 
   for (const composeFile of source.composeFiles) {
     const composeResponse = await fetchWithProviderTimeout(
+      provider,
       "gitlab",
       "compose file access",
-      `${buildGitLabApiBaseUrl(provider.baseUrl)}/projects/${encodeURIComponent(projectId)}/repository/files/${encodeURIComponent(composeFile)}?ref=${encodeURIComponent(source.defaultBranch)}`,
+      `${resolveGitLabApiBaseUrl(provider)}/projects/${encodeURIComponent(projectId)}/repository/files/${encodeURIComponent(composeFile)}?ref=${encodeURIComponent(source.defaultBranch)}`,
       {
         headers
       }

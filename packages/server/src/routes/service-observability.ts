@@ -1,6 +1,10 @@
 import { Hono } from "hono";
 import { resolveServiceRuntime } from "../db/services/service-runtime";
-import { getLatestServerMetrics, listServerMetricsHistory } from "../db/services/server-metrics";
+import {
+  getLatestServerMetrics,
+  getServerMetricMonitoring,
+  listServerMetricsHistory
+} from "../db/services/server-metrics";
 import { resolveTeamIdForUser } from "../db/services/teams";
 import { getServerForTeam } from "../db/services/team-scoped-servers";
 import { collectServerMetrics } from "../worker/server-metrics-collector";
@@ -8,6 +12,7 @@ import { detectPortConflicts } from "../worker/port-conflict-detection";
 import { resolveExecutionTarget } from "../worker/execution-target";
 import { readServiceStats } from "../worker/service-observability";
 import { authorizeRequest } from "./request-auth";
+import { serializeServerMetricMonitoring } from "./server-metric-route-model";
 
 export const serviceObservabilityRouter = new Hono();
 
@@ -101,11 +106,29 @@ serviceObservabilityRouter.get("/server-metrics/:serverId", async (c) => {
     return c.json(snapshot);
   }
 
+  if (c.req.query("monitoring") === "true") {
+    const since = c.req.query("since");
+    if (since && !/^[1-9]\d*[mhdw]$/.test(since)) {
+      return c.json(
+        {
+          ok: false,
+          error: "History window must use a positive value followed by m, h, d, or w.",
+          code: "INVALID_INPUT"
+        },
+        400
+      );
+    }
+    const limitValue = Number(c.req.query("limit") ?? 60);
+    const limit = Number.isInteger(limitValue) ? Math.min(Math.max(limitValue, 1), 500) : 60;
+    const report = await getServerMetricMonitoring(serverId, limit, since);
+    return c.json(serializeServerMetricMonitoring(report));
+  }
+
   const since = c.req.query("since");
   const limitStr = c.req.query("limit");
-  const limit = limitStr ? Math.min(Math.max(parseInt(limitStr, 10) || 60, 1), 500) : 60;
+  const limit = limitStr ? Math.min(Math.max(parseInt(limitStr, 10) || 60, 1), 500) : 1;
 
-  if (since || limit > 1) {
+  if (since || limitStr) {
     const history = await listServerMetricsHistory(serverId, limit, since ?? undefined);
     return c.json(history);
   }

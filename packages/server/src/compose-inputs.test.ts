@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { parse as parseYaml } from "yaml";
 import {
   materializeComposeInputs,
   type ComposeInputManifest,
@@ -203,6 +204,195 @@ describe("compose input materialization", () => {
     expect(readFileSync(join(workDir, result.composeFile), "utf8")).toBe(
       "services:\n  api:\n    image: ghcr.io/daoflow/api:rollback\n"
     );
+  });
+
+  it("guards source-owned logging, transfers it explicitly, and restores it on replay removal", () => {
+    const workDir = mkdtempSync(join(tmpdir(), "daoflow-compose-logging-"));
+    tempDirs.push(workDir);
+
+    writeFileSync(
+      join(workDir, "compose.yaml"),
+      [
+        "services:",
+        "  api:",
+        "    image: ghcr.io/daoflow/api:stable",
+        "    logging:",
+        "      driver: local",
+        "      options:",
+        "        max-size: 7m",
+        "        max-file: '9'"
+      ].join("\n")
+    );
+
+    expect(() =>
+      materializeComposeInputs({
+        workDir,
+        composeFile: "compose.yaml",
+        sourceProvenance: "repository-checkout",
+        composeEnvFileContents: "",
+        managedServiceLogging: {
+          serviceName: "api",
+          logging: {
+            managed: true,
+            driver: "json-file",
+            maxSizeMb: 10,
+            maxFiles: 3,
+            allowSourceOverride: false
+          }
+        }
+      })
+    ).toThrow(/already declares logging/);
+
+    const unmanaged = materializeComposeInputs({
+      workDir,
+      composeFile: "compose.yaml",
+      sourceProvenance: "repository-checkout",
+      composeEnvFileContents: "",
+      managedServiceLogging: { serviceName: "api", logging: null }
+    });
+    const unmanagedDocument = parseYaml(
+      readFileSync(join(workDir, unmanaged.composeFile), "utf8")
+    ) as Record<string, Record<string, Record<string, unknown>>>;
+    expect(unmanagedDocument.services.api.logging).toEqual({
+      driver: "local",
+      options: { "max-size": "7m", "max-file": "9" }
+    });
+    expect(unmanagedDocument.services.api).not.toHaveProperty("x-daoflow-managed-logging");
+
+    const transferred = materializeComposeInputs({
+      workDir,
+      composeFile: "compose.yaml",
+      sourceProvenance: "repository-checkout",
+      composeEnvFileContents: "",
+      managedServiceLogging: {
+        serviceName: "api",
+        logging: {
+          managed: true,
+          driver: "json-file",
+          maxSizeMb: 10,
+          maxFiles: 3,
+          allowSourceOverride: true
+        }
+      }
+    });
+    const transferredDocument = parseYaml(
+      readFileSync(join(workDir, transferred.composeFile), "utf8")
+    ) as Record<string, Record<string, Record<string, unknown>>>;
+    const transferredApi = transferredDocument.services.api;
+
+    expect(transferredApi.logging).toEqual({
+      driver: "json-file",
+      options: { "max-size": "10m", "max-file": "3" }
+    });
+    expect(transferredApi["x-daoflow-managed-logging"]).toMatchObject({
+      version: 1,
+      sourceLogging: {
+        driver: "local",
+        options: { "max-size": "7m", "max-file": "9" }
+      }
+    });
+    expect(transferred.frozenInputs.managedServiceLoggingOwnership).toEqual({
+      version: 1,
+      serviceName: "api"
+    });
+
+    const updated = materializeComposeInputs({
+      workDir,
+      composeFile: "missing-compose.yaml",
+      sourceProvenance: "uploaded-artifact",
+      composeEnvFileContents: "",
+      existingFrozenInputs: transferred.frozenInputs,
+      managedServiceLogging: {
+        serviceName: "api",
+        logging: {
+          managed: true,
+          driver: "json-file",
+          maxSizeMb: 64,
+          maxFiles: 4,
+          allowSourceOverride: false
+        }
+      }
+    });
+    const updatedDocument = parseYaml(
+      readFileSync(join(workDir, updated.composeFile), "utf8")
+    ) as Record<string, Record<string, Record<string, unknown>>>;
+    expect(updatedDocument.services.api.logging).toEqual({
+      driver: "json-file",
+      options: { "max-size": "64m", "max-file": "4" }
+    });
+
+    const removed = materializeComposeInputs({
+      workDir,
+      composeFile: "missing-compose.yaml",
+      sourceProvenance: "uploaded-artifact",
+      composeEnvFileContents: "",
+      existingFrozenInputs: updated.frozenInputs,
+      managedServiceLogging: { serviceName: "api", logging: null }
+    });
+    const removedDocument = parseYaml(
+      readFileSync(join(workDir, removed.composeFile), "utf8")
+    ) as Record<string, Record<string, Record<string, unknown>>>;
+    const removedApi = removedDocument.services.api;
+
+    expect(removedApi.logging).toEqual({
+      driver: "local",
+      options: { "max-size": "7m", "max-file": "9" }
+    });
+    expect(removedApi).not.toHaveProperty("x-daoflow-managed-logging");
+    expect(removed.frozenInputs.managedServiceLoggingOwnership).toBeUndefined();
+  });
+
+  it("rejects the reserved managed logging marker in source Compose files", () => {
+    const workDir = mkdtempSync(join(tmpdir(), "daoflow-compose-logging-marker-"));
+    tempDirs.push(workDir);
+
+    writeFileSync(
+      join(workDir, "compose.yaml"),
+      [
+        "services:",
+        "  api:",
+        "    image: ghcr.io/daoflow/api:stable",
+        "    logging:",
+        "      driver: json-file",
+        "      options:",
+        "        max-size: 10m",
+        "        max-file: '3'",
+        "    x-daoflow-managed-logging:",
+        "      version: 1",
+        "      driver: json-file",
+        "      maxSizeMb: 10",
+        "      maxFiles: 3",
+        "      sourceLogging: null"
+      ].join("\n")
+    );
+
+    expect(() =>
+      materializeComposeInputs({
+        workDir,
+        composeFile: "compose.yaml",
+        sourceProvenance: "repository-checkout",
+        composeEnvFileContents: "",
+        managedServiceLogging: { serviceName: "api", logging: null }
+      })
+    ).toThrow(/reserved x-daoflow-managed-logging extension/);
+
+    expect(() =>
+      materializeComposeInputs({
+        workDir,
+        composeFile: "missing-compose.yaml",
+        sourceProvenance: "uploaded-artifact",
+        composeEnvFileContents: "",
+        existingFrozenInputs: {
+          composeFile: {
+            path: ".daoflow.compose.rendered.yaml",
+            sourcePath: "compose.yaml",
+            contents: readFileSync(join(workDir, "compose.yaml"), "utf8")
+          },
+          envFiles: []
+        },
+        managedServiceLogging: { serviceName: "api", logging: null }
+      })
+    ).toThrow(/reserved x-daoflow-managed-logging extension/);
   });
 
   it("replays previously frozen build contexts without renormalizing them against the original compose path", () => {

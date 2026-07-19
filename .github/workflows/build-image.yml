@@ -55,6 +55,41 @@ jobs:
           BETTER_AUTH_SECRET: daoflow-ci-smoke-secret-with-enough-entropy-2026
           ENCRYPTION_KEY: daoflow-ci-smoke-encryption-key-32chars00
 
+      - name: Resolve previous main commit
+        id: previous-main
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_BEFORE: ${{ github.event.before }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            previous_ref="$PR_BASE_SHA"
+          elif [[ "$EVENT_BEFORE" =~ ^[0-9a-fA-F]{40}$ ]] &&
+            [[ ! "$EVENT_BEFORE" =~ ^0+$ ]] &&
+            git cat-file -e "${EVENT_BEFORE}^{commit}" 2>/dev/null; then
+            previous_ref="$EVENT_BEFORE"
+          else
+            previous_ref="$(git rev-parse "${HEAD_SHA}^")"
+          fi
+
+          [[ "$previous_ref" =~ ^[0-9a-fA-F]{40}$ ]] || {
+            echo "Could not resolve a full previous-main commit SHA." >&2
+            exit 1
+          }
+          git cat-file -e "${previous_ref}^{commit}"
+          echo "ref=$previous_ref" >> "$GITHUB_OUTPUT"
+
+      - name: Test previous-main image upgrade
+        shell: bash
+        env:
+          PREVIOUS_REF: ${{ steps.previous-main.outputs.ref }}
+          DAOFLOW_UPGRADE_ADMIN_DATABASE_URL: postgresql://daoflow:daoflow_dev@127.0.0.1:5432/daoflow_smoke
+        run: ./scripts/test-upgrade-image.sh "$PREVIOUS_REF" "daoflow-smoke:${{ github.sha }}"
+
       - name: Build Codex runner image for smoke test
         run: docker build --target codex-runner --tag codex-runner-smoke:${{ github.sha }} .
 

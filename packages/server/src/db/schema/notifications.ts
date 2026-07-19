@@ -1,5 +1,6 @@
 import { boolean, index, jsonb, pgTable, text, timestamp, varchar } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
+import { teams } from "./teams";
 
 // ── Notification Event Types ────────────────────────────────
 // These are the events users can subscribe to via selectors.
@@ -38,6 +39,10 @@ export const NOTIFICATION_EVENT_TYPES = [
   "server.connected",
   "server.disconnected",
   "server.health.degraded",
+  "server.metrics.warning",
+  "server.metrics.hard",
+  "server.metrics.recovered",
+  "server.metrics.unreachable",
 
   // Security events
   "security.token.created",
@@ -53,6 +58,9 @@ export const notificationChannels = pgTable(
   "notification_channels",
   {
     id: varchar("id", { length: 32 }).primaryKey(),
+    teamId: varchar("team_id", { length: 32 })
+      .notNull()
+      .references(() => teams.id, { onDelete: "cascade" }),
     name: varchar("name", { length: 100 }).notNull(),
     /** Channel type: slack, discord, email, generic_webhook */
     channelType: varchar("channel_type", { length: 20 }).notNull(),
@@ -77,12 +85,18 @@ export const notificationChannels = pgTable(
     updatedAt: timestamp("updated_at").defaultNow().notNull()
   },
   (table) => [
+    index("notification_channels_team_id_idx").on(table.teamId),
     index("notification_channels_type_idx").on(table.channelType),
     index("notification_channels_enabled_idx").on(table.enabled)
   ]
 );
 
-export const notificationChannelsRelations = relations(notificationChannels, () => ({}));
+export const notificationChannelsRelations = relations(notificationChannels, ({ one }) => ({
+  team: one(teams, {
+    fields: [notificationChannels.teamId],
+    references: [teams.id]
+  })
+}));
 
 // ── Notification Log Table ──────────────────────────────────
 
