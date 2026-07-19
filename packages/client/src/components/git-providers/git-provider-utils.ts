@@ -20,6 +20,7 @@ export function buildGitHubManifest(baseUrl: string, webhookUrl: string) {
       contents: "read",
       metadata: "read",
       emails: "read",
+      deployments: "write",
       pull_requests: "write"
     },
     default_events: ["pull_request", "push"]

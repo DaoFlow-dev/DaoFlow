@@ -1,5 +1,5 @@
-import { useCallback, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useCallback, useEffect, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { trpc } from "../lib/trpc";
 import { useSession } from "../lib/auth-client";
 import DeploymentRollbackDialog from "@/components/DeploymentRollbackDialog";
@@ -11,8 +11,10 @@ import { queryErrorMessage } from "@/lib/query-error-message";
 
 export default function DeploymentsPage() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const session = useSession();
-  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const requestedDeploymentId = searchParams.get("deployment");
+  const [expandedId, setExpandedId] = useState<string | null>(requestedDeploymentId);
   const [rollbackServiceId, setRollbackServiceId] = useState<string | null>(null);
   const [cancelingDeploymentId, setCancelingDeploymentId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -22,20 +24,49 @@ export default function DeploymentsPage() {
     { limit: 50 },
     { enabled: Boolean(session.data) }
   );
+  const linkedDeployment = trpc.deploymentDetails.useQuery(
+    { deploymentId: requestedDeploymentId ?? "" },
+    { enabled: Boolean(session.data && requestedDeploymentId) }
+  );
 
   const cancelMut = trpc.cancelDeployment.useMutation({
     onSuccess: () => void recentDeployments.refetch(),
     onSettled: () => setCancelingDeploymentId(null)
   });
 
-  const deployments = (recentDeployments.data ?? []) as DeploymentRowData[];
+  const recentRows = (recentDeployments.data ?? []) as DeploymentRowData[];
+  const linkedRow = linkedDeployment.data as DeploymentRowData | undefined;
+  const deployments =
+    linkedRow && !recentRows.some((deployment) => deployment.id === linkedRow.id)
+      ? [linkedRow, ...recentRows]
+      : recentRows;
   const filteredDeployments = deployments.filter((deployment) =>
     matchesDeploymentFilters(deployment, searchQuery, statusFilter)
   );
 
-  const handleToggleExpand = useCallback((id: string) => {
-    setExpandedId((prev) => (prev === id ? null : id));
-  }, []);
+  useEffect(() => {
+    setExpandedId(requestedDeploymentId);
+  }, [requestedDeploymentId]);
+
+  const handleToggleExpand = useCallback(
+    (id: string) => {
+      const nextExpandedId = expandedId === id ? null : id;
+      setExpandedId(nextExpandedId);
+      setSearchParams(
+        (current) => {
+          const next = new URLSearchParams(current);
+          if (nextExpandedId) {
+            next.set("deployment", nextExpandedId);
+          } else {
+            next.delete("deployment");
+          }
+          return next;
+        },
+        { replace: true }
+      );
+    },
+    [expandedId, setSearchParams]
+  );
 
   const handleOpenRollback = useCallback((serviceId: string) => {
     setRollbackServiceId(serviceId);

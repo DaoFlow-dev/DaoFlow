@@ -281,6 +281,13 @@
       "when": 1784445724188,
       "tag": "0039_greedy_darkhawk",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1784448287791,
+      "tag": "0040_rich_namorita",
+      "breakpoints": true
     }
   ]
 }

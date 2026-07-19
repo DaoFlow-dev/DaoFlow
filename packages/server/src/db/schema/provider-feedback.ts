@@ -11,6 +11,7 @@ import {
   varchar
 } from "drizzle-orm/pg-core";
 import { deployments } from "./deployments";
+import { projects } from "./projects";
 import { teams } from "./teams";
 
 /**
@@ -102,6 +103,41 @@ export const providerFeedback = pgTable(
   ]
 );
 
+/**
+ * One durable Git-provider comment identity for a project's pull-request
+ * preview. The lease keeps separate deployment feedback targets from racing
+ * to create duplicate external comments.
+ */
+export const providerFeedbackPreviewComments = pgTable(
+  "provider_feedback_preview_comments",
+  {
+    id: varchar("id", { length: 32 }).primaryKey(),
+    teamId: varchar("team_id", { length: 32 })
+      .notNull()
+      .references(() => teams.id, { onDelete: "cascade" }),
+    projectId: varchar("project_id", { length: 32 })
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    providerId: varchar("provider_id", { length: 32 }).notNull(),
+    repositoryFullName: varchar("repository_full_name", { length: 255 }).notNull(),
+    pullRequestNumber: integer("pull_request_number").notNull(),
+    externalCommentId: varchar("external_comment_id", { length: 255 }),
+    leaseToken: varchar("lease_token", { length: 64 }),
+    leaseExpiresAt: timestamp("lease_expires_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull()
+  },
+  (table) => [
+    uniqueIndex("provider_feedback_preview_comments_identity_idx").on(
+      table.projectId,
+      table.repositoryFullName,
+      table.pullRequestNumber
+    ),
+    index("provider_feedback_preview_comments_team_id_idx").on(table.teamId),
+    index("provider_feedback_preview_comments_lease_expires_at_idx").on(table.leaseExpiresAt)
+  ]
+);
+
 export const providerFeedbackTargetsRelations = relations(
   providerFeedbackTargets,
   ({ many, one }) => ({
@@ -131,3 +167,17 @@ export const providerFeedbackRelations = relations(providerFeedback, ({ one }) =
     references: [teams.id]
   })
 }));
+
+export const providerFeedbackPreviewCommentsRelations = relations(
+  providerFeedbackPreviewComments,
+  ({ one }) => ({
+    project: one(projects, {
+      fields: [providerFeedbackPreviewComments.projectId],
+      references: [projects.id]
+    }),
+    team: one(teams, {
+      fields: [providerFeedbackPreviewComments.teamId],
+      references: [teams.id]
+    })
+  })
+);

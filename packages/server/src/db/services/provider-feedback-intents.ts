@@ -23,6 +23,7 @@ const PUBLISHABLE_DEPLOYMENT_TRANSITIONS = new Set([
 
 interface ProviderFeedbackIntentSource {
   deploymentId: string;
+  deploymentServiceName: string;
   projectId: string;
   projectName: string;
   projectRepoFullName: string | null;
@@ -64,7 +65,8 @@ function readPreviewContext(value: unknown): ProviderFeedbackContext["preview"] 
     pullRequestNumber:
       typeof pullRequestNumber === "number" && Number.isInteger(pullRequestNumber)
         ? pullRequestNumber
-        : null
+        : null,
+    primaryDomain: readString(preview, "primaryDomain")
   };
 }
 
@@ -90,6 +92,7 @@ function buildProviderFeedbackContext(
     deployment: {
       commitSha: source.commitSha,
       branch,
+      serviceName: source.deploymentServiceName,
       environmentId: source.environmentId,
       environmentName: source.environmentName,
       environmentSlug: source.environmentSlug
@@ -105,6 +108,7 @@ async function findProviderFeedbackIntentSource(
   const [source] = await tx
     .select({
       deploymentId: deployments.id,
+      deploymentServiceName: deployments.serviceName,
       projectId: projects.id,
       projectName: projects.name,
       projectRepoFullName: projects.repoFullName,
