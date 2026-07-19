@@ -12,6 +12,7 @@ import { relations, sql } from "drizzle-orm";
 import { servers } from "./servers";
 import { users } from "./users";
 import { backupDestinations } from "./destinations";
+import { externalBackupArtifacts } from "./external-backup-artifacts";
 
 export interface BackupRunLogEntry {
   timestamp: string;
@@ -154,9 +155,14 @@ export const backupRestores = pgTable(
   "backup_restores",
   {
     id: varchar("id", { length: 32 }).primaryKey(),
-    backupRunId: varchar("backup_run_id", { length: 32 })
-      .notNull()
-      .references(() => backupRuns.id),
+    backupRunId: varchar("backup_run_id", { length: 32 }).references(() => backupRuns.id),
+    externalArtifactId: varchar("external_artifact_id", { length: 32 }).references(
+      () => externalBackupArtifacts.id,
+      { onDelete: "restrict" }
+    ),
+    targetVolumeId: varchar("target_volume_id", { length: 32 }).references(() => volumes.id, {
+      onDelete: "restrict"
+    }),
     mode: varchar("mode", { length: 20 }).default("restore").notNull(),
     status: varchar("status", { length: 20 }).default("queued").notNull(),
     targetPath: text("target_path"),
@@ -171,11 +177,33 @@ export const backupRestores = pgTable(
   },
   (table) => [
     index("backup_restores_backup_run_id_idx").on(table.backupRunId),
+    index("backup_restores_external_artifact_id_idx").on(table.externalArtifactId),
+    index("backup_restores_target_volume_id_idx").on(table.targetVolumeId),
     index("backup_restores_created_at_idx").on(table.createdAt),
     check("backup_restores_mode_check", sql`${table.mode} IN ('restore', 'verification')`),
     check(
       "backup_restores_verification_result_mode_check",
       sql`${table.verificationResult} IS NULL OR ${table.mode} = 'verification'`
+    ),
+    check(
+      "backup_restores_source_xor_check",
+      sql`(
+        (${table.backupRunId} IS NOT NULL AND ${table.externalArtifactId} IS NULL)
+        OR (${table.backupRunId} IS NULL AND ${table.externalArtifactId} IS NOT NULL)
+      )`
+    ),
+    check(
+      "backup_restores_external_target_mode_check",
+      sql`(
+        (${table.backupRunId} IS NOT NULL AND ${table.targetVolumeId} IS NULL)
+        OR (
+          ${table.externalArtifactId} IS NOT NULL
+          AND (
+            (${table.mode} = 'verification' AND ${table.targetVolumeId} IS NULL)
+            OR (${table.mode} = 'restore' AND ${table.targetVolumeId} IS NOT NULL)
+          )
+        )
+      )`
     )
   ]
 );
@@ -216,6 +244,14 @@ export const backupRestoresRelations = relations(backupRestores, ({ one }) => ({
   backupRun: one(backupRuns, {
     fields: [backupRestores.backupRunId],
     references: [backupRuns.id]
+  }),
+  externalArtifact: one(externalBackupArtifacts, {
+    fields: [backupRestores.externalArtifactId],
+    references: [externalBackupArtifacts.id]
+  }),
+  targetVolume: one(volumes, {
+    fields: [backupRestores.targetVolumeId],
+    references: [volumes.id]
   }),
   triggeredByUser: one(users, {
     fields: [backupRestores.triggeredByUserId],

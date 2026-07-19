@@ -1243,6 +1243,25 @@
           },
           "localPath": {
             "type": "string"
+          },
+          "externalImportEnabled": {
+            "type": "boolean"
+          },
+          "externalImportPrefix": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1024
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "maxExternalImportBytes": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 2147483648
           }
         },
         "required": ["name", "provider"],
@@ -3362,6 +3381,111 @@
       }
     },
     {
+      "name": "externalArtifactRestorePlan",
+      "summary": "external Artifact Restore Plan",
+      "path": "/trpc/externalArtifactRestorePlan",
+      "method": "GET",
+      "lane": "planning",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator", "developer", "viewer", "agent"],
+      "requiredScopes": ["backup:read"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "artifactId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32
+          },
+          "targetVolumeId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32
+          }
+        },
+        "required": ["artifactId", "targetVolumeId"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "externalBackupArtifact",
+      "summary": "external Backup Artifact",
+      "path": "/trpc/externalBackupArtifact",
+      "method": "GET",
+      "lane": "read",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator", "developer", "viewer", "agent"],
+      "requiredScopes": ["backup:read"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "artifactId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32
+          }
+        },
+        "required": ["artifactId"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "externalBackupArtifacts",
+      "summary": "external Backup Artifacts",
+      "path": "/trpc/externalBackupArtifacts",
+      "method": "GET",
+      "lane": "read",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator", "developer", "viewer", "agent"],
+      "requiredScopes": ["backup:read"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "destinationId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "externalBackupObjects",
+      "summary": "external Backup Objects",
+      "path": "/trpc/externalBackupObjects",
+      "method": "GET",
+      "lane": "read",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator", "developer", "viewer", "agent"],
+      "requiredScopes": ["backup:read"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "destinationId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32
+          },
+          "prefix": {
+            "type": "string",
+            "maxLength": 1024
+          }
+        },
+        "required": ["destinationId"],
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "failExecutionJob",
       "summary": "fail Execution Job",
       "path": "/trpc/failExecutionJob",
@@ -4208,6 +4332,39 @@
       }
     },
     {
+      "name": "registerExternalBackupArtifact",
+      "summary": "register External Backup Artifact",
+      "path": "/trpc/registerExternalBackupArtifact",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator"],
+      "requiredScopes": ["backup:restore"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "destinationId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32
+          },
+          "objectKey": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024
+          },
+          "postgresMajor": {
+            "type": "integer",
+            "minimum": 9,
+            "maximum": 99
+          }
+        },
+        "required": ["destinationId", "objectKey", "postgresMajor"],
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "registerGitProvider",
       "summary": "register Git Provider",
       "path": "/trpc/registerGitProvider",
@@ -4493,6 +4650,37 @@
             "additionalProperties": false
           }
         ]
+      }
+    },
+    {
+      "name": "requestExternalArtifactRestoreApproval",
+      "summary": "request External Artifact Restore Approval",
+      "path": "/trpc/requestExternalArtifactRestoreApproval",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator"],
+      "requiredScopes": ["approvals:create", "backup:restore"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "artifactId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "targetVolumeId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 12,
+            "maxLength": 280
+          }
+        },
+        "required": ["artifactId", "targetVolumeId", "reason"],
+        "additionalProperties": false
       }
     },
     {
@@ -5733,6 +5921,29 @@
       }
     },
     {
+      "name": "triggerExternalArtifactTestRestore",
+      "summary": "trigger External Artifact Test Restore",
+      "path": "/trpc/triggerExternalArtifactTestRestore",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator"],
+      "requiredScopes": ["backup:restore"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "artifactId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32
+          }
+        },
+        "required": ["artifactId"],
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "triggerTestRestore",
       "summary": "trigger Test Restore",
       "path": "/trpc/triggerTestRestore",
@@ -5865,6 +6076,25 @@
           },
           "localPath": {
             "type": "string"
+          },
+          "externalImportEnabled": {
+            "type": "boolean"
+          },
+          "externalImportPrefix": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1024
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "maxExternalImportBytes": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 2147483648
           },
           "id": {
             "type": "string",

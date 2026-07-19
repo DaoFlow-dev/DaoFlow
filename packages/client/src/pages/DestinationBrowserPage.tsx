@@ -15,6 +15,7 @@ import {
 import { ArrowLeft, File, Folder, HardDrive } from "lucide-react";
 import { useState } from "react";
 import { useParams, Link } from "react-router-dom";
+import { ExternalArchiveImportCard } from "@/components/backups/ExternalArchiveImportCard";
 
 function formatBytes(bytes: number): string {
   if (bytes === 0) return "—";
@@ -32,6 +33,7 @@ export default function DestinationBrowserPage() {
     { destinationId: id ?? "" },
     { enabled: Boolean(session.data) && Boolean(id) }
   );
+  const importEnabled = destination.data?.externalImportEnabled === true;
 
   const files = trpc.listDestinationFiles.useQuery(
     { id: id ?? "", path: currentPath },
@@ -75,6 +77,13 @@ export default function DestinationBrowserPage() {
           ↑ Up one level
         </Button>
       )}
+
+      <ExternalArchiveImportCard
+        destinationId={id ?? ""}
+        enabled={importEnabled}
+        approvedPrefix={destination.data?.externalImportPrefix ?? null}
+        maxBytes={Number(destination.data?.maxExternalImportBytes ?? 0)}
+      />
 
       {files.isLoading ? (
         <div className="space-y-2">

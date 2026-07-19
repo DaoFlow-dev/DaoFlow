@@ -18,7 +18,10 @@ export function createInitialAddDestinationFormState(): AddDestinationFormState 
     s3Provider: "",
     localPath: "",
     rcloneConfig: "",
-    rcloneRemotePath: ""
+    rcloneRemotePath: "",
+    externalImportEnabled: false,
+    externalImportPrefix: "",
+    maxExternalImportBytes: String(2 * 1024 * 1024 * 1024)
   };
 }
 
@@ -45,6 +48,13 @@ export function buildDestinationPayload(form: AddDestinationFormState): Destinat
     localPath: provider === "local" ? form.localPath : undefined,
     rcloneConfig: usesRemoteConfig(provider) ? form.rcloneConfig : undefined,
     rcloneRemotePath: usesRemoteConfig(provider) ? form.rcloneRemotePath : undefined,
-    oauthToken: isOAuthProvider(provider) ? form.rcloneConfig : undefined
+    oauthToken: isOAuthProvider(provider) ? form.rcloneConfig : undefined,
+    externalImportEnabled: provider === "s3" ? form.externalImportEnabled : undefined,
+    externalImportPrefix:
+      provider === "s3" && form.externalImportEnabled ? form.externalImportPrefix : undefined,
+    maxExternalImportBytes:
+      provider === "s3" && form.externalImportEnabled
+        ? Number(form.maxExternalImportBytes)
+        : undefined
   };
 }

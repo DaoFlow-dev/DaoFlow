@@ -6,6 +6,7 @@ import { auditEntries } from "../db/schema/audit";
 import { backupPolicies, backupRuns, volumes } from "../db/schema/storage";
 import { resolveMemberTeamIdForUser } from "../db/services/teams";
 import { backupDestinations } from "../db/schema/destinations";
+import { externalBackupArtifacts } from "../db/schema/external-backup-artifacts";
 import { resolveVolumeTeamId } from "../db/services/backup-resource-team";
 
 type BackupScopeContext = {
@@ -17,7 +18,8 @@ async function recordDeniedBackupAccess(input: {
   ctx: BackupScopeContext;
   action: string;
   permissionScope: string;
-  resourceType: "backup-destination" | "backup-policy" | "backup-run" | "volume";
+  resourceType:
+    "backup-destination" | "backup-policy" | "backup-run" | "external-backup-artifact" | "volume";
 }) {
   await db.insert(auditEntries).values({
     actorType: input.ctx.auth.method === "api-token" ? "token" : "user",
@@ -136,5 +138,28 @@ export async function assertBackupRunScope(input: {
       await recordDeniedBackupAccess({ ...input, resourceType: "backup-run" });
     }
     throw error;
+  }
+}
+
+export async function assertExternalBackupArtifactScope(input: {
+  ctx: BackupScopeContext;
+  artifactId: string;
+  action: string;
+  permissionScope: string;
+}) {
+  const teamId = await requireTeamId(input.ctx.session.user.id);
+  const [artifact] = await db
+    .select({ id: externalBackupArtifacts.id })
+    .from(externalBackupArtifacts)
+    .where(
+      and(
+        eq(externalBackupArtifacts.id, input.artifactId),
+        eq(externalBackupArtifacts.teamId, teamId)
+      )
+    )
+    .limit(1);
+  if (!artifact) {
+    await recordDeniedBackupAccess({ ...input, resourceType: "external-backup-artifact" });
+    throw new TRPCError({ code: "NOT_FOUND", message: "External backup artifact not found." });
   }
 }

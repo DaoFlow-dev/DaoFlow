@@ -193,7 +193,7 @@ export async function listBackupRestoreQueueForTeam(teamId: string, limit = 12) 
       failedRequests: restores.filter((restore) => restore.status === "failed").length
     },
     requests: restores.map((restore) => {
-      const run = runsById.get(restore.backupRunId);
+      const run = restore.backupRunId ? runsById.get(restore.backupRunId) : undefined;
       const policy = run ? relations.policiesById.get(run.policyId) : undefined;
       const volume = policy ? relations.volumesById.get(policy.volumeId) : undefined;
       const server = volume ? relations.serversById.get(volume.serverId) : undefined;

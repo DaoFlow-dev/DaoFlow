@@ -56,10 +56,16 @@ export {
   buildBackupCronWorkflowId,
   buildOneOffBackupWorkflowId,
   buildRestoreWorkflowId,
+  buildExternalArtifactImportWorkflowId,
+  buildExternalArtifactVerificationWorkflowId,
+  buildExternalArtifactRestoreWorkflowId,
   startBackupCronWorkflow,
   cancelBackupCronWorkflow,
   startOneOffBackupWorkflow,
   startRestoreWorkflow,
+  startExternalArtifactImportWorkflow,
+  startExternalArtifactVerificationWorkflow,
+  startExternalArtifactRestoreWorkflow,
   getBackupCronStatus,
   closeTemporalClient
 } from "./temporal/client";

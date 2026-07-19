@@ -1,4 +1,5 @@
 import {
+  boolean,
   check,
   index,
   integer,
@@ -86,6 +87,15 @@ export const backupDestinations = pgTable(
     /** Warning threshold as percentage (0-100, default 80) */
     quotaWarningPercent: integer("quota_warning_percent").default(80),
 
+    // ── External PostgreSQL import settings ──────────────────
+    // Disabled by default. These values only govern the narrowly scoped S3
+    // import path; they never turn a destination into a general object browser.
+    externalImportEnabled: boolean("external_import_enabled").default(false).notNull(),
+    externalImportPrefix: text("external_import_prefix"),
+    // Stored as text to preserve PostgreSQL bigint-range values without a JS
+    // precision loss. The constraint below bounds it to a safe operational cap.
+    maxExternalImportBytes: text("max_external_import_bytes").default("2147483648").notNull(),
+
     // ── Metadata ───────────────────────────────────────────
     organizationId: varchar("organization_id", { length: 32 }),
     lastTestedAt: timestamp("last_tested_at"),
@@ -123,6 +133,24 @@ export const backupDestinations = pgTable(
           AND ${table.rcloneConfig} IS NULL
           AND ${table.encryptionPassword} IS NULL
           AND ${table.encryptionSalt} IS NULL
+        )
+      )`
+    ),
+    check(
+      "backup_destinations_external_import_settings_check",
+      sql`(
+        ${table.maxExternalImportBytes} ~ '^[0-9]+$'
+        AND ${table.maxExternalImportBytes}::numeric BETWEEN 1048576 AND 2147483648
+        AND (
+          ${table.externalImportEnabled} = false
+          OR (
+            ${table.provider} = 's3'
+            AND ${table.encryptionMode} = 'none'
+            AND ${table.externalImportPrefix} IS NOT NULL
+            AND char_length(btrim(${table.externalImportPrefix})) > 0
+            AND ${table.externalImportPrefix} = btrim(${table.externalImportPrefix})
+            AND ${table.externalImportPrefix} !~ '(^/|//|(^|/)\\.\\.?(/|$)|\\\\)'
+          )
         )
       )`
     )

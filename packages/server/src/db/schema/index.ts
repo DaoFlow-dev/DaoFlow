@@ -7,6 +7,7 @@ export * from "./server-operations";
 export * from "./deployments";
 export * from "./storage";
 export * from "./destinations";
+export * from "./external-backup-artifacts";
 export * from "./audit";
 export * from "./request-access-logs";
 export * from "./account-security";

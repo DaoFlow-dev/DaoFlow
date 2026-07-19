@@ -26,7 +26,7 @@ import { resetAuthState } from "./auth";
 
 const { Client } = pg;
 const TEST_DB_PREPARE_LOCK_ID = 8_705_231;
-const MIN_EXPECTED_PUBLIC_TABLES = 49;
+const MIN_EXPECTED_PUBLIC_TABLES = 50;
 
 interface LatestTestSchemaState {
   environmentVariablesRevision: string | null;
@@ -45,6 +45,12 @@ interface LatestTestSchemaState {
   projectVariables: string | null;
   projectVariablesRevision: string | null;
   serviceVariablesRevision: string | null;
+  externalBackupArtifacts: string | null;
+  backupRestoresExternalArtifactId: string | null;
+  backupRestoresTargetVolumeId: string | null;
+  backupRestoresExternalTargetModeCheck: string | null;
+  backupDestinationsExternalImportEnabled: string | null;
+  backupDestinationsExternalImportSettingsCheck: string | null;
 }
 
 function hasLatestTestSchema(state: LatestTestSchemaState | undefined): boolean {
@@ -64,7 +70,13 @@ function hasLatestTestSchema(state: LatestTestSchemaState | undefined): boolean 
     state.serverMetricStates &&
     state.projectVariables &&
     state.projectVariablesRevision &&
-    state.serviceVariablesRevision
+    state.serviceVariablesRevision &&
+    state.externalBackupArtifacts &&
+    state.backupRestoresExternalArtifactId &&
+    state.backupRestoresTargetVolumeId &&
+    state.backupRestoresExternalTargetModeCheck &&
+    state.backupDestinationsExternalImportEnabled &&
+    state.backupDestinationsExternalImportSettingsCheck
   );
 }
 
@@ -135,6 +147,12 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
       backupDestinationsTeamId: string | null;
       backupRunsArtifactCheckedAt: string | null;
       backupRestoresMode: string | null;
+      externalBackupArtifacts: string | null;
+      backupRestoresExternalArtifactId: string | null;
+      backupRestoresTargetVolumeId: string | null;
+      backupRestoresExternalTargetModeCheck: string | null;
+      backupDestinationsExternalImportEnabled: string | null;
+      backupDestinationsExternalImportSettingsCheck: string | null;
       controlPlaneRecoveryBundles: string | null;
       backupDestinationsCredentialsEncrypted: string | null;
       backupDestinationsCredentialStateCheck: string | null;
@@ -221,6 +239,12 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
         (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'backup_destinations' AND column_name = 'team_id') AS "backupDestinationsTeamId",
         (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'backup_runs' AND column_name = 'artifact_checked_at') AS "backupRunsArtifactCheckedAt",
         (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'backup_restores' AND column_name = 'mode') AS "backupRestoresMode",
+        to_regclass('public.external_backup_artifacts') AS "externalBackupArtifacts",
+        (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'backup_restores' AND column_name = 'external_artifact_id') AS "backupRestoresExternalArtifactId",
+        (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'backup_restores' AND column_name = 'target_volume_id') AS "backupRestoresTargetVolumeId",
+        (SELECT conname FROM pg_constraint WHERE conname = 'backup_restores_external_target_mode_check') AS "backupRestoresExternalTargetModeCheck",
+        (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'backup_destinations' AND column_name = 'external_import_enabled') AS "backupDestinationsExternalImportEnabled",
+        (SELECT conname FROM pg_constraint WHERE conname = 'backup_destinations_external_import_settings_check') AS "backupDestinationsExternalImportSettingsCheck",
         to_regclass('public.control_plane_recovery_bundles') AS "controlPlaneRecoveryBundles",
         (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'backup_destinations' AND column_name = 'credentials_encrypted') AS "backupDestinationsCredentialsEncrypted",
         (SELECT conname FROM pg_constraint WHERE conname = 'backup_destinations_credentials_state_check') AS "backupDestinationsCredentialStateCheck",
@@ -418,6 +442,12 @@ async function readPoolSchemaState() {
     backupDestinationsTeamId: string | null;
     backupRunsArtifactCheckedAt: string | null;
     backupRestoresMode: string | null;
+    externalBackupArtifacts: string | null;
+    backupRestoresExternalArtifactId: string | null;
+    backupRestoresTargetVolumeId: string | null;
+    backupRestoresExternalTargetModeCheck: string | null;
+    backupDestinationsExternalImportEnabled: string | null;
+    backupDestinationsExternalImportSettingsCheck: string | null;
     controlPlaneRecoveryBundles: string | null;
     backupDestinationsCredentialsEncrypted: string | null;
     backupDestinationsCredentialStateCheck: string | null;
@@ -503,6 +533,12 @@ async function readPoolSchemaState() {
       (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'backup_destinations' AND column_name = 'team_id') AS "backupDestinationsTeamId",
       (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'backup_runs' AND column_name = 'artifact_checked_at') AS "backupRunsArtifactCheckedAt",
       (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'backup_restores' AND column_name = 'mode') AS "backupRestoresMode",
+      to_regclass('public.external_backup_artifacts') AS "externalBackupArtifacts",
+      (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'backup_restores' AND column_name = 'external_artifact_id') AS "backupRestoresExternalArtifactId",
+      (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'backup_restores' AND column_name = 'target_volume_id') AS "backupRestoresTargetVolumeId",
+      (SELECT conname FROM pg_constraint WHERE conname = 'backup_restores_external_target_mode_check') AS "backupRestoresExternalTargetModeCheck",
+      (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'backup_destinations' AND column_name = 'external_import_enabled') AS "backupDestinationsExternalImportEnabled",
+      (SELECT conname FROM pg_constraint WHERE conname = 'backup_destinations_external_import_settings_check') AS "backupDestinationsExternalImportSettingsCheck",
       to_regclass('public.control_plane_recovery_bundles') AS "controlPlaneRecoveryBundles",
       (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'backup_destinations' AND column_name = 'credentials_encrypted') AS "backupDestinationsCredentialsEncrypted",
       (SELECT conname FROM pg_constraint WHERE conname = 'backup_destinations_credentials_state_check') AS "backupDestinationsCredentialStateCheck",

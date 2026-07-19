@@ -17,7 +17,14 @@ const currentSchema = {
   serverMetricDeliveryCooldowns: "server_metric_delivery_cooldowns",
   serverMetricOutbox: "server_metric_outbox",
   serverMetricPolicies: "server_metric_policies",
-  serverMetricStates: "server_metric_states"
+  serverMetricStates: "server_metric_states",
+  externalBackupArtifacts: "external_backup_artifacts",
+  backupRestoresExternalArtifactId: "external_artifact_id",
+  backupRestoresTargetVolumeId: "target_volume_id",
+  backupRestoresExternalTargetModeCheck: "backup_restores_external_target_mode_check",
+  backupDestinationsExternalImportEnabled: "external_import_enabled",
+  backupDestinationsExternalImportSettingsCheck:
+    "backup_destinations_external_import_settings_check"
 };
 
 describe("test database schema readiness", () => {
@@ -41,7 +48,13 @@ describe("test database schema readiness", () => {
     "serverMetricDeliveryCooldowns",
     "serverMetricOutbox",
     "serverMetricPolicies",
-    "serverMetricStates"
+    "serverMetricStates",
+    "externalBackupArtifacts",
+    "backupRestoresExternalArtifactId",
+    "backupRestoresTargetVolumeId",
+    "backupRestoresExternalTargetModeCheck",
+    "backupDestinationsExternalImportEnabled",
+    "backupDestinationsExternalImportSettingsCheck"
   ] as const)("rejects a schema missing %s", (marker) => {
     expect(
       testDatabaseSchemaTestHooks.hasLatestTestSchema({

@@ -68,8 +68,34 @@ describe("AddDestinationDialog", () => {
       localPath: undefined,
       rcloneConfig: undefined,
       rcloneRemotePath: undefined,
-      oauthToken: undefined
+      oauthToken: undefined,
+      externalImportEnabled: false,
+      externalImportPrefix: undefined,
+      maxExternalImportBytes: undefined
     });
+  });
+
+  it("requires an explicit S3 import boundary before enabling external archives", () => {
+    const { onSubmit } = renderDialog();
+
+    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "approved-imports" } });
+    fireEvent.click(screen.getByTestId("destination-external-import-enabled"));
+    fireEvent.change(screen.getByLabelText("Approved prefix"), {
+      target: { value: "database-imports/" }
+    });
+    fireEvent.change(screen.getByLabelText("Maximum bytes"), {
+      target: { value: "1073741824" }
+    });
+    fireEvent.click(screen.getByTestId("destination-create-button"));
+
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        provider: "s3",
+        externalImportEnabled: true,
+        externalImportPrefix: "database-imports/",
+        maxExternalImportBytes: 1_073_741_824
+      })
+    );
   });
 
   it("keeps a manually entered name when the provider changes", () => {
@@ -109,7 +135,10 @@ describe("AddDestinationDialog", () => {
       localPath: undefined,
       rcloneConfig: undefined,
       rcloneRemotePath: undefined,
-      oauthToken: '{"access_token":"token"}'
+      oauthToken: '{"access_token":"token"}',
+      externalImportEnabled: undefined,
+      externalImportPrefix: undefined,
+      maxExternalImportBytes: undefined
     });
   });
 
@@ -136,7 +165,10 @@ describe("AddDestinationDialog", () => {
       localPath: "/srv/backups",
       rcloneConfig: undefined,
       rcloneRemotePath: undefined,
-      oauthToken: undefined
+      oauthToken: undefined,
+      externalImportEnabled: undefined,
+      externalImportPrefix: undefined,
+      maxExternalImportBytes: undefined
     });
   });
 
@@ -169,7 +201,10 @@ describe("AddDestinationDialog", () => {
       localPath: undefined,
       rcloneConfig: "[remote]\ntype = sftp\nhost = backup.example.com",
       rcloneRemotePath: "backups/daoflow",
-      oauthToken: undefined
+      oauthToken: undefined,
+      externalImportEnabled: undefined,
+      externalImportPrefix: undefined,
+      maxExternalImportBytes: undefined
     });
   });
 });

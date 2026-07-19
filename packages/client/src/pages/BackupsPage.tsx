@@ -24,6 +24,7 @@ import { useSession } from "@/lib/auth-client";
 import { queryErrorMessage } from "@/lib/query-error-message";
 import { trpc } from "@/lib/trpc";
 import { getBackupOperationBadgeVariant, formatBytes } from "@/lib/tone-utils";
+import { ExternalBackupArtifacts } from "@/components/backups/ExternalBackupArtifacts";
 
 export default function BackupsPage() {
   const session = useSession();
@@ -102,6 +103,8 @@ export default function BackupsPage() {
           {restoreFeedback}
         </p>
       ) : null}
+
+      <ExternalBackupArtifacts policies={policies} enabled={Boolean(session.data)} />
 
       {backupOverview.isLoading || backupDestinations.isLoading ? (
         <div className="space-y-4">

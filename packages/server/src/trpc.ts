@@ -217,6 +217,10 @@ export const backupRestoreProcedure = auditedScopedProcedure(ALL_OPS, ["backup:r
 export const approvalsCreateProcedure = auditedScopedProcedure(ALL_INCL_AGENT, [
   "approvals:create"
 ]);
+export const externalRestoreApprovalProcedure = auditedScopedProcedure(ALL_OPS, [
+  "approvals:create",
+  "backup:restore"
+]);
 export const approvalsDecideProcedure = auditedScopedProcedure(ALL_OPS, ["approvals:decide"]);
 export const tokensManageProcedure = auditedScopedProcedure(ADMIN_ONLY, ["tokens:manage"]);
 export const membersManageProcedure = auditedScopedProcedure(ADMIN_ONLY, ["members:manage"]);

@@ -11,6 +11,9 @@ const {
   backupOverviewUseQueryMock,
   backupRunDetailsUseQueryMock,
   queueBackupRestoreUseMutationMock,
+  externalBackupArtifactsUseQueryMock,
+  triggerExternalArtifactTestRestoreUseMutationMock,
+  requestApprovalUseMutationMock,
   refetchBackupDestinationsMock,
   refetchBackupOverviewMock
 } = vi.hoisted(() => ({
@@ -18,6 +21,9 @@ const {
   backupOverviewUseQueryMock: vi.fn(),
   backupRunDetailsUseQueryMock: vi.fn(),
   queueBackupRestoreUseMutationMock: vi.fn(),
+  externalBackupArtifactsUseQueryMock: vi.fn(),
+  triggerExternalArtifactTestRestoreUseMutationMock: vi.fn(),
+  requestApprovalUseMutationMock: vi.fn(),
   refetchBackupDestinationsMock: vi.fn(),
   refetchBackupOverviewMock: vi.fn()
 }));
@@ -45,6 +51,15 @@ vi.mock("@/lib/trpc", () => ({
     },
     queueBackupRestore: {
       useMutation: queueBackupRestoreUseMutationMock
+    },
+    externalBackupArtifacts: {
+      useQuery: externalBackupArtifactsUseQueryMock
+    },
+    triggerExternalArtifactTestRestore: {
+      useMutation: triggerExternalArtifactTestRestoreUseMutationMock
+    },
+    requestExternalArtifactRestoreApproval: {
+      useMutation: requestApprovalUseMutationMock
     }
   }
 }));
@@ -86,6 +101,19 @@ describe("BackupsPage load states", () => {
       isLoading: false
     });
     queueBackupRestoreUseMutationMock.mockReturnValue({
+      isPending: false,
+      mutateAsync: vi.fn()
+    });
+    externalBackupArtifactsUseQueryMock.mockReturnValue({
+      data: { artifacts: [] },
+      isLoading: false,
+      refetch: vi.fn()
+    });
+    triggerExternalArtifactTestRestoreUseMutationMock.mockReturnValue({
+      isPending: false,
+      mutateAsync: vi.fn()
+    });
+    requestApprovalUseMutationMock.mockReturnValue({
       isPending: false,
       mutateAsync: vi.fn()
     });

@@ -4,6 +4,7 @@ import { db } from "../connection";
 import { approvalActionDispatches, approvalRequests, auditEntries } from "../schema/audit";
 import { deployments } from "../schema/deployments";
 import { environments, projects } from "../schema/projects";
+import { backupRestores } from "../schema/storage";
 import { teamMembers, teams } from "../schema/teams";
 import { users } from "../schema/users";
 import { resetTestDatabaseWithControlPlane } from "../../test-db";
@@ -308,6 +309,47 @@ describe("approval action dispatch service", () => {
       status: "succeeded",
       operationId: completedDeployment.id
     });
+  });
+
+  it("reconciles external artifact restores through the restore operation table", async () => {
+    const now = new Date();
+    const requestId = "apr_external_reconcile";
+    const dispatchId = "adsp_external_reconcile";
+    const operationId = "brestore_vol_verify";
+    await db
+      .update(backupRestores)
+      .set({ status: "succeeded", error: null, completedAt: now })
+      .where(eq(backupRestores.id, operationId));
+    await db.insert(approvalRequests).values({
+      id: requestId,
+      teamId: "team_foundation",
+      actionType: "external-artifact-restore",
+      targetResource: "external-backup-artifact/xart_reconcile",
+      status: "approved",
+      inputSummary: {},
+      createdAt: now
+    });
+    await db.insert(approvalActionDispatches).values({
+      id: dispatchId,
+      approvalRequestId: requestId,
+      teamId: "team_foundation",
+      actionType: "external-artifact-restore",
+      idempotencyKey: `approval:${requestId}`,
+      operationId,
+      payloadVersion: 1,
+      payloadHash: "b".repeat(64),
+      actionPayload: {},
+      status: "dispatched",
+      attemptCount: 1,
+      nextAttemptAt: now,
+      dispatchedAt: now,
+      createdAt: now,
+      updatedAt: now
+    });
+
+    await expect(reconcileApprovalActionDispatches({ now })).resolves.toEqual([
+      expect.objectContaining({ id: dispatchId, operationId, status: "succeeded" })
+    ]);
   });
 
   it("reuses a preallocated deployment operation ID without creating duplicate records", async () => {

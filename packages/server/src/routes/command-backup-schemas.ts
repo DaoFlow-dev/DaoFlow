@@ -32,7 +32,15 @@ export const backupDestinationCreateInputSchema = z.object({
   encryptionPassword: z.string().optional(),
   encryptionSalt: z.string().optional(),
   filenameEncryption: z.enum(["standard", "obfuscate", "off"]).optional(),
-  localPath: z.string().optional()
+  localPath: z.string().optional(),
+  externalImportEnabled: z.boolean().optional(),
+  externalImportPrefix: z.string().max(1024).nullable().optional(),
+  maxExternalImportBytes: z
+    .number()
+    .int()
+    .positive()
+    .max(2 * 1024 * 1024 * 1024)
+    .optional()
 });
 
 export const backupDestinationUpdateInputSchema = backupDestinationCreateInputSchema
