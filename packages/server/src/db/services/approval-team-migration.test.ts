@@ -25,21 +25,25 @@ async function applyApprovalTeamOwnershipMigrations() {
     path.dirname(fileURLToPath(import.meta.url)),
     "../../../../../drizzle"
   );
-  for (const migrationName of [
-    "0034_add_approval_team_ownership.sql",
-    "0035_backfill_approval_team_ownership.sql",
-    "0036_enforce_approval_team_ownership.sql",
-    "0037_scope_approval_binding_uniqueness.sql"
-  ]) {
-    const migrationSql = await readFile(path.join(migrationDirectory, migrationName), "utf8");
-    const statements = migrationSql
-      .split("--> statement-breakpoint")
-      .map((statement) => statement.trim())
-      .filter(Boolean);
+  const migrationSql = await readFile(
+    path.join(migrationDirectory, "0036_production_schema_safety.sql"),
+    "utf8"
+  );
+  const startMarker = "-- custom-approval-team-ownership:start";
+  const endMarker = "-- custom-approval-team-ownership:end";
+  const start = migrationSql.indexOf(startMarker);
+  const end = migrationSql.indexOf(endMarker);
+  expect(start).toBeGreaterThanOrEqual(0);
+  expect(end).toBeGreaterThan(start);
 
-    for (const statement of statements) {
-      await pool.query(statement);
-    }
+  const statements = migrationSql
+    .slice(start + startMarker.length, end)
+    .split("--> statement-breakpoint")
+    .map((statement) => statement.trim())
+    .filter(Boolean);
+
+  for (const statement of statements) {
+    await pool.query(statement);
   }
 }
 

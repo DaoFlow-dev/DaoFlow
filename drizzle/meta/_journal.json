@@ -255,17 +255,10 @@
       "breakpoints": true
     },
     {
-      "idx": 39,
+      "idx": 36,
       "version": "7",
-      "when": 1784421981995,
-      "tag": "0039_tricky_jubilee",
-      "breakpoints": true
-    },
-    {
-      "idx": 40,
-      "version": "7",
-      "when": 1784422665769,
-      "tag": "0040_hesitant_kabuki",
+      "when": 1784425941784,
+      "tag": "0036_production_schema_safety",
       "breakpoints": true
     }
   ]
