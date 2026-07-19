@@ -1,6 +1,7 @@
 import type { gitInstallations, gitProviders } from "../db/schema/git-providers";
 import type { developmentTaskRuns, developmentTasks } from "../db/schema/development-tasks";
 import { resolveGitLabInstallationApiAccess } from "../db/services/gitlab-installation-auth";
+import { fetchWithGitProviderCa } from "../db/services/git-provider-ca-trust";
 import { resolveGitLabApiBaseUrl } from "../db/services/gitlab-urls";
 
 function encodeProjectPath(repoFullName: string) {
@@ -45,7 +46,8 @@ export async function createGitLabDevelopmentTaskMergeRequest(input: {
     throw new Error("GitLab installation does not have usable API credentials.");
   }
 
-  const response = await fetch(
+  const response = await fetchWithGitProviderCa(
+    input.provider,
     `${resolveGitLabApiBaseUrl(input.provider)}/projects/${encodeProjectPath(
       input.task.repoFullName
     )}/merge_requests`,

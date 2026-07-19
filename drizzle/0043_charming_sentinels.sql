@@ -1,0 +1,2 @@
+ALTER TABLE "git_providers" ADD COLUMN "ca_certificate_id" varchar(32);--> statement-breakpoint
+ALTER TABLE "git_providers" ADD CONSTRAINT "git_providers_ca_certificate_id_team_id_certificate_assets_id_team_id_fk" FOREIGN KEY ("ca_certificate_id","team_id") REFERENCES "public"."certificate_assets"("id","team_id") ON DELETE restrict ON UPDATE no action;

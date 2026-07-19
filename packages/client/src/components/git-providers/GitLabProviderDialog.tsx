@@ -27,11 +27,21 @@ import {
   type GitLabCredentialMode,
   type GitLabProviderFormState
 } from "./gitlab-provider-form";
+import {
+  GitProviderCertificateDetails,
+  GitProviderCertificateSelect
+} from "./GitProviderCertificate";
+import {
+  getCertificateAsset,
+  getGitProviderErrorMessage,
+  type CertificateAssetSummary
+} from "./git-provider-certificate";
 
 export interface GitLabProviderDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onRegistered: () => void;
+  certificateAssets?: CertificateAssetSummary[];
 }
 
 const credentialModeDescriptions: Record<GitLabCredentialMode, string> = {
@@ -43,7 +53,8 @@ const credentialModeDescriptions: Record<GitLabCredentialMode, string> = {
 export function GitLabProviderDialog({
   open,
   onOpenChange,
-  onRegistered
+  onRegistered,
+  certificateAssets = []
 }: GitLabProviderDialogProps) {
   const [form, setForm] = useState<GitLabProviderFormState>(INITIAL_GITLAB_PROVIDER_FORM);
 
@@ -75,7 +86,10 @@ export function GitLabProviderDialog({
     register.mutate(payload);
   }
 
-  function updateField<K extends keyof GitLabProviderFormState>(field: K, value: string) {
+  function updateField<K extends keyof GitLabProviderFormState>(
+    field: K,
+    value: GitLabProviderFormState[K]
+  ) {
     setForm((current) => ({ ...current, [field]: value }));
   }
 
@@ -94,6 +108,7 @@ export function GitLabProviderDialog({
   }
 
   const isFormValid = isGitLabProviderFormValid(form);
+  const selectedCertificate = getCertificateAsset(certificateAssets, form.caCertificateId);
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -269,13 +284,31 @@ export function GitLabProviderDialog({
             </p>
           </div>
 
+          <div className="space-y-2" data-testid="git-provider-ca-registration">
+            <GitProviderCertificateSelect
+              certificateAssets={certificateAssets}
+              value={form.caCertificateId}
+              onChange={(caCertificateId) => updateField("caCertificateId", caCertificateId)}
+              id="gl-ca-certificate"
+              testId="git-provider-ca-select"
+              disabled={register.isPending}
+            />
+            <GitProviderCertificateDetails
+              certificate={selectedCertificate}
+              testId="git-provider-ca-details"
+            />
+          </div>
+
           {register.error ? (
             <p
               role="alert"
               className="text-sm text-destructive"
               data-testid="git-provider-registration-error"
             >
-              {register.error.message}
+              {getGitProviderErrorMessage(
+                register.error,
+                "Unable to register the GitLab provider."
+              )}
             </p>
           ) : null}
 

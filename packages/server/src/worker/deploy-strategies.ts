@@ -74,6 +74,7 @@ export async function executeDockerfileDeployment(
   const cloneResult = await gitClone(checkout.repoUrl, checkout.branch, deployment.id, onLog, {
     displayLabel: checkout.displayLabel,
     gitConfig: checkout.gitConfig,
+    caCertificatePem: checkout.caCertificatePem,
     sshPrivateKey: checkout.sshPrivateKey,
     repositoryPreparation: checkout.repositoryPreparation,
     commitSha: deployment.commitSha ?? undefined,
@@ -316,6 +317,7 @@ export async function executeNixpacksDeployment(
   const cloneResult = await gitClone(checkout.repoUrl, checkout.branch, deployment.id, onLog, {
     displayLabel: checkout.displayLabel,
     gitConfig: checkout.gitConfig,
+    caCertificatePem: checkout.caCertificatePem,
     sshPrivateKey: checkout.sshPrivateKey,
     repositoryPreparation: checkout.repositoryPreparation,
     commitSha: deployment.commitSha ?? undefined,
@@ -455,6 +457,7 @@ export async function executeBuildpackDeployment(
   const cloneResult = await gitClone(checkout.repoUrl, checkout.branch, deployment.id, onLog, {
     displayLabel: checkout.displayLabel,
     gitConfig: checkout.gitConfig,
+    caCertificatePem: checkout.caCertificatePem,
     sshPrivateKey: checkout.sshPrivateKey,
     repositoryPreparation: checkout.repositoryPreparation,
     commitSha: deployment.commitSha ?? undefined,

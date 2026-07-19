@@ -3,6 +3,7 @@ import { db } from "../db/connection";
 import { gitInstallations, gitProviders } from "../db/schema/git-providers";
 import { projects } from "../db/schema/projects";
 import { resolveGitLabInstallationApiAccess } from "../db/services/gitlab-installation-auth";
+import { resolveGitProviderCaForProvider } from "../db/services/git-provider-ca-trust";
 import { resolveGitLabApiBaseUrl } from "../db/services/gitlab-urls";
 import type { ProviderFeedbackContext } from "../db/services/provider-feedback-types";
 import {
@@ -163,11 +164,13 @@ async function loadLinkedGitLabTarget(input: ProviderFeedbackAdapterInput) {
 
 async function gitLabClient(input: ProviderFeedbackAdapterInput, target: LinkedGitLabTarget) {
   let apiAccess: Awaited<ReturnType<typeof resolveGitLabInstallationApiAccess>>;
+  let ca: Awaited<ReturnType<typeof resolveGitProviderCaForProvider>>;
   try {
     apiAccess = await resolveGitLabInstallationApiAccess({
       provider: target.provider,
       installation: target.installation
     });
+    ca = await resolveGitProviderCaForProvider(target.provider);
   } catch {
     throw new ProviderFeedbackDeliveryError({
       safeMessage: "GitLab installation authentication could not be refreshed.",
@@ -189,6 +192,7 @@ async function gitLabClient(input: ProviderFeedbackAdapterInput, target: LinkedG
   return {
     apiBaseUrl: resolveGitLabApiBaseUrl(target.provider),
     headers: apiAccess.headers,
+    ca,
     signal: input.signal
   } satisfies GitLabProviderFeedbackClient;
 }

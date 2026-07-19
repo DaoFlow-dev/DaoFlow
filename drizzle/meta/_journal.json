@@ -295,6 +295,20 @@
       "when": 1784451423160,
       "tag": "0041_previous_agent_zero",
       "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1784458380026,
+      "tag": "0042_futuristic_puff_adder",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1784458390293,
+      "tag": "0043_charming_sentinels",
+      "breakpoints": true
     }
   ]
 }

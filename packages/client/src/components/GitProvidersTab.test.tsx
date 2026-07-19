@@ -4,22 +4,27 @@ import "@testing-library/jest-dom/vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
+import { clickSelectOption } from "@/test/select-option";
 import GitProvidersTab from "./GitProvidersTab";
 
 const {
   gitProvidersUseQueryMock,
   gitInstallationsUseQueryMock,
+  certificateAssetsUseQueryMock,
   webhookDeliveriesUseQueryMock,
   registerGitProviderUseMutationMock,
   deleteGitProviderUseMutationMock,
+  updateGitProviderCaUseMutationMock,
   startGitHubAppManifestSetupUseMutationMock,
   startGitProviderSetupUseMutationMock
 } = vi.hoisted(() => ({
   gitProvidersUseQueryMock: vi.fn(),
   gitInstallationsUseQueryMock: vi.fn(),
+  certificateAssetsUseQueryMock: vi.fn(),
   webhookDeliveriesUseQueryMock: vi.fn(),
   registerGitProviderUseMutationMock: vi.fn(),
   deleteGitProviderUseMutationMock: vi.fn(),
+  updateGitProviderCaUseMutationMock: vi.fn(),
   startGitHubAppManifestSetupUseMutationMock: vi.fn(),
   startGitProviderSetupUseMutationMock: vi.fn()
 }));
@@ -40,6 +45,9 @@ vi.mock("@/lib/trpc", () => ({
     gitInstallations: {
       useQuery: gitInstallationsUseQueryMock
     },
+    certificateAssets: {
+      useQuery: certificateAssetsUseQueryMock
+    },
     webhookDeliveries: {
       useQuery: webhookDeliveriesUseQueryMock
     },
@@ -48,6 +56,9 @@ vi.mock("@/lib/trpc", () => ({
     },
     deleteGitProvider: {
       useMutation: deleteGitProviderUseMutationMock
+    },
+    updateGitProviderCa: {
+      useMutation: updateGitProviderCaUseMutationMock
     },
     startGitHubAppManifestSetup: {
       useMutation: startGitHubAppManifestSetupUseMutationMock
@@ -74,12 +85,18 @@ describe("GitProvidersTab", () => {
       data: [],
       refetch: refetchMock
     });
+    certificateAssetsUseQueryMock.mockReturnValue({ data: [] });
     webhookDeliveriesUseQueryMock.mockReturnValue({ data: [] });
     registerGitProviderUseMutationMock.mockReturnValue({
       isPending: false,
       mutate: registerGitProviderMutateMock
     });
     deleteGitProviderUseMutationMock.mockReturnValue({
+      isPending: false,
+      mutate: vi.fn()
+    });
+    updateGitProviderCaUseMutationMock.mockReturnValue({
+      error: null,
       isPending: false,
       mutate: vi.fn()
     });
@@ -134,6 +151,47 @@ describe("GitProvidersTab", () => {
       webhookSecret: "github-webhook-secret",
       baseUrl: undefined
     });
+  });
+
+  it("includes a selected CA certificate in manual GitHub registration", () => {
+    certificateAssetsUseQueryMock.mockReturnValue({
+      data: [
+        {
+          id: "certificate_github",
+          name: "GitHub Enterprise CA",
+          fingerprint: "sha256:github",
+          expiresAt: "2030-01-01T00:00:00.000Z",
+          status: "active"
+        }
+      ]
+    });
+
+    renderWithRouter(<GitProvidersTab />);
+
+    fireEvent.click(screen.getByTestId("git-provider-add-github"));
+    fireEvent.click(screen.getByTestId("github-manual-link"));
+    fireEvent.change(screen.getByTestId("git-provider-name-input"), {
+      target: { value: "My GitHub App" }
+    });
+    fireEvent.change(screen.getByTestId("git-provider-app-id-input"), {
+      target: { value: "123456" }
+    });
+    fireEvent.change(screen.getByTestId("git-provider-client-id-input"), {
+      target: { value: "Iv1.github-client" }
+    });
+    fireEvent.change(screen.getByTestId("git-provider-client-secret-input"), {
+      target: { value: "github-client-secret" }
+    });
+    fireEvent.change(screen.getByTestId("git-provider-private-key-input"), {
+      target: { value: "private-key" }
+    });
+    fireEvent.click(screen.getByTestId("git-provider-ca-select"));
+    clickSelectOption("GitHub Enterprise CA · active");
+    fireEvent.click(screen.getByTestId("git-provider-register-button"));
+
+    expect(registerGitProviderMutateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ caCertificateId: "certificate_github" })
+    );
   });
 
   it("submits the GitLab provider payload with the required client secret", () => {

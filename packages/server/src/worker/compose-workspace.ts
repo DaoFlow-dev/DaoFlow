@@ -134,6 +134,7 @@ export async function prepareComposeWorkspace(
     const localClone = await gitClone(checkout.repoUrl, checkout.branch, deploymentId, onLog, {
       displayLabel: checkout.displayLabel,
       gitConfig: checkout.gitConfig,
+      caCertificatePem: checkout.caCertificatePem,
       sshPrivateKey: checkout.sshPrivateKey,
       repositoryPreparation: checkout.repositoryPreparation,
       commitSha: pinnedCommitSha,

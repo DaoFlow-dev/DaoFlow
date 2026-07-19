@@ -80,6 +80,7 @@ describe("GitHub provider preview comments", () => {
       client: {
         apiBaseUrl: "https://api.github.com",
         accessToken: "ghs_installation",
+        ca: null,
         signal: new AbortController().signal
       },
       ...identity,

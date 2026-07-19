@@ -9,6 +9,7 @@ import {
   varchar
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
+import { certificateAssets } from "./access-assets";
 import { teams } from "./teams";
 
 /**
@@ -31,6 +32,7 @@ export const gitProviders = pgTable(
     webhookSecret: varchar("webhook_secret", { length: 128 }),
     baseUrl: varchar("base_url", { length: 255 }), // for GitHub Enterprise / GitLab self-hosted
     internalBaseUrl: varchar("internal_base_url", { length: 255 }),
+    caCertificateId: varchar("ca_certificate_id", { length: 32 }),
     status: varchar("status", { length: 20 }).default("active").notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull()
@@ -39,7 +41,12 @@ export const gitProviders = pgTable(
     index("git_providers_team_id_idx").on(table.teamId),
     index("git_providers_type_idx").on(table.type),
     uniqueIndex("git_providers_name_team_idx").on(table.name, table.teamId),
-    uniqueIndex("git_providers_id_team_id_idx").on(table.id, table.teamId)
+    uniqueIndex("git_providers_id_team_id_idx").on(table.id, table.teamId),
+    foreignKey({
+      columns: [table.caCertificateId, table.teamId],
+      foreignColumns: [certificateAssets.id, certificateAssets.teamId],
+      name: "git_providers_ca_certificate_id_team_id_certificate_assets_id_team_id_fk"
+    }).onDelete("restrict")
   ]
 );
 

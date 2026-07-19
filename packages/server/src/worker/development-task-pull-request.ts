@@ -4,6 +4,7 @@ import type { gitInstallations, gitProviders } from "../db/schema/git-providers"
 import type { projects } from "../db/schema/projects";
 import type { developmentTaskRuns, developmentTasks } from "../db/schema/development-tasks";
 import { execStreaming, type OnLog } from "./docker-exec-shared";
+import { appendGitProviderCaConfig, withGitProviderCaFile } from "./git-ca-file";
 import type { PreparedDevelopmentTaskCodexWorkspace } from "./development-task-codex-workspace";
 import { buildDevelopmentTaskCheckoutConfig } from "./development-task-repository-checkout";
 import { resolveCheckoutSpec } from "./checkout-source";
@@ -133,132 +134,144 @@ export async function openGitHubDevelopmentTaskPullRequest(input: {
     };
   }
 
-  const gitConfigPath = await writeGitConfigFile(
-    input.workspace.artifactsPath,
-    input.run.id,
-    checkout.gitConfig
-  );
-  const envOverrides = gitConfigPath ? { GIT_CONFIG_GLOBAL: gitConfigPath } : undefined;
-
   try {
-    await runGit({
-      execRunner,
-      repoPath: input.workspace.repoPath,
-      args: ["checkout", "-B", branchName],
-      onLog: input.onLog,
-      envOverrides
-    });
-    await runGit({
-      execRunner,
-      repoPath: input.workspace.repoPath,
-      args: ["config", "user.name", "DaoFlow"],
-      onLog: input.onLog,
-      envOverrides
-    });
-    await runGit({
-      execRunner,
-      repoPath: input.workspace.repoPath,
-      args: ["config", "user.email", "daoflow-bot@daoflow.local"],
-      onLog: input.onLog,
-      envOverrides
-    });
-    await runGit({
-      execRunner,
-      repoPath: input.workspace.repoPath,
-      args: ["add", "-A"],
-      onLog: input.onLog,
-      envOverrides
-    });
+    return await withGitProviderCaFile(
+      checkout.repoUrl,
+      checkout.caCertificatePem,
+      async (caFilePath) => {
+        const gitConfigPath = await writeGitConfigFile(
+          input.workspace.artifactsPath,
+          input.run.id,
+          appendGitProviderCaConfig(checkout.gitConfig, caFilePath)
+        );
+        const envOverrides = gitConfigPath ? { GIT_CONFIG_GLOBAL: gitConfigPath } : undefined;
 
-    const diff = await execRunner(
-      "git",
-      ["diff", "--cached", "--quiet"],
-      input.workspace.repoPath,
-      input.onLog,
-      envOverrides
-    );
-    if (diff.exitCode === 0) {
-      return {
-        status: "failed",
-        branchName,
-        logPath,
-        errorMessage: "Codex finished without file changes to commit."
-      };
-    }
-
-    const [diffStat, changedFilesOutput] = await Promise.all([
-      captureGit({
-        execRunner,
-        repoPath: input.workspace.repoPath,
-        args: ["diff", "--cached", "--stat"],
-        onLog: input.onLog,
-        envOverrides
-      }),
-      captureGit({
-        execRunner,
-        repoPath: input.workspace.repoPath,
-        args: ["diff", "--cached", "--name-status"],
-        onLog: input.onLog,
-        envOverrides
-      })
-    ]);
-    const changedFiles = parseDevelopmentTaskChangedFiles(changedFilesOutput);
-    const reviewArtifacts = await writeDevelopmentTaskReviewArtifacts({
-      artifactsPath: input.workspace.artifactsPath,
-      diffStat,
-      changedFiles
-    });
-
-    await runGit({
-      execRunner,
-      repoPath: input.workspace.repoPath,
-      args: ["commit", "-m", `chore: address development task #${input.task.issueNumber}`],
-      onLog: input.onLog,
-      envOverrides
-    });
-    const commitSha = await captureGit({
-      execRunner,
-      repoPath: input.workspace.repoPath,
-      args: ["rev-parse", "HEAD"],
-      onLog: input.onLog,
-      envOverrides
-    });
-    await runGit({
-      execRunner,
-      repoPath: input.workspace.repoPath,
-      args: ["push", "--set-upstream", "origin", `HEAD:refs/heads/${branchName}`],
-      onLog: input.onLog,
-      envOverrides
-    });
-    const pullRequest =
-      input.provider.type === "gitlab"
-        ? await createGitLabDevelopmentTaskMergeRequest({
-            provider: input.provider,
-            installation: input.installation,
-            task: input.task,
-            run: input.run,
-            branchName,
-            validationStatus: input.validationStatus
-          })
-        : await createGitHubDevelopmentTaskPullRequest({
-            provider: input.provider,
-            installation: input.installation,
-            task: input.task,
-            run: input.run,
-            branchName,
-            validationStatus: input.validationStatus
+        try {
+          await runGit({
+            execRunner,
+            repoPath: input.workspace.repoPath,
+            args: ["checkout", "-B", branchName],
+            onLog: input.onLog,
+            envOverrides
+          });
+          await runGit({
+            execRunner,
+            repoPath: input.workspace.repoPath,
+            args: ["config", "user.name", "DaoFlow"],
+            onLog: input.onLog,
+            envOverrides
+          });
+          await runGit({
+            execRunner,
+            repoPath: input.workspace.repoPath,
+            args: ["config", "user.email", "daoflow-bot@daoflow.local"],
+            onLog: input.onLog,
+            envOverrides
+          });
+          await runGit({
+            execRunner,
+            repoPath: input.workspace.repoPath,
+            args: ["add", "-A"],
+            onLog: input.onLog,
+            envOverrides
           });
 
-    return {
-      status: "ok",
-      branchName,
-      commitSha,
-      changedFiles,
-      diffStat,
-      reviewArtifacts,
-      logPath,
-      ...pullRequest
-    };
+          const diff = await execRunner(
+            "git",
+            ["diff", "--cached", "--quiet"],
+            input.workspace.repoPath,
+            input.onLog,
+            envOverrides
+          );
+          if (diff.exitCode === 0) {
+            return {
+              status: "failed" as const,
+              branchName,
+              logPath,
+              errorMessage: "Codex finished without file changes to commit."
+            };
+          }
+
+          const [diffStat, changedFilesOutput] = await Promise.all([
+            captureGit({
+              execRunner,
+              repoPath: input.workspace.repoPath,
+              args: ["diff", "--cached", "--stat"],
+              onLog: input.onLog,
+              envOverrides
+            }),
+            captureGit({
+              execRunner,
+              repoPath: input.workspace.repoPath,
+              args: ["diff", "--cached", "--name-status"],
+              onLog: input.onLog,
+              envOverrides
+            })
+          ]);
+          const changedFiles = parseDevelopmentTaskChangedFiles(changedFilesOutput);
+          const reviewArtifacts = await writeDevelopmentTaskReviewArtifacts({
+            artifactsPath: input.workspace.artifactsPath,
+            diffStat,
+            changedFiles
+          });
+
+          await runGit({
+            execRunner,
+            repoPath: input.workspace.repoPath,
+            args: ["commit", "-m", `chore: address development task #${input.task.issueNumber}`],
+            onLog: input.onLog,
+            envOverrides
+          });
+          const commitSha = await captureGit({
+            execRunner,
+            repoPath: input.workspace.repoPath,
+            args: ["rev-parse", "HEAD"],
+            onLog: input.onLog,
+            envOverrides
+          });
+          await runGit({
+            execRunner,
+            repoPath: input.workspace.repoPath,
+            args: ["push", "--set-upstream", "origin", `HEAD:refs/heads/${branchName}`],
+            onLog: input.onLog,
+            envOverrides
+          });
+          const pullRequest =
+            input.provider.type === "gitlab"
+              ? await createGitLabDevelopmentTaskMergeRequest({
+                  provider: input.provider,
+                  installation: input.installation,
+                  task: input.task,
+                  run: input.run,
+                  branchName,
+                  validationStatus: input.validationStatus
+                })
+              : await createGitHubDevelopmentTaskPullRequest({
+                  provider: input.provider,
+                  installation: input.installation,
+                  task: input.task,
+                  run: input.run,
+                  branchName,
+                  validationStatus: input.validationStatus
+                });
+
+          return {
+            status: "ok" as const,
+            branchName,
+            commitSha,
+            changedFiles,
+            diffStat,
+            reviewArtifacts,
+            logPath,
+            ...pullRequest
+          };
+        } finally {
+          if (gitConfigPath) {
+            await rm(gitConfigPath, { force: true });
+          }
+        }
+      }
+    );
   } catch (err) {
     return {
       status: "failed",
@@ -266,9 +279,5 @@ export async function openGitHubDevelopmentTaskPullRequest(input: {
       logPath,
       errorMessage: err instanceof Error ? err.message : String(err)
     };
-  } finally {
-    if (gitConfigPath) {
-      await rm(gitConfigPath, { force: true });
-    }
   }
 }

@@ -1,21 +1,28 @@
 // @vitest-environment jsdom
 
 import "@testing-library/jest-dom/vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { clickSelectOption } from "@/test/select-option";
 import { GitProviderCard } from "./GitProviderCard";
 
-const { deleteGitProviderUseMutationMock, startGitProviderSetupUseMutationMock } = vi.hoisted(
-  () => ({
-    deleteGitProviderUseMutationMock: vi.fn(),
-    startGitProviderSetupUseMutationMock: vi.fn()
-  })
-);
+const {
+  deleteGitProviderUseMutationMock,
+  startGitProviderSetupUseMutationMock,
+  updateGitProviderCaUseMutationMock,
+  updateGitProviderCaMutateMock
+} = vi.hoisted(() => ({
+  deleteGitProviderUseMutationMock: vi.fn(),
+  startGitProviderSetupUseMutationMock: vi.fn(),
+  updateGitProviderCaUseMutationMock: vi.fn(),
+  updateGitProviderCaMutateMock: vi.fn()
+}));
 
 vi.mock("../../lib/trpc", () => ({
   trpc: {
     deleteGitProvider: { useMutation: deleteGitProviderUseMutationMock },
-    startGitProviderSetup: { useMutation: startGitProviderSetupUseMutationMock }
+    startGitProviderSetup: { useMutation: startGitProviderSetupUseMutationMock },
+    updateGitProviderCa: { useMutation: updateGitProviderCaUseMutationMock }
   }
 }));
 
@@ -23,6 +30,12 @@ describe("GitProviderCard", () => {
   beforeEach(() => {
     deleteGitProviderUseMutationMock.mockReturnValue({ isPending: false, mutate: vi.fn() });
     startGitProviderSetupUseMutationMock.mockReturnValue({ isPending: false, mutate: vi.fn() });
+    updateGitProviderCaMutateMock.mockReset();
+    updateGitProviderCaUseMutationMock.mockReturnValue({
+      error: null,
+      isPending: false,
+      mutate: updateGitProviderCaMutateMock
+    });
   });
 
   afterEach(() => {
@@ -53,7 +66,8 @@ describe("GitProviderCard", () => {
             capabilities: { clone: true, api: false, feedback: false }
           }
         ]}
-        onDeleted={vi.fn()}
+        certificateAssets={[]}
+        onChanged={vi.fn()}
       />
     );
 
@@ -81,5 +95,55 @@ describe("GitProviderCard", () => {
     expect(
       screen.getByTestId("git-provider-internal-route-provider_gitlab_deploy")
     ).toHaveTextContent("https://gitlab.internal.example.com");
+  });
+
+  it("shows the selected CA fingerprint and warns when expiry is near", () => {
+    vi.setSystemTime(new Date("2026-07-19T00:00:00.000Z"));
+
+    render(
+      <GitProviderCard
+        provider={{
+          id: "provider_github_ca",
+          type: "github",
+          name: "GitHub Enterprise",
+          status: "active",
+          appId: "123456",
+          clientId: null,
+          baseUrl: "https://github.example.com",
+          caCertificateId: "certificate_ca"
+        }}
+        installations={[]}
+        certificateAssets={[
+          {
+            id: "certificate_ca",
+            name: "Enterprise CA",
+            fingerprint: "sha256:abc123",
+            expiresAt: "2026-08-01T00:00:00.000Z",
+            status: "active"
+          }
+        ]}
+        onChanged={vi.fn()}
+      />
+    );
+
+    expect(
+      screen.getByTestId("git-provider-ca-details-provider_github_ca-fingerprint")
+    ).toHaveTextContent("sha256:abc123");
+    expect(screen.getByTestId("git-provider-ca-details-provider_github_ca-expiry")).toHaveAttribute(
+      "data-expiry-state",
+      "soon"
+    );
+    expect(
+      screen.getByTestId("git-provider-ca-details-provider_github_ca-expiry")
+    ).toHaveTextContent("within 30 days");
+
+    fireEvent.click(screen.getByTestId("git-provider-ca-select-provider_github_ca"));
+    clickSelectOption("None (use public CA trust)");
+
+    expect(updateGitProviderCaMutateMock).toHaveBeenCalledWith({
+      providerId: "provider_github_ca",
+      caCertificateId: null
+    });
+    vi.useRealTimers();
   });
 });

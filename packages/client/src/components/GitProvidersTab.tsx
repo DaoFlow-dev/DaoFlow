@@ -18,6 +18,9 @@ export default function GitProvidersTab() {
   const session = useSession();
   const providers = trpc.gitProviders.useQuery(undefined, { enabled: Boolean(session.data) });
   const installations = trpc.gitInstallations.useQuery({}, { enabled: Boolean(session.data) });
+  const certificateAssets = trpc.certificateAssets.useQuery(undefined, {
+    enabled: Boolean(session.data)
+  });
   const webhookDeliveries = trpc.webhookDeliveries.useQuery(
     { limit: 20 },
     { enabled: Boolean(session.data) }
@@ -93,6 +96,16 @@ export default function GitProvidersTab() {
         </Card>
       )}
 
+      {certificateAssets.error ? (
+        <p
+          role="alert"
+          className="text-sm text-destructive"
+          data-testid="git-provider-ca-assets-error"
+        >
+          Certificate assets are unavailable right now. You can continue without a custom CA.
+        </p>
+      ) : null}
+
       {providers.data?.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center text-muted-foreground">
@@ -110,7 +123,8 @@ export default function GitProvidersTab() {
               key={p.id}
               provider={p}
               installations={installations.data ?? []}
-              onDeleted={() => {
+              certificateAssets={certificateAssets.data ?? []}
+              onChanged={() => {
                 void providers.refetch();
                 void installations.refetch();
               }}
@@ -124,6 +138,7 @@ export default function GitProvidersTab() {
       <GitHubProviderDialog
         open={showGitHubDialog}
         onOpenChange={setShowGitHubDialog}
+        certificateAssets={certificateAssets.data ?? []}
         onRegistered={() => {
           void providers.refetch();
           void installations.refetch();
@@ -132,6 +147,7 @@ export default function GitProvidersTab() {
       <GitLabProviderDialog
         open={showGitLabDialog}
         onOpenChange={setShowGitLabDialog}
+        certificateAssets={certificateAssets.data ?? []}
         onRegistered={() => {
           void providers.refetch();
           void installations.refetch();

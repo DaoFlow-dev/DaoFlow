@@ -28,7 +28,7 @@ Command endpoints mutate infrastructure. The complete generated command surface,
 These commands are exported in the API contract but are not currently tied to a narrower published scope:
 
 - Authenticated command procedures: `createChannel`, `deleteChannel`, `updateChannel`, `toggleChannel`, `setUserPreference`, `setProjectOverride`
-- Admin-role procedures: `createAgent`, `registerGitProvider`, `deleteGitProvider`, `createGitInstallation`, `exchangeGitLabCode`, `createSecretProvider`, `testSecretProvider`, `deleteSecretProvider`, `deleteProject`, `deleteEnvironment`, `deleteService`
+- Admin-role procedures: `createAgent`, `registerGitProvider`, `updateGitProviderCa`, `deleteGitProvider`, `createGitInstallation`, `exchangeGitLabCode`, `createSecretProvider`, `testSecretProvider`, `deleteSecretProvider`, `deleteProject`, `deleteEnvironment`, `deleteService`
 
 ## Common External Flows
 

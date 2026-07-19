@@ -42,6 +42,7 @@ describe("GitLab provider feedback API", () => {
     const client = {
       apiBaseUrl: "http://gitlab.internal.test/gitlab/api/v4",
       headers: { "PRIVATE-TOKEN": "glpat-token" },
+      ca: null,
       signal: new AbortController().signal
     };
     const repositoryPath = encodeGitLabProjectPath("group/platform/preview-service");
@@ -78,6 +79,7 @@ describe("GitLab provider feedback API", () => {
     const client = {
       apiBaseUrl: "https://gitlab.com/api/v4",
       headers: { Authorization: "Bearer token" },
+      ca: null,
       signal: new AbortController().signal
     };
     const request = () =>
@@ -120,6 +122,7 @@ describe("GitLab provider feedback API", () => {
         client: {
           apiBaseUrl: "https://gitlab.com/api/v4",
           headers: { "PRIVATE-TOKEN": "revoked-token" },
+          ca: null,
           signal: new AbortController().signal
         },
         repositoryPath: "group%2Fproject",

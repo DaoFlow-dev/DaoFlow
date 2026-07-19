@@ -16,6 +16,7 @@ export interface GitProviderSummary {
   clientId: string | null;
   baseUrl: string | null;
   internalBaseUrl: string | null;
+  caCertificateId: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -47,6 +48,7 @@ export function toGitProviderSummary(row: typeof gitProviders.$inferSelect): Git
     clientId: row.clientId,
     baseUrl: row.baseUrl,
     internalBaseUrl: row.internalBaseUrl,
+    caCertificateId: row.caCertificateId,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt
   };

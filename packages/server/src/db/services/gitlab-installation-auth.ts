@@ -8,6 +8,12 @@ import {
   type ResolvedGitLabCredential
 } from "./gitlab-credentials";
 import { resolveGitLabRedirectUri } from "./git-provider-callback-urls";
+import {
+  fetchWithGitProviderCa,
+  fetchWithResolvedGitProviderCa,
+  GitProviderCaTrustError,
+  type ResolvedGitProviderCa
+} from "./git-provider-ca-trust";
 import { resolveGitLabApiBaseUrl, resolveGitLabInternalBaseUrl } from "./gitlab-urls";
 import { readLegacyGitInstallationOAuthCredentials } from "./git-installation-legacy-credentials";
 
@@ -15,7 +21,13 @@ const REFRESH_SKEW_MS = 60_000;
 
 type GitLabProviderAuthRecord = Pick<
   typeof gitProviders.$inferSelect,
-  "id" | "teamId" | "baseUrl" | "internalBaseUrl" | "clientId" | "clientSecretEncrypted"
+  | "id"
+  | "teamId"
+  | "caCertificateId"
+  | "baseUrl"
+  | "internalBaseUrl"
+  | "clientId"
+  | "clientSecretEncrypted"
 >;
 
 type GitLabInstallationAuthRecord = Pick<
@@ -190,18 +202,22 @@ async function refreshGitLabOAuthCredential(input: {
     const oauthConfig = requireGitLabOAuthConfig(input.provider);
     if (!current.credential.refreshToken || !oauthConfig) return null;
 
-    const response = await fetch(`${resolveGitLabInternalBaseUrl(input.provider)}/oauth/token`, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        client_id: oauthConfig.clientId,
-        client_secret: oauthConfig.clientSecret,
-        grant_type: "refresh_token",
-        refresh_token: current.credential.refreshToken,
-        redirect_uri: resolveGitLabRedirectUri()
-      }).toString(),
-      signal: AbortSignal.timeout(10_000)
-    });
+    const response = await fetchWithGitProviderCa(
+      input.provider,
+      `${resolveGitLabInternalBaseUrl(input.provider)}/oauth/token`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          client_id: oauthConfig.clientId,
+          client_secret: oauthConfig.clientSecret,
+          grant_type: "refresh_token",
+          refresh_token: current.credential.refreshToken,
+          redirect_uri: resolveGitLabRedirectUri()
+        }).toString(),
+        signal: AbortSignal.timeout(10_000)
+      }
+    );
     if (!response.ok) {
       throw new Error(`GitLab token refresh failed with status ${response.status}.`);
     }
@@ -288,9 +304,11 @@ export async function validateGitLabApiToken(input: {
   baseUrl: string | null;
   internalBaseUrl?: string | null;
   token: string;
+  ca?: ResolvedGitProviderCa | null;
 }): Promise<{ id: string; username: string }> {
   try {
-    const response = await fetch(
+    const response = await fetchWithResolvedGitProviderCa(
+      input.ca ?? null,
       `${resolveGitLabApiBaseUrl({
         baseUrl: input.baseUrl,
         internalBaseUrl: input.internalBaseUrl ?? null
@@ -309,6 +327,7 @@ export async function validateGitLabApiToken(input: {
     if (!user.id || !user.username) throw new GitLabCredentialValidationError();
     return { id: String(user.id), username: user.username };
   } catch (error) {
+    if (error instanceof GitProviderCaTrustError) throw error;
     if (error instanceof GitLabCredentialValidationError) throw error;
     throw new GitLabCredentialValidationError();
   }

@@ -237,6 +237,13 @@ OAuth application and webhook inside the self-hosted GitLab instance. DaoFlow us
 URL when exchanging OAuth codes, validating source access, and matching webhook project URLs, so the
 same `group/project` path can exist safely on GitLab.com and a self-hosted GitLab host.
 
+If a self-hosted GitLab or GitHub Enterprise host uses a private certificate authority, first upload
+the CA certificate as a team certificate asset, then select it while registering the Git provider or
+from the provider card. DaoFlow applies that CA only to the selected provider's API, OAuth, feedback,
+clone, fetch, submodule, Git LFS, and branch-push traffic. The provider fails closed if the certificate
+is unavailable, inactive, expired, malformed, or not a CA certificate. DaoFlow does not disable TLS
+verification or change the process-wide or host-wide trust store.
+
 ### GitLab credential modes, scopes, and routing
 
 Choose the GitLab credential that matches the integration you need:
@@ -263,8 +270,9 @@ public webhook/source URL matching, and browser links. For a self-hosted instanc
 **Internal GitLab URL** lets the DaoFlow server use a private route for GitLab API and clone traffic
 while keeping the public URL in the provider configuration. Leave the internal URL empty to use the
 public URL for both paths. The internal address must resolve from the DaoFlow server and have a
-trusted TLS certificate; DaoFlow does not disable TLS verification. Use an explicitly configured CA
-trust chain when a private certificate authority is required.
+trusted TLS certificate; DaoFlow does not disable TLS verification. Select a team-owned CA certificate
+on the provider when a private certificate authority is required. The provider card shows the selected
+certificate fingerprint and warns when its expiry is unknown or approaching.
 
 Credential mode, intended scopes, expiry, and Clone/API/Feedback capabilities are visible on the
 provider card. Secret values are not displayed after registration.

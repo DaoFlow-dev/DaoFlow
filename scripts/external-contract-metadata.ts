@@ -193,6 +193,7 @@ addApiGroup(
     "deleteService",
     "containerRegistries",
     "registerGitProvider",
+    "updateGitProviderCa",
     "registerContainerRegistry",
     "updateContainerRegistry",
     "deleteContainerRegistry",

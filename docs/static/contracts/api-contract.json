@@ -4151,6 +4151,11 @@
             "type": "string",
             "maxLength": 255
           },
+          "caCertificateId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32
+          },
           "gitlabCredential": {
             "oneOf": [
               {
@@ -6024,6 +6029,41 @@
           }
         },
         "required": ["environmentId"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "updateGitProviderCa",
+      "summary": "update Git Provider Ca",
+      "path": "/trpc/updateGitProviderCa",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin"],
+      "requiredScopes": [],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "providerId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32
+          },
+          "caCertificateId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 32
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": ["providerId", "caCertificateId"],
         "additionalProperties": false
       }
     },

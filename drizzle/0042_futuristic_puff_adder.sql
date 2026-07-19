@@ -1,0 +1,1 @@
+ALTER TABLE "certificate_assets" ADD CONSTRAINT "certificate_assets_id_team_id_unique" UNIQUE("id","team_id");

@@ -72,6 +72,7 @@ export async function validateGitLabSource(
   const headers = apiAccess.headers;
 
   const projectResponse = await fetchWithProviderTimeout(
+    provider,
     "gitlab",
     "repository access",
     `${resolveGitLabApiBaseUrl(provider)}/projects/${encodeURIComponent(source.repoFullName)}`,
@@ -111,6 +112,7 @@ export async function validateGitLabSource(
 
   const projectId = String(projectData.id);
   const branchResponse = await fetchWithProviderTimeout(
+    provider,
     "gitlab",
     "branch access",
     `${resolveGitLabApiBaseUrl(provider)}/projects/${encodeURIComponent(projectId)}/repository/branches/${encodeURIComponent(source.defaultBranch)}`,
@@ -136,6 +138,7 @@ export async function validateGitLabSource(
 
   for (const composeFile of source.composeFiles) {
     const composeResponse = await fetchWithProviderTimeout(
+      provider,
       "gitlab",
       "compose file access",
       `${resolveGitLabApiBaseUrl(provider)}/projects/${encodeURIComponent(projectId)}/repository/files/${encodeURIComponent(composeFile)}?ref=${encodeURIComponent(source.defaultBranch)}`,

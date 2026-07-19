@@ -1,11 +1,19 @@
 import { createSign } from "node:crypto";
 import { decrypt } from "../crypto";
+import { fetchWithGitProviderCa } from "./git-provider-ca-trust";
 import { buildGitHubApiBaseUrl } from "./project-source-provider-validation-shared";
 import type { gitInstallations, gitProviders } from "../schema/git-providers";
 
 type GitHubProviderRecord = Pick<
   typeof gitProviders.$inferSelect,
-  "name" | "appId" | "clientId" | "clientSecretEncrypted" | "privateKeyEncrypted" | "baseUrl"
+  | "name"
+  | "teamId"
+  | "caCertificateId"
+  | "appId"
+  | "clientId"
+  | "clientSecretEncrypted"
+  | "privateKeyEncrypted"
+  | "baseUrl"
 >;
 
 type GitHubInstallationRecord = Pick<typeof gitInstallations.$inferSelect, "installationId">;
@@ -55,13 +63,17 @@ function createProviderJwt(provider: GitHubProviderRecord): string {
 }
 
 export async function fetchGitHubAppSlug(provider: GitHubProviderRecord): Promise<string> {
-  const response = await fetch(`${buildGitHubApiBaseUrl(provider.baseUrl)}/app`, {
-    headers: {
-      Accept: "application/vnd.github+json",
-      Authorization: `Bearer ${createProviderJwt(provider)}`,
-      "User-Agent": "DaoFlow"
+  const response = await fetchWithGitProviderCa(
+    provider,
+    `${buildGitHubApiBaseUrl(provider.baseUrl)}/app`,
+    {
+      headers: {
+        Accept: "application/vnd.github+json",
+        Authorization: `Bearer ${createProviderJwt(provider)}`,
+        "User-Agent": "DaoFlow"
+      }
     }
-  });
+  );
   if (!response.ok) {
     throw new Error(`GitHub App lookup failed with status ${response.status}.`);
   }
@@ -81,7 +93,8 @@ async function exchangeGitHubUserAccessToken(input: {
     throw new Error(`GitHub provider ${input.provider.name} is missing OAuth credentials.`);
   }
 
-  const response = await fetch(
+  const response = await fetchWithGitProviderCa(
+    input.provider,
     `${buildGitHubWebBaseUrl(input.provider.baseUrl)}/login/oauth/access_token`,
     {
       method: "POST",
@@ -117,7 +130,8 @@ export async function verifyGitHubInstallationForUser(input: {
     provider: input.provider,
     code: input.code
   });
-  const response = await fetch(
+  const response = await fetchWithGitProviderCa(
+    input.provider,
     `${buildGitHubApiBaseUrl(input.provider.baseUrl)}/user/installations/${encodeURIComponent(input.installationId)}/repositories?per_page=1`,
     {
       headers: {
@@ -137,7 +151,8 @@ export async function fetchGitHubInstallationAccessToken(input: {
   installation: GitHubInstallationRecord;
 }) {
   const jwt = createProviderJwt(input.provider);
-  const response = await fetch(
+  const response = await fetchWithGitProviderCa(
+    input.provider,
     `${buildGitHubApiBaseUrl(input.provider.baseUrl)}/app/installations/${input.installation.installationId}/access_tokens`,
     {
       method: "POST",
@@ -166,7 +181,8 @@ export async function fetchGitHubInstallationDetails(input: {
   installationId: string;
 }): Promise<GitHubInstallationDetails> {
   const jwt = createProviderJwt(input.provider);
-  const response = await fetch(
+  const response = await fetchWithGitProviderCa(
+    input.provider,
     `${buildGitHubApiBaseUrl(input.provider.baseUrl)}/app/installations/${encodeURIComponent(input.installationId)}`,
     {
       headers: {
