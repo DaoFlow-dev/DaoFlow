@@ -1,6 +1,6 @@
 {
-  "id": "c209b3f7-41b8-47f3-b54d-2bba8aadfc3d",
-  "prevId": "a8501a2f-37f0-454a-9e4f-67cff2f64930",
+  "id": "1adee923-61be-47b5-b19f-3903ebbcf412",
+  "prevId": "bff1dc99-fbfd-426e-b79c-bb2494a65f9f",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -2676,6 +2676,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "service_id": {
+          "name": "service_id",
+          "type": "varchar(32)",
+          "primaryKey": false,
+          "notNull": true
+        },
         "service_name": {
           "name": "service_name",
           "type": "varchar(80)",
@@ -2832,6 +2838,21 @@
           "columns": [
             {
               "expression": "target_server_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "deployments_service_id_idx": {
+          "name": "deployments_service_id_idx",
+          "columns": [
+            {
+              "expression": "service_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"

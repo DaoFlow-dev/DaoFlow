@@ -3843,6 +3843,36 @@
       }
     },
     {
+      "name": "providerFeedback",
+      "summary": "provider Feedback",
+      "path": "/trpc/providerFeedback",
+      "method": "GET",
+      "lane": "read",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator", "developer", "viewer", "agent"],
+      "requiredScopes": ["deploy:read"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "states": {
+            "maxItems": 4,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": ["pending", "retrying", "delivered", "dead-letter"]
+            }
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "queueBackupRestore",
       "summary": "queue Backup Restore",
       "path": "/trpc/queueBackupRestore",

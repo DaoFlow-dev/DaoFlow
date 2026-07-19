@@ -112,6 +112,9 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
       deploymentBuildLeaseOwnerToken: string | null;
       serviceVariables: string | null;
       gitProviders: string | null;
+      providerFeedback: string | null;
+      providerFeedbackSequence: string | null;
+      providerFeedbackTargets: string | null;
       gitProviderSetupStates: string | null;
       gitProvidersTeamId: string | null;
       gitInstallationsTeamId: string | null;
@@ -180,6 +183,9 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
         (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'deployment_build_leases' AND column_name = 'owner_token') AS "deploymentBuildLeaseOwnerToken",
         to_regclass('public.service_variables') AS "serviceVariables",
         to_regclass('public.git_providers') AS "gitProviders",
+        to_regclass('public.provider_feedback') AS "providerFeedback",
+        (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'provider_feedback' AND column_name = 'sequence') AS "providerFeedbackSequence",
+        to_regclass('public.provider_feedback_targets') AS "providerFeedbackTargets",
         to_regclass('public.git_provider_setup_states') AS "gitProviderSetupStates",
         (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'git_providers' AND column_name = 'team_id') AS "gitProvidersTeamId",
         (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'git_installations' AND column_name = 'team_id') AS "gitInstallationsTeamId",
@@ -250,6 +256,9 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
       row.deploymentBuildLeaseOwnerToken &&
       row.serviceVariables &&
       row.gitProviders &&
+      row.providerFeedback &&
+      row.providerFeedbackSequence &&
+      row.providerFeedbackTargets &&
       row.gitProviderSetupStates &&
       row.gitProvidersTeamId &&
       row.gitInstallationsTeamId &&
@@ -353,6 +362,9 @@ async function readPoolSchemaState() {
     deploymentBuildLeaseOwnerToken: string | null;
     serviceVariables: string | null;
     gitProviders: string | null;
+    providerFeedback: string | null;
+    providerFeedbackSequence: string | null;
+    providerFeedbackTargets: string | null;
     gitProviderSetupStates: string | null;
     gitProvidersTeamId: string | null;
     gitInstallationsTeamId: string | null;
@@ -420,6 +432,9 @@ async function readPoolSchemaState() {
       (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'deployment_build_leases' AND column_name = 'owner_token') AS "deploymentBuildLeaseOwnerToken",
       to_regclass('public.service_variables') AS "serviceVariables",
       to_regclass('public.git_providers') AS "gitProviders",
+      to_regclass('public.provider_feedback') AS "providerFeedback",
+      (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'provider_feedback' AND column_name = 'sequence') AS "providerFeedbackSequence",
+      to_regclass('public.provider_feedback_targets') AS "providerFeedbackTargets",
       to_regclass('public.git_provider_setup_states') AS "gitProviderSetupStates",
       (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'git_providers' AND column_name = 'team_id') AS "gitProvidersTeamId",
       (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'git_installations' AND column_name = 'team_id') AS "gitInstallationsTeamId",
@@ -501,6 +516,9 @@ async function ensurePooledTestSchemaReady(connectionString: string) {
         state.deploymentBuildLeaseOwnerToken &&
         state.serviceVariables &&
         state.gitProviders &&
+        state.providerFeedback &&
+        state.providerFeedbackSequence &&
+        state.providerFeedbackTargets &&
         state.gitProviderSetupStates &&
         state.gitProvidersTeamId &&
         state.gitInstallationsTeamId &&

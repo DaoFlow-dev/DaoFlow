@@ -8,6 +8,7 @@ import { eq, sql as rawSql } from "drizzle-orm";
 import { db } from "../db/connection";
 import { deployments, deploymentSteps } from "../db/schema/deployments";
 import { events } from "../db/schema/audit";
+import { requireDeploymentTransitionWithFeedback } from "../db/services/deployment-transition-feedback";
 import type { RepositoryPreparationConfig } from "../repository-preparation";
 import type { ComposeBuildPlan } from "../compose-build-plan";
 import type { ComposeEnvEvidence } from "../compose-env";
@@ -109,25 +110,12 @@ export async function transitionDeployment(
   conclusion?: string,
   error?: unknown
 ): Promise<void> {
-  const now = new Date();
-  const update: Record<string, unknown> = {
+  await requireDeploymentTransitionWithFeedback({
+    deploymentId: id,
     status,
-    updatedAt: now
-  };
-
-  if (conclusion) {
-    update.conclusion = conclusion;
-    update.concludedAt = now;
-  }
-
-  if (error) {
-    update.error =
-      error instanceof Error
-        ? { message: error.message, stack: error.stack }
-        : { message: typeof error === "string" ? error : JSON.stringify(error) };
-  }
-
-  await db.update(deployments).set(update).where(eq(deployments.id, id));
+    conclusion,
+    error
+  });
 }
 
 /* ──────────────────────── Event Emission ──────────────────────── */

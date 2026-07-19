@@ -2,43 +2,64 @@ import { and, eq, inArray } from "drizzle-orm";
 import { DeploymentLifecycleStatus } from "@daoflow/shared";
 import { db } from "../connection";
 import { deploymentBuildLeases, deployments } from "../schema/deployments";
+import { queueProviderFeedbackIntent } from "./provider-feedback-intents";
 
 export async function markDeploymentWaitingForBuildSlot(
   deploymentId: string,
   now = new Date()
 ): Promise<void> {
-  await db
-    .update(deployments)
-    .set({ status: DeploymentLifecycleStatus.Waiting, updatedAt: now })
-    .where(
-      and(
-        eq(deployments.id, deploymentId),
-        inArray(deployments.status, [
-          DeploymentLifecycleStatus.Waiting,
-          DeploymentLifecycleStatus.Prepare,
-          DeploymentLifecycleStatus.Deploy
-        ])
+  await db.transaction(async (tx) => {
+    const [updated] = await tx
+      .update(deployments)
+      .set({ status: DeploymentLifecycleStatus.Waiting, updatedAt: now })
+      .where(
+        and(
+          eq(deployments.id, deploymentId),
+          inArray(deployments.status, [
+            DeploymentLifecycleStatus.Waiting,
+            DeploymentLifecycleStatus.Prepare,
+            DeploymentLifecycleStatus.Deploy
+          ])
+        )
       )
-    );
+      .returning({ id: deployments.id });
+    if (updated) {
+      await queueProviderFeedbackIntent(tx, {
+        deploymentId: updated.id,
+        transition: DeploymentLifecycleStatus.Waiting,
+        now
+      });
+    }
+  });
 }
 
 export async function markDeploymentBuildSlotAcquired(
   deploymentId: string,
   now = new Date()
 ): Promise<void> {
-  await db
-    .update(deployments)
-    .set({ status: DeploymentLifecycleStatus.Deploy, updatedAt: now })
-    .where(
-      and(
-        eq(deployments.id, deploymentId),
-        inArray(deployments.status, [
-          DeploymentLifecycleStatus.Waiting,
-          DeploymentLifecycleStatus.Prepare,
-          DeploymentLifecycleStatus.Deploy
-        ])
+  await db.transaction(async (tx) => {
+    const [updated] = await tx
+      .update(deployments)
+      .set({ status: DeploymentLifecycleStatus.Deploy, updatedAt: now })
+      .where(
+        and(
+          eq(deployments.id, deploymentId),
+          inArray(deployments.status, [
+            DeploymentLifecycleStatus.Waiting,
+            DeploymentLifecycleStatus.Prepare,
+            DeploymentLifecycleStatus.Deploy
+          ])
+        )
       )
-    );
+      .returning({ id: deployments.id });
+    if (updated) {
+      await queueProviderFeedbackIntent(tx, {
+        deploymentId: updated.id,
+        transition: DeploymentLifecycleStatus.Deploy,
+        now
+      });
+    }
+  });
 }
 
 export async function releaseDeploymentBuildLease(input: {

@@ -22,6 +22,8 @@ import {
   startServerMetricsMonitor,
   stopServerMetricsMonitor,
   setServerMetricTransitionHandler,
+  startProviderFeedbackMonitor,
+  stopProviderFeedbackMonitor,
   startTemporalWorker,
   stopTemporalWorker,
   closeTemporalClient
@@ -196,6 +198,7 @@ async function start() {
   startDeploymentWatchdogMonitor();
   startDevelopmentTaskWatchdogMonitor();
   startApprovalActionDispatchMonitor();
+  startProviderFeedbackMonitor();
   startOperationalMaintenanceMonitor();
   startServiceScheduleMonitor();
   setServerMetricTransitionHandler(async (event) => {
@@ -212,6 +215,7 @@ async function start() {
     stopDeploymentWatchdogMonitor();
     stopDevelopmentTaskWatchdogMonitor();
     stopApprovalActionDispatchMonitor();
+    stopProviderFeedbackMonitor();
     stopOperationalMaintenanceMonitor();
     stopServiceScheduleMonitor();
     await stopServerMetricsMonitor();

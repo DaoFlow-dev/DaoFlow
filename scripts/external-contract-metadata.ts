@@ -120,7 +120,7 @@ addApiGroup(
 
 addApiGroup(
   apiProcedureAccess,
-  ["managedDatabaseCatalog", "managedDatabases", "webhookDeliveries"],
+  ["managedDatabaseCatalog", "managedDatabases", "providerFeedback", "webhookDeliveries"],
   {
     auth: "authenticated",
     requiredRoles: READ_ROLES,
