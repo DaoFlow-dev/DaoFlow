@@ -1,10 +1,15 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
+import { getServiceScheduleMonitorLeaseStatus } from "../db/services/service-schedule-lease";
 import { listServiceScheduleRuns, listServiceSchedules } from "../db/services/service-schedules";
 import { serviceReadProcedure, t } from "../trpc";
 import { requireActorTeamId } from "./command-admin-shared";
 
 export const serviceSchedulesReadRouter = t.router({
+  serviceScheduleMonitorStatus: serviceReadProcedure.query(() =>
+    getServiceScheduleMonitorLeaseStatus()
+  ),
+
   serviceSchedules: serviceReadProcedure
     .input(
       z.object({

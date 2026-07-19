@@ -5,6 +5,7 @@ import { projects } from "../schema/projects";
 import { servers } from "../schema/servers";
 import { asRecord, readString } from "./json-helpers";
 import { buildDockerContainerName } from "../../docker-identifiers";
+import type { DockerOwnershipIdentity } from "../../docker-ownership";
 import { resolveExecutionTarget, withPreparedExecutionTarget } from "../../worker/execution-target";
 import {
   cleanupComposeProjectRuntime,
@@ -19,16 +20,19 @@ type RuntimeCleanupTask =
       kind: "compose";
       targetServerId: string;
       runtimeName: string;
+      ownershipScopes: DockerOwnershipIdentity[];
     }
   | {
       kind: "swarm";
       targetServerId: string;
       runtimeName: string;
+      ownershipScopes: DockerOwnershipIdentity[];
     }
   | {
       kind: "container";
       targetServerId: string;
       runtimeName: string;
+      ownershipScopes: DockerOwnershipIdentity[];
     };
 
 export type CleanupProjectRuntimeResult =
@@ -66,9 +70,27 @@ function deriveContainerRuntimeName(deployment: typeof deployments.$inferSelect)
   return buildDockerContainerName(deriveProjectName(deployment), deployment.serviceName);
 }
 
+function buildOwnershipScope(
+  deployment: typeof deployments.$inferSelect,
+  teamId: string
+): DockerOwnershipIdentity {
+  return {
+    teamId,
+    projectId: deployment.projectId,
+    environmentId: deployment.environmentId,
+    serviceId: deployment.serviceId,
+    deploymentId: deployment.id
+  };
+}
+
+function ownershipScopeKey(scope: DockerOwnershipIdentity): string {
+  return [scope.teamId, scope.projectId, scope.environmentId, scope.serviceId].join(":");
+}
+
 function buildRuntimeCleanupTasks(
   deploymentRows: Array<typeof deployments.$inferSelect>,
-  serverKinds: Map<string, string>
+  serverKinds: Map<string, string>,
+  teamId: string
 ): RuntimeCleanupTask[] {
   const uniqueTasks = new Map<string, RuntimeCleanupTask>();
 
@@ -77,11 +99,25 @@ function buildRuntimeCleanupTasks(
     if (deployment.sourceType === "compose") {
       const runtimeName = deriveComposeRuntimeName(deployment);
       const kind = serverKind === "docker-swarm-manager" ? "swarm" : "compose";
-      uniqueTasks.set(`${kind}:${deployment.targetServerId}:${runtimeName}`, {
-        kind,
-        targetServerId: deployment.targetServerId,
-        runtimeName
-      });
+      const key = `${kind}:${deployment.targetServerId}:${runtimeName}`;
+      const ownershipScope = buildOwnershipScope(deployment, teamId);
+      const existing = uniqueTasks.get(key);
+      if (existing && existing.kind !== "container") {
+        if (
+          !existing.ownershipScopes.some(
+            (scope) => ownershipScopeKey(scope) === ownershipScopeKey(ownershipScope)
+          )
+        ) {
+          existing.ownershipScopes.push(ownershipScope);
+        }
+      } else {
+        uniqueTasks.set(key, {
+          kind,
+          targetServerId: deployment.targetServerId,
+          runtimeName,
+          ownershipScopes: [ownershipScope]
+        });
+      }
       continue;
     }
 
@@ -90,7 +126,8 @@ function buildRuntimeCleanupTasks(
       {
         kind: "container",
         targetServerId: deployment.targetServerId,
-        runtimeName: deriveContainerRuntimeName(deployment)
+        runtimeName: deriveContainerRuntimeName(deployment),
+        ownershipScopes: [buildOwnershipScope(deployment, teamId)]
       }
     );
   }
@@ -128,6 +165,12 @@ export async function cleanupProjectRuntime(
   if (successfulDeployments.length === 0) {
     return { status: "no_runtime" };
   }
+  if (!project?.teamId) {
+    return {
+      status: "cleanup_failed",
+      message: `Project ${projectId} could not be resolved for runtime cleanup ownership checks.`
+    };
+  }
 
   const targetServerIds = [
     ...new Set(successfulDeployments.map((deployment) => deployment.targetServerId))
@@ -141,7 +184,7 @@ export async function cleanupProjectRuntime(
   const serverKinds = new Map(
     [...serverMap.values()].map((server) => [server.id, server.kind ?? "docker-engine"])
   );
-  const cleanupTasks = buildRuntimeCleanupTasks(successfulDeployments, serverKinds);
+  const cleanupTasks = buildRuntimeCleanupTasks(successfulDeployments, serverKinds, project.teamId);
 
   for (const task of cleanupTasks) {
     const server = serverMap.get(task.targetServerId);
@@ -163,16 +206,31 @@ export async function cleanupProjectRuntime(
         const onLog = () => undefined;
 
         if (task.kind === "compose") {
-          await cleanupComposeProjectRuntime(preparedTarget, task.runtimeName, onLog);
+          await cleanupComposeProjectRuntime(
+            preparedTarget,
+            task.runtimeName,
+            task.ownershipScopes,
+            onLog
+          );
           return;
         }
 
         if (task.kind === "swarm") {
-          await cleanupSwarmStackRuntime(preparedTarget, task.runtimeName, onLog);
+          await cleanupSwarmStackRuntime(
+            preparedTarget,
+            task.runtimeName,
+            task.ownershipScopes,
+            onLog
+          );
           return;
         }
 
-        await cleanupContainerRuntime(preparedTarget, task.runtimeName, onLog);
+        await cleanupContainerRuntime(
+          preparedTarget,
+          task.runtimeName,
+          task.ownershipScopes,
+          onLog
+        );
       });
     } catch (error) {
       return {

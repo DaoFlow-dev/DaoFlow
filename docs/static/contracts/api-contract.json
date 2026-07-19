@@ -5181,6 +5181,17 @@
       }
     },
     {
+      "name": "serviceScheduleMonitorStatus",
+      "summary": "service Schedule Monitor Status",
+      "path": "/trpc/serviceScheduleMonitorStatus",
+      "method": "GET",
+      "lane": "read",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator", "developer", "viewer", "agent"],
+      "requiredScopes": ["service:read"],
+      "inputSchema": null
+    },
+    {
       "name": "serviceScheduleRuns",
       "summary": "service Schedule Runs",
       "path": "/trpc/serviceScheduleRuns",

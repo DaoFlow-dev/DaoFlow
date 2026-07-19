@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { eq } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import { appRouter } from "./router";
 import { resetSeededTestDatabase } from "./test-db";
 import { db } from "./db/connection";
@@ -104,7 +104,8 @@ describe("git provider CA admin contract", () => {
     const audits = await db
       .select()
       .from(auditEntries)
-      .where(eq(auditEntries.targetResource, `git_provider/${registered.id}`));
+      .where(eq(auditEntries.targetResource, `git_provider/${registered.id}`))
+      .orderBy(asc(auditEntries.id));
     expect(audits.map((entry) => entry.action)).toEqual([
       "git_provider.register",
       "git_provider.ca.update",

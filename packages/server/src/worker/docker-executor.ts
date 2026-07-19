@@ -32,8 +32,16 @@ export {
   dockerRemoveContainer,
   dockerRun,
   extractTarArchive,
-  type DockerImageListEntry
+  type DockerImageListEntry,
+  type DockerRunOptions
 } from "./docker-runtime-executor";
+export {
+  buildDockerMetadataWrapperArgs,
+  createDockerVolume,
+  dockerBuildMetadataWrapper,
+  dockerLabelArgs,
+  inspectDockerVolume
+} from "./docker-ownership-executor";
 export {
   cleanupStagingDir,
   ensureStagingDir,

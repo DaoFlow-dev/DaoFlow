@@ -250,6 +250,7 @@ async function createServiceRuntimeFixture() {
     projectId: fixture.project.id,
     environmentId: fixture.environment.id,
     targetServerId: "srv_foundation_1",
+    serviceId: fixture.service.id,
     serviceName: fixture.service.name,
     sourceType: "compose",
     commitSha: "abc1234",
@@ -338,11 +339,15 @@ describe("createApp", () => {
     const body = (await response.json()) as {
       requestId: string;
       status: string;
+      scheduler: { running: boolean; cycleInProgress: boolean; leaseHeld: boolean };
     };
 
     expect(response.status).toBe(200);
     expect(body.status).toBe("healthy");
     expect(body.requestId).toMatch(/^req-/);
+    expect(typeof body.scheduler.running).toBe("boolean");
+    expect(typeof body.scheduler.cycleInProgress).toBe("boolean");
+    expect(typeof body.scheduler.leaseHeld).toBe("boolean");
     expect(response.headers.get("x-request-id")).toMatch(/^req-/);
     expect(response.headers.get("x-content-type-options")).toBe("nosniff");
   });

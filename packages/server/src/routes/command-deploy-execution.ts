@@ -1,5 +1,9 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
+import { and, eq } from "drizzle-orm";
+import { db } from "../db/connection";
+import { environments, projects } from "../db/schema/projects";
+import { services } from "../db/schema/services";
 import { createDeploymentRecord } from "../db/services/deployments";
 import { dispatchDeploymentExecution } from "../db/services/deployment-dispatch";
 import { queueComposeRelease } from "../db/services/compose";
@@ -49,8 +53,38 @@ export const deployExecutionCommandRouter = t.router({
     .input(deploymentRecordInputSchema)
     .mutation(async ({ ctx, input }) => {
       const teamId = await requireActorTeamId(ctx.session.user.id);
+      const matchingServices = await db
+        .select({ id: services.id })
+        .from(services)
+        .innerJoin(
+          environments,
+          and(
+            eq(environments.id, services.environmentId),
+            eq(environments.projectId, services.projectId)
+          )
+        )
+        .innerJoin(projects, eq(projects.id, services.projectId))
+        .where(
+          and(
+            eq(projects.teamId, teamId),
+            eq(projects.name, input.projectName),
+            eq(environments.name, input.environmentName),
+            eq(services.name, input.serviceName),
+            eq(services.sourceType, input.sourceType)
+          )
+        )
+        .limit(2);
+
+      if (matchingServices.length !== 1) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Deployment service not found."
+        });
+      }
+
       const deployment = await createDeploymentRecord({
         ...input,
+        serviceId: matchingServices[0].id,
         teamId,
         ...getActorContext(ctx)
       });

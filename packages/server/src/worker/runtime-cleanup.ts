@@ -1,8 +1,14 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { dockerCommand, sshCommand, withCommandPath } from "./command-env";
+import {
+  assertComposeRuntimeOwnership,
+  assertContainerRuntimeOwnership,
+  type ComposeRuntimeOwnershipSnapshot
+} from "./compose-runtime-ownership";
 import type { OnLog } from "./docker-executor";
 import type { ExecutionTarget } from "./execution-target";
 import { removeSSHKey, shellQuote, sshArgs, writeSSHKey } from "./ssh-connection";
+import type { DockerOwnershipIdentity } from "../docker-ownership";
 
 export interface DockerCommandResult {
   exitCode: number;
@@ -116,24 +122,6 @@ function summarizeFailure(result: DockerCommandResult): string {
   return [...result.stderr, ...result.stdout].join(" ").trim() || `exit code ${result.exitCode}`;
 }
 
-function uniqueValues(lines: string[]): string[] {
-  return [...new Set(lines.map((line) => line.trim()).filter(Boolean))];
-}
-
-async function listDockerObjects(
-  target: ExecutionTarget,
-  dockerArgs: string[],
-  onLog: OnLog,
-  execute: DockerTargetExecutor
-): Promise<string[]> {
-  const result = await execute(target, dockerArgs, onLog);
-  if (result.exitCode !== 0) {
-    throw new Error(summarizeFailure(result));
-  }
-
-  return uniqueValues(result.stdout);
-}
-
 async function removeDockerObjects(
   target: ExecutionTarget,
   dockerArgs: string[],
@@ -149,66 +137,66 @@ async function removeDockerObjects(
 export async function cleanupComposeProjectRuntime(
   target: ExecutionTarget,
   projectName: string,
+  ownershipScopes: readonly DockerOwnershipIdentity[],
   onLog: OnLog,
-  execute: DockerTargetExecutor = executeDockerTargetCommand
+  execute: DockerTargetExecutor = executeDockerTargetCommand,
+  verifiedResources?: ComposeRuntimeOwnershipSnapshot
 ): Promise<ComposeProjectCleanupResult> {
+  const resources =
+    verifiedResources ??
+    (await assertComposeRuntimeOwnership({
+      kind: "compose",
+      runtimeName: projectName,
+      ownershipScopes,
+      target,
+      onLog,
+      execute
+    }));
+
   onLog({
     stream: "stdout",
     message: `Cleaning compose runtime for project ${projectName}`,
     timestamp: new Date()
   });
 
-  const filter = `label=com.docker.compose.project=${projectName}`;
-  const containers = await listDockerObjects(
-    target,
-    ["ps", "-aq", "--filter", filter],
-    onLog,
-    execute
-  );
-  if (containers.length > 0) {
-    await removeDockerObjects(target, ["rm", "-f", ...containers], onLog, execute);
+  if (resources.containers.length > 0) {
+    await removeDockerObjects(target, ["rm", "-f", ...resources.containers], onLog, execute);
   }
 
-  const networks = await listDockerObjects(
-    target,
-    ["network", "ls", "-q", "--filter", filter],
-    onLog,
-    execute
-  );
-  if (networks.length > 0) {
-    await removeDockerObjects(target, ["network", "rm", ...networks], onLog, execute);
-  }
-
-  const volumes = await listDockerObjects(
-    target,
-    ["volume", "ls", "-q", "--filter", filter],
-    onLog,
-    execute
-  );
-  if (volumes.length > 0) {
-    await removeDockerObjects(target, ["volume", "rm", ...volumes], onLog, execute);
+  if (resources.networks.length > 0) {
+    await removeDockerObjects(target, ["network", "rm", ...resources.networks], onLog, execute);
   }
 
   return {
-    removedContainers: containers.length,
-    removedNetworks: networks.length,
-    removedVolumes: volumes.length
+    removedContainers: resources.containers.length,
+    removedNetworks: resources.networks.length,
+    removedVolumes: 0
   };
 }
 
 export async function cleanupContainerRuntime(
   target: ExecutionTarget,
   containerName: string,
+  ownershipScopes: readonly DockerOwnershipIdentity[],
   onLog: OnLog,
   execute: DockerTargetExecutor = executeDockerTargetCommand
 ): Promise<void> {
+  const containerId = await assertContainerRuntimeOwnership({
+    containerName,
+    ownershipScopes,
+    target,
+    onLog,
+    execute
+  });
+  if (!containerId) return;
+
   onLog({
     stream: "stdout",
     message: `Cleaning container runtime for ${containerName}`,
     timestamp: new Date()
   });
 
-  const result = await execute(target, ["rm", "-f", containerName], onLog);
+  const result = await execute(target, ["rm", "-f", containerId], onLog);
   if (result.exitCode === 0) {
     return;
   }
@@ -224,14 +212,38 @@ export async function cleanupContainerRuntime(
 export async function cleanupSwarmStackRuntime(
   target: ExecutionTarget,
   stackName: string,
+  ownershipScopes: readonly DockerOwnershipIdentity[],
   onLog: OnLog,
-  execute: DockerTargetExecutor = executeDockerTargetCommand
+  execute: DockerTargetExecutor = executeDockerTargetCommand,
+  verifiedResources?: ComposeRuntimeOwnershipSnapshot
 ): Promise<void> {
+  const resources =
+    verifiedResources ??
+    (await assertComposeRuntimeOwnership({
+      kind: "swarm",
+      runtimeName: stackName,
+      ownershipScopes,
+      target,
+      onLog,
+      execute
+    }));
+
   onLog({
     stream: "stdout",
     message: `Cleaning Swarm runtime for stack ${stackName}`,
     timestamp: new Date()
   });
 
-  await removeDockerObjects(target, ["stack", "rm", stackName], onLog, execute);
+  if (resources.services.length > 0) {
+    await removeDockerObjects(target, ["service", "rm", ...resources.services], onLog, execute);
+  }
+  if (resources.networks.length > 0) {
+    await removeDockerObjects(target, ["network", "rm", ...resources.networks], onLog, execute);
+  }
+  if (resources.configs.length > 0) {
+    await removeDockerObjects(target, ["config", "rm", ...resources.configs], onLog, execute);
+  }
+  if (resources.secrets.length > 0) {
+    await removeDockerObjects(target, ["secret", "rm", ...resources.secrets], onLog, execute);
+  }
 }

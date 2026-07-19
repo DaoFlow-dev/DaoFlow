@@ -5,6 +5,7 @@ import { gitProviders } from "../schema/git-providers";
 import { projects } from "../schema/projects";
 import { newId } from "./json-helpers";
 import { createEnvironment, createProject } from "./projects";
+import { createService } from "./services";
 
 let fixtureCounter = 0;
 
@@ -79,13 +80,28 @@ export async function createProviderFeedbackFixture(input?: {
     })
     .where(eq(projects.id, projectResult.project.id));
 
+  const serviceName = `provider-feedback-service-${suffix}`;
+  const serviceResult = await createService({
+    name: serviceName,
+    projectId: projectResult.project.id,
+    environmentId: environmentResult.environment.id,
+    sourceType: "compose",
+    targetServerId: serverId,
+    teamId,
+    ...actor
+  });
+  if (serviceResult.status !== "ok") {
+    throw new Error("Failed to create provider feedback service fixture.");
+  }
+
   const deploymentId = newId();
   await db.insert(deployments).values({
     id: deploymentId,
     projectId: projectResult.project.id,
     environmentId: environmentResult.environment.id,
     targetServerId: serverId,
-    serviceName: `provider-feedback-service-${suffix}`,
+    serviceId: serviceResult.service.id,
+    serviceName,
     sourceType: "compose",
     commitSha: "0123456789012345678901234567890123456789",
     imageTag: "ghcr.io/daoflow/provider-feedback:test",

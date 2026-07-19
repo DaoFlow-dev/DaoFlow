@@ -1,6 +1,7 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "../db/connection";
-import { projects } from "../db/schema/projects";
+import { environments, projects } from "../db/schema/projects";
+import { services } from "../db/schema/services";
 import { cleanupStagingDir } from "./docker-executor";
 import { resolveExecutionTarget, withPreparedExecutionTarget } from "./execution-target";
 import { createLogStreamer } from "./log-streamer";
@@ -23,6 +24,7 @@ import { DeploymentCancellationError } from "../deployment-cancellation";
 import { buildDockerContainerName } from "../docker-identifiers";
 import { getServerForTeam } from "../db/services/team-scoped-servers";
 import { DeploymentLifecycleStatus } from "@daoflow/shared";
+import { assertDockerOwnershipIdentity, type DockerOwnershipIdentity } from "../docker-ownership";
 import { recordDeploymentFailureEvidence } from "./deployment-failure-evidence";
 
 const DEFAULT_DEPLOY_TIMEOUT_MS = 24 * 60 * 60_000;
@@ -57,33 +59,55 @@ function throwIfExecutionAborted(signal?: AbortSignal): void {
   signal?.throwIfAborted();
 }
 
+async function resolveDeploymentOwnership(
+  deployment: DeploymentRow
+): Promise<DockerOwnershipIdentity> {
+  const matches = await db
+    .select({
+      teamId: projects.teamId,
+      projectId: projects.id,
+      environmentId: environments.id,
+      serviceId: services.id
+    })
+    .from(projects)
+    .innerJoin(
+      environments,
+      and(eq(environments.id, deployment.environmentId), eq(environments.projectId, projects.id))
+    )
+    .innerJoin(
+      services,
+      and(
+        eq(services.id, deployment.serviceId),
+        eq(services.projectId, projects.id),
+        eq(services.environmentId, environments.id)
+      )
+    )
+    .where(eq(projects.id, deployment.projectId))
+    .limit(2);
+
+  if (matches.length !== 1) {
+    throw new Error(
+      `Deployment ${deployment.id} does not resolve to exactly one matching project, environment, and service.`
+    );
+  }
+
+  const match = matches[0];
+  return assertDockerOwnershipIdentity({
+    teamId: match.teamId,
+    projectId: match.projectId,
+    environmentId: match.environmentId,
+    serviceId: match.serviceId,
+    deploymentId: deployment.id
+  });
+}
+
 export async function runDeployment(
   deployment: DeploymentRow,
   actorLabel = "execution-worker",
   signal?: AbortSignal,
   timeoutMs = DEPLOY_TIMEOUT_MS
 ): Promise<"succeeded" | "cancelled"> {
-  const config = readConfig(deployment);
   const { onLog, flush } = createLogStreamer(deployment.id, actorLabel);
-
-  const projectName = config.projectName ?? deployment.serviceName.replace(/[^a-zA-Z0-9_-]/g, "_");
-  const composeProjectName = config.stackName ?? projectName;
-  const containerName = buildDockerContainerName(projectName, deployment.serviceName);
-  const [project] = await db
-    .select({ teamId: projects.teamId })
-    .from(projects)
-    .where(eq(projects.id, deployment.projectId))
-    .limit(1);
-  if (!project) {
-    throw new Error(`Project ${deployment.projectId} not found`);
-  }
-  const server = await getServerForTeam(deployment.targetServerId, project.teamId);
-
-  if (!server) {
-    throw new Error(`Target server ${deployment.targetServerId} not found`);
-  }
-
-  const target = await resolveExecutionTarget(server, deployment.id, project.teamId);
   const executionController = new AbortController();
   const abortFromCaller = () => executionController.abort(signal?.reason);
   if (signal?.aborted) {
@@ -104,6 +128,19 @@ export async function runDeployment(
   }, DEPLOYMENT_PROGRESS_HEARTBEAT_MS);
 
   try {
+    const config = readConfig(deployment);
+    const projectName =
+      config.projectName ?? deployment.serviceName.replace(/[^a-zA-Z0-9_-]/g, "_");
+    const composeProjectName = config.stackName ?? projectName;
+    const containerName = buildDockerContainerName(projectName, deployment.serviceName);
+    const ownership = await resolveDeploymentOwnership(deployment);
+    const server = await getServerForTeam(deployment.targetServerId, ownership.teamId);
+
+    if (!server) {
+      throw new Error(`Target server ${deployment.targetServerId} not found`);
+    }
+
+    const target = await resolveExecutionTarget(server, deployment.id, ownership.teamId);
     throwIfExecutionAborted(executionSignal);
     await throwIfDeploymentCancellationRequested(deployment.id);
     if (deployment.status !== DeploymentLifecycleStatus.Waiting) {
@@ -124,6 +161,7 @@ export async function runDeployment(
           deployment,
           config,
           composeProjectName,
+          ownership,
           onLog,
           preparedTarget,
           executionSignal
@@ -138,6 +176,7 @@ export async function runDeployment(
           deployment,
           config,
           containerName,
+          ownership,
           onLog,
           preparedTarget,
           executionSignal
@@ -152,6 +191,7 @@ export async function runDeployment(
           deployment,
           config,
           containerName,
+          ownership,
           onLog,
           preparedTarget,
           executionSignal
@@ -166,6 +206,7 @@ export async function runDeployment(
           deployment,
           config,
           containerName,
+          ownership,
           onLog,
           preparedTarget,
           executionSignal
@@ -180,6 +221,7 @@ export async function runDeployment(
           deployment,
           config,
           containerName,
+          ownership,
           onLog,
           preparedTarget,
           executionSignal

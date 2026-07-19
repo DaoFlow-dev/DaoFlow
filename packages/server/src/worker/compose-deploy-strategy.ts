@@ -15,8 +15,7 @@ import { waitForComposeHealthy, waitForSwarmStackHealthy } from "./compose-deplo
 import {
   runComposeBuildOperation,
   runComposePullOperation,
-  runComposeStartOperation,
-  runComposeStopOperation
+  runComposeStartOperation
 } from "./compose-deploy-operations";
 import { type OnLog } from "./docker-executor";
 import type { ExecutionTarget } from "./execution-target";
@@ -31,6 +30,13 @@ import {
 } from "./step-management";
 import { throwIfDeploymentCancellationRequested } from "../db/services/deployment-execution-control";
 import { withDeploymentBuildLease } from "./deployment-build-lease";
+import type { DockerOwnershipIdentity } from "../docker-ownership";
+import { assertComposeRuntimeOwnership } from "./compose-runtime-ownership";
+import {
+  cleanupComposeProjectRuntime,
+  cleanupSwarmStackRuntime,
+  executeDockerTargetCommand
+} from "./runtime-cleanup";
 
 function isSwarmManagerTarget(target: ExecutionTarget): boolean {
   return target.serverKind === "docker-swarm-manager";
@@ -51,6 +57,7 @@ export async function executeComposeDeployment(
   deployment: DeploymentRow,
   config: ConfigSnapshot,
   projectName: string,
+  ownership: DockerOwnershipIdentity,
   onLog: OnLog,
   target: ExecutionTarget,
   signal?: AbortSignal
@@ -92,6 +99,7 @@ export async function executeComposeDeployment(
       onLog,
       deploymentComposeState,
       deployment.commitSha ?? undefined,
+      ownership,
       signal
     );
     workDir = workspace.workDir;
@@ -115,6 +123,15 @@ export async function executeComposeDeployment(
   await markStepComplete(cloneStepId, `Workspace ready at ${workDir}`);
   await throwIfDeploymentCancellationRequested(deployment.id);
 
+  const runtimeOwnership = await assertComposeRuntimeOwnership({
+    kind: swarmManagerTarget ? "swarm" : "compose",
+    runtimeName: projectName,
+    ownershipScopes: [ownership],
+    target,
+    onLog,
+    execute: executeDockerTargetCommand
+  });
+
   const composeImageReferences = collectComposeImageReferences(composeBuildPlan, config);
   const pullRegistryCredentials = await listContainerRegistryCredentialsForProjectImageReferences(
     deployment.projectId,
@@ -133,29 +150,30 @@ export async function executeComposeDeployment(
     );
     await markStepRunning(stopStepId);
 
-    const downResult = await runComposeStopOperation({
-      swarmManagerTarget,
-      target,
-      projectName,
-      workDir,
-      composeFile,
-      onLog,
-      composeEnvFile,
-      composeEnvExportFile,
-      signal
-    });
-    if (downResult.exitCode !== 0) {
-      await markStepFailed(
-        stopStepId,
-        swarmManagerTarget
-          ? `docker stack rm exited with code ${downResult.exitCode}`
-          : `docker compose down exited with code ${downResult.exitCode}`
-      );
-      throw new Error(
-        swarmManagerTarget
-          ? `docker stack rm failed with exit code ${downResult.exitCode}`
-          : `docker compose down failed with exit code ${downResult.exitCode}`
-      );
+    try {
+      if (swarmManagerTarget) {
+        await cleanupSwarmStackRuntime(
+          target,
+          projectName,
+          [ownership],
+          onLog,
+          executeDockerTargetCommand,
+          runtimeOwnership
+        );
+      } else {
+        await cleanupComposeProjectRuntime(
+          target,
+          projectName,
+          [ownership],
+          onLog,
+          executeDockerTargetCommand,
+          runtimeOwnership
+        );
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      await markStepFailed(stopStepId, message);
+      throw error;
     }
 
     await markStepComplete(
@@ -253,6 +271,23 @@ export async function executeComposeDeployment(
   );
   nextSortOrder += 1;
   await markStepRunning(deployStepId);
+
+  // Pulls and builds can take long enough for runtime ownership to change. Recheck immediately
+  // before Compose or Swarm is allowed to modify the target runtime.
+  try {
+    await assertComposeRuntimeOwnership({
+      kind: swarmManagerTarget ? "swarm" : "compose",
+      runtimeName: projectName,
+      ownershipScopes: [ownership],
+      target,
+      onLog,
+      execute: executeDockerTargetCommand
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    await markStepFailed(deployStepId, message);
+    throw error;
+  }
 
   const upResult = await runComposeStartOperation({
     swarmManagerTarget,

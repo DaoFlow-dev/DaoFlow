@@ -1,0 +1,1 @@
+ALTER TABLE "deployments" ALTER COLUMN "service_id" SET NOT NULL;

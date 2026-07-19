@@ -10,6 +10,7 @@ function makeDeployment(
     projectId: "proj_recovery_1",
     environmentId: "env_recovery_1",
     targetServerId: "srv_foundation_1",
+    serviceId: "svc_recovery_1",
     serviceName: "control-plane",
     sourceType: "compose",
     commitSha: null,

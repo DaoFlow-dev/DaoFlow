@@ -16,6 +16,7 @@ import {
 } from "./server-operation-runtime";
 import {
   collectHostResourceSnapshot,
+  type HostResourceSnapshot,
   type CleanupPreview,
   type CleanupRunResult,
   type PatchPlan,
@@ -24,11 +25,20 @@ import {
   runHostCleanup
 } from "../../worker/server-host-operations";
 import { resolveExecutionTarget, withPreparedExecutionTarget } from "../../worker/execution-target";
+import { inspectDockerOwnedResources } from "../../worker/docker-owned-resource-inspection";
+import {
+  reconcileDockerOwnership,
+  type DockerOwnershipReconciliationReport
+} from "./docker-ownership-reconciliation";
 
 export type { ServerOperationActor } from "./server-operation-runtime";
 export { appendOperationLog } from "./server-operation-runtime";
 
 const CLEANUP_PREVIEW_WINDOW_MS = 30 * 60 * 1000;
+
+interface ServerResourceSnapshot extends HostResourceSnapshot {
+  ownership: DockerOwnershipReconciliationReport;
+}
 
 export async function getServerOperationsHub(serverId: string, teamId: string, limit = 20) {
   const server = await readServer(serverId);
@@ -87,12 +97,22 @@ export async function collectServerResources(input: {
     permissionScope: "server:read",
     startSummary: "Collecting host resource inventory.",
     action: "server.resources.check",
-    successSummary: () => "Collected host CPU, memory, disk, and Docker disk usage.",
+    successSummary: (result: ServerResourceSnapshot) =>
+      `Collected host resources and reconciled ${result.ownership.resources.length} DaoFlow-managed Docker resources.`,
     execute: async (server) => {
       const target = await resolveExecutionTarget(server, `serverop_${Date.now()}`, input.teamId);
-      return withPreparedExecutionTarget(target, (preparedTarget) =>
-        collectHostResourceSnapshot(preparedTarget)
-      );
+      return withPreparedExecutionTarget(target, async (preparedTarget) => {
+        const [host, observedOwnership] = await Promise.all([
+          collectHostResourceSnapshot(preparedTarget),
+          inspectDockerOwnedResources(preparedTarget)
+        ]);
+        const ownership = await reconcileDockerOwnership({
+          snapshot: observedOwnership,
+          expectedTeamId: input.teamId,
+          serverId: server.id
+        });
+        return { ...host, ownership };
+      });
     }
   });
 }

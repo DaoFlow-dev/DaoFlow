@@ -26,6 +26,8 @@ import {
 } from "./compose-inputs-shared";
 import { applyManagedTraefikRoutingToComposeDoc } from "./managed-traefik-compose";
 import type { ManagedTraefikRoutingPlan } from "./managed-traefik";
+import { applyDockerOwnershipToComposeDoc } from "./docker-ownership-compose";
+import type { DockerOwnershipIdentity } from "./docker-ownership";
 import {
   applyManagedServiceLoggingToComposeDocument,
   type ServiceRuntimeLogging
@@ -42,6 +44,7 @@ interface MaterializeComposeInputsOptions {
   existingBuildPlan?: ComposeBuildPlan;
   imageOverride?: ComposeImageOverrideRequest;
   managedTraefikRouting?: ManagedTraefikRoutingPlan | null;
+  ownership?: DockerOwnershipIdentity;
   managedServiceLogging?: {
     serviceName: string;
     logging: ServiceRuntimeLogging | null;
@@ -124,6 +127,9 @@ function materializeExistingFrozenComposeInputs(
         ownership?.version === 1 &&
         ownership.serviceName === input.managedServiceLogging.serviceName
     });
+  }
+  if (input.ownership) {
+    applyDockerOwnershipToComposeDoc(doc, input.ownership);
   }
   const buildPlan = buildComposeBuildPlan(doc, input.existingBuildPlan?.warnings ?? []);
   const managedServiceLoggingOwnership = resolveManagedServiceLoggingOwnership(input);
@@ -224,6 +230,9 @@ function materializeFreshComposeInputs(
       ...input.managedServiceLogging,
       trustManagedMarker: false
     });
+  }
+  if (input.ownership) {
+    applyDockerOwnershipToComposeDoc(doc, input.ownership);
   }
   const buildPlan = buildComposeBuildPlan(doc, buildWarnings);
   const services =

@@ -6,6 +6,7 @@ import {
   pgTable,
   text,
   timestamp,
+  uniqueIndex,
   varchar
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
@@ -66,6 +67,10 @@ export const serviceScheduleRuns = pgTable(
       .notNull()
       .references(() => services.id, { onDelete: "cascade" }),
     triggerKind: varchar("trigger_kind", { length: 20 }).notNull(),
+    scheduledFor: timestamp("scheduled_for"),
+    leaseGeneration: integer("lease_generation"),
+    leaseHolderInstanceId: varchar("lease_holder_instance_id", { length: 32 }),
+    runnerInstanceId: varchar("runner_instance_id", { length: 32 }),
     status: varchar("status", { length: 20 }).default("queued").notNull(),
     command: text("command").notNull(),
     logs: text("logs").default("").notNull(),
@@ -85,8 +90,25 @@ export const serviceScheduleRuns = pgTable(
     index("service_schedule_runs_schedule_idx").on(table.scheduleId),
     index("service_schedule_runs_service_idx").on(table.serviceId),
     index("service_schedule_runs_status_idx").on(table.status),
-    index("service_schedule_runs_created_idx").on(table.createdAt)
+    index("service_schedule_runs_created_idx").on(table.createdAt),
+    uniqueIndex("service_schedule_runs_schedule_scheduled_for_unique").on(
+      table.scheduleId,
+      table.scheduledFor
+    )
   ]
+);
+
+export const serviceScheduleMonitorLeases = pgTable(
+  "service_schedule_monitor_leases",
+  {
+    key: varchar("lease_key", { length: 32 }).primaryKey(),
+    holderInstanceId: varchar("holder_instance_id", { length: 32 }).notNull(),
+    generation: integer("generation").notNull(),
+    acquiredAt: timestamp("acquired_at", { withTimezone: true }).notNull(),
+    renewedAt: timestamp("renewed_at", { withTimezone: true }).notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull()
+  },
+  (table) => [index("service_schedule_monitor_leases_expires_idx").on(table.expiresAt)]
 );
 
 export const serviceSchedulesRelations = relations(serviceSchedules, ({ one, many }) => ({

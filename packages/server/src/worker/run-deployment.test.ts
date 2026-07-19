@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { db } from "../db/connection";
 import { deployments } from "../db/schema/deployments";
 import { servers } from "../db/schema/servers";
+import { services } from "../db/schema/services";
 import { createEnvironment, createProject } from "../db/services/projects";
 import { createService } from "../db/services/services";
 import { cancelDeployment } from "../db/services/deployments";
@@ -12,7 +13,10 @@ const {
   cleanupStagingDirMock,
   createLogStreamerMock,
   executeComposeDeploymentMock,
+  executeDockerfileDeploymentMock,
   executeImageDeploymentMock,
+  executeNixpacksDeploymentMock,
+  executeBuildpackDeploymentMock,
   recordDeploymentFailureEvidenceMock,
   resolveExecutionTargetMock,
   withPreparedExecutionTargetMock
@@ -31,7 +35,10 @@ const {
     }
   ),
   executeComposeDeploymentMock: vi.fn(),
+  executeDockerfileDeploymentMock: vi.fn(),
   executeImageDeploymentMock: vi.fn(),
+  executeNixpacksDeploymentMock: vi.fn(),
+  executeBuildpackDeploymentMock: vi.fn(),
   recordDeploymentFailureEvidenceMock: vi.fn(),
   cleanupStagingDirMock: vi.fn()
 }));
@@ -47,8 +54,10 @@ vi.mock("./execution-target", () => ({
 
 vi.mock("./deploy-strategies", () => ({
   executeComposeDeployment: executeComposeDeploymentMock,
-  executeDockerfileDeployment: vi.fn(),
-  executeImageDeployment: executeImageDeploymentMock
+  executeDockerfileDeployment: executeDockerfileDeploymentMock,
+  executeImageDeployment: executeImageDeploymentMock,
+  executeNixpacksDeployment: executeNixpacksDeploymentMock,
+  executeBuildpackDeployment: executeBuildpackDeploymentMock
 }));
 
 vi.mock("./docker-executor", () => ({
@@ -90,7 +99,7 @@ async function createDeploymentRecordFixture(sourceType: "compose" | "image" = "
     name: `run-svc-${Date.now()}`,
     projectId: projectResult.project.id,
     environmentId: environmentResult.environment.id,
-    sourceType: "compose",
+    sourceType,
     targetServerId: "srv_foundation_1",
     requestedByUserId: "user_foundation_owner",
     requestedByEmail: "owner@daoflow.local",
@@ -107,6 +116,7 @@ async function createDeploymentRecordFixture(sourceType: "compose" | "image" = "
     projectId: projectResult.project.id,
     environmentId: environmentResult.environment.id,
     targetServerId: "srv_foundation_1",
+    serviceId: serviceResult.service.id,
     serviceName: serviceResult.service.name,
     sourceType,
     commitSha: "1111111111111111111111111111111111111111",
@@ -198,6 +208,11 @@ describe("runDeployment", () => {
       deployment,
       expect.any(Object),
       expect.any(String),
+      expect.objectContaining({
+        teamId: "team_foundation",
+        projectId: deployment.projectId,
+        environmentId: deployment.environmentId
+      }),
       expect.any(Function),
       expect.objectContaining({
         serverKind: "docker-swarm-manager"
@@ -217,6 +232,11 @@ describe("runDeployment", () => {
       deployment,
       expect.any(Object),
       expect.stringMatching(/^run-deployment-\d+-run-svc-\d+$/),
+      expect.objectContaining({
+        teamId: "team_foundation",
+        projectId: deployment.projectId,
+        environmentId: deployment.environmentId
+      }),
       expect.any(Function),
       expect.any(Object),
       expect.any(AbortSignal)
@@ -228,7 +248,7 @@ describe("runDeployment", () => {
     let strategySignal: AbortSignal | undefined;
     executeComposeDeploymentMock.mockImplementationOnce(
       async (...args: Parameters<typeof executeComposeDeploymentMock>) => {
-        strategySignal = args[5] as AbortSignal;
+        strategySignal = args[6] as AbortSignal;
         await new Promise<void>((_resolve, reject) => {
           strategySignal?.addEventListener(
             "abort",
@@ -259,6 +279,54 @@ describe("runDeployment", () => {
     expect(updated?.status).toBe("failed");
     expect(updated?.conclusion).toBe("failed");
     expect(cleanupStagingDirMock).toHaveBeenCalledWith(deployment.id);
+  });
+
+  it("fails closed before strategy execution when the immutable deployment service is missing", async () => {
+    const deployment = await createDeploymentRecordFixture();
+
+    await expect(
+      (await import("./run-deployment")).runDeployment(
+        { ...deployment, serviceId: "service_missing" },
+        "test-worker"
+      )
+    ).rejects.toThrow("does not resolve to exactly one matching project, environment, and service");
+
+    expect(executeComposeDeploymentMock).not.toHaveBeenCalled();
+    expect(executeDockerfileDeploymentMock).not.toHaveBeenCalled();
+    expect(executeImageDeploymentMock).not.toHaveBeenCalled();
+    expect(executeNixpacksDeploymentMock).not.toHaveBeenCalled();
+    expect(executeBuildpackDeploymentMock).not.toHaveBeenCalled();
+
+    const [updated] = await db
+      .select()
+      .from(deployments)
+      .where(eq(deployments.id, deployment.id))
+      .limit(1);
+    expect(updated).toMatchObject({ status: "failed", conclusion: "failed" });
+    expect(recordDeploymentFailureEvidenceMock).toHaveBeenCalledWith(
+      expect.objectContaining({ id: deployment.id }),
+      expect.objectContaining({
+        message: expect.stringContaining(
+          "does not resolve to exactly one matching project, environment, and service"
+        )
+      }),
+      "test-worker"
+    );
+  });
+
+  it("uses the immutable deployment service after mutable service fields change", async () => {
+    const deployment = await createDeploymentRecordFixture();
+    await db
+      .update(services)
+      .set({ name: "renamed-service", sourceType: "image" })
+      .where(eq(services.id, deployment.serviceId));
+
+    await expect(
+      (await import("./run-deployment")).runDeployment(deployment, "test-worker")
+    ).resolves.toBe("succeeded");
+
+    expect(executeComposeDeploymentMock).toHaveBeenCalledOnce();
+    expect(executeImageDeploymentMock).not.toHaveBeenCalled();
   });
 
   it("preserves the deployment failure when supplementary evidence persistence fails", async () => {

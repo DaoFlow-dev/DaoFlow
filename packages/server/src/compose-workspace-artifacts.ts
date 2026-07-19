@@ -19,6 +19,7 @@ import {
 } from "./compose-inputs";
 import { readManagedTraefikRoutingPlan } from "./managed-traefik";
 import type { DeploymentComposeEnvState, DeploymentComposeState } from "./db/services/compose-env";
+import type { DockerOwnershipIdentity } from "./docker-ownership";
 import type { ServiceRuntimeLogging } from "./service-runtime-config";
 
 export interface MaterializedComposeWorkspaceArtifacts {
@@ -108,6 +109,7 @@ export function materializeComposeWorkspaceArtifacts(input: {
   existingComposeEnv?: ComposeEnvEvidence;
   existingComposeInputs?: ComposeInputManifest;
   managedTraefikRouting?: unknown;
+  ownership?: DockerOwnershipIdentity;
   managedServiceLogging?: {
     serviceName: string;
     logging: ServiceRuntimeLogging | null;
@@ -132,6 +134,7 @@ export function materializeComposeWorkspaceArtifacts(input: {
     existingManifest: input.existingComposeInputs,
     existingFrozenInputs: input.deploymentState.frozenInputs,
     managedTraefikRouting: readManagedTraefikRoutingPlan(input.managedTraefikRouting),
+    ownership: input.ownership,
     managedServiceLogging: input.managedServiceLogging
   });
 

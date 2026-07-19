@@ -13,6 +13,7 @@ function createDeploymentFixture(overrides?: Partial<DeploymentRow>): Deployment
     projectId: "proj_1",
     environmentId: "env_1",
     targetServerId: "srv_1",
+    serviceId: "svc_1",
     serviceName: "api",
     sourceType: "compose",
     commitSha: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",

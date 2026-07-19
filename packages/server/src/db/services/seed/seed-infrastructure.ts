@@ -2,6 +2,7 @@ import { encrypt } from "../../crypto";
 import { servers } from "../../schema/servers";
 import { sshHostIdentities } from "../../schema/ssh-host-identities";
 import { projects, environments, environmentVariables } from "../../schema/projects";
+import { services } from "../../schema/services";
 import { volumes } from "../../schema/storage";
 import { daysBefore, minutesBefore } from "./seed-helpers";
 import type { SeedTransaction } from "./seed-types";
@@ -330,6 +331,74 @@ export async function seedInfrastructure(tx: SeedTransaction) {
             }
           ]
         },
+        createdAt: daysBefore(20),
+        updatedAt: minutesBefore(7)
+      }
+    ])
+    .onConflictDoNothing();
+
+  await tx
+    .insert(services)
+    .values([
+      {
+        id: "svc_daoflow_prod_control",
+        name: "control-plane",
+        slug: "control-plane",
+        projectId: "proj_daoflow_control_plane",
+        environmentId: "env_daoflow_production",
+        targetServerId: "srv_foundation_1",
+        sourceType: "compose",
+        imageReference: "ghcr.io/daoflow/control-plane:0.1.0",
+        composeServiceName: "control-plane",
+        healthcheckPath: "/healthz",
+        status: "active",
+        config: {},
+        createdAt: daysBefore(30),
+        updatedAt: minutesBefore(3)
+      },
+      {
+        id: "svc_daoflow_staging_control",
+        name: "control-plane",
+        slug: "control-plane",
+        projectId: "proj_daoflow_control_plane",
+        environmentId: "env_daoflow_staging",
+        targetServerId: "srv_foundation_1",
+        sourceType: "compose",
+        imageReference: "ghcr.io/daoflow/control-plane:staging",
+        composeServiceName: "control-plane",
+        healthcheckPath: "/healthz",
+        status: "inactive",
+        config: {},
+        createdAt: daysBefore(24),
+        updatedAt: minutesBefore(9)
+      },
+      {
+        id: "svc_daoflow_staging_edge",
+        name: "edge-worker",
+        slug: "edge-worker",
+        projectId: "proj_daoflow_control_plane",
+        environmentId: "env_daoflow_staging",
+        targetServerId: "srv_foundation_1",
+        sourceType: "dockerfile",
+        dockerfilePath: "Dockerfile",
+        status: "inactive",
+        config: {},
+        createdAt: daysBefore(24),
+        updatedAt: minutesBefore(9)
+      },
+      {
+        id: "svc_agent_bridge_lab_runtime",
+        name: "agent-runtime",
+        slug: "agent-runtime",
+        projectId: "proj_agent_bridge",
+        environmentId: "env_agent_bridge_lab",
+        targetServerId: "srv_foundation_1",
+        sourceType: "compose",
+        imageReference: "ghcr.io/daoflow/agent-runtime:0.5.0",
+        composeServiceName: "agent-runtime",
+        healthcheckPath: "/ready",
+        status: "inactive",
+        config: {},
         createdAt: daysBefore(20),
         updatedAt: minutesBefore(7)
       }

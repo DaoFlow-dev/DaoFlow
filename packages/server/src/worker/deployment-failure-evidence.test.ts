@@ -51,6 +51,7 @@ async function createFixture() {
       projectId: project.project.id,
       environmentId: environment.environment.id,
       targetServerId: "srv_foundation_1",
+      serviceId: service.service.id,
       serviceName: service.service.name,
       sourceType: "image",
       imageTag: "missing.invalid/example:never",

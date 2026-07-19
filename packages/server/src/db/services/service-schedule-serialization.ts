@@ -18,6 +18,7 @@ export function serializeServiceScheduleRun(row: typeof serviceScheduleRuns.$inf
     result: asRecord(row.result),
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
+    scheduledFor: row.scheduledFor?.toISOString() ?? null,
     startedAt: row.startedAt?.toISOString() ?? null,
     finishedAt: row.finishedAt?.toISOString() ?? null
   };

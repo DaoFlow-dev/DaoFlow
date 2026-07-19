@@ -25,6 +25,9 @@ export const deployments = pgTable(
     targetServerId: varchar("target_server_id", { length: 32 })
       .notNull()
       .references(() => servers.id),
+    // This is intentionally not a foreign key: deployment history must retain
+    // the service identity after the service itself has been removed.
+    serviceId: varchar("service_id", { length: 32 }).notNull(),
     serviceName: varchar("service_name", { length: 80 }).notNull(),
     sourceType: varchar("source_type", { length: 20 }).notNull(), // compose | dockerfile | image
     commitSha: varchar("commit_sha", { length: 40 }),
@@ -54,6 +57,7 @@ export const deployments = pgTable(
     index("deployments_project_id_idx").on(table.projectId),
     index("deployments_environment_id_idx").on(table.environmentId),
     index("deployments_server_id_idx").on(table.targetServerId),
+    index("deployments_service_id_idx").on(table.serviceId),
     index("deployments_status_idx").on(table.status),
     uniqueIndex("deployments_webhook_delivery_target_idx").on(
       table.webhookDeliveryId,

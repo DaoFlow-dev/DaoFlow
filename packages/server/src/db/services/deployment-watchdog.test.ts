@@ -61,6 +61,7 @@ async function createWatchdogFixture(serviceName: string) {
   return {
     projectId: projectResult.project.id,
     environmentId: environmentResult.environment.id,
+    serviceId: serviceResult.service.id,
     serviceName: serviceResult.service.name
   };
 }
@@ -80,6 +81,7 @@ describe("deployment watchdog", () => {
       projectId: fixture.projectId,
       environmentId: fixture.environmentId,
       targetServerId: "srv_foundation_1",
+      serviceId: fixture.serviceId,
       serviceName: fixture.serviceName,
       sourceType: "compose",
       commitSha: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -155,6 +157,7 @@ describe("deployment watchdog", () => {
         projectId: fixture.projectId,
         environmentId: fixture.environmentId,
         targetServerId: "srv_foundation_1",
+        serviceId: fixture.serviceId,
         serviceName: fixture.serviceName,
         sourceType: "compose",
         commitSha: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
@@ -169,6 +172,7 @@ describe("deployment watchdog", () => {
         projectId: fixture.projectId,
         environmentId: fixture.environmentId,
         targetServerId: "srv_foundation_1",
+        serviceId: fixture.serviceId,
         serviceName: `${fixture.serviceName}-done`,
         sourceType: "compose",
         commitSha: "cccccccccccccccccccccccccccccccccccccccc",
@@ -207,6 +211,7 @@ describe("deployment watchdog", () => {
       projectId: fixture.projectId,
       environmentId: fixture.environmentId,
       targetServerId: "srv_foundation_1",
+      serviceId: fixture.serviceId,
       serviceName: fixture.serviceName,
       sourceType: "dockerfile",
       status: "deploy",

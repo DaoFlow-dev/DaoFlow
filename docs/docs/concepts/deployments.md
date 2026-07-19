@@ -44,6 +44,31 @@ DaoFlow now keeps three operator-facing views of deployment truth:
 
 The dashboard exposes these sections directly in deployment details, and operators can copy or download the JSON artifact for debugging and recovery.
 
+## Docker Resource Ownership
+
+Every Docker resource created by a DaoFlow deployment carries an identifier-only ownership record:
+
+```text
+io.daoflow.managed=true
+io.daoflow.team-id=<id>
+io.daoflow.project-id=<id>
+io.daoflow.environment-id=<id>
+io.daoflow.service-id=<id>
+io.daoflow.deployment-id=<id>
+```
+
+DaoFlow applies the record to containers, locally built images, non-external Compose networks,
+managed named volumes, and Swarm services. Preview and rollback runs receive the identifier of the
+new immutable deployment attempt, rather than inheriting ownership from the release they replay.
+The service identifier is stored on that deployment record when it is queued, so a later service
+rename or source-type change cannot silently rebind historical Docker resources.
+
+Labels never contain names, environment values, credentials, or tokens. External Compose resources,
+bind mounts, and existing unlabeled Docker objects remain outside DaoFlow ownership. DaoFlow reports
+missing or inconsistent links for review, but does not silently adopt or delete those resources.
+When a direct-image deployment names a volume that already exists without ownership labels, DaoFlow
+uses it as an external volume and records that decision in the deployment log.
+
 ## Compose Drift Containment
 
 `daoflow drift` is a read-only, team-scoped endpoint that requires `deploy:read`. In the current containment phase, DaoFlow does not connect to Docker or SSH to inspect a host. Each result therefore states whether it is a `cached-snapshot` or `unavailable`, includes `attemptedAt`, `observedAt`, `maxAgeSeconds`, and `authoritative: false`, and never reports a service as currently aligned.

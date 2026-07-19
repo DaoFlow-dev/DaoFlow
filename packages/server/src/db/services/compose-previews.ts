@@ -62,9 +62,7 @@ async function loadComposePreviewHistoryForService(service: ComposePreviewHistor
     .from(deployments)
     .where(
       and(
-        eq(deployments.projectId, service.projectId),
-        eq(deployments.environmentId, service.environmentId),
-        eq(deployments.serviceName, service.name),
+        eq(deployments.serviceId, service.id),
         eq(deployments.sourceType, "compose"),
         sql`${deployments.configSnapshot} ? 'preview'`
       )

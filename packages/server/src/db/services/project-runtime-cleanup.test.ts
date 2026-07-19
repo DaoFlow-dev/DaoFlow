@@ -80,6 +80,7 @@ describe("cleanupProjectRuntime", () => {
       projectId: fixture.project.id,
       environmentId: fixture.environment.id,
       targetServerId: "srv_foundation_1",
+      serviceId: "svc_cleanup_api",
       serviceName: "api",
       sourceType: "compose",
       commitSha: "1234567890abcdef1234567890abcdef12345678",
@@ -143,6 +144,7 @@ describe("cleanupProjectRuntime", () => {
         projectId: fixture.project.id,
         environmentId: fixture.environment.id,
         targetServerId: "srv_foundation_1",
+        serviceId: "svc_cleanup_api",
         serviceName: "api",
         sourceType: "compose",
         commitSha: "1111111111111111111111111111111111111111",
@@ -163,6 +165,7 @@ describe("cleanupProjectRuntime", () => {
         projectId: fixture.project.id,
         environmentId: fixture.environment.id,
         targetServerId: "srv_foundation_1",
+        serviceId: "svc_cleanup_worker",
         serviceName: "worker",
         sourceType: "compose",
         commitSha: "2222222222222222222222222222222222222222",
@@ -183,6 +186,7 @@ describe("cleanupProjectRuntime", () => {
         projectId: fixture.project.id,
         environmentId: fixture.environment.id,
         targetServerId: "srv_foundation_1",
+        serviceId: "svc_cleanup_api",
         serviceName: "api",
         sourceType: "compose",
         commitSha: "3333333333333333333333333333333333333333",
@@ -203,6 +207,7 @@ describe("cleanupProjectRuntime", () => {
         projectId: fixture.project.id,
         environmentId: fixture.environment.id,
         targetServerId: swarmServerId,
+        serviceId: "svc_cleanup_api",
         serviceName: "api",
         sourceType: "compose",
         commitSha: "4444444444444444444444444444444444444444",
@@ -223,6 +228,7 @@ describe("cleanupProjectRuntime", () => {
         projectId: fixture.project.id,
         environmentId: fixture.environment.id,
         targetServerId: "srv_foundation_1",
+        serviceId: "svc_cleanup_jobs",
         serviceName: "jobs",
         sourceType: "image",
         commitSha: "5555555555555555555555555555555555555555",
@@ -257,21 +263,58 @@ describe("cleanupProjectRuntime", () => {
     expect(cleanupComposeProjectRuntimeMock).toHaveBeenCalledWith(
       expect.objectContaining({ mode: "remote" }),
       "demo",
+      expect.arrayContaining([
+        expect.objectContaining({
+          teamId: "team_foundation",
+          projectId: fixture.project.id,
+          environmentId: fixture.environment.id,
+          serviceId: "svc_cleanup_api"
+        }),
+        expect.objectContaining({
+          teamId: "team_foundation",
+          projectId: fixture.project.id,
+          environmentId: fixture.environment.id,
+          serviceId: "svc_cleanup_worker"
+        })
+      ]),
       expect.any(Function)
     );
     expect(cleanupComposeProjectRuntimeMock).toHaveBeenCalledWith(
       expect.objectContaining({ mode: "remote" }),
       "demo-pr-42",
+      expect.arrayContaining([
+        expect.objectContaining({
+          teamId: "team_foundation",
+          projectId: fixture.project.id,
+          environmentId: fixture.environment.id,
+          serviceId: "svc_cleanup_api"
+        })
+      ]),
       expect.any(Function)
     );
     expect(cleanupSwarmStackRuntimeMock).toHaveBeenCalledWith(
       expect.objectContaining({ mode: "remote", serverKind: "docker-swarm-manager" }),
       "demo-swarm",
+      expect.arrayContaining([
+        expect.objectContaining({
+          teamId: "team_foundation",
+          projectId: fixture.project.id,
+          environmentId: fixture.environment.id,
+          serviceId: "svc_cleanup_api"
+        })
+      ]),
       expect.any(Function)
     );
     expect(cleanupContainerRuntimeMock).toHaveBeenCalledWith(
       expect.objectContaining({ mode: "remote" }),
       expect.stringContaining("-jobs"),
+      expect.arrayContaining([
+        expect.objectContaining({
+          teamId: "team_foundation",
+          projectId: fixture.project.id,
+          environmentId: fixture.environment.id
+        })
+      ]),
       expect.any(Function)
     );
   });
