@@ -11,8 +11,22 @@ per-commit. Going forward, update this file in the same PR as the change.
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-07-18
+
 ### Added
 
+- Recoverable GitHub and GitLab webhook delivery attempts with per-target
+  outcomes, replay controls, and operator visibility without storing webhook
+  secrets or duplicating successful deployments.
+- Verified, encrypted control-plane recovery bundles with isolated verification
+  runs and offline restore support.
+- Per-server deployment and build capacity controls for safer operation on
+  smaller hosts.
+- A lean installation profile and direct Docker Compose project creation from
+  the CLI.
+- An MCP server for permission-aware, agent-native access to DaoFlow.
+- A production-readiness evidence gate and generated plain-language readiness
+  report for releases.
 - `CHANGELOG.md` and an explicit **1.0 exit criteria** section in the e2e roadmap.
 - `.agents/references/e2e-coverage-and-real-infra.md` documenting exactly which
   parts of the test suite exercise real Docker/SSH versus mocked execution, and a
@@ -22,10 +36,24 @@ per-commit. Going forward, update this file in the same PR as the change.
 
 ### Changed
 
+- Deployments, approvals, and source-control connections now enforce team scope
+  and stronger trust boundaries.
+- Destination credentials are encrypted before persistence.
+- The dependency baseline now uses TypeScript 7-compatible tooling and a stable
+  Bun CI configuration.
+- Database migrations were consolidated into a replay-safe production lineage
+  for clean installs and upgrades from supported pre-release schemas.
 - Deployment watchdog diagnosis now links its evidence to the exact persisted
   `events` and `deployment_logs` row IDs instead of an opaque static identifier
   (charter §10: "any AI-generated diagnosis must link back to exact log lines or
   event IDs").
+
+### Fixed
+
+- Initial-owner bootstrap, approval authorization, recovery verification, and
+  E2E isolation failures that could make production validation unreliable.
+- Production image and release workflows now validate readiness against a real
+  PostgreSQL service before publishing.
 
 ### Known gaps (documented, not yet fixed)
 
@@ -87,7 +115,8 @@ Stabilization and refactor series. Highlights:
 Early control-plane, CLI, deployment, and backup foundations. See git history
 (`git log v0.5.0..v0.8.0`) for detail.
 
-[Unreleased]: https://github.com/daoflow/daoflow/compare/v0.9.2...HEAD
+[Unreleased]: https://github.com/DaoFlow-dev/DaoFlow/compare/v0.10.0...HEAD
+[0.10.0]: https://github.com/DaoFlow-dev/DaoFlow/compare/v0.9.2...v0.10.0
 [0.9.2]: https://github.com/daoflow/daoflow/compare/v0.9.1...v0.9.2
 [0.9.1]: https://github.com/daoflow/daoflow/compare/v0.9.0...v0.9.1
 [0.9.0]: https://github.com/daoflow/daoflow/compare/v0.8.8...v0.9.0
