@@ -17,6 +17,8 @@ import {
   stopDevelopmentTaskWorker,
   startDevelopmentTaskWatchdogMonitor,
   stopDevelopmentTaskWatchdogMonitor,
+  startApprovalActionDispatchMonitor,
+  stopApprovalActionDispatchMonitor,
   startTemporalWorker,
   stopTemporalWorker,
   closeTemporalClient
@@ -189,6 +191,7 @@ async function start() {
   startServerReadinessMonitor();
   startDeploymentWatchdogMonitor();
   startDevelopmentTaskWatchdogMonitor();
+  startApprovalActionDispatchMonitor();
   startOperationalMaintenanceMonitor();
   startServiceScheduleMonitor();
 
@@ -197,6 +200,7 @@ async function start() {
     stopServerReadinessMonitor();
     stopDeploymentWatchdogMonitor();
     stopDevelopmentTaskWatchdogMonitor();
+    stopApprovalActionDispatchMonitor();
     stopOperationalMaintenanceMonitor();
     stopServiceScheduleMonitor();
     if (shouldStartDevelopmentTaskWorker()) {

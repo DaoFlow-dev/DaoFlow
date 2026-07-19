@@ -21,6 +21,10 @@ DaoFlow is configured through environment variables and a CLI config file.
 | `DAOFLOW_RECOVERY_ENCRYPTION_KEY`                    | Separate external key used to encrypt control-plane recovery bundles |
 | `DAOFLOW_PREVIOUS_RECOVERY_ENCRYPTION_KEY`           | Temporary old recovery key used during rotation                      |
 | `DAOFLOW_RCLONE_COMMAND_TIMEOUT_MS`                  | Recovery-object transfer timeout in milliseconds                     |
+| `APPROVAL_ACTION_DISPATCH_POLL_INTERVAL_MS`          | Durable approved-operation monitor interval in milliseconds          |
+| `DAOFLOW_APPROVAL_DISPATCH_MAX_ATTEMPTS`             | Maximum automatic submission attempts                                |
+| `DAOFLOW_APPROVAL_DISPATCH_RETRY_BASE_MS`            | Initial approved-operation retry window in milliseconds              |
+| `DAOFLOW_APPROVAL_DISPATCH_RETRY_MAX_MS`             | Maximum approved-operation retry window in milliseconds              |
 | `DAOFLOW_CONTROL_PLANE_RECOVERY_VERIFIER_STORAGE_MB` | Isolated recovery verifier limit in megabytes                        |
 
 ### Production `.env`
@@ -42,6 +46,10 @@ Most operators edit only these values:
 | `DAOFLOW_RECOVERY_ENCRYPTION_KEY`                    | unset                         | Dedicated recovery-bundle encryption key; store it outside the control-plane database               |
 | `DAOFLOW_PREVIOUS_RECOVERY_ENCRYPTION_KEY`           | unset                         | Temporary previous recovery key during a controlled key rotation                                    |
 | `DAOFLOW_RCLONE_COMMAND_TIMEOUT_MS`                  | `1800000`                     | Maximum time for one recovery-object transfer                                                       |
+| `APPROVAL_ACTION_DISPATCH_POLL_INTERVAL_MS`          | `5000`                        | Poll interval for durable approved-operation submission and completion checks                       |
+| `DAOFLOW_APPROVAL_DISPATCH_MAX_ATTEMPTS`             | `12`                          | Automatic submission attempts before a dispatch reaches terminal failure                            |
+| `DAOFLOW_APPROVAL_DISPATCH_RETRY_BASE_MS`            | `1000`                        | Initial full-jitter retry window for a temporary submission failure                                 |
+| `DAOFLOW_APPROVAL_DISPATCH_RETRY_MAX_MS`             | `300000`                      | Maximum full-jitter retry window for a temporary submission failure                                 |
 | `DAOFLOW_CONTROL_PLANE_RECOVERY_VERIFIER_STORAGE_MB` | `4096`                        | Storage and memory ceiling for each isolated recovery verifier                                      |
 | `POSTGRES_PASSWORD`                                  | —                             | Password for the DaoFlow application database                                                       |
 | `TEMPORAL_POSTGRES_PASSWORD`                         | —                             | Password for Temporal's Postgres database                                                           |

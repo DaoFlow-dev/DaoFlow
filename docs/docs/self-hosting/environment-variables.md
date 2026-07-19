@@ -98,13 +98,17 @@ profile values in `.env`.
 
 ## Execution And Temporal
 
-| Variable                     | Default                               | Description                                                  |
-| ---------------------------- | ------------------------------------- | ------------------------------------------------------------ |
-| `DEPLOY_TIMEOUT_MS`          | `86400000`                            | Max queue-wait and execution time; expiry aborts active work |
-| `TEMPORAL_POSTGRES_PASSWORD` | unset in lean; required in temporal   | Temporal database password                                   |
-| `TEMPORAL_ADDRESS`           | `temporal:7233` in generated installs | Temporal connection target                                   |
-| `TEMPORAL_NAMESPACE`         | `daoflow`                             | Temporal namespace                                           |
-| `TEMPORAL_TASK_QUEUE`        | `daoflow-deployments`                 | Temporal task queue                                          |
+| Variable                                    | Default                               | Description                                                                 |
+| ------------------------------------------- | ------------------------------------- | --------------------------------------------------------------------------- |
+| `DEPLOY_TIMEOUT_MS`                         | `86400000`                            | Max queue-wait and execution time; expiry aborts active work                |
+| `TEMPORAL_POSTGRES_PASSWORD`                | unset in lean; required in temporal   | Temporal database password                                                  |
+| `TEMPORAL_ADDRESS`                          | `temporal:7233` in generated installs | Temporal connection target                                                  |
+| `TEMPORAL_NAMESPACE`                        | `daoflow`                             | Temporal namespace                                                          |
+| `TEMPORAL_TASK_QUEUE`                       | `daoflow-deployments`                 | Temporal task queue                                                         |
+| `APPROVAL_ACTION_DISPATCH_POLL_INTERVAL_MS` | `5000`                                | Durable approved-operation poll interval; values below 1000 use the default |
+| `DAOFLOW_APPROVAL_DISPATCH_MAX_ATTEMPTS`    | `12`                                  | Positive attempt limit before submission reaches terminal failure           |
+| `DAOFLOW_APPROVAL_DISPATCH_RETRY_BASE_MS`   | `1000`                                | Positive initial full-jitter retry window in milliseconds                   |
+| `DAOFLOW_APPROVAL_DISPATCH_RETRY_MAX_MS`    | `300000`                              | Positive maximum full-jitter retry window in milliseconds                   |
 
 On an existing install, rerunning the installer without `--workflow-profile` preserves the current
 choice and infers older installs from their existing Temporal settings. Switching from temporal to

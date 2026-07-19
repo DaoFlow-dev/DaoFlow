@@ -1,5 +1,6 @@
 import {
   index,
+  integer,
   jsonb,
   pgTable,
   serial,
@@ -93,6 +94,50 @@ export const approvalRequests = pgTable(
       .on(table.teamId, table.bindingKey)
       .where(sql`${table.bindingKey} is not null and ${table.status} = 'pending'`),
     index("approval_requests_created_at_idx").on(table.createdAt)
+  ]
+);
+
+export const approvalActionDispatches = pgTable(
+  "approval_action_dispatches",
+  {
+    id: varchar("id", { length: 32 }).primaryKey(),
+    approvalRequestId: varchar("approval_request_id", { length: 32 })
+      .notNull()
+      .references(() => approvalRequests.id, { onDelete: "cascade" }),
+    teamId: varchar("team_id", { length: 32 })
+      .notNull()
+      .references(() => teams.id, { onDelete: "cascade" }),
+    actionType: varchar("action_type", { length: 40 }).notNull(),
+    idempotencyKey: varchar("idempotency_key", { length: 64 }).notNull(),
+    operationId: varchar("operation_id", { length: 32 }).notNull(),
+    payloadVersion: integer("payload_version").default(1).notNull(),
+    payloadHash: varchar("payload_hash", { length: 64 }).notNull(),
+    actionPayload: jsonb("action_payload").notNull(),
+    status: varchar("status", { length: 20 }).default("pending").notNull(),
+    attemptCount: integer("attempt_count").default(0).notNull(),
+    leaseToken: varchar("lease_token", { length: 64 }),
+    leaseExpiresAt: timestamp("lease_expires_at"),
+    nextAttemptAt: timestamp("next_attempt_at").defaultNow().notNull(),
+    lastError: text("last_error"),
+    dispatchedAt: timestamp("dispatched_at"),
+    lastReconciledAt: timestamp("last_reconciled_at"),
+    completedAt: timestamp("completed_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull()
+  },
+  (table) => [
+    uniqueIndex("approval_action_dispatches_request_idx").on(table.approvalRequestId),
+    uniqueIndex("approval_action_dispatches_team_idempotency_idx").on(
+      table.teamId,
+      table.idempotencyKey
+    ),
+    index("approval_action_dispatches_status_next_attempt_idx").on(
+      table.status,
+      table.nextAttemptAt
+    ),
+    index("approval_action_dispatches_lease_expires_at_idx").on(table.leaseExpiresAt),
+    index("approval_action_dispatches_reconciliation_idx").on(table.status, table.lastReconciledAt),
+    index("approval_action_dispatches_operation_id_idx").on(table.operationId)
   ]
 );
 

@@ -91,7 +91,16 @@ describe("approvals command", () => {
                     decidedAt: null,
                     recommendedChecks: [
                       "Confirm the target volume is isolated from live writes before replaying snapshot data."
-                    ]
+                    ],
+                    dispatchStatus: "retrying",
+                    dispatchStatusLabel: "retrying",
+                    dispatchStatusTone: "running",
+                    operationId: "op_restore_123",
+                    dispatchAttempts: 2,
+                    dispatchError: "Temporal endpoint is temporarily unavailable.",
+                    dispatchNextAttemptAt: "2026-03-29T12:01:00.000Z",
+                    dispatchedAt: null,
+                    dispatchCompletedAt: null
                   }
                 ]
               }
@@ -149,7 +158,16 @@ describe("approvals command", () => {
             decidedAt: null,
             recommendedChecks: [
               "Confirm the target volume is isolated from live writes before replaying snapshot data."
-            ]
+            ],
+            dispatchStatus: "retrying",
+            dispatchStatusLabel: "retrying",
+            dispatchStatusTone: "running",
+            operationId: "op_restore_123",
+            dispatchAttempts: 2,
+            dispatchError: "Temporal endpoint is temporarily unavailable.",
+            dispatchNextAttemptAt: "2026-03-29T12:01:00.000Z",
+            dispatchedAt: null,
+            dispatchCompletedAt: null
           }
         ]
       }

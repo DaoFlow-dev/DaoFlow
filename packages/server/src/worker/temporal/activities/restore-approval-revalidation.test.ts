@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { copyFromRemoteAsyncMock, decryptDestinationMock } = vi.hoisted(() => ({
@@ -22,11 +22,12 @@ vi.mock("./destination-operation", () => ({
 
 import { db } from "../../../db/connection";
 import { approvalRequests } from "../../../db/schema/audit";
+import { backupDestinations } from "../../../db/schema/destinations";
 import { servers } from "../../../db/schema/servers";
 import { backupPolicies, backupRuns, volumes } from "../../../db/schema/storage";
-import { teams } from "../../../db/schema/teams";
+import { teamMembers, teams } from "../../../db/schema/teams";
 import { resetTestDatabaseWithControlPlane } from "../../../test-db";
-import { downloadBackupArtifact, type RestoreResolved } from "./restore-activities";
+import { downloadBackupArtifact, executeRestore, type RestoreResolved } from "./restore-activities";
 
 function suffix() {
   return randomUUID().replace(/-/g, "").slice(0, 8);
@@ -36,10 +37,25 @@ async function createApprovedRestoreFixture() {
   const id = suffix();
   const serverId = `srv_rr_${id}`;
   const volumeId = `vol_rr_${id}`;
+  const destinationId = `dst_rr_${id}`;
   const policyId = `bpol_rr_${id}`;
   const backupRunId = `brun_rr_${id}`;
   const approvalRequestId = `apr_rr_${id}`;
   const now = new Date();
+  const artifactPath = `revalidation-policy-${id}/backup.tar`;
+  const artifactChecksum = "a".repeat(64);
+
+  await db.insert(backupDestinations).values({
+    id: destinationId,
+    teamId: "team_foundation",
+    name: `revalidation-destination-${id}`,
+    provider: "local",
+    localPath: "/tmp/daoflow-restore-revalidation",
+    encryptionMode: "none",
+    metadata: {},
+    createdAt: now,
+    updatedAt: now
+  });
 
   await db.insert(servers).values({
     id: serverId,
@@ -67,6 +83,7 @@ async function createApprovedRestoreFixture() {
     id: policyId,
     name: `revalidation-policy-${id}`,
     volumeId,
+    destinationId,
     schedule: "0 * * * *",
     retentionDays: 7,
     status: "active",
@@ -77,7 +94,8 @@ async function createApprovedRestoreFixture() {
     id: backupRunId,
     policyId,
     status: "succeeded",
-    artifactPath: `revalidation-policy-${id}/backup.tar`,
+    artifactPath,
+    checksum: artifactChecksum,
     createdAt: now
   });
   await db.insert(approvalRequests).values({
@@ -95,7 +113,17 @@ async function createApprovedRestoreFixture() {
     resolvedAt: now
   });
 
-  return { backupRunId, approvalRequestId, serverId, volumeId };
+  return {
+    backupRunId,
+    approvalRequestId,
+    serverId,
+    volumeId,
+    destinationId,
+    policyId,
+    policyUpdatedAt: now.toISOString(),
+    artifactPath,
+    artifactChecksum
+  };
 }
 
 function restoreContext(
@@ -115,7 +143,22 @@ function restoreContext(
     sourceKind: "docker-volume",
     approval: {
       approvalRequestId: fixture.approvalRequestId,
-      expectedTeamId: "team_foundation"
+      expectedTeamId: "team_foundation",
+      snapshot: {
+        backupRunId: fixture.backupRunId,
+        artifactPath: fixture.artifactPath,
+        artifactChecksum: fixture.artifactChecksum,
+        backupPolicyId: fixture.policyId,
+        backupPolicyUpdatedAt: fixture.policyUpdatedAt,
+        backupDestinationId: fixture.destinationId,
+        backupDestinationUpdatedAt: fixture.policyUpdatedAt,
+        volumeId: fixture.volumeId,
+        volumeUpdatedAt: fixture.policyUpdatedAt,
+        volumeMountPath: "/srv/revalidation-test",
+        targetServerId: fixture.serverId,
+        restoreDestination: "/srv/revalidation-test",
+        secretPolicy: "destination-credentials-encrypted"
+      }
     }
   };
 }
@@ -156,6 +199,42 @@ describe("restore approval revalidation", () => {
 
     await expect(downloadBackupArtifact(restoreContext(fixture))).rejects.toThrow(
       "Restore approval team no longer matches the restore target."
+    );
+    expect(copyFromRemoteAsyncMock).not.toHaveBeenCalled();
+  });
+
+  it("rechecks decision authority after download and before destructive replay", async () => {
+    const fixture = await createApprovedRestoreFixture();
+    const ctx = restoreContext(fixture);
+    copyFromRemoteAsyncMock.mockResolvedValue({ success: true, output: "", exitCode: 0 });
+    const download = await downloadBackupArtifact(ctx);
+    decryptDestinationMock.mockClear();
+    await db
+      .update(teamMembers)
+      .set({ role: "member" })
+      .where(
+        and(
+          eq(teamMembers.userId, "user_foundation_owner"),
+          eq(teamMembers.teamId, "team_foundation")
+        )
+      );
+
+    await expect(executeRestore(ctx, download)).rejects.toThrow(
+      "The approving actor no longer has decision authority for this team."
+    );
+    expect(decryptDestinationMock).not.toHaveBeenCalled();
+  });
+
+  it("fails closed before downloading when the approved artifact changes", async () => {
+    const fixture = await createApprovedRestoreFixture();
+    const ctx = restoreContext(fixture);
+    await db
+      .update(backupRuns)
+      .set({ artifactPath: `${fixture.artifactPath}.replaced` })
+      .where(eq(backupRuns.id, fixture.backupRunId));
+
+    await expect(downloadBackupArtifact(ctx)).rejects.toThrow(
+      "Restore approval no longer matches the immutable backup target snapshot."
     );
     expect(copyFromRemoteAsyncMock).not.toHaveBeenCalled();
   });

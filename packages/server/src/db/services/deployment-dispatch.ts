@@ -14,7 +14,8 @@ interface DispatchableDeployment {
 }
 
 export async function dispatchDeploymentExecution(
-  deployment: DispatchableDeployment
+  deployment: DispatchableDeployment,
+  options?: { preserveDispatchRetry?: boolean }
 ): Promise<void> {
   if (!isTemporalEnabled()) {
     return;
@@ -47,6 +48,10 @@ export async function dispatchDeploymentExecution(
       })
       .where(eq(deployments.id, deployment.id));
   } catch (error) {
+    if (options?.preserveDispatchRetry) {
+      throw error;
+    }
+
     const now = new Date();
     await db
       .update(deployments)

@@ -39,24 +39,35 @@ export async function startDeploymentWorkflow(
   input: DeploymentWorkflowInput
 ): Promise<{ workflowId: string; runId: string }> {
   const tc = await getTemporalClient();
+  const workflowId = `deployment-${input.id}`;
 
-  const handle = await tc.workflow.start("deploymentWorkflow", {
-    taskQueue: TEMPORAL_TASK_QUEUE,
-    workflowId: `deployment-${input.id}`,
-    args: [input],
-    // Queue serialization can precede the activity's own aborting deadline. Keep the
-    // workflow alive long enough to wait safely without silently abandoning the record.
-    workflowExecutionTimeout: DEPLOYMENT_WORKFLOW_EXECUTION_TIMEOUT
-  });
+  try {
+    const handle = await tc.workflow.start("deploymentWorkflow", {
+      taskQueue: TEMPORAL_TASK_QUEUE,
+      workflowId,
+      args: [input],
+      // Queue serialization can precede the activity's own aborting deadline. Keep the
+      // workflow alive long enough to wait safely without silently abandoning the record.
+      workflowExecutionTimeout: DEPLOYMENT_WORKFLOW_EXECUTION_TIMEOUT,
+      workflowIdConflictPolicy: WorkflowIdConflictPolicy.USE_EXISTING,
+      workflowIdReusePolicy: WorkflowIdReusePolicy.REJECT_DUPLICATE
+    });
 
-  console.log(
-    `[temporal-client] Started deployment workflow: ${handle.workflowId} (run: ${handle.firstExecutionRunId})`
-  );
+    console.log(
+      `[temporal-client] Ensured deployment workflow: ${handle.workflowId} (run: ${handle.firstExecutionRunId})`
+    );
 
-  return {
-    workflowId: handle.workflowId,
-    runId: handle.firstExecutionRunId
-  };
+    return {
+      workflowId: handle.workflowId,
+      runId: handle.firstExecutionRunId
+    };
+  } catch (error) {
+    if (!(error instanceof WorkflowExecutionAlreadyStartedError)) throw error;
+
+    const existing = tc.workflow.getHandle(workflowId);
+    const description = await existing.describe();
+    return { workflowId, runId: description.runId };
+  }
 }
 
 /**
@@ -205,29 +216,39 @@ export async function startRestoreWorkflow(input: {
   const tc = await getTemporalClient();
   const workflowId = buildRestoreWorkflowId(input.restoreId);
 
-  const handle = await tc.workflow.start("restoreWorkflow", {
-    taskQueue: TEMPORAL_TASK_QUEUE,
-    workflowId,
-    args: [
-      {
-        restoreId: input.restoreId,
-        backupRunId: input.backupRunId,
-        triggeredBy: input.triggeredBy,
-        targetPath: input.targetPath ?? undefined,
-        mode: input.mode,
-        testRestore: input.testRestore,
-        approval: input.approval
-      }
-    ],
-    workflowExecutionTimeout: "1h"
-  });
+  try {
+    const handle = await tc.workflow.start("restoreWorkflow", {
+      taskQueue: TEMPORAL_TASK_QUEUE,
+      workflowId,
+      args: [
+        {
+          restoreId: input.restoreId,
+          backupRunId: input.backupRunId,
+          triggeredBy: input.triggeredBy,
+          targetPath: input.targetPath ?? undefined,
+          mode: input.mode,
+          testRestore: input.testRestore,
+          approval: input.approval
+        }
+      ],
+      workflowExecutionTimeout: "1h",
+      workflowIdConflictPolicy: WorkflowIdConflictPolicy.USE_EXISTING,
+      workflowIdReusePolicy: WorkflowIdReusePolicy.REJECT_DUPLICATE
+    });
 
-  console.log(`[temporal-client] Started restore workflow: ${handle.workflowId}`);
+    console.log(`[temporal-client] Ensured restore workflow: ${handle.workflowId}`);
 
-  return {
-    workflowId: handle.workflowId,
-    runId: handle.firstExecutionRunId
-  };
+    return {
+      workflowId: handle.workflowId,
+      runId: handle.firstExecutionRunId
+    };
+  } catch (error) {
+    if (!(error instanceof WorkflowExecutionAlreadyStartedError)) throw error;
+
+    const existing = tc.workflow.getHandle(workflowId);
+    const description = await existing.describe();
+    return { workflowId, runId: description.runId };
+  }
 }
 
 /**

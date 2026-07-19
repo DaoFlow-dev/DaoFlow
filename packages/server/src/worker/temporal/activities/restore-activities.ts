@@ -20,8 +20,10 @@ import {
   type BackupVerificationResult
 } from "../../../db/schema/storage";
 import { approvalRequests } from "../../../db/schema/audit";
+import { backupDestinations } from "../../../db/schema/destinations";
 import { copyFromRemoteAsync } from "../../rclone-executor";
 import { newId } from "../../../db/services/json-helpers";
+import { resolveMemberRoleForTeam } from "../../../db/services/teams";
 import {
   resolveTeamScopedDestinationForVolume,
   resolveVolumeTeamId
@@ -132,6 +134,15 @@ export async function resolveRestoreContext(input: RestoreInput): Promise<Restor
   const volumeMetadata = volume.metadata;
   const restoreId = input.restoreId ?? newId();
   const mode = input.mode ?? (input.testRestore ? "verification" : "restore");
+  await revalidateRestoreApproval(run.id, input.approval);
+  if (
+    input.approval &&
+    mode === "restore" &&
+    input.targetPath &&
+    input.targetPath !== input.approval.snapshot.restoreDestination
+  ) {
+    throw new Error("Restore workflow target no longer matches the approved destination.");
+  }
   const targetPath =
     mode === "verification"
       ? backupType === "database"
@@ -212,13 +223,16 @@ async function revalidateRestoreApproval(
 ): Promise<void> {
   if (!approval) return;
 
-  const { approvalRequestId, expectedTeamId } = approval;
-  if (!approvalRequestId || !expectedTeamId) {
+  const { approvalRequestId, expectedTeamId, snapshot } = approval;
+  if (!approvalRequestId || !expectedTeamId || !snapshot) {
     throw new Error("Restore approval binding is incomplete.");
   }
 
   const [approvedRequest] = await db
-    .select({ id: approvalRequests.id })
+    .select({
+      id: approvalRequests.id,
+      resolvedByUserId: approvalRequests.resolvedByUserId
+    })
     .from(approvalRequests)
     .where(
       and(
@@ -233,9 +247,20 @@ async function revalidateRestoreApproval(
   if (!approvedRequest) {
     throw new Error("Restore approval is no longer valid for this target.");
   }
+  const approvingRole = approvedRequest.resolvedByUserId
+    ? await resolveMemberRoleForTeam(approvedRequest.resolvedByUserId, expectedTeamId)
+    : null;
+  if (approvingRole !== "owner" && approvingRole !== "admin") {
+    throw new Error("The approving actor no longer has decision authority for this team.");
+  }
 
   const [run] = await db
-    .select({ policyId: backupRuns.policyId })
+    .select({
+      id: backupRuns.id,
+      policyId: backupRuns.policyId,
+      artifactPath: backupRuns.artifactPath,
+      checksum: backupRuns.checksum
+    })
     .from(backupRuns)
     .where(eq(backupRuns.id, backupRunId))
     .limit(1);
@@ -244,7 +269,12 @@ async function revalidateRestoreApproval(
   }
 
   const [policy] = await db
-    .select({ volumeId: backupPolicies.volumeId })
+    .select({
+      id: backupPolicies.id,
+      volumeId: backupPolicies.volumeId,
+      destinationId: backupPolicies.destinationId,
+      updatedAt: backupPolicies.updatedAt
+    })
     .from(backupPolicies)
     .where(eq(backupPolicies.id, run.policyId))
     .limit(1);
@@ -252,9 +282,42 @@ async function revalidateRestoreApproval(
     throw new Error("Restore target is no longer available for approval revalidation.");
   }
 
+  const [destination] = policy.destinationId
+    ? await db
+        .select({ id: backupDestinations.id, updatedAt: backupDestinations.updatedAt })
+        .from(backupDestinations)
+        .where(
+          and(
+            eq(backupDestinations.id, policy.destinationId),
+            eq(backupDestinations.teamId, expectedTeamId)
+          )
+        )
+        .limit(1)
+    : [];
+  if (!destination) {
+    throw new Error("Restore target is no longer available for approval revalidation.");
+  }
+
   const [volume] = await db.select().from(volumes).where(eq(volumes.id, policy.volumeId)).limit(1);
   if (!volume || (await resolveVolumeTeamId(volume)) !== expectedTeamId) {
     throw new Error("Restore approval team no longer matches the restore target.");
+  }
+  const matchesSnapshot =
+    snapshot.secretPolicy === "destination-credentials-encrypted" &&
+    snapshot.backupRunId === run.id &&
+    snapshot.artifactPath === run.artifactPath &&
+    snapshot.artifactChecksum === (run.checksum ?? "") &&
+    snapshot.backupPolicyId === policy.id &&
+    snapshot.backupPolicyUpdatedAt === policy.updatedAt.toISOString() &&
+    snapshot.backupDestinationId === destination.id &&
+    snapshot.backupDestinationUpdatedAt === destination.updatedAt.toISOString() &&
+    snapshot.volumeId === volume.id &&
+    snapshot.volumeUpdatedAt === volume.updatedAt.toISOString() &&
+    snapshot.volumeMountPath === volume.mountPath &&
+    snapshot.targetServerId === volume.serverId &&
+    snapshot.restoreDestination === volume.mountPath;
+  if (!matchesSnapshot) {
+    throw new Error("Restore approval no longer matches the immutable backup target snapshot.");
   }
 }
 
@@ -298,6 +361,7 @@ export async function executeRestore(
   ctx: RestoreResolved,
   download: { localPath: string }
 ): Promise<RestoreResult> {
+  await revalidateRestoreApproval(ctx.runId, ctx.approval);
   const destination = await decryptDestinationForVolumeOperation({
     volumeId: ctx.volumeId,
     destinationId: ctx.destinationId

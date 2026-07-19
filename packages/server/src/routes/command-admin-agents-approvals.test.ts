@@ -6,6 +6,7 @@ import { environments } from "../db/schema/projects";
 import { servers } from "../db/schema/servers";
 import { teamMembers, teams } from "../db/schema/teams";
 import { users } from "../db/schema/users";
+import { asRecord } from "../db/services/json-helpers";
 import { appRouter } from "../router";
 import { resetTestDatabaseWithControlPlane } from "../test-db";
 import { createProjectEnvironmentServiceFixture } from "../testing/project-fixtures";
@@ -176,6 +177,23 @@ describe("team-scoped approval routes", () => {
     );
   });
 
+  it("rejects whitespace-only approved image tags before persistence", async () => {
+    const caller = appRouter.createCaller({
+      requestId: "approval-whitespace-image",
+      session: makeSession("owner")
+    });
+
+    await expect(
+      caller.requestApproval({
+        actionType: "compose-release",
+        composeServiceId: teamATargetId,
+        commitSha: "abcdef1234567",
+        imageTag: "   ",
+        reason: "Require an exact immutable image before approval."
+      })
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  });
+
   it("keeps team A approval queue metadata isolated from team B", async () => {
     const teamAOwner = appRouter.createCaller({
       requestId: "approval-scope-queue-team-a",
@@ -192,6 +210,10 @@ describe("team-scoped approval routes", () => {
       teamBTargetId,
       "Team B approval metadata must never appear in Team A queue results."
     );
+
+    expect(asRecord(asRecord(teamARequest.inputSummary).actionPayload)).toMatchObject({
+      imageTag: "ghcr.io/daoflow/approval-scope-team-a:test"
+    });
 
     const queue = await teamAOwner.approvalQueue({});
 

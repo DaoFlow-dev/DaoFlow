@@ -52,7 +52,19 @@ async function createPendingApproval(id: string, teamId: string) {
       resourceLabel: `Approval ${id}`,
       riskLevel: "elevated",
       recommendedChecks: [],
-      expiresAt: new Date(Date.now() + 60_000).toISOString()
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      actionPayload: {
+        composeServiceId: id,
+        commitSha: "abcdef1",
+        imageTag: "example/scope:test",
+        snapshot: {
+          projectId: `project_${id}`,
+          environmentId: `environment_${id}`,
+          targetServerId: `server_${id}`,
+          composeFilePath: "/srv/compose.yml",
+          secretPolicy: "environment-scoped-encrypted"
+        }
+      }
     },
     createdAt: new Date()
   });

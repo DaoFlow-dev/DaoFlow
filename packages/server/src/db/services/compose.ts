@@ -8,6 +8,7 @@ import { asRecord, readNumber, readRecordArray, readString, readStringArray } fr
 import { buildComposeSourceSnapshot, resolveComposeImageOverride } from "./deployment-source";
 import { prepareComposeDeploymentEnvState } from "./compose-env";
 import { resolveTeamIdForUser } from "./teams";
+import { revalidateProjectSourceForExecution } from "./project-source-execution-validation";
 
 function formatReleaseTrackLabel(releaseTrack: string) {
   if (!releaseTrack) {
@@ -94,12 +95,35 @@ export async function queueComposeRelease(input: {
   requestedByEmail: string;
   requestedByRole: string;
   commandAuditAttemptId?: string;
+  teamId?: string;
+  operationId?: string;
+  approvalRequestId?: string;
+  approvalDispatchId?: string;
+  preserveDispatchRetry?: boolean;
+  approvalSnapshot?: Record<string, unknown>;
 }) {
-  const teamId = await resolveTeamIdForUser(input.requestedByUserId);
+  const teamId = input.teamId ?? (await resolveTeamIdForUser(input.requestedByUserId));
   if (!teamId) return null;
   const catalog = await listComposeReleaseCatalog(100, teamId);
   const service = catalog.services.find((candidate) => candidate.id === input.composeServiceId);
   if (!service) return null;
+
+  const expectedEnvironmentId = readString(input.approvalSnapshot ?? {}, "environmentId");
+  const expectedProjectId = readString(input.approvalSnapshot ?? {}, "projectId");
+  const expectedTargetServerId = readString(input.approvalSnapshot ?? {}, "targetServerId");
+  const expectedComposeFilePath = readString(input.approvalSnapshot ?? {}, "composeFilePath");
+  const expectedPolicyRevision = readNumber(
+    input.approvalSnapshot ?? {},
+    "projectPreviewPolicyRevision",
+    null
+  );
+  if (
+    (expectedEnvironmentId && expectedEnvironmentId !== service.environmentId) ||
+    (expectedTargetServerId && expectedTargetServerId !== service.targetServerId) ||
+    (expectedComposeFilePath && expectedComposeFilePath !== service.composeFilePath)
+  ) {
+    return null;
+  }
 
   const [environment] = await db
     .select()
@@ -114,7 +138,29 @@ export async function queueComposeRelease(input: {
     .where(eq(projects.id, environment.projectId))
     .limit(1);
   if (!project) return null;
-  if (project.teamId !== teamId) return null;
+  if (
+    project.teamId !== teamId ||
+    (expectedProjectId && project.id !== expectedProjectId) ||
+    (expectedPolicyRevision !== null && project.previewPolicyRevision !== expectedPolicyRevision)
+  ) {
+    return null;
+  }
+
+  if (input.approvalSnapshot) {
+    const sourceValidation = await revalidateProjectSourceForExecution({
+      project,
+      environment
+    });
+    if (
+      sourceValidation.status === "invalid_source" ||
+      sourceValidation.status === "provider_unavailable"
+    ) {
+      if (sourceValidation.status === "provider_unavailable") {
+        throw new ComposeReleaseProviderUnavailableError(sourceValidation.message);
+      }
+      return null;
+    }
+  }
 
   const envState = await prepareComposeDeploymentEnvState({
     environmentId: environment.id,
@@ -143,9 +189,12 @@ export async function queueComposeRelease(input: {
   });
   if (composeImageOverride) {
     configSnapshot.composeImageOverride = composeImageOverride;
+  } else if (input.approvalSnapshot) {
+    return null;
   }
 
   const deployment = await createDeploymentRecord({
+    deploymentId: input.operationId,
     projectName: service.projectName,
     environmentName: service.environmentName,
     serviceName: service.serviceName,
@@ -158,6 +207,8 @@ export async function queueComposeRelease(input: {
     requestedByRole: input.requestedByRole as AppRole,
     teamId,
     commandAuditAttemptId: input.commandAuditAttemptId,
+    approvalRequestId: input.approvalRequestId,
+    approvalDispatchId: input.approvalDispatchId,
     envVarsEncrypted: envState.envVarsEncrypted,
     configSnapshot,
     steps: [
@@ -176,6 +227,15 @@ export async function queueComposeRelease(input: {
     return null;
   }
 
-  await dispatchDeploymentExecution(deployment);
+  await dispatchDeploymentExecution(deployment, {
+    preserveDispatchRetry: input.preserveDispatchRetry
+  });
   return deployment;
+}
+
+export class ComposeReleaseProviderUnavailableError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ComposeReleaseProviderUnavailableError";
+  }
 }

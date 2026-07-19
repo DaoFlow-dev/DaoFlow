@@ -4,7 +4,8 @@ sidebar_position: 12
 
 # daoflow approvals
 
-Review queued approval requests and record the human decision from the CLI.
+Review queued approval requests, record the human decision, and follow the resulting durable
+operation from the CLI.
 
 ## Subcommands
 
@@ -79,7 +80,16 @@ daoflow approvals reject --request apr_123 --yes --json
         "expiresAt": "2026-03-29T19:00:00.000Z",
         "recommendedChecks": [
           "Confirm the target volume is isolated from live writes before replaying snapshot data."
-        ]
+        ],
+        "dispatchStatus": "retrying",
+        "dispatchStatusLabel": "retrying",
+        "dispatchStatusTone": "running",
+        "operationId": "op_restore_123",
+        "dispatchAttempts": 2,
+        "dispatchError": "Temporal is temporarily unavailable.",
+        "dispatchNextAttemptAt": "2026-03-29T12:31:00.000Z",
+        "dispatchedAt": null,
+        "dispatchCompletedAt": null
       }
     ]
   }
@@ -101,7 +111,10 @@ daoflow approvals reject --request apr_123 --yes --json
       "statusTone": "healthy",
       "reason": "Restore after failed migration.",
       "decidedBy": "ops@daoflow.local",
-      "decidedAt": "2026-03-29T12:30:00.000Z"
+      "decidedAt": "2026-03-29T12:30:00.000Z",
+      "dispatchStatus": "pending",
+      "operationId": "op_restore_123",
+      "dispatchAttempts": 0
     }
   }
 }
@@ -111,4 +124,7 @@ daoflow approvals reject --request apr_123 --yes --json
 
 - `approvals list` is a read-only view of the queue
 - `approvals approve` and `approvals reject` require `--yes` and fail before any API call if confirmation is missing
+- Approving a dispatchable request saves a durable operation automatically; do not repeat the underlying deploy or restore command
+- Dispatch states are `pending`, `retrying`, `dispatched`, `succeeded`, and `terminal-failure`
+- The dashboard can retry a terminal dispatch failure only when the operation was never submitted
 - Permission errors keep the exact scope details in JSON mode so an agent can tell whether it needs `approvals:decide`

@@ -4162,6 +4162,28 @@
       }
     },
     {
+      "name": "retryApprovalActionDispatch",
+      "summary": "retry Approval Action Dispatch",
+      "path": "/trpc/retryApprovalActionDispatch",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator"],
+      "requiredScopes": ["approvals:decide"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "requestId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["requestId"],
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "retryDevelopmentTask",
       "summary": "retry Development Task",
       "path": "/trpc/retryDevelopmentTask",

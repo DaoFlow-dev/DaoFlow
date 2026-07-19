@@ -112,9 +112,8 @@ function createAuthInstance() {
   });
 }
 
-const initialAuth = createAuthInstance();
-
-type BetterAuthInstance = typeof initialAuth;
+type BetterAuthInstance = ReturnType<typeof createAuthInstance>;
+const initialAuth: BetterAuthInstance = createAuthInstance();
 type BetterAuthApi = BetterAuthInstance["api"];
 
 let currentAuth: BetterAuthInstance = initialAuth;

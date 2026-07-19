@@ -67,6 +67,12 @@ export interface TriggerDeployInput {
     targetKey: string;
   };
   trigger?: DeploymentTrigger;
+  teamId?: string;
+  operationId?: string;
+  approvalRequestId?: string;
+  approvalDispatchId?: string;
+  preserveDispatchRetry?: boolean;
+  approvalSnapshot?: Record<string, unknown>;
 }
 
 /** Generate deployment steps based on sourceType. */
@@ -178,14 +184,22 @@ async function findLatestReplayableUploadedDeployment(input: {
 
 export async function triggerDeploy(input: TriggerDeployInput) {
   // Look up the service
-  const svc = input.requestedByUserId
-    ? await resolveServiceForUser(input.serviceId, input.requestedByUserId).catch(() => null)
-    : await db
-        .select()
+  const svc = input.teamId
+    ? await db
+        .select({ service: services })
         .from(services)
-        .where(eq(services.id, input.serviceId))
+        .innerJoin(projects, eq(projects.id, services.projectId))
+        .where(and(eq(services.id, input.serviceId), eq(projects.teamId, input.teamId)))
         .limit(1)
-        .then((rows) => rows[0] ?? null);
+        .then((rows) => rows[0]?.service ?? null)
+    : input.requestedByUserId
+      ? await resolveServiceForUser(input.serviceId, input.requestedByUserId).catch(() => null)
+      : await db
+          .select()
+          .from(services)
+          .where(eq(services.id, input.serviceId))
+          .limit(1)
+          .then((rows) => rows[0] ?? null);
 
   if (!svc) return { status: "not_found" as const, entity: "service" };
 
@@ -216,6 +230,29 @@ export async function triggerDeploy(input: TriggerDeployInput) {
   const targetServer = await getServerForTeam(targetServerId, project.teamId);
   if (!targetServer) {
     return { status: "no_server" as const };
+  }
+  const approvalSnapshot = input.approvalSnapshot ?? {};
+  const expectedProjectId =
+    typeof approvalSnapshot.projectId === "string" ? approvalSnapshot.projectId : "";
+  const expectedEnvironmentId =
+    typeof approvalSnapshot.environmentId === "string" ? approvalSnapshot.environmentId : "";
+  const expectedTargetServerId =
+    typeof approvalSnapshot.targetServerId === "string" ? approvalSnapshot.targetServerId : "";
+  const expectedPolicyRevision =
+    typeof approvalSnapshot.projectPreviewPolicyRevision === "number"
+      ? approvalSnapshot.projectPreviewPolicyRevision
+      : null;
+  if (
+    (expectedProjectId && expectedProjectId !== project.id) ||
+    (expectedEnvironmentId && expectedEnvironmentId !== env.id) ||
+    (expectedTargetServerId && expectedTargetServerId !== targetServerId) ||
+    (expectedPolicyRevision !== null && expectedPolicyRevision !== project.previewPolicyRevision)
+  ) {
+    return {
+      status: "invalid_preview" as const,
+      message:
+        "The approved preview snapshot no longer matches the current execution target or policy."
+    };
   }
 
   const composeProjectHasRepositorySource =
@@ -427,6 +464,7 @@ export async function triggerDeploy(input: TriggerDeployInput) {
   }
 
   const deployInput: CreateDeploymentInput = {
+    deploymentId: input.operationId,
     projectName: project.name,
     environmentName: env.name,
     serviceName: svc.name,
@@ -440,6 +478,8 @@ export async function triggerDeploy(input: TriggerDeployInput) {
     teamId: project.teamId,
     commandAuditAttemptId: input.commandAuditAttemptId,
     webhookDelivery: input.webhookDelivery,
+    approvalRequestId: input.approvalRequestId,
+    approvalDispatchId: input.approvalDispatchId,
     trigger: input.trigger ?? "user",
     steps: stepsForSourceType({
       sourceType: svc.sourceType,
@@ -470,7 +510,9 @@ export async function triggerDeploy(input: TriggerDeployInput) {
       configInventory: configSnapshot.composeEnv
     });
   }
-  await dispatchDeploymentExecution(deployment);
+  await dispatchDeploymentExecution(deployment, {
+    preserveDispatchRetry: input.preserveDispatchRetry
+  });
 
   return { status: "ok" as const, deployment };
 }

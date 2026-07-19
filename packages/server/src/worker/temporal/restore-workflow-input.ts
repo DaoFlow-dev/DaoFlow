@@ -1,6 +1,23 @@
+export interface RestoreApprovalSnapshot {
+  backupRunId: string;
+  artifactPath: string;
+  artifactChecksum: string;
+  backupPolicyId: string;
+  backupPolicyUpdatedAt: string;
+  backupDestinationId: string;
+  backupDestinationUpdatedAt: string;
+  volumeId: string;
+  volumeUpdatedAt: string;
+  volumeMountPath: string;
+  targetServerId: string;
+  restoreDestination: string;
+  secretPolicy: "destination-credentials-encrypted";
+}
+
 export interface RestoreApproval {
   approvalRequestId: string;
   expectedTeamId: string;
+  snapshot: RestoreApprovalSnapshot;
 }
 
 export interface RestoreWorkflowInput {

@@ -52,6 +52,8 @@ export interface CreateDeploymentInput {
     deliveryId: string;
     targetKey: string;
   };
+  approvalRequestId?: string;
+  approvalDispatchId?: string;
   teamId: string;
   trigger?: DeploymentTrigger;
   steps: readonly { label: string; detail: string }[];
@@ -65,6 +67,12 @@ export async function createDeploymentRecord(input: CreateDeploymentInput) {
     throw new Error("Deployment queue reservations must use the deployment ID as their key.");
   }
   const now = new Date();
+  const actorType = input.requestedByUserId ? "user" : "system";
+  const actorId =
+    input.requestedByUserId ??
+    (input.trigger === "webhook"
+      ? `webhook:${input.requestedByEmail ?? "unknown"}`
+      : "system:deployment");
   const queuedDeployment = await db.transaction(async (tx) => {
     const server = await lockTargetServerForDeploymentCapacity(tx, input.targetServerId);
     if (!server) {
@@ -90,6 +98,28 @@ export async function createDeploymentRecord(input: CreateDeploymentInput) {
 
     if (!environment || server.teamId !== project.teamId || project.teamId !== input.teamId) {
       return null;
+    }
+
+    const [existing] = await tx
+      .select()
+      .from(deployments)
+      .where(eq(deployments.id, deploymentId))
+      .limit(1)
+      .for("update");
+    if (existing) {
+      const matchesOperation =
+        existing.projectId === project.id &&
+        existing.environmentId === environment.id &&
+        existing.targetServerId === input.targetServerId &&
+        existing.serviceName === input.serviceName &&
+        existing.sourceType === input.sourceType &&
+        existing.commitSha === input.commitSha &&
+        existing.imageTag === input.imageTag;
+      if (!matchesOperation) {
+        throw new Error(`Deployment operation ${deploymentId} is already bound to another input.`);
+      }
+
+      return { environment, project, server, existing: true };
     }
 
     if (input.queueReservationId) {
@@ -139,7 +169,9 @@ export async function createDeploymentRecord(input: CreateDeploymentInput) {
         ...(input.configSnapshot ?? {}),
         ...(input.commandAuditAttemptId
           ? { commandAuditAttemptId: input.commandAuditAttemptId }
-          : {})
+          : {}),
+        ...(input.approvalRequestId ? { approvalRequestId: input.approvalRequestId } : {}),
+        ...(input.approvalDispatchId ? { approvalDispatchId: input.approvalDispatchId } : {})
       },
       envVarsEncrypted: input.envVarsEncrypted ?? null,
       status: "queued",
@@ -152,72 +184,64 @@ export async function createDeploymentRecord(input: CreateDeploymentInput) {
       updatedAt: now
     });
 
-    return { environment, project, server };
+    await tx.insert(deploymentSteps).values(
+      input.steps.map((step, index) => ({
+        deploymentId,
+        label: step.label,
+        detail: step.detail,
+        status: "completed" as const,
+        completedAt: now,
+        sortOrder: index - input.steps.length
+      }))
+    );
+    await tx.insert(auditEntries).values({
+      actorType,
+      actorId,
+      actorEmail: input.requestedByEmail ?? null,
+      actorRole: input.requestedByRole ?? null,
+      targetResource: `deployment/${deploymentId}`,
+      action: "deployment.create",
+      inputSummary: `Queued ${input.serviceName} for ${input.environmentName}.`,
+      permissionScope: "deploy:start",
+      outcome: "success",
+      metadata: {
+        resourceType: "deployment",
+        resourceId: deploymentId,
+        resourceLabel: `${input.serviceName}@${input.environmentName}`,
+        ...(input.approvalRequestId ? { approvalRequestId: input.approvalRequestId } : {}),
+        ...(input.approvalDispatchId ? { approvalDispatchId: input.approvalDispatchId } : {}),
+        operationId: deploymentId,
+        detail: `Queued ${input.serviceName} for ${input.environmentName}.`
+      }
+    });
+    await tx.insert(deploymentLogs).values({
+      deploymentId,
+      level: "info",
+      message: `Control plane queued ${input.serviceName} for ${input.environmentName} using ${input.sourceType} inputs.`,
+      source: "system",
+      createdAt: now
+    });
+    await tx.insert(events).values({
+      kind: "execution.job.created",
+      resourceType: "deployment",
+      resourceId: deploymentId,
+      summary: "Deployment record queued.",
+      detail: `${input.serviceName} is waiting in the docker-ssh handoff queue.`,
+      severity: "info",
+      metadata: { serviceName: input.serviceName, actorLabel: "control-plane" },
+      createdAt: now
+    });
+
+    return { environment, project, server, existing: false };
   });
 
   if (!queuedDeployment) {
     return null;
   }
 
-  const actorType = input.requestedByUserId ? "user" : "system";
-  const actorId =
-    input.requestedByUserId ??
-    (input.trigger === "webhook"
-      ? `webhook:${input.requestedByEmail ?? "unknown"}`
-      : "system:deployment");
-
-  await db.insert(deploymentSteps).values(
-    input.steps.map((step, index) => ({
-      deploymentId,
-      label: step.label,
-      detail: step.detail,
-      status: "completed" as const,
-      completedAt: now,
-      // Reserve negative sort orders for control-plane presteps so worker execution
-      // steps can start at 1 without colliding or reordering the visible timeline.
-      sortOrder: index - input.steps.length
-    }))
-  );
-
-  await db.insert(auditEntries).values({
-    actorType,
-    actorId,
-    actorEmail: input.requestedByEmail ?? null,
-    actorRole: input.requestedByRole ?? null,
-    targetResource: `deployment/${deploymentId}`,
-    action: "deployment.create",
-    inputSummary: `Queued ${input.serviceName} for ${input.environmentName}.`,
-    permissionScope: "deploy:start",
-    outcome: "success",
-    metadata: {
-      resourceType: "deployment",
-      resourceId: deploymentId,
-      resourceLabel: `${input.serviceName}@${input.environmentName}`,
-      detail: `Queued ${input.serviceName} for ${input.environmentName}.`
-    }
-  });
-
-  await db.insert(deploymentLogs).values({
-    deploymentId,
-    level: "info",
-    message: `Control plane queued ${input.serviceName} for ${input.environmentName} using ${input.sourceType} inputs.`,
-    source: "system",
-    createdAt: now
-  });
-
-  await db.insert(events).values({
-    kind: "execution.job.created",
-    resourceType: "deployment",
-    resourceId: deploymentId,
-    summary: "Deployment record queued.",
-    detail: `${input.serviceName} is waiting in the docker-ssh handoff queue.`,
-    severity: "info",
-    metadata: {
-      serviceName: input.serviceName,
-      actorLabel: "control-plane"
-    },
-    createdAt: now
-  });
+  if (queuedDeployment.existing) {
+    return getDeploymentRecord(deploymentId);
+  }
 
   return getDeploymentRecord(deploymentId);
 }

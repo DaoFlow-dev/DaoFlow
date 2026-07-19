@@ -33,7 +33,7 @@ daoflow backup restore --backup-run-id bkp_run_123 --dry-run --json
 
 ## Approval Gates
 
-Approval requests are modeled separately from restore execution:
+Approval requests keep the human decision separate while making the approved handoff durable:
 
 ```bash
 # Preview the restore with a read-only token
@@ -42,15 +42,24 @@ daoflow backup restore --backup-run-id bkp_run_123 --dry-run --json
 # If your operating procedure requires a human gate, create a separate approval request
 # through the `requestApproval` API procedure using the dry-run plan as the input template.
 
-# Queue the restore only when you intend to execute it
-daoflow backup restore --backup-run-id bkp_run_123 --yes
+# A different owner or admin approves the request. Approval automatically creates
+# a durable restore intent; do not issue a second restore command for that request.
+daoflow approvals approve --request apr_123 --yes --json
+daoflow approvals list --limit 10 --json
 ```
+
+The approval queue reports whether the restore intent is pending, retrying, dispatched, succeeded,
+or in terminal failure. Temporary submission failures reuse the original operation ID so a restart
+or retry cannot create a duplicate restore. A terminal failure before submission can be retried from
+the approval dashboard. A restore that was submitted and later failed requires a new approval after
+the underlying problem is corrected.
 
 ## Required Scopes
 
 - `backup:read` — to preview a restore plan with `--dry-run`
-- `backup:restore` — to queue and execute a restore
-- `approvals:create` — only for a separate `requestApproval` flow if your operators gate restores manually
+- `backup:restore` — to queue a direct restore outside an approval-gated flow
+- `approvals:create` — to create an approval-gated restore request
+- `approvals:decide` — to approve, reject, or retry a dispatch that never reached the worker
 
 ## Safety
 

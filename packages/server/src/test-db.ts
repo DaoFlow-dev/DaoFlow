@@ -26,7 +26,7 @@ import { resetAuthState } from "./auth";
 
 const { Client } = pg;
 const TEST_DB_PREPARE_LOCK_ID = 8_705_231;
-const MIN_EXPECTED_PUBLIC_TABLES = 47;
+const MIN_EXPECTED_PUBLIC_TABLES = 48;
 
 let prepared = false;
 let preparePromise: Promise<string> | null = null;
@@ -145,6 +145,7 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
       auditEntriesImmutableGuard: string | null;
       auditCommandAcceptanceIndex: string | null;
       approvalRequestsBindingKey: string | null;
+      approvalActionDispatches: string | null;
       servicesExecutionScopeGuard: string | null;
       environmentsExecutionScopeGuard: string | null;
       deploymentsExecutionScopeGuard: string | null;
@@ -211,6 +212,7 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
         (SELECT tgname FROM pg_trigger WHERE tgname = 'audit_entries_immutable_guard' AND NOT tgisinternal) AS "auditEntriesImmutableGuard",
         (SELECT indexname FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'audit_command_acceptance_attempt_unique') AS "auditCommandAcceptanceIndex",
         (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'approval_requests' AND column_name = 'binding_key') AS "approvalRequestsBindingKey",
+        to_regclass('public.approval_action_dispatches') AS "approvalActionDispatches",
         (SELECT tgname FROM pg_trigger WHERE tgname = 'services_execution_scope_guard' AND NOT tgisinternal) AS "servicesExecutionScopeGuard",
         (SELECT tgname FROM pg_trigger WHERE tgname = 'environments_execution_scope_guard' AND NOT tgisinternal) AS "environmentsExecutionScopeGuard",
         (SELECT tgname FROM pg_trigger WHERE tgname = 'deployments_execution_scope_guard' AND NOT tgisinternal) AS "deploymentsExecutionScopeGuard",
@@ -279,6 +281,7 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
       row.auditEntriesImmutableGuard &&
       row.auditCommandAcceptanceIndex &&
       row.approvalRequestsBindingKey &&
+      row.approvalActionDispatches &&
       row.servicesExecutionScopeGuard &&
       row.environmentsExecutionScopeGuard &&
       row.deploymentsExecutionScopeGuard &&
@@ -378,6 +381,7 @@ async function readPoolSchemaState() {
     auditEntriesImmutableGuard: string | null;
     auditCommandAcceptanceIndex: string | null;
     approvalRequestsBindingKey: string | null;
+    approvalActionDispatches: string | null;
     servicesExecutionScopeGuard: string | null;
     environmentsExecutionScopeGuard: string | null;
     deploymentsExecutionScopeGuard: string | null;
@@ -443,6 +447,7 @@ async function readPoolSchemaState() {
       (SELECT tgname FROM pg_trigger WHERE tgname = 'audit_entries_immutable_guard' AND NOT tgisinternal) AS "auditEntriesImmutableGuard",
       (SELECT indexname FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'audit_command_acceptance_attempt_unique') AS "auditCommandAcceptanceIndex",
       (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'approval_requests' AND column_name = 'binding_key') AS "approvalRequestsBindingKey",
+      to_regclass('public.approval_action_dispatches') AS "approvalActionDispatches",
       (SELECT tgname FROM pg_trigger WHERE tgname = 'services_execution_scope_guard' AND NOT tgisinternal) AS "servicesExecutionScopeGuard",
       (SELECT tgname FROM pg_trigger WHERE tgname = 'environments_execution_scope_guard' AND NOT tgisinternal) AS "environmentsExecutionScopeGuard",
       (SELECT tgname FROM pg_trigger WHERE tgname = 'deployments_execution_scope_guard' AND NOT tgisinternal) AS "deploymentsExecutionScopeGuard",
@@ -522,6 +527,7 @@ async function ensurePooledTestSchemaReady(connectionString: string) {
         state.auditEntriesImmutableGuard &&
         state.auditCommandAcceptanceIndex &&
         state.approvalRequestsBindingKey &&
+        state.approvalActionDispatches &&
         state.servicesExecutionScopeGuard &&
         state.environmentsExecutionScopeGuard &&
         state.deploymentsExecutionScopeGuard &&

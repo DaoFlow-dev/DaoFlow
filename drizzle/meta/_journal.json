@@ -260,6 +260,13 @@
       "when": 1784425941784,
       "tag": "0036_production_schema_safety",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1784430241103,
+      "tag": "0037_blushing_supreme_intelligence",
+      "breakpoints": true
     }
   ]
 }

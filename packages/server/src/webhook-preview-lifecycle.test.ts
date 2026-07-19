@@ -7,6 +7,7 @@ import { db } from "./db/connection";
 import { encrypt } from "./db/crypto";
 import { encodeGitInstallationPermissions } from "./db/services/git-providers";
 import { approveApprovalRequest } from "./db/services/approvals";
+import { processNextApprovalActionDispatch } from "./db/services/approval-dispatch-service";
 import { triggerDeploy } from "./db/services/trigger-deploy";
 import { createEnvironment, createProject } from "./db/services/projects";
 import { asRecord } from "./db/services/json-helpers";
@@ -371,6 +372,9 @@ describe("preview lifecycle webhooks", () => {
       )
     ]);
     expect(approvalResults.map((result) => result.status).sort()).toEqual(["invalid-state", "ok"]);
+    await expect(processNextApprovalActionDispatch()).resolves.toMatchObject({
+      status: "dispatched"
+    });
 
     const previewDeployments = await db
       .select()
@@ -888,6 +892,9 @@ describe("preview lifecycle webhooks", () => {
         "owner"
       )
     ).resolves.toMatchObject({ status: "ok" });
+    await expect(processNextApprovalActionDispatch()).resolves.toMatchObject({
+      status: "dispatched"
+    });
 
     const mergePayload = JSON.stringify({
       object_kind: "merge_request",
