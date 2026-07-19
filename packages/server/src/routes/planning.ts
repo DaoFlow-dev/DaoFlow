@@ -6,8 +6,15 @@ import { buildConfigDiff } from "../db/services/config-diffs";
 import { ScopedDeploymentNotFoundError } from "../db/services/scoped-deployments";
 import { buildDeploymentPlan } from "../db/services/deployment-plans";
 import { buildRollbackPlan } from "../db/services/rollback-plans";
-import { t, deployReadProcedure, backupReadProcedure } from "../trpc";
+import { buildControlPlaneRecoveryPlan } from "../db/services/control-plane-recovery";
+import {
+  t,
+  deployReadProcedure,
+  backupReadProcedure,
+  controlPlaneRecoveryReadProcedure
+} from "../trpc";
 import { assertBackupRunScope } from "./backup-scope";
+import { requireActorTeamId } from "./team-scope";
 
 export const planningRouter = t.router({
   composeDeploymentPlan: deployReadProcedure
@@ -148,6 +155,23 @@ export const planningRouter = t.router({
         });
       }
 
+      return plan;
+    }),
+  controlPlaneRecoveryPlan: controlPlaneRecoveryReadProcedure
+    .input(
+      z.object({
+        destinationId: z.string().min(1)
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      const ownerTeamId = await requireActorTeamId(ctx.session.user.id);
+      const plan = await buildControlPlaneRecoveryPlan({
+        destinationId: input.destinationId,
+        ownerTeamId
+      });
+      if (!plan.destination) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Destination not found." });
+      }
       return plan;
     }),
   configDiff: deployReadProcedure

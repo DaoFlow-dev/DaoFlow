@@ -146,6 +146,7 @@ export function generateEnvFile(opts: {
   workflowProfile?: InstallWorkflowProfile;
   authSecret?: string;
   encryptionKey?: string;
+  recoveryEncryptionKey?: string;
   preservedEnv?: Record<string, string>;
 }): string {
   const workflowProfile = opts.workflowProfile ?? "lean";
@@ -154,6 +155,7 @@ export function generateEnvFile(opts: {
   const temporalPgPass = opts.temporalPostgresPassword ?? secureHex(24);
   const authSecret = opts.authSecret ?? secureHex(32);
   const encKey = opts.encryptionKey ?? secureHex(16); // 32 hex chars
+  const recoveryKey = opts.recoveryEncryptionKey ?? secureHex(32); // 64 hex chars
 
   const scheme = opts.scheme ?? (opts.domain === "localhost" ? "http" : "https");
   const usesManagedHttpsEdge = opts.exposureMode === "traefik" || opts.cloudflareTunnelEnabled;
@@ -178,6 +180,7 @@ export function generateEnvFile(opts: {
     "TEMPORAL_POSTGRES_PASSWORD",
     "BETTER_AUTH_SECRET",
     "ENCRYPTION_KEY",
+    "DAOFLOW_RECOVERY_ENCRYPTION_KEY",
     "DAOFLOW_WORKFLOW_PROFILE",
     "COMPOSE_PROFILES",
     "DAOFLOW_ENABLE_TEMPORAL"
@@ -218,6 +221,12 @@ ${envLine("TEMPORAL_POSTGRES_PASSWORD", temporalPgPass)}
 # -- Secrets (auto-generated, do not share) ---------------------------------
 ${envLine("BETTER_AUTH_SECRET", authSecret)}
 ${envLine("ENCRYPTION_KEY", encKey)}
+
+# -- Disaster Recovery (separate external key) ------------------------------
+${envLine("DAOFLOW_RECOVERY_ENCRYPTION_KEY", recoveryKey)}
+# DAOFLOW_PREVIOUS_RECOVERY_ENCRYPTION_KEY=
+# DAOFLOW_RECOVERY_KEY_ROTATED_AT=
+# DAOFLOW_CONTROL_PLANE_POSTGRES_CONTAINER=
 
 # -- Deployment Worker ------------------------------------------------------
 # DEPLOY_TIMEOUT_MS=600000

@@ -1072,6 +1072,161 @@
       "supportsYes": true
     },
     {
+      "path": "backup recovery",
+      "summary": "Plan and verify control-plane recovery bundles",
+      "lane": "local",
+      "requiredScopes": [],
+      "mutating": false,
+      "hasAction": false,
+      "hasSubcommands": true,
+      "aliases": [],
+      "arguments": [],
+      "options": [],
+      "supportsJson": false,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
+      "path": "backup recovery download-metadata",
+      "summary": "Show safe recovery-bundle metadata and manifest details",
+      "lane": "read",
+      "requiredScopes": ["backup:read"],
+      "mutating": false,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--bundle <id>",
+          "description": "Recovery bundle ID",
+          "required": true
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
+      "path": "backup recovery inspect",
+      "summary": "Inspect a recovery bundle and its verification evidence",
+      "lane": "read",
+      "requiredScopes": ["backup:read"],
+      "mutating": false,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--bundle <id>",
+          "description": "Recovery bundle ID",
+          "required": true
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
+      "path": "backup recovery list",
+      "summary": "List recent control-plane recovery bundles",
+      "lane": "read",
+      "requiredScopes": ["backup:read"],
+      "mutating": false,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--limit <n>",
+          "description": "Maximum bundles to show",
+          "required": false
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
+      "path": "backup recovery plan",
+      "summary": "Check recovery readiness without creating a bundle",
+      "lane": "planning",
+      "requiredScopes": ["backup:read"],
+      "mutating": false,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--destination <id>",
+          "description": "Existing backup destination ID",
+          "required": true
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
+      "path": "backup recovery run",
+      "summary": "Create and verify a control-plane recovery bundle",
+      "lane": "command",
+      "requiredScopes": ["backup:run"],
+      "mutating": true,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--destination <id>",
+          "description": "Existing backup destination ID",
+          "required": true
+        },
+        {
+          "flags": "--dry-run",
+          "description": "Preview readiness without creating a bundle",
+          "required": false
+        },
+        {
+          "flags": "-y, --yes",
+          "description": "Confirm bundle creation",
+          "required": false
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": true,
+      "supportsYes": true
+    },
+    {
       "path": "backup restore",
       "summary": "Queue a restore from a backup run",
       "lane": "command",

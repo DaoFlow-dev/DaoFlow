@@ -36,6 +36,7 @@ export function buildInstallEnvironment(input: { config: InstallConfiguration; v
     workflowProfile: config.workflowProfile,
     authSecret: config.existingInstall?.env.BETTER_AUTH_SECRET,
     encryptionKey: config.existingInstall?.env.ENCRYPTION_KEY,
+    recoveryEncryptionKey: config.existingInstall?.env.DAOFLOW_RECOVERY_ENCRYPTION_KEY,
     preservedEnv: config.existingInstall?.env
   });
 

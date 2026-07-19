@@ -19,16 +19,22 @@ import {
 } from "./rclone-helpers";
 import { processRunner } from "./process-runner";
 import { generateRcloneConfig, type DestinationConfig } from "./rclone-config";
+import { getRcloneCommandTimeoutMs, type RcloneResult } from "./rclone-recovery-executor";
 
 export { archiveDecrypt, archiveEncrypt, type ArchiveEncryptResult } from "./rclone-archive";
 export { generateRcloneConfig, type DestinationConfig } from "./rclone-config";
-
-export interface RcloneResult {
-  success: boolean;
-  output: string;
-  error?: string;
-  exitCode: number;
-}
+export {
+  copyObjectFromRemote,
+  copyObjectFromRemoteAsync,
+  copyObjectToRemote,
+  copyObjectToRemoteAsync,
+  DEFAULT_RCLONE_COMMAND_TIMEOUT_MS,
+  getRcloneCommandTimeoutMs,
+  MAX_RCLONE_COMMAND_TIMEOUT_MS,
+  MIN_RCLONE_COMMAND_TIMEOUT_MS,
+  type RcloneExecutionOptions,
+  type RcloneResult
+} from "./rclone-recovery-executor";
 
 const DEFAULT_TIMEOUT = "30s";
 const DEFAULT_RETRIES = "2";
@@ -36,7 +42,7 @@ const DEFAULT_RETRIES = "2";
 function runRclone(dest: DestinationConfig, configPath: string, args: string[]): RcloneResult {
   const rcloneArgs = [`--config=${configPath}`, ...args];
   const opts: ExecFileSyncOptions = {
-    timeout: 60_000,
+    timeout: getRcloneCommandTimeoutMs(),
     encoding: "utf-8",
     stdio: ["pipe", "pipe", "pipe"]
   };
@@ -49,19 +55,26 @@ function runRclone(dest: DestinationConfig, configPath: string, args: string[]):
       exitCode: 0
     };
   } catch (err) {
-    const error = err as { status?: number; stdout?: string; stderr?: string; message?: string };
-    const rawError =
-      normalizeExecutableFailure("rclone", err, "running backup destination operations") ??
-      error.stderr ??
-      error.message ??
-      String(err);
-    return {
-      success: false,
-      output: redactDestinationCredentialValues(error.stdout ?? "", dest),
-      error: redactDestinationCredentialValues(rawError, dest),
-      exitCode: error.status ?? 1
-    };
+    return rcloneFailure(dest, err);
   }
+}
+
+function rcloneFailure(
+  dest: DestinationConfig,
+  failure: unknown,
+  stdout = "",
+  stderr = ""
+): RcloneResult {
+  const error = failure as { status?: number; stdout?: string; stderr?: string; message?: string };
+  const rawError =
+    normalizeExecutableFailure("rclone", failure, "running backup destination operations") ??
+    (stderr || error.stderr || error.message || String(failure));
+  return {
+    success: false,
+    output: redactDestinationCredentialValues(stdout || error.stdout || "", dest),
+    error: redactDestinationCredentialValues(rawError, dest),
+    exitCode: error.status ?? 1
+  };
 }
 
 function cleanupConfig(configPath: string): void {

@@ -16,12 +16,13 @@ manual `backup run` or restore operations.
 
 ## Overview
 
-| Feature                    | Description                                      |
-| -------------------------- | ------------------------------------------------ |
-| [Policies](./policies)     | Define what to backup, when, and retention rules |
-| [Runs](./runs)             | View backup execution history                    |
-| [Restore](./restore)       | Restore from a specific backup                   |
-| [S3 Storage](./s3-storage) | Configure remote backup storage                  |
+| Feature                              | Description                                      |
+| ------------------------------------ | ------------------------------------------------ |
+| [Policies](./policies)               | Define what to backup, when, and retention rules |
+| [Runs](./runs)                       | View backup execution history                    |
+| [Restore](./restore)                 | Restore from a specific backup                   |
+| [S3 Storage](./s3-storage)           | Configure remote backup storage                  |
+| [Control-plane recovery](./recovery) | Create and verify DaoFlow recovery bundles       |
 
 ## Service Detail Workflow
 
@@ -50,14 +51,20 @@ daoflow backup list --json
 
 # Restore from a backup
 daoflow backup restore --backup-run-id bkp_run_123 --yes
+
+# Plan and run a control-plane recovery bundle
+daoflow backup recovery plan --destination dest_123 --json
+daoflow backup recovery run --destination dest_123 --yes
 ```
 
 ## Permissions
 
-| Action              | Required Scope   |
-| ------------------- | ---------------- |
-| View policies       | `backup:read`    |
-| View backup history | `backup:read`    |
-| Preview restore     | `backup:read`    |
-| Run a backup        | `backup:run`     |
-| Restore a backup    | `backup:restore` |
+| Action                             | Required Scope   |
+| ---------------------------------- | ---------------- |
+| View policies                      | `backup:read`    |
+| View backup history                | `backup:read`    |
+| Preview restore                    | `backup:read`    |
+| Run a backup                       | `backup:run`     |
+| Restore a backup                   | `backup:restore` |
+| Plan/list/inspect recovery bundles | `backup:read`    |
+| Run a recovery bundle              | `backup:run`     |

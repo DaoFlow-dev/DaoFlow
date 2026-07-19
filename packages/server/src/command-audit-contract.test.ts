@@ -90,6 +90,7 @@ describe("command audit contract", () => {
   it("does not report queued work as remotely succeeded", () => {
     expect(successOutcomeForCommand("triggerDeploy")).toBe("accepted");
     expect(successOutcomeForCommand("queueBackupRestore")).toBe("accepted");
+    expect(successOutcomeForCommand("triggerControlPlaneRecoveryBundle")).toBe("accepted");
     expect(successOutcomeForCommand("createManagedDatabase")).toBe("accepted");
     expect(successOutcomeForCommand("updateProject")).toBe("succeeded");
   });
@@ -101,5 +102,14 @@ describe("command audit contract", () => {
         deployment: { id: "dep_expected" }
       })
     ).toBe("dep_expected");
+  });
+
+  it("uses the recovery bundle ID for queued recovery dispatch auditing", () => {
+    expect(
+      extractCommandOperationId("triggerControlPlaneRecoveryBundle", {
+        bundle: { id: "rb_expected" },
+        destination: { id: "dest_wrong" }
+      })
+    ).toBe("rb_expected");
   });
 });

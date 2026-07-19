@@ -8,12 +8,13 @@ Complete reference for the `.env` file consumed by the production `docker-compos
 
 ## Required In The Generated `.env`
 
-| Variable             | Description                                                                                                 | Example                      |
-| -------------------- | ----------------------------------------------------------------------------------------------------------- | ---------------------------- |
-| `BETTER_AUTH_SECRET` | Session signing secret (at least 32 chars)                                                                  | `openssl rand -hex 32`       |
-| `BETTER_AUTH_URL`    | Public URL of DaoFlow instance                                                                              | `https://deploy.example.com` |
-| `ENCRYPTION_KEY`     | Global DaoFlow secret-encryption key; keep it unchanged during destination-key rotation (at least 32 chars) | `openssl rand -hex 32`       |
-| `POSTGRES_PASSWORD`  | DaoFlow application database password                                                                       | `openssl rand -hex 16`       |
+| Variable                          | Description                                                                                                 | Example                      |
+| --------------------------------- | ----------------------------------------------------------------------------------------------------------- | ---------------------------- |
+| `BETTER_AUTH_SECRET`              | Session signing secret (at least 32 chars)                                                                  | `openssl rand -hex 32`       |
+| `BETTER_AUTH_URL`                 | Public URL of DaoFlow instance                                                                              | `https://deploy.example.com` |
+| `ENCRYPTION_KEY`                  | Global DaoFlow secret-encryption key; keep it unchanged during destination-key rotation (at least 32 chars) | `openssl rand -hex 32`       |
+| `DAOFLOW_RECOVERY_ENCRYPTION_KEY` | Dedicated key for encrypted control-plane recovery bundles; store it outside DaoFlow (at least 32 chars)    | `openssl rand -hex 32`       |
+| `POSTGRES_PASSWORD`               | DaoFlow application database password                                                                       | `openssl rand -hex 16`       |
 
 `DATABASE_URL`, `REDIS_URL`, and most container-local defaults are constructed inside the compose stack and are not normally hand-authored in this `.env` file.
 
@@ -41,6 +42,23 @@ rotation fails before commit, restore the old destination key as
 `DAOFLOW_BACKUP_DESTINATION_ENCRYPTION_KEY` (or unset it to fall back to
 `ENCRYPTION_KEY`) and remove the temporary previous key. Do not replace the
 global `ENCRYPTION_KEY`.
+
+Control-plane recovery uses `DAOFLOW_RECOVERY_ENCRYPTION_KEY`, not the global or
+destination key. DaoFlow stores only its fingerprint and rotation metadata.
+During a controlled rotation, supply the former value through
+`DAOFLOW_PREVIOUS_RECOVERY_ENCRYPTION_KEY` until a new recovery plan succeeds,
+then remove it. Losing the external recovery key makes encrypted bundles
+unreadable.
+
+Large recovery bundles can tune transfer and isolated-restore limits:
+
+| Variable                                             | Default   | Allowed range | Description                                                       |
+| ---------------------------------------------------- | --------- | ------------- | ----------------------------------------------------------------- |
+| `DAOFLOW_RCLONE_COMMAND_TIMEOUT_MS`                  | `1800000` | 60000–3600000 | Maximum time for one recovery-object upload or download.          |
+| `DAOFLOW_CONTROL_PLANE_RECOVERY_VERIFIER_STORAGE_MB` | `4096`    | 512–65536     | Storage and memory ceiling for each isolated PostgreSQL verifier. |
+
+Size the verifier above the restored database footprint. Recovery fails closed
+when a transfer exceeds its timeout or the isolated verifier exceeds its limit.
 
 ## Version, Workflow Profile, And Ports
 

@@ -90,6 +90,29 @@ external secret store. Restoring a bundle requires the matching external keys:
 use the old destination key for state from before a successful rotation and the
 new destination key for state from after it.
 
+### Control-plane Recovery Procedure
+
+Before an incident, configure `DAOFLOW_RECOVERY_ENCRYPTION_KEY` in an external
+secret manager and create a verified bundle:
+
+```bash
+daoflow backup recovery plan --destination <destination-id> --json
+daoflow backup recovery run --destination <destination-id> --dry-run --json
+daoflow backup recovery run --destination <destination-id> --yes
+daoflow backup recovery list --json
+```
+
+Use `daoflow backup recovery inspect --bundle <bundle-id> --json` to capture the
+application version, schema version, object paths, checksums, required secret
+names, and isolated verification evidence. A queued or running bundle is not a
+recovery point. Keep failed records and follow their reported next steps.
+
+During disaster recovery, recover the external recovery key before attempting to
+read the sidecar manifest. The sidecar is deliberately deterministic so it can
+be found even when the original DaoFlow database catalog is lost. Live restore
+into a clean installation is a separate approval-gated procedure; do not write a
+bundle into a production database as an incident shortcut.
+
 ## Deployments Fail Or Stall
 
 Use the deployment ID from the dashboard or CLI response:

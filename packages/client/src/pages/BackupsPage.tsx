@@ -76,6 +76,24 @@ export default function BackupsPage() {
         </div>
       </div>
 
+      <Card data-testid="backup-control-plane-recovery-card">
+        <CardHeader className="flex flex-row items-center justify-between gap-4">
+          <div>
+            <CardTitle className="text-base">Control-plane recovery</CardTitle>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Plan and verify encrypted DaoFlow recovery bundles for an incident.
+            </p>
+          </div>
+          <Link
+            to="/backups/recovery"
+            className={buttonVariants({ variant: "outline", size: "sm" })}
+            data-testid="backup-control-plane-recovery-link"
+          >
+            Open recovery
+          </Link>
+        </CardHeader>
+      </Card>
+
       {restoreFeedback ? (
         <p
           className="rounded-lg border bg-muted px-4 py-2 text-sm text-muted-foreground"

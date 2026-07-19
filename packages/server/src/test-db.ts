@@ -91,6 +91,7 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
       backupDestinationsTeamId: string | null;
       backupRunsArtifactCheckedAt: string | null;
       backupRestoresMode: string | null;
+      controlPlaneRecoveryBundles: string | null;
       backupDestinationsCredentialsEncrypted: string | null;
       backupDestinationsCredentialStateCheck: string | null;
       containerRegistriesTeamId: string | null;
@@ -150,6 +151,7 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
         (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'backup_destinations' AND column_name = 'team_id') AS "backupDestinationsTeamId",
         (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'backup_runs' AND column_name = 'artifact_checked_at') AS "backupRunsArtifactCheckedAt",
         (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'backup_restores' AND column_name = 'mode') AS "backupRestoresMode",
+        to_regclass('public.control_plane_recovery_bundles') AS "controlPlaneRecoveryBundles",
         (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'backup_destinations' AND column_name = 'credentials_encrypted') AS "backupDestinationsCredentialsEncrypted",
         (SELECT conname FROM pg_constraint WHERE conname = 'backup_destinations_credentials_state_check') AS "backupDestinationsCredentialStateCheck",
         (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'container_registries' AND column_name = 'team_id') AS "containerRegistriesTeamId",
@@ -211,6 +213,7 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
       row.backupDestinationsTeamId &&
       row.backupRunsArtifactCheckedAt &&
       row.backupRestoresMode &&
+      row.controlPlaneRecoveryBundles &&
       row.backupDestinationsCredentialsEncrypted &&
       row.backupDestinationsCredentialStateCheck &&
       row.containerRegistriesTeamId &&
@@ -305,6 +308,7 @@ async function readPoolSchemaState() {
     backupDestinationsTeamId: string | null;
     backupRunsArtifactCheckedAt: string | null;
     backupRestoresMode: string | null;
+    controlPlaneRecoveryBundles: string | null;
     backupDestinationsCredentialsEncrypted: string | null;
     backupDestinationsCredentialStateCheck: string | null;
     containerRegistriesTeamId: string | null;
@@ -363,6 +367,7 @@ async function readPoolSchemaState() {
       (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'backup_destinations' AND column_name = 'team_id') AS "backupDestinationsTeamId",
       (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'backup_runs' AND column_name = 'artifact_checked_at') AS "backupRunsArtifactCheckedAt",
       (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'backup_restores' AND column_name = 'mode') AS "backupRestoresMode",
+      to_regclass('public.control_plane_recovery_bundles') AS "controlPlaneRecoveryBundles",
       (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'backup_destinations' AND column_name = 'credentials_encrypted') AS "backupDestinationsCredentialsEncrypted",
       (SELECT conname FROM pg_constraint WHERE conname = 'backup_destinations_credentials_state_check') AS "backupDestinationsCredentialStateCheck",
       (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'container_registries' AND column_name = 'team_id') AS "containerRegistriesTeamId",
@@ -435,6 +440,7 @@ async function ensurePooledTestSchemaReady(connectionString: string) {
         state.backupDestinationsTeamId &&
         state.backupRunsArtifactCheckedAt &&
         state.backupRestoresMode &&
+        state.controlPlaneRecoveryBundles &&
         state.backupDestinationsCredentialsEncrypted &&
         state.backupDestinationsCredentialStateCheck &&
         state.containerRegistriesTeamId &&

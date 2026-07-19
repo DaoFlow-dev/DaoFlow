@@ -92,6 +92,7 @@ describe("generateEnvFile", () => {
       temporalPostgresPassword: "temporal value",
       authSecret: "auth secret #literal",
       encryptionKey: "enc\tkey",
+      recoveryEncryptionKey: "recovery key #literal",
       preservedEnv: {
         SMTP_PASSWORD: "smtp # secret $HOME",
         CUSTOM_VALUE: "kept'value"
@@ -110,6 +111,7 @@ describe("generateEnvFile", () => {
     expect(parsed.AUTH_SECRET).toBeUndefined();
     expect(parsed.BETTER_AUTH_SECRET).toBe("auth secret #literal");
     expect(parsed.ENCRYPTION_KEY).toBe("enc\tkey");
+    expect(parsed.DAOFLOW_RECOVERY_ENCRYPTION_KEY).toBe("recovery key #literal");
     expect(parsed.SMTP_PASSWORD).toBe("smtp # secret $HOME");
     expect(parsed.CUSTOM_VALUE).toBe("kept'value");
   });

@@ -226,6 +226,10 @@ describe("BackupsPage", () => {
   it("opens the backup run details sheet from the runs table", () => {
     renderBackupsPage();
 
+    expect(screen.getByTestId("backup-control-plane-recovery-link")).toHaveAttribute(
+      "href",
+      "/backups/recovery"
+    );
     expect(backupDestinationsUseQueryMock).toHaveBeenCalledWith({}, { enabled: false });
     fireEvent.click(screen.getByTestId("backup-run-inspect-run_failed"));
 

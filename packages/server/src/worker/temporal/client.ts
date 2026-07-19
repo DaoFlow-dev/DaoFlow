@@ -7,6 +7,11 @@
  */
 
 import { Connection, Client } from "@temporalio/client";
+import {
+  WorkflowExecutionAlreadyStartedError,
+  WorkflowIdConflictPolicy,
+  WorkflowIdReusePolicy
+} from "@temporalio/common";
 import type { DeploymentWorkflowInput } from "../deployment-workflow-input";
 import { TEMPORAL_ADDRESS, TEMPORAL_NAMESPACE, TEMPORAL_TASK_QUEUE } from "./temporal-config";
 
@@ -99,6 +104,14 @@ export function buildOneOffBackupWorkflowId(policyId: string, requestedRunId?: s
 
 export function buildRestoreWorkflowId(restoreId: string): string {
   return `backup-restore-${restoreId}`;
+}
+
+/**
+ * A recovery bundle owns exactly one Temporal execution. Keeping this ID
+ * deterministic makes retried dispatches attach to the same unit of work.
+ */
+export function buildControlPlaneRecoveryWorkflowId(bundleId: string): string {
+  return `control-plane-recovery-${bundleId}`;
 }
 
 /**
@@ -210,6 +223,41 @@ export async function startRestoreWorkflow(input: {
     workflowId: handle.workflowId,
     runId: handle.firstExecutionRunId
   };
+}
+
+/**
+ * Start the dedicated workflow that creates and verifies a control-plane
+ * recovery bundle after its queued database row has been persisted.
+ */
+export async function startControlPlaneRecoveryWorkflow(input: {
+  bundleId: string;
+}): Promise<{ workflowId: string; runId: string }> {
+  const tc = await getTemporalClient();
+  const workflowId = buildControlPlaneRecoveryWorkflowId(input.bundleId);
+
+  try {
+    const handle = await tc.workflow.start("controlPlaneRecoveryWorkflow", {
+      taskQueue: TEMPORAL_TASK_QUEUE,
+      workflowId,
+      args: [{ bundleId: input.bundleId }],
+      workflowExecutionTimeout: "2h",
+      workflowIdConflictPolicy: WorkflowIdConflictPolicy.USE_EXISTING,
+      workflowIdReusePolicy: WorkflowIdReusePolicy.REJECT_DUPLICATE
+    });
+
+    console.log(`[temporal-client] Ensured control-plane recovery workflow: ${handle.workflowId}`);
+    return {
+      workflowId: handle.workflowId,
+      runId: handle.firstExecutionRunId
+    };
+  } catch (error) {
+    if (!(error instanceof WorkflowExecutionAlreadyStartedError)) throw error;
+
+    const existing = tc.workflow.getHandle(workflowId);
+    const description = await existing.describe();
+    console.log(`[temporal-client] Attached control-plane recovery workflow: ${workflowId}`);
+    return { workflowId, runId: description.runId };
+  }
 }
 
 /**

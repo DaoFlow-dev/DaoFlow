@@ -10,14 +10,18 @@ DaoFlow is configured through environment variables and a CLI config file.
 
 ### Local Development
 
-| Variable                                             | Description                                                 |
-| ---------------------------------------------------- | ----------------------------------------------------------- |
-| `DATABASE_URL`                                       | PostgreSQL connection string                                |
-| `BETTER_AUTH_URL`                                    | Public-facing URL of the DaoFlow instance                   |
-| `BETTER_AUTH_SECRET`                                 | Optional locally, required in production                    |
-| `ENCRYPTION_KEY`                                     | Optional locally, at least 32 characters in production      |
-| `DAOFLOW_BACKUP_DESTINATION_ENCRYPTION_KEY`          | Optional destination-only key; defaults to `ENCRYPTION_KEY` |
-| `DAOFLOW_PREVIOUS_BACKUP_DESTINATION_ENCRYPTION_KEY` | Temporary old destination key used during rotation          |
+| Variable                                             | Description                                                          |
+| ---------------------------------------------------- | -------------------------------------------------------------------- |
+| `DATABASE_URL`                                       | PostgreSQL connection string                                         |
+| `BETTER_AUTH_URL`                                    | Public-facing URL of the DaoFlow instance                            |
+| `BETTER_AUTH_SECRET`                                 | Optional locally, required in production                             |
+| `ENCRYPTION_KEY`                                     | Optional locally, at least 32 characters in production               |
+| `DAOFLOW_BACKUP_DESTINATION_ENCRYPTION_KEY`          | Optional destination-only key; defaults to `ENCRYPTION_KEY`          |
+| `DAOFLOW_PREVIOUS_BACKUP_DESTINATION_ENCRYPTION_KEY` | Temporary old destination key used during rotation                   |
+| `DAOFLOW_RECOVERY_ENCRYPTION_KEY`                    | Separate external key used to encrypt control-plane recovery bundles |
+| `DAOFLOW_PREVIOUS_RECOVERY_ENCRYPTION_KEY`           | Temporary old recovery key used during rotation                      |
+| `DAOFLOW_RCLONE_COMMAND_TIMEOUT_MS`                  | Recovery-object transfer timeout in milliseconds                     |
+| `DAOFLOW_CONTROL_PLANE_RECOVERY_VERIFIER_STORAGE_MB` | Isolated recovery verifier limit in megabytes                        |
 
 ### Production `.env`
 
@@ -34,6 +38,10 @@ Most operators edit only these values:
 | `ENCRYPTION_KEY`                                     | —                            | Global DaoFlow secret-encryption key; keep it unchanged during destination-key rotation  |
 | `DAOFLOW_BACKUP_DESTINATION_ENCRYPTION_KEY`          | unset                        | Current backup-destination key; falls back to `ENCRYPTION_KEY`                           |
 | `DAOFLOW_PREVIOUS_BACKUP_DESTINATION_ENCRYPTION_KEY` | unset                        | Temporary old backup-destination key used only during rotation                           |
+| `DAOFLOW_RECOVERY_ENCRYPTION_KEY`                    | unset                        | Dedicated recovery-bundle encryption key; store it outside the control-plane database    |
+| `DAOFLOW_PREVIOUS_RECOVERY_ENCRYPTION_KEY`           | unset                        | Temporary previous recovery key during a controlled key rotation                         |
+| `DAOFLOW_RCLONE_COMMAND_TIMEOUT_MS`                  | `1800000`                    | Maximum time for one recovery-object transfer                                            |
+| `DAOFLOW_CONTROL_PLANE_RECOVERY_VERIFIER_STORAGE_MB` | `4096`                       | Storage and memory ceiling for each isolated recovery verifier                           |
 | `POSTGRES_PASSWORD`                                  | —                            | Password for the DaoFlow application database                                            |
 | `TEMPORAL_POSTGRES_PASSWORD`                         | —                            | Password for Temporal's Postgres database                                                |
 | `DEPLOY_TIMEOUT_MS`                                  | `600000`                     | Timeout for a single deployment execution                                                |
@@ -69,6 +77,15 @@ If migration fails before commit, restore the old value as
 `DAOFLOW_BACKUP_DESTINATION_ENCRYPTION_KEY` (or unset it if it previously
 inherited `ENCRYPTION_KEY`), remove the temporary previous-key variable, and
 restart. Do not change the global `ENCRYPTION_KEY` for this rollback.
+
+### Control-plane Recovery Key
+
+`DAOFLOW_RECOVERY_ENCRYPTION_KEY` is independent of both `ENCRYPTION_KEY` and the
+backup-destination key. Generate it with `openssl rand -hex 32` and keep it in an external secret
+manager. DaoFlow stores only its fingerprint and rotation timestamp. If the key is rotated, supply
+the old value as `DAOFLOW_PREVIOUS_RECOVERY_ENCRYPTION_KEY` for the migration window, verify a new
+recovery plan, then remove the previous key. Losing this external key makes encrypted recovery
+bundles unreadable.
 
 ### Initial Owner Bootstrap
 

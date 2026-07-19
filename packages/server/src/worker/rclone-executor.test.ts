@@ -1,6 +1,26 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+
+const { execFileMock } = vi.hoisted(() => ({ execFileMock: vi.fn() }));
+const originalRcloneCommandTimeout = process.env.DAOFLOW_RCLONE_COMMAND_TIMEOUT_MS;
+
+vi.mock("node:child_process", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("node:child_process")>()),
+  execFile: execFileMock
+}));
+
 import { processRunner } from "./process-runner";
-import { archiveDecrypt, archiveEncrypt, copyToRemote, testConnection } from "./rclone-executor";
+import {
+  archiveDecrypt,
+  archiveEncrypt,
+  DEFAULT_RCLONE_COMMAND_TIMEOUT_MS,
+  copyObjectFromRemoteAsync,
+  copyObjectFromRemote,
+  copyObjectToRemoteAsync,
+  copyObjectToRemote,
+  copyToRemote,
+  getRcloneCommandTimeoutMs,
+  testConnection
+} from "./rclone-executor";
 import {
   extractConfiguredRemoteName,
   normalizeExecutableFailure,
@@ -10,6 +30,12 @@ import {
 
 afterEach(() => {
   vi.restoreAllMocks();
+  vi.clearAllMocks();
+  if (originalRcloneCommandTimeout === undefined) {
+    delete process.env.DAOFLOW_RCLONE_COMMAND_TIMEOUT_MS;
+  } else {
+    process.env.DAOFLOW_RCLONE_COMMAND_TIMEOUT_MS = originalRcloneCommandTimeout;
+  }
 });
 
 describe("rclone remote helpers", () => {
@@ -64,6 +90,76 @@ describe("rclone remote helpers", () => {
 });
 
 describe("rclone executor", () => {
+  it("uses a bounded configurable timeout and cancellation signal for recovery transfers", async () => {
+    process.env.DAOFLOW_RCLONE_COMMAND_TIMEOUT_MS = "120000";
+    const controller = new AbortController();
+    execFileMock.mockImplementation(
+      (
+        _file: string,
+        _args: readonly string[],
+        _options: object,
+        callback: (error: Error | null, stdout: string, stderr: string) => void
+      ) => {
+        callback(null, "", "");
+        return undefined;
+      }
+    );
+
+    const destination = {
+      id: "dest_recovery_async",
+      provider: "rclone" as const,
+      rcloneConfig: "[remote]\ntype = sftp\nhost = backup.example.com\n",
+      rcloneRemotePath: "backups/daoflow"
+    };
+    await expect(
+      copyObjectToRemoteAsync(destination, "/tmp/recovery-bundle", "recovery/bundle.dfr", {
+        cancellationSignal: controller.signal
+      })
+    ).resolves.toMatchObject({ success: true });
+    await expect(
+      copyObjectFromRemoteAsync(destination, "recovery/manifest.json", "/tmp/manifest.json", {
+        cancellationSignal: controller.signal
+      })
+    ).resolves.toMatchObject({ success: true });
+
+    expect(execFileMock).toHaveBeenCalledTimes(2);
+    const firstCall = execFileMock.mock.calls[0];
+    expect(firstCall?.[0]).toBe("rclone");
+    expect(firstCall?.[2]).toMatchObject({
+      timeout: 120_000,
+      signal: controller.signal
+    });
+  });
+
+  it("does not start a recovery transfer after cancellation", async () => {
+    const controller = new AbortController();
+    controller.abort(new Error("operator cancelled recovery"));
+
+    await expect(
+      copyObjectToRemoteAsync(
+        {
+          id: "dest_cancelled_recovery",
+          provider: "local",
+          localPath: "/tmp/daoflow-rclone-tests"
+        },
+        "/tmp/recovery-bundle",
+        "recovery/bundle.dfr",
+        { cancellationSignal: controller.signal }
+      )
+    ).resolves.toMatchObject({ success: false, error: "Rclone operation was cancelled." });
+    expect(execFileMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects unsafe rclone command timeout settings", () => {
+    expect(getRcloneCommandTimeoutMs({})).toBe(DEFAULT_RCLONE_COMMAND_TIMEOUT_MS);
+    expect(() => getRcloneCommandTimeoutMs({ DAOFLOW_RCLONE_COMMAND_TIMEOUT_MS: "59999" })).toThrow(
+      "DAOFLOW_RCLONE_COMMAND_TIMEOUT_MS"
+    );
+    expect(() =>
+      getRcloneCommandTimeoutMs({ DAOFLOW_RCLONE_COMMAND_TIMEOUT_MS: "3600001" })
+    ).toThrow("DAOFLOW_RCLONE_COMMAND_TIMEOUT_MS");
+  });
+
   it("targets the configured remote name when copying through custom rclone configs", () => {
     const execFileSyncMock = vi.spyOn(processRunner, "execFileSync").mockImplementation(() => "");
     const result = copyToRemote(
@@ -89,6 +185,41 @@ describe("rclone executor", () => {
     expect(args).toContain("copy");
     expect(args).toContain("/tmp/source");
     expect(args).toContain("remote:backups/daoflow/daily");
+  });
+
+  it("uses exact copyto operations outside rclone-crypt for recovery objects", () => {
+    const execFileSyncMock = vi.spyOn(processRunner, "execFileSync").mockImplementation(() => "");
+    const destination = {
+      id: "dest_recovery_object",
+      provider: "rclone" as const,
+      rcloneConfig: "[remote]\ntype = sftp\nhost = backup.example.com\n",
+      rcloneRemotePath: "backups/daoflow",
+      encryptionMode: "rclone-crypt",
+      encryptionPassword: "do-not-use-for-recovery"
+    };
+
+    expect(
+      copyObjectToRemote(
+        destination,
+        "/tmp/recovery-bundle",
+        "control-plane-recovery/v1/a/bundle.dfr"
+      ).success
+    ).toBe(true);
+    expect(
+      copyObjectFromRemote(destination, "control-plane-recovery/v1/latest.json", "/tmp/latest.json")
+        .success
+    ).toBe(true);
+
+    const recoveryCalls = execFileSyncMock.mock.calls
+      .map(([, args]) => args)
+      .filter((args): args is string[] => Boolean(args?.includes("copyto")));
+    const uploadArgs = recoveryCalls[0] ?? [];
+    const downloadArgs = recoveryCalls[1] ?? [];
+    expect(uploadArgs).toContain("copyto");
+    expect(uploadArgs).toContain("remote:backups/daoflow/control-plane-recovery/v1/a/bundle.dfr");
+    expect(uploadArgs).not.toContain("daoflow-crypt:control-plane-recovery/v1/a/bundle.dfr");
+    expect(downloadArgs).toContain("copyto");
+    expect(downloadArgs).toContain("remote:backups/daoflow/control-plane-recovery/v1/latest.json");
   });
 
   it("returns a clear error when the rclone executable is unavailable", () => {

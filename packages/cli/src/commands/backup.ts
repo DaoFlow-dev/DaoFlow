@@ -24,6 +24,7 @@ import {
 import { registerBackupDestinationCommands } from "./backup-destination-commands";
 import { registerBackupPolicySubcommands } from "./backup-policy";
 import { registerBackupScheduleCommands } from "./backup-schedule-commands";
+import { registerControlPlaneRecoveryCommands } from "./control-plane-recovery";
 import {
   emitBackupDryRunResult,
   renderBackupError,
@@ -42,6 +43,7 @@ export function backupCommand(): Command {
   registerBackupPolicySubcommands(backup);
   registerBackupDestinationCommands(backup);
   registerBackupScheduleCommands(backup);
+  registerControlPlaneRecoveryCommands(backup);
 
   backup
     .command("list")

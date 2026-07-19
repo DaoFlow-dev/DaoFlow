@@ -529,6 +529,139 @@ export interface BackupRestorePlanOutput {
   };
 }
 
+export interface ControlPlaneRecoveryDestinationSummary {
+  id: string;
+  name: string;
+  provider?: string | null;
+  bucket?: string | null;
+  region?: string | null;
+  endpoint?: string | null;
+  [key: string]: unknown;
+}
+
+export interface ControlPlaneRecoveryCheckOutput {
+  status: string;
+  detail: string;
+  [key: string]: unknown;
+}
+
+export interface ControlPlaneRecoveryVerificationOutput {
+  success?: boolean;
+  status?: string;
+  completedAt?: string | null;
+  error?: string | null;
+  checks?: Record<string, ControlPlaneRecoveryCheckOutput>;
+  [key: string]: unknown;
+}
+
+export interface ControlPlaneRecoveryManifestOutput {
+  formatVersion?: number;
+  bundleId?: string;
+  appVersion?: string;
+  schemaVersion?: string;
+  createdAt?: string;
+  database?: {
+    engine?: string;
+    version?: string;
+    dumpFormat?: string;
+    sha256?: string;
+    [key: string]: unknown;
+  };
+  migrations?: {
+    count?: number;
+    latestHash?: string | null;
+    applied?: Array<{ hash: string; createdAt: number }>;
+    [key: string]: unknown;
+  };
+  compatibility?: Record<string, unknown>;
+  requiredExternalSecrets?: string[];
+  recoveryKey?: {
+    fingerprint?: string;
+    rotatedAt?: string | null;
+    [key: string]: unknown;
+  };
+  sanitization?: { clearedFields?: string[]; [key: string]: unknown };
+  objects?: Record<string, string>;
+  [key: string]: unknown;
+}
+
+export interface ControlPlaneRecoveryBundleOutput {
+  id: string;
+  status: string;
+  appVersion?: string;
+  schemaVersion?: string;
+  keyFingerprint?: string | null;
+  keyRotatedAt?: string | null;
+  destinationId?: string;
+  destination?: ControlPlaneRecoveryDestinationSummary | null;
+  destinationSummary?: ControlPlaneRecoveryDestinationSummary | null;
+  objectPrefix?: string;
+  bundleObjectPath?: string;
+  manifestObjectPath?: string;
+  latestManifestObjectPath?: string;
+  objectPaths?: Record<string, string>;
+  bundleChecksum?: string | null;
+  databaseChecksum?: string | null;
+  checksums?: Record<string, string | null>;
+  sizeBytes?: string | number | null;
+  manifest?: ControlPlaneRecoveryManifestOutput | null;
+  verification?: ControlPlaneRecoveryVerificationOutput | null;
+  verificationResult?: ControlPlaneRecoveryVerificationOutput | null;
+  error?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+  startedAt?: string | null;
+  completedAt?: string | null;
+  [key: string]: unknown;
+}
+
+export interface ControlPlaneRecoveryPlanOutput {
+  isReady: boolean;
+  status?: string;
+  destinationId?: string;
+  destination?: ControlPlaneRecoveryDestinationSummary | null;
+  destinationSummary?: ControlPlaneRecoveryDestinationSummary | null;
+  appVersion?: string;
+  schemaVersion?: string;
+  keyFingerprint?: string | null;
+  keyRotatedAt?: string | null;
+  checks?: ControlPlaneRecoveryCheckOutput[];
+  preflightChecks?: ControlPlaneRecoveryCheckOutput[];
+  compatibility?: Record<string, unknown>;
+  requiredExternalSecrets?: string[];
+  objectPaths?: Record<string, string>;
+  verification?: ControlPlaneRecoveryVerificationOutput | null;
+  failureNextSteps?: string[];
+  nextSteps?: string[];
+  error?: string | null;
+  [key: string]: unknown;
+}
+
+export interface ControlPlaneRecoveryBundlesOutput {
+  bundles: ControlPlaneRecoveryBundleOutput[];
+  limit?: number;
+  [key: string]: unknown;
+}
+
+export type ControlPlaneRecoveryBundlesResult =
+  ControlPlaneRecoveryBundlesOutput | ControlPlaneRecoveryBundleOutput[];
+
+export interface ControlPlaneRecoveryBundleMetadataOutput {
+  bundleId: string;
+  destinationId?: string;
+  destination?: ControlPlaneRecoveryDestinationSummary | null;
+  appVersion?: string;
+  schemaVersion?: string;
+  keyFingerprint?: string | null;
+  keyRotatedAt?: string | null;
+  objectPaths?: Record<string, string>;
+  checksums?: Record<string, string | null>;
+  manifest?: ControlPlaneRecoveryManifestOutput | null;
+  requiredExternalSecrets?: string[];
+  verification?: ControlPlaneRecoveryVerificationOutput | null;
+  [key: string]: unknown;
+}
+
 export interface BackupRunDetailsOutput {
   id: string;
   policyId: string;
@@ -1484,6 +1617,26 @@ export interface DaoFlowTRPC {
   triggerTestRestore: MutationProcedure<{ backupRunId: string }, QueueRestoreOutput>;
   backupRestorePlan: QueryProcedure<BackupRestorePlanOutput, { backupRunId: string }>;
   queueBackupRestore: MutationProcedure<{ backupRunId: string }, QueueRestoreOutput>;
+  controlPlaneRecoveryPlan: QueryProcedure<
+    ControlPlaneRecoveryPlanOutput,
+    { destinationId: string }
+  >;
+  controlPlaneRecoveryBundles: QueryProcedure<
+    ControlPlaneRecoveryBundlesResult,
+    { limit?: number }
+  >;
+  controlPlaneRecoveryBundle: QueryProcedure<
+    ControlPlaneRecoveryBundleOutput,
+    { bundleId: string }
+  >;
+  controlPlaneRecoveryBundleMetadata: QueryProcedure<
+    ControlPlaneRecoveryBundleMetadataOutput,
+    { bundleId: string }
+  >;
+  triggerControlPlaneRecoveryBundle: MutationProcedure<
+    { destinationId: string },
+    ControlPlaneRecoveryBundleOutput
+  >;
   environmentVariables: QueryProcedure<
     EnvironmentVariablesOutput,
     {

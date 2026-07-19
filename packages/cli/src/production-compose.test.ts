@@ -70,6 +70,9 @@ describe("production docker-compose.yml", () => {
     expect(asRecord(daoflow.environment).ENCRYPTION_KEY).toBe(
       "${ENCRYPTION_KEY:?Set ENCRYPTION_KEY in .env}"
     );
+    expect(asRecord(daoflow.environment).DAOFLOW_RECOVERY_ENCRYPTION_KEY).toBe(
+      "${DAOFLOW_RECOVERY_ENCRYPTION_KEY:-}"
+    );
     expect(asRecord(daoflow.environment).CORS_ORIGIN).toBe("${CORS_ORIGIN:-}");
     expect(daoflow.healthcheck).toBeDefined();
     expect(asRecord(asRecord(services.postgres).environment).POSTGRES_PASSWORD).toBe(

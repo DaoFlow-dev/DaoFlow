@@ -43,6 +43,14 @@ vi.mock("./activities/restore-activities", () => ({
   executeRestore: vi.fn()
 }));
 
+vi.mock("./activities/control-plane-recovery-activities", () => ({
+  executeControlPlaneRecoveryBundle: vi.fn(),
+  markControlPlaneRecoveryFailed: vi.fn(),
+  markControlPlaneRecoveryRunning: vi.fn(),
+  markControlPlaneRecoveryVerified: vi.fn(),
+  resolveControlPlaneRecoveryKey: vi.fn()
+}));
+
 describe("startTemporalWorker", () => {
   beforeEach(() => {
     vi.resetModules();
@@ -73,6 +81,7 @@ describe("startTemporalWorker", () => {
     expect(createArgs.activities).toHaveProperty("appendBackupRunLog");
     expect(createArgs.activities).toHaveProperty("resolveRestoreContext");
     expect(createArgs.activities).toHaveProperty("executeRestore");
+    expect(createArgs.activities).toHaveProperty("executeControlPlaneRecoveryBundle");
   });
 
   it("retries the Temporal connection before starting the worker", async () => {

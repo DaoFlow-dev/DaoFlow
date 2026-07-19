@@ -2,8 +2,20 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { queueBackupRestore, triggerBackupRun } from "../db/services/backups";
 import { BackupVerificationEligibilityError } from "../db/services/backup-restores";
-import { backupRestoreProcedure, backupRunProcedure, getActorContext, t } from "../trpc";
+import {
+  ControlPlaneRecoveryIdempotencyConflictError,
+  ControlPlaneRecoveryPreconditionError,
+  triggerControlPlaneRecoveryBundle
+} from "../db/services/control-plane-recovery";
+import {
+  backupRestoreProcedure,
+  backupRunProcedure,
+  controlPlaneRecoveryRunProcedure,
+  getActorContext,
+  t
+} from "../trpc";
 import { assertBackupPolicyScope, assertBackupRunScope } from "./backup-scope";
+import { requireActorTeamId } from "./team-scope";
 
 const backupRunIdInputSchema = z.object({
   backupRunId: z.string().min(1)
@@ -14,6 +26,31 @@ const backupPolicyIdInputSchema = z.object({
 });
 
 export const backupExecutionCommandRouter = t.router({
+  triggerControlPlaneRecoveryBundle: controlPlaneRecoveryRunProcedure
+    .input(z.object({ destinationId: z.string().min(1) }))
+    .mutation(async ({ ctx, input }) => {
+      const actor = getActorContext(ctx);
+      const ownerTeamId = await requireActorTeamId(actor.requestedByUserId);
+      try {
+        const bundle = await triggerControlPlaneRecoveryBundle({
+          destinationId: input.destinationId,
+          ownerTeamId,
+          ...actor
+        });
+        if (!bundle) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Destination not found." });
+        }
+        return bundle;
+      } catch (error) {
+        if (error instanceof ControlPlaneRecoveryPreconditionError) {
+          throw new TRPCError({ code: "PRECONDITION_FAILED", message: error.message });
+        }
+        if (error instanceof ControlPlaneRecoveryIdempotencyConflictError) {
+          throw new TRPCError({ code: "CONFLICT", message: error.message });
+        }
+        throw error;
+      }
+    }),
   triggerBackupRun: backupRunProcedure
     .input(backupPolicyIdInputSchema)
     .mutation(async ({ ctx, input }) => {

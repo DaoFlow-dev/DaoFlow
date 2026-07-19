@@ -146,6 +146,7 @@ export const planningProcedure = roleProcedure([
 const ALL_WRITE = ["owner", "admin", "operator", "developer"] as const;
 const ALL_OPS = ["owner", "admin", "operator"] as const;
 const ADMIN_ONLY = ["owner", "admin"] as const;
+const OWNER_ONLY = ["owner"] as const;
 const ALL_INCL_AGENT = ["owner", "admin", "operator", "developer", "agent"] as const;
 const ALL_READERS = ["owner", "admin", "operator", "developer", "viewer", "agent"] as const;
 
@@ -165,6 +166,9 @@ export const terminalOpenProcedure = auditedScopedProcedure(["owner"], ["termina
 export const deployReadProcedure = auditedScopedProcedure(ALL_READERS, ["deploy:read"]);
 export const serviceReadProcedure = auditedScopedProcedure(ALL_READERS, ["service:read"]);
 export const backupReadProcedure = auditedScopedProcedure(ALL_READERS, ["backup:read"]);
+export const controlPlaneRecoveryReadProcedure = auditedScopedProcedure(OWNER_ONLY, [
+  "backup:read"
+]);
 export const volumesReadProcedure = auditedScopedProcedure(ALL_READERS, ["volumes:read"]);
 export const envReadProcedure = auditedScopedProcedure(ALL_READERS, ["env:read"]);
 export const logsReadProcedure = auditedScopedProcedure(ALL_READERS, ["logs:read"]);
@@ -176,6 +180,7 @@ export const secretsReadProcedure = auditedScopedProcedure(ALL_INCL_AGENT, ["sec
 export const serviceUpdateProcedure = auditedScopedProcedure(ALL_WRITE, ["service:update"]);
 export const volumesWriteProcedure = auditedScopedProcedure(ALL_WRITE, ["volumes:write"]);
 export const backupRunProcedure = auditedScopedProcedure(ALL_OPS, ["backup:run"]);
+export const controlPlaneRecoveryRunProcedure = auditedScopedProcedure(OWNER_ONLY, ["backup:run"]);
 export const backupRestoreProcedure = auditedScopedProcedure(ALL_OPS, ["backup:restore"]);
 export const approvalsCreateProcedure = auditedScopedProcedure(ALL_INCL_AGENT, [
   "approvals:create"

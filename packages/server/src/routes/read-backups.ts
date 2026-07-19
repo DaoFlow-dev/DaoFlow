@@ -7,12 +7,57 @@ import {
 } from "../db/services/backup-team-lists";
 import { listServiceBackupWorkflowForTeam } from "../db/services/service-backup-workflows";
 import { getBackupRunDetails } from "../db/services/backup-run-details";
-import { backupReadProcedure, t, volumesReadProcedure } from "../trpc";
+import {
+  getControlPlaneRecoveryBundle,
+  getControlPlaneRecoveryBundleMetadata,
+  listControlPlaneRecoveryBundles
+} from "../db/services/control-plane-recovery";
+import {
+  backupReadProcedure,
+  controlPlaneRecoveryReadProcedure,
+  t,
+  volumesReadProcedure
+} from "../trpc";
 import { limitInput } from "../schemas";
 import { assertBackupRunScope } from "./backup-scope";
 import { requireActorTeamId } from "./team-scope";
 
 export const backupReadRouter = t.router({
+  controlPlaneRecoveryBundles: controlPlaneRecoveryReadProcedure
+    .input(limitInput(100))
+    .query(async ({ ctx, input }) => {
+      const ownerTeamId = await requireActorTeamId(ctx.session.user.id);
+      return listControlPlaneRecoveryBundles({
+        ownerTeamId,
+        limit: input.limit ?? 20
+      });
+    }),
+  controlPlaneRecoveryBundle: controlPlaneRecoveryReadProcedure
+    .input(z.object({ bundleId: z.string().min(1) }))
+    .query(async ({ ctx, input }) => {
+      const ownerTeamId = await requireActorTeamId(ctx.session.user.id);
+      const bundle = await getControlPlaneRecoveryBundle({
+        bundleId: input.bundleId,
+        ownerTeamId
+      });
+      if (!bundle) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Recovery bundle not found." });
+      }
+      return bundle;
+    }),
+  controlPlaneRecoveryBundleMetadata: controlPlaneRecoveryReadProcedure
+    .input(z.object({ bundleId: z.string().min(1) }))
+    .query(async ({ ctx, input }) => {
+      const ownerTeamId = await requireActorTeamId(ctx.session.user.id);
+      const metadata = await getControlPlaneRecoveryBundleMetadata({
+        bundleId: input.bundleId,
+        ownerTeamId
+      });
+      if (!metadata) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Recovery bundle not found." });
+      }
+      return metadata;
+    }),
   backupOverview: backupReadProcedure
     .input(
       limitInput(50).extend({

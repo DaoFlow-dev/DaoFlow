@@ -237,6 +237,33 @@ apiProcedureAccess.backupRestorePlan = {
   requiredScopes: ["backup:read"]
 };
 
+apiProcedureAccess.controlPlaneRecoveryPlan = {
+  auth: "authenticated",
+  laneOverride: "planning",
+  requiredRoles: ["owner"],
+  requiredScopes: ["backup:read"]
+};
+
+addApiGroup(
+  apiProcedureAccess,
+  [
+    "controlPlaneRecoveryBundles",
+    "controlPlaneRecoveryBundle",
+    "controlPlaneRecoveryBundleMetadata"
+  ],
+  {
+    auth: "authenticated",
+    requiredRoles: ["owner"],
+    requiredScopes: ["backup:read"]
+  }
+);
+
+apiProcedureAccess.triggerControlPlaneRecoveryBundle = {
+  auth: "authenticated",
+  requiredRoles: ["owner"],
+  requiredScopes: ["backup:run"]
+};
+
 addApiGroup(
   apiProcedureAccess,
   [
@@ -898,6 +925,15 @@ export const cliCommandMeta: Record<string, CliCommandMeta> = {
     lane: "command",
     requiredScopes: ["backup:restore"],
     mutating: true
+  },
+  "backup recovery plan": { lane: "planning", requiredScopes: ["backup:read"], mutating: false },
+  "backup recovery run": { lane: "command", requiredScopes: ["backup:run"], mutating: true },
+  "backup recovery list": { lane: "read", requiredScopes: ["backup:read"], mutating: false },
+  "backup recovery inspect": { lane: "read", requiredScopes: ["backup:read"], mutating: false },
+  "backup recovery download-metadata": {
+    lane: "read",
+    requiredScopes: ["backup:read"],
+    mutating: false
   },
   "backup verify": { lane: "command", requiredScopes: ["backup:restore"], mutating: true },
   "backup download": { lane: "read", requiredScopes: ["backup:read"], mutating: false },

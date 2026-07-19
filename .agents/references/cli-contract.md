@@ -63,52 +63,77 @@ This file holds the detailed CLI contract, scope map, and agent-facing command r
 
 ## Command Scope Map
 
-| Command              | Lane                  | Required Scope(s)                               | Mutating |
-| -------------------- | --------------------- | ----------------------------------------------- | -------- |
-| `login`              | session               | none                                            | yes      |
-| `whoami`             | read                  | any valid token                                 | no       |
-| `capabilities`       | read                  | any valid token                                 | no       |
-| `audit`              | read                  | any valid token                                 | no       |
-| `approvals`          | read/command          | any valid token, `approvals:decide`             | varies   |
-| `status`             | read                  | `server:read`                                   | no       |
-| `server add`         | command               | `server:write`                                  | yes      |
-| `server proxy`       | command               | `server:write`                                  | yes      |
-| `server ops`         | read/command          | `server:read`, `server:write`                   | varies   |
-| `tunnels`            | read/command          | `server:read`, `server:write`                   | varies   |
-| `log-drains`         | read/command          | `server:read`, `server:write`                   | varies   |
-| `access-assets`      | read/command          | `server:read`, `server:write`                   | varies   |
-| `maintenance`        | read/command          | `server:write`                                  | varies   |
-| `terminal service`   | command               | `terminal:open`                                 | yes      |
-| `services`           | read/command          | `service:read`, `service:update`                | varies   |
-| `projects`           | read/command          | `deploy:read`, `deploy:start`, `service:update` | varies   |
-| `templates`          | read/planning/command | none, `deploy:read`, `deploy:start`             | varies   |
-| `logs`               | read                  | `logs:read`                                     | no       |
-| `plan`               | planning              | `deploy:read`                                   | no       |
-| `diff`               | planning              | `deploy:read`                                   | no       |
-| `doctor`             | read                  | `server:read`, `logs:read`                      | no       |
-| `install`            | local                 | none                                            | yes      |
-| `upgrade`            | local                 | none                                            | yes      |
-| `uninstall`          | local                 | none                                            | yes      |
-| `deploy`             | command               | `deploy:start`                                  | yes      |
-| `push`               | command               | `deploy:start`                                  | yes      |
-| `rollback`           | command               | `deploy:rollback`                               | yes      |
-| `env list`           | read                  | `env:read`                                      | no       |
-| `env set`            | command               | `env:write`                                     | yes      |
-| `env delete`         | command               | `env:write`                                     | yes      |
-| `volumes list`       | read                  | `volumes:read`                                  | no       |
-| `volumes register`   | command               | `volumes:write`                                 | yes      |
-| `volumes update`     | command               | `volumes:write`                                 | yes      |
-| `volumes delete`     | command               | `volumes:write`                                 | yes      |
-| `backup list`        | read                  | `backup:read`                                   | no       |
-| `backup policy`      | command               | `backup:run`                                    | yes      |
-| `backup run`         | command               | `backup:run`                                    | yes      |
-| `backup restore`     | command               | `backup:restore`                                | yes      |
-| `notifications list` | read                  | any valid token                                 | no       |
-| `notifications logs` | read                  | any valid token                                 | no       |
+| Command                             | Lane                  | Required Scope(s)                               | Mutating |
+| ----------------------------------- | --------------------- | ----------------------------------------------- | -------- |
+| `login`                             | session               | none                                            | yes      |
+| `whoami`                            | read                  | any valid token                                 | no       |
+| `capabilities`                      | read                  | any valid token                                 | no       |
+| `audit`                             | read                  | any valid token                                 | no       |
+| `approvals`                         | read/command          | any valid token, `approvals:decide`             | varies   |
+| `status`                            | read                  | `server:read`                                   | no       |
+| `server add`                        | command               | `server:write`                                  | yes      |
+| `server proxy`                      | command               | `server:write`                                  | yes      |
+| `server ops`                        | read/command          | `server:read`, `server:write`                   | varies   |
+| `tunnels`                           | read/command          | `server:read`, `server:write`                   | varies   |
+| `log-drains`                        | read/command          | `server:read`, `server:write`                   | varies   |
+| `access-assets`                     | read/command          | `server:read`, `server:write`                   | varies   |
+| `maintenance`                       | read/command          | `server:write`                                  | varies   |
+| `terminal service`                  | command               | `terminal:open`                                 | yes      |
+| `services`                          | read/command          | `service:read`, `service:update`                | varies   |
+| `projects`                          | read/command          | `deploy:read`, `deploy:start`, `service:update` | varies   |
+| `templates`                         | read/planning/command | none, `deploy:read`, `deploy:start`             | varies   |
+| `logs`                              | read                  | `logs:read`                                     | no       |
+| `plan`                              | planning              | `deploy:read`                                   | no       |
+| `diff`                              | planning              | `deploy:read`                                   | no       |
+| `doctor`                            | read                  | `server:read`, `logs:read`                      | no       |
+| `install`                           | local                 | none                                            | yes      |
+| `upgrade`                           | local                 | none                                            | yes      |
+| `uninstall`                         | local                 | none                                            | yes      |
+| `deploy`                            | command               | `deploy:start`                                  | yes      |
+| `push`                              | command               | `deploy:start`                                  | yes      |
+| `rollback`                          | command               | `deploy:rollback`                               | yes      |
+| `env list`                          | read                  | `env:read`                                      | no       |
+| `env set`                           | command               | `env:write`                                     | yes      |
+| `env delete`                        | command               | `env:write`                                     | yes      |
+| `volumes list`                      | read                  | `volumes:read`                                  | no       |
+| `volumes register`                  | command               | `volumes:write`                                 | yes      |
+| `volumes update`                    | command               | `volumes:write`                                 | yes      |
+| `volumes delete`                    | command               | `volumes:write`                                 | yes      |
+| `backup list`                       | read                  | `backup:read`                                   | no       |
+| `backup policy`                     | command               | `backup:run`                                    | yes      |
+| `backup run`                        | command               | `backup:run`                                    | yes      |
+| `backup restore`                    | command               | `backup:restore`                                | yes      |
+| `backup recovery plan`              | planning              | `backup:read`                                   | no       |
+| `backup recovery run`               | command/planning      | `backup:run` / `backup:read` for `--dry-run`    | yes      |
+| `backup recovery list`              | read                  | `backup:read`                                   | no       |
+| `backup recovery inspect`           | read                  | `backup:read`                                   | no       |
+| `backup recovery download-metadata` | read                  | `backup:read`                                   | no       |
+| `notifications list`                | read                  | any valid token                                 | no       |
+| `notifications logs`                | read                  | any valid token                                 | no       |
 
 - `daoflow backup restore --dry-run` is a planning-lane preview backed by `backupRestorePlan` and requires only `backup:read`
 - `daoflow backup restore --yes` queues the restore and requires `backup:restore`
 - If an operator wants a human approval gate before restore execution, create a separate `requestApproval` with `approvals:create`
+
+## Control-plane Recovery Contract
+
+`backup recovery` operates on encrypted DaoFlow control-plane bundles in an existing backup
+destination. The server enforces owner-only access. The CLI and UI expose only the recovery-key
+fingerprint and rotation timestamp; they never print key material, credentials, secret values, or
+private keys.
+
+- `backup recovery plan --destination <id>` calls `controlPlaneRecoveryPlan` and is read-only.
+- `backup recovery run --destination <id> --dry-run` calls the plan procedure and exits `3`.
+- `backup recovery run --destination <id> --yes` calls `triggerControlPlaneRecoveryBundle` and
+  requires `backup:run`.
+- `backup recovery list` calls `controlPlaneRecoveryBundles`.
+- `backup recovery inspect --bundle <id>` calls `controlPlaneRecoveryBundle`.
+- `backup recovery download-metadata --bundle <id>` calls
+  `controlPlaneRecoveryBundleMetadata` and shows safe manifest metadata only.
+
+Every recovery command supports `--json` and uses the standard `{ "ok": true, "data": ... }`
+envelope. A successful bundle requires checksum and isolated verification evidence; an upload or
+verification failure must remain failed and include operator next steps.
 
 ## Compose Drift Contract
 

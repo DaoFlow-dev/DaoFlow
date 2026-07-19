@@ -1,5 +1,7 @@
 import { resolveOperationalMaintenancePollIntervalMs } from "../operational-maintenance-config";
 import { runOperationalMaintenanceOnce } from "../db/services/operational-maintenance";
+import { reconcileQueuedControlPlaneRecoveryBundles } from "../db/services/control-plane-recovery";
+import { isTemporalEnabled } from "./temporal/temporal-config";
 
 let running = false;
 
@@ -20,6 +22,9 @@ export function startOperationalMaintenanceMonitor(): void {
   const poll = async () => {
     while (running) {
       try {
+        const recoveryDispatch = isTemporalEnabled()
+          ? await reconcileQueuedControlPlaneRecoveryBundles()
+          : { eligibleCount: 0, dispatchedCount: 0, failures: [] };
         const result = await runOperationalMaintenanceOnce({
           trigger: "monitor"
         });
@@ -28,11 +33,21 @@ export function startOperationalMaintenanceMonitor(): void {
           result.stalledDeployments.failedCount +
           result.stalePreviews.queuedCount +
           result.expiredCliAuthRequests.deletedCount +
-          result.retainedArtifacts.prunedCount;
+          result.retainedArtifacts.prunedCount +
+          recoveryDispatch.dispatchedCount;
 
-        if (changedCount > 0 || result.stalePreviews.failures.length > 0) {
-          const logMethod = result.stalePreviews.failures.length > 0 ? "warn" : "log";
-          console[logMethod](`[maintenance] ${result.summary}`);
+        if (
+          changedCount > 0 ||
+          result.stalePreviews.failures.length > 0 ||
+          recoveryDispatch.failures.length > 0
+        ) {
+          const logMethod =
+            result.stalePreviews.failures.length > 0 || recoveryDispatch.failures.length > 0
+              ? "warn"
+              : "log";
+          console[logMethod](
+            `[maintenance] ${result.summary}; recovery dispatches=${recoveryDispatch.dispatchedCount}, failures=${recoveryDispatch.failures.length}`
+          );
         }
       } catch (error) {
         console.error(

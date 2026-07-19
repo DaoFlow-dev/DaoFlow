@@ -1256,6 +1256,100 @@ describe("CLI JSON contract", () => {
     });
   });
 
+  test("control-plane recovery dry-run uses the plan procedure and standard envelope", async () => {
+    const program = new Command().name("daoflow");
+    program.addCommand(backupCommand());
+
+    const originalFetch = globalThis.fetch;
+    const result = await withTempHome(async () => {
+      process.env.DAOFLOW_URL = "https://daoflow.test";
+      process.env.DAOFLOW_TOKEN = "dfl_test_token";
+      globalThis.fetch = ((input: RequestInfo | URL) => {
+        const url =
+          typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+        expect(url).toContain("/trpc/controlPlaneRecoveryPlan");
+        expect(url).toContain("destinationId");
+
+        return new Response(
+          JSON.stringify({
+            result: {
+              data: {
+                isReady: true,
+                destination: { id: "dest_123", name: "recovery-s3", provider: "s3" },
+                keyFingerprint: "sha256:recovery-key",
+                rawKey: "do-not-print",
+                checks: [{ status: "passed", detail: "Recovery key is available." }],
+                requiredExternalSecrets: ["BETTER_AUTH_SECRET"]
+              }
+            }
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } }
+        );
+      }) as unknown as typeof fetch;
+
+      try {
+        return await captureCommandExecution(async () => {
+          await program.parseAsync([
+            "node",
+            "daoflow",
+            "backup",
+            "recovery",
+            "run",
+            "--destination",
+            "dest_123",
+            "--dry-run",
+            "--json"
+          ]);
+        });
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
+    });
+
+    expect(result.exitCode).toBe(3);
+    expect(result.errors).toEqual([]);
+    expect(JSON.parse(result.logs[0])).toEqual({
+      ok: true,
+      data: {
+        dryRun: true,
+        plan: {
+          isReady: true,
+          destination: { id: "dest_123", name: "recovery-s3", provider: "s3" },
+          keyFingerprint: "sha256:recovery-key",
+          checks: [{ status: "passed", detail: "Recovery key is available." }],
+          requiredExternalSecrets: ["BETTER_AUTH_SECRET"]
+        }
+      }
+    });
+  });
+
+  test("control-plane recovery run requires --yes before mutation", async () => {
+    const program = new Command().name("daoflow");
+    program.addCommand(backupCommand());
+
+    const result = await captureCommandExecution(async () => {
+      await program.parseAsync([
+        "node",
+        "daoflow",
+        "backup",
+        "recovery",
+        "run",
+        "--destination",
+        "dest_123",
+        "--json"
+      ]);
+    });
+
+    expect(result.exitCode).toBe(1);
+    expect(result.errors).toEqual([]);
+    expect(JSON.parse(result.logs[0])).toEqual({
+      ok: false,
+      error:
+        "Create a control-plane recovery bundle in destination dest_123. Pass --yes to confirm.",
+      code: "CONFIRMATION_REQUIRED"
+    });
+  });
+
   test("logs forwards targeted filter options and returns the standard success envelope", async () => {
     const program = new Command().name("daoflow");
     program.addCommand(logsCommand());

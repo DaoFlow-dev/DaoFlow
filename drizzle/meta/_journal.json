@@ -239,6 +239,20 @@
       "when": 1784412165658,
       "tag": "0033_slimy_mandarin",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1784417405503,
+      "tag": "0034_pale_red_ghost",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1784420819681,
+      "tag": "0035_motionless_warpath",
+      "breakpoints": true
     }
   ]
 }

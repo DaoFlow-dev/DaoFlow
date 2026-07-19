@@ -926,6 +926,94 @@
       "inputSchema": null
     },
     {
+      "name": "controlPlaneRecoveryBundle",
+      "summary": "control Plane Recovery Bundle",
+      "path": "/trpc/controlPlaneRecoveryBundle",
+      "method": "GET",
+      "lane": "read",
+      "auth": "authenticated",
+      "requiredRoles": ["owner"],
+      "requiredScopes": ["backup:read"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "bundleId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["bundleId"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "controlPlaneRecoveryBundleMetadata",
+      "summary": "control Plane Recovery Bundle Metadata",
+      "path": "/trpc/controlPlaneRecoveryBundleMetadata",
+      "method": "GET",
+      "lane": "read",
+      "auth": "authenticated",
+      "requiredRoles": ["owner"],
+      "requiredScopes": ["backup:read"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "bundleId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["bundleId"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "controlPlaneRecoveryBundles",
+      "summary": "control Plane Recovery Bundles",
+      "path": "/trpc/controlPlaneRecoveryBundles",
+      "method": "GET",
+      "lane": "read",
+      "auth": "authenticated",
+      "requiredRoles": ["owner"],
+      "requiredScopes": ["backup:read"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "controlPlaneRecoveryPlan",
+      "summary": "control Plane Recovery Plan",
+      "path": "/trpc/controlPlaneRecoveryPlan",
+      "method": "GET",
+      "lane": "planning",
+      "auth": "authenticated",
+      "requiredRoles": ["owner"],
+      "requiredScopes": ["backup:read"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "destinationId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["destinationId"],
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "createAgent",
       "summary": "create Agent",
       "path": "/trpc/createAgent",
@@ -5100,6 +5188,28 @@
           }
         },
         "required": ["policyId"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "triggerControlPlaneRecoveryBundle",
+      "summary": "trigger Control Plane Recovery Bundle",
+      "path": "/trpc/triggerControlPlaneRecoveryBundle",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner"],
+      "requiredScopes": ["backup:run"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "destinationId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["destinationId"],
         "additionalProperties": false
       }
     },

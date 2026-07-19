@@ -36,17 +36,17 @@ Scopes follow the pattern `resource:action`:
 
 ### Data and Secrets
 
-| Scope            | Description                                     |
-| ---------------- | ----------------------------------------------- |
-| `env:read`       | List environment variable keys (values masked)  |
-| `env:write`      | Create, update, or delete environment variables |
-| `secrets:read`   | Read unmasked secret values (highly restricted) |
-| `secrets:write`  | Create or rotate secrets                        |
-| `volumes:read`   | List persistent volumes and mount status        |
-| `volumes:write`  | Register or remove volumes                      |
-| `backup:read`    | View backup policies and run history            |
-| `backup:run`     | Trigger a backup                                |
-| `backup:restore` | Restore from a backup artifact                  |
+| Scope            | Description                                                            |
+| ---------------- | ---------------------------------------------------------------------- |
+| `env:read`       | List environment variable keys (values masked)                         |
+| `env:write`      | Create, update, or delete environment variables                        |
+| `secrets:read`   | Read unmasked secret values (highly restricted)                        |
+| `secrets:write`  | Create or rotate secrets                                               |
+| `volumes:read`   | List persistent volumes and mount status                               |
+| `volumes:write`  | Register or remove volumes                                             |
+| `backup:read`    | View backup policies, run history, and control-plane recovery metadata |
+| `backup:run`     | Trigger a backup or create a control-plane recovery bundle             |
+| `backup:restore` | Restore from a backup artifact                                         |
 
 ### Observability
 
@@ -81,3 +81,8 @@ Scopes are checked at two levels:
 2. **Token scopes** — what the API token explicitly grants
 
 The effective permissions are the **intersection** of role capabilities and token scopes. A token can never exceed the capabilities of its principal's role.
+
+Control-plane recovery is additionally owner-only at the server boundary. Planning, listing,
+inspection, and metadata download use `backup:read`; creating a bundle uses `backup:run`. The
+recovery key is external to DaoFlow, and the UI and CLI expose only its fingerprint and rotation
+metadata.

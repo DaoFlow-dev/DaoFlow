@@ -72,6 +72,7 @@ const ACCEPTED_COMMAND_PATHS = new Set([
   "setManagedDatabaseState",
   "triggerBackupNow",
   "triggerBackupRun",
+  "triggerControlPlaneRecoveryBundle",
   "triggerDeploy",
   "triggerTestRestore"
 ]);
@@ -86,6 +87,7 @@ const TARGET_KEY_PRIORITY = [
   "operationId",
   "jobId",
   "restoreId",
+  "bundleId",
   "runId",
   "policyId",
   "volumeId",
@@ -215,7 +217,15 @@ export function extractCommandOperationId(path: string, result: unknown): string
     if (preferredId) return preferredId;
   }
 
-  for (const containerKey of ["operation", "deployment", "job", "restore", "run", "task"]) {
+  for (const containerKey of [
+    "operation",
+    "deployment",
+    "job",
+    "restore",
+    "bundle",
+    "run",
+    "task"
+  ]) {
     const record = asSafeRecord(root[containerKey]);
     const value = record ? readSafeIdentifier(record, "id") : null;
     if (value) return value;
@@ -226,7 +236,15 @@ export function extractCommandOperationId(path: string, result: unknown): string
     .filter((record): record is Record<string, unknown> => record !== null);
   const records = [root, ...nestedRecords];
   for (const record of records) {
-    for (const key of ["operationId", "deploymentId", "jobId", "restoreId", "runId", "taskId"]) {
+    for (const key of [
+      "operationId",
+      "deploymentId",
+      "jobId",
+      "restoreId",
+      "bundleId",
+      "runId",
+      "taskId"
+    ]) {
       const value = readSafeIdentifier(record, key);
       if (value) {
         return value;

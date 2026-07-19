@@ -286,6 +286,37 @@ describe("CLI JSON option coverage", () => {
     expect(help).toContain("Example JSON shapes:");
   });
 
+  test("backup recovery commands declare JSON and safety options", () => {
+    const recovery = getSubcommand(backupCommand(), "recovery");
+    const plan = getSubcommand(recovery, "plan");
+    const run = getSubcommand(recovery, "run");
+    const list = getSubcommand(recovery, "list");
+    const inspect = getSubcommand(recovery, "inspect");
+    const metadata = getSubcommand(recovery, "download-metadata");
+
+    for (const command of [plan, run, list, inspect, metadata]) {
+      expect(hasLongOption(command, "--json")).toBe(true);
+    }
+    expect(hasLongOption(run, "--dry-run")).toBe(true);
+    expect(hasLongOption(run, "--yes")).toBe(true);
+    expect(hasLongOption(plan, "--destination")).toBe(true);
+    expect(hasLongOption(run, "--destination")).toBe(true);
+    expect(hasLongOption(inspect, "--bundle")).toBe(true);
+    expect(hasLongOption(metadata, "--bundle")).toBe(true);
+  });
+
+  test("backup recovery help documents scopes and examples", () => {
+    const recovery = getSubcommand(backupCommand(), "recovery");
+    const planHelp = renderHelp(getSubcommand(recovery, "plan"));
+    const runHelp = renderHelp(getSubcommand(recovery, "run"));
+
+    expect(planHelp).toContain("backup:read");
+    expect(planHelp).toContain("daoflow backup recovery plan --destination dest_123 --json");
+    expect(runHelp).toContain("backup:run");
+    expect(runHelp).toContain("--dry-run");
+    expect(runHelp).toContain("--yes");
+  });
+
   test("volumes list and register declare --json", () => {
     const volumes = volumesCommand();
     expect(hasLongOption(getSubcommand(volumes, "list"), "--json")).toBe(true);
