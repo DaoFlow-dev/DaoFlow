@@ -15,7 +15,7 @@ services:
   postgres:
     image: pgvector/pgvector:pg17
     environment:
-      POSTGRES_DB: daoflow
+      POSTGRES_DB: ${DAOFLOW_DATABASE_NAME:-daoflow}
       POSTGRES_USER: daoflow
       POSTGRES_PASSWORD: daoflow_dev
     ports:

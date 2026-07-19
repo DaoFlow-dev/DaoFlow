@@ -8,14 +8,14 @@
 import path from "node:path";
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { migrate } from "drizzle-orm/node-postgres/migrator";
-import { db, pool } from "./connection";
+import { pool } from "./connection";
+import { runMigrationCoordinator } from "./migration-runner";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 /**
- * Run pending Drizzle migrations using the shared connection pool.
+ * Run pending Drizzle migrations using a client from the shared connection pool.
  *
  * Safe to call on every boot — Drizzle's migrator is idempotent and
  * only applies migrations not yet recorded in the journal table.
@@ -33,29 +33,13 @@ export async function runAutoMigrations(): Promise<void> {
     path.resolve(process.cwd(), "drizzle") // fallback: cwd/drizzle
   ];
 
-  let migrationsFolder: string | null = null;
-  for (const candidate of candidates) {
-    if (existsSync(candidate)) {
-      migrationsFolder = candidate;
-      break;
-    }
-  }
-
-  if (!migrationsFolder) {
-    console.warn("[migrate] No drizzle migrations folder found — skipping auto-migration");
-    return;
-  }
-
-  // Enable pgvector extension before running schema migrations
-  try {
-    await pool.query("CREATE EXTENSION IF NOT EXISTS vector");
-  } catch (err) {
-    console.warn(
-      "[migrate] Could not enable pgvector extension:",
-      err instanceof Error ? err.message : String(err)
-    );
-  }
-
-  await migrate(db, { migrationsFolder });
+  const migrationsFolder = candidates.find((candidate) => existsSync(candidate)) ?? candidates[0];
+  await runMigrationCoordinator({
+    migrationsFolder,
+    pool,
+    retryFailedMigration:
+      process.env.DAOFLOW_RUN_MIGRATIONS_ONLY === "true" &&
+      process.env.DAOFLOW_RETRY_FAILED_MIGRATION === "true"
+  });
   console.log("[migrate] Database migrations completed ✓");
 }

@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { MigrationApplyError, MigrationLineageError } from "./db/migration-lineage";
 import { getStartupReadiness, resetStartupReadiness } from "./startup-readiness";
 import { runStartupMigrations } from "./startup-migrations";
 
@@ -37,7 +38,7 @@ describe("startup migrations", () => {
     const migrations = getStartupReadiness().checks.find((check) => check.name === "migrations");
     expect(migrations).toMatchObject({
       status: "failed",
-      detail: "Database migrations failed: schema drift"
+      detail: "Database migrations failed: MIGRATION_APPLY_FAILED: MIGRATION_OPERATION_FAILED"
     });
   });
 
@@ -58,7 +59,10 @@ describe("startup migrations", () => {
     ).resolves.toBeUndefined();
 
     expect(runCredentialMigration).toHaveBeenCalledOnce();
-    expect(consoleError).toHaveBeenCalledWith("[migrate] Auto-migration failed:", "manual bypass");
+    expect(consoleError).toHaveBeenCalledWith(
+      "[migrate] Auto-migration failed:",
+      "MIGRATION_APPLY_FAILED: MIGRATION_OPERATION_FAILED"
+    );
     expect(consoleWarn).toHaveBeenCalled();
     expect(getStartupReadiness().ready).toBe(false);
   });
@@ -98,5 +102,53 @@ describe("startup migrations", () => {
       status: "failed",
       detail: "Backup-destination credential migration failed: destination key mismatch"
     });
+  });
+
+  it("never bypasses a lineage mismatch or run credential migration after it", async () => {
+    const runCredentialMigration = vi.fn();
+
+    await expect(
+      runStartupMigrations({
+        isProduction: true,
+        allowFailure: true,
+        runMigrations: () => Promise.reject(new MigrationLineageError("DB_HASH_CHANGED")),
+        runCredentialMigration
+      })
+    ).rejects.toMatchObject({ code: "MIGRATION_LINEAGE_MISMATCH", reason: "DB_HASH_CHANGED" });
+
+    expect(runCredentialMigration).not.toHaveBeenCalled();
+    expect(getStartupReadiness().checks).toContainEqual(
+      expect.objectContaining({
+        name: "migrations",
+        status: "failed",
+        detail: "Database migrations failed: MIGRATION_LINEAGE_MISMATCH: DB_HASH_CHANGED"
+      })
+    );
+  });
+
+  it.each([
+    "PREVIOUS_MIGRATION_ATTEMPT_FAILED",
+    "MIGRATION_RECOVERY_REQUIRED",
+    "MIGRATION_FAILURE_RECORDING_FAILED"
+  ] as const)("never bypasses %s or run credential migration after it", async (reason) => {
+    const runCredentialMigration = vi.fn();
+
+    await expect(
+      runStartupMigrations({
+        isProduction: true,
+        allowFailure: true,
+        runMigrations: () => Promise.reject(new MigrationApplyError(reason)),
+        runCredentialMigration
+      })
+    ).rejects.toMatchObject({ code: "MIGRATION_APPLY_FAILED", reason });
+
+    expect(runCredentialMigration).not.toHaveBeenCalled();
+    expect(getStartupReadiness().checks).toContainEqual(
+      expect.objectContaining({
+        name: "migrations",
+        status: "failed",
+        detail: `Database migrations failed: MIGRATION_APPLY_FAILED: ${reason}`
+      })
+    );
   });
 });

@@ -3,6 +3,7 @@ import {
   createPlaywrightServerCommand,
   playwrightBaseUrl,
   playwrightHealthcheckUrl,
+  playwrightServerGracefulShutdown,
   playwrightServerPort
 } from "./playwright.shared";
 
@@ -39,6 +40,7 @@ export default defineConfig({
       NODE_ENV: "production",
       PORT: playwrightServerPort
     },
+    gracefulShutdown: playwrightServerGracefulShutdown,
     url: playwrightHealthcheckUrl,
     reuseExistingServer: false,
     timeout: 120_000

@@ -63,7 +63,7 @@ services:
     image: pgvector/pgvector:pg17
     restart: unless-stopped
     environment:
-      POSTGRES_DB: daoflow
+      POSTGRES_DB: ${DAOFLOW_DATABASE_NAME:-daoflow}
       POSTGRES_USER: daoflow
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
     volumes:

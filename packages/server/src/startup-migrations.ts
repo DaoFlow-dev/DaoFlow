@@ -1,5 +1,6 @@
 import { markStartupCheck } from "./startup-readiness";
 import { runAutoMigrations } from "./db/auto-migrate";
+import { describeMigrationFailure, isNonBypassableMigrationFailure } from "./db/migration-lineage";
 import {
   migrateBackupDestinationCredentials,
   type DestinationCredentialMigrationReport
@@ -29,8 +30,12 @@ export async function runStartupMigrations(input: StartupMigrationOptions) {
     await runMigrations();
   } catch (error) {
     schemaMigrationFailed = true;
-    const message = error instanceof Error ? error.message : String(error);
+    const message = describeMigrationFailure(error);
     markStartupCheck("migrations", "failed", `Database migrations failed: ${message}`);
+
+    if (isNonBypassableMigrationFailure(error)) {
+      throw error;
+    }
 
     if (input.isProduction && !allowFailure) {
       throw error;
