@@ -5,6 +5,7 @@ import {
   createApprovalRequest,
   rejectApprovalRequest
 } from "../db/services/approvals";
+import { retryApprovalActionDispatch } from "../db/services/approval-dispatch-service";
 import { createAgentPrincipal, generateAgentToken, revokeAgentToken } from "../db/services/agents";
 import {
   adminProcedure,
@@ -131,6 +132,22 @@ export const adminAgentApprovalRouter = t.router({
 
       throwOnOperationError(result, "Approval request");
       return result.request;
+    }),
+
+  retryApprovalActionDispatch: approvalsDecideProcedure
+    .input(z.object({ requestId: z.string().min(1) }))
+    .mutation(async ({ ctx, input }) => {
+      const actor = getActorContext(ctx);
+      const teamId = await requireApprovalDecisionTeamId(actor.requestedByUserId);
+      const result = await retryApprovalActionDispatch({
+        requestId: input.requestId,
+        teamId,
+        userId: actor.requestedByUserId,
+        email: actor.requestedByEmail,
+        role: actor.requestedByRole
+      });
+      throwOnOperationError(result, "Approval dispatch");
+      return result.dispatch;
     }),
 
   rejectApprovalRequest: approvalsDecideProcedure

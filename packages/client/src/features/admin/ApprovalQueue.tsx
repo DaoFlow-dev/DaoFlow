@@ -22,6 +22,15 @@ interface ApprovalRequest {
   decidedBy: string | null;
   decidedAt: string | null;
   recommendedChecks: string[];
+  dispatchStatus?: string | null;
+  dispatchStatusLabel?: string | null;
+  dispatchStatusTone?: string | null;
+  operationId?: string | null;
+  dispatchAttempts?: number;
+  dispatchError?: string | null;
+  dispatchNextAttemptAt?: string | null;
+  dispatchedAt?: string | null;
+  dispatchCompletedAt?: string | null;
   previewTrust?: {
     providerType: "github" | "gitlab";
     sourceRepository: string;
@@ -66,8 +75,11 @@ export function ApprovalQueue({
   const [approvalFeedback, setApprovalFeedback] = useState<string | null>(null);
   const approveApprovalRequest = trpc.approveApprovalRequest.useMutation();
   const rejectApprovalRequest = trpc.rejectApprovalRequest.useMutation();
+  const retryApprovalActionDispatch = trpc.retryApprovalActionDispatch.useMutation();
   const approvalMutationPending =
-    approveApprovalRequest.isPending || rejectApprovalRequest.isPending;
+    approveApprovalRequest.isPending ||
+    rejectApprovalRequest.isPending ||
+    retryApprovalActionDispatch.isPending;
 
   async function handleApproveApproval(requestId: string, resourceLabel: string) {
     setApprovalFeedback(null);
@@ -103,6 +115,21 @@ export function ApprovalQueue({
     } catch (error) {
       setApprovalFeedback(
         isTRPCClientError(error) ? error.message : "Unable to reject this guarded action right now."
+      );
+    }
+  }
+
+  async function handleRetryApprovalDispatch(requestId: string, resourceLabel: string) {
+    setApprovalFeedback(null);
+    try {
+      await retryApprovalActionDispatch.mutateAsync({ requestId });
+      await refreshOperationalViews();
+      setApprovalFeedback(`Requeued the approved operation for ${resourceLabel}.`);
+    } catch (error) {
+      setApprovalFeedback(
+        isTRPCClientError(error)
+          ? error.message
+          : "Unable to requeue this approved operation right now."
       );
     }
   }
@@ -212,6 +239,64 @@ export function ApprovalQueue({
                   <p className="mt-2 text-sm text-muted-foreground">
                     Decision: {request.decidedBy} · {request.decidedAt}
                   </p>
+                ) : null}
+                {request.dispatchStatus ? (
+                  <section
+                    className="mt-3 rounded-md border border-border p-3 text-sm text-muted-foreground"
+                    data-testid={`approval-dispatch-${request.id}`}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="font-medium text-foreground">Durable dispatch</p>
+                      <Badge
+                        data-testid={`approval-dispatch-status-${request.id}`}
+                        variant={getBadgeVariantFromTone(request.dispatchStatusTone ?? "queued")}
+                      >
+                        {request.dispatchStatusLabel ?? request.dispatchStatus}
+                      </Badge>
+                    </div>
+                    <p className="mt-2" data-testid={`approval-operation-id-${request.id}`}>
+                      Operation: {request.operationId}
+                    </p>
+                    <p data-testid={`approval-dispatch-attempts-${request.id}`}>
+                      Attempts: {request.dispatchAttempts ?? 0}
+                    </p>
+                    {request.dispatchNextAttemptAt ? (
+                      <p data-testid={`approval-dispatch-next-attempt-${request.id}`}>
+                        Next attempt: {request.dispatchNextAttemptAt}
+                      </p>
+                    ) : null}
+                    {request.dispatchedAt ? (
+                      <p data-testid={`approval-dispatched-at-${request.id}`}>
+                        Submitted: {request.dispatchedAt}
+                      </p>
+                    ) : null}
+                    {request.dispatchCompletedAt ? (
+                      <p data-testid={`approval-dispatch-completed-at-${request.id}`}>
+                        Completed: {request.dispatchCompletedAt}
+                      </p>
+                    ) : null}
+                    {request.dispatchError ? (
+                      <p
+                        className="mt-2 text-destructive"
+                        data-testid={`approval-dispatch-error-${request.id}`}
+                      >
+                        {request.dispatchError}
+                      </p>
+                    ) : null}
+                    {canOperateExecutionJobs && request.dispatchStatus === "terminal-failure" ? (
+                      <Button
+                        className="mt-3"
+                        disabled={approvalMutationPending}
+                        data-testid={`approval-dispatch-retry-${request.id}`}
+                        onClick={() => {
+                          void handleRetryApprovalDispatch(request.id, request.resourceLabel);
+                        }}
+                        variant="outline"
+                      >
+                        {approvalMutationPending ? "Applying..." : "Retry dispatch"}
+                      </Button>
+                    ) : null}
+                  </section>
                 ) : null}
                 <ul className="mt-3 list-disc pl-5 text-sm text-muted-foreground space-y-1">
                   {request.recommendedChecks.map((check) => (

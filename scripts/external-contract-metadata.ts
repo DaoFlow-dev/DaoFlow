@@ -456,11 +456,15 @@ apiProcedureAccess.requestApproval = {
   requiredScopes: ["approvals:create"]
 };
 
-addApiGroup(apiProcedureAccess, ["approveApprovalRequest", "rejectApprovalRequest"], {
-  auth: "authenticated",
-  requiredRoles: OPS_ROLES,
-  requiredScopes: ["approvals:decide"]
-});
+addApiGroup(
+  apiProcedureAccess,
+  ["approveApprovalRequest", "rejectApprovalRequest", "retryApprovalActionDispatch"],
+  {
+    auth: "authenticated",
+    requiredRoles: OPS_ROLES,
+    requiredScopes: ["approvals:decide"]
+  }
+);
 
 addApiGroup(apiProcedureAccess, ["generateAgentToken", "revokeAgentToken"], {
   auth: "authenticated",

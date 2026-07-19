@@ -217,7 +217,7 @@ export interface AccessLogsOutput {
 
 export interface ApprovalQueueRequestOutput {
   id: string;
-  actionType: "compose-release" | "backup-restore";
+  actionType: "compose-release" | "backup-restore" | "preview-deployment";
   targetResource: string;
   reason: string;
   status: string;
@@ -232,13 +232,22 @@ export interface ApprovalQueueRequestOutput {
   requestedBy: string;
   resourceLabel: string;
   riskLevel: "medium" | "elevated" | "critical";
-  statusTone: "healthy" | "failed" | "running";
+  statusTone: "healthy" | "failed" | "running" | "queued";
   commandSummary: string;
   requestedAt: string;
   expiresAt: string;
   decidedBy: string | null;
   decidedAt: string | null;
   recommendedChecks: string[];
+  dispatchStatus: "pending" | "retrying" | "dispatched" | "succeeded" | "terminal-failure" | null;
+  dispatchStatusLabel: string | null;
+  dispatchStatusTone: "healthy" | "failed" | "running" | "queued" | null;
+  operationId: string | null;
+  dispatchAttempts: number;
+  dispatchError: string | null;
+  dispatchNextAttemptAt: string | null;
+  dispatchedAt: string | null;
+  dispatchCompletedAt: string | null;
 }
 
 export interface ApprovalQueueOutput {

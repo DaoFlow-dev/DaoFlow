@@ -23,6 +23,10 @@ export {
   stopOperationalMaintenanceMonitor
 } from "./operational-maintenance-monitor";
 export {
+  startApprovalActionDispatchMonitor,
+  stopApprovalActionDispatchMonitor
+} from "./approval-action-dispatch-monitor";
+export {
   startServiceScheduleMonitor,
   stopServiceScheduleMonitor
 } from "./service-schedule-monitor";

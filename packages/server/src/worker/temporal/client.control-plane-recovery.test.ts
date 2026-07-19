@@ -39,7 +39,12 @@ vi.mock("@temporalio/client", () => ({
   }
 }));
 
-import { closeTemporalClient, startControlPlaneRecoveryWorkflow } from "./client";
+import {
+  closeTemporalClient,
+  startControlPlaneRecoveryWorkflow,
+  startDeploymentWorkflow,
+  startRestoreWorkflow
+} from "./client";
 
 describe("control-plane recovery Temporal dispatch", () => {
   beforeEach(async () => {
@@ -89,5 +94,38 @@ describe("control-plane recovery Temporal dispatch", () => {
       runId: "existing-run"
     });
     expect(temporal.workflowGetHandle).toHaveBeenCalledWith("control-plane-recovery-recovery_217");
+  });
+
+  it("uses existing workflow IDs when approved deployment and restore dispatches replay", async () => {
+    await startDeploymentWorkflow({
+      id: "op_deploy_240",
+      serviceName: "api",
+      sourceType: "compose",
+      imageTag: "example/api:stable",
+      commitSha: "abcdef1",
+      configSnapshot: {}
+    });
+    await startRestoreWorkflow({
+      restoreId: "op_restore_240",
+      backupRunId: "brun_240",
+      triggeredBy: "user_foundation_operator"
+    });
+
+    expect(temporal.workflowStart).toHaveBeenCalledWith(
+      "deploymentWorkflow",
+      expect.objectContaining({
+        workflowId: "deployment-op_deploy_240",
+        workflowIdConflictPolicy: WorkflowIdConflictPolicy.USE_EXISTING,
+        workflowIdReusePolicy: WorkflowIdReusePolicy.REJECT_DUPLICATE
+      })
+    );
+    expect(temporal.workflowStart).toHaveBeenCalledWith(
+      "restoreWorkflow",
+      expect.objectContaining({
+        workflowId: "backup-restore-op_restore_240",
+        workflowIdConflictPolicy: WorkflowIdConflictPolicy.USE_EXISTING,
+        workflowIdReusePolicy: WorkflowIdReusePolicy.REJECT_DUPLICATE
+      })
+    );
   });
 });

@@ -59,7 +59,16 @@ type QueueBackupRestoreOptions = {
   testRestore?: boolean;
   teamId?: string;
   approvalRequestId?: string;
+  operationId?: string;
+  approvalDispatchId?: string;
+  preserveDispatchRetry?: boolean;
+  approvalSnapshot?: Record<string, unknown>;
 };
+
+function readApprovalSnapshotString(snapshot: Record<string, unknown> | undefined, key: string) {
+  const value = snapshot?.[key];
+  return typeof value === "string" ? value : "";
+}
 
 async function resolveRestoreApproval(
   backupRunId: string,
@@ -178,15 +187,47 @@ export async function queueBackupRestore(
 
   const [run] = await db.select().from(backupRuns).where(eq(backupRuns.id, backupRunId)).limit(1);
   if (!run || run.status !== "succeeded" || !run.artifactPath) return null;
+  const expectedArtifactPath = readApprovalSnapshotString(opts?.approvalSnapshot, "artifactPath");
+  const expectedChecksum = readApprovalSnapshotString(opts?.approvalSnapshot, "artifactChecksum");
+  if (
+    (expectedArtifactPath && expectedArtifactPath !== run.artifactPath) ||
+    (expectedChecksum && expectedChecksum !== (run.checksum ?? ""))
+  ) {
+    return null;
+  }
 
   const relations = await loadBackupRelations();
   const policy = relations.policiesById.get(run.policyId);
   if (!policy) return null;
+  const expectedPolicyId = readApprovalSnapshotString(opts?.approvalSnapshot, "backupPolicyId");
+  const expectedPolicyUpdatedAt = readApprovalSnapshotString(
+    opts?.approvalSnapshot,
+    "backupPolicyUpdatedAt"
+  );
+  const expectedDestinationId = readApprovalSnapshotString(
+    opts?.approvalSnapshot,
+    "backupDestinationId"
+  );
+  if (
+    (expectedPolicyId && expectedPolicyId !== policy.id) ||
+    (expectedPolicyUpdatedAt && expectedPolicyUpdatedAt !== policy.updatedAt.toISOString()) ||
+    (expectedDestinationId && expectedDestinationId !== (policy.destinationId ?? ""))
+  ) {
+    return null;
+  }
   if (verification) {
     assertBackupVerificationEligible(run, policy);
   }
   const volume = relations.volumesById.get(policy.volumeId);
   if (!volume) return null;
+  const expectedMountPath = readApprovalSnapshotString(opts?.approvalSnapshot, "volumeMountPath");
+  const expectedServerId = readApprovalSnapshotString(opts?.approvalSnapshot, "targetServerId");
+  if (
+    (expectedMountPath && expectedMountPath !== volume.mountPath) ||
+    (expectedServerId && expectedServerId !== volume.serverId)
+  ) {
+    return null;
+  }
   const volumeTeamId = await resolveVolumeTeamId(volume);
   if (!volumeTeamId) return null;
   if (opts?.teamId && volumeTeamId !== opts.teamId) return null;
@@ -203,42 +244,74 @@ export async function queueBackupRestore(
   }
   const server = relations.serversById.get(volume.serverId);
   const view = getPolicyView(policy, volume);
-  const restoreId = id();
+  const restoreId = opts?.operationId ?? id();
   const now = new Date();
   const mode = opts?.testRestore ? ("verification" as const) : ("restore" as const);
 
-  const [restore] = await db
-    .insert(backupRestores)
-    .values({
-      id: restoreId,
-      backupRunId,
-      mode,
-      status: "queued",
-      targetPath: mode === "restore" ? volume.mountPath : null,
-      triggeredByUserId: userId,
-      startedAt: now,
-      createdAt: now
-    })
-    .returning();
-
-  await db.insert(auditEntries).values({
-    actorType: "user",
-    actorId: userId,
-    actorEmail: email,
-    actorRole: role,
-    targetResource: `backup-restore/${restoreId}`,
-    action: mode === "verification" ? "backup.verify.queue" : "backup.restore.queue",
-    inputSummary: `Queued ${mode === "verification" ? "verification" : "restore"} for ${view.serviceName}@${view.environmentName}.`,
-    permissionScope: "backup:restore",
-    outcome: "success",
-    metadata: {
-      teamId: volumeTeamId,
-      resourceType: "backup-restore",
-      resourceId: restoreId,
-      resourceLabel: `${view.serviceName}@${view.environmentName}`,
-      detail: `Queued ${mode === "verification" ? "verification" : "restore"} for ${view.serviceName}@${view.environmentName} on ${server?.name ?? volume.serverId}.`
+  const restore = await db.transaction(async (tx) => {
+    const [createdRestore] = await tx
+      .insert(backupRestores)
+      .values({
+        id: restoreId,
+        backupRunId,
+        mode,
+        status: "queued",
+        targetPath: mode === "restore" ? volume.mountPath : null,
+        triggeredByUserId: userId,
+        startedAt: now,
+        createdAt: now
+      })
+      .onConflictDoNothing()
+      .returning();
+    const persisted =
+      createdRestore ??
+      (await tx.select().from(backupRestores).where(eq(backupRestores.id, restoreId)).limit(1))[0];
+    if (!persisted) return null;
+    if (persisted.backupRunId !== backupRunId || persisted.mode !== mode) {
+      throw new Error(`Backup restore operation ${restoreId} is already bound to another input.`);
     }
+
+    const [existingAudit] = await tx
+      .select({ id: auditEntries.id })
+      .from(auditEntries)
+      .where(
+        and(
+          eq(auditEntries.targetResource, `backup-restore/${restoreId}`),
+          eq(
+            auditEntries.action,
+            mode === "verification" ? "backup.verify.queue" : "backup.restore.queue"
+          )
+        )
+      )
+      .limit(1);
+    if (!existingAudit) {
+      await tx.insert(auditEntries).values({
+        actorType: "user",
+        actorId: userId,
+        actorEmail: email,
+        actorRole: role,
+        targetResource: `backup-restore/${restoreId}`,
+        action: mode === "verification" ? "backup.verify.queue" : "backup.restore.queue",
+        inputSummary: `Queued ${mode === "verification" ? "verification" : "restore"} for ${view.serviceName}@${view.environmentName}.`,
+        permissionScope: "backup:restore",
+        outcome: "success",
+        metadata: {
+          teamId: volumeTeamId,
+          resourceType: "backup-restore",
+          resourceId: restoreId,
+          resourceLabel: `${view.serviceName}@${view.environmentName}`,
+          ...(opts?.approvalRequestId ? { approvalRequestId: opts.approvalRequestId } : {}),
+          ...(opts?.approvalDispatchId ? { approvalDispatchId: opts.approvalDispatchId } : {}),
+          operationId: restoreId,
+          detail: `Queued ${mode === "verification" ? "verification" : "restore"} for ${view.serviceName}@${view.environmentName} on ${server?.name ?? volume.serverId}.`
+        }
+      });
+    }
+    return persisted;
   });
+  if (!restore) {
+    throw new Error("Backup restore operation could not be persisted.");
+  }
 
   try {
     const workflow = await startRestoreWorkflow({
@@ -256,6 +329,10 @@ export async function queueBackupRestore(
       workflowId: workflow.workflowId
     };
   } catch (error) {
+    if (opts?.preserveDispatchRetry) {
+      throw error;
+    }
+
     await db
       .update(backupRestores)
       .set({

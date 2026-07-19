@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { isTemporalEnabledMock, startRestoreWorkflowMock } = vi.hoisted(() => ({
@@ -26,7 +27,7 @@ vi.mock("../../worker/temporal/temporal-config", async () => {
 
 import { db } from "../connection";
 import { approvalRequests } from "../schema/audit";
-import { backupPolicies, backupRuns, volumes } from "../schema/storage";
+import { backupPolicies, backupRestores, backupRuns, volumes } from "../schema/storage";
 import { resetTestDatabaseWithControlPlane } from "../../test-db";
 import { queueBackupRestore } from "./backup-restores";
 
@@ -95,15 +96,33 @@ describe("queueBackupRestore approval binding", () => {
       resolvedAt: now
     });
 
+    const operationId = `rst_op_${id}`;
     await expect(
       queueBackupRestore(backupRunId, "user_foundation_owner", "owner@daoflow.local", "owner", {
         teamId: "team_foundation",
-        approvalRequestId
+        approvalRequestId,
+        operationId,
+        preserveDispatchRetry: true
       })
-    ).resolves.toMatchObject({ status: "queued" });
+    ).resolves.toMatchObject({ id: operationId, status: "queued" });
+    await expect(
+      queueBackupRestore(backupRunId, "user_foundation_owner", "owner@daoflow.local", "owner", {
+        teamId: "team_foundation",
+        approvalRequestId,
+        operationId,
+        preserveDispatchRetry: true
+      })
+    ).resolves.toMatchObject({ id: operationId, status: "queued" });
+
+    const restores = await db
+      .select({ id: backupRestores.id })
+      .from(backupRestores)
+      .where(eq(backupRestores.id, operationId));
+    expect(restores).toEqual([{ id: operationId }]);
 
     expect(startRestoreWorkflowMock).toHaveBeenCalledWith(
       expect.objectContaining({
+        restoreId: operationId,
         backupRunId,
         approval: {
           approvalRequestId,
@@ -111,5 +130,6 @@ describe("queueBackupRestore approval binding", () => {
         }
       })
     );
+    expect(startRestoreWorkflowMock).toHaveBeenCalledTimes(2);
   });
 });

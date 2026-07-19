@@ -58,6 +58,17 @@ function renderApprovalQueue(queue: ApprovalQueueOutput): void {
       console.log(chalk.dim(`    Decided by: ${request.decidedBy} at ${request.decidedAt}`));
     }
 
+    if (request.dispatchStatus) {
+      console.log(
+        chalk.dim(
+          `    Dispatch: ${request.dispatchStatusLabel ?? request.dispatchStatus}  Operation: ${request.operationId ?? "unassigned"}  Attempts: ${request.dispatchAttempts}`
+        )
+      );
+      if (request.dispatchError) {
+        console.log(chalk.red(`    Dispatch error: ${request.dispatchError}`));
+      }
+    }
+
     if (request.recommendedChecks.length > 0) {
       console.log(chalk.dim(`    Checks: ${request.recommendedChecks.join(" | ")}`));
     }
@@ -157,7 +168,7 @@ Examples:
   daoflow approvals list --limit 10 --json
 
 Example JSON shape:
-  { "ok": true, "data": { "limit": 10, "summary": { "totalRequests": 4, "pendingRequests": 2, "approvedRequests": 1, "rejectedRequests": 1, "criticalRequests": 1 }, "requests": [{ "id": "apr_123", "actionType": "backup-restore", "targetResource": "backup-run/bkr_123", "resourceLabel": "postgres-volume@production-us-west", "riskLevel": "critical", "status": "pending", "statusTone": "failed", "requestedBy": "agent@daoflow.local", "commandSummary": "Restore backup artifact to foundation-vps-1:/var/lib/postgresql/data.", "requestedAt": "2026-03-29T12:00:00.000Z", "expiresAt": "2026-03-29T19:00:00.000Z", "recommendedChecks": ["Confirm the target volume is isolated from live writes before replaying snapshot data."] }] } }
+  { "ok": true, "data": { "limit": 10, "summary": { "totalRequests": 4, "pendingRequests": 2, "approvedRequests": 1, "rejectedRequests": 1, "criticalRequests": 1 }, "requests": [{ "id": "apr_123", "actionType": "backup-restore", "targetResource": "backup-run/bkr_123", "resourceLabel": "postgres-volume@production-us-west", "riskLevel": "critical", "status": "approved", "statusTone": "healthy", "requestedBy": "agent@daoflow.local", "commandSummary": "Restore backup artifact to foundation-vps-1:/var/lib/postgresql/data.", "requestedAt": "2026-03-29T12:00:00.000Z", "expiresAt": "2026-03-29T19:00:00.000Z", "dispatchStatus": "retrying", "operationId": "op_restore_123", "dispatchAttempts": 2, "dispatchError": "Temporal is unavailable", "recommendedChecks": ["Confirm the target volume is isolated from live writes before replaying snapshot data."] }] } }
 `
     )
     .action(async (opts: { limit: string; json?: boolean }, command: Command) => {
