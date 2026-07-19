@@ -173,6 +173,7 @@ export const controlPlaneRecoveryReadProcedure = auditedScopedProcedure(OWNER_ON
 export const volumesReadProcedure = auditedScopedProcedure(ALL_READERS, ["volumes:read"]);
 export const envReadProcedure = auditedScopedProcedure(ALL_READERS, ["env:read"]);
 export const logsReadProcedure = auditedScopedProcedure(ALL_READERS, ["logs:read"]);
+export const diagnosticsReadProcedure = auditedScopedProcedure(ALL_READERS, ["diagnostics:read"]);
 
 export const deploymentCapacityErrorMiddleware = t.middleware(async ({ next }) => {
   const result = await next();

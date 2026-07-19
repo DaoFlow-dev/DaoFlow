@@ -864,6 +864,35 @@ describe("deploy source revalidation", () => {
       updatedAt: new Date(Date.now() - 59_000)
     });
 
+    await db.insert(deployments).values({
+      id: `depup_replaced_${Date.now()}`.slice(0, 32),
+      projectId: fixture.projectId,
+      environmentId: fixture.environmentId,
+      targetServerId: "srv_foundation_1",
+      serviceId: `svc_replaced_${Date.now()}`.slice(0, 32),
+      serviceName: fixture.serviceName,
+      sourceType: "compose",
+      commitSha: "cccccccccccccccccccccccccccccccccccccccc",
+      imageTag: "ghcr.io/daoflow/direct-upload:replacement-history",
+      envVarsEncrypted: directUploadState,
+      configSnapshot: {
+        deploymentSource: "uploaded-context",
+        composeFilePath: "compose.yaml",
+        uploadedComposeFileName: "compose.yaml",
+        uploadedContextArchiveName: "context.tar.gz",
+        uploadedArtifactId: "fedcba9876543210fedcba9876543210"
+      },
+      status: "completed",
+      conclusion: "succeeded",
+      trigger: "user",
+      requestedByUserId: "user_foundation_owner",
+      requestedByEmail: "owner@daoflow.local",
+      requestedByRole: "owner",
+      createdAt: new Date(Date.now() - 30_000),
+      concludedAt: new Date(Date.now() - 29_000),
+      updatedAt: new Date(Date.now() - 29_000)
+    });
+
     const result = await triggerDeploy({
       serviceId: fixture.serviceId,
       requestedByUserId: "user_foundation_owner",

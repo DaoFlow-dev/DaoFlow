@@ -5,6 +5,7 @@ import { auditEntries } from "../schema/audit";
 import { services } from "../schema/services";
 import {
   type ServiceRuntimeConfigPatch,
+  readServiceRuntimeConfigFromConfig,
   writeServiceRuntimeConfigToConfig
 } from "../../service-runtime-config";
 import { normalizeServiceRecord } from "./service-record-views";
@@ -46,19 +47,24 @@ export async function updateServiceRuntimeConfig(input: UpdateServiceRuntimeConf
     };
   }
 
+  const previousRuntimeConfig = readServiceRuntimeConfigFromConfig(existing.config);
+  const nextConfig = writeServiceRuntimeConfigToConfig({
+    config: existing.config,
+    patch: {
+      volumes: input.volumes,
+      networks: input.networks,
+      restartPolicy: input.restartPolicy,
+      healthCheck: input.healthCheck,
+      resources: input.resources,
+      logging: input.logging
+    }
+  });
+  const nextRuntimeConfig = readServiceRuntimeConfigFromConfig(nextConfig);
+
   const [service] = await db
     .update(services)
     .set({
-      config: writeServiceRuntimeConfigToConfig({
-        config: existing.config,
-        patch: {
-          volumes: input.volumes,
-          networks: input.networks,
-          restartPolicy: input.restartPolicy,
-          healthCheck: input.healthCheck,
-          resources: input.resources
-        }
-      }),
+      config: nextConfig,
       updatedAt: new Date()
     })
     .where(eq(services.id, input.serviceId))
@@ -77,7 +83,11 @@ export async function updateServiceRuntimeConfig(input: UpdateServiceRuntimeConf
     metadata: {
       resourceType: "service",
       resourceId: input.serviceId,
-      composeServiceName: service.composeServiceName
+      composeServiceName: service.composeServiceName,
+      logging: {
+        previous: previousRuntimeConfig?.logging ?? null,
+        next: nextRuntimeConfig?.logging ?? null
+      }
     }
   });
 

@@ -82,7 +82,22 @@ describe("prepareComposeWorkspace", () => {
       {
         deploymentSource: "uploaded-context",
         uploadedComposeFileName: "compose.yaml",
-        uploadedContextArchiveName: "context.tar.gz"
+        uploadedContextArchiveName: "context.tar.gz",
+        composeServiceName: "app",
+        runtimeConfig: {
+          volumes: [],
+          networks: [],
+          restartPolicy: null,
+          healthCheck: null,
+          resources: null,
+          logging: {
+            managed: true,
+            driver: "json-file",
+            maxSizeMb: 10,
+            maxFiles: 3,
+            allowSourceOverride: false
+          }
+        }
       },
       {
         mode: "remote",
@@ -105,6 +120,10 @@ describe("prepareComposeWorkspace", () => {
     expect(callOrder).toContain("upload:.daoflow.compose.env");
     expect(callOrder).toContain("upload:.daoflow.compose.export.sh");
     expect(workspace.composeFile).toBe(".daoflow.compose.rendered.yaml");
+    expect(readFileSync(join(stageDir, workspace.composeFile), "utf8")).toContain("max-size: 10m");
+    expect(readFileSync(join(stageDir, workspace.composeFile), "utf8")).toContain(
+      "x-daoflow-managed-logging"
+    );
     expect(workspace.composeEnv.composeEnv.counts.repoDefaults).toBe(1);
     expect(workspace.composeEnv.payloadEntries.map((entry) => entry.key)).toEqual(["FROM_ARCHIVE"]);
     expect(workspace.composeInputs.manifest.entries).toEqual(
@@ -115,6 +134,66 @@ describe("prepareComposeWorkspace", () => {
         })
       ])
     );
+  });
+
+  it("does not apply managed logging while preparing a Compose down operation", async () => {
+    writeFileSync(
+      join(stageDir, "compose.yaml"),
+      [
+        "services:",
+        "  app:",
+        "    image: nginx:alpine",
+        "    logging:",
+        "      driver: local",
+        "      options:",
+        "        max-size: 7m"
+      ].join("\n")
+    );
+
+    vi.doMock("./docker-executor", () => ({
+      createTarArchive: vi.fn(),
+      ensureStagingDir: vi.fn(() => stageDir),
+      extractTarArchive: vi.fn(),
+      getStagingArchivePath: vi.fn(),
+      gitClone: vi.fn()
+    }));
+    vi.doMock("./ssh-executor", () => ({
+      remoteEnsureDir: vi.fn(),
+      remoteExtractArchive: vi.fn(),
+      scpUpload: vi.fn()
+    }));
+    vi.doMock("./checkout-source", () => ({ resolveCheckoutSpec: vi.fn() }));
+
+    const { prepareComposeWorkspace } = await import("./compose-workspace");
+    const workspace = await prepareComposeWorkspace(
+      "deploy_down",
+      {
+        deploymentSource: "uploaded-compose",
+        uploadedComposeFileName: "compose.yaml",
+        composeServiceName: "app",
+        composeOperation: "down",
+        runtimeConfig: {
+          volumes: [],
+          networks: [],
+          restartPolicy: null,
+          healthCheck: null,
+          resources: null,
+          logging: {
+            managed: true,
+            driver: "json-file",
+            maxSizeMb: 10,
+            maxFiles: 3,
+            allowSourceOverride: false
+          }
+        }
+      },
+      { mode: "local" },
+      () => {}
+    );
+
+    const rendered = readFileSync(join(stageDir, workspace.composeFile), "utf8");
+    expect(rendered).toContain("driver: local");
+    expect(rendered).not.toContain("x-daoflow-managed-logging");
   });
 
   it("restores replayed uploaded artifacts into a fresh staging directory", async () => {
@@ -250,6 +329,21 @@ describe("prepareComposeWorkspace", () => {
         composeImageOverride: {
           serviceName: "app",
           imageReference: "ghcr.io/daoflow/control-plane:2.0.0"
+        },
+        composeServiceName: "app",
+        runtimeConfig: {
+          volumes: [],
+          networks: [],
+          restartPolicy: null,
+          healthCheck: null,
+          resources: null,
+          logging: {
+            managed: true,
+            driver: "json-file",
+            maxSizeMb: 20,
+            maxFiles: 2,
+            allowSourceOverride: false
+          }
         }
       },
       { mode: "local" },
@@ -282,6 +376,7 @@ describe("prepareComposeWorkspace", () => {
     const renderedCompose = readFileSync(join(stageDir, workspace.composeFile), "utf8");
     expect(renderedCompose).toContain("image: ghcr.io/daoflow/control-plane:2.0.0");
     expect(renderedCompose).toContain(".daoflow.compose.inputs/config__runtime.env");
+    expect(renderedCompose).toContain("max-size: 20m");
   });
 
   it("rewrites git-backed build contexts and secret file paths for the frozen compose workspace", async () => {

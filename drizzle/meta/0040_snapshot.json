@@ -1,5 +1,5 @@
 {
-  "id": "5b4a000e-e4e2-4a22-a523-5c758da7037c",
+  "id": "faf62252-4db1-4dec-b2f3-cf79c1836efd",
   "prevId": "c209b3f7-41b8-47f3-b54d-2bba8aadfc3d",
   "version": "7",
   "dialect": "postgresql",
@@ -2676,12 +2676,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "service_id": {
-          "name": "service_id",
-          "type": "varchar(32)",
-          "primaryKey": false,
-          "notNull": false
-        },
         "service_name": {
           "name": "service_name",
           "type": "varchar(80)",
@@ -2838,21 +2832,6 @@
           "columns": [
             {
               "expression": "target_server_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "deployments_service_id_idx": {
-          "name": "deployments_service_id_idx",
-          "columns": [
-            {
-              "expression": "service_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -7769,6 +7748,164 @@
           "tableFrom": "provider_feedback",
           "tableTo": "deployments",
           "columnsFrom": ["deployment_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.provider_feedback_preview_comments": {
+      "name": "provider_feedback_preview_comments",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar(32)",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "team_id": {
+          "name": "team_id",
+          "type": "varchar(32)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "varchar(32)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "provider_id": {
+          "name": "provider_id",
+          "type": "varchar(32)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "repository_full_name": {
+          "name": "repository_full_name",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "pull_request_number": {
+          "name": "pull_request_number",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "external_comment_id": {
+          "name": "external_comment_id",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "lease_token": {
+          "name": "lease_token",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "lease_expires_at": {
+          "name": "lease_expires_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "provider_feedback_preview_comments_identity_idx": {
+          "name": "provider_feedback_preview_comments_identity_idx",
+          "columns": [
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "repository_full_name",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "pull_request_number",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "provider_feedback_preview_comments_team_id_idx": {
+          "name": "provider_feedback_preview_comments_team_id_idx",
+          "columns": [
+            {
+              "expression": "team_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "provider_feedback_preview_comments_lease_expires_at_idx": {
+          "name": "provider_feedback_preview_comments_lease_expires_at_idx",
+          "columns": [
+            {
+              "expression": "lease_expires_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "provider_feedback_preview_comments_team_id_teams_id_fk": {
+          "name": "provider_feedback_preview_comments_team_id_teams_id_fk",
+          "tableFrom": "provider_feedback_preview_comments",
+          "tableTo": "teams",
+          "columnsFrom": ["team_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "provider_feedback_preview_comments_project_id_projects_id_fk": {
+          "name": "provider_feedback_preview_comments_project_id_projects_id_fk",
+          "tableFrom": "provider_feedback_preview_comments",
+          "tableTo": "projects",
+          "columnsFrom": ["project_id"],
           "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"

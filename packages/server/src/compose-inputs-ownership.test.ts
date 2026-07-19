@@ -70,4 +70,67 @@ describe("ownership Compose materialization", () => {
     const api = (doc.services as Record<string, Record<string, unknown>>).api;
     expect(api.labels).toMatchObject({ "io.daoflow.deployment-id": "deployment_current" });
   });
+
+  it("preserves managed logging while applying ownership to fresh and replayed inputs", () => {
+    const workDir = mkdtempSync(join(tmpdir(), "daoflow-ownership-logging-"));
+    tempDirs.push(workDir);
+    writeFileSync(join(workDir, "compose.yaml"), "services:\n  api:\n    image: nginx:alpine\n");
+
+    const fresh = materializeComposeInputs({
+      workDir,
+      composeFile: "compose.yaml",
+      sourceProvenance: "repository-checkout",
+      composeEnvFileContents: "",
+      ownership: identity,
+      managedServiceLogging: {
+        serviceName: "api",
+        logging: {
+          managed: true,
+          driver: "json-file",
+          maxSizeMb: 10,
+          maxFiles: 3,
+          allowSourceOverride: false
+        }
+      }
+    });
+
+    const freshDoc = renderedCompose(workDir, fresh.composeFile);
+    const freshApi = (freshDoc.services as Record<string, Record<string, unknown>>).api;
+    expect(freshApi.labels).toMatchObject({
+      "io.daoflow.deployment-id": "deployment_current"
+    });
+    expect(freshApi.logging).toEqual({
+      driver: "json-file",
+      options: { "max-size": "10m", "max-file": "3" }
+    });
+
+    const replayed = materializeComposeInputs({
+      workDir,
+      composeFile: "missing.yaml",
+      sourceProvenance: "uploaded-artifact",
+      composeEnvFileContents: "",
+      existingFrozenInputs: fresh.frozenInputs,
+      ownership: { ...identity, deploymentId: "deployment_rollback" },
+      managedServiceLogging: {
+        serviceName: "api",
+        logging: {
+          managed: true,
+          driver: "json-file",
+          maxSizeMb: 64,
+          maxFiles: 4,
+          allowSourceOverride: false
+        }
+      }
+    });
+
+    const replayedDoc = renderedCompose(workDir, replayed.composeFile);
+    const replayedApi = (replayedDoc.services as Record<string, Record<string, unknown>>).api;
+    expect(replayedApi.labels).toMatchObject({
+      "io.daoflow.deployment-id": "deployment_rollback"
+    });
+    expect(replayedApi.logging).toEqual({
+      driver: "json-file",
+      options: { "max-size": "64m", "max-file": "4" }
+    });
+  });
 });

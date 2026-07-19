@@ -187,7 +187,7 @@ export interface ConfigSnapshot extends Record<string, unknown> {
   composeBuildPlan?: ComposeBuildPlan;
   composeEnv?: ComposeEnvEvidence;
   composeInputs?: ComposeInputManifest;
-  runtimeConfig?: ServiceRuntimeConfig;
+  runtimeConfig?: ServiceRuntimeConfig | null;
   managedTraefikRouting?: unknown;
 }
 

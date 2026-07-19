@@ -8,6 +8,7 @@ export interface ProviderFeedbackAdapterInput {
   feedbackId: string;
   targetId: string;
   idempotencyKey: string;
+  teamId: string;
   deploymentId: string;
   transition: string;
   provider: {
@@ -39,6 +40,7 @@ function toAdapterInput(
     feedbackId: feedback.id,
     targetId: feedback.targetId,
     idempotencyKey: feedback.idempotencyKey,
+    teamId: feedback.teamId,
     deploymentId: feedback.deploymentId,
     transition: feedback.transition,
     provider: {

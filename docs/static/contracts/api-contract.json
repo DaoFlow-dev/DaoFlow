@@ -3744,6 +3744,68 @@
       }
     },
     {
+      "name": "previewServiceLoggingConfig",
+      "summary": "preview Service Logging Config",
+      "path": "/trpc/previewServiceLoggingConfig",
+      "method": "GET",
+      "lane": "read",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator", "developer", "viewer", "agent"],
+      "requiredScopes": ["deploy:read"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "serviceId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "logging": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "managed": {
+                    "default": true,
+                    "type": "boolean",
+                    "const": true
+                  },
+                  "driver": {
+                    "default": "json-file",
+                    "type": "string",
+                    "const": "json-file"
+                  },
+                  "maxSizeMb": {
+                    "default": 10,
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 1024
+                  },
+                  "maxFiles": {
+                    "default": 3,
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 20
+                  },
+                  "allowSourceOverride": {
+                    "default": false,
+                    "type": "boolean"
+                  }
+                },
+                "required": ["managed", "driver", "maxSizeMb", "maxFiles", "allowSourceOverride"],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": ["serviceId", "logging"],
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "principalInventory",
       "summary": "principal Inventory",
       "path": "/trpc/principalInventory",
@@ -4884,6 +4946,28 @@
       "auth": "authenticated",
       "requiredRoles": [],
       "requiredScopes": [],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "serviceId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["serviceId"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "serviceLoggingState",
+      "summary": "service Logging State",
+      "path": "/trpc/serviceLoggingState",
+      "method": "GET",
+      "lane": "read",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator", "developer", "viewer", "agent"],
+      "requiredScopes": ["diagnostics:read"],
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
@@ -6652,6 +6736,46 @@
                     ]
                   }
                 },
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "logging": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "managed": {
+                    "default": true,
+                    "type": "boolean",
+                    "const": true
+                  },
+                  "driver": {
+                    "default": "json-file",
+                    "type": "string",
+                    "const": "json-file"
+                  },
+                  "maxSizeMb": {
+                    "default": 10,
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 1024
+                  },
+                  "maxFiles": {
+                    "default": 3,
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 20
+                  },
+                  "allowSourceOverride": {
+                    "default": false,
+                    "type": "boolean"
+                  }
+                },
+                "required": ["managed", "driver", "maxSizeMb", "maxFiles", "allowSourceOverride"],
                 "additionalProperties": false
               },
               {

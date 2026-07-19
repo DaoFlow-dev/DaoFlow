@@ -1028,6 +1028,36 @@ export interface ServiceRuntimeSummaryOutput {
   observedAt: string | null;
 }
 
+export interface ServiceRuntimeLoggingOutput {
+  managed: true;
+  driver: "json-file";
+  maxSizeMb: number;
+  maxFiles: number;
+  allowSourceOverride: boolean;
+}
+
+export interface ServiceLoggingStateOutput {
+  service: { id: string; name: string };
+  desired: ServiceRuntimeLoggingOutput | null;
+  status:
+    | "not-deployed"
+    | "aligned"
+    | "drifted"
+    | "mixed"
+    | "not-managed"
+    | "unavailable"
+    | "unsupported";
+  inspectedAt: string;
+  reason?: string | null;
+  containers: Array<{
+    name: string;
+    driver: string | null;
+    maxSize: string | null;
+    maxFiles: string | null;
+    matchesDesired: boolean | null;
+  }>;
+}
+
 export interface ServiceReadOutput {
   id: string;
   name: string;
@@ -1742,6 +1772,14 @@ export interface DaoFlowTRPC {
   projectEnvironments: QueryProcedure<ProjectEnvironmentItem[], { projectId: string }>;
   services: QueryProcedure<ServiceReadOutput[], { environmentId?: string; limit?: number }>;
   serviceDetails: QueryProcedure<ServiceReadOutput, { serviceId: string }>;
+  serviceLoggingState: QueryProcedure<ServiceLoggingStateOutput, { serviceId: string }>;
+  previewServiceLoggingConfig: QueryProcedure<
+    {
+      logging: ServiceRuntimeLoggingOutput | null;
+      runtimeConfigPreview: string | null;
+    },
+    { serviceId: string; logging: ServiceRuntimeLoggingOutput | null }
+  >;
   projectServices: QueryProcedure<ServiceReadOutput[], { projectId: string }>;
   createProject: MutationProcedure<
     {
@@ -1812,6 +1850,10 @@ export interface DaoFlowTRPC {
       healthcheckPath?: string;
       targetServerId?: string;
     },
+    ServiceMutationOutput
+  >;
+  updateServiceRuntimeConfig: MutationProcedure<
+    { serviceId: string; logging: ServiceRuntimeLoggingOutput | null },
     ServiceMutationOutput
   >;
   createManagedDatabase: MutationProcedure<

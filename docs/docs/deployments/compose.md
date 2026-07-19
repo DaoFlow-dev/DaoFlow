@@ -164,6 +164,39 @@ or clean up a preview after closure. GitHub branch pushes that
 do not target the project's auto-deploy branch drive branch previews when the service preview mode is
 `branch` or `any`.
 
+### GitHub deployment status and preview comments
+
+DaoFlow GitHub Apps request `deployments: write` so linked branch and pull-request deployments are
+visible from the GitHub commit and pull request. DaoFlow creates one GitHub Deployment for each
+DaoFlow deployment, publishes queued, running, success, failure, cancellation, and preview-cleanup
+state, and keeps one status comment per project pull request instead of posting a new comment for
+every retry or commit.
+
+The GitHub status links back to the exact DaoFlow deployment and its logs. A public environment or
+preview link is included only after the deployment succeeds and DaoFlow observes the configured
+route as active. Blocked previews, pending approvals, failed deployments, missing routes, and stale
+or inactive routes do not publish an environment URL.
+
+Apps created after this feature is installed request the permission during setup. Existing GitHub App
+installations must approve the requested permission update before delivery can succeed:
+
+1. As the GitHub App owner, open **Developer settings → GitHub Apps → your DaoFlow App →
+   Permissions & events**.
+2. Set **Deployments** to **Read and write**, keep **Pull requests** at **Read and write**, and save
+   the App changes.
+3. As the target account or organization owner, open the installed App and approve the pending
+   permission request.
+4. Trigger a new deployment after the installation has the new permission. Any earlier blocked
+   feedback remains visible in DaoFlow's provider-feedback history for audit purposes.
+
+GitHub does not activate newly requested permissions for an existing installation until an owner
+approves them. See GitHub's
+[permission-update guide](https://docs.github.com/en/apps/using-github-apps/approving-updated-permissions-for-a-github-app),
+[App registration guide](https://docs.github.com/en/apps/maintaining-github-apps/modifying-a-github-app-registration),
+[Deployments API](https://docs.github.com/en/rest/deployments/deployments), and
+[deployment status API](https://docs.github.com/en/rest/deployments/statuses). GitHub Enterprise uses
+the API base URL configured on the DaoFlow provider.
+
 For GitLab.com, register a GitLab provider with the GitLab OAuth app client ID, client secret, and
 webhook secret. The OAuth callback URL is:
 

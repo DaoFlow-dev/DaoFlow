@@ -27,12 +27,40 @@ export interface ServiceRuntimeResources {
   memoryReservationMb: number | null;
 }
 
+export interface ServiceRuntimeLogging {
+  managed: true;
+  driver: "json-file";
+  maxSizeMb: number;
+  maxFiles: number;
+  allowSourceOverride: boolean;
+}
+
+export type ServiceLoggingInspectionStatus =
+  "not-deployed" | "aligned" | "drifted" | "mixed" | "not-managed" | "unavailable" | "unsupported";
+
+export interface ServiceLoggingContainerState {
+  name: string;
+  driver: string | null;
+  maxSize: string | null;
+  maxFiles: string | null;
+  matchesDesired: boolean | null;
+}
+
+export interface ServiceLoggingState {
+  desired: ServiceRuntimeLogging | null;
+  status: ServiceLoggingInspectionStatus;
+  inspectedAt: string | null;
+  containers: ServiceLoggingContainerState[];
+  reason?: string | null;
+}
+
 export interface ServiceRuntimeConfig {
   volumes: ServiceRuntimeVolume[];
   networks: string[];
   restartPolicy: ServiceRuntimeRestartPolicy | null;
   healthCheck: ServiceRuntimeHealthCheck | null;
   resources: ServiceRuntimeResources | null;
+  logging: ServiceRuntimeLogging | null;
 }
 
 export interface RuntimeConfigServiceSupport {

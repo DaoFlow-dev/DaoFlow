@@ -131,7 +131,11 @@ describe("provider feedback intents", () => {
       (targets[0]?.context as { repository?: { fullName?: string } }).repository?.fullName
     ).toBe("daoflow/example-service");
     expect(targets[0]?.context).not.toHaveProperty("repository.url");
-    expect(targets[0]?.context).not.toHaveProperty("preview.primaryDomain");
+    expect((targets[0]?.context as { preview?: { primaryDomain?: string } }).preview).toMatchObject(
+      {
+        primaryDomain: "pr-227.preview.example.invalid"
+      }
+    );
     expect(rows.map((row) => row.providerId)).toEqual(
       expect.arrayContaining([fixture.providerId, fixture.providerId, fixture.providerId])
     );

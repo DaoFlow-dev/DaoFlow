@@ -28,6 +28,36 @@ const { Client } = pg;
 const TEST_DB_PREPARE_LOCK_ID = 8_705_231;
 const MIN_EXPECTED_PUBLIC_TABLES = 48;
 
+interface LatestTestSchemaState {
+  notificationChannelsTeamId: string | null;
+  serverMetricsDockerDiskUsedPercent: string | null;
+  serverMetricsDockerDiskTotalGb: string | null;
+  serverMetricsServerCollectedIndex: string | null;
+  serverMetricAlerts: string | null;
+  serverMetricDeliveryCooldowns: string | null;
+  serverMetricOutbox: string | null;
+  serverMetricPolicies: string | null;
+  serverMetricStates: string | null;
+}
+
+function hasLatestTestSchema(state: LatestTestSchemaState | undefined): boolean {
+  return Boolean(
+    state?.notificationChannelsTeamId &&
+    state.serverMetricsDockerDiskUsedPercent &&
+    state.serverMetricsDockerDiskTotalGb &&
+    state.serverMetricsServerCollectedIndex &&
+    state.serverMetricAlerts &&
+    state.serverMetricDeliveryCooldowns &&
+    state.serverMetricOutbox &&
+    state.serverMetricPolicies &&
+    state.serverMetricStates
+  );
+}
+
+export const testDatabaseSchemaTestHooks = {
+  hasLatestTestSchema
+};
+
 let prepared = false;
 let preparePromise: Promise<string> | null = null;
 
@@ -154,6 +184,15 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
       environmentsExecutionScopeGuard: string | null;
       deploymentsExecutionScopeGuard: string | null;
       gitProviderSetupScopeConstraint: string | null;
+      notificationChannelsTeamId: string | null;
+      serverMetricsDockerDiskUsedPercent: string | null;
+      serverMetricsDockerDiskTotalGb: string | null;
+      serverMetricsServerCollectedIndex: string | null;
+      serverMetricAlerts: string | null;
+      serverMetricDeliveryCooldowns: string | null;
+      serverMetricOutbox: string | null;
+      serverMetricPolicies: string | null;
+      serverMetricStates: string | null;
     }>(`
       SELECT
         (SELECT count(*)::int FROM pg_tables WHERE schemaname = 'public') AS "tableCount",
@@ -224,7 +263,16 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
         (SELECT tgname FROM pg_trigger WHERE tgname = 'services_execution_scope_guard' AND NOT tgisinternal) AS "servicesExecutionScopeGuard",
         (SELECT tgname FROM pg_trigger WHERE tgname = 'environments_execution_scope_guard' AND NOT tgisinternal) AS "environmentsExecutionScopeGuard",
         (SELECT tgname FROM pg_trigger WHERE tgname = 'deployments_execution_scope_guard' AND NOT tgisinternal) AS "deploymentsExecutionScopeGuard",
-        (SELECT conname FROM pg_constraint WHERE conname = 'git_provider_setup_states_provider_id_team_id_git_providers_id_team_id_fk') AS "gitProviderSetupScopeConstraint"
+        (SELECT conname FROM pg_constraint WHERE conname = 'git_provider_setup_states_provider_id_team_id_git_providers_id_team_id_fk') AS "gitProviderSetupScopeConstraint",
+        (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'notification_channels' AND column_name = 'team_id' AND is_nullable = 'NO') AS "notificationChannelsTeamId",
+        (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'server_metrics' AND column_name = 'docker_disk_used_percent') AS "serverMetricsDockerDiskUsedPercent",
+        (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'server_metrics' AND column_name = 'docker_disk_total_gb') AS "serverMetricsDockerDiskTotalGb",
+        (SELECT indexname FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'server_metrics_server_collected_idx') AS "serverMetricsServerCollectedIndex",
+        to_regclass('public.server_metric_alerts') AS "serverMetricAlerts",
+        to_regclass('public.server_metric_delivery_cooldowns') AS "serverMetricDeliveryCooldowns",
+        to_regclass('public.server_metric_outbox') AS "serverMetricOutbox",
+        to_regclass('public.server_metric_policies') AS "serverMetricPolicies",
+        to_regclass('public.server_metric_states') AS "serverMetricStates"
     `);
     const row = result.rows[0];
     return Boolean(
@@ -297,7 +345,8 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
       row.servicesExecutionScopeGuard &&
       row.environmentsExecutionScopeGuard &&
       row.deploymentsExecutionScopeGuard &&
-      row.gitProviderSetupScopeConstraint
+      row.gitProviderSetupScopeConstraint &&
+      hasLatestTestSchema(row)
     );
   } finally {
     await client.end();
@@ -402,6 +451,15 @@ async function readPoolSchemaState() {
     environmentsExecutionScopeGuard: string | null;
     deploymentsExecutionScopeGuard: string | null;
     gitProviderSetupScopeConstraint: string | null;
+    notificationChannelsTeamId: string | null;
+    serverMetricsDockerDiskUsedPercent: string | null;
+    serverMetricsDockerDiskTotalGb: string | null;
+    serverMetricsServerCollectedIndex: string | null;
+    serverMetricAlerts: string | null;
+    serverMetricDeliveryCooldowns: string | null;
+    serverMetricOutbox: string | null;
+    serverMetricPolicies: string | null;
+    serverMetricStates: string | null;
   }>(`
     SELECT
       current_database() AS "databaseName",
@@ -471,7 +529,16 @@ async function readPoolSchemaState() {
       (SELECT tgname FROM pg_trigger WHERE tgname = 'services_execution_scope_guard' AND NOT tgisinternal) AS "servicesExecutionScopeGuard",
       (SELECT tgname FROM pg_trigger WHERE tgname = 'environments_execution_scope_guard' AND NOT tgisinternal) AS "environmentsExecutionScopeGuard",
       (SELECT tgname FROM pg_trigger WHERE tgname = 'deployments_execution_scope_guard' AND NOT tgisinternal) AS "deploymentsExecutionScopeGuard",
-      (SELECT conname FROM pg_constraint WHERE conname = 'git_provider_setup_states_provider_id_team_id_git_providers_id_team_id_fk') AS "gitProviderSetupScopeConstraint"
+      (SELECT conname FROM pg_constraint WHERE conname = 'git_provider_setup_states_provider_id_team_id_git_providers_id_team_id_fk') AS "gitProviderSetupScopeConstraint",
+      (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'notification_channels' AND column_name = 'team_id' AND is_nullable = 'NO') AS "notificationChannelsTeamId",
+      (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'server_metrics' AND column_name = 'docker_disk_used_percent') AS "serverMetricsDockerDiskUsedPercent",
+      (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'server_metrics' AND column_name = 'docker_disk_total_gb') AS "serverMetricsDockerDiskTotalGb",
+      (SELECT indexname FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'server_metrics_server_collected_idx') AS "serverMetricsServerCollectedIndex",
+      to_regclass('public.server_metric_alerts') AS "serverMetricAlerts",
+      to_regclass('public.server_metric_delivery_cooldowns') AS "serverMetricDeliveryCooldowns",
+      to_regclass('public.server_metric_outbox') AS "serverMetricOutbox",
+      to_regclass('public.server_metric_policies') AS "serverMetricPolicies",
+      to_regclass('public.server_metric_states') AS "serverMetricStates"
   `);
 
   return result.rows[0];
@@ -555,7 +622,8 @@ async function ensurePooledTestSchemaReady(connectionString: string) {
         state.servicesExecutionScopeGuard &&
         state.environmentsExecutionScopeGuard &&
         state.deploymentsExecutionScopeGuard &&
-        state.gitProviderSetupScopeConstraint
+        state.gitProviderSetupScopeConstraint &&
+        hasLatestTestSchema(state)
       ) {
         return;
       }

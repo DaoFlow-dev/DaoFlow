@@ -14,6 +14,7 @@ export interface ProviderFeedbackPreviewContext {
   key: string | null;
   branch: string | null;
   pullRequestNumber: number | null;
+  primaryDomain: string | null;
 }
 
 /**
@@ -33,6 +34,7 @@ export interface ProviderFeedbackContext {
   deployment: {
     commitSha: string | null;
     branch: string | null;
+    serviceName?: string | null;
     environmentId: string;
     environmentName: string;
     environmentSlug: string;

@@ -156,6 +156,7 @@ function isReplayableUploadedSnapshot(snapshot: Record<string, unknown>): boolea
 async function findLatestReplayableUploadedDeployment(input: {
   projectId: string;
   environmentId: string;
+  serviceId: string;
   serviceName: string;
 }) {
   const candidates = await db
@@ -165,6 +166,7 @@ async function findLatestReplayableUploadedDeployment(input: {
       and(
         eq(deployments.projectId, input.projectId),
         eq(deployments.environmentId, input.environmentId),
+        eq(deployments.serviceId, input.serviceId),
         eq(deployments.serviceName, input.serviceName),
         eq(deployments.sourceType, "compose")
       )
@@ -384,6 +386,7 @@ export async function triggerDeploy(input: TriggerDeployInput) {
       replayedComposeDeployment = await findLatestReplayableUploadedDeployment({
         projectId: project.id,
         environmentId: env.id,
+        serviceId: svc.id,
         serviceName: svc.name
       });
 
@@ -412,7 +415,7 @@ export async function triggerDeploy(input: TriggerDeployInput) {
       serviceName: svc.composeServiceName ?? svc.name
     });
   }
-  if (runtimeConfig) {
+  if (svc.sourceType === "compose") {
     configSnapshot.runtimeConfig = runtimeConfig;
   }
   if (

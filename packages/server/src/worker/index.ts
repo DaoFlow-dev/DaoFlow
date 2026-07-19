@@ -30,6 +30,7 @@ export {
   startProviderFeedbackMonitor,
   stopProviderFeedbackMonitor
 } from "./provider-feedback-monitor";
+export { registerGitHubProviderFeedbackAdapter } from "./github-provider-feedback";
 export {
   startServiceScheduleMonitor,
   stopServiceScheduleMonitor

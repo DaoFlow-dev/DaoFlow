@@ -108,6 +108,18 @@ apiProcedureAccess.accessLogs = {
   requiredScopes: ["logs:read"]
 };
 
+apiProcedureAccess.serviceLoggingState = {
+  auth: "authenticated",
+  requiredRoles: READ_ROLES,
+  requiredScopes: ["diagnostics:read"]
+};
+
+apiProcedureAccess.previewServiceLoggingConfig = {
+  auth: "authenticated",
+  requiredRoles: READ_ROLES,
+  requiredScopes: ["deploy:read"]
+};
+
 addApiGroup(
   apiProcedureAccess,
   ["serverMetrics", "serverMetricsOverview", "serverMetricMonitoring"],
@@ -762,6 +774,26 @@ export const cliCommandMeta: Record<string, CliCommandMeta> = {
   "services list": { lane: "read", requiredScopes: ["service:read"], mutating: false },
   "services previews": { lane: "read", requiredScopes: ["deploy:read"], mutating: false },
   "services create": { lane: "command", requiredScopes: ["service:update"], mutating: true },
+  "services logging": {
+    lane: "read",
+    requiredScopes: ["diagnostics:read"],
+    mutating: false
+  },
+  "services logging show": {
+    lane: "read",
+    requiredScopes: ["diagnostics:read"],
+    mutating: false
+  },
+  "services logging set": {
+    lane: "command",
+    requiredScopes: ["service:update"],
+    mutating: true
+  },
+  "services logging clear": {
+    lane: "command",
+    requiredScopes: ["service:update"],
+    mutating: true
+  },
   "services schedules": { lane: "read", requiredScopes: ["service:read"], mutating: false },
   "services schedules list": { lane: "read", requiredScopes: ["service:read"], mutating: false },
   "services schedules runs": { lane: "read", requiredScopes: ["service:read"], mutating: false },

@@ -8,11 +8,13 @@ import DeploymentsPage from "./DeploymentsPage";
 
 const {
   cancelDeploymentUseMutationMock,
+  deploymentDetailsUseQueryMock,
   recentDeploymentsUseQueryMock,
   retryDeploymentsMock,
   navigateMock
 } = vi.hoisted(() => ({
   cancelDeploymentUseMutationMock: vi.fn(),
+  deploymentDetailsUseQueryMock: vi.fn(),
   recentDeploymentsUseQueryMock: vi.fn(),
   retryDeploymentsMock: vi.fn(),
   navigateMock: vi.fn()
@@ -42,6 +44,9 @@ vi.mock("../lib/trpc", () => ({
     recentDeployments: {
       useQuery: recentDeploymentsUseQueryMock
     },
+    deploymentDetails: {
+      useQuery: deploymentDetailsUseQueryMock
+    },
     cancelDeployment: {
       useMutation: cancelDeploymentUseMutationMock
     }
@@ -57,9 +62,9 @@ vi.mock("@/components/DeploymentLogViewer", () => ({
 }));
 
 describe("DeploymentsPage", () => {
-  function renderDeploymentsPage() {
+  function renderDeploymentsPage(initialEntry = "/deployments") {
     return render(
-      <MemoryRouter initialEntries={["/deployments"]}>
+      <MemoryRouter initialEntries={[initialEntry]}>
         <DeploymentsPage />
       </MemoryRouter>
     );
@@ -68,6 +73,8 @@ describe("DeploymentsPage", () => {
   beforeEach(() => {
     navigateMock.mockReset();
     retryDeploymentsMock.mockReset();
+    deploymentDetailsUseQueryMock.mockReset();
+    deploymentDetailsUseQueryMock.mockReturnValue({ data: undefined });
     recentDeploymentsUseQueryMock.mockReturnValue({
       data: [
         {
@@ -187,6 +194,35 @@ describe("DeploymentsPage", () => {
     expect(
       screen.getByTestId("deployment-recovery-evidence-dep_2-deployment-watchdog-timeout")
     ).toHaveTextContent("watchdog:Progress heartbeat timed out");
+  });
+
+  it("opens the exact deployment and its logs from a deployment deep link", () => {
+    deploymentDetailsUseQueryMock.mockReturnValue({
+      data: {
+        id: "dep_archived",
+        serviceId: "svc_archive",
+        serviceName: "archived-api",
+        environmentName: "production",
+        targetServerName: "foundation-1",
+        statusTone: "success",
+        statusLabel: "Healthy",
+        lifecycleStatus: "healthy",
+        status: "healthy",
+        sourceType: "compose",
+        createdAt: "2025-03-20T00:00:00.000Z",
+        canRollback: true,
+        conclusion: "success",
+        steps: []
+      }
+    });
+    renderDeploymentsPage("/deployments?deployment=dep_archived");
+
+    expect(screen.getByTestId("deployment-log-viewer")).toBeVisible();
+    expect(screen.getByText("archived-api").closest("tr")).toHaveTextContent("Healthy");
+    expect(deploymentDetailsUseQueryMock).toHaveBeenCalledWith(
+      { deploymentId: "dep_archived" },
+      { enabled: true }
+    );
   });
 
   it("shows a retryable load error instead of the empty state when history fails", () => {

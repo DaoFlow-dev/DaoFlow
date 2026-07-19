@@ -63,55 +63,55 @@ This file holds the detailed CLI contract, scope map, and agent-facing command r
 
 ## Command Scope Map
 
-| Command                             | Lane                   | Required Scope(s)                               | Mutating |
-| ----------------------------------- | ---------------------- | ----------------------------------------------- | -------- |
-| `login`                             | session                | none                                            | yes      |
-| `whoami`                            | read                   | any valid token                                 | no       |
-| `capabilities`                      | read                   | any valid token                                 | no       |
-| `audit`                             | read                   | any valid token                                 | no       |
-| `approvals`                         | read/command           | any valid token, `approvals:decide`             | varies   |
-| `status`                            | read                   | `server:read`                                   | no       |
-| `server add`                        | command                | `server:write`                                  | yes      |
-| `server capacity`                   | command                | `server:write`                                  | yes      |
-| `server proxy`                      | command                | `server:write`                                  | yes      |
-| `server ops`                        | read/command           | `server:read`, `server:write`                   | varies   |
-| `tunnels`                           | read/command           | `server:read`, `server:write`                   | varies   |
-| `log-drains`                        | read/command           | `server:read`, `server:write`                   | varies   |
-| `access-assets`                     | read/command           | `server:read`, `server:write`                   | varies   |
-| `maintenance`                       | read/command           | `server:write`                                  | varies   |
-| `terminal service`                  | command                | `terminal:open`                                 | yes      |
-| `services`                          | read/command           | `service:read`, `service:update`                | varies   |
-| `projects`                          | read/command           | `deploy:read`, `deploy:start`, `service:update` | varies   |
-| `templates`                         | read/planning/command  | none, `deploy:read`, `deploy:start`             | varies   |
-| `logs`                              | read                   | `logs:read`                                     | no       |
-| `plan`                              | planning               | `deploy:read`                                   | no       |
-| `diff`                              | planning               | `deploy:read`                                   | no       |
-| `doctor`                            | read                   | `server:read`, `logs:read`                      | no       |
-| `install`                           | local                  | none                                            | yes      |
-| `upgrade`                           | local                  | none                                            | yes      |
-| `uninstall`                         | local                  | none                                            | yes      |
-| `deploy`                            | command                | `deploy:start`                                  | yes      |
-| `push`                              | command                | `deploy:start`                                  | yes      |
-| `rollback`                          | command                | `deploy:rollback`                               | yes      |
-| `env list`                          | read                   | `env:read`                                      | no       |
-| `env set`                           | command                | `env:write`                                     | yes      |
-| `env delete`                        | command                | `env:write`                                     | yes      |
-| `volumes list`                      | read                   | `volumes:read`                                  | no       |
-| `volumes register`                  | command                | `volumes:write`                                 | yes      |
-| `volumes update`                    | command                | `volumes:write`                                 | yes      |
-| `volumes delete`                    | command                | `volumes:write`                                 | yes      |
-| `backup list`                       | read                   | `backup:read`                                   | no       |
-| `backup policy`                     | command                | `backup:run`                                    | yes      |
-| `backup run`                        | command                | `backup:run`                                    | yes      |
-| `backup restore`                    | command                | `backup:restore`                                | yes      |
-| `backup recovery plan`              | planning               | `backup:read`                                   | no       |
-| `backup recovery run`               | command/planning       | `backup:run` / `backup:read` for `--dry-run`    | yes      |
-| `backup recovery restore`           | local command/planning | local operator; no API scope                    | yes      |
-| `backup recovery list`              | read                   | `backup:read`                                   | no       |
-| `backup recovery inspect`           | read                   | `backup:read`                                   | no       |
-| `backup recovery download-metadata` | read                   | `backup:read`                                   | no       |
-| `notifications list`                | read                   | any valid token                                 | no       |
-| `notifications logs`                | read                   | any valid token                                 | no       |
+| Command                             | Lane                   | Required Scope(s)                                                   | Mutating |
+| ----------------------------------- | ---------------------- | ------------------------------------------------------------------- | -------- |
+| `login`                             | session                | none                                                                | yes      |
+| `whoami`                            | read                   | any valid token                                                     | no       |
+| `capabilities`                      | read                   | any valid token                                                     | no       |
+| `audit`                             | read                   | any valid token                                                     | no       |
+| `approvals`                         | read/command           | any valid token, `approvals:decide`                                 | varies   |
+| `status`                            | read                   | `server:read`                                                       | no       |
+| `server add`                        | command                | `server:write`                                                      | yes      |
+| `server capacity`                   | command                | `server:write`                                                      | yes      |
+| `server proxy`                      | command                | `server:write`                                                      | yes      |
+| `server ops`                        | read/command           | `server:read`, `server:write`                                       | varies   |
+| `tunnels`                           | read/command           | `server:read`, `server:write`                                       | varies   |
+| `log-drains`                        | read/command           | `server:read`, `server:write`                                       | varies   |
+| `access-assets`                     | read/command           | `server:read`, `server:write`                                       | varies   |
+| `maintenance`                       | read/command           | `server:write`                                                      | varies   |
+| `terminal service`                  | command                | `terminal:open`                                                     | yes      |
+| `services`                          | read/command           | `service:read`, `deploy:read`, `diagnostics:read`, `service:update` | varies   |
+| `projects`                          | read/command           | `deploy:read`, `deploy:start`, `service:update`                     | varies   |
+| `templates`                         | read/planning/command  | none, `deploy:read`, `deploy:start`                                 | varies   |
+| `logs`                              | read                   | `logs:read`                                                         | no       |
+| `plan`                              | planning               | `deploy:read`                                                       | no       |
+| `diff`                              | planning               | `deploy:read`                                                       | no       |
+| `doctor`                            | read                   | `server:read`, `logs:read`                                          | no       |
+| `install`                           | local                  | none                                                                | yes      |
+| `upgrade`                           | local                  | none                                                                | yes      |
+| `uninstall`                         | local                  | none                                                                | yes      |
+| `deploy`                            | command                | `deploy:start`                                                      | yes      |
+| `push`                              | command                | `deploy:start`                                                      | yes      |
+| `rollback`                          | command                | `deploy:rollback`                                                   | yes      |
+| `env list`                          | read                   | `env:read`                                                          | no       |
+| `env set`                           | command                | `env:write`                                                         | yes      |
+| `env delete`                        | command                | `env:write`                                                         | yes      |
+| `volumes list`                      | read                   | `volumes:read`                                                      | no       |
+| `volumes register`                  | command                | `volumes:write`                                                     | yes      |
+| `volumes update`                    | command                | `volumes:write`                                                     | yes      |
+| `volumes delete`                    | command                | `volumes:write`                                                     | yes      |
+| `backup list`                       | read                   | `backup:read`                                                       | no       |
+| `backup policy`                     | command                | `backup:run`                                                        | yes      |
+| `backup run`                        | command                | `backup:run`                                                        | yes      |
+| `backup restore`                    | command                | `backup:restore`                                                    | yes      |
+| `backup recovery plan`              | planning               | `backup:read`                                                       | no       |
+| `backup recovery run`               | command/planning       | `backup:run` / `backup:read` for `--dry-run`                        | yes      |
+| `backup recovery restore`           | local command/planning | local operator; no API scope                                        | yes      |
+| `backup recovery list`              | read                   | `backup:read`                                                       | no       |
+| `backup recovery inspect`           | read                   | `backup:read`                                                       | no       |
+| `backup recovery download-metadata` | read                   | `backup:read`                                                       | no       |
+| `notifications list`                | read                   | any valid token                                                     | no       |
+| `notifications logs`                | read                   | any valid token                                                     | no       |
 
 - `daoflow backup restore --dry-run` is a planning-lane preview backed by `backupRestorePlan` and requires only `backup:read`
 - `daoflow backup restore --yes` queues the restore and requires `backup:restore`
@@ -243,6 +243,25 @@ verification failure must remain failed and include operator next steps.
   - project and environment ids
   - the exact next plan command
   - the exact next deploy command
+- `daoflow services logging show --service <id>` reads the configured rotation plus live normalized Docker inspection through `serviceLoggingState` and requires `diagnostics:read`
+- `daoflow services logging set --dry-run` calls `previewServiceLoggingConfig`, returns the exact full Compose override, and requires `deploy:read`
+- `daoflow services logging set --yes` writes through `updateServiceRuntimeConfig` and requires `service:update`
+- `daoflow services logging clear --dry-run` calls `previewServiceLoggingConfig` with `logging: null` and requires `deploy:read`
+- `daoflow services logging clear --yes` removes only DaoFlow-managed logging through `updateServiceRuntimeConfig` and requires `service:update`
+- Logging input:
+  - `--service <id>` is required
+  - `--max-size-mb <count>` defaults to `10` and accepts whole numbers from `1` through `1024`
+  - `--max-files <count>` defaults to `3` and accepts whole numbers from `1` through `20`
+  - the product of file size and file count cannot exceed `4096` MB per container
+  - `--take-ownership` explicitly permits replacing logging already authored in the source Compose service; omission preserves source ownership
+  - `--dry-run`, `--yes`, and `--json` follow the standard planning and command contracts
+- JSON show shape:
+  - `{ "ok": true, "data": { "service": { "id": string, "name": string }, "configured": { "managed": true, "driver": "json-file", "maxSizeMb": number, "maxFiles": number, "allowSourceOverride": boolean } | null, "inspection": { "desired": object | null, "status": "not-deployed" | "aligned" | "drifted" | "mixed" | "not-managed" | "unavailable" | "unsupported", "inspectedAt": string, "reason"?: string | null, "containers": [{ "name": string, "driver": string | null, "maxSize": string | null, "maxFiles": string | null, "matchesDesired": boolean | null }] } } }`
+- JSON dry-run shape:
+  - `{ "ok": true, "data": { "dryRun": true, "serviceId": string, "logging": object | null, "runtimeConfigPreview": string | null } }`
+- JSON mutation shape:
+  - `{ "ok": true, "data": { "service": { "id": string, "name": string }, "logging": object | null, "runtimeConfigPreview": string | null } }`
+- Live inspection returns normalized driver and rotation fields only. It must not expose raw `docker inspect` output, environment values, labels, credentials, or other container configuration.
 - `daoflow services domain routing` writes through `updateServiceDomainRouting` and requires `service:update`
 - Required input:
   - `--service <id>`

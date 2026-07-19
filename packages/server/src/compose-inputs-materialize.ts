@@ -28,6 +28,10 @@ import { applyManagedTraefikRoutingToComposeDoc } from "./managed-traefik-compos
 import type { ManagedTraefikRoutingPlan } from "./managed-traefik";
 import { applyDockerOwnershipToComposeDoc } from "./docker-ownership-compose";
 import type { DockerOwnershipIdentity } from "./docker-ownership";
+import {
+  applyManagedServiceLoggingToComposeDocument,
+  type ServiceRuntimeLogging
+} from "./service-runtime-logging";
 
 interface MaterializeComposeInputsOptions {
   workDir: string;
@@ -41,6 +45,25 @@ interface MaterializeComposeInputsOptions {
   imageOverride?: ComposeImageOverrideRequest;
   managedTraefikRouting?: ManagedTraefikRoutingPlan | null;
   ownership?: DockerOwnershipIdentity;
+  managedServiceLogging?: {
+    serviceName: string;
+    logging: ServiceRuntimeLogging | null;
+  };
+}
+
+function resolveManagedServiceLoggingOwnership(
+  input: MaterializeComposeInputsOptions
+): FrozenComposeInputsPayload["managedServiceLoggingOwnership"] {
+  if (!input.managedServiceLogging) {
+    return input.existingFrozenInputs?.managedServiceLoggingOwnership;
+  }
+  if (!input.managedServiceLogging.logging) {
+    return undefined;
+  }
+  return {
+    version: 1,
+    serviceName: input.managedServiceLogging.serviceName
+  };
 }
 
 function buildManifestFromFrozenInputs(input: {
@@ -95,16 +118,28 @@ function materializeExistingFrozenComposeInputs(
     > | null) ?? {};
   applyComposeImageOverride(doc, input.imageOverride);
   applyManagedTraefikRoutingToComposeDoc(doc, input.managedTraefikRouting ?? null);
+  if (input.managedServiceLogging) {
+    const ownership = input.existingFrozenInputs?.managedServiceLoggingOwnership;
+    applyManagedServiceLoggingToComposeDocument({
+      doc,
+      ...input.managedServiceLogging,
+      trustManagedMarker:
+        ownership?.version === 1 &&
+        ownership.serviceName === input.managedServiceLogging.serviceName
+    });
+  }
   if (input.ownership) {
     applyDockerOwnershipToComposeDoc(doc, input.ownership);
   }
   const buildPlan = buildComposeBuildPlan(doc, input.existingBuildPlan?.warnings ?? []);
+  const managedServiceLoggingOwnership = resolveManagedServiceLoggingOwnership(input);
   const frozenInputs: FrozenComposeInputsPayload = {
     composeFile: {
       ...(input.existingFrozenInputs as FrozenComposeInputsPayload).composeFile,
       contents: stringifyYaml(doc)
     },
-    envFiles: (input.existingFrozenInputs as FrozenComposeInputsPayload).envFiles
+    envFiles: (input.existingFrozenInputs as FrozenComposeInputsPayload).envFiles,
+    ...(managedServiceLoggingOwnership ? { managedServiceLoggingOwnership } : {})
   };
 
   return {
@@ -189,6 +224,13 @@ function materializeFreshComposeInputs(
   });
   applyComposeImageOverride(doc, input.imageOverride);
   applyManagedTraefikRoutingToComposeDoc(doc, input.managedTraefikRouting ?? null);
+  if (input.managedServiceLogging) {
+    applyManagedServiceLoggingToComposeDocument({
+      doc,
+      ...input.managedServiceLogging,
+      trustManagedMarker: false
+    });
+  }
   if (input.ownership) {
     applyDockerOwnershipToComposeDoc(doc, input.ownership);
   }
@@ -270,13 +312,15 @@ function materializeFreshComposeInputs(
   }
 
   const renderedComposeContents = stringifyYaml(doc);
+  const managedServiceLoggingOwnership = resolveManagedServiceLoggingOwnership(input);
   const frozenInputs: FrozenComposeInputsPayload = {
     composeFile: {
       path: RENDERED_COMPOSE_FILE_NAME,
       sourcePath: normalizeRelativePath(input.composeFile),
       contents: renderedComposeContents
     },
-    envFiles: [...envFilesBySource.values()].sort((a, b) => a.path.localeCompare(b.path))
+    envFiles: [...envFilesBySource.values()].sort((a, b) => a.path.localeCompare(b.path)),
+    ...(managedServiceLoggingOwnership ? { managedServiceLoggingOwnership } : {})
   };
 
   return {

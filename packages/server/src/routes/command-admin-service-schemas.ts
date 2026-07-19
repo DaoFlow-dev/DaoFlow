@@ -1,4 +1,11 @@
 import { z } from "zod";
+import {
+  SERVICE_RUNTIME_LOGGING_MAX_FILES,
+  SERVICE_RUNTIME_LOGGING_MAX_RETENTION_MB,
+  SERVICE_RUNTIME_LOGGING_MAX_SIZE_MB,
+  SERVICE_RUNTIME_LOGGING_MIN_FILES,
+  SERVICE_RUNTIME_LOGGING_MIN_SIZE_MB
+} from "../service-runtime-logging";
 
 const composeReadinessProbeBaseSchema = {
   port: z.number().int().min(1).max(65535),
@@ -86,6 +93,36 @@ export const serviceRuntimeResourcesSchema = z.object({
     .nullable()
     .optional()
 });
+
+export const serviceRuntimeLoggingSchema = z
+  .object({
+    managed: z.literal(true).default(true),
+    driver: z.literal("json-file").default("json-file"),
+    maxSizeMb: z
+      .number()
+      .int()
+      .min(SERVICE_RUNTIME_LOGGING_MIN_SIZE_MB)
+      .max(SERVICE_RUNTIME_LOGGING_MAX_SIZE_MB)
+      .default(10),
+    maxFiles: z
+      .number()
+      .int()
+      .min(SERVICE_RUNTIME_LOGGING_MIN_FILES)
+      .max(SERVICE_RUNTIME_LOGGING_MAX_FILES)
+      .default(3),
+    allowSourceOverride: z.boolean().default(false)
+  })
+  .superRefine((value, ctx) => {
+    if (value.maxSizeMb * value.maxFiles > SERVICE_RUNTIME_LOGGING_MAX_RETENTION_MB) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["maxFiles"],
+        message:
+          `Managed log retention cannot exceed ${SERVICE_RUNTIME_LOGGING_MAX_RETENTION_MB} MB ` +
+          "per container (maxSizeMb × maxFiles)."
+      });
+    }
+  });
 
 export const servicePortMappingSchema = z.object({
   id: z.string().min(1).max(64).optional(),
