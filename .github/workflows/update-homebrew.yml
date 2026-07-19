@@ -3,27 +3,47 @@ name: Update Homebrew Formula
 on:
   release:
     types: [published]
+  workflow_run:
+    workflows: ["Release CLI"]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to publish, for example v0.10.0
+        required: true
+        type: string
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.event_name == 'workflow_run' && github.event.workflow_run.head_branch || github.event.release.tag_name }}
 
 jobs:
   update-homebrew:
     name: Bump Homebrew Tap Formula
     runs-on: ubuntu-latest
-    if: "!github.event.release.prerelease"
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       startsWith(github.event.workflow_run.head_branch, 'v')) ||
+      (github.event_name == 'release' && !github.event.release.prerelease)
     steps:
       - name: Wait for release assets
         run: sleep 30
 
       - name: Extract version
         id: version
-        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+        run: |
+          case "$RELEASE_TAG" in
+            v*) ;;
+            *) echo "Release tag must start with v: $RELEASE_TAG" >&2; exit 1 ;;
+          esac
+          echo "version=${RELEASE_TAG#v}" >> "$GITHUB_OUTPUT"
 
       - name: Download checksums
         run: |
           curl -fsSL -o checksums.txt \
-            "https://github.com/DaoFlow-dev/DaoFlow/releases/download/${{ github.ref_name }}/checksums.txt"
+            "https://github.com/DaoFlow-dev/DaoFlow/releases/download/${RELEASE_TAG}/checksums.txt"
           cat checksums.txt
 
       - name: Extract SHA256 values
@@ -101,5 +121,9 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add Formula/daoflow.rb
+          if git diff --cached --quiet; then
+            echo "Homebrew formula is already current for $RELEASE_TAG"
+            exit 0
+          fi
           git commit -m "daoflow ${{ steps.version.outputs.version }}"
           git push
