@@ -95,10 +95,9 @@ describe("SSH host identity service", () => {
 
   it("records untrusted host keys during first enrollment without approving or connecting", async () => {
     const scan = vi.fn().mockResolvedValue([observedKey("AQIDBA==")]);
-    const suffix = Date.now().toString(36);
     const result = await registerServer({
-      name: `identity-${suffix}`,
-      host: `198.51.100.${(Date.now() % 200) + 1}`,
+      name: "ssh-host-identity-enrollment",
+      host: "198.51.100.201",
       region: "test",
       sshPort: 22,
       sshUser: "debian",
