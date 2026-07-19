@@ -1,8 +1,16 @@
 #!/usr/bin/env sh
 set -eu
 
-# Bun 1.3.14 aborts during repeated Playwright webServer runs on Linux CI.
-version="${BUN_VERSION:-1.3.13}"
+# Keep the E2E runtime aligned with the repository package-manager version.
+# BUN_VERSION remains available as an explicit troubleshooting override.
+version="${BUN_VERSION:-}"
+if [ -z "$version" ] && [ -f package.json ]; then
+  version="$(sed -n 's/.*"packageManager": "bun@\([^"]*\)".*/\1/p' package.json | head -n 1)"
+fi
+if [ -z "$version" ]; then
+  echo "Unable to determine the Bun version from BUN_VERSION or package.json." >&2
+  exit 1
+fi
 system="$(uname -s)"
 machine="$(uname -m)"
 

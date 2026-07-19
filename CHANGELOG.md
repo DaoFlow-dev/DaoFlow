@@ -18,6 +18,8 @@ per-commit. Going forward, update this file in the same PR as the change.
 - Recoverable GitHub and GitLab webhook delivery attempts with per-target
   outcomes, replay controls, and operator visibility without storing webhook
   secrets or duplicating successful deployments.
+- Durable approval dispatch intents with leased retries, reconciliation, and
+  operator requeue controls for approved deploy and restore actions.
 - Verified, encrypted control-plane recovery bundles with isolated verification
   runs and offline restore support.
 - Per-server deployment and build capacity controls for safer operation on
