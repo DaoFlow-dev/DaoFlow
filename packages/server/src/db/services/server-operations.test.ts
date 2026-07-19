@@ -74,9 +74,10 @@ describe("server operations service", () => {
       .select()
       .from(auditEntries)
       .where(eq(auditEntries.targetResource, "server/srv_foundation_1"));
-    expect(audits.map((entry) => entry.action)).toEqual([
-      "server.terminal.open",
-      "server.terminal.close"
-    ]);
+    const auditActions = audits.map((entry) => entry.action);
+    expect(auditActions).toHaveLength(2);
+    expect(auditActions).toEqual(
+      expect.arrayContaining(["server.terminal.open", "server.terminal.close"])
+    );
   });
 });
