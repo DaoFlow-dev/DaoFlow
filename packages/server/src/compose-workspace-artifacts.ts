@@ -19,6 +19,7 @@ import {
 } from "./compose-inputs";
 import { readManagedTraefikRoutingPlan } from "./managed-traefik";
 import type { DeploymentComposeEnvState, DeploymentComposeState } from "./db/services/compose-env";
+import type { ServiceRuntimeLogging } from "./service-runtime-config";
 
 export interface MaterializedComposeWorkspaceArtifacts {
   composeFile: string;
@@ -107,6 +108,10 @@ export function materializeComposeWorkspaceArtifacts(input: {
   existingComposeEnv?: ComposeEnvEvidence;
   existingComposeInputs?: ComposeInputManifest;
   managedTraefikRouting?: unknown;
+  managedServiceLogging?: {
+    serviceName: string;
+    logging: ServiceRuntimeLogging | null;
+  };
 }): MaterializedComposeWorkspaceArtifacts {
   const repoDefaultContent = readRepoDefaultEnvFile(input.workDir, input.composeFile);
   const composeEnv = materializeComposeEnv({
@@ -126,7 +131,8 @@ export function materializeComposeWorkspaceArtifacts(input: {
     existingBuildPlan: input.existingComposeBuildPlan,
     existingManifest: input.existingComposeInputs,
     existingFrozenInputs: input.deploymentState.frozenInputs,
-    managedTraefikRouting: readManagedTraefikRoutingPlan(input.managedTraefikRouting)
+    managedTraefikRouting: readManagedTraefikRoutingPlan(input.managedTraefikRouting),
+    managedServiceLogging: input.managedServiceLogging
   });
 
   return {

@@ -48,6 +48,10 @@ export interface FrozenComposeInputsPayload {
     contents: string;
   };
   envFiles: FrozenComposeEnvFilePayload[];
+  managedServiceLoggingOwnership?: {
+    version: 1;
+    serviceName: string;
+  };
 }
 
 export interface MaterializedComposeInputs {

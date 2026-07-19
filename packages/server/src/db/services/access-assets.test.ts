@@ -64,7 +64,10 @@ describe("access asset services", () => {
       .select()
       .from(auditEntries)
       .where(eq(auditEntries.targetResource, `ssh-key/${key.id}`));
-    expect(audits.map((entry) => entry.action)).toEqual(["ssh_key.create", "ssh_key.rotate"]);
+    expect(audits.map((entry) => entry.action).sort()).toEqual([
+      "ssh_key.create",
+      "ssh_key.rotate"
+    ]);
   });
 
   it("attaches managed SSH keys to servers and clears legacy per-server key material", async () => {

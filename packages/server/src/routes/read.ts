@@ -46,6 +46,7 @@ import { serverOperationsReadRouter } from "./read-server-operations";
 import { serverMetricsReadRouter } from "./read-server-metrics";
 import { serverSshHostIdentityReadRouter } from "./read-server-ssh-host-identities";
 import { serviceSchedulesReadRouter } from "./read-service-schedules";
+import { serviceLoggingReadRouter } from "./read-service-logging";
 import { serviceAccessActor } from "./service-scope";
 import { requireActorTeamId } from "./team-scope";
 
@@ -379,5 +380,6 @@ export const readRouter = t.mergeRouters(
   serverOperationsReadRouter,
   serverMetricsReadRouter,
   serverSshHostIdentityReadRouter,
-  serviceSchedulesReadRouter
+  serviceSchedulesReadRouter,
+  serviceLoggingReadRouter
 );

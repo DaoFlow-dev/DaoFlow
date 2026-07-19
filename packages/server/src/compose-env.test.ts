@@ -270,7 +270,8 @@ bad line
             contents: "API_TOKEN=secret\n",
             services: ["api"]
           }
-        ]
+        ],
+        managedServiceLoggingOwnership: { version: 1, serviceName: "api" }
       }
     });
 
@@ -301,7 +302,8 @@ bad line
             contents: "API_TOKEN=secret\n",
             services: ["api"]
           }
-        ]
+        ],
+        managedServiceLoggingOwnership: { version: 1, serviceName: "api" }
       }
     });
   });

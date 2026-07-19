@@ -402,4 +402,223 @@ describe("services command", () => {
       }
     });
   });
+
+  test("services logging set requires confirmation before making an API call", async () => {
+    let fetchCalled = false;
+    globalThis.fetch = (() => {
+      fetchCalled = true;
+      return Promise.reject(new Error("unexpected API call"));
+    }) as unknown as typeof fetch;
+
+    const result = await captureCommandExecution(async () => {
+      await runCli([
+        "node",
+        "daoflow",
+        "services",
+        "logging",
+        "set",
+        "--service",
+        "svc_api",
+        "--json"
+      ]);
+    });
+
+    expect(fetchCalled).toBe(false);
+    expect(result.exitCode).toBe(1);
+    expect(JSON.parse(result.logs[0])).toEqual({
+      ok: false,
+      error: "Configure managed log rotation for service svc_api. Pass --yes to confirm.",
+      code: "CONFIRMATION_REQUIRED"
+    });
+  });
+
+  test("services logging set dry-run returns the exact server-rendered Compose override", async () => {
+    globalThis.fetch = ((input: RequestInfo | URL) => {
+      const url =
+        typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+      expect(url).toContain("/trpc/previewServiceLoggingConfig");
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            result: {
+              data: {
+                logging: {
+                  managed: true,
+                  driver: "json-file",
+                  maxSizeMb: 20,
+                  maxFiles: 4,
+                  allowSourceOverride: true
+                },
+                runtimeConfigPreview:
+                  'services:\n  api:\n    logging:\n      driver: json-file\n      options:\n        max-size: 20m\n        max-file: "4"\n'
+              }
+            }
+          }),
+          { headers: { "content-type": "application/json" } }
+        )
+      );
+    }) as unknown as typeof fetch;
+
+    const result = await captureCommandExecution(async () => {
+      await runCli([
+        "node",
+        "daoflow",
+        "services",
+        "logging",
+        "set",
+        "--service",
+        "svc_api",
+        "--max-size-mb",
+        "20",
+        "--max-files",
+        "4",
+        "--take-ownership",
+        "--dry-run",
+        "--json"
+      ]);
+    });
+
+    expect(result.exitCode).toBe(3);
+    expect(JSON.parse(result.logs[0])).toEqual({
+      ok: true,
+      data: {
+        dryRun: true,
+        serviceId: "svc_api",
+        logging: {
+          managed: true,
+          driver: "json-file",
+          maxSizeMb: 20,
+          maxFiles: 4,
+          allowSourceOverride: true
+        },
+        runtimeConfigPreview:
+          'services:\n  api:\n    logging:\n      driver: json-file\n      options:\n        max-size: 20m\n        max-file: "4"\n'
+      }
+    });
+  });
+
+  test("services logging rejects values outside the supported bounds before any API call", async () => {
+    let fetchCalled = false;
+    globalThis.fetch = (() => {
+      fetchCalled = true;
+      return Promise.reject(new Error("unexpected API call"));
+    }) as unknown as typeof fetch;
+
+    const result = await captureCommandExecution(async () => {
+      await runCli([
+        "node",
+        "daoflow",
+        "services",
+        "logging",
+        "set",
+        "--service",
+        "svc_api",
+        "--max-size-mb",
+        "0",
+        "--dry-run",
+        "--json"
+      ]);
+    });
+
+    expect(fetchCalled).toBe(false);
+    expect(result.exitCode).toBe(1);
+    expect(JSON.parse(result.logs[0])).toMatchObject({
+      ok: false,
+      error: "Maximum log size must be a whole number between 1 and 1024."
+    });
+  });
+
+  test("services logging rejects excessive combined retention before any API call", async () => {
+    let fetchCalled = false;
+    globalThis.fetch = (() => {
+      fetchCalled = true;
+      return Promise.reject(new Error("unexpected API call"));
+    }) as unknown as typeof fetch;
+
+    const result = await captureCommandExecution(async () => {
+      await runCli([
+        "node",
+        "daoflow",
+        "services",
+        "logging",
+        "set",
+        "--service",
+        "svc_api",
+        "--max-size-mb",
+        "1024",
+        "--max-files",
+        "5",
+        "--dry-run",
+        "--json"
+      ]);
+    });
+
+    expect(fetchCalled).toBe(false);
+    expect(result.exitCode).toBe(1);
+    expect(JSON.parse(result.logs[0])).toEqual({
+      ok: false,
+      error: "Combined log retention cannot exceed 4096 MB per container.",
+      code: "INVALID_INPUT"
+    });
+  });
+
+  test("services logging show reports configured and active container settings", async () => {
+    globalThis.fetch = ((input: RequestInfo | URL) => {
+      const url =
+        typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+      expect(url).toContain("/trpc/serviceLoggingState");
+      const data = {
+        service: { id: "svc_api", name: "api" },
+        desired: {
+          managed: true,
+          driver: "json-file",
+          maxSizeMb: 10,
+          maxFiles: 3,
+          allowSourceOverride: false
+        },
+        status: "aligned",
+        inspectedAt: "2026-07-18T12:00:00.000Z",
+        containers: [
+          {
+            name: "demo-api-1",
+            driver: "json-file",
+            maxSize: "10m",
+            maxFiles: "3",
+            matchesDesired: true
+          }
+        ]
+      };
+      return Promise.resolve(
+        new Response(JSON.stringify({ result: { data } }), {
+          headers: { "content-type": "application/json" }
+        })
+      );
+    }) as unknown as typeof fetch;
+
+    const result = await captureCommandExecution(async () => {
+      await runCli([
+        "node",
+        "daoflow",
+        "services",
+        "logging",
+        "show",
+        "--service",
+        "svc_api",
+        "--json"
+      ]);
+    });
+
+    expect(result.exitCode).toBeNull();
+    expect(JSON.parse(result.logs[0])).toMatchObject({
+      ok: true,
+      data: {
+        service: { id: "svc_api", name: "api" },
+        configured: { maxSizeMb: 10, maxFiles: 3 },
+        inspection: {
+          status: "aligned",
+          containers: [{ name: "demo-api-1", matchesDesired: true }]
+        }
+      }
+    });
+  });
 });

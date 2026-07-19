@@ -16,6 +16,7 @@ import {
   composeReadinessProbeSchema,
   servicePortMappingSchema,
   serviceRuntimeHealthCheckSchema,
+  serviceRuntimeLoggingSchema,
   serviceRuntimeResourcesSchema,
   serviceRuntimeRestartPolicySchema,
   serviceRuntimeVolumeSchema
@@ -132,7 +133,8 @@ export const adminServiceRouter = t.router({
         networks: z.array(z.string().min(1).max(120)).max(50).nullable().optional(),
         restartPolicy: serviceRuntimeRestartPolicySchema.nullable().optional(),
         healthCheck: serviceRuntimeHealthCheckSchema.nullable().optional(),
-        resources: serviceRuntimeResourcesSchema.nullable().optional()
+        resources: serviceRuntimeResourcesSchema.nullable().optional(),
+        logging: serviceRuntimeLoggingSchema.nullable().optional()
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -163,6 +165,15 @@ export const adminServiceRouter = t.router({
               memoryReservationMb: input.resources.memoryReservationMb ?? null
             }
           : input.resources,
+        logging: input.logging
+          ? {
+              managed: true,
+              driver: "json-file",
+              maxSizeMb: input.logging.maxSizeMb,
+              maxFiles: input.logging.maxFiles,
+              allowSourceOverride: input.logging.allowSourceOverride
+            }
+          : input.logging,
         ...getActorContext(ctx)
       });
 

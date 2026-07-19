@@ -4356,6 +4356,134 @@
       "supportsYes": false
     },
     {
+      "path": "services logging",
+      "summary": "Configure and inspect per-service Docker log rotation",
+      "lane": "read",
+      "requiredScopes": ["diagnostics:read"],
+      "mutating": false,
+      "hasAction": false,
+      "hasSubcommands": true,
+      "aliases": [],
+      "arguments": [],
+      "options": [],
+      "supportsJson": false,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
+      "path": "services logging clear",
+      "summary": "Stop managing log rotation and preserve source-authored logging",
+      "lane": "command",
+      "requiredScopes": ["service:update"],
+      "mutating": true,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--service <id>",
+          "description": "Service ID",
+          "required": true
+        },
+        {
+          "flags": "--dry-run",
+          "description": "Preview the resulting Compose override without mutating",
+          "required": false
+        },
+        {
+          "flags": "-y, --yes",
+          "description": "Confirm removal",
+          "required": false
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": true,
+      "supportsYes": true
+    },
+    {
+      "path": "services logging set",
+      "summary": "Enable or update managed json-file rotation",
+      "lane": "command",
+      "requiredScopes": ["service:update"],
+      "mutating": true,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": [],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--service <id>",
+          "description": "Service ID",
+          "required": true
+        },
+        {
+          "flags": "--max-size-mb <count>",
+          "description": "Maximum size of each log file in MB",
+          "required": false
+        },
+        {
+          "flags": "--max-files <count>",
+          "description": "Number of rotated log files to keep",
+          "required": false
+        },
+        {
+          "flags": "--take-ownership",
+          "description": "Allow DaoFlow to replace logging already defined in the source Compose service",
+          "required": false
+        },
+        {
+          "flags": "--dry-run",
+          "description": "Preview the exact Compose override without mutating",
+          "required": false
+        },
+        {
+          "flags": "-y, --yes",
+          "description": "Confirm the configuration change",
+          "required": false
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": true,
+      "supportsYes": true
+    },
+    {
+      "path": "services logging show",
+      "summary": "Show desired rotation and inspect deployed container logging",
+      "lane": "read",
+      "requiredScopes": ["diagnostics:read"],
+      "mutating": false,
+      "hasAction": true,
+      "hasSubcommands": false,
+      "aliases": ["inspect"],
+      "arguments": [],
+      "options": [
+        {
+          "flags": "--service <id>",
+          "description": "Service ID",
+          "required": true
+        },
+        {
+          "flags": "--json",
+          "description": "Output as JSON",
+          "required": false
+        }
+      ],
+      "supportsJson": true,
+      "supportsDryRun": false,
+      "supportsYes": false
+    },
+    {
       "path": "services previews",
       "summary": "List shadow preview environments for a service",
       "lane": "read",

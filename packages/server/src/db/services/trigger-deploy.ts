@@ -412,7 +412,7 @@ export async function triggerDeploy(input: TriggerDeployInput) {
       serviceName: svc.composeServiceName ?? svc.name
     });
   }
-  if (runtimeConfig) {
+  if (svc.sourceType === "compose") {
     configSnapshot.runtimeConfig = runtimeConfig;
   }
   if (

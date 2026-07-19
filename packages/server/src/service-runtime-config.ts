@@ -1,4 +1,11 @@
 import { stringify as stringifyYaml } from "yaml";
+import {
+  buildManagedServiceLoggingCompose,
+  normalizeServiceRuntimeLogging,
+  type ServiceRuntimeLogging
+} from "./service-runtime-logging";
+
+export type { ServiceRuntimeLogging } from "./service-runtime-logging";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -37,6 +44,7 @@ export interface ServiceRuntimeConfig {
   restartPolicy: ServiceRuntimeRestartPolicy | null;
   healthCheck: ServiceRuntimeHealthCheck | null;
   resources: ServiceRuntimeResources | null;
+  logging: ServiceRuntimeLogging | null;
 }
 
 export interface ServiceRuntimeConfigPatch {
@@ -45,6 +53,7 @@ export interface ServiceRuntimeConfigPatch {
   restartPolicy?: ServiceRuntimeRestartPolicy | null;
   healthCheck?: ServiceRuntimeHealthCheck | null;
   resources?: ServiceRuntimeResources | null;
+  logging?: ServiceRuntimeLogging | null;
 }
 
 function asRecord(value: unknown): JsonRecord {
@@ -147,7 +156,8 @@ export function readServiceRuntimeConfig(value: unknown): ServiceRuntimeConfig |
     networks: normalizeNetworks(record.networks),
     restartPolicy: normalizeRestartPolicy(record.restartPolicy),
     healthCheck: normalizeHealthCheck(record.healthCheck),
-    resources: normalizeResources(record.resources)
+    resources: normalizeResources(record.resources),
+    logging: normalizeServiceRuntimeLogging(record.logging)
   } satisfies ServiceRuntimeConfig;
 
   return hasServiceRuntimeConfig(runtimeConfig) ? runtimeConfig : null;
@@ -166,7 +176,8 @@ export function hasServiceRuntimeConfig(
       runtimeConfig.networks.length > 0 ||
       runtimeConfig.restartPolicy ||
       runtimeConfig.healthCheck ||
-      runtimeConfig.resources)
+      runtimeConfig.resources ||
+      runtimeConfig.logging)
   );
 }
 
@@ -205,7 +216,8 @@ export function writeServiceRuntimeConfigToConfig(input: {
         ? existing?.healthCheck
         : (input.patch.healthCheck ?? null),
     resources:
-      input.patch.resources === undefined ? existing?.resources : (input.patch.resources ?? null)
+      input.patch.resources === undefined ? existing?.resources : (input.patch.resources ?? null),
+    logging: input.patch.logging === undefined ? existing?.logging : (input.patch.logging ?? null)
   });
 
   if (merged) {
@@ -215,6 +227,31 @@ export function writeServiceRuntimeConfigToConfig(input: {
   }
 
   return next;
+}
+
+export function previewServiceRuntimeLoggingUpdate(input: {
+  config: unknown;
+  composeServiceName?: string | null;
+  logging: ServiceRuntimeLogging | null;
+}): {
+  logging: ServiceRuntimeLogging | null;
+  runtimeConfig: ServiceRuntimeConfig | null;
+  runtimeConfigPreview: string | null;
+} {
+  const nextConfig = writeServiceRuntimeConfigToConfig({
+    config: input.config,
+    patch: { logging: input.logging }
+  });
+  const runtimeConfig = readServiceRuntimeConfigFromConfig(nextConfig);
+
+  return {
+    logging: runtimeConfig?.logging ?? null,
+    runtimeConfig,
+    runtimeConfigPreview: renderServiceRuntimeOverrideComposePreview({
+      composeServiceName: input.composeServiceName,
+      runtimeConfig
+    })
+  };
 }
 
 function formatRestartPolicy(restartPolicy: ServiceRuntimeRestartPolicy): string {
@@ -297,6 +334,10 @@ export function buildServiceRuntimeOverrideComposeDocument(input: {
         }
       };
     }
+  }
+
+  if (input.runtimeConfig.logging) {
+    service.logging = buildManagedServiceLoggingCompose(input.runtimeConfig.logging);
   }
 
   return {
