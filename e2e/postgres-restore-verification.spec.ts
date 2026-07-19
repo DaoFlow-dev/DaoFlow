@@ -134,8 +134,20 @@ async function waitForPostgres(containerName: string): Promise<void> {
   const deadline = Date.now() + 30_000;
   while (Date.now() < deadline) {
     try {
-      docker(["exec", containerName, "pg_isready", "--username", "postgres", "--dbname", "app"]);
-      return;
+      const result = docker([
+        "exec",
+        containerName,
+        "psql",
+        "--username",
+        "postgres",
+        "--dbname",
+        "app",
+        "--tuples-only",
+        "--no-align",
+        "--command",
+        "SELECT 1;"
+      ]);
+      if (result === "1") return;
     } catch {
       await new Promise((resolve) => setTimeout(resolve, 250));
     }

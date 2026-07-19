@@ -197,9 +197,6 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      - name: Use baseline Bun for E2E runtime
-        run: sh ./scripts/install-bun-baseline.sh
-
       - name: Start dev Compose stack
         run: sh ./scripts/ensure-dev-compose.sh
 
@@ -269,9 +266,6 @@ jobs:
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
-
-      - name: Use baseline Bun for worker E2E runtime
-        run: sh ./scripts/install-bun-baseline.sh
 
       - name: Start dev Compose stack
         run: sh ./scripts/ensure-dev-compose.sh
