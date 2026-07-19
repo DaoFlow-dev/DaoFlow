@@ -10,7 +10,10 @@ export interface ServiceCommandResult {
   exitCode: number;
   logs: string;
   timedOut: boolean;
+  cancelled?: boolean;
 }
+
+const TERMINATION_GRACE_MS = 5_000;
 
 async function resolveContainerNames(
   runtime: ResolvedServiceRuntime,
@@ -112,10 +115,27 @@ export async function runServiceCommand(input: {
   runtime: ResolvedServiceRuntime;
   command: string;
   timeoutMs?: number;
+  signal?: AbortSignal;
 }): Promise<ServiceCommandResult> {
+  if (input.signal?.aborted) {
+    return {
+      exitCode: 125,
+      logs: "Service schedule command was cancelled before execution.",
+      timedOut: false,
+      cancelled: true
+    };
+  }
   const containerName = await resolveRunningContainerName(input.runtime);
   if (!containerName) {
     throw new Error("No running container is available for scheduled task execution.");
+  }
+  if (input.signal?.aborted) {
+    return {
+      exitCode: 125,
+      logs: "Service schedule command was cancelled before execution.",
+      timedOut: false,
+      cancelled: true
+    };
   }
 
   const { child, cleanup } = spawnTargetCommand(input.runtime.target, [
@@ -127,30 +147,49 @@ export async function runServiceCommand(input: {
   ]);
   const lines: string[] = [];
   let timedOut = false;
-  const timeout = setTimeout(
-    () => {
-      timedOut = true;
-      child.kill("SIGTERM");
-    },
-    input.timeoutMs ?? 15 * 60 * 1000
-  );
+  let cancelled = false;
+  let settled = false;
+  let terminationRequested = false;
+  let killTimer: ReturnType<typeof setTimeout> | null = null;
+
+  const terminate = (reason: "timeout" | "cancelled") => {
+    if (terminationRequested || settled) return;
+    terminationRequested = true;
+    timedOut = reason === "timeout";
+    cancelled = reason === "cancelled";
+    child.kill("SIGTERM");
+    killTimer = setTimeout(() => {
+      if (!settled) child.kill("SIGKILL");
+    }, TERMINATION_GRACE_MS);
+  };
+  const timeout = setTimeout(() => terminate("timeout"), input.timeoutMs ?? 15 * 60 * 1000);
+  const onAbort = () => terminate("cancelled");
+  if (input.signal?.aborted) onAbort();
+  else input.signal?.addEventListener("abort", onAbort, { once: true });
 
   attachLines(child.stdout, "stdout", lines);
   attachLines(child.stderr, "stderr", lines);
 
   return new Promise((resolve, reject) => {
-    child.on("error", (error) => {
+    const finish = () => {
+      if (settled) return false;
+      settled = true;
       clearTimeout(timeout);
+      if (killTimer) clearTimeout(killTimer);
+      input.signal?.removeEventListener("abort", onAbort);
       cleanup();
-      reject(error);
+      return true;
+    };
+    child.on("error", (error) => {
+      if (finish()) reject(error);
     });
     child.on("close", (code) => {
-      clearTimeout(timeout);
-      cleanup();
+      if (!finish()) return;
       resolve({
-        exitCode: timedOut ? 124 : (code ?? 1),
+        exitCode: timedOut ? 124 : cancelled ? 125 : (code ?? 1),
         logs: lines.join("\n"),
-        timedOut
+        timedOut,
+        cancelled
       });
     });
   });

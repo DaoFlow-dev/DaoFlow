@@ -223,7 +223,7 @@ async function start() {
     unregisterGitLabProviderFeedbackAdapter();
     unregisterGitHubProviderFeedbackAdapter();
     stopOperationalMaintenanceMonitor();
-    stopServiceScheduleMonitor();
+    await stopServiceScheduleMonitor();
     await stopServerMetricsMonitor();
     if (shouldStartDevelopmentTaskWorker()) {
       stopDevelopmentTaskWorker();

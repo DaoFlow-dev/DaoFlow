@@ -231,6 +231,11 @@ describe("appRouter", () => {
 
     expect(response.status).toBe("healthy");
     expect(response.service).toBe("daoflow-control-plane");
+    expect(response.scheduler).toMatchObject({
+      running: expect.any(Boolean),
+      cycleInProgress: expect.any(Boolean),
+      leaseHeld: expect.any(Boolean)
+    });
   });
 
   it("rejects protected procedures without a session", async () => {

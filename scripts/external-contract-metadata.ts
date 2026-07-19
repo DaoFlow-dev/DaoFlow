@@ -140,11 +140,15 @@ addApiGroup(
   }
 );
 
-addApiGroup(apiProcedureAccess, ["serviceSchedules", "serviceScheduleRuns"], {
-  auth: "authenticated",
-  requiredRoles: READ_ROLES,
-  requiredScopes: ["service:read"]
-});
+addApiGroup(
+  apiProcedureAccess,
+  ["serviceScheduleMonitorStatus", "serviceSchedules", "serviceScheduleRuns"],
+  {
+    auth: "authenticated",
+    requiredRoles: READ_ROLES,
+    requiredScopes: ["service:read"]
+  }
+);
 
 addApiGroup(
   apiProcedureAccess,

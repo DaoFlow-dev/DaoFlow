@@ -10,11 +10,11 @@ Read endpoints are safe to call and never mutate state. The complete generated r
 
 These routes do not require authentication:
 
-| Procedure          | Purpose                                                   |
-| ------------------ | --------------------------------------------------------- |
-| `health`           | Control-plane health probe                                |
-| `platformOverview` | Product thesis, architecture summary, and guardrails      |
-| `roadmap`          | Small public roadmap summary, optionally filtered by lane |
+| Procedure          | Purpose                                                    |
+| ------------------ | ---------------------------------------------------------- |
+| `health`           | Control-plane health probe with safe local scheduler state |
+| `platformOverview` | Product thesis, architecture summary, and guardrails       |
+| `roadmap`          | Small public roadmap summary, optionally filtered by lane  |
 
 ## Authenticated Read Procedures
 
@@ -53,6 +53,7 @@ These routes require both authentication and the listed scope set:
 | `logDrains`                    | `server:read`     | Configured external log drains                                 |
 | `logDrainDeliveries`           | `server:read`     | Recent log drain delivery attempts                             |
 | `accessLogs`                   | `logs:read`       | Redacted request, auth, webhook, and API token usage logs      |
+| `serviceScheduleMonitorStatus` | `service:read`    | Active scheduler holder, generation, lease age, and expiry     |
 
 ### Access Logs
 

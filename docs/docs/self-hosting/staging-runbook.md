@@ -84,6 +84,29 @@ The remaining commands default to the installer directory. For the local-source 
 export DAOFLOW_DIR=/opt/daoflow-source-qa
 ```
 
+#### Concurrent branch rehearsals on a shared host
+
+Do not point multiple branches at the same PostgreSQL database unless every branch extends the
+database's currently applied migration lineage. A branch with an older or divergent migration
+chain should stop with a lineage error; do not work around that safety check by deleting migration
+history.
+
+Give each concurrent branch its own deployment directory, Compose project name, host port,
+PostgreSQL volume, and Redis volume. For example:
+
+```bash
+export QA_SLUG=issue-210
+export DAOFLOW_DIR="/opt/daoflow-${QA_SLUG}"
+export COMPOSE_PROJECT_NAME="daoflow-${QA_SLUG}"
+
+cd "$DAOFLOW_DIR"
+docker compose -p "$COMPOSE_PROJECT_NAME" up -d --wait --wait-timeout 300
+```
+
+Set a unique `DAOFLOW_PORT` in that branch's `.env`. Compose automatically namespaces the default
+network and named volumes by project name. This keeps migrations and test data isolated while
+allowing a long-lived shared staging stack to remain online.
+
 ## 3. Review The Generated `.env`
 
 Before the first rehearsal, confirm at least:

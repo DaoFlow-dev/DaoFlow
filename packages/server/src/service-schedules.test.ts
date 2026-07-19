@@ -6,8 +6,15 @@ import { deployments } from "./db/schema/deployments";
 import { notificationChannels, notificationLogs } from "./db/schema/notifications";
 import { serviceScheduleRuns } from "./db/schema/service-schedules";
 import { computeNextRunAt } from "./db/services/service-schedule-cron";
-import { createDueServiceScheduleRuns } from "./db/services/service-schedules";
-import { createProjectEnvironmentServiceFixture } from "./testing/project-fixtures";
+import { acquireServiceScheduleMonitorLease } from "./db/services/service-schedule-lease";
+import {
+  createDueServiceScheduleRuns,
+  createServiceScheduleRun
+} from "./db/services/service-schedules";
+import {
+  createProjectEnvironmentServiceFixture,
+  foundationOwnerRequester
+} from "./testing/project-fixtures";
 import { resetTestDatabaseWithControlPlane } from "./test-db";
 import { makeSession } from "./testing/request-auth-fixtures";
 import { appRouter } from "./router";
@@ -86,6 +93,22 @@ describe("service schedules", () => {
     );
 
     expect(nextRun.toISOString()).toBe("2026-01-01T14:00:00.000Z");
+  });
+
+  it("reports the active scheduler lease to service readers", async () => {
+    const lease = await acquireServiceScheduleMonitorLease({
+      holderInstanceId: "monitor-status-a"
+    });
+    expect(lease).not.toBeNull();
+
+    const status = await caller().serviceScheduleMonitorStatus();
+
+    expect(status).toMatchObject({
+      holderInstanceId: "monitor-status-a",
+      generation: lease!.generation,
+      active: true
+    });
+    expect(status?.leaseAgeMs).toBeGreaterThanOrEqual(0);
   });
 
   it("creates, pauses, resumes, runs, deletes, and audits service schedules", async () => {
@@ -208,20 +231,27 @@ describe("service schedules", () => {
       requestedByEmail: "service-schedule-runner@daoflow.local",
       requestedByRole: "operator"
     } as const;
+    const lease = await acquireServiceScheduleMonitorLease({
+      holderInstanceId: "service-schedule-test-monitor"
+    });
+    expect(lease).not.toBeNull();
 
     const firstBatch = await createDueServiceScheduleRuns({
       teamId: "team_foundation",
       now: new Date("2030-01-01T00:00:00.000Z"),
-      actor
+      actor,
+      lease: lease!
     });
     const secondBatch = await createDueServiceScheduleRuns({
       teamId: "team_foundation",
       now: new Date("2030-01-01T00:01:00.000Z"),
-      actor
+      actor,
+      lease: lease!
     });
 
     expect(firstBatch.map((run) => run.scheduleId)).toEqual([schedule.id]);
-    expect(secondBatch).toEqual([]);
+    expect(secondBatch).toHaveLength(1);
+    expect(secondBatch[0]).toMatchObject({ scheduleId: schedule.id, status: "skipped" });
   });
 
   it("retains only the configured number of completed runs", async () => {
@@ -248,5 +278,40 @@ describe("service schedules", () => {
       .where(eq(serviceScheduleRuns.scheduleId, schedule.id));
     expect(rows).toHaveLength(2);
     expect(rows.map((run) => run.id)).toContain(third.id);
+  });
+
+  it("rolls back a manual run when writing its audit entry fails", async () => {
+    const fixture = await createFixture();
+    const schedule = await caller().createServiceSchedule({
+      serviceId: fixture.service.id,
+      name: "Atomic audit task",
+      command: "echo ok",
+      cronExpression: "*/5 * * * *",
+      timezone: "UTC"
+    });
+
+    await expect(
+      createServiceScheduleRun({
+        scheduleId: schedule.id,
+        teamId: "team_foundation",
+        triggerKind: "manual",
+        actor: {
+          ...foundationOwnerRequester,
+          actorType: "x".repeat(21) as "user"
+        }
+      })
+    ).rejects.toMatchObject({ cause: { code: "22001" } });
+
+    const runs = await db
+      .select()
+      .from(serviceScheduleRuns)
+      .where(eq(serviceScheduleRuns.scheduleId, schedule.id));
+    expect(runs).toEqual([]);
+
+    const audits = await db
+      .select()
+      .from(auditEntries)
+      .where(eq(auditEntries.action, "service_schedule.run_manual"));
+    expect(audits).toEqual([]);
   });
 });

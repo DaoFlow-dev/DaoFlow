@@ -86,7 +86,9 @@ export const adminServiceSchedulesRouter = t.router({
       });
       if (result.status !== "ok") throwScheduleError(result);
 
-      const completed = await executeServiceScheduleRun(result.run.id);
+      const completed = await executeServiceScheduleRun(result.run.id, {
+        triggerKind: "manual"
+      });
       return completed ?? result.run;
     })
 });

@@ -107,21 +107,24 @@ profile values in `.env`.
 
 ## Execution And Temporal
 
-| Variable                                    | Default                               | Description                                                                 |
-| ------------------------------------------- | ------------------------------------- | --------------------------------------------------------------------------- |
-| `DEPLOY_TIMEOUT_MS`                         | `86400000`                            | Max queue-wait and execution time; expiry aborts active work                |
-| `TEMPORAL_POSTGRES_PASSWORD`                | unset in lean; required in temporal   | Temporal database password                                                  |
-| `TEMPORAL_ADDRESS`                          | `temporal:7233` in generated installs | Temporal connection target                                                  |
-| `TEMPORAL_NAMESPACE`                        | `daoflow`                             | Temporal namespace                                                          |
-| `TEMPORAL_TASK_QUEUE`                       | `daoflow-deployments`                 | Temporal task queue                                                         |
-| `APPROVAL_ACTION_DISPATCH_POLL_INTERVAL_MS` | `5000`                                | Durable approved-operation poll interval; values below 1000 use the default |
-| `DAOFLOW_APPROVAL_DISPATCH_MAX_ATTEMPTS`    | `12`                                  | Positive attempt limit before submission reaches terminal failure           |
-| `DAOFLOW_APPROVAL_DISPATCH_RETRY_BASE_MS`   | `1000`                                | Positive initial full-jitter retry window in milliseconds                   |
-| `DAOFLOW_APPROVAL_DISPATCH_RETRY_MAX_MS`    | `300000`                              | Positive maximum full-jitter retry window in milliseconds                   |
-| `PROVIDER_FEEDBACK_POLL_INTERVAL_MS`        | `5000`                                | Provider-feedback poll interval; values below 1000 use the default          |
-| `DAOFLOW_PROVIDER_FEEDBACK_MAX_ATTEMPTS`    | `12`                                  | Positive delivery-attempt limit before feedback is dead-lettered            |
-| `DAOFLOW_PROVIDER_FEEDBACK_RETRY_BASE_MS`   | `1000`                                | Positive initial bounded exponential retry delay in milliseconds            |
-| `DAOFLOW_PROVIDER_FEEDBACK_RETRY_MAX_MS`    | `300000`                              | Positive maximum provider-feedback retry delay in milliseconds              |
+| Variable                                            | Default                               | Description                                                                                       |
+| --------------------------------------------------- | ------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `DEPLOY_TIMEOUT_MS`                                 | `86400000`                            | Max queue-wait and execution time; expiry aborts active work                                      |
+| `TEMPORAL_POSTGRES_PASSWORD`                        | unset in lean; required in temporal   | Temporal database password                                                                        |
+| `TEMPORAL_ADDRESS`                                  | `temporal:7233` in generated installs | Temporal connection target                                                                        |
+| `TEMPORAL_NAMESPACE`                                | `daoflow`                             | Temporal namespace                                                                                |
+| `TEMPORAL_TASK_QUEUE`                               | `daoflow-deployments`                 | Temporal task queue                                                                               |
+| `APPROVAL_ACTION_DISPATCH_POLL_INTERVAL_MS`         | `5000`                                | Durable approved-operation poll interval; values below 1000 use the default                       |
+| `DAOFLOW_APPROVAL_DISPATCH_MAX_ATTEMPTS`            | `12`                                  | Positive attempt limit before submission reaches terminal failure                                 |
+| `DAOFLOW_APPROVAL_DISPATCH_RETRY_BASE_MS`           | `1000`                                | Positive initial full-jitter retry window in milliseconds                                         |
+| `DAOFLOW_APPROVAL_DISPATCH_RETRY_MAX_MS`            | `300000`                              | Positive maximum full-jitter retry window in milliseconds                                         |
+| `PROVIDER_FEEDBACK_POLL_INTERVAL_MS`                | `5000`                                | Provider-feedback poll interval; values below 1000 use the default                                |
+| `DAOFLOW_PROVIDER_FEEDBACK_MAX_ATTEMPTS`            | `12`                                  | Positive delivery-attempt limit before feedback is dead-lettered                                  |
+| `DAOFLOW_PROVIDER_FEEDBACK_RETRY_BASE_MS`           | `1000`                                | Positive initial bounded exponential retry delay in milliseconds                                  |
+| `DAOFLOW_PROVIDER_FEEDBACK_RETRY_MAX_MS`            | `300000`                              | Positive maximum provider-feedback retry delay in milliseconds                                    |
+| `DAOFLOW_SERVICE_SCHEDULE_MONITOR_POLL_INTERVAL_MS` | `60000`                               | Interval between scheduler lease renewal and occurrence-claim cycles; minimum 1000                |
+| `DAOFLOW_SERVICE_SCHEDULE_MONITOR_LEASE_MS`         | `90000`                               | Durable scheduler lease lifetime; minimum 5000 and longer than the poll interval                  |
+| `DAOFLOW_SERVICE_SCHEDULE_MONITOR_INSTANCE_ID`      | generated                             | Optional unique control-plane replica identifier shown in scheduler status; maximum 32 characters |
 
 On an existing install, rerunning the installer without `--workflow-profile` preserves the current
 choice and infers older installs from their existing Temporal settings. Switching from temporal to

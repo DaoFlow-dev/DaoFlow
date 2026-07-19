@@ -1,5 +1,6 @@
-import { and, desc, eq, inArray, lte, ne } from "drizzle-orm";
+import { and, desc, eq, ne } from "drizzle-orm";
 import { db } from "../connection";
+import { auditEntries } from "../schema/audit";
 import { environments, projects } from "../schema/projects";
 import { serviceScheduleRuns, serviceSchedules } from "../schema/service-schedules";
 import { services } from "../schema/services";
@@ -13,7 +14,13 @@ import {
   serializeServiceSchedule,
   serializeServiceScheduleRun
 } from "./service-schedule-serialization";
-import { recordServiceScheduleAudit, type ServiceScheduleActor } from "./service-schedule-audit";
+import {
+  buildServiceScheduleAuditEntry,
+  recordServiceScheduleAudit,
+  type ServiceScheduleActor
+} from "./service-schedule-audit";
+
+export { createDueServiceScheduleRuns } from "./service-schedule-occurrences";
 
 export async function readServiceScheduleForTeam(scheduleId: string, teamId: string) {
   const [row] = await db
@@ -214,91 +221,39 @@ export async function deleteServiceSchedule(input: {
 export async function createServiceScheduleRun(input: {
   scheduleId: string;
   teamId: string;
-  triggerKind: "manual" | "scheduled";
+  triggerKind: "manual";
   actor: ServiceScheduleActor;
 }) {
   const row = await readServiceScheduleForTeam(input.scheduleId, input.teamId);
   if (!row || row.schedule.status === "deleted") return { status: "not_found" as const };
-  if (row.schedule.status !== "active" && input.triggerKind === "scheduled") {
-    return { status: "invalid_state" as const, message: "Schedule is not active." };
-  }
-  if (input.triggerKind === "scheduled") {
-    const [existingRun] = await db
-      .select({ id: serviceScheduleRuns.id })
-      .from(serviceScheduleRuns)
-      .where(
-        and(
-          eq(serviceScheduleRuns.scheduleId, row.schedule.id),
-          eq(serviceScheduleRuns.triggerKind, "scheduled"),
-          inArray(serviceScheduleRuns.status, ["queued", "running"])
-        )
-      )
-      .limit(1);
-    if (existingRun) {
-      return {
-        status: "already_queued" as const,
-        message: "A scheduled run is already queued or running."
-      };
-    }
-  }
-  const [run] = await db
-    .insert(serviceScheduleRuns)
-    .values({
-      id: newId(),
-      scheduleId: row.schedule.id,
-      serviceId: row.schedule.serviceId,
-      triggerKind: input.triggerKind,
-      status: "queued",
-      command: row.schedule.command,
-      logs: "Queued for service schedule runner handoff.",
-      requestedByUserId: input.triggerKind === "scheduled" ? null : input.actor.requestedByUserId,
-      requestedByEmail: input.actor.requestedByEmail,
-      requestedByRole: input.actor.requestedByRole
-    })
-    .returning();
-  await recordServiceScheduleAudit({
-    schedule: row.schedule,
-    actor: input.actor,
-    action:
-      input.triggerKind === "manual"
-        ? "service_schedule.run_manual"
-        : "service_schedule.run_scheduled",
-    summary: `Queued ${input.triggerKind} run for schedule ${row.schedule.name}.`,
-    runId: run.id
+  const run = await db.transaction(async (tx) => {
+    const [createdRun] = await tx
+      .insert(serviceScheduleRuns)
+      .values({
+        id: newId(),
+        scheduleId: row.schedule.id,
+        serviceId: row.schedule.serviceId,
+        triggerKind: input.triggerKind,
+        status: "queued",
+        command: row.schedule.command,
+        logs: "Queued for service schedule runner handoff.",
+        requestedByUserId: input.actor.requestedByUserId,
+        requestedByEmail: input.actor.requestedByEmail,
+        requestedByRole: input.actor.requestedByRole
+      })
+      .returning();
+    if (!createdRun) throw new Error("Unable to create manual service schedule run.");
+
+    await tx.insert(auditEntries).values(
+      buildServiceScheduleAuditEntry({
+        schedule: row.schedule,
+        actor: input.actor,
+        action: "service_schedule.run_manual",
+        summary: `Queued manual run for schedule ${row.schedule.name}.`,
+        runId: createdRun.id
+      })
+    );
+    return createdRun;
   });
   return { status: "ok" as const, run: serializeServiceScheduleRun(run), schedule: row.schedule };
-}
-
-export async function createDueServiceScheduleRuns(input: {
-  teamId?: string;
-  now?: Date;
-  actor: ServiceScheduleActor;
-  limit?: number;
-}) {
-  const filters = [
-    eq(serviceSchedules.status, "active"),
-    eq(serviceSchedules.enabled, true),
-    lte(serviceSchedules.nextRunAt, input.now ?? new Date())
-  ];
-  if (input.teamId) filters.push(eq(projects.teamId, input.teamId));
-
-  const dueRows = await db
-    .select({ schedule: serviceSchedules, teamId: projects.teamId })
-    .from(serviceSchedules)
-    .innerJoin(projects, eq(projects.id, serviceSchedules.projectId))
-    .where(and(...filters))
-    .orderBy(desc(serviceSchedules.nextRunAt))
-    .limit(input.limit ?? 20);
-
-  const queued = [];
-  for (const row of dueRows) {
-    const result = await createServiceScheduleRun({
-      scheduleId: row.schedule.id,
-      teamId: row.teamId,
-      triggerKind: "scheduled",
-      actor: input.actor
-    });
-    if (result.status === "ok") queued.push(result.run);
-  }
-  return queued;
 }

@@ -15,6 +15,26 @@ Docker Compose is the primary deployment method in DaoFlow. Compose files are fi
 5. Waits for Docker Compose container state and Docker health
 6. If configured, runs an explicit readiness probe from the deployment target host and records the outcome
 
+## Scheduled Service Commands
+
+Service schedules are coordinated by one database-backed scheduler leader across all DaoFlow
+control-plane instances. The Schedules page shows the active instance, lease generation, lease age,
+last renewal, and expiry. If the leader stops renewing, another instance can take over only after
+the stored lease expires; stale leaders cannot dispatch new occurrences after takeover.
+Lease and due-time decisions use PostgreSQL's clock, so control-plane host clock skew does not affect
+occurrence identity or permit duplicate dispatch. PostgreSQL time is the scheduler's source of truth.
+
+Each scheduled occurrence is identified by its schedule and planned execution time. DaoFlow stores
+that identity before advancing the schedule, so concurrent pollers cannot create duplicate runs and
+a long-running command does not hold the next occurrence open. If an earlier scheduled run is still
+queued or running when the next occurrence arrives, DaoFlow records the new occurrence as skipped
+instead of overlapping commands or building an unbounded queue. Manual runs remain independent of
+this overlap policy.
+
+The `/health` response includes the local scheduler monitor state. The Schedules page reads the
+database-backed lease state, which is the authoritative view when multiple control-plane instances
+are running.
+
 ## CLI Deployment
 
 ```bash
