@@ -1,9 +1,9 @@
 import { expect, test } from "@playwright/test";
-import { signInAsOperator, signInAsOwner, signOut, trpcRequest } from "./helpers";
+import { signInAsAdmin, signInAsPlatformOwner, signOut, trpcRequest } from "./helpers";
 
 test.describe("Approval workflows", () => {
   test("approval queue shows pending requests and blocks self-approval", async ({ page }) => {
-    await signInAsOwner(page);
+    await signInAsAdmin(page);
 
     const request = await trpcRequest<{ id: string; status: string; actionType: string }>(
       page,
@@ -34,8 +34,8 @@ test.describe("Approval workflows", () => {
     await expect(approvalCard).toContainText("pending");
   });
 
-  test("operator can approve and reject requests from the approvals page", async ({ page }) => {
-    await signInAsOwner(page);
+  test("owner can approve and reject requests from the approvals page", async ({ page }) => {
+    await signInAsAdmin(page);
 
     const approvedRequest = await trpcRequest<{ id: string; status: string }>(
       page,
@@ -45,7 +45,7 @@ test.describe("Approval workflows", () => {
         composeServiceId: "compose_daoflow_prod_control_plane",
         commitSha: "abcdef2",
         imageTag: "ghcr.io/daoflow/control-plane:e2e-approve",
-        reason: "Need operator approval before promoting the first compose release in e2e."
+        reason: "Need owner approval before promoting the first compose release in e2e."
       }
     );
     const rejectedRequest = await trpcRequest<{ id: string; status: string }>(
@@ -56,12 +56,12 @@ test.describe("Approval workflows", () => {
         composeServiceId: "compose_daoflow_prod_control_plane",
         commitSha: "abcdef3",
         imageTag: "ghcr.io/daoflow/control-plane:e2e-reject",
-        reason: "Need operator approval before promoting the second compose release in e2e."
+        reason: "Need owner approval before promoting the second compose release in e2e."
       }
     );
 
     await signOut(page);
-    await signInAsOperator(page);
+    await signInAsPlatformOwner(page);
 
     await page.goto("/approvals");
     await expect(page.getByRole("heading", { name: "Approvals" })).toBeVisible();
