@@ -15,6 +15,23 @@ jobs:
   build-and-release:
     name: Build CLI Binaries & Create Release
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_DB: daoflow
+          POSTGRES_USER: daoflow
+          POSTGRES_PASSWORD: daoflow_dev
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U daoflow"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://daoflow:daoflow_dev@127.0.0.1:5432/daoflow
+      TEST_DATABASE_URL: postgresql://daoflow:daoflow_dev@127.0.0.1:5432/daoflow_test
     steps:
       - name: Checkout
         uses: actions/checkout@v6
