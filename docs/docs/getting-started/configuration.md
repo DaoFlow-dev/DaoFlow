@@ -98,6 +98,11 @@ These variables are optional, but when both are set DaoFlow bootstraps the first
 
 The CLI install flow also reads these same variables when `--email` and `--password` are omitted, then writes them into the generated server `.env` file.
 
+The environment-created owner is also assigned an owner organization membership and a default
+organization before localhost server registration. On restart, DaoFlow repairs an older
+environment-created owner that is missing organization membership, while preserving any valid
+default organization that is already configured.
+
 For the full production variable reference, including SMTP and advanced worker settings, see [Self-Hosting Environment Variables](/docs/self-hosting/environment-variables).
 
 ## CLI Configuration

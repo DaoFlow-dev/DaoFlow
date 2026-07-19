@@ -11,6 +11,11 @@ linked to reproducible constrained-host evidence, use the conservative productio
 below and rehearse your own workload on staging. The QA targets describe the acceptance runs used to
 evaluate smaller hosts; they are not capacity promises.
 
+The lean profile completed one documented 1 vCPU / 1 GiB acceptance run, including login, localhost
+server registration, and an image deployment. See the
+[2026-07-18 lean workflow profile QA evidence](https://github.com/DaoFlow-dev/DaoFlow/blob/main/.agents/references/qa-workflow-profile-evidence-2026-07-18.md).
+This remains a point-in-time result rather than a universal minimum.
+
 | Workflow profile    | Services                                             | Conservative production starting point | Constrained QA target                   | Free disk |
 | ------------------- | ---------------------------------------------------- | -------------------------------------- | --------------------------------------- | --------- |
 | Lean (default)      | `daoflow`, `postgres`, `redis`                       | 2 vCPU / 4 GiB RAM                     | 1 vCPU / 1 GiB RAM, no swap             | 30 GB     |
