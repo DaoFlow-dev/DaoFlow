@@ -1,6 +1,6 @@
 {
   "name": "@daoflow/mcp",
-  "version": "0.9.2",
+  "version": "0.10.0",
   "private": true,
   "type": "module",
   "description": "Model Context Protocol server exposing DaoFlow's agent-safe read, planning, and command surface over stdio.",

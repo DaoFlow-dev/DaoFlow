@@ -33,30 +33,30 @@ The generated production `.env` file is intentionally smaller than the runtime e
 
 Most operators edit only these values:
 
-| Variable                                             | Default                      | Description                                                                                         |
-| ---------------------------------------------------- | ---------------------------- | --------------------------------------------------------------------------------------------------- |
-| `DAOFLOW_VERSION`                                    | `0.9.1` in reference Compose | Concrete image tag to run; the installer-generated `.env` pins the installed CLI release            |
-| `BETTER_AUTH_URL`                                    | —                            | Public origin used for sign-in and callbacks                                                        |
-| `DAOFLOW_DATABASE_NAME`                              | `daoflow`                    | Database selected by the production Compose `DATABASE_URL`; keep the default for a standard install |
-| `DAOFLOW_PORT`                                       | `3000`                       | Host port bound to the DaoFlow container                                                            |
-| `BETTER_AUTH_SECRET`                                 | —                            | Production session signing secret                                                                   |
-| `ENCRYPTION_KEY`                                     | —                            | Global DaoFlow secret-encryption key; keep it unchanged during destination-key rotation             |
-| `DAOFLOW_BACKUP_DESTINATION_ENCRYPTION_KEY`          | unset                        | Current backup-destination key; falls back to `ENCRYPTION_KEY`                                      |
-| `DAOFLOW_PREVIOUS_BACKUP_DESTINATION_ENCRYPTION_KEY` | unset                        | Temporary old backup-destination key used only during rotation                                      |
-| `DAOFLOW_RECOVERY_ENCRYPTION_KEY`                    | unset                        | Dedicated recovery-bundle encryption key; store it outside the control-plane database               |
-| `DAOFLOW_PREVIOUS_RECOVERY_ENCRYPTION_KEY`           | unset                        | Temporary previous recovery key during a controlled key rotation                                    |
-| `DAOFLOW_RCLONE_COMMAND_TIMEOUT_MS`                  | `1800000`                    | Maximum time for one recovery-object transfer                                                       |
-| `APPROVAL_ACTION_DISPATCH_POLL_INTERVAL_MS`          | `5000`                       | Poll interval for durable approved-operation submission and completion checks                       |
-| `DAOFLOW_APPROVAL_DISPATCH_MAX_ATTEMPTS`             | `12`                         | Automatic submission attempts before a dispatch reaches terminal failure                            |
-| `DAOFLOW_APPROVAL_DISPATCH_RETRY_BASE_MS`            | `1000`                       | Initial full-jitter retry window for a temporary submission failure                                 |
-| `DAOFLOW_APPROVAL_DISPATCH_RETRY_MAX_MS`             | `300000`                     | Maximum full-jitter retry window for a temporary submission failure                                 |
-| `DAOFLOW_CONTROL_PLANE_RECOVERY_VERIFIER_STORAGE_MB` | `4096`                       | Storage and memory ceiling for each isolated recovery verifier                                      |
-| `POSTGRES_PASSWORD`                                  | —                            | Password for the DaoFlow application database                                                       |
-| `TEMPORAL_POSTGRES_PASSWORD`                         | —                            | Password for Temporal's Postgres database                                                           |
-| `DEPLOY_TIMEOUT_MS`                                  | `86400000`                   | Max queue-wait and execution time; expiry aborts active work                                        |
-| `DAOFLOW_ENABLE_TEMPORAL`                            | `false`                      | Enables durable Temporal-backed orchestration                                                       |
-| `TEMPORAL_NAMESPACE`                                 | `daoflow`                    | Temporal namespace when Temporal mode is enabled                                                    |
-| `TEMPORAL_TASK_QUEUE`                                | `daoflow-deployments`        | Temporal task queue name                                                                            |
+| Variable                                             | Default                       | Description                                                                                         |
+| ---------------------------------------------------- | ----------------------------- | --------------------------------------------------------------------------------------------------- |
+| `DAOFLOW_VERSION`                                    | `0.10.0` in reference Compose | Concrete image tag to run; the installer-generated `.env` pins the installed CLI release            |
+| `BETTER_AUTH_URL`                                    | —                             | Public origin used for sign-in and callbacks                                                        |
+| `DAOFLOW_DATABASE_NAME`                              | `daoflow`                     | Database selected by the production Compose `DATABASE_URL`; keep the default for a standard install |
+| `DAOFLOW_PORT`                                       | `3000`                        | Host port bound to the DaoFlow container                                                            |
+| `BETTER_AUTH_SECRET`                                 | —                             | Production session signing secret                                                                   |
+| `ENCRYPTION_KEY`                                     | —                             | Global DaoFlow secret-encryption key; keep it unchanged during destination-key rotation             |
+| `DAOFLOW_BACKUP_DESTINATION_ENCRYPTION_KEY`          | unset                         | Current backup-destination key; falls back to `ENCRYPTION_KEY`                                      |
+| `DAOFLOW_PREVIOUS_BACKUP_DESTINATION_ENCRYPTION_KEY` | unset                         | Temporary old backup-destination key used only during rotation                                      |
+| `DAOFLOW_RECOVERY_ENCRYPTION_KEY`                    | unset                         | Dedicated recovery-bundle encryption key; store it outside the control-plane database               |
+| `DAOFLOW_PREVIOUS_RECOVERY_ENCRYPTION_KEY`           | unset                         | Temporary previous recovery key during a controlled key rotation                                    |
+| `DAOFLOW_RCLONE_COMMAND_TIMEOUT_MS`                  | `1800000`                     | Maximum time for one recovery-object transfer                                                       |
+| `APPROVAL_ACTION_DISPATCH_POLL_INTERVAL_MS`          | `5000`                        | Poll interval for durable approved-operation submission and completion checks                       |
+| `DAOFLOW_APPROVAL_DISPATCH_MAX_ATTEMPTS`             | `12`                          | Automatic submission attempts before a dispatch reaches terminal failure                            |
+| `DAOFLOW_APPROVAL_DISPATCH_RETRY_BASE_MS`            | `1000`                        | Initial full-jitter retry window for a temporary submission failure                                 |
+| `DAOFLOW_APPROVAL_DISPATCH_RETRY_MAX_MS`             | `300000`                      | Maximum full-jitter retry window for a temporary submission failure                                 |
+| `DAOFLOW_CONTROL_PLANE_RECOVERY_VERIFIER_STORAGE_MB` | `4096`                        | Storage and memory ceiling for each isolated recovery verifier                                      |
+| `POSTGRES_PASSWORD`                                  | —                             | Password for the DaoFlow application database                                                       |
+| `TEMPORAL_POSTGRES_PASSWORD`                         | —                             | Password for Temporal's Postgres database                                                           |
+| `DEPLOY_TIMEOUT_MS`                                  | `86400000`                    | Max queue-wait and execution time; expiry aborts active work                                        |
+| `DAOFLOW_ENABLE_TEMPORAL`                            | `false`                       | Enables durable Temporal-backed orchestration                                                       |
+| `TEMPORAL_NAMESPACE`                                 | `daoflow`                     | Temporal namespace when Temporal mode is enabled                                                    |
+| `TEMPORAL_TASK_QUEUE`                                | `daoflow-deployments`         | Temporal task queue name                                                                            |
 
 ### Rotating Backup-Destination Credentials
 

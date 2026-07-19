@@ -29,7 +29,7 @@ The `daoflow` service also mounts:
 ```yaml
 services:
   daoflow:
-    image: ghcr.io/daoflow-dev/daoflow:${DAOFLOW_VERSION:-0.9.1}
+    image: ghcr.io/daoflow-dev/daoflow:${DAOFLOW_VERSION:-0.10.0}
     ports:
       - "${DAOFLOW_BIND:-127.0.0.1}:${DAOFLOW_PORT:-3000}:3000"
     volumes:
@@ -85,7 +85,7 @@ ENCRYPTION_KEY=generate-at-least-32-char-secret
 POSTGRES_PASSWORD=generate-a-secure-password
 # TEMPORAL_POSTGRES_PASSWORD=generate-another-secure-password  # temporal profile only
 BETTER_AUTH_URL=https://deploy.example.com
-DAOFLOW_VERSION=0.9.1
+DAOFLOW_VERSION=0.10.0
 DAOFLOW_BIND=127.0.0.1
 DAOFLOW_PORT=3000
 DAOFLOW_WORKFLOW_PROFILE=lean

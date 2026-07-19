@@ -71,7 +71,7 @@ when a transfer exceeds its timeout or the isolated verifier exceeds its limit.
 
 | Variable                   | Lean value  | Temporal value | Description                                                                                                                          |
 | -------------------------- | ----------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `DAOFLOW_VERSION`          | `0.9.1`     | `0.9.1`        | DaoFlow image tag used by the repository production Compose file                                                                     |
+| `DAOFLOW_VERSION`          | `0.10.0`    | `0.10.0`       | DaoFlow image tag used by the repository production Compose file                                                                     |
 | `DAOFLOW_WORKFLOW_PROFILE` | `lean`      | `temporal`     | Installer-selected workflow profile; lean is the default                                                                             |
 | `COMPOSE_PROFILES`         | empty       | `temporal`     | Active Compose profiles; the temporal profile adds the Temporal services                                                             |
 | `DAOFLOW_ENABLE_TEMPORAL`  | `false`     | `true`         | Selects legacy or Temporal-backed workflow execution                                                                                 |

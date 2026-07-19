@@ -8,7 +8,7 @@ import { nextMajorVersion } from "../../worker/temporal/activities/control-plane
 import { isTemporalEnabled } from "../../worker/temporal/temporal-config";
 
 const CONTROL_PLANE_RECOVERY_OBJECT_PREFIX = "control-plane-recovery/v1";
-const DEFAULT_APP_VERSION = "0.9.2";
+const DEFAULT_APP_VERSION = "0.10.0";
 
 type DestinationRow = typeof backupDestinations.$inferSelect;
 
