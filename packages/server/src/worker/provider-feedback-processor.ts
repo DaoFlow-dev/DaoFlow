@@ -3,6 +3,7 @@ import {
   getProviderFeedbackRetryConfig,
   markProviderFeedbackDelivered,
   markProviderFeedbackFailure,
+  markProviderFeedbackSkipped,
   renewProviderFeedbackLease
 } from "../db/services/provider-feedback-claims";
 import type {
@@ -45,6 +46,17 @@ export class ProviderFeedbackDeliveryError extends Error {
     this.statusCode = input.statusCode ?? null;
     this.retryAfterMs = input.retryAfterMs;
     this.retryable = input.retryable;
+  }
+}
+
+/** A provider capability is intentionally unavailable; retain the audit warning and continue. */
+export class ProviderFeedbackSkippedError extends Error {
+  readonly safeMessage: string;
+
+  constructor(safeMessage: string) {
+    super(safeMessage);
+    this.name = "ProviderFeedbackSkippedError";
+    this.safeMessage = safeMessage;
   }
 }
 
@@ -206,6 +218,17 @@ export async function processNextProviderFeedback(input?: {
   } catch (error) {
     if (heartbeat.lostLease()) {
       return { status: "lost-lease" as const, feedbackId: feedback.id };
+    }
+    if (error instanceof ProviderFeedbackSkippedError) {
+      const updated = await markProviderFeedbackSkipped({
+        feedbackId: feedback.id,
+        leaseToken: feedback.leaseToken ?? "",
+        safeMessage: error.safeMessage,
+        now: input?.now
+      });
+      return updated
+        ? { status: "skipped" as const, feedbackId: updated.id }
+        : { status: "lost-lease" as const, feedbackId: feedback.id };
     }
     const updated = await markProviderFeedbackFailure({
       feedbackId: feedback.id,

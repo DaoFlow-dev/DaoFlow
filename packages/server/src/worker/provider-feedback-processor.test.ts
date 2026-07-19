@@ -18,7 +18,8 @@ import {
 import { runProviderFeedbackMonitorCycle } from "./provider-feedback-monitor";
 import {
   processNextProviderFeedback,
-  ProviderFeedbackDeliveryError
+  ProviderFeedbackDeliveryError,
+  ProviderFeedbackSkippedError
 } from "./provider-feedback-processor";
 
 async function queueFixtureFeedback() {
@@ -198,6 +199,44 @@ describe("provider feedback processor", () => {
       .where(eq(providerFeedback.deploymentId, fixture.deploymentId));
     expect(rows.find((row) => row.transition === "queued")?.state).toBe("dead-letter");
     expect(rows.find((row) => row.transition === "completed")?.state).toBe("pending");
+  });
+
+  it("records capability skips without blocking later transitions", async () => {
+    const fixture = await queueFixtureFeedback();
+    await transitionDeploymentWithFeedback({
+      deploymentId: fixture.deploymentId,
+      status: "completed",
+      conclusion: "succeeded"
+    });
+    registerProviderFeedbackAdapter({
+      providerKind: "github",
+      upsertFeedback() {
+        return Promise.reject(
+          new ProviderFeedbackSkippedError(
+            "Provider credentials are clone-only; deployment feedback was skipped."
+          )
+        );
+      }
+    });
+
+    await expect(processNextProviderFeedback()).resolves.toMatchObject({ status: "skipped" });
+    registerProviderFeedbackAdapter({
+      providerKind: "github",
+      upsertFeedback() {
+        return Promise.resolve();
+      }
+    });
+    await expect(processNextProviderFeedback()).resolves.toMatchObject({ status: "delivered" });
+
+    const rows = await db
+      .select()
+      .from(providerFeedback)
+      .where(eq(providerFeedback.deploymentId, fixture.deploymentId));
+    expect(rows.find((row) => row.transition === "queued")).toMatchObject({
+      state: "skipped",
+      safeError: "Provider credentials are clone-only; deployment feedback was skipped."
+    });
+    expect(rows.find((row) => row.transition === "completed")?.state).toBe("delivered");
   });
 
   it("passes stored external IDs to later transitions and preserves them", async () => {

@@ -25,6 +25,7 @@ import {
   startProviderFeedbackMonitor,
   stopProviderFeedbackMonitor,
   registerGitHubProviderFeedbackAdapter,
+  registerGitLabProviderFeedbackAdapter,
   startTemporalWorker,
   stopTemporalWorker,
   closeTemporalClient
@@ -87,6 +88,7 @@ async function start() {
   const app = createApp();
   let legacyWorkerStarted = false;
   const unregisterGitHubProviderFeedbackAdapter = registerGitHubProviderFeedbackAdapter();
+  const unregisterGitLabProviderFeedbackAdapter = registerGitLabProviderFeedbackAdapter();
 
   if (isProduction) {
     const clientDistDir = path.resolve(__dirname, "../../client/dist");
@@ -218,6 +220,7 @@ async function start() {
     stopDevelopmentTaskWatchdogMonitor();
     stopApprovalActionDispatchMonitor();
     stopProviderFeedbackMonitor();
+    unregisterGitLabProviderFeedbackAdapter();
     unregisterGitHubProviderFeedbackAdapter();
     stopOperationalMaintenanceMonitor();
     stopServiceScheduleMonitor();

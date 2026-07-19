@@ -269,7 +269,7 @@ describe("GitHub provider feedback", () => {
     await expect(githubProviderFeedbackAdapter.upsertFeedback(replacement)).resolves.toEqual({
       externalDeploymentId: "102",
       externalStatusId: "203",
-      externalCommentId: "301"
+      externalCommentId: "302"
     });
     expect(fetchMock.mock.calls[18]?.[1]?.method).toBe("POST");
 

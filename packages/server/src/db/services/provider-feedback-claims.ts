@@ -317,3 +317,49 @@ export async function markProviderFeedbackFailure(input: {
     return updated ?? null;
   });
 }
+
+/**
+ * Records an intentional capability skip without blocking later deployment
+ * transitions for the same target. The safe warning remains visible in the
+ * provider-feedback audit history.
+ */
+export async function markProviderFeedbackSkipped(input: {
+  feedbackId: string;
+  leaseToken: string;
+  safeMessage: string;
+  now?: Date;
+}) {
+  return db.transaction(async (tx) => {
+    const claimed = await requireActiveProviderFeedbackClaim(tx, {
+      feedbackId: input.feedbackId,
+      leaseToken: input.leaseToken,
+      now: input.now
+    });
+    if (!claimed) return null;
+    const now = input.now ?? claimed.validationNow;
+
+    const [updatedTarget] = await tx
+      .update(providerFeedbackTargets)
+      .set({ leaseToken: null, leaseExpiresAt: null, updatedAt: now })
+      .where(activeProviderFeedbackTargetClaimWhere(claimed))
+      .returning({ id: providerFeedbackTargets.id });
+    if (!updatedTarget) return null;
+
+    const [updated] = await tx
+      .update(providerFeedback)
+      .set({
+        state: "skipped",
+        leaseToken: null,
+        leaseExpiresAt: null,
+        nextAttemptAt: now,
+        safeError: safeErrorMessage(input.safeMessage),
+        updatedAt: now
+      })
+      .where(activeProviderFeedbackClaimWhere(claimed))
+      .returning();
+    if (!updated) {
+      throw new Error("Provider feedback claim changed while recording a skipped delivery.");
+    }
+    return updated;
+  });
+}

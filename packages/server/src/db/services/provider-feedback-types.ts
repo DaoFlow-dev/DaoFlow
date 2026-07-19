@@ -1,4 +1,10 @@
-export const providerFeedbackStates = ["pending", "retrying", "delivered", "dead-letter"] as const;
+export const providerFeedbackStates = [
+  "pending",
+  "retrying",
+  "delivered",
+  "skipped",
+  "dead-letter"
+] as const;
 
 export type ProviderFeedbackState = (typeof providerFeedbackStates)[number];
 

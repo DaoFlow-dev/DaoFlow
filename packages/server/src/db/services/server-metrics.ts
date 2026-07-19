@@ -177,11 +177,13 @@ export async function listServersDueForMetricCollection(
         ),
         sql`(
           ${serverMetricStates.lastCheckedAt} is null
-          or ${serverMetricStates.lastCheckedAt} <= ${now} - (
-            coalesce(
-              ${serverMetricPolicies.sampleIntervalSeconds},
-              ${DEFAULT_SERVER_METRIC_POLICY.sampleIntervalSeconds}
-            ) * interval '1 second'
+          or ${serverMetricStates.lastCheckedAt} <= (
+            cast(${now} as timestamptz) at time zone 'UTC' - (
+              coalesce(
+                ${serverMetricPolicies.sampleIntervalSeconds},
+                ${DEFAULT_SERVER_METRIC_POLICY.sampleIntervalSeconds}
+              ) * interval '1 second'
+            )
           )
         )`
       )
