@@ -29,6 +29,9 @@ const TEST_DB_PREPARE_LOCK_ID = 8_705_231;
 const MIN_EXPECTED_PUBLIC_TABLES = 48;
 
 interface LatestTestSchemaState {
+  gitProvidersInternalBaseUrl: string | null;
+  gitInstallationsCredentialEncrypted: string | null;
+  gitProviderSetupStatesCodeVerifierEncrypted: string | null;
   notificationChannelsTeamId: string | null;
   serverMetricsDockerDiskUsedPercent: string | null;
   serverMetricsDockerDiskTotalGb: string | null;
@@ -42,7 +45,10 @@ interface LatestTestSchemaState {
 
 function hasLatestTestSchema(state: LatestTestSchemaState | undefined): boolean {
   return Boolean(
-    state?.notificationChannelsTeamId &&
+    state?.gitProvidersInternalBaseUrl &&
+    state.gitInstallationsCredentialEncrypted &&
+    state.gitProviderSetupStatesCodeVerifierEncrypted &&
+    state.notificationChannelsTeamId &&
     state.serverMetricsDockerDiskUsedPercent &&
     state.serverMetricsDockerDiskTotalGb &&
     state.serverMetricsServerCollectedIndex &&
@@ -147,7 +153,10 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
       providerFeedbackTargets: string | null;
       gitProviderSetupStates: string | null;
       gitProvidersTeamId: string | null;
+      gitProvidersInternalBaseUrl: string | null;
       gitInstallationsTeamId: string | null;
+      gitInstallationsCredentialEncrypted: string | null;
+      gitProviderSetupStatesCodeVerifierEncrypted: string | null;
       repositoryCredentials: string | null;
       cliAuthRequests: string | null;
       developmentTasks: string | null;
@@ -227,7 +236,10 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
         to_regclass('public.provider_feedback_targets') AS "providerFeedbackTargets",
         to_regclass('public.git_provider_setup_states') AS "gitProviderSetupStates",
         (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'git_providers' AND column_name = 'team_id') AS "gitProvidersTeamId",
+        (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'git_providers' AND column_name = 'internal_base_url') AS "gitProvidersInternalBaseUrl",
         (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'git_installations' AND column_name = 'team_id') AS "gitInstallationsTeamId",
+        (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'git_installations' AND column_name = 'credential_encrypted') AS "gitInstallationsCredentialEncrypted",
+        (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'git_provider_setup_states' AND column_name = 'code_verifier_encrypted') AS "gitProviderSetupStatesCodeVerifierEncrypted",
         to_regclass('public.repository_credentials') AS "repositoryCredentials",
         to_regclass('public.cli_auth_requests') AS "cliAuthRequests",
         to_regclass('public.development_tasks') AS "developmentTasks"
@@ -309,7 +321,10 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
       row.providerFeedbackTargets &&
       row.gitProviderSetupStates &&
       row.gitProvidersTeamId &&
+      row.gitProvidersInternalBaseUrl &&
       row.gitInstallationsTeamId &&
+      row.gitInstallationsCredentialEncrypted &&
+      row.gitProviderSetupStatesCodeVerifierEncrypted &&
       row.repositoryCredentials &&
       row.cliAuthRequests &&
       row.developmentTasks &&
@@ -416,7 +431,10 @@ async function readPoolSchemaState() {
     providerFeedbackTargets: string | null;
     gitProviderSetupStates: string | null;
     gitProvidersTeamId: string | null;
+    gitProvidersInternalBaseUrl: string | null;
     gitInstallationsTeamId: string | null;
+    gitInstallationsCredentialEncrypted: string | null;
+    gitProviderSetupStatesCodeVerifierEncrypted: string | null;
     repositoryCredentials: string | null;
     cliAuthRequests: string | null;
     developmentTasks: string | null;
@@ -495,7 +513,10 @@ async function readPoolSchemaState() {
       to_regclass('public.provider_feedback_targets') AS "providerFeedbackTargets",
       to_regclass('public.git_provider_setup_states') AS "gitProviderSetupStates",
       (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'git_providers' AND column_name = 'team_id') AS "gitProvidersTeamId",
+      (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'git_providers' AND column_name = 'internal_base_url') AS "gitProvidersInternalBaseUrl",
       (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'git_installations' AND column_name = 'team_id') AS "gitInstallationsTeamId",
+      (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'git_installations' AND column_name = 'credential_encrypted') AS "gitInstallationsCredentialEncrypted",
+      (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'git_provider_setup_states' AND column_name = 'code_verifier_encrypted') AS "gitProviderSetupStatesCodeVerifierEncrypted",
       to_regclass('public.repository_credentials') AS "repositoryCredentials",
       to_regclass('public.cli_auth_requests') AS "cliAuthRequests",
       to_regclass('public.development_tasks') AS "developmentTasks"
@@ -588,7 +609,10 @@ async function ensurePooledTestSchemaReady(connectionString: string) {
         state.providerFeedbackTargets &&
         state.gitProviderSetupStates &&
         state.gitProvidersTeamId &&
+        state.gitProvidersInternalBaseUrl &&
         state.gitInstallationsTeamId &&
+        state.gitInstallationsCredentialEncrypted &&
+        state.gitProviderSetupStatesCodeVerifierEncrypted &&
         state.repositoryCredentials &&
         state.cliAuthRequests &&
         state.developmentTasks &&

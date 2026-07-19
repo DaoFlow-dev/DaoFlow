@@ -17,7 +17,7 @@ BEGIN
   ) THEN
     RAISE EXCEPTION USING
       MESSAGE = 'Cannot backfill deployments.service_id because one or more deployments have no matching service.',
-      HINT = 'Each deployment must match a service with the same project, environment, service name, and source type before rerunning migration 0042.';
+      HINT = 'Each deployment must match a service with the same project, environment, service name, and source type before rerunning migration 0043.';
   END IF;
 
   IF EXISTS (
@@ -35,7 +35,7 @@ BEGIN
   ) THEN
     RAISE EXCEPTION USING
       MESSAGE = 'Cannot backfill deployments.service_id because one or more deployments match multiple services.',
-      HINT = 'Resolve duplicate service records so every deployment matches exactly one service before rerunning migration 0042.';
+      HINT = 'Resolve duplicate service records so every deployment matches exactly one service before rerunning migration 0043.';
   END IF;
 
   IF EXISTS (

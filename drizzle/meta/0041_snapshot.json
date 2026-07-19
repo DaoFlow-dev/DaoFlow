@@ -1,5 +1,5 @@
 {
-  "id": "7fa0fc9a-ca05-40ca-81a2-e4382f70934d",
+  "id": "ab3bdb54-e66f-43f1-b3b2-17ac9fb279f0",
   "prevId": "faf62252-4db1-4dec-b2f3-cf79c1836efd",
   "version": "7",
   "dialect": "postgresql",
@@ -2676,12 +2676,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "service_id": {
-          "name": "service_id",
-          "type": "varchar(32)",
-          "primaryKey": false,
-          "notNull": false
-        },
         "service_name": {
           "name": "service_name",
           "type": "varchar(80)",
@@ -2838,21 +2832,6 @@
           "columns": [
             {
               "expression": "target_server_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "deployments_service_id_idx": {
-          "name": "deployments_service_id_idx",
-          "columns": [
-            {
-              "expression": "service_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -6987,6 +6966,42 @@
           "primaryKey": false,
           "notNull": false
         },
+        "credential_kind": {
+          "name": "credential_kind",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "credential_scopes": {
+          "name": "credential_scopes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "credential_expires_at": {
+          "name": "credential_expires_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "credential_encrypted": {
+          "name": "credential_encrypted",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "credential_envelope_version": {
+          "name": "credential_envelope_version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "credential_key_id": {
+          "name": "credential_key_id",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": false
+        },
         "status": {
           "name": "status",
           "type": "varchar(20)",
@@ -7163,6 +7178,18 @@
           "type": "varchar(255)",
           "primaryKey": false,
           "notNull": true
+        },
+        "provider_public_base_url": {
+          "name": "provider_public_base_url",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "code_verifier_encrypted": {
+          "name": "code_verifier_encrypted",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         },
         "initiated_by_user_id": {
           "name": "initiated_by_user_id",
@@ -7348,6 +7375,12 @@
         },
         "base_url": {
           "name": "base_url",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "internal_base_url": {
+          "name": "internal_base_url",
           "type": "varchar(255)",
           "primaryKey": false,
           "notNull": false

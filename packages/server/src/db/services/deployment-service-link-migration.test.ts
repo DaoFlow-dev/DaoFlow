@@ -72,7 +72,7 @@ describe("deployment service link migration", () => {
 
     const migration = await readFile(
       fileURLToPath(
-        new URL("../../../../../drizzle/0042_backfill_deployment_service_link.sql", import.meta.url)
+        new URL("../../../../../drizzle/0043_backfill_deployment_service_link.sql", import.meta.url)
       ),
       "utf8"
     );

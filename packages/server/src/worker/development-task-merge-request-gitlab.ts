@@ -1,7 +1,7 @@
 import type { gitInstallations, gitProviders } from "../db/schema/git-providers";
 import type { developmentTaskRuns, developmentTasks } from "../db/schema/development-tasks";
-import { resolveGitLabInstallationAccessToken } from "../db/services/gitlab-installation-auth";
-import { buildGitLabApiBaseUrl } from "../db/services/project-source-provider-validation-shared";
+import { resolveGitLabInstallationApiAccess } from "../db/services/gitlab-installation-auth";
+import { resolveGitLabApiBaseUrl } from "../db/services/gitlab-urls";
 
 function encodeProjectPath(repoFullName: string) {
   return encodeURIComponent(repoFullName);
@@ -34,25 +34,28 @@ export async function createGitLabDevelopmentTaskMergeRequest(input: {
   branchName: string;
   validationStatus?: string;
 }) {
-  const accessToken = await resolveGitLabInstallationAccessToken({
+  const apiAccess = await resolveGitLabInstallationApiAccess({
     provider: input.provider,
     installation: input.installation
   });
-  if (!accessToken) {
-    throw new Error("GitLab installation does not have a usable access token.");
+  if (apiAccess.status === "capability_unavailable") {
+    throw new Error("GitLab deploy-token credentials cannot create merge requests.");
+  }
+  if (apiAccess.status !== "ok") {
+    throw new Error("GitLab installation does not have usable API credentials.");
   }
 
   const response = await fetch(
-    `${buildGitLabApiBaseUrl(input.provider.baseUrl)}/projects/${encodeProjectPath(
+    `${resolveGitLabApiBaseUrl(input.provider)}/projects/${encodeProjectPath(
       input.task.repoFullName
     )}/merge_requests`,
     {
       method: "POST",
       headers: {
         Accept: "application/json",
-        Authorization: `Bearer ${accessToken}`,
         "Content-Type": "application/json",
-        "User-Agent": "DaoFlow"
+        "User-Agent": "DaoFlow",
+        ...apiAccess.headers
       },
       body: JSON.stringify({
         title: truncateTitle(`DaoFlow task: ${input.task.issueTitle}`),

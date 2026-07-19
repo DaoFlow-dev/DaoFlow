@@ -1,6 +1,7 @@
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { and, eq, gt, isNull } from "drizzle-orm";
 import { db } from "../connection";
+import { decrypt, encrypt } from "../crypto";
 import { gitProviderSetupStates } from "../schema/git-providers";
 
 export const GIT_PROVIDER_SETUP_STATE_TTL_MS = 10 * 60 * 1000;
@@ -13,12 +14,20 @@ function newSetupStateId() {
   return randomBytes(16).toString("hex");
 }
 
+export function createGitLabPkcePair() {
+  const verifier = randomBytes(48).toString("base64url");
+  const challenge = createHash("sha256").update(verifier).digest("base64url");
+  return { verifier, challenge };
+}
+
 export async function createGitProviderSetupState(input: {
   teamId: string;
   providerId?: string | null;
   providerType: GitProviderSetupType;
   action: GitProviderSetupAction;
   callbackOrigin: string;
+  providerPublicBaseUrl?: string | null;
+  codeVerifier?: string | null;
   initiatedByUserId: string;
   expiresAt?: Date;
 }) {
@@ -35,6 +44,8 @@ export async function createGitProviderSetupState(input: {
       providerType: input.providerType,
       action: input.action,
       callbackOrigin: input.callbackOrigin,
+      providerPublicBaseUrl: input.providerPublicBaseUrl ?? null,
+      codeVerifierEncrypted: input.codeVerifier ? encrypt(input.codeVerifier) : null,
       initiatedByUserId: input.initiatedByUserId,
       expiresAt
     })
@@ -55,6 +66,7 @@ export async function consumeGitProviderSetupState(input: {
   providerType: GitProviderSetupType;
   action: GitProviderSetupAction;
   callbackOrigin: string;
+  providerPublicBaseUrl?: string | null;
   initiatedByUserId: string;
 }) {
   const now = new Date();
@@ -67,6 +79,9 @@ export async function consumeGitProviderSetupState(input: {
         eq(gitProviderSetupStates.providerType, input.providerType),
         eq(gitProviderSetupStates.action, input.action),
         eq(gitProviderSetupStates.callbackOrigin, input.callbackOrigin),
+        ...(input.providerPublicBaseUrl
+          ? [eq(gitProviderSetupStates.providerPublicBaseUrl, input.providerPublicBaseUrl)]
+          : []),
         eq(gitProviderSetupStates.initiatedByUserId, input.initiatedByUserId),
         gt(gitProviderSetupStates.expiresAt, now),
         isNull(gitProviderSetupStates.consumedAt)
@@ -75,4 +90,15 @@ export async function consumeGitProviderSetupState(input: {
     .returning();
 
   return setup ?? null;
+}
+
+export function readGitProviderSetupStateCodeVerifier(
+  setup: Pick<typeof gitProviderSetupStates.$inferSelect, "codeVerifierEncrypted">
+): string | null {
+  if (!setup.codeVerifierEncrypted) return null;
+  try {
+    return decrypt(setup.codeVerifierEncrypted);
+  } catch {
+    return null;
+  }
 }

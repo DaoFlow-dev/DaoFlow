@@ -1,6 +1,7 @@
 import {
   foreignKey,
   index,
+  integer,
   pgTable,
   text,
   timestamp,
@@ -29,6 +30,7 @@ export const gitProviders = pgTable(
     privateKeyEncrypted: text("private_key_encrypted"), // GitHub App PEM key
     webhookSecret: varchar("webhook_secret", { length: 128 }),
     baseUrl: varchar("base_url", { length: 255 }), // for GitHub Enterprise / GitLab self-hosted
+    internalBaseUrl: varchar("internal_base_url", { length: 255 }),
     status: varchar("status", { length: 20 }).default("active").notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull()
@@ -60,6 +62,12 @@ export const gitInstallations = pgTable(
     accountType: varchar("account_type", { length: 20 }).default("organization").notNull(),
     repositorySelection: varchar("repository_selection", { length: 20 }).default("all").notNull(), // all | selected
     permissions: text("permissions"), // JSON string of granted permissions
+    credentialKind: varchar("credential_kind", { length: 20 }),
+    credentialScopes: text("credential_scopes"),
+    credentialExpiresAt: timestamp("credential_expires_at"),
+    credentialEncrypted: text("credential_encrypted"),
+    credentialEnvelopeVersion: integer("credential_envelope_version"),
+    credentialKeyId: varchar("credential_key_id", { length: 64 }),
     status: varchar("status", { length: 20 }).default("active").notNull(),
     installedByUserId: text("installed_by_user_id"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -98,6 +106,8 @@ export const gitProviderSetupStates = pgTable(
     providerType: varchar("provider_type", { length: 20 }).notNull(),
     action: varchar("action", { length: 40 }).notNull(),
     callbackOrigin: varchar("callback_origin", { length: 255 }).notNull(),
+    providerPublicBaseUrl: varchar("provider_public_base_url", { length: 255 }),
+    codeVerifierEncrypted: text("code_verifier_encrypted"),
     initiatedByUserId: text("initiated_by_user_id").notNull(),
     expiresAt: timestamp("expires_at").notNull(),
     consumedAt: timestamp("consumed_at"),
