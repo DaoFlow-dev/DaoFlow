@@ -250,6 +250,7 @@ async function createServiceRuntimeFixture() {
     projectId: fixture.project.id,
     environmentId: fixture.environment.id,
     targetServerId: "srv_foundation_1",
+    serviceId: fixture.service.id,
     serviceName: fixture.service.name,
     sourceType: "compose",
     commitSha: "abc1234",

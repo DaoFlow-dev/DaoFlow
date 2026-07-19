@@ -63,9 +63,7 @@ async function listRollbackTargetsForService(
     .from(deployments)
     .where(
       and(
-        eq(deployments.projectId, svc.projectId),
-        eq(deployments.environmentId, svc.environmentId),
-        eq(deployments.serviceName, svc.name),
+        eq(deployments.serviceId, svc.id),
         eq(deployments.status, "completed"),
         eq(deployments.conclusion, "succeeded")
       )
@@ -123,7 +121,7 @@ export async function executeRollback(input: ExecuteRollbackInput) {
   if (
     target.projectId !== svc.projectId ||
     target.environmentId !== svc.environmentId ||
-    target.serviceName !== svc.name
+    target.serviceId !== svc.id
   ) {
     return { status: "not_found" as const, entity: "deployment" };
   }
@@ -164,6 +162,7 @@ export async function executeRollback(input: ExecuteRollbackInput) {
   if (!targetServer) return { status: "not_found" as const, entity: "deployment" };
 
   const deployInput: CreateDeploymentInput = {
+    serviceId: svc.id,
     projectName: readString(snapshot, "projectName", project[0].name),
     environmentName: readString(snapshot, "environmentName", environment[0].name),
     serviceName: target.serviceName,

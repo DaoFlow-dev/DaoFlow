@@ -42,6 +42,7 @@ async function createSuccessfulDeployment(fixture: Awaited<ReturnType<typeof cre
     projectId: fixture.project.id,
     environmentId: fixture.environment.id,
     targetServerId: "srv_foundation_1",
+    serviceId: fixture.service.id,
     serviceName: fixture.service.name,
     sourceType: fixture.service.sourceType,
     configSnapshot: {

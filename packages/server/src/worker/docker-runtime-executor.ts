@@ -1,6 +1,8 @@
 import type { ContainerRegistryCredential } from "../container-registries-shared";
+import type { DockerOwnershipLabels } from "../docker-ownership";
 import { dockerCommand } from "./command-env";
 import { execStreaming, type OnLog, STAGING_DIR } from "./docker-exec-shared";
+import { dockerLabelArgs } from "./docker-ownership-executor";
 import { wrapDockerCommandWithRegistryAuth } from "./registry-auth";
 
 export interface DockerImageListEntry {
@@ -11,6 +13,46 @@ export interface DockerImageListEntry {
   Size: string;
 }
 
+export interface DockerRunOptions {
+  ports?: string[];
+  volumes?: string[];
+  env?: Record<string, string>;
+  network?: string;
+  labels?: DockerOwnershipLabels;
+}
+
+export function buildDockerBuildArgs(
+  dockerfile: string,
+  tag: string,
+  labels: DockerOwnershipLabels
+): string[] {
+  return ["build", ...dockerLabelArgs(labels), "-t", tag, "-f", dockerfile, "."];
+}
+
+export function buildDockerRunArgs(
+  tag: string,
+  containerName: string,
+  options: DockerRunOptions
+): string[] {
+  const args = ["run", "-d", "--name", containerName, "--restart", "unless-stopped"];
+  if (options.labels) {
+    args.push(...dockerLabelArgs(options.labels));
+  }
+  if (options.network) {
+    args.push("--network", options.network);
+  }
+  for (const port of options.ports ?? []) {
+    args.push("-p", port);
+  }
+  for (const volume of options.volumes ?? []) {
+    args.push("-v", volume);
+  }
+  for (const [key, value] of Object.entries(options.env ?? {})) {
+    args.push("-e", `${key}=${value}`);
+  }
+  return [...args, tag];
+}
+
 /**
  * Build a Docker image from a Dockerfile.
  */
@@ -18,6 +60,7 @@ export async function dockerBuild(
   context: string,
   dockerfile: string,
   tag: string,
+  labels: DockerOwnershipLabels,
   onLog: OnLog,
   registryCredentials: ContainerRegistryCredential[] = [],
   signal?: AbortSignal
@@ -30,7 +73,7 @@ export async function dockerBuild(
 
   const execution = wrapDockerCommandWithRegistryAuth({
     command: dockerCommand,
-    args: ["build", "-t", tag, "-f", dockerfile, "."],
+    args: buildDockerBuildArgs(dockerfile, tag, labels),
     registries: registryCredentials
   });
   const execOptions =
@@ -51,25 +94,11 @@ export async function dockerBuild(
 export async function dockerRun(
   tag: string,
   containerName: string,
-  options: { ports?: string[]; volumes?: string[]; env?: Record<string, string>; network?: string },
+  options: DockerRunOptions,
   onLog: OnLog,
   signal?: AbortSignal
 ): Promise<{ exitCode: number }> {
-  const args = ["run", "-d", "--name", containerName, "--restart", "unless-stopped"];
-
-  if (options.network) {
-    args.push("--network", options.network);
-  }
-  for (const port of options.ports ?? []) {
-    args.push("-p", port);
-  }
-  for (const volume of options.volumes ?? []) {
-    args.push("-v", volume);
-  }
-  for (const [key, value] of Object.entries(options.env ?? {})) {
-    args.push("-e", `${key}=${value}`);
-  }
-  args.push(tag);
+  const args = buildDockerRunArgs(tag, containerName, options);
 
   onLog({
     stream: "stdout",

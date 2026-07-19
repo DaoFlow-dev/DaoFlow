@@ -174,8 +174,14 @@ with append-only logs.
 ### Resource Inspection
 
 The resource check collects host CPU load, memory use, root disk use, Docker reachability, and
-Docker disk usage. It creates a `resource_check` operation and stores the latest snapshot for the
-server detail page.
+Docker disk usage. It also inventories only Docker objects carrying the DaoFlow managed label and
+checks every ownership link against the recorded team, project, environment, service, deployment,
+and target server. Results distinguish valid, malformed, orphaned, and inconsistent resources.
+
+This check is observe-only. It stores the normalized ownership report with the durable
+`resource_check` operation, but never adopts, relabels, or removes a Docker object. Existing unlabeled
+objects stay unmanaged until a separate controlled migration is explicitly approved. Docker is asked
+for the six ownership labels only; unrelated labels and raw inspect payloads are not stored.
 
 ```bash
 daoflow server ops resources --server srv_prod --json

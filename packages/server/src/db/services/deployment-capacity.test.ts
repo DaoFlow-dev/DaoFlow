@@ -15,6 +15,7 @@ import {
   reserveDeploymentQueueSlot
 } from "./deployment-capacity";
 import { createEnvironment, createProject } from "./projects";
+import { createService } from "./services";
 import { configureServerCapacity, ServerCapacityValidationError } from "./server-capacity";
 import { appRouter } from "../../router";
 import { resetTestDatabaseWithControlPlane } from "../../test-db";
@@ -85,10 +86,23 @@ async function createDeploymentInput(
     throw new Error("Failed to create deployment capacity environment fixture.");
   }
 
+  const serviceResult = await createService({
+    name: serviceName,
+    projectId: projectResult.project.id,
+    environmentId: environmentResult.environment.id,
+    sourceType: "compose",
+    targetServerId,
+    ...actor
+  });
+  if (serviceResult.status !== "ok") {
+    throw new Error("Failed to create deployment capacity service fixture.");
+  }
+
   return {
+    serviceId: serviceResult.service.id,
     projectName: projectResult.project.name,
     environmentName: environmentResult.environment.name,
-    serviceName,
+    serviceName: serviceResult.service.name,
     sourceType: "compose",
     targetServerId,
     commitSha: "0123456789abcdef0123456789abcdef01234567",

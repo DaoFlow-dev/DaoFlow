@@ -2,8 +2,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   checkContainerHealth: vi.fn(),
+  dockerBuildMetadataWrapper: vi.fn(),
   dockerPull: vi.fn(),
   dockerRun: vi.fn(),
+  runOwnedDockerContainer: vi.fn(),
   listContainerRegistryCredentialsForProjectImageReferences: vi.fn(),
   markStepComplete: vi.fn(),
   markStepRunning: vi.fn(),
@@ -39,6 +41,7 @@ vi.mock("./docker-executor", async (importOriginal) => {
   return {
     ...actual,
     checkContainerHealth: mocks.checkContainerHealth,
+    dockerBuildMetadataWrapper: mocks.dockerBuildMetadataWrapper,
     dockerPull: mocks.dockerPull,
     dockerRun: mocks.dockerRun
   };
@@ -52,6 +55,10 @@ vi.mock("./step-management", () => ({
   transitionDeployment: mocks.transitionDeployment
 }));
 
+vi.mock("./direct-docker-run", () => ({
+  runOwnedDockerContainer: mocks.runOwnedDockerContainer
+}));
+
 describe("image deployment build lease integration", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -63,6 +70,8 @@ describe("image deployment build lease integration", () => {
     mocks.transitionDeployment.mockResolvedValue(undefined);
     mocks.dockerPull.mockResolvedValue({ exitCode: 0 });
     mocks.dockerRun.mockResolvedValue({ exitCode: 0 });
+    mocks.dockerBuildMetadataWrapper.mockResolvedValue({ exitCode: 0 });
+    mocks.runOwnedDockerContainer.mockResolvedValue({ exitCode: 0 });
     mocks.checkContainerHealth.mockResolvedValue(true);
     mocks.update.mockReturnValue({
       set: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) })
@@ -81,12 +90,26 @@ describe("image deployment build lease integration", () => {
       } as never,
       {},
       "image-only-api",
+      {
+        teamId: "team_image",
+        projectId: "project_image",
+        environmentId: "environment_image",
+        serviceId: "service_image",
+        deploymentId: "dep_image_only"
+      },
       () => undefined,
       { mode: "local" }
     );
 
     expect(mocks.dockerPull).toHaveBeenCalledTimes(1);
-    expect(mocks.dockerRun).toHaveBeenCalledTimes(1);
+    expect(mocks.dockerBuildMetadataWrapper).toHaveBeenCalledWith(
+      "ghcr.io/daoflow/api:test",
+      "daoflow-owned:dep_image_only",
+      expect.objectContaining({ "io.daoflow.managed": "true" }),
+      expect.any(Function),
+      undefined
+    );
+    expect(mocks.runOwnedDockerContainer).toHaveBeenCalledTimes(1);
     expect(mocks.withDeploymentBuildLease).not.toHaveBeenCalled();
   });
 });

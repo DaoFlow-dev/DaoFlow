@@ -4,6 +4,7 @@ import { db } from "../connection";
 import { approvalActionDispatches, approvalRequests, auditEntries } from "../schema/audit";
 import { deployments } from "../schema/deployments";
 import { environments, projects } from "../schema/projects";
+import { services } from "../schema/services";
 import { teamMembers, teams } from "../schema/teams";
 import { users } from "../schema/users";
 import { resetTestDatabaseWithControlPlane } from "../../test-db";
@@ -313,6 +314,8 @@ describe("approval action dispatch service", () => {
   it("reuses a preallocated deployment operation ID without creating duplicate records", async () => {
     const [seedDeployment] = await db
       .select({
+        projectId: deployments.projectId,
+        environmentId: deployments.environmentId,
         projectName: projects.name,
         environmentName: environments.name,
         targetServerId: deployments.targetServerId
@@ -325,8 +328,20 @@ describe("approval action dispatch service", () => {
     expect(seedDeployment).toBeDefined();
     if (!seedDeployment) return;
 
+    await db.insert(services).values({
+      id: "svc_idempotent_approved_240",
+      name: "idempotent-approved-release",
+      slug: "idempotent-approved-release",
+      projectId: seedDeployment.projectId,
+      environmentId: seedDeployment.environmentId,
+      targetServerId: seedDeployment.targetServerId,
+      sourceType: "compose",
+      status: "inactive"
+    });
+
     const input = {
       deploymentId: "op_deploy_idempotent_240",
+      serviceId: "svc_idempotent_approved_240",
       projectName: seedDeployment.projectName,
       environmentName: seedDeployment.environmentName,
       serviceName: "idempotent-approved-release",

@@ -1,8 +1,9 @@
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq, or } from "drizzle-orm";
 import { db } from "../connection";
 import { createDeploymentRecord } from "./deployments";
 import { dispatchDeploymentExecution } from "./deployment-dispatch";
 import { environments, projects } from "../schema/projects";
+import { services } from "../schema/services";
 import type { AppRole } from "@daoflow/shared";
 import { asRecord, readNumber, readRecordArray, readString, readStringArray } from "./json-helpers";
 import { buildComposeSourceSnapshot, resolveComposeImageOverride } from "./deployment-source";
@@ -146,6 +147,24 @@ export async function queueComposeRelease(input: {
     return null;
   }
 
+  const matchingServices = await db
+    .select({ id: services.id })
+    .from(services)
+    .where(
+      and(
+        eq(services.projectId, project.id),
+        eq(services.environmentId, environment.id),
+        eq(services.sourceType, "compose"),
+        or(
+          eq(services.composeServiceName, service.serviceName),
+          eq(services.name, service.serviceName)
+        )
+      )
+    )
+    .limit(2);
+  if (matchingServices.length !== 1) return null;
+  const managedServiceId = matchingServices[0].id;
+
   if (input.approvalSnapshot) {
     const sourceValidation = await revalidateProjectSourceForExecution({
       project,
@@ -164,7 +183,7 @@ export async function queueComposeRelease(input: {
 
   const envState = await prepareComposeDeploymentEnvState({
     environmentId: environment.id,
-    serviceId: service.id,
+    serviceId: managedServiceId,
     branch: project.defaultBranch ?? "main"
   });
 
@@ -195,6 +214,7 @@ export async function queueComposeRelease(input: {
 
   const deployment = await createDeploymentRecord({
     deploymentId: input.operationId,
+    serviceId: managedServiceId,
     projectName: service.projectName,
     environmentName: service.environmentName,
     serviceName: service.serviceName,

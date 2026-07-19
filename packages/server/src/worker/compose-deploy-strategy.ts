@@ -31,6 +31,7 @@ import {
 } from "./step-management";
 import { throwIfDeploymentCancellationRequested } from "../db/services/deployment-execution-control";
 import { withDeploymentBuildLease } from "./deployment-build-lease";
+import type { DockerOwnershipIdentity } from "../docker-ownership";
 
 function isSwarmManagerTarget(target: ExecutionTarget): boolean {
   return target.serverKind === "docker-swarm-manager";
@@ -51,6 +52,7 @@ export async function executeComposeDeployment(
   deployment: DeploymentRow,
   config: ConfigSnapshot,
   projectName: string,
+  ownership: DockerOwnershipIdentity,
   onLog: OnLog,
   target: ExecutionTarget,
   signal?: AbortSignal
@@ -92,6 +94,7 @@ export async function executeComposeDeployment(
       onLog,
       deploymentComposeState,
       deployment.commitSha ?? undefined,
+      ownership,
       signal
     );
     workDir = workspace.workDir;

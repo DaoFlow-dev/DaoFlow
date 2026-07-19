@@ -3,6 +3,7 @@ import { db } from "../connection";
 import { auditEntries, events } from "../schema/audit";
 import { deploymentLogs, deployments, deploymentSteps } from "../schema/deployments";
 import { environments, projects } from "../schema/projects";
+import { services } from "../schema/services";
 import {
   DeploymentConclusion,
   DeploymentHealthStatus,
@@ -37,6 +38,7 @@ export type { DeploymentLogStream, ListDeploymentLogsInput } from "./deployment-
 export interface CreateDeploymentInput {
   deploymentId?: string;
   queueReservationId?: string;
+  serviceId: string;
   projectName: string;
   environmentName: string;
   serviceName: string;
@@ -111,6 +113,7 @@ export async function createDeploymentRecord(input: CreateDeploymentInput) {
         existing.projectId === project.id &&
         existing.environmentId === environment.id &&
         existing.targetServerId === input.targetServerId &&
+        existing.serviceId === input.serviceId &&
         existing.serviceName === input.serviceName &&
         existing.sourceType === input.sourceType &&
         existing.commitSha === input.commitSha &&
@@ -121,6 +124,24 @@ export async function createDeploymentRecord(input: CreateDeploymentInput) {
 
       return { environment, project, server, existing: true };
     }
+
+    const matchingServices = await tx
+      .select({ id: services.id })
+      .from(services)
+      .where(
+        and(
+          eq(services.id, input.serviceId),
+          eq(services.projectId, project.id),
+          eq(services.environmentId, environment.id),
+          eq(services.name, input.serviceName),
+          eq(services.sourceType, input.sourceType)
+        )
+      )
+      .limit(2);
+    if (matchingServices.length !== 1) {
+      return null;
+    }
+    const service = matchingServices[0];
 
     if (input.queueReservationId) {
       const reservationConsumed = await consumeDeploymentQueueReservation(tx, {
@@ -154,6 +175,7 @@ export async function createDeploymentRecord(input: CreateDeploymentInput) {
       projectId: project.id,
       environmentId: environment.id,
       targetServerId: input.targetServerId,
+      serviceId: service.id,
       serviceName: input.serviceName,
       sourceType: input.sourceType,
       commitSha: input.commitSha,

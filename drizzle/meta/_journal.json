@@ -274,6 +274,27 @@
       "when": 1784441223656,
       "tag": "0038_ambiguous_riptide",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1784444758556,
+      "tag": "0039_add_deployment_service_link",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1784444766995,
+      "tag": "0040_backfill_deployment_service_link",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1784444794989,
+      "tag": "0041_enforce_deployment_service_link",
+      "breakpoints": true
     }
   ]
 }

@@ -26,6 +26,8 @@ import {
 } from "./compose-inputs-shared";
 import { applyManagedTraefikRoutingToComposeDoc } from "./managed-traefik-compose";
 import type { ManagedTraefikRoutingPlan } from "./managed-traefik";
+import { applyDockerOwnershipToComposeDoc } from "./docker-ownership-compose";
+import type { DockerOwnershipIdentity } from "./docker-ownership";
 
 interface MaterializeComposeInputsOptions {
   workDir: string;
@@ -38,6 +40,7 @@ interface MaterializeComposeInputsOptions {
   existingBuildPlan?: ComposeBuildPlan;
   imageOverride?: ComposeImageOverrideRequest;
   managedTraefikRouting?: ManagedTraefikRoutingPlan | null;
+  ownership?: DockerOwnershipIdentity;
 }
 
 function buildManifestFromFrozenInputs(input: {
@@ -92,6 +95,9 @@ function materializeExistingFrozenComposeInputs(
     > | null) ?? {};
   applyComposeImageOverride(doc, input.imageOverride);
   applyManagedTraefikRoutingToComposeDoc(doc, input.managedTraefikRouting ?? null);
+  if (input.ownership) {
+    applyDockerOwnershipToComposeDoc(doc, input.ownership);
+  }
   const buildPlan = buildComposeBuildPlan(doc, input.existingBuildPlan?.warnings ?? []);
   const frozenInputs: FrozenComposeInputsPayload = {
     composeFile: {
@@ -183,6 +189,9 @@ function materializeFreshComposeInputs(
   });
   applyComposeImageOverride(doc, input.imageOverride);
   applyManagedTraefikRoutingToComposeDoc(doc, input.managedTraefikRouting ?? null);
+  if (input.ownership) {
+    applyDockerOwnershipToComposeDoc(doc, input.ownership);
+  }
   const buildPlan = buildComposeBuildPlan(doc, buildWarnings);
   const services =
     doc.services && typeof doc.services === "object" && !Array.isArray(doc.services)

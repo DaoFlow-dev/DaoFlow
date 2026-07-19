@@ -106,6 +106,7 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
       serviceScheduleRuns: string | null;
       previewEnvironments: string | null;
       deployments: string | null;
+      deploymentsServiceId: string | null;
       deploymentBuildLeases: string | null;
       deploymentQueueReservations: string | null;
       deploymentBuildLeaseOwnerToken: string | null;
@@ -173,6 +174,7 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
         to_regclass('public.service_schedule_runs') AS "serviceScheduleRuns",
         to_regclass('public.preview_environments') AS "previewEnvironments",
         to_regclass('public.deployments') AS "deployments",
+        (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'deployments' AND column_name = 'service_id' AND is_nullable = 'NO') AS "deploymentsServiceId",
         to_regclass('public.deployment_build_leases') AS "deploymentBuildLeases",
         to_regclass('public.deployment_queue_reservations') AS "deploymentQueueReservations",
         (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'deployment_build_leases' AND column_name = 'owner_token') AS "deploymentBuildLeaseOwnerToken",
@@ -242,6 +244,7 @@ async function isTestSchemaReady(connectionString: string): Promise<boolean> {
       row.serviceScheduleRuns &&
       row.previewEnvironments &&
       row.deployments &&
+      row.deploymentsServiceId &&
       row.deploymentBuildLeases &&
       row.deploymentQueueReservations &&
       row.deploymentBuildLeaseOwnerToken &&
@@ -344,6 +347,7 @@ async function readPoolSchemaState() {
     serviceScheduleRuns: string | null;
     previewEnvironments: string | null;
     deployments: string | null;
+    deploymentsServiceId: string | null;
     deploymentBuildLeases: string | null;
     deploymentQueueReservations: string | null;
     deploymentBuildLeaseOwnerToken: string | null;
@@ -410,6 +414,7 @@ async function readPoolSchemaState() {
       to_regclass('public.service_schedule_runs') AS "serviceScheduleRuns",
       to_regclass('public.preview_environments') AS "previewEnvironments",
       to_regclass('public.deployments') AS "deployments",
+      (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'deployments' AND column_name = 'service_id' AND is_nullable = 'NO') AS "deploymentsServiceId",
       to_regclass('public.deployment_build_leases') AS "deploymentBuildLeases",
       to_regclass('public.deployment_queue_reservations') AS "deploymentQueueReservations",
       (SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'deployment_build_leases' AND column_name = 'owner_token') AS "deploymentBuildLeaseOwnerToken",
@@ -490,6 +495,7 @@ async function ensurePooledTestSchemaReady(connectionString: string) {
         state.serviceScheduleRuns &&
         state.previewEnvironments &&
         state.deployments &&
+        state.deploymentsServiceId &&
         state.deploymentBuildLeases &&
         state.deploymentQueueReservations &&
         state.deploymentBuildLeaseOwnerToken &&

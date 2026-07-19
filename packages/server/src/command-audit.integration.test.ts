@@ -4,6 +4,7 @@ import { createApp } from "./app";
 import { db } from "./db/connection";
 import { auditEntries } from "./db/schema/audit";
 import { deployments } from "./db/schema/deployments";
+import { services } from "./db/schema/services";
 import { reconcileIncompleteCommandAudits } from "./db/services/command-audit-reconciliation";
 import { createDeploymentRecord } from "./db/services/deployments";
 import { asRecord, readString } from "./db/services/json-helpers";
@@ -139,6 +140,16 @@ describe("command audit boundary", () => {
     if (!server) {
       throw new Error("Expected a seeded server for command audit correlation.");
     }
+    await db.insert(services).values({
+      id: "svc_audit_link",
+      name: "audit-link",
+      slug: "audit-link",
+      projectId: "proj_daoflow_control_plane",
+      environmentId: "env_daoflow_staging",
+      targetServerId: server.id,
+      sourceType: "compose",
+      status: "inactive"
+    });
     const deployment = await caller.createDeploymentRecord({
       projectName: "DaoFlow",
       environmentName: "staging",
@@ -171,6 +182,17 @@ describe("command audit boundary", () => {
     const server = inventory.servers[0];
     if (!server) throw new Error("Expected a seeded server for remote audit reconciliation.");
 
+    await db.insert(services).values({
+      id: "svc_audit_reconcile",
+      name: "audit-reconcile",
+      slug: "audit-reconcile",
+      projectId: "proj_daoflow_control_plane",
+      environmentId: "env_daoflow_staging",
+      targetServerId: server.id,
+      sourceType: "compose",
+      status: "inactive"
+    });
+
     await db.insert(auditEntries).values({
       actorType: "user",
       actorId: "user_foundation_owner",
@@ -191,6 +213,7 @@ describe("command audit boundary", () => {
       createdAt: new Date(now.getTime() - 10 * 60 * 1000)
     });
     const deployment = await createDeploymentRecord({
+      serviceId: "svc_audit_reconcile",
       projectName: "DaoFlow",
       environmentName: "staging",
       serviceName: "audit-reconcile",

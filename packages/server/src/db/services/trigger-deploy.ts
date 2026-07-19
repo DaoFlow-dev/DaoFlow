@@ -465,6 +465,7 @@ export async function triggerDeploy(input: TriggerDeployInput) {
 
   const deployInput: CreateDeploymentInput = {
     deploymentId: input.operationId,
+    serviceId: svc.id,
     projectName: project.name,
     environmentName: env.name,
     serviceName: svc.name,

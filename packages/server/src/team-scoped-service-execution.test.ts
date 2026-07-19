@@ -296,6 +296,7 @@ describe("team-scoped service and deployment execution", () => {
     const fixtureA = await createTeamAFixture();
     const deployment = await createDeploymentRecord({
       deploymentId: "dep_scope_execution_a",
+      serviceId: fixtureA.service.id,
       projectName: fixtureA.project.name,
       environmentName: fixtureA.environment.name,
       serviceName: fixtureA.service.name,
@@ -346,6 +347,7 @@ describe("team-scoped service and deployment execution", () => {
     const deploymentId = "dep_scope_execution_b";
     const deployment = await createDeploymentRecord({
       deploymentId,
+      serviceId: fixtureB.service.id,
       projectName: fixtureB.project.name,
       environmentName: fixtureB.environment.name,
       serviceName: fixtureB.service.name,

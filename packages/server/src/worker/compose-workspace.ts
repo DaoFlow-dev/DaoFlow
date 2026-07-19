@@ -22,6 +22,7 @@ import type { ComposeBuildPlan } from "../compose-build-plan";
 import type { ComposeInputManifest, FrozenComposeInputsPayload } from "../compose-inputs";
 import { materializeComposeWorkspaceArtifacts } from "../compose-workspace-artifacts";
 import type { DeploymentComposeState } from "../db/services/compose-env";
+import type { DockerOwnershipIdentity } from "../docker-ownership";
 
 interface ComposeWorkspace {
   workDir: string;
@@ -104,6 +105,7 @@ export async function prepareComposeWorkspace(
   onLog: OnLog,
   deploymentState: DeploymentComposeState = { envState: { kind: "queued", entries: [] } },
   pinnedCommitSha?: string,
+  ownership?: DockerOwnershipIdentity,
   signal?: AbortSignal
 ): Promise<ComposeWorkspace> {
   if (!isUploadedCompose(config)) {
@@ -138,7 +140,8 @@ export async function prepareComposeWorkspace(
       existingComposeBuildPlan: config.composeBuildPlan,
       existingComposeEnv: config.composeEnv,
       existingComposeInputs: config.composeInputs,
-      managedTraefikRouting: config.managedTraefikRouting
+      managedTraefikRouting: config.managedTraefikRouting,
+      ownership
     });
 
     if (target.mode === "remote") {
@@ -236,7 +239,8 @@ export async function prepareComposeWorkspace(
     existingComposeBuildPlan: config.composeBuildPlan,
     existingComposeEnv: config.composeEnv,
     existingComposeInputs: config.composeInputs,
-    managedTraefikRouting: config.managedTraefikRouting
+    managedTraefikRouting: config.managedTraefikRouting,
+    ownership
   });
 
   if (target.mode === "local") {

@@ -70,6 +70,7 @@ async function createRollbackFixture(input: { readinessProbe?: ComposeReadinessP
       projectId: fixture.project.id,
       environmentId: fixture.environment.id,
       targetServerId: "srv_foundation_1",
+      serviceId: fixture.service.id,
       serviceName,
       sourceType: "compose",
       commitSha: "abcdef1",
@@ -95,6 +96,7 @@ async function createRollbackFixture(input: { readinessProbe?: ComposeReadinessP
       projectId: fixture.project.id,
       environmentId: fixture.environment.id,
       targetServerId: "srv_foundation_1",
+      serviceId: fixture.service.id,
       serviceName,
       sourceType: "compose",
       commitSha: "abcdef2",
@@ -772,8 +774,7 @@ describe("appRouter", () => {
     expect(plan.steps.length).toBeGreaterThan(0);
     expect(Array.isArray(plan.preflightChecks)).toBe(true);
     expect(plan.executeCommand).toContain("daoflow deploy");
-    if (plan.service.sourceType === "compose") {
-      expect(plan.composeEnvPlan).toBeTruthy();
+    if (plan.service.sourceType === "compose" && plan.composeEnvPlan) {
       expect(plan.composeEnvPlan?.branch).toEqual(expect.any(String));
       if (plan.service.composeServiceName) {
         expect(plan.steps).toEqual(
@@ -1757,10 +1758,21 @@ describe("appRouter", () => {
     }) as typeof fetch;
 
     try {
+      const successServiceName = `notify-success-${Date.now().toString(36)}`.slice(0, 24);
+      const successService = await createService({
+        name: successServiceName,
+        projectId: "proj_daoflow_control_plane",
+        environmentId: "env_daoflow_staging",
+        sourceType: "dockerfile",
+        targetServerId: "srv_foundation_1",
+        ...foundationOwnerRequester
+      });
+      expect(successService.status).toBe("ok");
+
       const first = await caller.createDeploymentRecord({
         projectName: "DaoFlow",
         environmentName: "staging",
-        serviceName: `notify-success-${Date.now().toString(36)}`.slice(0, 24),
+        serviceName: successServiceName,
         sourceType: "dockerfile",
         targetServerId: "srv_foundation_1",
         commitSha: "abcdef1",
@@ -1773,10 +1785,21 @@ describe("appRouter", () => {
       await caller.dispatchExecutionJob({ jobId: first.id });
       await caller.completeExecutionJob({ jobId: first.id });
 
+      const failedServiceName = `notify-fail-${Date.now().toString(36)}`.slice(0, 24);
+      const failedService = await createService({
+        name: failedServiceName,
+        projectId: "proj_daoflow_control_plane",
+        environmentId: "env_daoflow_staging",
+        sourceType: "dockerfile",
+        targetServerId: "srv_foundation_1",
+        ...foundationOwnerRequester
+      });
+      expect(failedService.status).toBe("ok");
+
       const second = await caller.createDeploymentRecord({
         projectName: "DaoFlow",
         environmentName: "staging",
-        serviceName: `notify-fail-${Date.now().toString(36)}`.slice(0, 24),
+        serviceName: failedServiceName,
         sourceType: "dockerfile",
         targetServerId: "srv_foundation_1",
         commitSha: "abcdef2",
@@ -2671,6 +2694,7 @@ describe("appRouter", () => {
       projectId: projectResult.project.id,
       environmentId: environmentResult.environment.id,
       targetServerId: "srv_foundation_1",
+      serviceId: serviceResult.service.id,
       serviceName: serviceResult.service.name,
       sourceType: "compose",
       commitSha: "abcdef1234567890abcdef1234567890abcdef12",

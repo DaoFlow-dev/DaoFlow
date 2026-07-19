@@ -8,6 +8,14 @@ import {
   resetComposeDeployStrategyHarness
 } from "./compose-deploy-strategy.test-support";
 
+const ownership = {
+  teamId: "team_test",
+  projectId: "project_test",
+  environmentId: "environment_test",
+  serviceId: "service_test",
+  deploymentId: "deployment_test"
+};
+
 describe("executeComposeDeployment", () => {
   beforeEach(() => {
     resetComposeDeployStrategyHarness();
@@ -44,6 +52,7 @@ describe("executeComposeDeployment", () => {
         composeFilePath: "deploy/compose.yaml"
       },
       "demo",
+      ownership,
       () => undefined,
       { mode: "local" }
     );
@@ -111,6 +120,7 @@ describe("executeComposeDeployment", () => {
         composeFilePath: "deploy/compose.yaml"
       },
       "demo",
+      ownership,
       () => undefined,
       { mode: "local" }
     );
@@ -168,6 +178,7 @@ describe("executeComposeDeployment", () => {
         composeServiceName: "worker"
       },
       "demo",
+      ownership,
       () => undefined,
       { mode: "local" }
     );
@@ -268,6 +279,7 @@ describe("executeComposeDeployment", () => {
         composeServiceName: "api"
       },
       "demo",
+      ownership,
       () => undefined,
       { mode: "local" }
     );
@@ -321,6 +333,7 @@ describe("executeComposeDeployment", () => {
         composeOperation: "down"
       },
       "demo-pr-42",
+      ownership,
       () => undefined,
       { mode: "local" }
     );
@@ -361,6 +374,7 @@ describe("executeComposeDeployment", () => {
         composeFilePath: "deploy/compose.yaml"
       },
       "demo-stack",
+      ownership,
       () => undefined,
       { mode: "local", serverKind: "docker-swarm-manager" }
     );
@@ -406,6 +420,7 @@ describe("executeComposeDeployment", () => {
         composeOperation: "down"
       },
       "demo-stack-pr-42",
+      ownership,
       () => undefined,
       { mode: "local", serverKind: "docker-swarm-manager" }
     );

@@ -6,6 +6,7 @@ import { servers } from "../schema/servers";
 import { resetTestDatabaseWithControlPlane } from "../../test-db";
 import type { OnLog } from "../../worker/docker-executor";
 import { createEnvironment, createProject } from "./projects";
+import { createService } from "./services";
 
 let fixtureCounter = 0;
 
@@ -62,13 +63,28 @@ export async function createLeaseDeployment(label: string): Promise<string> {
     throw new Error("Failed to create build lease environment fixture.");
   }
 
+  const serviceResult = await createService({
+    name: `service-${label}`,
+    projectId: projectResult.project.id,
+    environmentId: environmentResult.environment.id,
+    sourceType: "dockerfile",
+    targetServerId: "srv_foundation_1",
+    requestedByUserId: "user_foundation_owner",
+    requestedByEmail: "owner@daoflow.local",
+    requestedByRole: "owner"
+  });
+  if (serviceResult.status !== "ok") {
+    throw new Error("Failed to create build lease service fixture.");
+  }
+
   const deploymentId = `lease-${label}-${suffix}`.slice(0, 32);
   await db.insert(deployments).values({
     id: deploymentId,
     projectId: projectResult.project.id,
     environmentId: environmentResult.environment.id,
     targetServerId: "srv_foundation_1",
-    serviceName: `service-${label}`,
+    serviceId: serviceResult.service.id,
+    serviceName: serviceResult.service.name,
     sourceType: "dockerfile",
     commitSha: "0123456789abcdef0123456789abcdef01234567",
     imageTag: `ghcr.io/daoflow/${label}:test`,

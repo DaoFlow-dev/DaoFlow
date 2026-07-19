@@ -233,6 +233,7 @@ export async function queueUploadedDeployment(input: {
   const deployment = await createDeploymentRecord({
     deploymentId: input.deploymentId,
     queueReservationId: input.deploymentId,
+    serviceId: scope.service.id,
     projectName: scope.project.name,
     environmentName: scope.environment.name,
     serviceName: scope.service.name,

@@ -227,6 +227,7 @@ export async function createManagedDatabase(input: CreateManagedDatabaseInput) {
     const deployment = await createDeploymentRecord({
       deploymentId,
       queueReservationId: deploymentId,
+      serviceId: scope.service.id,
       projectName: scope.project.name,
       environmentName: scope.environment.name,
       serviceName: scope.service.name,
