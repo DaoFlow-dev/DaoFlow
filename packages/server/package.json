@@ -41,7 +41,7 @@
     "@types/pg": "8.20.0",
     "better-auth": "1.6.23",
     "drizzle-orm": "0.45.2",
-    "hono": "4.12.30",
+    "hono": "4.12.31",
     "nodemailer": "9.0.3",
     "pg": "8.22.0",
     "web-push": "3.6.7",
