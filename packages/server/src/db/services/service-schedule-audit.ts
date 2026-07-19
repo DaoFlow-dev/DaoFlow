@@ -7,9 +7,10 @@ export type ServiceScheduleActor = {
   requestedByUserId: string;
   requestedByEmail: string;
   requestedByRole: AppRole;
+  actorType?: "user" | "agent" | "system" | "token";
 };
 
-export async function recordServiceScheduleAudit(input: {
+export type ServiceScheduleAuditInput = {
   schedule: typeof serviceSchedules.$inferSelect;
   actor: ServiceScheduleActor;
   action: string;
@@ -17,9 +18,13 @@ export async function recordServiceScheduleAudit(input: {
   permissionScope?: string;
   outcome?: "success" | "failure" | "denied";
   runId?: string;
-}) {
-  await db.insert(auditEntries).values({
-    actorType: "user",
+};
+
+export function buildServiceScheduleAuditEntry(
+  input: ServiceScheduleAuditInput
+): typeof auditEntries.$inferInsert {
+  return {
+    actorType: input.actor.actorType ?? "user",
     actorId: input.actor.requestedByUserId,
     actorEmail: input.actor.requestedByEmail,
     actorRole: input.actor.requestedByRole,
@@ -38,5 +43,9 @@ export async function recordServiceScheduleAudit(input: {
       runId: input.runId ?? null,
       detail: input.summary
     }
-  });
+  };
+}
+
+export async function recordServiceScheduleAudit(input: ServiceScheduleAuditInput) {
+  await db.insert(auditEntries).values(buildServiceScheduleAuditEntry(input));
 }

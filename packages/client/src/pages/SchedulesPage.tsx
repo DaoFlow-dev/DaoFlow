@@ -19,6 +19,87 @@ function messageFromError(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
 }
 
+type SchedulerLeaseStatus = {
+  key: string;
+  holderInstanceId: string;
+  generation: number;
+  acquiredAt: string;
+  renewedAt: string;
+  expiresAt: string;
+  active: boolean;
+  leaseAgeMs: number;
+  renewalAgeMs: number;
+  expiresInMs: number;
+};
+
+function formatDuration(durationMs: number) {
+  const totalSeconds = Math.max(0, Math.round(durationMs / 1_000));
+  if (totalSeconds < 60) return `${totalSeconds}s`;
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return seconds === 0 ? `${minutes}m` : `${minutes}m ${seconds}s`;
+}
+
+export function SchedulerLeaseCard({ status }: { status: SchedulerLeaseStatus | null }) {
+  const state = status?.active ? "Active leader" : status ? "Lease expired" : "No lease recorded";
+
+  return (
+    <Card data-testid="scheduler-lease-card">
+      <CardHeader>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <CardTitle className="text-base">Scheduler leadership</CardTitle>
+          <Badge variant={status?.active ? "default" : "outline"} data-testid="scheduler-state">
+            {state}
+          </Badge>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {status ? (
+          <dl className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
+            <div>
+              <dt className="text-muted-foreground">Instance</dt>
+              <dd className="break-all font-mono" data-testid="scheduler-instance">
+                {status.holderInstanceId}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-muted-foreground">Generation</dt>
+              <dd data-testid="scheduler-generation">{status.generation}</dd>
+            </div>
+            <div>
+              <dt className="text-muted-foreground">Lease age</dt>
+              <dd data-testid="scheduler-lease-age">{formatDuration(status.leaseAgeMs)}</dd>
+            </div>
+            <div>
+              <dt className="text-muted-foreground">Last renewal</dt>
+              <dd data-testid="scheduler-renewal-age">{formatDuration(status.renewalAgeMs)} ago</dd>
+            </div>
+            <div className="sm:col-span-2">
+              <dt className="text-muted-foreground">Acquired</dt>
+              <dd data-testid="scheduler-acquired-at">
+                {new Date(status.acquiredAt).toLocaleString()}
+              </dd>
+            </div>
+            <div className="sm:col-span-2">
+              <dt className="text-muted-foreground">
+                {status.active ? "Expires without renewal" : "Expired"}
+              </dt>
+              <dd data-testid="scheduler-expires-at">
+                {new Date(status.expiresAt).toLocaleString()}
+                {status.active ? ` (${formatDuration(status.expiresInMs)})` : ""}
+              </dd>
+            </div>
+          </dl>
+        ) : (
+          <p className="text-sm text-muted-foreground" data-testid="scheduler-empty">
+            No control-plane instance has acquired the service scheduler lease yet.
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function SchedulesPage() {
   const utils = trpc.useUtils();
   const session = useSession();
@@ -26,6 +107,10 @@ export default function SchedulesPage() {
     { limit: 100 },
     { enabled: Boolean(session.data), refetchInterval: 10_000 }
   );
+  const schedulerLease = trpc.serviceScheduleMonitorStatus.useQuery(undefined, {
+    enabled: Boolean(session.data),
+    refetchInterval: 10_000
+  });
   const setScheduleState = trpc.setServiceScheduleState.useMutation();
   const deleteSchedule = trpc.deleteServiceSchedule.useMutation();
   const runScheduleNow = trpc.runServiceScheduleNow.useMutation();
@@ -74,6 +159,20 @@ export default function SchedulesPage() {
           {feedback}
         </p>
       ) : null}
+
+      {schedulerLease.isLoading ? (
+        <Skeleton className="h-44 w-full" data-testid="scheduler-lease-loading" />
+      ) : schedulerLease.error ? (
+        <p
+          role="alert"
+          className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm"
+          data-testid="scheduler-lease-error"
+        >
+          {messageFromError(schedulerLease.error, "Unable to load scheduler leadership.")}
+        </p>
+      ) : (
+        <SchedulerLeaseCard status={schedulerLease.data ?? null} />
+      )}
 
       <Card>
         <CardHeader>
