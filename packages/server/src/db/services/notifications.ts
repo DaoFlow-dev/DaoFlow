@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { db } from "../connection";
 import {
   notificationChannels,
@@ -55,10 +55,11 @@ export async function listPushSubscriptionsForUser(userId: string) {
   }));
 }
 
-export async function listNotificationChannels() {
+export async function listNotificationChannels(teamId: string) {
   const channels = await db
     .select()
     .from(notificationChannels)
+    .where(eq(notificationChannels.teamId, teamId))
     .orderBy(desc(notificationChannels.createdAt));
 
   return channels.map((channel) => ({
@@ -69,6 +70,7 @@ export async function listNotificationChannels() {
 }
 
 export async function createNotificationChannel(input: {
+  teamId: string;
   name: string;
   channelType: "slack" | "discord" | "email" | "generic_webhook" | "web_push";
   webhookUrl?: string;
@@ -81,6 +83,7 @@ export async function createNotificationChannel(input: {
   const id = newId();
   await db.insert(notificationChannels).values({
     id,
+    teamId: input.teamId,
     name: input.name,
     channelType: input.channelType,
     webhookUrl: input.webhookUrl ?? null,
@@ -96,13 +99,16 @@ export async function createNotificationChannel(input: {
   return { id };
 }
 
-export async function deleteNotificationChannel(id: string) {
-  await db.delete(notificationChannels).where(eq(notificationChannels.id, id));
+export async function deleteNotificationChannel(id: string, teamId: string) {
+  await db
+    .delete(notificationChannels)
+    .where(and(eq(notificationChannels.id, id), eq(notificationChannels.teamId, teamId)));
   return { ok: true as const };
 }
 
 export async function updateNotificationChannel(
   id: string,
+  teamId: string,
   updates: {
     name?: string;
     webhookUrl?: string | null;
@@ -124,15 +130,18 @@ export async function updateNotificationChannel(
   if (updates.eventSelectors !== undefined) setValues.eventSelectors = updates.eventSelectors;
   if (updates.enabled !== undefined) setValues.enabled = updates.enabled;
 
-  await db.update(notificationChannels).set(setValues).where(eq(notificationChannels.id, id));
+  await db
+    .update(notificationChannels)
+    .set(setValues)
+    .where(and(eq(notificationChannels.id, id), eq(notificationChannels.teamId, teamId)));
   return { ok: true as const };
 }
 
-export async function toggleNotificationChannel(id: string, enabled: boolean) {
+export async function toggleNotificationChannel(id: string, teamId: string, enabled: boolean) {
   await db
     .update(notificationChannels)
     .set({ enabled, updatedAt: new Date() })
-    .where(eq(notificationChannels.id, id));
+    .where(and(eq(notificationChannels.id, id), eq(notificationChannels.teamId, teamId)));
   return { ok: true as const };
 }
 
@@ -231,34 +240,27 @@ export async function setProjectNotificationOverride(input: {
   return { ok: true as const };
 }
 
-export async function listNotificationDeliveryLogs(limit = 20) {
-  const logs = await db
-    .select()
+export async function listNotificationDeliveryLogs(teamId: string, limit = 20) {
+  const rows = await db
+    .select({ log: notificationLogs, channel: notificationChannels })
     .from(notificationLogs)
+    .innerJoin(notificationChannels, eq(notificationChannels.id, notificationLogs.channelId))
+    .where(eq(notificationChannels.teamId, teamId))
     .orderBy(desc(notificationLogs.sentAt))
     .limit(limit);
 
-  const channelIds = [...new Set(logs.map((log) => log.channelId))];
-  const channels =
-    channelIds.length > 0
-      ? await db
-          .select()
-          .from(notificationChannels)
-          .where(inArray(notificationChannels.id, channelIds))
-      : [];
-  const channelById = new Map(channels.map((channel) => [channel.id, channel]));
-
-  return logs.map((log) => ({
+  return rows.map(({ log, channel }) => ({
     ...log,
     sentAt: log.sentAt.toISOString(),
-    channelName: channelById.get(log.channelId)?.name ?? log.channelId,
-    channelType: channelById.get(log.channelId)?.channelType ?? "unknown"
+    channelName: channel.name,
+    channelType: channel.channelType
   }));
 }
 
-export async function sendTestNotification(channelId: string) {
-  const payload = await buildTestNotification();
+export async function sendTestNotification(channelId: string, teamId: string) {
+  const payload = await buildTestNotification(teamId);
   return dispatchNotificationToChannel(channelId, payload, {
-    ignoreRouting: true
+    ignoreRouting: true,
+    expectedTeamId: teamId
   });
 }

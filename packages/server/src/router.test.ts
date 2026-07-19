@@ -19,6 +19,7 @@ import { upsertEnvironmentVariable } from "./db/services/envvars";
 import type { ComposeReadinessProbeInput } from "./compose-readiness";
 import { extractReplayableConfigSnapshot } from "./db/services/deployment-source";
 import { appRouter } from "./router";
+import { dispatchNotification } from "./worker/temporal/activities/notification-activities";
 import { resetTestDatabaseWithControlPlane } from "./test-db";
 import {
   createProjectEnvironmentServiceFixture,
@@ -1611,6 +1612,72 @@ describe("appRouter", () => {
           preference.enabled === false
       )
     ).toBe(true);
+  });
+
+  it("keeps notification channels and metric alerts inside the caller's team", async () => {
+    const other = await createOtherTeamFixture();
+    const foundationCaller = appRouter.createCaller({
+      requestId: "test-notification-team-foundation",
+      session: makeSession("admin")
+    });
+    const otherCaller = appRouter.createCaller({
+      requestId: "test-notification-team-other",
+      session: makeCustomSession({
+        id: other.userId,
+        email: `${other.userId}@daoflow.local`,
+        name: "Other Team Admin",
+        role: "admin"
+      })
+    });
+
+    const foundationName = `Foundation Metrics ${Date.now().toString(36)}`;
+    const otherName = `Other Metrics ${Date.now().toString(36)}`;
+    await foundationCaller.createChannel({
+      name: foundationName,
+      channelType: "generic_webhook",
+      webhookUrl: "https://hooks.example.com/foundation-metrics",
+      eventSelectors: ["server.metrics.*"],
+      enabled: true
+    });
+    await otherCaller.createChannel({
+      name: otherName,
+      channelType: "generic_webhook",
+      webhookUrl: "https://hooks.example.com/other-metrics",
+      eventSelectors: ["server.metrics.*"],
+      enabled: true
+    });
+
+    expect((await foundationCaller.listChannels()).map((channel) => channel.name)).toContain(
+      foundationName
+    );
+    expect((await foundationCaller.listChannels()).map((channel) => channel.name)).not.toContain(
+      otherName
+    );
+    expect((await otherCaller.listChannels()).map((channel) => channel.name)).toContain(otherName);
+    expect((await otherCaller.listChannels()).map((channel) => channel.name)).not.toContain(
+      foundationName
+    );
+
+    const originalFetch = globalThis.fetch;
+    const deliveredUrls: string[] = [];
+    globalThis.fetch = ((input: URL | string | Request) => {
+      deliveredUrls.push(input instanceof Request ? input.url : input.toString());
+      return Promise.resolve(new Response("ok", { status: 200 }));
+    }) as typeof fetch;
+
+    try {
+      const result = await dispatchNotification({
+        eventType: "server.metrics.warning",
+        teamId: "team_foundation",
+        title: "Foundation server warning",
+        message: "Disk crossed the warning threshold.",
+        severity: "warning"
+      });
+      expect(result).toMatchObject({ dispatched: 1, succeeded: 1, failed: 0 });
+      expect(deliveredUrls).toEqual(["https://hooks.example.com/foundation-metrics"]);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 
   it("sends test notifications to the configured email recipient", async () => {

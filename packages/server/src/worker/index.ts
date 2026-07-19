@@ -31,6 +31,12 @@ export {
   stopServiceScheduleMonitor
 } from "./service-schedule-monitor";
 export {
+  startServerMetricsMonitor,
+  stopServerMetricsMonitor,
+  runServerMetricsMonitorCycle,
+  setServerMetricTransitionHandler
+} from "./server-metrics-monitor";
+export {
   completeServiceScheduleRun,
   executeServiceScheduleRun,
   pollServiceScheduleRuns,

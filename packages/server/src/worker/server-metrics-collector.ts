@@ -10,6 +10,8 @@ export interface ServerMetricsSnapshot {
   memoryTotalGB: number;
   diskUsedPercent: number;
   diskTotalGB: number;
+  dockerDiskUsedPercent: number | null;
+  dockerDiskTotalGB: number | null;
   networkInMB: number;
   networkOutMB: number;
 }
@@ -32,6 +34,8 @@ const METRICS_SCRIPT = [
   `}' /proc/meminfo`,
   // Disk: root filesystem
   `df -BG / | awk 'NR==2{gsub("G","",$2);gsub("G","",$3);gsub("%","",$5);printf "DISK:%s:%s\\n",$5,$2}'`,
+  // Docker disk: filesystem that backs Docker's root directory, when available.
+  `docker_root=$(docker info --format '{{.DockerRootDir}}' 2>/dev/null || true); if [ -n "$docker_root" ]; then df -BG "$docker_root" | awk 'NR==2{gsub("G","",$2);gsub("%","",$5);printf "DOCKER_DISK:%s:%s\\n",$5,$2}'; else echo "DOCKER_DISK::"; fi`,
   // Network: sum all interfaces except lo
   `awk 'NR>2 && $1!~/lo/{rx+=$2;tx+=$10}END{printf "NET:%.2f:%.2f\\n",rx/1048576,tx/1048576}' /proc/net/dev`
 ].join("\n");
@@ -97,6 +101,52 @@ function parseFloat(val: string): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+function parseNullableFloat(val: string): number | null {
+  if (!val.trim()) return null;
+  const n = Number.parseFloat(val);
+  return Number.isFinite(n) ? n : null;
+}
+
+export function parseServerMetricsOutput(lines: readonly string[]): ServerMetricsSnapshot {
+  const snapshot: ServerMetricsSnapshot = {
+    cpuPercent: 0,
+    memoryUsedPercent: 0,
+    memoryUsedGB: 0,
+    memoryTotalGB: 0,
+    diskUsedPercent: 0,
+    diskTotalGB: 0,
+    dockerDiskUsedPercent: null,
+    dockerDiskTotalGB: null,
+    networkInMB: 0,
+    networkOutMB: 0
+  };
+
+  for (const line of lines) {
+    if (line.startsWith("CPU:")) {
+      snapshot.cpuPercent = parseFloat(line.slice(4));
+    } else if (line.startsWith("MEM:")) {
+      const [pct, used, total] = line.slice(4).split(":");
+      snapshot.memoryUsedPercent = parseFloat(pct ?? "0");
+      snapshot.memoryUsedGB = parseFloat(used ?? "0");
+      snapshot.memoryTotalGB = parseFloat(total ?? "0");
+    } else if (line.startsWith("DISK:")) {
+      const [pct, total] = line.slice(5).split(":");
+      snapshot.diskUsedPercent = parseFloat(pct ?? "0");
+      snapshot.diskTotalGB = parseFloat(total ?? "0");
+    } else if (line.startsWith("DOCKER_DISK:")) {
+      const [pct, total] = line.slice(12).split(":");
+      snapshot.dockerDiskUsedPercent = parseNullableFloat(pct ?? "");
+      snapshot.dockerDiskTotalGB = parseNullableFloat(total ?? "");
+    } else if (line.startsWith("NET:")) {
+      const [inMB, outMB] = line.slice(4).split(":");
+      snapshot.networkInMB = parseFloat(inMB ?? "0");
+      snapshot.networkOutMB = parseFloat(outMB ?? "0");
+    }
+  }
+
+  return snapshot;
+}
+
 export async function collectServerMetrics(
   target: ExecutionTarget
 ): Promise<ServerMetricsSnapshot | null> {
@@ -104,37 +154,7 @@ export async function collectServerMetrics(
     const result = await runCommand(target);
     if (result.exitCode !== 0) return null;
 
-    const snapshot: ServerMetricsSnapshot = {
-      cpuPercent: 0,
-      memoryUsedPercent: 0,
-      memoryUsedGB: 0,
-      memoryTotalGB: 0,
-      diskUsedPercent: 0,
-      diskTotalGB: 0,
-      networkInMB: 0,
-      networkOutMB: 0
-    };
-
-    for (const line of result.stdout) {
-      if (line.startsWith("CPU:")) {
-        snapshot.cpuPercent = parseFloat(line.slice(4));
-      } else if (line.startsWith("MEM:")) {
-        const [pct, used, total] = line.slice(4).split(":");
-        snapshot.memoryUsedPercent = parseFloat(pct ?? "0");
-        snapshot.memoryUsedGB = parseFloat(used ?? "0");
-        snapshot.memoryTotalGB = parseFloat(total ?? "0");
-      } else if (line.startsWith("DISK:")) {
-        const [pct, total] = line.slice(5).split(":");
-        snapshot.diskUsedPercent = parseFloat(pct ?? "0");
-        snapshot.diskTotalGB = parseFloat(total ?? "0");
-      } else if (line.startsWith("NET:")) {
-        const [inMB, outMB] = line.slice(4).split(":");
-        snapshot.networkInMB = parseFloat(inMB ?? "0");
-        snapshot.networkOutMB = parseFloat(outMB ?? "0");
-      }
-    }
-
-    return snapshot;
+    return parseServerMetricsOutput(result.stdout);
   } catch {
     return null;
   }

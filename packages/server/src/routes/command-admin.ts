@@ -5,6 +5,7 @@ import { adminManagedOperationsRouter } from "./command-admin-managed-operations
 import { adminManagedDatabaseRouter } from "./command-admin-managed-databases";
 import { adminRegistryRouter } from "./command-admin-registries";
 import { adminServerOperationsRouter } from "./command-admin-server-operations";
+import { adminServerMetricsRouter } from "./command-admin-server-metrics";
 import { adminServerProjectRouter } from "./command-admin-servers-projects";
 import { adminSshHostIdentityRouter } from "./command-admin-ssh-host-identities";
 import { adminServiceRouter } from "./command-admin-services";
@@ -15,6 +16,7 @@ export const adminRouter = t.mergeRouters(
   adminServerProjectRouter,
   adminSshHostIdentityRouter,
   adminServerOperationsRouter,
+  adminServerMetricsRouter,
   adminManagedOperationsRouter,
   adminManagedDatabaseRouter,
   adminServiceRouter,

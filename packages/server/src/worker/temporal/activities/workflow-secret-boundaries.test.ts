@@ -272,6 +272,7 @@ describe("Temporal backup secret boundaries", () => {
     const ctx = {
       restoreId: "brest_verify",
       runId: "brun_verify",
+      teamId: "team_foundation",
       artifactPath: "nightly/postgres.dump",
       destinationId: "dest_verify",
       volumeId: "vol_verify",

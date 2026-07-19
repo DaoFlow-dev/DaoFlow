@@ -100,6 +100,15 @@ DaoFlow monitors server readiness with recurring checks:
 Readiness checks run at a configurable interval using `SERVER_READINESS_POLL_INTERVAL_MS`
 (default: `60000`) only after a remote server has an approved host identity.
 
+Server metrics are collected separately under each server's monitoring policy. DaoFlow stores recent
+CPU, memory, root-disk, Docker-disk, and network samples, evaluates warning and hard thresholds, and
+sends rate-limited transition and recovery notifications. Monitoring is read-only: it never cleans,
+restarts, cancels, or patches a server automatically.
+
+```bash
+daoflow server-metrics --server srv_abc123 --monitoring --since 24h --json
+```
+
 ### Checking Server Health
 
 ```bash

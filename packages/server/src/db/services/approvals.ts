@@ -324,6 +324,7 @@ export async function createApprovalRequest(input: CreateApprovalRequestInput) {
   try {
     const notification = await buildApprovalNotification({
       eventType: "approval.request",
+      teamId: presentation.teamId,
       status: "requested",
       requestId,
       actionType: input.actionType,
@@ -616,6 +617,7 @@ export async function approveApprovalRequest(
   try {
     const notification = await buildApprovalNotification({
       eventType: "approval.approve",
+      teamId: decision.request.teamId,
       status: "approved",
       requestId,
       actionType: decision.request.actionType,
@@ -706,6 +708,7 @@ export async function rejectApprovalRequest(
   try {
     const notification = await buildApprovalNotification({
       eventType: "approval.reject",
+      teamId: request.teamId,
       status: "rejected",
       requestId,
       actionType: request.actionType,

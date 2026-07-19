@@ -12,28 +12,14 @@ import { eq, and } from "drizzle-orm";
 import { db } from "../../../db/connection";
 import {
   notificationChannels,
-  notificationLogs,
   userNotificationPreferences,
   projectNotificationOverrides
 } from "../../../db/schema/notifications";
-import { newId } from "../../../db/services/json-helpers";
 import {
-  sendSlackWebhook,
-  sendDiscordWebhook,
-  sendGenericWebhook,
-  sendEmailNotification,
-  sendWebPushNotifications,
-  type SendResult
-} from "./notification-senders";
-import {
-  sendTelegramNotification,
-  sendTeamsWebhook,
-  sendGotifyNotification,
-  sendNtfyNotification,
-  sendMattermostWebhook,
-  sendPushoverNotification,
-  sendLarkWebhook
-} from "./notification-extended-senders";
+  matchesNotificationChannelRouting,
+  matchesNotificationSelector
+} from "./notification-channel-routing";
+import { deliverNotification } from "./notification-delivery";
 import type { NotificationPayload } from "./notification-sender-types";
 
 // Re-export builders so Temporal proxyActivities can find them
@@ -41,39 +27,11 @@ export {
   buildApprovalNotification,
   buildBackupNotification,
   buildDeployNotification,
+  buildServerMetricNotification,
   buildTestNotification
 } from "./notification-builders";
 
 export type { NotificationPayload } from "./notification-sender-types";
-
-type NotificationChannelRecord = typeof notificationChannels.$inferSelect;
-
-// ── Event Selector Matching ─────────────────────────────────
-
-/**
- * Check if an event type matches a selector pattern.
- * Supports:
- * - Exact match: "backup.failed" matches "backup.failed"
- * - Wildcard suffix: "backup.*" matches "backup.started", "backup.failed", etc.
- * - Global wildcard: "*" matches everything
- */
-function matchesSelector(eventType: string, selector: string): boolean {
-  if (selector === "*") return true;
-  if (selector === eventType) return true;
-  if (selector.endsWith(".*")) {
-    const prefix = selector.slice(0, -2);
-    return eventType.startsWith(prefix + ".");
-  }
-  return false;
-}
-
-/**
- * Check if an event type matches any selector in the array.
- */
-function matchesAnySelector(eventType: string, selectors: unknown): boolean {
-  if (!Array.isArray(selectors)) return false;
-  return selectors.some((s) => typeof s === "string" && matchesSelector(eventType, s));
-}
 
 // ── Notification Preference Resolution ──────────────────────
 
@@ -103,7 +61,7 @@ export async function resolveNotificationPreference(
       );
 
     for (const override of projectOverrides) {
-      if (matchesSelector(eventType, override.eventType)) {
+      if (matchesNotificationSelector(eventType, override.eventType)) {
         if (override.channelType === "*" || override.channelType === channelType) {
           return override.enabled;
         }
@@ -118,7 +76,7 @@ export async function resolveNotificationPreference(
     .where(eq(userNotificationPreferences.userId, userId));
 
   for (const pref of userPrefs) {
-    if (matchesSelector(eventType, pref.eventType)) {
+    if (matchesNotificationSelector(eventType, pref.eventType)) {
       if (pref.channelType === "*" || pref.channelType === channelType) {
         return pref.enabled;
       }
@@ -151,7 +109,9 @@ export async function dispatchNotification(payload: NotificationPayload): Promis
   const channels = await db
     .select()
     .from(notificationChannels)
-    .where(eq(notificationChannels.enabled, true));
+    .where(
+      and(eq(notificationChannels.enabled, true), eq(notificationChannels.teamId, payload.teamId))
+    );
 
   const results: Array<{
     channelId: string;
@@ -162,15 +122,7 @@ export async function dispatchNotification(payload: NotificationPayload): Promis
 
   for (const channel of channels) {
     // 2. Check event selector match
-    if (!matchesAnySelector(payload.eventType, channel.eventSelectors)) {
-      continue;
-    }
-
-    // 3. Check project/environment filter
-    if (channel.projectFilter && payload.projectName !== channel.projectFilter) {
-      continue;
-    }
-    if (channel.environmentFilter && payload.environmentName !== channel.environmentFilter) {
+    if (!matchesNotificationChannelRouting(channel, payload)) {
       continue;
     }
 
@@ -186,120 +138,39 @@ export async function dispatchNotification(payload: NotificationPayload): Promis
   };
 }
 
-async function deliverNotification(
-  channel: NotificationChannelRecord,
-  payload: NotificationPayload
-): Promise<{ channelId: string; channelName: string; ok: boolean; error?: string }> {
-  let result: SendResult;
-
-  if (
-    !channel.webhookUrl &&
-    channel.channelType !== "email" &&
-    channel.channelType !== "web_push"
-  ) {
-    result = { ok: false, httpStatus: 0, error: "No webhook URL configured" };
-  } else {
-    switch (channel.channelType) {
-      case "slack":
-        result = await sendSlackWebhook(channel.webhookUrl!, payload);
-        break;
-      case "discord":
-        result = await sendDiscordWebhook(channel.webhookUrl!, payload);
-        break;
-      case "generic_webhook":
-        result = await sendGenericWebhook(channel.webhookUrl!, payload);
-        break;
-      case "web_push":
-        result = await sendWebPushNotifications(payload);
-        break;
-      case "email":
-        result = await sendEmailNotification(channel, payload);
-        break;
-      case "telegram": {
-        const meta = (channel.metadata ?? {}) as Record<string, string>;
-        result = await sendTelegramNotification(meta.botToken ?? "", meta.chatId ?? "", payload);
-        break;
-      }
-      case "teams":
-        result = await sendTeamsWebhook(channel.webhookUrl!, payload);
-        break;
-      case "gotify": {
-        const meta = (channel.metadata ?? {}) as Record<string, string>;
-        result = await sendGotifyNotification(
-          meta.serverUrl ?? channel.webhookUrl ?? "",
-          meta.appToken ?? "",
-          payload
-        );
-        break;
-      }
-      case "ntfy": {
-        const meta = (channel.metadata ?? {}) as Record<string, string>;
-        result = await sendNtfyNotification(
-          meta.serverUrl ?? "https://ntfy.sh",
-          meta.topic ?? "",
-          payload
-        );
-        break;
-      }
-      case "mattermost":
-        result = await sendMattermostWebhook(channel.webhookUrl!, payload);
-        break;
-      case "pushover": {
-        const meta = (channel.metadata ?? {}) as Record<string, string>;
-        result = await sendPushoverNotification(meta.userKey ?? "", meta.apiToken ?? "", payload);
-        break;
-      }
-      case "lark":
-        result = await sendLarkWebhook(channel.webhookUrl!, payload);
-        break;
-      default:
-        result = await sendGenericWebhook(channel.webhookUrl ?? "", payload);
-    }
-  }
-
-  try {
-    await db.insert(notificationLogs).values({
-      id: newId(),
-      channelId: channel.id,
-      eventType: payload.eventType,
-      payload: {
-        title: payload.title,
-        message: payload.message,
-        severity: payload.severity,
-        project: payload.projectName,
-        environment: payload.environmentName
-      },
-      httpStatus: String(result.httpStatus),
-      status: result.ok ? "delivered" : "failed",
-      error: result.error ?? null,
-      sentAt: new Date()
-    });
-  } catch {
-    // Don't fail the notification if logging fails
-  }
-
-  return {
-    channelId: channel.id,
-    channelName: channel.name,
-    ok: result.ok,
-    error: result.error
-  };
-}
-
 export async function dispatchNotificationToChannel(
   channelId: string,
   payload: NotificationPayload,
-  options?: { ignoreRouting?: boolean }
+  options?: { ignoreRouting?: boolean; expectedTeamId?: string }
 ): Promise<{
   dispatched: number;
   succeeded: number;
   failed: number;
   results: Array<{ channelId: string; channelName: string; ok: boolean; error?: string }>;
 }> {
+  const expectedTeamId = options?.expectedTeamId ?? payload.teamId;
+  if (expectedTeamId !== payload.teamId) {
+    return {
+      dispatched: 0,
+      succeeded: 0,
+      failed: 1,
+      results: [
+        {
+          channelId,
+          channelName: channelId,
+          ok: false,
+          error: "Channel team does not match notification team"
+        }
+      ]
+    };
+  }
+
   const [channel] = await db
     .select()
     .from(notificationChannels)
-    .where(eq(notificationChannels.id, channelId))
+    .where(
+      and(eq(notificationChannels.id, channelId), eq(notificationChannels.teamId, expectedTeamId))
+    )
     .limit(1);
 
   if (!channel) {
@@ -327,7 +198,7 @@ export async function dispatchNotificationToChannel(
         ]
       };
     }
-    if (!matchesAnySelector(payload.eventType, channel.eventSelectors)) {
+    if (!matchesNotificationChannelRouting(channel, payload)) {
       return {
         dispatched: 0,
         succeeded: 0,

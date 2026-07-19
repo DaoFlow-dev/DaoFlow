@@ -25,6 +25,7 @@ import { restoreWorkflow } from "./restore-workflow";
 const legacyContext = {
   restoreId: "brest_legacy",
   runId: "brun_legacy",
+  teamId: "team_foundation",
   artifactPath: "backups/legacy.dump",
   destinationId: "dest_legacy",
   volumeId: "vol_legacy",

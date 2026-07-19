@@ -132,6 +132,7 @@ function restoreContext(
   return {
     restoreId: `brest_${fixture.backupRunId}`,
     runId: fixture.backupRunId,
+    teamId: "team_foundation",
     artifactPath: "backup.tar",
     destinationId: "dest_restore_revalidation",
     volumeId: fixture.volumeId,

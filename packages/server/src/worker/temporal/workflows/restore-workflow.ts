@@ -127,6 +127,7 @@ export async function restoreWorkflow(input: RestoreWorkflowInput): Promise<void
     try {
       const notification = await buildBackupNotification({
         eventType: "restore.started",
+        teamId: ctx.teamId,
         policyName: `restore-${backupRunId}`,
         status: "started"
       });
@@ -203,6 +204,7 @@ export async function restoreWorkflow(input: RestoreWorkflowInput): Promise<void
     try {
       const notification = await buildBackupNotification({
         eventType: "restore.succeeded",
+        teamId: ctx.teamId,
         policyName: `restore-${backupRunId}`,
         status: "succeeded"
       });
@@ -236,6 +238,7 @@ export async function restoreWorkflow(input: RestoreWorkflowInput): Promise<void
     try {
       const notification = await buildBackupNotification({
         eventType: "restore.failed",
+        teamId: ctx.teamId,
         policyName: `restore-${backupRunId}`,
         status: "failed",
         error: errorMsg

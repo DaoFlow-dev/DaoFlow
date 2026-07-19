@@ -202,6 +202,7 @@ async function dispatchScheduleFailureNotification(runId: string) {
       schedule: serviceSchedules,
       serviceName: services.name,
       projectName: projects.name,
+      teamId: projects.teamId,
       environmentName: environments.name
     })
     .from(serviceScheduleRuns)
@@ -215,6 +216,7 @@ async function dispatchScheduleFailureNotification(runId: string) {
 
   await dispatchNotification({
     eventType: "schedule.failed",
+    teamId: row.teamId,
     title: "Scheduled task failed",
     message: `${row.schedule.name} failed for ${row.serviceName}.`,
     severity: "error",

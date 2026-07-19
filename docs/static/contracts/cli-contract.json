@@ -4143,6 +4143,21 @@
           "required": false
         },
         {
+          "flags": "--monitoring",
+          "description": "Show persisted history, threshold state, and monitoring policy",
+          "required": false
+        },
+        {
+          "flags": "--since <window>",
+          "description": "Recent history window, such as 30m, 24h, or 2w",
+          "required": false
+        },
+        {
+          "flags": "--limit <count>",
+          "description": "Maximum history samples (1-500)",
+          "required": false
+        },
+        {
           "flags": "--json",
           "description": "Output as JSON",
           "required": false

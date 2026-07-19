@@ -87,8 +87,6 @@ addApiGroup(
     "backupDestination",
     "backupMetrics",
     "backupDiagnosis",
-    "serverMetrics",
-    "serverMetricsOverview",
     "listSecretProviders",
     "validateSecretRef",
     "listPushSubscriptions",
@@ -109,6 +107,16 @@ apiProcedureAccess.accessLogs = {
   requiredRoles: READ_ROLES,
   requiredScopes: ["logs:read"]
 };
+
+addApiGroup(
+  apiProcedureAccess,
+  ["serverMetrics", "serverMetricsOverview", "serverMetricMonitoring"],
+  {
+    auth: "authenticated",
+    requiredRoles: READ_ROLES,
+    requiredScopes: ["server:read"]
+  }
+);
 
 addApiGroup(
   apiProcedureAccess,
@@ -274,6 +282,7 @@ addApiGroup(
     "registerServer",
     "deleteServer",
     "configureServerCapacity",
+    "configureServerMetricPolicy",
     "configureServerManagedTraefikProxy",
     "previewServerCleanup",
     "runServerCleanup",

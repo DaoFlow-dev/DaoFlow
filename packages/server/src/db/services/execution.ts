@@ -244,6 +244,7 @@ async function mutateDeploymentStatus(
           : newStatus === "completed"
             ? "deploy.succeeded"
             : "deploy.failed",
+      teamId,
       status:
         newStatus === "deploy" ? "started" : newStatus === "completed" ? "succeeded" : "failed",
       deploymentId: jobId,

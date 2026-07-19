@@ -50,6 +50,8 @@ Most operators edit only these values:
 | `DAOFLOW_APPROVAL_DISPATCH_MAX_ATTEMPTS`             | `12`                          | Automatic submission attempts before a dispatch reaches terminal failure                            |
 | `DAOFLOW_APPROVAL_DISPATCH_RETRY_BASE_MS`            | `1000`                        | Initial full-jitter retry window for a temporary submission failure                                 |
 | `DAOFLOW_APPROVAL_DISPATCH_RETRY_MAX_MS`             | `300000`                      | Maximum full-jitter retry window for a temporary submission failure                                 |
+| `SERVER_METRICS_MONITOR_POLL_INTERVAL_MS`            | `15000`                       | Poll interval for selecting servers whose metric policy is due                                      |
+| `SERVER_METRICS_MONITOR_CONCURRENCY`                 | `4`                           | Maximum concurrent read-only server metric collections, from 1 to 16                                |
 | `DAOFLOW_CONTROL_PLANE_RECOVERY_VERIFIER_STORAGE_MB` | `4096`                        | Storage and memory ceiling for each isolated recovery verifier                                      |
 | `POSTGRES_PASSWORD`                                  | —                             | Password for the DaoFlow application database                                                       |
 | `TEMPORAL_POSTGRES_PASSWORD`                         | —                             | Password for Temporal's Postgres database                                                           |

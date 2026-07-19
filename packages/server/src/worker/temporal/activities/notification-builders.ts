@@ -13,6 +13,7 @@ import type { NotificationPayload } from "./notification-sender-types";
  */
 export function buildBackupNotification(opts: {
   eventType: NotificationPayload["eventType"];
+  teamId: string;
   policyName: string;
   projectName?: string;
   environmentName?: string;
@@ -51,6 +52,7 @@ export function buildBackupNotification(opts: {
 
   return Promise.resolve({
     eventType: opts.eventType,
+    teamId: opts.teamId,
     title: `Backup ${opts.status}: ${opts.policyName}`,
     message:
       opts.status === "failed"
@@ -69,6 +71,7 @@ export function buildBackupNotification(opts: {
 
 export function buildDeployNotification(opts: {
   eventType: NotificationPayload["eventType"];
+  teamId: string;
   projectName: string;
   environmentName: string;
   serviceName: string;
@@ -116,6 +119,7 @@ export function buildDeployNotification(opts: {
 
   return Promise.resolve({
     eventType: opts.eventType,
+    teamId: opts.teamId,
     title: `Deploy ${opts.status}: ${opts.serviceName}`,
     message,
     severity: severityMap[opts.status],
@@ -129,6 +133,7 @@ export function buildDeployNotification(opts: {
 
 export function buildApprovalNotification(opts: {
   eventType: NotificationPayload["eventType"];
+  teamId: string;
   status: "requested" | "approved" | "rejected";
   requestId: string;
   actionType: string;
@@ -168,6 +173,7 @@ export function buildApprovalNotification(opts: {
 
   return Promise.resolve({
     eventType: opts.eventType,
+    teamId: opts.teamId,
     title: `Approval ${verb}: ${opts.resourceLabel}`,
     message: `Approval was ${verb} for *${opts.resourceLabel}*.`,
     severity: severityMap[opts.status],
@@ -176,9 +182,92 @@ export function buildApprovalNotification(opts: {
   });
 }
 
-export function buildTestNotification(): Promise<NotificationPayload> {
+export function buildServerMetricNotification(opts: {
+  eventType:
+    | "server.metrics.warning"
+    | "server.metrics.hard"
+    | "server.metrics.recovered"
+    | "server.metrics.unreachable";
+  serverName: string;
+  teamId: string;
+  metric: string | null;
+  measuredValue: number | null;
+  threshold: number | null;
+  observedAt: string;
+  nextState: "healthy" | "warning" | "hard" | "unreachable";
+  error?: string | null;
+}): Promise<NotificationPayload> {
+  const status = opts.eventType.split(".").at(-1) ?? "changed";
+  const severity =
+    status === "recovered"
+      ? ("success" as const)
+      : status === "warning"
+        ? ("warning" as const)
+        : ("error" as const);
+  const fields: NotificationPayload["fields"] = [
+    { name: "Server", value: opts.serverName, inline: true },
+    { name: "Observed", value: opts.observedAt, inline: true }
+  ];
+
+  if (opts.metric) {
+    fields.push({ name: "Metric", value: opts.metric, inline: true });
+  }
+  if (opts.measuredValue !== null) {
+    fields.push({ name: "Measured", value: `${opts.measuredValue.toFixed(1)}%`, inline: true });
+  }
+  if (opts.threshold !== null) {
+    fields.push({ name: "Threshold", value: `${opts.threshold.toFixed(1)}%`, inline: true });
+  }
+  if (opts.error) {
+    fields.push({ name: "Error", value: opts.error.slice(0, 200), inline: false });
+  }
+
+  return Promise.resolve({
+    eventType: opts.eventType,
+    teamId: opts.teamId,
+    title: `Server metrics ${status}: ${opts.serverName}`,
+    message:
+      status === "recovered"
+        ? opts.metric
+          ? buildMetricRecoveryMessage(opts.serverName, opts.metric, opts.nextState)
+          : buildAvailabilityRecoveryMessage(opts.serverName, opts.nextState)
+        : status === "unreachable"
+          ? `Server *${opts.serverName}* could not be reached for metric collection.`
+          : `Server *${opts.serverName}* crossed a ${status} metric threshold.`,
+    severity,
+    fields,
+    timestamp: opts.observedAt
+  });
+}
+
+function buildAvailabilityRecoveryMessage(
+  serverName: string,
+  nextState: "healthy" | "warning" | "hard" | "unreachable" | undefined
+) {
+  if (nextState === "warning" || nextState === "hard") {
+    return `Server *${serverName}* became reachable again, but metrics remain in a ${nextState} state.`;
+  }
+  if (nextState === "healthy") {
+    return `Server *${serverName}* became reachable again and metrics are healthy.`;
+  }
+  return `Server *${serverName}* became reachable again.`;
+}
+
+function buildMetricRecoveryMessage(
+  serverName: string,
+  metric: string,
+  nextState: "healthy" | "warning" | "hard" | "unreachable"
+) {
+  if (nextState === "warning" || nextState === "hard") {
+    return `Server *${serverName}* ${metric} recovered below its threshold, but other metrics remain in a ${nextState} state.`;
+  }
+  return `Server *${serverName}* ${metric} recovered below its threshold.`;
+}
+
+export function buildTestNotification(teamId: string): Promise<NotificationPayload> {
   return Promise.resolve({
     eventType: "system.test",
+    teamId,
     title: "Notification channel test",
     message: "DaoFlow successfully dispatched a test notification to this channel.",
     severity: "info",

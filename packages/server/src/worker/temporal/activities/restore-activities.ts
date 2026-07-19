@@ -48,6 +48,7 @@ export type RestoreInput = RestoreWorkflowInput;
 export interface RestoreResolved {
   restoreId: string;
   runId: string;
+  teamId: string;
   artifactPath: string;
   /** Non-secret reference; credentials are loaded only by restore activities. */
   destinationId: string;
@@ -124,7 +125,7 @@ export async function resolveRestoreContext(input: RestoreInput): Promise<Restor
     policy.destinationId
   );
   if (!destinationScope) return null;
-  const { destination } = destinationScope;
+  const { teamId, destination } = destinationScope;
 
   const backupType = policy.backupType ?? "volume";
   const volumeMetadata = volume.metadata;
@@ -181,6 +182,7 @@ export async function resolveRestoreContext(input: RestoreInput): Promise<Restor
   return {
     restoreId,
     runId: run.id,
+    teamId,
     artifactPath: run.artifactPath,
     destinationId: destination.id,
     volumeId: volume.id,

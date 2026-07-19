@@ -948,6 +948,97 @@
       }
     },
     {
+      "name": "configureServerMetricPolicy",
+      "summary": "configure Server Metric Policy",
+      "path": "/trpc/configureServerMetricPolicy",
+      "method": "POST",
+      "lane": "command",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin"],
+      "requiredScopes": ["server:write"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "serverId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32
+          },
+          "sampleIntervalSeconds": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 86400
+          },
+          "retentionDays": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 3650
+          },
+          "cpuWarnPercent": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "cpuHardPercent": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "memoryWarnPercent": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "memoryHardPercent": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "diskWarnPercent": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "diskHardPercent": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "dockerDiskWarnPercent": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "dockerDiskHardPercent": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "cooldownMinutes": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1440
+          }
+        },
+        "required": [
+          "serverId",
+          "sampleIntervalSeconds",
+          "retentionDays",
+          "cpuWarnPercent",
+          "cpuHardPercent",
+          "memoryWarnPercent",
+          "memoryHardPercent",
+          "diskWarnPercent",
+          "diskHardPercent",
+          "dockerDiskWarnPercent",
+          "dockerDiskHardPercent",
+          "cooldownMinutes"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "containerRegistries",
       "summary": "container Registries",
       "path": "/trpc/containerRegistries",
@@ -4532,21 +4623,54 @@
       }
     },
     {
-      "name": "serverMetrics",
-      "summary": "server Metrics",
-      "path": "/trpc/serverMetrics",
+      "name": "serverMetricMonitoring",
+      "summary": "server Metric Monitoring",
+      "path": "/trpc/serverMetricMonitoring",
       "method": "GET",
       "lane": "read",
       "auth": "authenticated",
-      "requiredRoles": [],
-      "requiredScopes": [],
+      "requiredRoles": ["owner", "admin", "operator", "developer", "viewer", "agent"],
+      "requiredScopes": ["server:read"],
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
         "properties": {
           "serverId": {
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "maxLength": 32
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 500
+          },
+          "since": {
+            "type": "string",
+            "pattern": "^([1-9]\\d*)([mhdw])$"
+          }
+        },
+        "required": ["serverId"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "serverMetrics",
+      "summary": "server Metrics",
+      "path": "/trpc/serverMetrics",
+      "method": "GET",
+      "lane": "read",
+      "auth": "authenticated",
+      "requiredRoles": ["owner", "admin", "operator", "developer", "viewer", "agent"],
+      "requiredScopes": ["server:read"],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "serverId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32
           },
           "limit": {
             "type": "integer",
@@ -4569,8 +4693,8 @@
       "method": "GET",
       "lane": "read",
       "auth": "authenticated",
-      "requiredRoles": [],
-      "requiredScopes": [],
+      "requiredRoles": ["owner", "admin", "operator", "developer", "viewer", "agent"],
+      "requiredScopes": ["server:read"],
       "inputSchema": null
     },
     {

@@ -1,6 +1,8 @@
 import type { NotificationEventType } from "../../../db/schema/notifications";
 
 export interface NotificationPayload {
+  /** Required team scope for channel and subscription routing. */
+  teamId: string;
   eventType: NotificationEventType;
   title: string;
   message: string;
