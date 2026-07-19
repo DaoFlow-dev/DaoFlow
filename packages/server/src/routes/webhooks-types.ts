@@ -132,6 +132,34 @@ export interface WebhookIgnoredTarget {
   matchedPaths?: string[];
 }
 
+export type WebhookPushTargetOutcome =
+  | {
+      targetKey: string;
+      status: "queued";
+      projectId: string;
+      projectName: string;
+      serviceId: string;
+      deploymentId: string;
+    }
+  | {
+      targetKey: string;
+      status: "failed";
+      projectId: string;
+      projectName: string;
+      serviceId: string;
+      failureStatus: string;
+      entity?: string;
+      message?: string;
+    }
+  | {
+      targetKey: string;
+      status: "ignored" | "deduped";
+      projectId: string;
+      projectName: string;
+      serviceId?: string;
+      reason: string;
+    };
+
 export type WebhookTarget = {
   project: typeof projects.$inferSelect;
   provider: typeof gitProviders.$inferSelect;

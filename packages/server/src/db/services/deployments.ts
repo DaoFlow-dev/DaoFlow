@@ -48,6 +48,10 @@ export interface CreateDeploymentInput {
   requestedByEmail?: string | null;
   requestedByRole?: AppRole | null;
   commandAuditAttemptId?: string;
+  webhookDelivery?: {
+    deliveryId: string;
+    targetKey: string;
+  };
   teamId: string;
   trigger?: DeploymentTrigger;
   steps: readonly { label: string; detail: string }[];
@@ -140,6 +144,8 @@ export async function createDeploymentRecord(input: CreateDeploymentInput) {
       envVarsEncrypted: input.envVarsEncrypted ?? null,
       status: "queued",
       trigger: input.trigger ?? "user",
+      webhookDeliveryId: input.webhookDelivery?.deliveryId ?? null,
+      webhookTargetKey: input.webhookDelivery?.targetKey ?? null,
       requestedByUserId: input.requestedByUserId ?? null,
       requestedByEmail: input.requestedByEmail ?? null,
       requestedByRole: input.requestedByRole ?? null,

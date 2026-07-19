@@ -1,73 +1,25 @@
-import { and, eq } from "drizzle-orm";
-import { db } from "../db/connection";
-import { services } from "../db/schema/services";
 import type { WebhookDeliveryProviderType } from "../db/services/webhook-deliveries";
-import { triggerDeploy } from "../db/services/trigger-deploy";
 import { matchWebhookWatchedPaths, readWebhookAutoDeployConfig } from "../webhook-auto-deploy";
 import { triggerBranchPreviewWebhookDeploys } from "./webhooks-branch-previews";
 import { writeWebhookProjectEvent } from "./webhooks-delivery";
+import { triggerWebhookDeploys } from "./webhook-push-deployments";
+import type { WebhookTargetCallbacks } from "./webhook-push-target-callbacks";
+import { webhookProjectTargetKey } from "./webhook-target-keys";
 import type { WebhookDeployFailure, WebhookIgnoredTarget, WebhookTarget } from "./webhooks-types";
 
-export async function triggerWebhookDeploys(input: {
-  projectId: string;
-  projectName: string;
-  commitSha: string;
-  requestedByEmail: string;
-}) {
-  const matchingServices = await db
-    .select({ id: services.id })
-    .from(services)
-    .where(and(eq(services.projectId, input.projectId), eq(services.sourceType, "compose")));
-
-  const queuedDeployments = [];
-  const failures: WebhookDeployFailure[] = [];
-
-  for (const service of matchingServices) {
-    const result = await triggerDeploy({
-      serviceId: service.id,
-      commitSha: input.commitSha,
-      requestedByUserId: null,
-      requestedByEmail: input.requestedByEmail,
-      requestedByRole: "agent",
-      trigger: "webhook"
-    });
-
-    if (result.status === "ok" && result.deployment) {
-      queuedDeployments.push(result.deployment);
-      continue;
-    }
-
-    failures.push({
-      projectId: input.projectId,
-      projectName: input.projectName,
-      serviceId: service.id,
-      status: result.status,
-      entity: result.status === "not_found" ? result.entity : undefined,
-      message:
-        result.status === "invalid_source" || result.status === "provider_unavailable"
-          ? result.message
-          : undefined
-    });
-  }
-
-  return {
-    deployments: queuedDeployments,
-    failures,
-    matchedServiceCount: matchingServices.length
-  };
-}
-
-export async function processWebhookPushTargets(input: {
-  providerType: WebhookDeliveryProviderType;
-  repoFullName: string;
-  branch: string;
-  commitSha: string;
-  changedPaths: string[];
-  deleted?: boolean;
-  requestedByEmail: string;
-  matchingTargets: WebhookTarget[];
-  deliveryKey: string;
-}) {
+export async function processWebhookPushTargets(
+  input: {
+    providerType: WebhookDeliveryProviderType;
+    repoFullName: string;
+    branch: string;
+    commitSha: string;
+    changedPaths: string[];
+    deleted?: boolean;
+    requestedByEmail: string;
+    matchingTargets: WebhookTarget[];
+    deliveryKey: string;
+  } & WebhookTargetCallbacks
+) {
   const deployments = [];
   const failedTargets: WebhookDeployFailure[] = [];
   const ignoredTargets: WebhookIgnoredTarget[] = [];
@@ -83,7 +35,12 @@ export async function processWebhookPushTargets(input: {
         action: input.deleted === true ? "destroy" : "deploy",
         commitSha: input.commitSha,
         requestedByEmail: input.requestedByEmail,
-        deliveryKey: input.deliveryKey
+        deliveryKey: input.deliveryKey,
+        shouldProcessTarget: input.shouldProcessTarget,
+        onTargetStarted: input.onTargetStarted,
+        onTargetOutcome: input.onTargetOutcome,
+        webhookDeliveryId: input.webhookDeliveryId,
+        findRecoveredDeployment: input.findRecoveredDeployment
       });
 
       if (previewResult.handled) {
@@ -99,6 +56,15 @@ export async function processWebhookPushTargets(input: {
         branch: input.branch,
         targetBranch
       };
+      const targetKey = webhookProjectTargetKey(project.id);
+      if (input.shouldProcessTarget && !input.shouldProcessTarget(targetKey)) {
+        continue;
+      }
+      await input.onTargetStarted?.({
+        targetKey,
+        projectId: project.id,
+        projectName: project.name
+      });
       ignoredTargets.push(ignoredTarget);
       await writeWebhookProjectEvent({
         projectId: project.id,
@@ -114,6 +80,13 @@ export async function processWebhookPushTargets(input: {
           reason: ignoredTarget.reason,
           deliveryKey: input.deliveryKey
         }
+      });
+      await input.onTargetOutcome?.({
+        targetKey,
+        status: "ignored",
+        projectId: project.id,
+        projectName: project.name,
+        reason: ignoredTarget.reason
       });
       continue;
     }
@@ -135,6 +108,15 @@ export async function processWebhookPushTargets(input: {
         changedPaths: input.changedPaths,
         matchedPaths: pathMatch.matchedPaths
       };
+      const targetKey = webhookProjectTargetKey(project.id);
+      if (input.shouldProcessTarget && !input.shouldProcessTarget(targetKey)) {
+        continue;
+      }
+      await input.onTargetStarted?.({
+        targetKey,
+        projectId: project.id,
+        projectName: project.name
+      });
       ignoredTargets.push(ignoredTarget);
       await writeWebhookProjectEvent({
         projectId: project.id,
@@ -152,6 +134,13 @@ export async function processWebhookPushTargets(input: {
           deliveryKey: input.deliveryKey
         }
       });
+      await input.onTargetOutcome?.({
+        targetKey,
+        status: "ignored",
+        projectId: project.id,
+        projectName: project.name,
+        reason: ignoredTarget.reason
+      });
       continue;
     }
 
@@ -159,7 +148,12 @@ export async function processWebhookPushTargets(input: {
       projectId: project.id,
       projectName: project.name,
       commitSha: input.commitSha,
-      requestedByEmail: input.requestedByEmail
+      requestedByEmail: input.requestedByEmail,
+      shouldProcessTarget: input.shouldProcessTarget,
+      onTargetStarted: input.onTargetStarted,
+      onTargetOutcome: input.onTargetOutcome,
+      webhookDeliveryId: input.webhookDeliveryId,
+      findRecoveredDeployment: input.findRecoveredDeployment
     });
 
     if (projectResult.matchedServiceCount === 0) {
@@ -170,6 +164,15 @@ export async function processWebhookPushTargets(input: {
         branch: input.branch,
         targetBranch
       };
+      const targetKey = webhookProjectTargetKey(project.id);
+      if (input.shouldProcessTarget && !input.shouldProcessTarget(targetKey)) {
+        continue;
+      }
+      await input.onTargetStarted?.({
+        targetKey,
+        projectId: project.id,
+        projectName: project.name
+      });
       ignoredTargets.push(ignoredTarget);
       await writeWebhookProjectEvent({
         projectId: project.id,
@@ -184,6 +187,13 @@ export async function processWebhookPushTargets(input: {
           reason: ignoredTarget.reason,
           deliveryKey: input.deliveryKey
         }
+      });
+      await input.onTargetOutcome?.({
+        targetKey,
+        status: "ignored",
+        projectId: project.id,
+        projectName: project.name,
+        reason: ignoredTarget.reason
       });
       continue;
     }

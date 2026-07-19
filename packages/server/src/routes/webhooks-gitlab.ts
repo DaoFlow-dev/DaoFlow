@@ -1,9 +1,8 @@
 import type { Context } from "hono";
-import { claimWebhookDelivery, finalizeWebhookDelivery } from "../db/services/webhook-deliveries";
+import { buildWebhookDeliveryKey as buildTransportDeliveryKey } from "../db/services/webhook-deliveries";
 import { buildWebhookDeliveryKey, readGitLabPreviewLifecycle } from "../webhook-preview-lifecycle";
 import {
   collectChangedPaths,
-  determineWebhookDeliveryStatus,
   verifyGitLabToken,
   writeWebhookAuditEntry
 } from "./webhooks-delivery";
@@ -14,12 +13,14 @@ import {
   readGitLabDevelopmentTaskTrigger
 } from "./webhooks-development-tasks-gitlab";
 import { processWebhookPushTargets } from "./webhooks-push";
+import { discoverWebhookPushTargetKeys } from "./webhook-push-target-discovery";
+import {
+  claimRecoverableWebhookDelivery,
+  createWebhookPushRecoveryContext
+} from "./webhook-push-recovery";
+import { respondToNonActiveWebhookClaim } from "./webhook-push-claim-response";
 import { triggerPreviewWebhookDeploys } from "./webhooks-preview";
 import type { GitLabPushEvent, WebhookTarget } from "./webhooks-types";
-
-function summarizeCommit(commitSha: string) {
-  return commitSha ? commitSha.slice(0, 7) : "unknown";
-}
 
 function normalizeOrigin(value?: string | null) {
   if (!value) {
@@ -51,9 +52,7 @@ function filterGitLabTargetsByPayloadOrigin(targets: WebhookTarget[], payload: G
 }
 
 export async function handleGitLabWebhook(c: Context) {
-  let claimedDelivery: {
-    deliveryKey: string;
-  } | null = null;
+  let recoveryContext: Awaited<ReturnType<typeof createWebhookPushRecoveryContext>> | null = null;
 
   try {
     const token = c.req.header("x-gitlab-token");
@@ -164,11 +163,18 @@ export async function handleGitLabWebhook(c: Context) {
     const commitSha = payload.checkout_sha ?? payload.after ?? "";
     const changedPaths = collectChangedPaths(payload.commits);
     const requestedByEmail = payload.user_name ?? "gitlab-webhook";
-    const deliveryClaim = await claimWebhookDelivery({
+    const { deliveryKey } = buildTransportDeliveryKey({
       providerType: "gitlab",
       eventType: "push",
       rawBody,
-      deliveryId,
+      deliveryId
+    });
+    const deliveryClaim = await claimRecoverableWebhookDelivery({
+      providerType: "gitlab",
+      eventType: "push",
+      deliveryKey,
+      providerDeliveryId: deliveryId,
+      rawBody,
       repoFullName,
       commitSha,
       metadata: {
@@ -179,28 +185,38 @@ export async function handleGitLabWebhook(c: Context) {
       }
     });
 
-    claimedDelivery = {
-      deliveryKey: deliveryClaim.deliveryKey
-    };
-
-    if (deliveryClaim.status === "duplicate") {
-      await writeWebhookAuditEntry({
+    if (deliveryClaim.kind !== "new" && deliveryClaim.kind !== "reclaimed") {
+      return respondToNonActiveWebhookClaim({
+        context: c,
+        claim: deliveryClaim,
         providerType: "gitlab",
         repoFullName,
+        branch,
+        commitSha,
         actorId: "gitlab-webhook",
         actorEmail: requestedByEmail,
-        action: "webhook.delivery.duplicate",
-        inputSummary: `Ignored duplicate GitLab push delivery for ${branch}@${summarizeCommit(commitSha)}`,
-        outcome: "success",
-        metadata: {
-          repoFullName,
-          branch,
-          commitSha,
-          deliveryId: deliveryId ?? null,
-          deliveryKey: deliveryClaim.deliveryKey
-        }
+        providerDeliveryId: deliveryId,
+        deliveryKey
       });
-      return c.json({ ok: true, skipped: true, reason: "duplicate delivery" });
+    }
+
+    recoveryContext = await createWebhookPushRecoveryContext(deliveryClaim);
+    await recoveryContext.registerDiscoveredTargets(
+      await discoverWebhookPushTargetKeys({
+        branch,
+        changedPaths,
+        matchingTargets: verifiedTargets
+      })
+    );
+
+    if (recoveryContext.hasNoWork) {
+      await recoveryContext.complete({
+        deploymentCount: 0,
+        failedTargetCount: 0,
+        ignoredTargetCount: 0,
+        detail: "Recovered webhook delivery finalization without replaying completed targets."
+      });
+      return c.json({ ok: true, skipped: true, reason: "delivery targets already completed" });
     }
 
     const result = await processWebhookPushTargets({
@@ -211,30 +227,39 @@ export async function handleGitLabWebhook(c: Context) {
       changedPaths,
       requestedByEmail,
       matchingTargets: verifiedTargets,
-      deliveryKey: deliveryClaim.deliveryKey
+      deliveryKey,
+      shouldProcessTarget: recoveryContext.shouldProcessTarget.bind(recoveryContext),
+      onTargetStarted: recoveryContext.onTargetStarted.bind(recoveryContext),
+      onTargetOutcome: recoveryContext.onTargetOutcome.bind(recoveryContext),
+      webhookDeliveryId: recoveryContext.deliveryId,
+      findRecoveredDeployment: recoveryContext.findRecoveredDeployment.bind(recoveryContext)
     });
 
+    const safeFailedTargets = result.failedTargets.map((target) => ({
+      projectId: target.projectId,
+      projectName: target.projectName,
+      serviceId: target.serviceId,
+      status: target.status,
+      entity: target.entity
+    }));
     const metadata = {
       repoFullName,
       branch,
       commitSha,
       deliveryId: deliveryId ?? null,
-      deliveryKey: deliveryClaim.deliveryKey,
+      deliveryKey,
       deploymentCount: result.deployments.length,
       failedTargetCount: result.failedTargets.length,
       ignoredTargetCount: result.ignoredTargets.length,
-      failedTargets: result.failedTargets,
+      failedTargets: safeFailedTargets,
       ignoredTargets: result.ignoredTargets,
       changedPaths
     };
-    await finalizeWebhookDelivery({
-      providerType: "gitlab",
-      deliveryKey: deliveryClaim.deliveryKey,
-      status: determineWebhookDeliveryStatus({
-        deploymentCount: result.deployments.length,
-        failedTargetCount: result.failedTargets.length
-      }),
-      metadata
+    await recoveryContext.complete({
+      deploymentCount: result.deployments.length,
+      failedTargetCount: result.failedTargets.length,
+      ignoredTargetCount: result.ignoredTargets.length,
+      detail: `Processed GitLab push with ${result.deployments.length} queued, ${result.failedTargets.length} failed, and ${result.ignoredTargets.length} ignored targets.`
     });
 
     if (result.failedTargets.length > 0) {
@@ -270,18 +295,14 @@ export async function handleGitLabWebhook(c: Context) {
       commit: commitSha.slice(0, 7)
     });
   } catch (err) {
-    if (claimedDelivery) {
-      await finalizeWebhookDelivery({
-        providerType: "gitlab",
-        deliveryKey: claimedDelivery.deliveryKey,
-        status: "failed",
-        metadata: {
-          error: err instanceof Error ? err.message : String(err)
-        }
-      });
+    if (recoveryContext) {
+      await recoveryContext.fail().catch(() => undefined);
     }
 
-    console.error("[webhook/gitlab] Error:", err);
+    console.error(
+      "[webhook/gitlab] Webhook processing failed.",
+      err instanceof Error ? err.name : "UnknownError"
+    );
     return c.json({ ok: false, error: "Internal error" }, 500);
   }
 }

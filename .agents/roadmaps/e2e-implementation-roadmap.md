@@ -290,9 +290,12 @@ not mistaken for finished work.
 - **Remote-SSH deploy, rollback, and backup/restore are unverified against real
   infrastructure.** See the coverage reference above.
 - **GitHub and GitLab production parity still requires end-to-end proof.** The
-  provider, webhook, preview trust, and deployment surfaces exist, but both
-  providers still need a recorded real-repository run proving exact revision
-  selection, status reporting, retry behavior, and safe credential handling.
+  provider, webhook, preview trust, and deployment surfaces exist. Push delivery
+  retries now use payload-bound identities, expiring attempts, a complete target
+  ledger, and unique delivery-target deployment keys, with recent outcomes visible
+  in the Git provider screen. Both providers still need a recorded real-repository
+  run proving exact revision selection, provider-native status reporting, retry
+  behavior, and safe credential handling.
 - **Command audit entry coverage is enforced; terminal reconciliation is partial.**
   Command mutations persist a safe intent before parsing or authorization, and a
   router coverage test rejects new mutations that bypass the boundary. Immutable

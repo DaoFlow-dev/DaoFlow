@@ -35,6 +35,7 @@
     "skills:check": "node ./scripts/check-skills.mjs",
     "test": "bun run verify",
     "test:unit": "bun --filter @daoflow/server test && bun --filter @daoflow/client test && bun --filter @daoflow/cli test && bun --filter @daoflow/mcp test",
+    "test:webhook-recovery": "bun run --filter @daoflow/server test -- db/services/webhook-delivery-recovery.test.ts db/services/webhook-delivery-recovery-legacy.test.ts db/services/webhook-delivery-recovery-ledger.test.ts db/services/webhook-delivery-recovery-read.test.ts routes/webhook-push-recovery.test.ts webhook-delivery-recovery-routes.test.ts webhooks.test.ts trigger-deploy-source-revalidation.test.ts && bun run --filter @daoflow/client test -- GitProvidersTab.test.tsx tone-utils.test.ts",
     "test:e2e": "bun run test:e2e:main && bun run test:e2e:bootstrap && bun run test:e2e:cli",
     "test:e2e:main": "sh ./scripts/run-e2e-main.sh",
     "test:e2e:bootstrap": "sh ./scripts/run-e2e-bootstrap.sh",

@@ -110,11 +110,15 @@ apiProcedureAccess.accessLogs = {
   requiredScopes: ["logs:read"]
 };
 
-addApiGroup(apiProcedureAccess, ["managedDatabaseCatalog", "managedDatabases"], {
-  auth: "authenticated",
-  requiredRoles: READ_ROLES,
-  requiredScopes: ["deploy:read"]
-});
+addApiGroup(
+  apiProcedureAccess,
+  ["managedDatabaseCatalog", "managedDatabases", "webhookDeliveries"],
+  {
+    auth: "authenticated",
+    requiredRoles: READ_ROLES,
+    requiredScopes: ["deploy:read"]
+  }
+);
 
 addApiGroup(apiProcedureAccess, ["serviceSchedules", "serviceScheduleRuns"], {
   auth: "authenticated",

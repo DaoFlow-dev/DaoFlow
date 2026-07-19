@@ -62,6 +62,10 @@ export interface TriggerDeployInput {
   requestedByEmail?: string | null;
   requestedByRole?: AppRole | null;
   commandAuditAttemptId?: string;
+  webhookDelivery?: {
+    deliveryId: string;
+    targetKey: string;
+  };
   trigger?: DeploymentTrigger;
 }
 
@@ -265,6 +269,9 @@ export async function triggerDeploy(input: TriggerDeployInput) {
   const configSnapshot: Record<string, unknown> = composeProjectHasRepositorySource
     ? buildRepositorySourceSnapshot(project)
     : {};
+  if (input.webhookDelivery) {
+    configSnapshot.webhookDelivery = input.webhookDelivery;
+  }
   let envVarsEncrypted: string | null = null;
   let replayedComposeDeployment: typeof deployments.$inferSelect | null = null;
   let previewMetadata: ReturnType<typeof deriveComposePreviewMetadata> | null = null;
@@ -432,6 +439,7 @@ export async function triggerDeploy(input: TriggerDeployInput) {
     requestedByRole: input.requestedByRole ?? null,
     teamId: project.teamId,
     commandAuditAttemptId: input.commandAuditAttemptId,
+    webhookDelivery: input.webhookDelivery,
     trigger: input.trigger ?? "user",
     steps: stepsForSourceType({
       sourceType: svc.sourceType,

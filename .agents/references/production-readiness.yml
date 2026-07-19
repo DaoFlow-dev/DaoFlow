@@ -64,6 +64,24 @@ claims:
         path: scripts/readiness/api-lanes.test.mjs
         max_age_days: 30
 
+  - id: webhook-delivery-recovery
+    title: Source-control webhook delivery recovery
+    status: verified
+    public_text: >-
+      **Verified in this repository:** GitHub and GitLab push deliveries are authenticated before entering a payload-bound recovery ledger. Expiring attempt leases and per-target outcomes allow only failed or interrupted targets to retry, while unique delivery-target keys prevent duplicate deployment records. Operators can inspect recent delivery outcomes without raw webhook bodies, signatures, or provider tokens. See the [webhook recovery tests](https://github.com/DaoFlow-dev/DaoFlow/blob/main/packages/server/src/db/services/webhook-delivery-recovery.test.ts).
+    public_evidence_citation: packages/server/src/db/services/webhook-delivery-recovery.test.ts
+    sources:
+      - path: docs/docs/concepts/vision.md
+    evidence_requirements:
+      - category: contract
+        max_age_days: 30
+    evidence:
+      - kind: test
+        category: contract
+        gate: webhook-recovery
+        path: packages/server/src/db/services/webhook-delivery-recovery.test.ts
+        max_age_days: 30
+
   - id: compose-lifecycle-evidence
     title: Compose lifecycle evidence
     status: unverified

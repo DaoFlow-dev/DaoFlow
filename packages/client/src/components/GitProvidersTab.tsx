@@ -5,7 +5,7 @@ import { useSession } from "@/lib/auth-client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { GitBranch, Plus, Trash2, ExternalLink, Github } from "lucide-react";
+import { GitBranch, Plus, Trash2, ExternalLink, Github, Webhook } from "lucide-react";
 import { getInventoryBadgeVariant } from "../lib/tone-utils";
 import { GitHubProviderDialog } from "./git-providers/GitHubProviderDialog";
 import { GitLabProviderDialog } from "./git-providers/GitLabProviderDialog";
@@ -16,6 +16,10 @@ export default function GitProvidersTab() {
   const [searchParams, setSearchParams] = useSearchParams();
   const session = useSession();
   const providers = trpc.gitProviders.useQuery(undefined, { enabled: Boolean(session.data) });
+  const webhookDeliveries = trpc.webhookDeliveries.useQuery(
+    { limit: 20 },
+    { enabled: Boolean(session.data) }
+  );
 
   const gitSetup = searchParams.get("git_setup");
   const gitError = searchParams.get("git_error");
@@ -105,6 +109,8 @@ export default function GitProvidersTab() {
         </div>
       )}
 
+      <WebhookDeliveryHistory deliveries={webhookDeliveries.data ?? []} />
+
       <GitHubProviderDialog
         open={showGitHubDialog}
         onOpenChange={setShowGitHubDialog}
@@ -116,6 +122,98 @@ export default function GitProvidersTab() {
         onRegistered={() => void providers.refetch()}
       />
     </div>
+  );
+}
+
+function WebhookDeliveryHistory({
+  deliveries
+}: {
+  deliveries: Array<{
+    id: string;
+    providerType: string;
+    repoFullName: string | null;
+    commitSha: string | null;
+    status: string;
+    attemptCount: number;
+    lastErrorSummary: string | null;
+    lastSeenAt: Date | string;
+    attempts: Array<{
+      id: string;
+      attemptNumber: number;
+      status: string;
+      errorSummary: string | null;
+    }>;
+    targets: Array<{
+      targetKey: string;
+      status: string;
+      errorSummary: string | null;
+    }>;
+  }>;
+}) {
+  return (
+    <Card data-testid="webhook-delivery-history">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-base flex items-center gap-2">
+          <Webhook size={16} /> Recent webhook deliveries
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        {deliveries.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            No GitHub or GitLab webhook deliveries have reached this team yet.
+          </p>
+        ) : (
+          <div className="divide-y">
+            {deliveries.map((delivery) => (
+              <div key={delivery.id} className="py-3 first:pt-0 last:pb-0">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium">
+                      {delivery.repoFullName ?? "Unknown repository"}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {delivery.providerType} · {delivery.commitSha?.slice(0, 7) || "no commit"} ·{" "}
+                      {new Date(delivery.lastSeenAt).toLocaleString()}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="secondary">{delivery.attemptCount} attempt(s)</Badge>
+                    <Badge variant={getInventoryBadgeVariant(delivery.status)}>
+                      {delivery.status}
+                    </Badge>
+                  </div>
+                </div>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {delivery.attempts.map((attempt) => (
+                    <Badge
+                      key={attempt.id}
+                      variant={getInventoryBadgeVariant(attempt.status)}
+                      title={attempt.errorSummary ?? undefined}
+                    >
+                      attempt #{attempt.attemptNumber} · {attempt.status}
+                    </Badge>
+                  ))}
+                </div>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {delivery.targets.map((target) => (
+                    <Badge
+                      key={target.targetKey}
+                      variant={getInventoryBadgeVariant(target.status)}
+                      title={target.errorSummary ?? undefined}
+                    >
+                      {target.targetKey.replace(/^(project|service):/, "")} · {target.status}
+                    </Badge>
+                  ))}
+                </div>
+                {delivery.lastErrorSummary ? (
+                  <p className="mt-2 text-xs text-destructive">{delivery.lastErrorSummary}</p>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

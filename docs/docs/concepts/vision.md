@@ -32,6 +32,11 @@ position in the deployment dashboard. Queue admission is reserved before upload 
 side effects; long uploads renew that reservation while bytes are still streaming. Worker and build
 lease heartbeats keep healthy long-running deployments from being mistaken for abandoned work.
 
+{/* readiness-claim: id=webhook-delivery-recovery state=verified */}
+
+**Verified in this repository:** GitHub and GitLab push deliveries are authenticated before entering a payload-bound recovery ledger. Expiring attempt leases and per-target outcomes allow only failed or interrupted targets to retry, while unique delivery-target keys prevent duplicate deployment records. Operators can inspect recent delivery outcomes without raw webhook bodies, signatures, or provider tokens. See the [webhook recovery tests](https://github.com/DaoFlow-dev/DaoFlow/blob/main/packages/server/src/db/services/webhook-delivery-recovery.test.ts).
+{/* /readiness-claim */}
+
 DaoFlow does not yet claim full Coolify or Dokploy breadth. Provider-native commit and pull-request or
 merge-request status, dedicated build-server placement, broader dashboard recovery flows, and deeper
 retention automation remain explicit production gaps.

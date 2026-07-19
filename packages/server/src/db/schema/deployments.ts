@@ -1,8 +1,18 @@
-import { index, jsonb, pgTable, serial, text, timestamp, varchar } from "drizzle-orm/pg-core";
+import {
+  index,
+  jsonb,
+  pgTable,
+  serial,
+  text,
+  timestamp,
+  uniqueIndex,
+  varchar
+} from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { projects } from "./projects";
 import { servers } from "./servers";
 import { users } from "./users";
+import { webhookDeliveries } from "./webhook-deliveries";
 
 export const deployments = pgTable(
   "deployments",
@@ -24,6 +34,11 @@ export const deployments = pgTable(
     status: varchar("status", { length: 20 }).default("queued").notNull(), // queued | prepare | deploy | finalize | completed | failed
     conclusion: varchar("conclusion", { length: 20 }), // succeeded | failed | canceled | skipped
     trigger: varchar("trigger", { length: 20 }).default("user").notNull(), // user | webhook | api | agent
+    webhookDeliveryId: varchar("webhook_delivery_id", { length: 32 }).references(
+      () => webhookDeliveries.id,
+      { onDelete: "set null" }
+    ),
+    webhookTargetKey: varchar("webhook_target_key", { length: 80 }),
     requestedByUserId: text("requested_by_user_id").references(() => users.id, {
       onDelete: "set null"
     }),
@@ -40,6 +55,10 @@ export const deployments = pgTable(
     index("deployments_environment_id_idx").on(table.environmentId),
     index("deployments_server_id_idx").on(table.targetServerId),
     index("deployments_status_idx").on(table.status),
+    uniqueIndex("deployments_webhook_delivery_target_idx").on(
+      table.webhookDeliveryId,
+      table.webhookTargetKey
+    ),
     index("deployments_created_at_idx").on(table.createdAt)
   ]
 );

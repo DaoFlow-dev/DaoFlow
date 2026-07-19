@@ -23,6 +23,7 @@ import {
   listGitInstallationSummaries,
   listGitProviderSummaries
 } from "../db/services/git-providers";
+import { listWebhookDeliveryRecoveryForTeam } from "../db/services/webhook-delivery-recovery-read";
 import { listManagedDatabaseCatalog, listManagedDatabases } from "../db/services/managed-databases";
 import {
   getServiceReadModelForTeam,
@@ -324,6 +325,10 @@ const coreReadRouter = t.router({
   gitProviders: protectedProcedure.query(async ({ ctx }) => {
     const teamId = await requireActorTeamId(ctx.session.user.id);
     return listGitProviderSummaries(teamId);
+  }),
+  webhookDeliveries: deployReadProcedure.input(limitInput(20)).query(async ({ ctx, input }) => {
+    const teamId = await requireActorTeamId(ctx.session.user.id);
+    return listWebhookDeliveryRecoveryForTeam({ teamId, limit: input.limit ?? 20 });
   }),
   gitInstallations: protectedProcedure
     .input(z.object({ providerId: z.string().min(1).optional() }))

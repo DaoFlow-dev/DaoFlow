@@ -8,12 +8,14 @@ import GitProvidersTab from "./GitProvidersTab";
 
 const {
   gitProvidersUseQueryMock,
+  webhookDeliveriesUseQueryMock,
   registerGitProviderUseMutationMock,
   deleteGitProviderUseMutationMock,
   startGitHubAppManifestSetupUseMutationMock,
   startGitProviderSetupUseMutationMock
 } = vi.hoisted(() => ({
   gitProvidersUseQueryMock: vi.fn(),
+  webhookDeliveriesUseQueryMock: vi.fn(),
   registerGitProviderUseMutationMock: vi.fn(),
   deleteGitProviderUseMutationMock: vi.fn(),
   startGitHubAppManifestSetupUseMutationMock: vi.fn(),
@@ -32,6 +34,9 @@ vi.mock("@/lib/trpc", () => ({
   trpc: {
     gitProviders: {
       useQuery: gitProvidersUseQueryMock
+    },
+    webhookDeliveries: {
+      useQuery: webhookDeliveriesUseQueryMock
     },
     registerGitProvider: {
       useMutation: registerGitProviderUseMutationMock
@@ -60,6 +65,7 @@ describe("GitProvidersTab", () => {
       data: [],
       refetch: refetchMock
     });
+    webhookDeliveriesUseQueryMock.mockReturnValue({ data: [] });
     registerGitProviderUseMutationMock.mockReturnValue({
       isPending: false,
       mutate: registerGitProviderMutateMock
@@ -177,6 +183,58 @@ describe("GitProvidersTab", () => {
     expect(startGitProviderSetupMutateMock).toHaveBeenCalledWith({
       providerId: "provider_github"
     });
+  });
+
+  it("shows recent webhook attempt and target status", () => {
+    webhookDeliveriesUseQueryMock.mockReturnValue({
+      data: [
+        {
+          id: "delivery_1",
+          providerType: "github",
+          repoFullName: "example/production-app",
+          commitSha: "abcdef1234567890",
+          status: "partial",
+          attemptCount: 2,
+          lastErrorSummary: "One deployment target remains incomplete.",
+          lastSeenAt: new Date("2026-07-19T00:00:00.000Z"),
+          attempts: [
+            {
+              id: "attempt_2",
+              attemptNumber: 2,
+              status: "partial",
+              errorSummary: "One deployment target remains incomplete."
+            },
+            {
+              id: "attempt_1",
+              attemptNumber: 1,
+              status: "expired",
+              errorSummary: "The processing lease expired."
+            }
+          ],
+          targets: [
+            {
+              targetKey: "service:svc_api",
+              status: "completed",
+              errorSummary: null
+            },
+            {
+              targetKey: "service:svc_worker",
+              status: "failed",
+              errorSummary: "Provider validation is unavailable."
+            }
+          ]
+        }
+      ]
+    });
+
+    renderWithRouter(<GitProvidersTab />);
+
+    expect(screen.getByText("example/production-app")).toBeInTheDocument();
+    expect(screen.getByText("2 attempt(s)")).toBeInTheDocument();
+    expect(screen.getByText("attempt #2 · partial")).toBeInTheDocument();
+    expect(screen.getByText("attempt #1 · expired")).toBeInTheDocument();
+    expect(screen.getByText("svc_api · completed")).toBeInTheDocument();
+    expect(screen.getByText("svc_worker · failed")).toBeInTheDocument();
   });
 
   it("starts GitHub setup without deriving an app slug from the display name", () => {

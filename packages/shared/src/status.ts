@@ -193,6 +193,7 @@ export function normalizeInventoryStatus(status: string): StatusTone {
     status === ServerReadinessStatus.Ready ||
     status === ServerReadinessStatus.Healthy ||
     status === "active" ||
+    status === DeploymentLifecycleStatus.Completed ||
     status === DeploymentConclusion.Succeeded
   ) {
     return StatusTone.Healthy;
@@ -202,6 +203,7 @@ export function normalizeInventoryStatus(status: string): StatusTone {
     status === DeploymentConclusion.Failed ||
     status === "error" ||
     status === "offline" ||
+    status === "expired" ||
     status === "rejected" ||
     status === "revoked" ||
     status === "disconnected" ||
@@ -212,6 +214,8 @@ export function normalizeInventoryStatus(status: string): StatusTone {
 
   if (
     status === DeploymentLifecycleStatus.Running ||
+    status === "processing" ||
+    status === "partial" ||
     status === ServerReadinessStatus.Degraded ||
     status === ServerReadinessStatus.Attention
   ) {

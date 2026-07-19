@@ -6,7 +6,12 @@ import {
 } from "../db/services/webhook-deliveries";
 import { triggerDeploy } from "../db/services/trigger-deploy";
 import type { WebhookDeliveryProviderType } from "../db/services/webhook-deliveries";
-import type { WebhookDeployFailure, WebhookTarget } from "./webhooks-types";
+import type {
+  WebhookDeployFailure,
+  WebhookPushTargetOutcome,
+  WebhookTarget
+} from "./webhooks-types";
+import { webhookServiceTargetKey } from "./webhook-target-keys";
 import {
   readPreviewFailureMessage,
   shouldDeduplicatePreviewRequest,
@@ -22,6 +27,23 @@ export async function triggerBranchPreviewWebhookDeploys(input: {
   commitSha: string;
   requestedByEmail: string;
   deliveryKey: string;
+  shouldProcessTarget?: (targetKey: string) => boolean;
+  onTargetStarted?: (input: {
+    targetKey: string;
+    projectId: string;
+    projectName: string;
+    serviceId?: string;
+  }) => Promise<void>;
+  onTargetOutcome?: (outcome: WebhookPushTargetOutcome) => Promise<void>;
+  webhookDeliveryId?: string;
+  findRecoveredDeployment?: (targetKey: string) => Promise<{
+    id: string;
+    serviceName: string;
+    sourceType: string;
+    imageTag: string | null;
+    commitSha: string | null;
+    configSnapshot: unknown;
+  } | null>;
 }) {
   const { project } = input.projectTarget;
   const previewRequest = normalizeComposePreviewRequest({
@@ -43,6 +65,32 @@ export async function triggerBranchPreviewWebhookDeploys(input: {
   const failures: WebhookDeployFailure[] = [];
 
   for (const service of eligibleServices) {
+    const targetKey = webhookServiceTargetKey(service.id);
+    if (input.shouldProcessTarget && !input.shouldProcessTarget(targetKey)) {
+      continue;
+    }
+
+    await input.onTargetStarted?.({
+      targetKey,
+      projectId: project.id,
+      projectName: project.name,
+      serviceId: service.id
+    });
+
+    const recoveredDeployment = await input.findRecoveredDeployment?.(targetKey);
+    if (recoveredDeployment) {
+      deployments.push(recoveredDeployment);
+      await input.onTargetOutcome?.({
+        targetKey,
+        status: "queued",
+        projectId: project.id,
+        projectName: project.name,
+        serviceId: service.id,
+        deploymentId: recoveredDeployment.id
+      });
+      continue;
+    }
+
     const latestDeployment = await findLatestPreviewDeploymentForService({
       projectId: service.projectId,
       environmentId: service.environmentId,
@@ -76,6 +124,14 @@ export async function triggerBranchPreviewWebhookDeploys(input: {
           source: "branch-preview-dedupe"
         }
       });
+      await input.onTargetOutcome?.({
+        targetKey,
+        status: "deduped",
+        projectId: project.id,
+        projectName: project.name,
+        serviceId: service.id,
+        reason: "preview_already_represented"
+      });
       continue;
     }
 
@@ -91,6 +147,9 @@ export async function triggerBranchPreviewWebhookDeploys(input: {
       requestedByUserId: null,
       requestedByEmail: input.requestedByEmail,
       requestedByRole: "agent",
+      webhookDelivery: input.webhookDeliveryId
+        ? { deliveryId: input.webhookDeliveryId, targetKey }
+        : undefined,
       trigger: "webhook"
     });
 
@@ -114,16 +173,35 @@ export async function triggerBranchPreviewWebhookDeploys(input: {
           deliveryKey: input.deliveryKey
         }
       });
+      await input.onTargetOutcome?.({
+        targetKey,
+        status: "queued",
+        projectId: project.id,
+        projectName: project.name,
+        serviceId: service.id,
+        deploymentId: result.deployment.id
+      });
       continue;
     }
 
-    failures.push({
+    const failure: WebhookDeployFailure = {
       projectId: project.id,
       projectName: project.name,
       serviceId: service.id,
       status: result.status,
       entity: result.status === "not_found" ? result.entity : undefined,
       message: readPreviewFailureMessage(result)
+    };
+    failures.push(failure);
+    await input.onTargetOutcome?.({
+      targetKey,
+      status: "failed",
+      projectId: project.id,
+      projectName: project.name,
+      serviceId: service.id,
+      failureStatus: failure.status,
+      entity: failure.entity,
+      message: failure.message
     });
   }
 

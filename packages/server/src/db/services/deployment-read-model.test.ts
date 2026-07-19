@@ -22,6 +22,8 @@ function createDeploymentFixture(overrides?: Partial<DeploymentRow>): Deployment
     status: DeploymentLifecycleStatus.Failed,
     conclusion: DeploymentConclusion.Failed,
     trigger: "user",
+    webhookDeliveryId: null,
+    webhookTargetKey: null,
     requestedByUserId: null,
     requestedByEmail: null,
     requestedByRole: null,

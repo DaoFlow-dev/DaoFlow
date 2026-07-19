@@ -35,6 +35,14 @@ DaoFlow is not yet verified for unqualified production-readiness claims. The unv
 - Repository citation: `.agents/references/command-audit-contract.md`
 - Executed evidence: `api-lanes` checks `scripts/readiness/api-lanes.test.mjs` for the current checkout (freshness limit: 30 days)
 
+### Source-control webhook delivery recovery
+
+**Verified in this repository:** GitHub and GitLab push deliveries are authenticated before entering a payload-bound recovery ledger. Expiring attempt leases and per-target outcomes allow only failed or interrupted targets to retry, while unique delivery-target keys prevent duplicate deployment records. Operators can inspect recent delivery outcomes without raw webhook bodies, signatures, or provider tokens. See the [webhook recovery tests](https://github.com/DaoFlow-dev/DaoFlow/blob/main/packages/server/src/db/services/webhook-delivery-recovery.test.ts).
+
+- Required fresh evidence: contract (30 days)
+- Repository citation: `packages/server/src/db/services/webhook-delivery-recovery.test.ts`
+- Executed evidence: `webhook-recovery` checks `packages/server/src/db/services/webhook-delivery-recovery.test.ts` for the current checkout (freshness limit: 30 days)
+
 ### Open-source license availability
 
 **Verified in this repository:** DaoFlow is published under the [Apache License 2.0](https://github.com/DaoFlow-dev/DaoFlow/blob/main/LICENSE), and the repository source is available for inspection.

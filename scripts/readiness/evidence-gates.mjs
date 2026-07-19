@@ -23,6 +23,13 @@ const GATES = {
     category: "source-availability",
     path: "scripts/readiness/license-evidence.test.mjs",
     argv: ["bun", "test", "scripts/readiness/license-evidence.test.mjs"]
+  },
+  "webhook-recovery": {
+    claimId: "webhook-delivery-recovery",
+    kind: "test",
+    category: "contract",
+    path: "packages/server/src/db/services/webhook-delivery-recovery.test.ts",
+    argv: ["bun", "run", "test:webhook-recovery"]
   }
 };
 

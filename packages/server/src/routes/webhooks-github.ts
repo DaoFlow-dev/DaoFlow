@@ -1,9 +1,8 @@
 import type { Context } from "hono";
-import { claimWebhookDelivery, finalizeWebhookDelivery } from "../db/services/webhook-deliveries";
+import { buildWebhookDeliveryKey as buildTransportDeliveryKey } from "../db/services/webhook-deliveries";
 import { buildWebhookDeliveryKey, readGitHubPreviewLifecycle } from "../webhook-preview-lifecycle";
 import {
   collectChangedPaths,
-  determineWebhookDeliveryStatus,
   listWebhookTargets,
   verifyGitHubSignature,
   writeWebhookAuditEntry
@@ -14,17 +13,17 @@ import {
   readGitHubDevelopmentTaskTrigger
 } from "./webhooks-development-tasks";
 import { processWebhookPushTargets } from "./webhooks-push";
+import { discoverWebhookPushTargetKeys } from "./webhook-push-target-discovery";
+import {
+  claimRecoverableWebhookDelivery,
+  createWebhookPushRecoveryContext
+} from "./webhook-push-recovery";
+import { respondToNonActiveWebhookClaim } from "./webhook-push-claim-response";
 import { triggerPreviewWebhookDeploys } from "./webhooks-preview";
 import type { GitHubPushEvent } from "./webhooks-types";
 
-function summarizeCommit(commitSha: string) {
-  return commitSha ? commitSha.slice(0, 7) : "unknown";
-}
-
 export async function handleGitHubWebhook(c: Context) {
-  let claimedDelivery: {
-    deliveryKey: string;
-  } | null = null;
+  let recoveryContext: Awaited<ReturnType<typeof createWebhookPushRecoveryContext>> | null = null;
 
   try {
     const event = c.req.header("x-github-event");
@@ -158,11 +157,18 @@ export async function handleGitHubWebhook(c: Context) {
     const commitSha = payload.after ?? "";
     const changedPaths = collectChangedPaths(payload.commits);
     const requestedByEmail = payload.sender?.login ?? "github-webhook";
-    const deliveryClaim = await claimWebhookDelivery({
+    const { deliveryKey } = buildTransportDeliveryKey({
       providerType: "github",
       eventType: event,
       rawBody,
-      deliveryId,
+      deliveryId
+    });
+    const deliveryClaim = await claimRecoverableWebhookDelivery({
+      providerType: "github",
+      eventType: event,
+      deliveryKey,
+      providerDeliveryId: deliveryId,
+      rawBody,
       repoFullName,
       externalInstallationId,
       commitSha,
@@ -174,28 +180,39 @@ export async function handleGitHubWebhook(c: Context) {
       }
     });
 
-    claimedDelivery = {
-      deliveryKey: deliveryClaim.deliveryKey
-    };
-
-    if (deliveryClaim.status === "duplicate") {
-      await writeWebhookAuditEntry({
+    if (deliveryClaim.kind !== "new" && deliveryClaim.kind !== "reclaimed") {
+      return respondToNonActiveWebhookClaim({
+        context: c,
+        claim: deliveryClaim,
         providerType: "github",
         repoFullName,
+        branch,
+        commitSha,
         actorId: "github-webhook",
         actorEmail: requestedByEmail,
-        action: "webhook.delivery.duplicate",
-        inputSummary: `Ignored duplicate GitHub push delivery for ${branch}@${summarizeCommit(commitSha)}`,
-        outcome: "success",
-        metadata: {
-          repoFullName,
-          branch,
-          commitSha,
-          deliveryId: deliveryId ?? null,
-          deliveryKey: deliveryClaim.deliveryKey
-        }
+        providerDeliveryId: deliveryId,
+        deliveryKey
       });
-      return c.json({ ok: true, skipped: true, reason: "duplicate delivery" });
+    }
+
+    recoveryContext = await createWebhookPushRecoveryContext(deliveryClaim);
+    await recoveryContext.registerDiscoveredTargets(
+      await discoverWebhookPushTargetKeys({
+        branch,
+        changedPaths,
+        deleted: payload.deleted === true,
+        matchingTargets: verifiedTargets
+      })
+    );
+
+    if (recoveryContext.hasNoWork) {
+      await recoveryContext.complete({
+        deploymentCount: 0,
+        failedTargetCount: 0,
+        ignoredTargetCount: 0,
+        detail: "Recovered webhook delivery finalization without replaying completed targets."
+      });
+      return c.json({ ok: true, skipped: true, reason: "delivery targets already completed" });
     }
 
     const result = await processWebhookPushTargets({
@@ -207,31 +224,40 @@ export async function handleGitHubWebhook(c: Context) {
       deleted: payload.deleted === true,
       requestedByEmail,
       matchingTargets: verifiedTargets,
-      deliveryKey: deliveryClaim.deliveryKey
+      deliveryKey,
+      shouldProcessTarget: recoveryContext.shouldProcessTarget.bind(recoveryContext),
+      onTargetStarted: recoveryContext.onTargetStarted.bind(recoveryContext),
+      onTargetOutcome: recoveryContext.onTargetOutcome.bind(recoveryContext),
+      webhookDeliveryId: recoveryContext.deliveryId,
+      findRecoveredDeployment: recoveryContext.findRecoveredDeployment.bind(recoveryContext)
     });
 
+    const safeFailedTargets = result.failedTargets.map((target) => ({
+      projectId: target.projectId,
+      projectName: target.projectName,
+      serviceId: target.serviceId,
+      status: target.status,
+      entity: target.entity
+    }));
     const metadata = {
       repoFullName,
       branch,
       commitSha,
       deliveryId: deliveryId ?? null,
-      deliveryKey: deliveryClaim.deliveryKey,
+      deliveryKey,
       externalInstallationId,
       deploymentCount: result.deployments.length,
       failedTargetCount: result.failedTargets.length,
       ignoredTargetCount: result.ignoredTargets.length,
-      failedTargets: result.failedTargets,
+      failedTargets: safeFailedTargets,
       ignoredTargets: result.ignoredTargets,
       changedPaths
     };
-    await finalizeWebhookDelivery({
-      providerType: "github",
-      deliveryKey: deliveryClaim.deliveryKey,
-      status: determineWebhookDeliveryStatus({
-        deploymentCount: result.deployments.length,
-        failedTargetCount: result.failedTargets.length
-      }),
-      metadata
+    await recoveryContext.complete({
+      deploymentCount: result.deployments.length,
+      failedTargetCount: result.failedTargets.length,
+      ignoredTargetCount: result.ignoredTargets.length,
+      detail: `Processed GitHub push with ${result.deployments.length} queued, ${result.failedTargets.length} failed, and ${result.ignoredTargets.length} ignored targets.`
     });
 
     if (result.failedTargets.length > 0) {
@@ -267,18 +293,14 @@ export async function handleGitHubWebhook(c: Context) {
       commit: commitSha.slice(0, 7)
     });
   } catch (err) {
-    if (claimedDelivery) {
-      await finalizeWebhookDelivery({
-        providerType: "github",
-        deliveryKey: claimedDelivery.deliveryKey,
-        status: "failed",
-        metadata: {
-          error: err instanceof Error ? err.message : String(err)
-        }
-      });
+    if (recoveryContext) {
+      await recoveryContext.fail().catch(() => undefined);
     }
 
-    console.error("[webhook/github] Error:", err);
+    console.error(
+      "[webhook/github] Webhook processing failed.",
+      err instanceof Error ? err.name : "UnknownError"
+    );
     return c.json({ ok: false, error: "Internal error" }, 500);
   }
 }

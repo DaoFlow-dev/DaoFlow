@@ -253,6 +253,20 @@
       "when": 1784420819681,
       "tag": "0035_motionless_warpath",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1784421981995,
+      "tag": "0039_tricky_jubilee",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1784422665769,
+      "tag": "0040_hesitant_kabuki",
+      "breakpoints": true
     }
   ]
 }

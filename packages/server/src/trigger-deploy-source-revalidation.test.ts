@@ -965,7 +965,7 @@ describe("deploy source revalidation", () => {
     expect(queued).toHaveLength(1);
   });
 
-  it("marks webhook targets as failed when the provider-linked compose file is no longer reachable", async () => {
+  it("retries a failed webhook target after the provider-linked compose file recovers", async () => {
     const repoFullName = `example-group/revalidate-webhook-${Date.now()}`;
     const providerId = `gitprov_${Date.now()}_webhook`.slice(0, 32);
     const installationId = `gitinst_${Date.now()}_webhook`.slice(0, 32);
@@ -1009,7 +1009,8 @@ describe("deploy source revalidation", () => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-GitLab-Token": "gitlab-revalidate-secret"
+        "X-GitLab-Token": "gitlab-revalidate-secret",
+        "X-GitLab-Event-UUID": "gitlab-revalidate-delivery"
       },
       body: payload
     });
@@ -1045,5 +1046,58 @@ describe("deploy source revalidation", () => {
       branch: "ok",
       composePath: "failed"
     });
+
+    fetchMock.mockImplementation(
+      mockGitLabSourceFetch({
+        repoFullName,
+        composePath: "deploy/compose.yaml",
+        projectId: 403
+      })
+    );
+
+    const retryResponse = await app.request("/api/webhooks/gitlab", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-GitLab-Token": "gitlab-revalidate-secret",
+        "X-GitLab-Event-UUID": "gitlab-revalidate-delivery"
+      },
+      body: payload
+    });
+    const retryBody = (await retryResponse.json()) as {
+      ok: boolean;
+      deployments: number;
+      failedTargets: number;
+    };
+
+    expect(retryResponse.status).toBe(200);
+    expect(retryBody).toMatchObject({ ok: true, deployments: 1, failedTargets: 0 });
+
+    const recoveredDeployments = await db
+      .select()
+      .from(deployments)
+      .where(eq(deployments.projectId, fixture.projectId));
+    expect(recoveredDeployments).toHaveLength(1);
+
+    const duplicateResponse = await app.request("/api/webhooks/gitlab", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-GitLab-Token": "gitlab-revalidate-secret",
+        "X-GitLab-Event-UUID": "gitlab-revalidate-delivery"
+      },
+      body: payload
+    });
+    expect(await duplicateResponse.json()).toMatchObject({
+      ok: true,
+      skipped: true,
+      reason: "duplicate delivery"
+    });
+
+    const deduplicatedDeployments = await db
+      .select()
+      .from(deployments)
+      .where(eq(deployments.projectId, fixture.projectId));
+    expect(deduplicatedDeployments).toHaveLength(1);
   });
 });

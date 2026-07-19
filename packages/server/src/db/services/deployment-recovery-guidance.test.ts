@@ -19,6 +19,8 @@ function makeDeployment(
     status: "failed",
     conclusion: "failed",
     trigger: "user",
+    webhookDeliveryId: null,
+    webhookTargetKey: null,
     requestedByUserId: null,
     requestedByEmail: null,
     requestedByRole: null,
