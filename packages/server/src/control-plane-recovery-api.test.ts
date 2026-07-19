@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const { startControlPlaneRecoveryWorkflowMock } = vi.hoisted(() => ({
@@ -136,25 +136,34 @@ describe("control-plane recovery API", () => {
 
   it("blocks recovery safely when migration metadata is unavailable", async () => {
     delete process.env.DAOFLOW_SCHEMA_VERSION;
-
-    const plan = await caller("owner", "recovery-plan-untracked").controlPlaneRecoveryPlan({
-      destinationId
-    });
-
-    expect(plan).toMatchObject({
-      isReady: false,
-      status: "blocked",
-      schemaVersion: "untracked"
-    });
-    expect(plan.preflightChecks).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          status: "failed",
-          detail:
-            "Database migration metadata is unavailable; recovery cannot prove schema compatibility."
-        })
-      ])
+    await db.execute(
+      sql`ALTER TABLE drizzle.__drizzle_migrations RENAME TO __drizzle_migrations_unavailable`
     );
+
+    try {
+      const plan = await caller("owner", "recovery-plan-untracked").controlPlaneRecoveryPlan({
+        destinationId
+      });
+
+      expect(plan).toMatchObject({
+        isReady: false,
+        status: "blocked",
+        schemaVersion: "untracked"
+      });
+      expect(plan.preflightChecks).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            status: "failed",
+            detail:
+              "Database migration metadata is unavailable; recovery cannot prove schema compatibility."
+          })
+        ])
+      );
+    } finally {
+      await db.execute(
+        sql`ALTER TABLE drizzle.__drizzle_migrations_unavailable RENAME TO __drizzle_migrations`
+      );
+    }
   });
 
   it("denies every installation-global recovery procedure to non-owners", async () => {
